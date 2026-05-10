@@ -11,13 +11,18 @@ android {
         applicationId = "tv.onnowtv.app"
         minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.2.0"
+        versionCode = 10
+        versionName = "1.2.1"
 
-        // HK1 / RK / S905 boxes are all arm64-v8a.  Bundling only this
-        // ABI keeps the libVLC payload down to ~30 MB instead of 100+.
+        // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
+        // (armeabi-v7a) even when the SoC itself is 64-bit capable.
+        // Restricting to arm64-v8a only caused "App not installed"
+        // errors on those boxes — Android refused the APK because
+        // it had no native libVLC .so files for the device's CPU.
+        // We ship BOTH 32-bit and 64-bit ARM so a single APK works on
+        // every cheap Android TV box plus modern Android TVs.
         ndk {
-            abiFilters += "arm64-v8a"
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
 
