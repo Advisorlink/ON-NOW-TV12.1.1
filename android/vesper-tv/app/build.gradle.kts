@@ -9,10 +9,22 @@ android {
 
     defaultConfig {
         applicationId = "tv.onnowtv.app"
-        minSdk = 24            // Android 7.0+ covers virtually every HK1 box in the wild
+        minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.1.1"
+        versionCode = 6
+        versionName = "1.1.2"
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            // Force v1 (JAR) signing ON so cheap Android-6/7 set-top boxes
+            // can parse the APK.  Modern AGP defaults to v2-only which
+            // those boxes can't read — that's the classic "problem
+            // parsing the package" error.
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
     }
 
     buildTypes {
