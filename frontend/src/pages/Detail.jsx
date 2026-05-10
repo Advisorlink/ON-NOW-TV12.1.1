@@ -96,7 +96,9 @@ export default function Detail() {
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url
-                )}&title=${encodeURIComponent(meta?.name || '')}`
+                )}&title=${encodeURIComponent(meta?.name || '')}&type=${encodeURIComponent(
+                    type
+                )}&imdbId=${encodeURIComponent(id)}`
             );
         } else if (mode === 'external') {
             try {

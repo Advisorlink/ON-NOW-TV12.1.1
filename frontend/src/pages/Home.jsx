@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import SideNav from '@/components/SideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
+import NetworksShelf from '@/components/NetworksShelf';
 import FullscreenButton from '@/components/FullscreenButton';
 import { SHELVES as MOCK_SHELVES } from '@/data/mockCatalog';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -85,6 +86,8 @@ export default function Home() {
                 {shelves.map((shelf) => (
                     <Shelf key={shelf.id} shelf={shelf} />
                 ))}
+
+                <NetworksShelf />
 
                 <footer
                     className="flex items-center justify-between"

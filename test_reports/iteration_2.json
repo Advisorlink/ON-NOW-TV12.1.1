@@ -1,0 +1,39 @@
+{
+  "summary": "P0 verification PASSED end-to-end. Backend: 5/5 new pytest tests pass — OpenSubtitles v3 + Cinemeta installable & idempotent, /api/addons lists both, /api/subtitles/movie/tt0111161 returns many subs with English present and serves a 'cached:true' second hit. Frontend: auto-install bootstrap fires on first / load (addons list shows com.linvo.cinemeta + org.stremio.opensubtitlesv3 after ~3s), <section data-testid='networks-shelf'> renders with all 6 tiles (netflix/hbo/disney-plus/prime-video/apple-tv/hulu), /networks/netflix /networks/hbo /networks/apple-tv pages each render network-page-<slug>, correct h1, and 8–10 [data-testid^='poster-'] tiles via direct browser→Cinemeta fetch. Player at /play?...&imdbId=tt0111161 shows [data-testid='player-subtitles'] bottom-right, opens [data-testid='subtitle-picker'] on click with [data-testid='subtitle-off'] + [data-testid^='subtitle-eng-'] rows; clicking subtitle-eng-0 closes the picker and renders the active-dot indicator on the subtitles button (no SRT→VTT or pageerror exceptions). Player without imdbId correctly omits the subtitles button. Existing flows (Home, Sources, Detail tt0944947 = 'Game of Thrones', Search OSK) all still work. Total backend test suite (test_vesper_api.py + test_subtitles_and_addons.py) = 18 tests, 100% passing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_subtitles_and_addons.py",
+    "/app/backend/tests/test_vesper_api.py",
+    "/app/test_reports/pytest/p0_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useAddons.js bootstrap loop calls Vesper.installAddon() sequentially in a for-of with await; fine for 2 addons but would slow scale — Promise.all with allSettled is more idiomatic.",
+    "Network.jsx hard-codes type='series' when fetching Cinemeta meta, but networks.js mixes movie ids (e.g., 'tt0080684' Empire Strikes Back, 'tt0096874' fillers under Disney+/etc.). These will silently 404 and be skipped — consider trying both /meta/series and /meta/movie or storing {imdbId,type} pairs to reduce 'gaps' in fill IDs. Currently still hits 6+ hits per network, so meets spec.",
+    "Player.jsx srtToVtt is defined inline at top of file; should be unit-testable in a separate module if subtitle handling expands (multi-cue parsing, BOM handling, position cues).",
+    "subtitle picker shows only first 6 entries per language (g.items.slice(0, 6)) — fine for OpenSubtitles v3 which usually returns 5–10 per lang, but worth surfacing a 'Show more' affordance for power users.",
+    "Network tile clicks rely on onClick navigate; spatial focus 'Enter' should also activate (verified via tabIndex + data-focusable but not exercised in this run).",
+    "Pre-existing (iter1): /api/streams Detail page also fetches torrentio.strem.fun directly in browser which CORS-blocks; expected per browser-first design but worth a fallback through backend."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_subtitles_and_addons.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "N/A - single-user mode",
+  "seed_data_creation": "OpenSubtitles v3 addon was installed on backend during tests (idempotent — already present from auto-install). State persists in MongoDB 'addons' collection for user_id=default.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P0 (auto-install + Networks shelf + Network pages + Player subtitle picker) verified live on https://rebrand-app-5.preview.emergentagent.com. localStorage flag 'vesper-bootstrap-attempted-v1' tracks bootstrap. Subtitle picker fires real OpenSubtitles fetch + SRT→VTT — works in headless Chromium; subs5.strem.io has been responsive. Two pytest files now exist under /app/backend/tests/: test_vesper_api.py (13 tests) + test_subtitles_and_addons.py (5 tests). Run with: pytest /app/backend/tests/ -v. Remaining tail of curated networks.js still mixes some movie imdbIds (e.g., 'tt0080684' Empire Strikes Back) inside a series-only fetch; they're silently skipped — current networks still all pass 6-poster threshold but a future task could clean up the catalog or fetch movie+series.",
+  "rca of the issue": "No bugs. The single Playwright 'FAIL T1' line was a strict-mode warning ('text=Vesper' resolved to 3 elements) — Playwright still proceeded with the first match and the bootstrap addon-list check (the actual P0 acceptance) passed."
+}

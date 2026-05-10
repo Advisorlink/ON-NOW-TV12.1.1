@@ -6,6 +6,7 @@ import Sources from '@/pages/Sources';
 import Detail from '@/pages/Detail';
 import Player from '@/pages/Player';
 import Search from '@/pages/Search';
+import Network from '@/pages/Network';
 
 function NotImplemented({ name }) {
     return (
@@ -32,6 +33,7 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/sources" element={<Sources />} />
                     <Route path="/search" element={<Search />} />
+                    <Route path="/networks/:slug" element={<Network />} />
                     <Route path="/library" element={<NotImplemented name="My Library" />} />
                     <Route path="/settings" element={<NotImplemented name="Settings" />} />
                     <Route path="/title/:type/:id" element={<Detail />} />
