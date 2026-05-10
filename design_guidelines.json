@@ -1,0 +1,224 @@
+{
+  "brand_name": "Vesper",
+  "theme": "Dark",
+  "archetype": "5 (Jewel & Luxury)",
+  "aesthetic_direction": {
+    "rationale": "Vesper evokes the evening star, dusk, and after-dark cinema. A 'Vespertine Observatory' aesthetic focuses on deep night blues/blacks, high-contrast copper/dusk-gold accents, and a cinematic/noir archive feel. Textures like subtle film grain and atmospheric lighting replace flat gradients. It’s designed specifically for 10-foot TV viewing, leveraging massive typography and generous spacing.",
+    "anti_patterns": [
+      "No Inter, Roboto, or Space Grotesk",
+      "No purple/violet gradients",
+      "No generic centered grids",
+      "No small tap targets (must be built for D-pad focus)"
+    ]
+  },
+  "color_tokens": {
+    "background": {
+      "L0": "#050505",
+      "L1": "#0A0D14",
+      "L2": "#121620",
+      "overlay": "rgba(5, 5, 5, 0.7)"
+    },
+    "surface": {
+      "default": "transparent",
+      "elevated": "#1A1F2D",
+      "focus": "#E58A59"
+    },
+    "text": {
+      "primary": "#F8F9FA",
+      "secondary": "#A1A7B3",
+      "tertiary": "#6C7486",
+      "accent": "#E58A59"
+    },
+    "border": {
+      "default": "rgba(255, 255, 255, 0.1)",
+      "focus": "#E58A59"
+    },
+    "semantics": {
+      "success": "#4CAF50",
+      "error": "#F44336",
+      "info": "#2196F3",
+      "warning": "#FF9800"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "'Cormorant Garamond', serif",
+        "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap",
+        "description": "Used for cinematic hero titles and massive section headers."
+      },
+      "body": {
+        "family": "'Outfit', sans-serif",
+        "url": "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap",
+        "description": "Used for highly legible metadata, navigation, and UI components from 10 feet."
+      },
+      "mono": {
+        "family": "'JetBrains Mono', monospace",
+        "url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap",
+        "description": "Used sparingly for specs, duration, or source/stream stats."
+      }
+    },
+    "scale": {
+      "h1_hero": "clamp(80px, 8vw, 120px)",
+      "h2_section": "clamp(48px, 5vw, 64px)",
+      "h3_card": "clamp(32px, 3.5vw, 40px)",
+      "body_large": "32px",
+      "body_base": "24px",
+      "body_small": "20px"
+    },
+    "weights": {
+      "hero": 500,
+      "heading": 400,
+      "body": 300,
+      "bold": 600
+    }
+  },
+  "spacing_scale": {
+    "xs": "8px",
+    "sm": "16px",
+    "md": "24px",
+    "lg": "32px",
+    "xl": "48px",
+    "2xl": "64px",
+    "3xl": "96px",
+    "4xl": "128px"
+  },
+  "interaction": {
+    "focus_state": {
+      "description": "Massive, unmistakable D-pad focus state. The scale must enlarge the item, surrounded by a glowing copper ring.",
+      "transform": "scale(1.08)",
+      "box_shadow": "0 0 0 4px #050505, 0 0 0 8px #E58A59, 0 20px 40px rgba(229, 138, 89, 0.3)",
+      "z_index": 50,
+      "transition": "all 0.3s cubic-bezier(0.25, 1, 0.5, 1)",
+      "outline": "none"
+    }
+  },
+  "motion_specs": {
+    "focus": "Spring-based snap. 300ms duration, cubic-bezier(0.25, 1, 0.5, 1)",
+    "hero_ken_burns": "Very slow scale 1.0 to 1.05 over 20 seconds, linear",
+    "shelf_scroll": "Snap to start, smooth scrolling behavior enabled via CSS scroll-snap-type: x mandatory",
+    "page_transition": "Fade in 400ms ease-out"
+  },
+  "layout": {
+    "overscan_margin": "5%",
+    "structure": {
+      "side_nav": {
+        "collapsed_width": "96px",
+        "expanded_width": "320px",
+        "position": "fixed left",
+        "behavior": "Expands on focus, overlapping content with a gradient scrim"
+      },
+      "content_area": {
+        "padding_left": "128px",
+        "padding_top": "5%",
+        "padding_right": "5%",
+        "padding_bottom": "5%"
+      }
+    }
+  },
+  "components": {
+    "side_nav": {
+      "bg_unfocused": "transparent",
+      "bg_focused": "linear-gradient(90deg, #0A0D14 60%, transparent 100%)",
+      "items": "Icon only when collapsed. Icon + Text when focused. Use Outfit medium."
+    },
+    "hero_billboard": {
+      "height": "80vh",
+      "overlay": "linear-gradient(0deg, #050505 0%, rgba(5,5,5,0) 60%), linear-gradient(90deg, #050505 0%, rgba(5,5,5,0.2) 100%)",
+      "title_font": "Cormorant Garamond, clamp(80px, 8vw, 120px)",
+      "metadata": "Outfit 24px, secondary text color",
+      "cta": "Solid background #E8F0F3 (white-ish) for contrast, text #050505. Focus state applies copper ring."
+    },
+    "content_tile": {
+      "aspect_ratio": "2:3",
+      "border_radius": "8px",
+      "width_min": "240px",
+      "width_max": "320px",
+      "hover_equivalent": "Relies strictly on focus_state spec"
+    },
+    "shelf_row": {
+      "heading_font": "Outfit 40px, bold",
+      "gap": "32px",
+      "scroll_snap": "x mandatory",
+      "peek_next": "Ensure the last visible item is partially cut off to afford scrolling"
+    },
+    "search_osk": {
+      "layout": "Grid of keys, huge tap targets (min 80x80px)",
+      "key_focus": "Background #E58A59, Text #050505"
+    },
+    "player_overlay": {
+      "bottom_bar": "Linear gradient scrim from bottom",
+      "scrubber": "Height 8px, focus expands to 16px. Color: #E58A59"
+    },
+    "settings_card": {
+      "background": "#121620",
+      "border": "1px solid rgba(255, 255, 255, 0.1)",
+      "padding": "32px",
+      "focus": "Standard focus_state spec"
+    }
+  },
+  "media": {
+    "hero_backdrops": [
+      {
+        "url": "https://images.unsplash.com/photo-1760662564270-a55ad0a8df2c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHw0fHxjaW5lbWF0aWMlMjBuaWdodCUyMGxhbmRzY2FwZXxlbnwwfHx8fDE3Nzg0MjAwMTl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "City skyline at night viewed through a window - Dark and moody city backdrop"
+      },
+      {
+        "url": "https://images.pexels.com/photos/19943722/pexels-photo-19943722.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Eerie silhouettes in a foggy alleyway - Cinematic noir backdrop"
+      },
+      {
+        "url": "https://images.pexels.com/photos/14541770/pexels-photo-14541770.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Atmospheric night scene featuring glowing vintage lamps - Moody hero image"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1713341869534-540b1f39c35f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwyfHxjaW5lbWF0aWMlMjBuaWdodCUyMGxhbmRzY2FwZXxlbnwwfHx8fDE3Nzg0MjAwMTl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Red car parked in a parking garage - Cinematic lighting, urban night"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1739461720624-c152c22dc207?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBuaWdodCUyMGxhbmRzY2FwZXxlbnwwfHx8fDE3Nzg0MjAwMTl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Street at night with street lights - Dark atmospheric street"
+      }
+    ],
+    "content_posters": [
+      {
+        "url": "https://images.unsplash.com/photo-1727188211338-297f08d42827?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxtb29keSUyMGNpbmVtYXRpYyUyMHBvcnRyYWl0fGVufDB8fHx8MTc3ODQyMDAxOXww&ixlib=rb-4.1.0&q=85",
+        "description": "Young girl sitting in a dark room - Moody drama poster"
+      },
+      {
+        "url": "https://images.pexels.com/photos/34742154/pexels-photo-34742154.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Artistic portrait of a woman reaching out dramatically - Thriller poster"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1727188149972-ea9e1888a7d9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwyfHxtb29keSUyMGNpbmVtYXRpYyUyMHBvcnRyYWl0fGVufDB8fHx8MTc3ODQyMDAxOXww&ixlib=rb-4.1.0&q=85",
+        "description": "Woman standing in the woods - Mystery poster"
+      },
+      {
+        "url": "https://images.pexels.com/photos/33681513/pexels-photo-33681513.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Dramatic portrait enveloping in fog - Suspense poster"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1727188150465-7824c4f2ce41?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwxfHxtb29keSUyMGNpbmVtYXRpYyUyMHBvcnRyYWl0fGVufDB8fHx8MTc3ODQyMDAxOXww&ixlib=rb-4.1.0&q=85",
+        "description": "Woman standing under a tree next to lake - Indie drama poster"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1727188211688-9d2890fca22c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHw0fHxtb29keSUyMGNpbmVtYXRpYyUyMHBvcnRyYWl0fGVufDB8fHx8MTc3ODQyMDAxOXww&ixlib=rb-4.1.0&q=85",
+        "description": "Woman standing on train track - Noir film poster"
+      }
+    ],
+    "textures": [
+      {
+        "url": "https://images.unsplash.com/photo-1556106748-35b67f8a6852?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGRhcmslMjB0ZXh0dXJlJTIwZ3JhaW58ZW58MHx8fHwxNzc4NDIwMDE5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Blurry yellow light in dark - Overlay for glowing accents"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1578598444322-6533486d4cdf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGRhcmslMjB0ZXh0dXJlJTIwZ3JhaW58ZW58MHx8fHwxNzc4NDIwMDE5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Black and white abstract illustration - Film grain/texture overlay"
+      }
+    ]
+  },
+  "testing": {
+    "attributes": "All interactive/focusable elements MUST include a data-testid attribute formatted as kebab-case, role-based. e.g. data-testid='hero-play-button'"
+  },
+  "instructions_to_main_agent": "Implement this strictly for a 10-foot TV UI. Ensure every navigable element handles spatial D-pad focus correctly. The focus state is critical—scale elements up and apply the glowing copper ring from the focus_state spec. DO NOT use scrollbars, rely on CSS scroll-snap. Render performance is key for Android TV boxes, so prefer gradients and scale transforms over heavy box blurs."
+}
