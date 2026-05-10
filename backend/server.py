@@ -476,6 +476,56 @@ async def streams_aggregate(type_: str, item_id: str):
     return {"cached": False, "streams": out}
 
 
+@api.get("/subtitles/{type_}/{item_id}")
+async def subtitles_aggregate(type_: str, item_id: str):
+    """Aggregate subtitle tracks from every installed addon that
+    provides the subtitles resource (e.g. OpenSubtitles v3)."""
+    cache_key = f"sub:{type_}:{item_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "subtitles": cached}
+
+    addons = await db.addons.find(
+        {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
+    ).to_list(100)
+
+    out: List[Dict[str, Any]] = []
+    async with httpx.AsyncClient() as client:
+        async def fetch(a: Dict[str, Any]):
+            m = a["manifest"]
+            if not _resource_supported(m, "subtitles"):
+                return []
+            url = f"{a['url']}/subtitles/{type_}/{item_id}.json"
+            try:
+                data = await _fetch_json(client, url)
+            except HTTPException:
+                return []
+            subs = data.get("subtitles", []) if isinstance(data, dict) else []
+            tagged: List[Dict[str, Any]] = []
+            for s in subs:
+                if not isinstance(s, dict) or not s.get("url"):
+                    continue
+                tagged.append(
+                    {
+                        **s,
+                        "_addon_id": a["addon_id"],
+                        "_addon_name": m.get("name", a["addon_id"]),
+                    }
+                )
+            return tagged
+
+        results = await asyncio.gather(
+            *[fetch(a) for a in addons], return_exceptions=True
+        )
+
+    for r in results:
+        if isinstance(r, list):
+            out.extend(r)
+
+    await cache.set(cache_key, out, CACHE_TTL_META)
+    return {"cached": False, "subtitles": out}
+
+
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
 
