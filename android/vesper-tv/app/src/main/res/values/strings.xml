@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Vesper</string>
+
+    <!--
+        🛠  EDIT ME 🛠
+        Point this at your deployed Vesper instance.  This is the only
+        line you should ever need to change in this project.
+    -->
+    <string name="app_url" translatable="false">
+        https://rebrand-app-5.preview.emergentagent.com/
+    </string>
+</resources>
