@@ -34,6 +34,33 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 3 — Feb 2026)
+- **Browse-by-Network expanded** — `lib/networks.js` now ships ~30–50
+  curated `{id, type}` titles per network across Netflix / HBO /
+  Disney+ / Prime Video / Apple TV+ / Hulu. `Network.jsx` deduplicates
+  by IMDB id, resolves each title via Cinemeta, and falls back to the
+  *other* type on 404 — Disney+ now correctly mixes The Mandalorian
+  (series) with Empire Strikes Back & Doctor Strange (films).
+  Verified ~25–34 tiles render per network with a live "X of Y"
+  counter in the hero strip.
+- **Home tabs** — `HomeTabs.jsx` segmented control (`All`,
+  `TV Shows`, `Movies`). Filters `useLiveShelves` by catalogue type
+  and switches `useLiveHeroes` between movie/series sources. Choice
+  persists in `localStorage` (`vesper-home-tab`). Networks shelf
+  hides on the Movies tab.
+- **Cinematic TV detail** — `SeriesEpisodes.jsx` renders inside
+  `Detail.jsx` whenever `type === 'series'`. Pill-chip season picker
+  + episode cards with 16:9 thumbnails, title, release date,
+  ★ rating, runtime, and full synopsis. Selecting an episode reveals
+  the per-episode stream list inline (`Vesper.getStreams('series',
+  'ttXXXXX:S:E')`) without losing page context.
+
+### Iteration 3 Verification
+- 18/18 pytest backend tests still passing.
+- Testing agent v3 frontend e2e: 100% — tabs, Network expansion,
+  type fallback, season switching, episode expand-to-streams all
+  green on https://rebrand-app-5.preview.emergentagent.com.
+
 ## Implemented (Iteration 2 — Feb 2026)
 - **Auto-install on first launch** (`useAddons.js`) — silently installs
   Cinemeta + OpenSubtitles v3 if either is missing; persists per-default
