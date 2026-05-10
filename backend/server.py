@@ -24,7 +24,7 @@ from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -524,6 +524,140 @@ async def subtitles_aggregate(type_: str, item_id: str):
 
     await cache.set(cache_key, out, CACHE_TTL_META)
     return {"cached": False, "subtitles": out}
+
+
+# ----- TMDB networks (full library per streaming network) -----------------
+TMDB_BEARER = os.environ.get("TMDB_BEARER_TOKEN", "")
+TMDB_BASE = "https://api.themoviedb.org/3"
+TMDB_IMG = "https://image.tmdb.org/t/p"
+
+# Slug → TMDB *watch provider* id (works for both /discover/tv and
+# /discover/movie via with_watch_providers).  This is what TMDB
+# considers "currently streamable on the platform" rather than just
+# "produced by", which is what users actually mean.
+NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
+    "netflix": {"id": 8, "label": "Netflix"},
+    "hbo": {"id": 1899, "label": "HBO Max"},
+    "disney-plus": {"id": 337, "label": "Disney Plus"},
+    "prime-video": {"id": 119, "label": "Amazon Prime Video"},
+    "apple-tv": {"id": 350, "label": "Apple TV Plus"},
+    "hulu": {"id": 15, "label": "Hulu"},
+}
+
+CACHE_TTL_NETWORK = 3600          # 1 hour — TMDB's discover updates daily
+CACHE_TTL_TMDB_IMDB = 7 * 24 * 3600  # 7 days — external_id mappings are stable
+
+
+async def _tmdb_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    if not TMDB_BEARER:
+        raise HTTPException(503, "TMDB integration not configured")
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER}",
+        "accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        try:
+            r = await client.get(
+                f"{TMDB_BASE}{path}",
+                headers=headers,
+                params=params or {},
+            )
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                e.response.status_code, f"TMDB error: {e.response.text[:200]}"
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(504, f"TMDB network error: {e}")
+
+
+@api.get("/networks/{slug}")
+async def network_titles(
+    slug: str,
+    type_: str = Query("tv", alias="type"),
+    page: int = 1,
+    region: str = "US",
+):
+    """Discover titles streamable on a given network via TMDB."""
+    cfg = NETWORK_PROVIDERS.get(slug)
+    if not cfg:
+        raise HTTPException(404, f"Unknown network '{slug}'")
+    if type_ not in ("tv", "movie"):
+        raise HTTPException(400, "type must be 'tv' or 'movie'")
+    if page < 1 or page > 500:
+        raise HTTPException(400, "page out of range")
+
+    cache_key = f"net:{slug}:{type_}:{region}:{page}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    data = await _tmdb_get(
+        f"/discover/{type_}",
+        {
+            "with_watch_providers": cfg["id"],
+            "watch_region": region,
+            "page": page,
+            "sort_by": "popularity.desc",
+        },
+    )
+
+    is_tv = type_ == "tv"
+    results: List[Dict[str, Any]] = []
+    for item in data.get("results", []) or []:
+        results.append(
+            {
+                "tmdb_id": item.get("id"),
+                "type": "series" if is_tv else "movie",
+                "title": item.get("name") if is_tv else item.get("title"),
+                "poster": (
+                    f"{TMDB_IMG}/w500{item['poster_path']}"
+                    if item.get("poster_path")
+                    else None
+                ),
+                "backdrop": (
+                    f"{TMDB_IMG}/w1280{item['backdrop_path']}"
+                    if item.get("backdrop_path")
+                    else None
+                ),
+                "overview": item.get("overview"),
+                "year": (
+                    item.get("first_air_date") if is_tv else item.get("release_date")
+                ) or "",
+                "rating": item.get("vote_average") or 0,
+            }
+        )
+
+    out = {
+        "page": data.get("page") or page,
+        "total_pages": min(data.get("total_pages") or 1, 500),
+        "total_results": data.get("total_results") or len(results),
+        "network": cfg["label"],
+        "type": type_,
+        "results": results,
+    }
+    await cache.set(cache_key, out, CACHE_TTL_NETWORK)
+    return {"cached": False, "data": out}
+
+
+@api.get("/tmdb/imdb/{type_}/{tmdb_id}")
+async def tmdb_to_imdb(type_: str, tmdb_id: int):
+    """Resolve a TMDB id → IMDB id so the front-end can route into the
+    existing /title/{type}/{imdb_id} detail page."""
+    if type_ not in ("tv", "movie"):
+        raise HTTPException(400, "type must be 'tv' or 'movie'")
+
+    cache_key = f"tmdb_imdb:{type_}:{tmdb_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "imdb_id": cached}
+
+    data = await _tmdb_get(f"/{type_}/{tmdb_id}/external_ids")
+    imdb = data.get("imdb_id") or None
+    if imdb:
+        await cache.set(cache_key, imdb, CACHE_TTL_TMDB_IMDB)
+    return {"cached": False, "imdb_id": imdb}
 
 
 # ----- App wiring ----------------------------------------------------------

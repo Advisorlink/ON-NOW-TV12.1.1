@@ -1,0 +1,59 @@
+{
+  "summary": "Backend TMDB-powered networks endpoint and tmdb→imdb resolver are fully working after fixing two backend bugs found during testing. Wrote new pytest module /app/backend/tests/test_networks_tmdb.py with 9 tests; final pytest result for entire backend = 27/27 passing. Frontend Network page on Netflix shows real TMDB posters (Grey's Anatomy, KPop Demon Hunters, etc.) with 20 tiles by default; clicking the Movies subtab refreshes to real Netflix movies (Swapped, Anaconda, Jurassic World Rebirth, Schindler's List, etc); Load more grew tile count 20→40 (TMDB page size = 20) as expected. /networks/disney-plus returned The Mandalorian, Daredevil: Born Again, Star Wars Visions, What If…?, etc. Clicking a tile resolved its TMDB id → IMDB id (tt39333617) and loaded the Detail page with full Cinemeta meta + Seasons & Episodes panel. Home tabs, Sources page, Search keyboard all still work — no regression.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "fixes_applied_by_tester": [
+    {
+      "file": "/app/backend/server.py",
+      "issue": "GET /api/networks/{slug} ignored the `?type=` query string. The path-style param `type_: str` does NOT auto-strip the trailing underscore in FastAPI for query params, so `?type=movie` never bound and the endpoint always defaulted to 'tv'. Also meant `?type=invalid` returned 200 instead of 400 because the validator never saw the value.",
+      "fix": "Added `from fastapi import Query` and changed signature to `type_: str = Query('tv', alias='type')` so the alias matches the query string."
+    },
+    {
+      "file": "/app/backend/server.py",
+      "issue": "HBO Max watch-provider id 384 returned 0 results from TMDB /discover/tv. TMDB's current US provider id for HBO Max is 1899 (the platform was renamed and re-keyed during the Max → HBO Max transition).",
+      "fix": "Updated NETWORK_PROVIDERS['hbo'].id from 384 → 1899. Verified test_hbo_includes_marquee_titles now finds Game of Thrones / Succession / The Last of Us / House of the Dragon / etc."
+    }
+  ],
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Network Load-more pagination",
+        "issue": "After clicking 'Load more (X remaining)' on /networks/netflix, React logs a warning: 'Encountered two children with the same key, movie-1268127'. TMDB's popularity-sorted /discover endpoint can return the same title on adjacent pages when popularity shifts between requests. Items count still grew correctly 20→40, but the duplicate key warning may cause occasional flicker. Recommend de-duping by tmdb_id when appending: `setItems(prev => { const seen = new Set(prev.map(p=>p.tmdb_id)); return [...prev, ...newItems.filter(n => !seen.has(n.tmdb_id))]; })`.",
+        "affected_selectors": ["[data-testid='network-load-more']", "[data-testid^='network-tile-']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_networks_tmdb.py",
+    "/app/backend/tests/test_subtitles_and_addons.py",
+    "/app/backend/tests/test_vesper_api.py",
+    "/app/test_reports/pytest/iter4_results.xml"
+  ],
+  "action_items": [
+    "(Optional, P2) Dedupe TMDB results by tmdb_id when appending pages in Network.jsx to suppress the React duplicate-key warning when TMDB returns overlapping items between adjacent popularity-sorted pages.",
+    "(Optional, P3) Audit other watch-provider ids in NETWORK_PROVIDERS in case Apple TV+ (350) or Hulu (15) have similar id drift; current testing confirms Netflix (8), Disney+ (337), Prime Video (119) and HBO (now 1899) are correct.",
+    "(Pre-existing observation) Stream addon is still not auto-installed; series episode streams + movie streams remain empty. Out of scope for this iteration."
+  ],
+  "critical_code_review_comments": [
+    "FastAPI Query-param aliasing: when using path-style trailing-underscore params (`type_`), always wrap with `Query(default, alias='type')` for query strings — FastAPI's auto strip-underscore convention is for request-body field names, NOT query params. This pattern bug is now fixed for /api/networks/{slug}.",
+    "Hard-coded TMDB provider IDs in NETWORK_PROVIDERS map will silently break if TMDB re-keys a provider (as happened with HBO 384→1899). Consider a startup self-test that calls `/discover/tv?with_watch_providers=<id>&page=1&watch_region=US` for each map entry and logs a warning if `total_results==0`, or fetch the providers list dynamically by name match at startup.",
+    "/api/tmdb/imdb/{type_}/{tmdb_id} returns `imdb_id: null` (without 404) when TMDB has no external_ids — frontend handles this with the 'No IMDb match' overlay, which is fine, but the JSON response could include `{cached, imdb_id: null, reason: 'no_external_ids'}` for clearer debugging.",
+    "Network.jsx loadMore: if a user rapidly mashes the button while the first call is still pending, the `loadingMore` guard works, but IntersectionObserver could re-trigger as soon as state flips — consider debouncing the observer callback.",
+    "NetworkPosterTile.jsx uses `cache: 'force-cache'` on /api/tmdb/imdb — good for repeat clicks, but combined with the 7-day backend cache it means a stale TMDB external_ids change won't propagate for 7 days. Acceptable for IMDb mappings (essentially immutable)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py",
+    "/app/backend/tests/test_networks_tmdb.py"
+  ],
+  "success_rate": {"backend": "100% (27/27 pytest)", "frontend": "100% (Network TV+Movies+LoadMore+TileClick→Detail navigation, Home, Sources, Search)"},
+  "test_credentials": "N/A — single-user mode (user_id=default).",
+  "seed_data_creation": "None — TMDB integration is read-only proxy.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All P0/P1 acceptance criteria met after testing-agent fixes. Verified flows: GET /api/networks/{netflix,disney-plus,hbo,prime-video} returns thousands of TMDB-streamable titles per provider, second call on same URL returns cached:true; GET /api/tmdb/imdb/tv/66732 → tt4574334; GET /api/networks/unknown-slug → 404; GET /api/networks/netflix?type=invalid → 400. Frontend /networks/netflix renders 20 TMDB poster tiles with image.tmdb.org/t/p sources, Movies subtab refreshes to actual Netflix movies, Load more delta=20, tile click resolves IMDB and routes to /title/series/<imdb> Detail page with full meta + episode picker. The only remaining minor issue is a React duplicate-key warning when TMDB serves overlapping items across pages — non-blocking, fix is one-liner dedup. Backend pytest /app/backend/tests/ → 27/27. Live URL https://rebrand-app-5.preview.emergentagent.com.",
+  "rca of the issue": "TWO backend bugs found and fixed by testing agent: (1) FastAPI query-param alias missing on `type_` argument in /api/networks/{slug} → endpoint silently always returned TV regardless of `?type=movie`. Reproduction: `curl '/api/networks/netflix?type=movie&page=1' | jq '.data.results[0].type'` returned 'series'. Fix: `type_: str = Query('tv', alias='type')`. After fix returns 'movie' as expected. (2) HBO Max provider id stale (384) → TMDB returned 0 results because HBO Max is currently provider 1899 in TMDB's US watch-providers list. Reproduction: `/api/networks/hbo?type=tv&page=1` → total_results:0. Fix: bumped id to 1899. After fix returns ~3,500 results including Game of Thrones / Succession / Last of Us etc. Both fixes were tiny config/binding-level changes squarely within tester fix-scope."
+}

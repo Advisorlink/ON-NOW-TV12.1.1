@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="9" time="1.689" timestamp="2026-05-10T17:45:09.998715+00:00" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38"><testcase classname="backend.tests.test_networks_tmdb" name="test_netflix_tv" time="0.321" /><testcase classname="backend.tests.test_networks_tmdb" name="test_netflix_movie" time="0.047"><failure message="AssertionError: assert 'series' == 'movie'&#10;  &#10;  - movie&#10;  + series">backend/tests/test_networks_tmdb.py:52: in test_netflix_movie
+    assert it["type"] == "movie"
+E   AssertionError: assert 'series' == 'movie'
+E     
+E     - movie
+E     + series</failure></testcase><testcase classname="backend.tests.test_networks_tmdb" name="test_disney_tv" time="0.156" /><testcase classname="backend.tests.test_networks_tmdb" name="test_hbo_includes_marquee_titles" time="0.441"><failure message="AssertionError: Expected at least one of GoT/Succession/Last of Us in HBO top 3 pages&#10;assert set()">backend/tests/test_networks_tmdb.py:80: in test_hbo_includes_marquee_titles
+    assert found, "Expected at least one of GoT/Succession/Last of Us in HBO top 3 pages"
+E   AssertionError: Expected at least one of GoT/Succession/Last of Us in HBO top 3 pages
+E   assert set()</failure></testcase><testcase classname="backend.tests.test_networks_tmdb" name="test_network_cache" time="0.232" /><testcase classname="backend.tests.test_networks_tmdb" name="test_unknown_network_404" time="0.058" /><testcase classname="backend.tests.test_networks_tmdb" name="test_invalid_type_400" time="0.048"><failure message="assert 200 == 400&#10; +  where 200 = &lt;Response [200]&gt;.status_code">backend/tests/test_networks_tmdb.py:105: in test_invalid_type_400
+    assert r.status_code == 400
+E   assert 200 == 400
+E    +  where 200 = &lt;Response [200]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_networks_tmdb" name="test_tmdb_imdb_stranger_things" time="0.143" /><testcase classname="backend.tests.test_networks_tmdb" name="test_tmdb_imdb_invalid_type" time="0.048" /></testsuite></testsuites>

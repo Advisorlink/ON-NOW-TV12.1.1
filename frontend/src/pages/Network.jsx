@@ -1,36 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
-import PosterTile from '@/components/PosterTile';
+import NetworkPosterTile from '@/components/NetworkPosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { findNetwork } from '@/lib/networks';
+import { API } from '@/lib/api';
 
 /**
- * Cinemeta meta lookup — tries the declared type first, then falls
- * back to the other type on 404 so the curated catalogue is forgiving
- * about misclassified ids.  Returns `null` on hard failure.
+ * Live network catalogue page powered by TMDB through Vesper's
+ * backend (`/api/networks/:slug`).  Supports a TV / Movies sub-tab
+ * and infinite-style "Load more" pagination.  Each result is a
+ * TMDB id; <NetworkPosterTile> resolves it to an IMDB id on click
+ * before routing to the unified detail page.
  */
-async function resolveMeta(imdbId, declaredType) {
-    const order = declaredType === 'movie' ? ['movie', 'series'] : ['series', 'movie'];
-    for (const t of order) {
-        try {
-            const r = await fetch(
-                `https://v3-cinemeta.strem.io/meta/${t}/${imdbId}.json`,
-                { mode: 'cors', cache: 'force-cache' }
-            );
-            if (!r.ok) continue;
-            const data = await r.json();
-            const m = data?.meta;
-            if (!m || !m.poster) continue;
-            return { meta: m, type: t };
-        } catch {
-            /* try next */
-        }
-    }
-    return null;
-}
+const SUBTAB_KEY = 'vesper-network-subtab';
 
 export default function Network() {
     useSpatialFocus();
@@ -38,81 +23,109 @@ export default function Network() {
     const navigate = useNavigate();
     const network = findNetwork(slug);
 
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [resolved, setResolved] = useState(0);
-    const [total, setTotal] = useState(0);
+    const [subTab, setSubTab] = useState(() => {
+        try {
+            return localStorage.getItem(SUBTAB_KEY) || 'tv';
+        } catch {
+            return 'tv';
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem(SUBTAB_KEY, subTab);
+        } catch {
+            /* ignore */
+        }
+    }, [subTab]);
 
+    const [items, setItems] = useState([]);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalResults, setTotalResults] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Reset whenever the slug or sub-tab changes
     useEffect(() => {
         if (!network) return;
-        let cancelled = false;
-        setLoading(true);
+        let cancel = false;
         setItems([]);
-        setResolved(0);
+        setPage(1);
+        setTotalPages(1);
+        setTotalResults(0);
+        setError(null);
+        setLoading(true);
 
-        // Dedupe input by imdbId so the curated list staying messy
-        // never produces duplicate cards.
-        const seen = new Set();
-        const queue = network.titles.filter(({ id }) => {
-            if (seen.has(id)) return false;
-            seen.add(id);
-            return true;
-        });
-        setTotal(queue.length);
-
-        let progressive = [];
-        let progressiveCount = 0;
-        const flushSoon = (() => {
-            let pending = false;
-            return () => {
-                if (pending || cancelled) return;
-                pending = true;
-                requestAnimationFrame(() => {
-                    pending = false;
-                    if (cancelled) return;
-                    setItems([...progressive]);
-                });
-            };
+        (async () => {
+            try {
+                const r = await fetch(
+                    `${API}/networks/${slug}?type=${subTab}&page=1`,
+                    { cache: 'no-store' }
+                );
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const json = await r.json();
+                const data = json?.data || {};
+                if (cancel) return;
+                setItems(data.results || []);
+                setTotalPages(data.total_pages || 1);
+                setTotalResults(data.total_results || 0);
+                setPage(1);
+            } catch (e) {
+                if (!cancel) {
+                    setError(
+                        e?.message || 'Could not load this network catalogue'
+                    );
+                }
+            } finally {
+                if (!cancel) setLoading(false);
+            }
         })();
 
-        // Resolve all in parallel for speed; render progressively as
-        // each one lands.  Cinemeta's CDN has no real concurrency limit.
-        Promise.all(
-            queue.map(async ({ id: imdbId, type: declaredType }, idx) => {
-                const r = await resolveMeta(imdbId, declaredType);
-                if (cancelled) return;
-                progressiveCount += 1;
-                setResolved(progressiveCount);
-                if (!r) return;
-                const { meta: m, type: t } = r;
-                progressive.push({
-                    _order: idx,
-                    id: `${slug}-${imdbId}`,
-                    imdbId,
-                    type: t,
-                    title: m.name,
-                    sub: [m.releaseInfo, m.imdbRating ? `★ ${m.imdbRating}` : null]
-                        .filter(Boolean)
-                        .join(' · '),
-                    poster: m.poster,
-                    rating: parseFloat(m.imdbRating) || 0,
-                    routePath: `/title/${t}/${imdbId}`,
-                });
-                flushSoon();
-            })
-        ).then(() => {
-            if (cancelled) return;
-            // Final pass: keep curated order but list items at the end
-            // even if they came back later.
-            progressive.sort((a, b) => a._order - b._order);
-            setItems([...progressive]);
-            setLoading(false);
-        });
-
         return () => {
-            cancelled = true;
+            cancel = true;
         };
-    }, [slug, network]);
+    }, [slug, subTab, network]);
+
+    const loadMore = async () => {
+        if (loadingMore || page >= totalPages) return;
+        setLoadingMore(true);
+        try {
+            const next = page + 1;
+            const r = await fetch(
+                `${API}/networks/${slug}?type=${subTab}&page=${next}`,
+                { cache: 'no-store' }
+            );
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const json = await r.json();
+            const data = json?.data || {};
+            setItems((prev) => [...prev, ...(data.results || [])]);
+            setPage(next);
+        } catch {
+            /* swallow */
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    // IntersectionObserver for auto-load when user scrolls near the
+    // sentinel.  Falls back to manual button click as well.
+    const sentinelRef = useRef(null);
+    useEffect(() => {
+        const node = sentinelRef.current;
+        if (!node) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !loadingMore && !loading) {
+                    loadMore();
+                }
+            },
+            { rootMargin: '600px 0px 600px 0px' }
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, totalPages, loadingMore, loading, subTab, slug]);
 
     if (!network) {
         return (
@@ -203,7 +216,7 @@ export default function Network() {
                                     marginBottom: 6,
                                 }}
                             >
-                                Browse · Network
+                                Browse · Network · Live from TMDB
                             </div>
                             <h1
                                 className="vesper-display"
@@ -217,7 +230,7 @@ export default function Network() {
                                 {network.name}
                             </h1>
                         </div>
-                        {total > 0 && (
+                        {totalResults > 0 && (
                             <div
                                 className="vesper-mono shrink-0"
                                 style={{
@@ -228,17 +241,38 @@ export default function Network() {
                                     paddingBottom: 14,
                                 }}
                             >
-                                {items.length} of {total}
-                                {loading && resolved < total && (
-                                    <Loader2
-                                        className="vesper-spin inline-block ml-2"
-                                        size={12}
-                                    />
-                                )}
+                                {items.length.toLocaleString()} of{' '}
+                                {totalResults.toLocaleString()}
                             </div>
                         )}
                     </div>
                 </header>
+
+                {/* TV / Movies sub-tabs */}
+                <div
+                    data-testid="network-subtabs"
+                    className="flex items-center"
+                    style={{
+                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                        paddingTop: 'clamp(16px, 1.6vw, 24px)',
+                        paddingBottom: 0,
+                        gap: 'clamp(8px, 0.7vw, 12px)',
+                    }}
+                >
+                    <SubTab
+                        active={subTab === 'tv'}
+                        label="TV Shows"
+                        testId="network-subtab-tv"
+                        onClick={() => setSubTab('tv')}
+                    />
+                    <SubTab
+                        active={subTab === 'movie'}
+                        label="Movies"
+                        testId="network-subtab-movie"
+                        onClick={() => setSubTab('movie')}
+                    />
+                </div>
 
                 <section
                     className="relative w-full"
@@ -249,35 +283,128 @@ export default function Network() {
                         paddingBottom: 'clamp(56px, 6vw, 96px)',
                     }}
                 >
-                    {items.length === 0 && loading ? (
+                    {loading ? (
                         <div
                             className="flex items-center gap-3"
                             style={{ color: 'var(--vesper-text-2)' }}
                         >
                             <Loader2 className="vesper-spin" size={18} />
-                            Loading {network.name} picks…
+                            Loading {network.name} catalogue from TMDB…
+                        </div>
+                    ) : error ? (
+                        <div
+                            className="vesper-glass rounded-xl p-6"
+                            style={{ color: '#ffb5b5' }}
+                        >
+                            {error}
                         </div>
                     ) : items.length === 0 ? (
                         <div
                             className="vesper-glass rounded-xl p-6"
                             style={{ color: 'var(--vesper-text-2)' }}
                         >
-                            Couldn&apos;t resolve any titles right now. Cinemeta
-                            may be temporarily unreachable — try again in a
-                            moment.
+                            No {subTab === 'tv' ? 'TV shows' : 'movies'}{' '}
+                            currently streamable on {network.name} (US region).
                         </div>
                     ) : (
-                        <div
-                            className="flex flex-wrap"
-                            style={{ gap: 'clamp(14px, 1.25vw, 24px)' }}
-                        >
-                            {items.map((item) => (
-                                <PosterTile key={item.id} item={item} />
-                            ))}
-                        </div>
+                        <>
+                            <div
+                                className="flex flex-wrap"
+                                style={{ gap: 'clamp(14px, 1.25vw, 24px)' }}
+                            >
+                                {items.map((item) => (
+                                    <NetworkPosterTile
+                                        key={`${subTab}-${item.tmdb_id}`}
+                                        item={item}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Load-more sentinel + button */}
+                            <div
+                                ref={sentinelRef}
+                                className="flex items-center justify-center"
+                                style={{ marginTop: 48 }}
+                            >
+                                {page < totalPages ? (
+                                    <button
+                                        data-testid="network-load-more"
+                                        data-focusable="true"
+                                        data-focus-style="pill"
+                                        tabIndex={0}
+                                        onClick={loadMore}
+                                        disabled={loadingMore}
+                                        className="flex items-center gap-2 h-12 px-6 rounded-full font-sans font-semibold"
+                                        style={{
+                                            background:
+                                                'rgba(93,200,255,0.12)',
+                                            color: 'var(--vesper-blue)',
+                                            border: '1px solid rgba(93,200,255,0.35)',
+                                            fontSize: 15,
+                                            opacity: loadingMore ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {loadingMore ? (
+                                            <Loader2
+                                                className="vesper-spin"
+                                                size={16}
+                                            />
+                                        ) : (
+                                            <Plus size={16} />
+                                        )}
+                                        {loadingMore
+                                            ? 'Loading more…'
+                                            : `Load more (${(
+                                                  totalResults -
+                                                  items.length
+                                              ).toLocaleString()} remaining)`}
+                                    </button>
+                                ) : (
+                                    <div
+                                        className="vesper-mono"
+                                        style={{
+                                            fontSize: 11,
+                                            color: 'var(--vesper-text-3)',
+                                            letterSpacing: '0.22em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        End of catalogue · {items.length.toLocaleString()} titles
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
                 </section>
             </main>
         </div>
     );
 }
+
+const SubTab = ({ active, label, testId, onClick }) => (
+    <button
+        data-testid={testId}
+        data-focusable="true"
+        data-focus-style="pill"
+        tabIndex={0}
+        onClick={onClick}
+        className="font-sans font-semibold rounded-full"
+        style={{
+            height: 'clamp(36px, 3vw, 44px)',
+            paddingLeft: 'clamp(16px, 1.4vw, 22px)',
+            paddingRight: 'clamp(16px, 1.4vw, 22px)',
+            fontSize: 'clamp(13px, 0.95vw, 15px)',
+            letterSpacing: '-0.01em',
+            background: active
+                ? 'var(--vesper-blue)'
+                : 'rgba(255,255,255,0.04)',
+            color: active ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
+            border: active
+                ? '1px solid transparent'
+                : '1px solid rgba(255,255,255,0.08)',
+            transition: 'background-color 180ms ease, color 180ms ease',
+        }}
+    >
+        {label}
+    </button>
+);
