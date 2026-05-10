@@ -8,11 +8,11 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "tv.vesper.app"
+        applicationId = "tv.onnowtv.app"
         minSdk = 24            // Android 7.0+ covers virtually every HK1 box in the wild
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.2.0"
+        versionCode = 2
+        versionName = "1.0.0"
     }
 
     buildTypes {

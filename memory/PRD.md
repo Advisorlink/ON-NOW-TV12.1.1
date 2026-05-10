@@ -34,6 +34,22 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 6 — Feb 2026)
+- **3-path TV deployment guide** at `/app/INSTALL_ON_TV.md`:
+  - Path 1: TV Bro / Puffin TV browser (60s, zero build).
+  - Path 2: Chrome PWA "Add to Home Screen" — full PWA manifest
+    shipped at `/public/manifest.json` with logo icon + standalone
+    display + landscape orientation.
+  - Path 3: GitHub Actions workflow at `.github/workflows/build-apk.yml`
+    auto-builds a debug APK on every push and publishes it to an
+    auto-updating "apk-latest" GitHub Release.
+- **APK build attempt locally** in container failed — ARM64 host
+  can't run x86-64 AAPT2 reliably even with qemu-user-static.  Pivoted
+  to GitHub Actions (free 2,000 min/mo Linux x86-64 runners).
+- **Android wrapper updates**: applicationId → `tv.onnowtv.app`,
+  versionName "1.0.0", new logo as launcher icon across all densities,
+  removed obsolete adaptive-icon XML.
+
 ## Implemented (Iteration 5 — Feb 2026)
 - **Rebrand to "ON NOW TV V2"** — replaced all user-visible "Vesper"
   strings while keeping internal CSS hooks (`vesper-display`,

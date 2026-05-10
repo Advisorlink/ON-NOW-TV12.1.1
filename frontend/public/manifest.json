@@ -1,0 +1,20 @@
+{
+  "short_name": "ON NOW TV V2",
+  "name": "ON NOW TV V2",
+  "description": "TV-first media client — Stremio · Plex · Jellyfin · TMDB",
+  "icons": [
+    {
+      "src": "/brand/onnowtv-logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#06080F",
+  "background_color": "#06080F",
+  "categories": ["entertainment", "video"],
+  "scope": "/"
+}

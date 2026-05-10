@@ -1,0 +1,84 @@
+name: Build ON NOW TV V2 APK
+
+# Builds an installable Android APK for the HK1 box on every push to
+# main (or manual trigger).  Drops the signed-debug APK as a workflow
+# artifact AND attaches it to a GitHub Release tagged "apk-latest".
+#
+# How to use:
+#   1. Click "Save to Github" inside Emergent (or push this repo
+#      yourself).
+#   2. Open the repo on github.com → Actions tab → wait ~3 minutes.
+#   3. Download "onnowtv-v2-debug.apk" from the run's Artifacts
+#      section (or from the auto-updating "apk-latest" Release).
+#   4. Sideload on the HK1 box (see android/vesper-tv/README.md).
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        working-directory: android/vesper-tv
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+          else
+            # Generate the wrapper if it isn't checked in
+            gradle wrapper --gradle-version 8.7
+            chmod +x ./gradlew
+          fi
+
+      - name: Build debug APK
+        working-directory: android/vesper-tv
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Locate APK
+        id: locate
+        working-directory: android/vesper-tv
+        run: |
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -n1)
+          echo "Found APK: $APK"
+          cp "$APK" "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
+          echo "apk_path=onnowtv-v2-debug.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnowtv-v2-debug.apk
+          path: onnowtv-v2-debug.apk
+          retention-days: 30
+
+      - name: Publish/update "apk-latest" Release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: ON NOW TV V2 — latest debug build
+          body: |
+            Sideload-ready debug APK auto-built from the latest commit.
+            Install on your HK1 box via "Downloader" by AFTVnews
+            (URL: this release's APK download).
+          files: onnowtv-v2-debug.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
