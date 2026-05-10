@@ -1,6 +1,5 @@
 package tv.vesper.app
 
-// Build marker: 2026-02-10-r2 — forces fresh compilation post-comment-fix
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -10,10 +9,10 @@ import android.widget.Toast
 /**
  * JavaScript ↔ Android bridge.
  *
- * The web app calls `window.OnNowTV.playVideo(url, title, mime)` when
+ * The web app calls window.OnNowTV.playVideo(url, title, mime) when
  * the user picks a stream.  We hand the URL off to the user's
  * preferred system video player (VLC, MX Player, Kodi, ExoPlayer-based
- * players, anything that handles ACTION_VIEW for "video/*").
+ * players, anything that handles ACTION_VIEW for video MIME types).
  *
  * Why?  The HK1 box's WebView is software-rendered for video — no
  * audio without gesture, awful frame rates on 1080p HLS.  System
