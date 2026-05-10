@@ -86,65 +86,99 @@ export default function useSpatialFocus() {
             return best;
         };
 
-        const focusEl = (el, dir) => {
-            if (!el) return;
-            el.focus({ preventScroll: true });
+        // Find the nearest vertically-scrollable ancestor of an element.
+        const verticalScroller = (el) => {
+            let p = el.parentElement;
+            while (p && p !== document.body) {
+                const cs = getComputedStyle(p);
+                const oy = cs.overflowY;
+                if (
+                    (oy === 'auto' || oy === 'scroll') &&
+                    p.scrollHeight > p.clientHeight
+                ) {
+                    return p;
+                }
+                p = p.parentElement;
+            }
+            return null;
+        };
 
-            // Smart scroll: only scroll the axis that actually moved.
-            // The default scrollIntoView jumps on both axes which makes
-            // horizontal shelf navigation feel "snappy / jerky" because
-            // it fights with the shelf's own overflow-x container.
-            const rect = el.getBoundingClientRect();
-            const vh = window.innerHeight;
-            const vw = window.innerWidth;
-
-            // Find the nearest scrollable horizontal container (the
-            // shelf) and scroll just THAT one horizontally, so the
-            // outer <main> doesn't lurch vertically as a side-effect.
-            let horizContainer = el.parentElement;
-            while (horizContainer && horizContainer !== document.body) {
-                const cs = getComputedStyle(horizContainer);
+        // Find the nearest horizontally-scrollable ancestor (the shelf).
+        const horizontalScroller = (el) => {
+            let p = el.parentElement;
+            while (p && p !== document.body) {
+                const cs = getComputedStyle(p);
                 const ox = cs.overflowX;
                 if (
                     (ox === 'auto' || ox === 'scroll') &&
-                    horizContainer.scrollWidth > horizContainer.clientWidth
+                    p.scrollWidth > p.clientWidth
                 ) {
-                    break;
+                    return p;
                 }
-                horizContainer = horizContainer.parentElement;
+                p = p.parentElement;
             }
+            return null;
+        };
+
+        // Maintain a `data-focused` attribute so CSS focus styles
+        // (scale pop-out, glow ring) apply even when programmatic
+        // focus is used on Android WebView, where :focus-visible
+        // doesn't always trigger.
+        let lastFocused = null;
+        const setFocusAttr = (el) => {
+            if (lastFocused && lastFocused !== el) {
+                lastFocused.removeAttribute('data-focused');
+            }
+            if (el) {
+                el.setAttribute('data-focused', 'true');
+                lastFocused = el;
+            }
+        };
+
+        const focusEl = (el, dir) => {
+            if (!el) return;
+            el.focus({ preventScroll: true });
+            setFocusAttr(el);
+
+            const rect = el.getBoundingClientRect();
+            const vh = window.innerHeight;
 
             if (dir === 'left' || dir === 'right') {
-                // Horizontal move — scroll the shelf only.
-                if (horizContainer && horizContainer !== document.body) {
-                    const cRect = horizContainer.getBoundingClientRect();
-                    const targetLeft =
+                // Horizontal move: scroll ONLY the shelf, never the
+                // page.  CSS scroll-snap on the shelf has been
+                // disabled to prevent rubber-banding against this
+                // JS-controlled smooth scroll.
+                const hs = horizontalScroller(el);
+                if (hs) {
+                    const cRect = hs.getBoundingClientRect();
+                    const delta =
                         rect.left - cRect.left - (cRect.width - rect.width) / 2;
-                    horizContainer.scrollBy({
-                        left: targetLeft,
-                        behavior: 'smooth',
-                    });
+                    hs.scrollBy({ left: delta, behavior: 'smooth' });
                 }
-                // Only nudge the page vertically if the focused tile
-                // is actually clipped at the top/bottom — never on a
-                // pure horizontal move within the viewport.
-                if (rect.top < 80 || rect.bottom > vh - 40) {
-                    el.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'nearest',
-                        inline: 'nearest',
-                    });
-                }
-            } else {
-                // Vertical move — let the page handle it.
-                el.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center',
-                    inline: 'nearest',
-                });
+                return;
             }
-            // Suppress unused-var lint
-            void vw;
+
+            // Vertical move: scroll the page (not the shelf) so the
+            // focused tile sits in a comfortable band.  Compute the
+            // delta ourselves and animate via the outer scroller —
+            // never via scrollIntoView, which double-scrolls when
+            // CSS scroll-behavior is also smooth.
+            const vs = verticalScroller(el) || document.scrollingElement;
+            if (!vs) return;
+
+            // Target band: keep the focused row between 22% and 70%
+            // of the viewport height.
+            const topBand = vh * 0.22;
+            const bottomBand = vh * 0.7;
+            let delta = 0;
+            if (rect.top < topBand) {
+                delta = rect.top - topBand;
+            } else if (rect.bottom > bottomBand) {
+                delta = rect.bottom - bottomBand;
+            }
+            if (Math.abs(delta) > 4) {
+                vs.scrollBy({ top: delta, behavior: 'smooth' });
+            }
         };
 
         const onKey = (e) => {
@@ -198,13 +232,18 @@ export default function useSpatialFocus() {
             if (
                 document.activeElement &&
                 document.activeElement.matches('[data-focusable="true"]')
-            )
+            ) {
+                setFocusAttr(document.activeElement);
                 return;
+            }
             const preferred = document.querySelector(
                 '[data-focusable="true"][data-initial-focus="true"]'
             );
             const target = preferred || focusables()[0];
-            if (target) target.focus({ preventScroll: true });
+            if (target) {
+                target.focus({ preventScroll: true });
+                setFocusAttr(target);
+            }
         };
 
         const t = setTimeout(init, 250);

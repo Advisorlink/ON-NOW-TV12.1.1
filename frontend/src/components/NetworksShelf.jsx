@@ -16,7 +16,7 @@ export default function NetworksShelf() {
             data-testid="networks-shelf"
             className="relative w-full"
             style={{
-                paddingTop: 'clamp(8px, 1vw, 16px)',
+                paddingTop: 'clamp(4px, 0.6vw, 10px)',
                 paddingBottom: 0,
             }}
         >
@@ -59,8 +59,8 @@ export default function NetworksShelf() {
                     gap: 'clamp(14px, 1.25vw, 24px)',
                     paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                     paddingRight: 'clamp(124px, 9.5vw, 180px)',
-                    paddingTop: 'clamp(10px, 1.1vw, 18px)',
-                    paddingBottom: 'clamp(20px, 2vw, 36px)',
+                    paddingTop: 'clamp(14px, 1.4vw, 22px)',
+                    paddingBottom: 'clamp(14px, 1.4vw, 24px)',
                 }}
             >
                 {NETWORKS.map((n) => (

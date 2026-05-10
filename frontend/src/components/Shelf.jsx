@@ -15,8 +15,8 @@ export default function Shelf({ shelf, onSelect }) {
             data-testid={`shelf-${shelf.id}`}
             className="relative w-full"
             style={{
-                paddingTop: 'clamp(16px, 1.8vw, 32px)',
-                paddingBottom: 8,
+                paddingTop: 'clamp(6px, 0.8vw, 14px)',
+                paddingBottom: 4,
             }}
         >
             <header
@@ -63,8 +63,8 @@ export default function Shelf({ shelf, onSelect }) {
                     gap: 'clamp(14px, 1.25vw, 24px)',
                     paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                     paddingRight: 'clamp(124px, 9.5vw, 180px)',
-                    paddingTop: 'clamp(8px, 0.8vw, 16px)',
-                    paddingBottom: 'clamp(12px, 1.2vw, 24px)',
+                    paddingTop: 'clamp(14px, 1.4vw, 22px)',
+                    paddingBottom: 'clamp(14px, 1.4vw, 24px)',
                 }}
             >
                 {shelf.items.map((item) => (

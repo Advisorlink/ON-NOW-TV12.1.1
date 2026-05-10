@@ -247,17 +247,19 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   Shelf scroll-snap
+   Shelf horizontal scroll
+   -----------------------------------------------------------------
+   We deliberately do NOT use scroll-snap or CSS scroll-behavior
+   here.  Both fight with the JS-controlled smooth scroll in
+   `useSpatialFocus`, producing rubber-band jitter on D-pad nav
+   (scroll-snap re-snaps right after JS scrolls, and dual-smooth
+   easing causes "jump forward / jump back").  All smooth scroll
+   is owned by the spatial focus hook.
 ------------------------------------------------------------------ */
 .vesper-shelf {
-    scroll-snap-type: x mandatory;
-    scroll-padding-left: 160px;
     overflow-x: auto;
     overflow-y: visible;
-    scroll-behavior: smooth;
-}
-.vesper-shelf > * {
-    scroll-snap-align: start;
+    scroll-behavior: auto;
 }
 
 /* ------------------------------------------------------------------

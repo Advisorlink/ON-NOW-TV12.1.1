@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
 
 /**
@@ -208,7 +209,7 @@ class VlcPlayerActivity : AppCompatActivity() {
             tryAdd = Runnable {
                 @Suppress("DEPRECATION")
                 val ok = mediaPlayer.addSlave(
-                    Media.Slave.Type.Subtitle,
+                    IMedia.Slave.Type.Subtitle,
                     Uri.parse(url),
                     true
                 )

@@ -60,7 +60,7 @@ export default function Home() {
 
             <main
                 className="absolute inset-0 overflow-y-auto"
-                style={{ scrollBehavior: 'smooth' }}
+                style={{ scrollBehavior: 'auto' }}
             >
                 <HeroBillboard heroes={liveHeroes} />
 

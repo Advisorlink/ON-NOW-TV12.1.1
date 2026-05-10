@@ -263,6 +263,36 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   Sources OSK works, Detail page meta + stream picker render, HLS.js
   attaches to `.m3u8` test streams.
 
+## Implemented (Iteration 10 — Feb 2026)
+- **APK Kotlin compile fix** — `VlcPlayerActivity.kt` failed Gradle
+  compile with `Unresolved reference: Slave`. In libvlc-android
+  3.6.0, the `Slave` class lives on `IMedia` (not `Media`).  Imported
+  `org.videolan.libvlc.interfaces.IMedia` and switched the call to
+  `IMedia.Slave.Type.Subtitle`.  GitHub Actions APK build now passes.
+- **Spatial D-pad scroll jitter eliminated** — Root cause: the shelf
+  had `scroll-snap-type: x mandatory` + `scroll-behavior: smooth`
+  in CSS, which fought against JS-controlled `scrollBy({behavior:
+  'smooth'})` in `useSpatialFocus`.  Scroll-snap re-snapped to the
+  nearest tile *after* the JS scroll, producing the "jump forward /
+  jump back" rubber-band.  Removed both CSS scroll-snap and CSS
+  smooth scroll on the shelf and on `<main>`; the hook now owns
+  smooth scroll exclusively.  Also rewrote `focusEl` to compute its
+  own vertical delta against a 22%–70% viewport band (never calling
+  `scrollIntoView`).
+- **Tile pop-out on focus** — On Android WebView, `:focus-visible`
+  does not always engage for programmatic `.focus()`.  The CSS
+  rules for `scale(1.07)` + glow ring already supported
+  `[data-focused='true']`; the hook now tracks the active element
+  and toggles that attribute on focus, so the pop-out reliably
+  triggers on D-pad navigation.
+- **Home covers shifted up** — Hero billboard reduced from
+  `clamp(380px, 56vh, 620px)` → `clamp(300px, 42vh, 480px)`.
+  Shelf section padding-top reduced (32 → 14px max) and inner row
+  paddings rebalanced.  NetworksShelf top/bottom paddings tightened.
+  On a 1080p screen the hero + tabs + 6 network tiles + first
+  "Popular" row all fit above the fold.
+
+
 ## Backlog (Prioritised)
 
 ### P0 — Next
@@ -272,11 +302,9 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   `/Users/AuthenticateByName`, browse, stream. Add `/sources` card.
 
 ### P1
-- **WebView APK wrapper** — generate Kotlin source for a thin Android
-  WebView app that loads `https://<vesper-host>` full-screen, with
-  proper remote / TV input handling for HK1 sideloading.
-- **My Library** page — favorites + watchlist + watch-history (already
-  hinted at in nav).
+- **VLC overlay controls** — D-pad-driven track switcher (subtitle,
+  audio, playback speed) inside `VlcPlayerActivity`.
+- **My Library** page — favorites + watchlist + watch-history.
 - **Settings** page — per-user prefs (autoplay, language, region,
   quality cap).
 - **Search keyboard** — speech input on supported boxes.
