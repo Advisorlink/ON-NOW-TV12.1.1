@@ -1,115 +1,269 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
+/* ------------------------------------------------------------------
+   Vesper – Vespertine Observatory design tokens
+------------------------------------------------------------------ */
+:root {
+    --vesper-bg-0: #050505;
+    --vesper-bg-1: #0a0d14;
+    --vesper-bg-2: #121620;
+    --vesper-surface: #1a1f2d;
+    --vesper-text: #f8f9fa;
+    --vesper-text-2: #a1a7b3;
+    --vesper-text-3: #6c7486;
+    --vesper-copper: #e58a59;
+    --vesper-copper-dim: #b96a3f;
+    --vesper-line: rgba(255, 255, 255, 0.08);
+
+    /* shadcn baseline (kept for compat) */
+    --background: 0 0% 2%;
+    --foreground: 210 17% 98%;
+    --card: 220 22% 11%;
+    --card-foreground: 210 17% 98%;
+    --popover: 220 22% 11%;
+    --popover-foreground: 210 17% 98%;
+    --primary: 21 71% 62%;
+    --primary-foreground: 0 0% 2%;
+    --secondary: 220 22% 11%;
+    --secondary-foreground: 210 17% 98%;
+    --muted: 220 22% 11%;
+    --muted-foreground: 217 9% 67%;
+    --accent: 21 71% 62%;
+    --accent-foreground: 0 0% 2%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 100% / 0.08;
+    --input: 220 22% 11%;
+    --ring: 21 71% 62%;
+    --radius: 8px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+body {
+    margin: 0;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 300;
+    font-size: 24px;
+    line-height: 1.4;
+    letter-spacing: 0.005em;
 }
 
+::selection {
+    background: var(--vesper-copper);
+    color: var(--vesper-bg-0);
+}
+
+/* Hide scrollbars on TV; we rely on focus + scroll-snap */
+::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    background: transparent;
+}
+* {
+    scrollbar-width: none;
+}
+
+/* Default focus style is removed — we draw our own everywhere */
+*:focus {
+    outline: none;
+}
+
+/* ------------------------------------------------------------------
+   Vesper utility classes
+------------------------------------------------------------------ */
+@layer components {
+    .vesper-display {
+        font-family: 'Cormorant Garamond', serif;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        line-height: 0.95;
+    }
+    .vesper-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        font-size: 16px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--vesper-copper);
+    }
+    .vesper-meta {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 400;
+        font-size: 22px;
+        color: var(--vesper-text-2);
+    }
+    .vesper-grain::after {
+        content: '';
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.06 0 0 0 0 0.08 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+        opacity: 0.18;
+        mix-blend-mode: overlay;
+        z-index: 1;
+    }
+}
+
+/* ------------------------------------------------------------------
+   Focus state — THE most important interaction in the app
+------------------------------------------------------------------ */
+[data-focusable='true'] {
+    transition:
+        transform 320ms cubic-bezier(0.25, 1, 0.5, 1),
+        box-shadow 280ms cubic-bezier(0.25, 1, 0.5, 1),
+        background-color 220ms ease,
+        color 220ms ease,
+        opacity 220ms ease;
+    transform-origin: center center;
+    will-change: transform;
+}
+
+[data-focusable='true']:focus-visible,
+[data-focusable='true'][data-focused='true'] {
+    z-index: 50;
+}
+
+/* Tile-style focus (posters, hero billboard cards) */
+[data-focus-style='tile']:focus-visible,
+[data-focus-style='tile'][data-focused='true'] {
+    transform: scale(1.08) translateY(-4px);
+    box-shadow:
+        0 0 0 4px var(--vesper-bg-0),
+        0 0 0 8px var(--vesper-copper),
+        0 28px 60px -12px rgba(229, 138, 89, 0.45),
+        0 0 80px -10px rgba(229, 138, 89, 0.25);
+}
+
+/* Pill-style focus (buttons) */
+[data-focus-style='pill']:focus-visible,
+[data-focus-style='pill'][data-focused='true'] {
+    transform: scale(1.04);
+    box-shadow:
+        0 0 0 3px var(--vesper-bg-0),
+        0 0 0 6px var(--vesper-copper),
+        0 16px 32px -8px rgba(229, 138, 89, 0.5);
+}
+
+/* Nav-style focus (side-nav rows) */
+[data-focus-style='nav']:focus-visible,
+[data-focus-style='nav'][data-focused='true'] {
+    background: linear-gradient(
+        90deg,
+        rgba(229, 138, 89, 0.18) 0%,
+        rgba(229, 138, 89, 0.04) 100%
+    );
+    color: var(--vesper-text);
+    transform: translateX(4px);
+}
+
+[data-focus-style='nav']:focus-visible::before,
+[data-focus-style='nav'][data-focused='true']::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 4px;
+    background: var(--vesper-copper);
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 24px rgba(229, 138, 89, 0.7);
+}
+
+/* Key-style focus (on-screen keyboard) */
+[data-focus-style='key']:focus-visible,
+[data-focus-style='key'][data-focused='true'] {
+    background: var(--vesper-copper);
+    color: var(--vesper-bg-0);
+    transform: scale(1.1);
+    box-shadow: 0 12px 32px -8px rgba(229, 138, 89, 0.6);
+}
+
+/* ------------------------------------------------------------------
+   Scroll snap shelf
+------------------------------------------------------------------ */
+.vesper-shelf {
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 128px;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-behavior: smooth;
+}
+
+.vesper-shelf > * {
+    scroll-snap-align: start;
+}
+
+/* ------------------------------------------------------------------
+   Hero Ken Burns
+------------------------------------------------------------------ */
+@keyframes vesperKenBurns {
+    0% {
+        transform: scale(1.02) translate3d(0, 0, 0);
+    }
+    100% {
+        transform: scale(1.12) translate3d(-2%, -2%, 0);
+    }
+}
+.vesper-kenburns {
+    animation: vesperKenBurns 24s linear forwards;
+    will-change: transform;
+}
+
+@keyframes vesperFadeUp {
+    0% {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.vesper-fade-up {
+    animation: vesperFadeUp 700ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes vesperPulse {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+.vesper-pulse {
+    animation: vesperPulse 2s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------
+   Overscan-safe area
+------------------------------------------------------------------ */
+.vesper-overscan {
+    padding: 5vh 5vw;
+}
+
+/* shadcn legacy bridge */
 @layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
-}
-
-@layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
-}
-
-@layer base {
-    [data-debug-wrapper="true"] {
+    [data-debug-wrapper='true'] {
         display: contents !important;
-    }
-
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
     }
 }
