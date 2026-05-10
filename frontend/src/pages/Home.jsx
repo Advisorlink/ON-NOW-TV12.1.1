@@ -138,7 +138,7 @@ export default function Home() {
                             textTransform: 'uppercase',
                         }}
                     >
-                        Vesper · v0.3 · Vespertine
+                        ON NOW TV V2 · v1.0
                     </div>
                     <div
                         className="vesper-mono"

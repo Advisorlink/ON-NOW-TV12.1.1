@@ -22,7 +22,7 @@ def test_root(s):
     r = s.get(f"{API}/")
     assert r.status_code == 200
     d = r.json()
-    assert d.get("app") == "Vesper"
+    assert d.get("app") == "ON NOW TV V2"
     assert "version" in d
 
 

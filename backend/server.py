@@ -181,7 +181,7 @@ async def _fetch_json(client: httpx.AsyncClient, url: str) -> Any:
         r = await client.get(
             url,
             timeout=HTTP_TIMEOUT,
-            headers={"User-Agent": "Vesper/0.2 (+https://vesper.tv)"},
+            headers={"User-Agent": "OnNowTV/1.0 (+https://onnowtv.app)"},
             follow_redirects=True,
         )
         r.raise_for_status()
@@ -204,13 +204,13 @@ def _build_extra_path(extra: Optional[Dict[str, str]]) -> str:
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
-app = FastAPI(title="Vesper")
+app = FastAPI(title="ON NOW TV V2")
 api = APIRouter(prefix="/api")
 
 
 @api.get("/")
 async def root():
-    return {"app": "Vesper", "version": "0.2.0"}
+    return {"app": "ON NOW TV V2", "version": "1.0.0"}
 
 
 @api.post("/status", response_model=StatusCheck)

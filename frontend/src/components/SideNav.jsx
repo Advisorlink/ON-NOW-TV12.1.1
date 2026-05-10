@@ -40,36 +40,27 @@ export default function SideNav() {
             }}
         >
             {/* Brand mark */}
-            <div className="flex items-center gap-4 pl-7 pr-4 mb-12 select-none">
-                <div
-                    className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
-                    style={{
-                        background:
-                            'linear-gradient(135deg, rgba(93,200,255,0.25) 0%, rgba(93,200,255,0.05) 100%)',
-                        border: '1px solid rgba(93,200,255,0.5)',
-                        boxShadow: '0 0 24px rgba(93,200,255,0.25) inset',
-                    }}
-                >
-                    <span
-                        className="vesper-display"
-                        style={{
-                            fontSize: 22,
-                            color: 'var(--vesper-blue)',
-                            lineHeight: 1,
-                        }}
-                    >
-                        V
-                    </span>
-                </div>
+            <div className="flex items-center gap-3 pl-5 pr-4 mb-12 select-none">
+                <img
+                    src="/brand/onnowtv-logo.png"
+                    alt="ON NOW TV V2"
+                    className="shrink-0 w-14 h-14 object-contain"
+                    style={{ filter: 'drop-shadow(0 0 16px rgba(93,200,255,0.35))' }}
+                />
                 <div
                     className="overflow-hidden whitespace-nowrap transition-opacity duration-300"
                     style={{ opacity: expanded ? 1 : 0 }}
                 >
                     <div
                         className="vesper-display"
-                        style={{ fontSize: 26, lineHeight: 1.1 }}
+                        style={{
+                            fontSize: 22,
+                            lineHeight: 1.05,
+                            letterSpacing: '-0.02em',
+                        }}
                     >
-                        Vesper
+                        ON NOW TV{' '}
+                        <span style={{ color: 'var(--vesper-blue)' }}>V2</span>
                     </div>
                     <div className="vesper-eyebrow" style={{ fontSize: 10 }}>
                         for HK1 · TV

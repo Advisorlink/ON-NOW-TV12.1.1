@@ -74,7 +74,7 @@ export default function Sources() {
                             marginTop: 14,
                         }}
                     >
-                        Paste any Stremio addon manifest URL and Vesper will pull its
+                        Paste any Stremio addon manifest URL and ON NOW TV V2 will pull its
                         catalogues straight onto your home screen. Plex &amp; Jellyfin
                         connectors are coming next.
                     </p>

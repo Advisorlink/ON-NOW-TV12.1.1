@@ -34,6 +34,21 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 5 — Feb 2026)
+- **Rebrand to "ON NOW TV V2"** — replaced all user-visible "Vesper"
+  strings while keeping internal CSS hooks (`vesper-display`,
+  `vesper-mono`, etc.) untouched to avoid touching every component.
+  - New logo asset: `/app/frontend/public/brand/onnowtv-logo.png`
+  - SideNav: full-colour logo image with brand-blue drop-shadow,
+    expanded label reads "ON NOW TV **V2**".
+  - HTML `<title>`, favicon, apple-touch-icon, and meta description.
+  - Backend `FastAPI(title="ON NOW TV V2")`, root endpoint returns
+    `{"app": "ON NOW TV V2", "version": "1.0.0"}`, User-Agent header
+    set to `OnNowTV/1.0`.
+  - Android wrapper `strings.xml` (`app_name`).
+  - Home footer wordmark + Sources copy.
+- All 27 backend tests still passing (root assertion updated).
+
 ## Implemented (Iteration 4 — Feb 2026)
 - **TMDB-powered network catalogues** — completely replaced curated
   imdb-id lists with a live TMDB integration:
