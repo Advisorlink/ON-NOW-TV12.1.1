@@ -125,8 +125,8 @@ export default function Home() {
                     style={{
                         paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                         paddingRight: 'clamp(40px, 4.2vw, 80px)',
-                        paddingTop: 'clamp(40px, 4vw, 64px)',
-                        paddingBottom: 'clamp(48px, 5vw, 80px)',
+                        paddingTop: 'clamp(20px, 2vw, 32px)',
+                        paddingBottom: 'clamp(24px, 2.5vw, 40px)',
                     }}
                 >
                     <div

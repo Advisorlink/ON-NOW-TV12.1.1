@@ -63,8 +63,8 @@ export default function Shelf({ shelf, onSelect }) {
                     gap: 'clamp(14px, 1.25vw, 24px)',
                     paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                     paddingRight: 'clamp(124px, 9.5vw, 180px)',
-                    paddingTop: 'clamp(18px, 1.6vw, 28px)',
-                    paddingBottom: 'clamp(32px, 3vw, 56px)',
+                    paddingTop: 'clamp(8px, 0.8vw, 16px)',
+                    paddingBottom: 'clamp(12px, 1.2vw, 24px)',
                 }}
             >
                 {shelf.items.map((item) => (

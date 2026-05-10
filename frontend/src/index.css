@@ -361,14 +361,30 @@ body {
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {
     transition:
-        background-color 120ms ease,
-        outline-color 120ms ease !important;
-    transform: none !important;
+        transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1),
+        background-color 160ms ease,
+        outline-color 160ms ease,
+        box-shadow 200ms ease !important;
 }
-.vesper-low-end [data-focusable='true']:focus-visible,
-.vesper-host-android [data-focusable='true']:focus-visible {
-    transform: none !important;
+/* Pop-out effect on focused tiles + pills — kept enabled even in
+   perf mode because it's the single most "alive" feedback users get
+   from a TV remote. */
+.vesper-low-end [data-focusable='true'][data-focus-style='tile']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='tile']:focus-visible {
+    transform: scale(1.07) translateZ(0) !important;
+    z-index: 5 !important;
+    box-shadow:
+        0 12px 36px rgba(0, 0, 0, 0.55),
+        0 0 0 3px var(--vesper-blue) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='pill']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='pill']:focus-visible {
+    transform: scale(1.04) translateZ(0) !important;
     box-shadow: 0 0 0 3px rgba(93, 200, 255, 0.85) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='quiet']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='quiet']:focus-visible {
+    box-shadow: 0 0 0 2px rgba(93, 200, 255, 0.7) !important;
 }
 .vesper-low-end img,
 .vesper-host-android img {

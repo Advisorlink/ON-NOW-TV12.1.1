@@ -86,14 +86,65 @@ export default function useSpatialFocus() {
             return best;
         };
 
-        const focusEl = (el) => {
+        const focusEl = (el, dir) => {
             if (!el) return;
             el.focus({ preventScroll: true });
-            el.scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest',
-                inline: 'center',
-            });
+
+            // Smart scroll: only scroll the axis that actually moved.
+            // The default scrollIntoView jumps on both axes which makes
+            // horizontal shelf navigation feel "snappy / jerky" because
+            // it fights with the shelf's own overflow-x container.
+            const rect = el.getBoundingClientRect();
+            const vh = window.innerHeight;
+            const vw = window.innerWidth;
+
+            // Find the nearest scrollable horizontal container (the
+            // shelf) and scroll just THAT one horizontally, so the
+            // outer <main> doesn't lurch vertically as a side-effect.
+            let horizContainer = el.parentElement;
+            while (horizContainer && horizContainer !== document.body) {
+                const cs = getComputedStyle(horizContainer);
+                const ox = cs.overflowX;
+                if (
+                    (ox === 'auto' || ox === 'scroll') &&
+                    horizContainer.scrollWidth > horizContainer.clientWidth
+                ) {
+                    break;
+                }
+                horizContainer = horizContainer.parentElement;
+            }
+
+            if (dir === 'left' || dir === 'right') {
+                // Horizontal move — scroll the shelf only.
+                if (horizContainer && horizContainer !== document.body) {
+                    const cRect = horizContainer.getBoundingClientRect();
+                    const targetLeft =
+                        rect.left - cRect.left - (cRect.width - rect.width) / 2;
+                    horizContainer.scrollBy({
+                        left: targetLeft,
+                        behavior: 'smooth',
+                    });
+                }
+                // Only nudge the page vertically if the focused tile
+                // is actually clipped at the top/bottom — never on a
+                // pure horizontal move within the viewport.
+                if (rect.top < 80 || rect.bottom > vh - 40) {
+                    el.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'nearest',
+                    });
+                }
+            } else {
+                // Vertical move — let the page handle it.
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'nearest',
+                });
+            }
+            // Suppress unused-var lint
+            void vw;
         };
 
         const onKey = (e) => {
@@ -126,7 +177,7 @@ export default function useSpatialFocus() {
                 if (!active) return;
                 e.preventDefault();
                 const next = findNext(active, dir);
-                if (next) focusEl(next);
+                if (next) focusEl(next, dir);
                 return;
             }
 
