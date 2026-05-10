@@ -1,9 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, ArrowLeft, Loader2, Tv } from 'lucide-react';
+import {
+    Play,
+    ArrowLeft,
+    Loader2,
+    ExternalLink,
+    Copy,
+    Magnet,
+    Info,
+} from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { Vesper } from '@/lib/api';
+
+const streamMode = (s) => {
+    if (s?.url) return 'direct';
+    if (s?.externalUrl) return 'external';
+    if (s?.infoHash) return 'torrent';
+    return 'unknown';
+};
+
+const buildMagnet = (s, fallbackName = '') => {
+    if (!s?.infoHash) return null;
+    const name = s.name || s.title || fallbackName || 'video';
+    const trackers = Array.isArray(s.sources)
+        ? s.sources
+              .filter((t) => typeof t === 'string' && t.startsWith('tracker:'))
+              .map((t) => `&tr=${encodeURIComponent(t.slice('tracker:'.length))}`)
+              .join('')
+        : '';
+    return `magnet:?xt=urn:btih:${s.infoHash}&dn=${encodeURIComponent(
+        name
+    )}${trackers}`;
+};
 
 export default function Detail() {
     useSpatialFocus();
@@ -16,6 +45,7 @@ export default function Detail() {
     const [loading, setLoading] = useState(true);
     const [streamLoading, setStreamLoading] = useState(true);
     const [err, setErr] = useState(null);
+    const [copied, setCopied] = useState(null);
 
     useEffect(() => {
         let cancel = false;
@@ -61,13 +91,42 @@ export default function Detail() {
     }, [type, id]);
 
     const playStream = (stream) => {
-        const url = stream.url;
-        if (!url) return;
-        navigate(
-            `/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(
-                meta?.name || ''
-            )}`
-        );
+        const mode = streamMode(stream);
+        if (mode === 'direct') {
+            navigate(
+                `/play?url=${encodeURIComponent(
+                    stream.url
+                )}&title=${encodeURIComponent(meta?.name || '')}`
+            );
+        } else if (mode === 'external') {
+            try {
+                window.open(stream.externalUrl, '_blank', 'noopener,noreferrer');
+            } catch {
+                /* popup blocked */
+            }
+        } else if (mode === 'torrent') {
+            const magnet = buildMagnet(stream, meta?.name);
+            if (magnet) {
+                try {
+                    window.location.href = magnet;
+                } catch {
+                    /* no handler installed for magnet: */
+                }
+            }
+        }
+    };
+
+    const copyMagnet = async (stream) => {
+        const magnet = buildMagnet(stream, meta?.name);
+        if (!magnet) return;
+        try {
+            await navigator.clipboard.writeText(magnet);
+            setCopied(stream.infoHash);
+            setTimeout(() => setCopied(null), 1800);
+        } catch {
+            /* no clipboard permission — show prompt fallback */
+            window.prompt('Copy this magnet link:', magnet);
+        }
     };
 
     if (loading) {
@@ -100,7 +159,12 @@ export default function Detail() {
         );
     }
 
-    const playable = streams.filter((s) => !!s.url);
+    const playable = streams.filter(
+        (s) => streamMode(s) === 'direct' || streamMode(s) === 'external'
+    );
+    const torrentCount = streams.filter(
+        (s) => streamMode(s) === 'torrent'
+    ).length;
 
     return (
         <div data-testid="detail-page" className="relative w-screen h-[100dvh] min-h-screen overflow-hidden">
@@ -229,9 +293,9 @@ export default function Detail() {
                                         textTransform: 'uppercase',
                                     }}
                                 >
-                                    {playable.length > 0
-                                        ? `${playable.length} playable`
-                                        : `${streams.length} found`}
+                                    {streams.length > 0
+                                        ? `${streams.length} found · ${playable.length} playable`
+                                        : '0 found'}
                                 </span>
                             )}
                         </h3>
@@ -244,7 +308,7 @@ export default function Detail() {
                                 <Loader2 className="vesper-spin" size={18} />
                                 Searching installed addons…
                             </div>
-                        ) : playable.length === 0 ? (
+                        ) : streams.length === 0 ? (
                             <div className="vesper-glass rounded-2xl p-6">
                                 <div
                                     style={{
@@ -253,7 +317,7 @@ export default function Detail() {
                                         fontWeight: 500,
                                     }}
                                 >
-                                    No playable streams from your installed
+                                    No streams returned by your installed
                                     addons.
                                 </div>
                                 {diagnostics.length > 0 && (
@@ -298,67 +362,206 @@ export default function Detail() {
                                         color: 'var(--vesper-text-3)',
                                     }}
                                 >
-                                    Tip: many stream addons return zero results
-                                    for unreleased or very recent titles. Try a
-                                    well-known catalogue movie to verify.
+                                    Tip: many stream addons return zero
+                                    results for unreleased or very recent
+                                    titles. Try a well-known catalogue movie
+                                    to verify.
                                 </div>
                             </div>
                         ) : (
-                            <ul className="flex flex-col gap-3">
-                                {playable.slice(0, 12).map((s, i) => (
-                                    <li key={i}>
-                                        <button
-                                            data-testid={`stream-${i}`}
-                                            data-focusable="true"
-                                            data-focus-style="pill"
-                                            tabIndex={0}
-                                            onClick={() => playStream(s)}
-                                            className="w-full text-left flex items-center gap-4 px-5 h-16 rounded-xl"
+                            <>
+                                {torrentCount > 0 && (
+                                    <div
+                                        data-testid="torrent-banner"
+                                        className="vesper-glass rounded-xl px-5 py-4 mb-4 flex items-start gap-3"
+                                        style={{
+                                            borderColor:
+                                                'rgba(255,200,80,0.25)',
+                                        }}
+                                    >
+                                        <Info
+                                            size={18}
+                                            strokeWidth={1.6}
                                             style={{
-                                                background: 'rgba(17,24,39,0.7)',
-                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                color: '#ffd28a',
+                                                marginTop: 3,
+                                                flexShrink: 0,
+                                            }}
+                                        />
+                                        <div
+                                            style={{
+                                                fontSize: 14,
+                                                lineHeight: 1.55,
+                                                color: 'var(--vesper-text-2)',
                                             }}
                                         >
-                                            <span
-                                                className="flex items-center justify-center w-10 h-10 rounded-full shrink-0"
+                                            <strong
                                                 style={{
-                                                    background:
-                                                        'rgba(93,200,255,0.15)',
-                                                    color: 'var(--vesper-blue)',
+                                                    color: 'var(--vesper-text)',
                                                 }}
                                             >
-                                                <Play size={16} fill="currentColor" />
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <div
-                                                    className="font-sans font-medium truncate"
-                                                    style={{ fontSize: 17 }}
+                                                {torrentCount} torrent
+                                                {torrentCount === 1 ? '' : 's'}{' '}
+                                                returned.
+                                            </strong>{' '}
+                                            Torrent streams (info-hash) can&apos;t
+                                            be played directly in this client.
+                                            Use the magnet button to copy /
+                                            open in an external app, or
+                                            configure a debrid service
+                                            (Real-Debrid, AllDebrid,
+                                            Premiumize) inside your Torrentio
+                                            URL — Torrentio will then return
+                                            direct HTTP streams that play
+                                            here.
+                                        </div>
+                                    </div>
+                                )}
+
+                                <ul
+                                    className="flex flex-col gap-2.5"
+                                    data-testid="stream-list"
+                                >
+                                    {streams.slice(0, 60).map((s, i) => {
+                                        const mode = streamMode(s);
+                                        const ModeIcon =
+                                            mode === 'direct'
+                                                ? Play
+                                                : mode === 'external'
+                                                ? ExternalLink
+                                                : mode === 'torrent'
+                                                ? Magnet
+                                                : Info;
+                                        const accent =
+                                            mode === 'direct'
+                                                ? 'var(--vesper-blue)'
+                                                : mode === 'external'
+                                                ? '#a8e3ff'
+                                                : mode === 'torrent'
+                                                ? '#ffd28a'
+                                                : 'var(--vesper-text-3)';
+                                        const isCopied =
+                                            mode === 'torrent' &&
+                                            copied === s.infoHash;
+                                        const label =
+                                            s.title || s.name || s._addon_name || 'Stream';
+                                        return (
+                                            <li
+                                                key={i}
+                                                className="flex items-stretch gap-2"
+                                            >
+                                                <button
+                                                    data-testid={`stream-${i}`}
+                                                    data-focusable="true"
+                                                    data-focus-style="pill"
+                                                    tabIndex={0}
+                                                    onClick={() =>
+                                                        playStream(s)
+                                                    }
+                                                    className="flex-1 text-left flex items-center gap-4 px-5 h-16 rounded-xl"
+                                                    style={{
+                                                        background:
+                                                            'rgba(17,24,39,0.7)',
+                                                        border:
+                                                            '1px solid rgba(255,255,255,0.07)',
+                                                    }}
                                                 >
-                                                    {s.name || s.title || s._addon_name || 'Stream'}
-                                                </div>
-                                                {s.description && (
-                                                    <div
-                                                        className="vesper-mono truncate"
+                                                    <span
+                                                        className="flex items-center justify-center w-10 h-10 rounded-full shrink-0"
                                                         style={{
-                                                            fontSize: 12,
-                                                            color: 'var(--vesper-text-3)',
-                                                            letterSpacing: '0.04em',
+                                                            background: `${accent.startsWith('#') ? accent : 'var(--vesper-blue)'}22`,
+                                                            color: accent,
                                                         }}
                                                     >
-                                                        {s.description}
+                                                        <ModeIcon
+                                                            size={16}
+                                                            fill={
+                                                                mode ===
+                                                                'direct'
+                                                                    ? 'currentColor'
+                                                                    : 'none'
+                                                            }
+                                                        />
+                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div
+                                                            className="font-sans font-medium"
+                                                            style={{
+                                                                fontSize: 15,
+                                                                lineHeight: 1.3,
+                                                                whiteSpace:
+                                                                    'pre-wrap',
+                                                                wordBreak:
+                                                                    'break-word',
+                                                            }}
+                                                        >
+                                                            {label}
+                                                        </div>
+                                                        <div
+                                                            className="vesper-mono mt-0.5"
+                                                            style={{
+                                                                fontSize: 11,
+                                                                color: 'var(--vesper-text-3)',
+                                                                letterSpacing:
+                                                                    '0.04em',
+                                                            }}
+                                                        >
+                                                            {mode.toUpperCase()}{' '}
+                                                            ·{' '}
+                                                            {s._addon_name ||
+                                                                'addon'}
+                                                            {s.behaviorHints?.bingeGroup
+                                                                ? ` · ${s.behaviorHints.bingeGroup}`
+                                                                : ''}
+                                                        </div>
                                                     </div>
+                                                </button>
+
+                                                {mode === 'torrent' && (
+                                                    <button
+                                                        data-testid={`copy-magnet-${i}`}
+                                                        data-focusable="true"
+                                                        data-focus-style="quiet"
+                                                        tabIndex={0}
+                                                        onClick={() =>
+                                                            copyMagnet(s)
+                                                        }
+                                                        aria-label="Copy magnet"
+                                                        title="Copy magnet link"
+                                                        className="shrink-0 flex items-center justify-center w-12 rounded-xl"
+                                                        style={{
+                                                            background:
+                                                                'rgba(17,24,39,0.7)',
+                                                            color: isCopied
+                                                                ? 'var(--vesper-blue)'
+                                                                : 'var(--vesper-text-2)',
+                                                            border:
+                                                                '1px solid rgba(255,255,255,0.07)',
+                                                        }}
+                                                    >
+                                                        <Copy size={16} />
+                                                    </button>
                                                 )}
-                                            </div>
-                                            <span
-                                                className="vesper-eyebrow shrink-0"
-                                                style={{ fontSize: 10 }}
-                                            >
-                                                {s._addon_name || 'addon'}
-                                            </span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+
+                                {streams.length > 60 && (
+                                    <div
+                                        className="vesper-mono mt-4"
+                                        style={{
+                                            fontSize: 12,
+                                            color: 'var(--vesper-text-3)',
+                                            letterSpacing: '0.18em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        + {streams.length - 60} more streams
+                                        not shown
+                                    </div>
+                                )}
+                            </>
                         )}
                     </section>
                 </div>
