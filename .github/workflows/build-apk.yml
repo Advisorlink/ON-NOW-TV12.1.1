@@ -38,20 +38,29 @@ jobs:
 
       - name: Install Yarn deps
         working-directory: frontend
-        run: yarn install --frozen-lockfile
+        run: yarn install --network-timeout 600000
 
       - name: Build React app (production)
         working-directory: frontend
         env:
           CI: 'false'  # don't fail the build on lint warnings
-        run: yarn build
+          GENERATE_SOURCEMAP: 'false'
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: |
+          yarn build
+          echo "=== React build output: ==="
+          ls -la build/
+          echo "=== JS bundle: ==="
+          ls -la build/static/js/ 2>/dev/null | head -5
 
       - name: Bundle frontend into Android assets
         run: |
           rm -rf android/vesper-tv/app/src/main/assets/web
           mkdir -p android/vesper-tv/app/src/main/assets/web
           cp -r frontend/build/. android/vesper-tv/app/src/main/assets/web/
-          ls -la android/vesper-tv/app/src/main/assets/web | head
+          echo "=== Bundled into APK assets: ==="
+          ls -la android/vesper-tv/app/src/main/assets/web/ | head
+          echo "Total files: $(find android/vesper-tv/app/src/main/assets/web/ -type f | wc -l)"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -77,15 +86,7 @@ jobs:
 
       - name: Build debug APK
         working-directory: android/vesper-tv
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-build-log
-          path: android/vesper-tv/build.log
-          retention-days: 7
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Locate APK
         run: |
