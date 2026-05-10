@@ -21,34 +21,30 @@ export default function Player() {
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
     const [playing, setPlaying] = useState(false);
-    const [muted, setMuted] = useState(false);
-    const [showUnmuteHint, setShowUnmuteHint] = useState(false);
+    const [muted, setMuted] = useState(true);
+    const [showUnmuteHint, setShowUnmuteHint] = useState(true);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
 
     /**
-     * Attempt to start playback.  Browsers reject `play()` calls
-     * after a route change unless the gesture is "fresh enough", in
-     * which case we fall back to **muted autoplay** (always allowed)
-     * and surface a "Tap to unmute" overlay.
+     * Bulletproof autoplay: always start muted (always allowed by
+     * every browser) and surface a prominent unmute prompt.  Any
+     * click or keypress anywhere on the document unmutes — that's a
+     * proper user gesture so the browser permits it.
      */
     const startPlayback = async () => {
         const v = videoRef.current;
         if (!v) return;
+        v.muted = true;
         try {
-            v.muted = false;
             await v.play();
-            setMuted(false);
-            setShowUnmuteHint(false);
+            setMuted(true);
+            setShowUnmuteHint(true);
         } catch {
-            try {
-                v.muted = true;
-                await v.play();
-                setMuted(true);
-                setShowUnmuteHint(true);
-            } catch {
-                /* user can press the on-screen Play button */
-            }
+            // Even muted autoplay can fail in extreme corner cases —
+            // user can hit the on-screen Play button.
+            setMuted(true);
+            setShowUnmuteHint(true);
         }
     };
 
@@ -249,21 +245,50 @@ export default function Player() {
                 <button
                     data-testid="unmute-hint"
                     onClick={toggleMute}
-                    className="absolute z-20 flex items-center gap-3 px-6 h-14 rounded-full vesper-pulse"
+                    className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4"
                     style={{
-                        top: 32,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        background: 'rgba(93,200,255,0.95)',
-                        color: '#06080f',
-                        fontSize: 17,
-                        fontWeight: 600,
-                        boxShadow: '0 12px 40px rgba(93,200,255,0.55)',
+                        background:
+                            'radial-gradient(ellipse at center, rgba(6,8,15,0.55) 0%, rgba(6,8,15,0.85) 100%)',
                         cursor: 'pointer',
+                        border: 'none',
+                        color: 'var(--vesper-text)',
                     }}
                 >
-                    <VolumeX size={18} strokeWidth={2.5} />
-                    Tap or press any key to unmute
+                    <div
+                        className="flex items-center justify-center rounded-full vesper-pulse"
+                        style={{
+                            width: 132,
+                            height: 132,
+                            background:
+                                'radial-gradient(circle, rgba(93,200,255,0.95) 0%, rgba(93,200,255,0.7) 70%, rgba(93,200,255,0) 100%)',
+                            color: '#06080f',
+                            boxShadow:
+                                '0 0 80px rgba(93,200,255,0.7), 0 0 120px rgba(93,200,255,0.35)',
+                        }}
+                    >
+                        <VolumeX size={56} strokeWidth={2.2} />
+                    </div>
+                    <div
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(40px, 5vw, 64px)',
+                            letterSpacing: '-0.02em',
+                            textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+                        }}
+                    >
+                        Click to unmute
+                    </div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 14,
+                            letterSpacing: '0.22em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-2)',
+                        }}
+                    >
+                        Or press any key on your remote
+                    </div>
                 </button>
             )}
 

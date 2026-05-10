@@ -1,20 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Info, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { HEROES } from '@/data/mockCatalog';
+import { HEROES as MOCK_HEROES } from '@/data/mockCatalog';
 
-export default function HeroBillboard() {
+export default function HeroBillboard({ heroes }) {
+    const list = heroes && heroes.length > 0 ? heroes : MOCK_HEROES;
     const [idx, setIdx] = useState(0);
-    const hero = HEROES[idx];
+    const hero = list[idx] || list[0];
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Reset to first hero whenever the list changes (e.g. when live
+        // data arrives after mock fallback was rendered).
+        setIdx(0);
+    }, [list]);
+
+    useEffect(() => {
+        if (list.length <= 1) return;
         const t = setInterval(
-            () => setIdx((i) => (i + 1) % HEROES.length),
+            () => setIdx((i) => (i + 1) % list.length),
             9500
         );
         return () => clearInterval(t);
-    }, []);
+    }, [list.length]);
+
+    if (!hero) return null;
+
+    const meta = [
+        hero.year,
+        hero.runtime,
+        hero.rating,
+        hero.genres?.length ? hero.genres.slice(0, 3).join(' · ') : null,
+    ].filter(Boolean);
+
+    const goToDetail = () => {
+        if (hero.routePath) navigate(hero.routePath);
+        else navigate(`/title/${hero.id}`);
+    };
 
     return (
         <section
@@ -22,7 +44,7 @@ export default function HeroBillboard() {
             className="relative w-full overflow-hidden"
             style={{ height: '82vh' }}
         >
-            {HEROES.map((h, i) => (
+            {list.map((h, i) => (
                 <div
                     key={h.id}
                     aria-hidden={i !== idx}
@@ -88,45 +110,45 @@ export default function HeroBillboard() {
                         {hero.title}
                     </h1>
 
-                    <div className="flex items-center gap-4 mt-6 vesper-meta flex-wrap">
-                        <span
-                            style={{
-                                color: 'var(--vesper-blue)',
-                                fontWeight: 500,
-                            }}
-                        >
-                            {hero.year}
-                        </span>
-                        <Dot />
-                        <span>{hero.runtime}</span>
-                        <Dot />
-                        <span
-                            className="px-2 py-1 vesper-mono"
-                            style={{
-                                fontSize: 12,
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: 4,
-                                color: 'var(--vesper-text-2)',
-                                letterSpacing: '0.18em',
-                            }}
-                        >
-                            {hero.rating}
-                        </span>
-                        <Dot />
-                        <span>{hero.genres.join(' · ')}</span>
-                    </div>
+                    {meta.length > 0 && (
+                        <div className="flex items-center gap-4 mt-6 vesper-meta flex-wrap">
+                            {meta.map((m, i) => (
+                                <React.Fragment key={i}>
+                                    {i > 0 && <Dot />}
+                                    <span
+                                        style={
+                                            i === 0
+                                                ? {
+                                                      color: 'var(--vesper-blue)',
+                                                      fontWeight: 500,
+                                                  }
+                                                : undefined
+                                        }
+                                    >
+                                        {m}
+                                    </span>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    )}
 
-                    <p
-                        className="mt-6 max-w-[46ch]"
-                        style={{
-                            fontSize: 20,
-                            lineHeight: 1.55,
-                            fontWeight: 400,
-                            color: 'var(--vesper-text-2)',
-                        }}
-                    >
-                        {hero.synopsis}
-                    </p>
+                    {hero.synopsis && (
+                        <p
+                            className="mt-6 max-w-[46ch]"
+                            style={{
+                                fontSize: 20,
+                                lineHeight: 1.55,
+                                fontWeight: 400,
+                                color: 'var(--vesper-text-2)',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 4,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            {hero.synopsis}
+                        </p>
+                    )}
 
                     <div className="flex items-center gap-3 mt-9">
                         <button
@@ -135,7 +157,7 @@ export default function HeroBillboard() {
                             data-focus-style="pill"
                             data-initial-focus="true"
                             tabIndex={0}
-                            onClick={() => navigate(`/title/${hero.id}`)}
+                            onClick={goToDetail}
                             className="flex items-center gap-3 h-14 px-8 rounded-full font-sans font-semibold text-[19px]"
                             style={{
                                 background:
@@ -151,7 +173,7 @@ export default function HeroBillboard() {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
-                            onClick={() => navigate(`/title/${hero.id}`)}
+                            onClick={goToDetail}
                             className="flex items-center gap-3 h-14 px-7 rounded-full font-sans font-medium text-[19px]"
                             style={{
                                 background: 'rgba(255,255,255,0.08)',
@@ -179,31 +201,34 @@ export default function HeroBillboard() {
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3 mt-7 vesper-eyebrow flex-wrap">
-                        <span style={{ color: 'var(--vesper-text-3)' }}>
-                            On
-                        </span>
-                        {hero.sources.map((s) => (
-                            <span
-                                key={s}
-                                className="px-2.5 py-1 rounded-md"
-                                style={{
-                                    color: 'var(--vesper-blue-bright)',
-                                    background: 'rgba(93,200,255,0.08)',
-                                    border: '1px solid rgba(93,200,255,0.25)',
-                                    letterSpacing: '0.16em',
-                                    fontSize: 11,
-                                }}
-                            >
-                                {s}
+                    {hero.sources?.length > 0 && (
+                        <div className="flex items-center gap-3 mt-7 vesper-eyebrow flex-wrap">
+                            <span style={{ color: 'var(--vesper-text-3)' }}>
+                                On
                             </span>
-                        ))}
-                    </div>
+                            {hero.sources.map((s) => (
+                                <span
+                                    key={s}
+                                    className="px-2.5 py-1 rounded-md"
+                                    style={{
+                                        color: 'var(--vesper-blue-bright)',
+                                        background: 'rgba(93,200,255,0.08)',
+                                        border:
+                                            '1px solid rgba(93,200,255,0.25)',
+                                        letterSpacing: '0.16em',
+                                        fontSize: 11,
+                                    }}
+                                >
+                                    {s}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
             <div className="absolute bottom-10 right-12 flex items-center gap-2.5 z-10">
-                {HEROES.map((_, i) => (
+                {list.map((_, i) => (
                     <span
                         key={i}
                         className="block transition-all duration-500"

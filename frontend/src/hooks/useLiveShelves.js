@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Vesper } from '@/lib/api';
 
 /**
- * Pulls real catalogs from every installed addon.
- * Returns shelves shaped like { id, title, eyebrow, items[] } so they
- * drop straight into <Shelf />.
+ * Pulls real catalogs from every installed addon and emits them
+ * **progressively**, so a single slow addon can't hold up the whole
+ * home screen.  Returns shelves shaped like
+ *   { id, title, eyebrow, items[] }
+ * which drop straight into <Shelf />.
  */
+const BROWSABLE_TYPES = new Set(['movie', 'series', 'channel', 'tv', 'anime']);
+
 export function useLiveShelves(addons) {
     const [shelves, setShelves] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -17,13 +21,19 @@ export function useLiveShelves(addons) {
         }
 
         let cancelled = false;
-        (async () => {
-            setLoading(true);
-            const out = [];
+        setShelves([]);
+        setLoading(true);
+        const acc = [];
 
+        (async () => {
             for (const addon of addons) {
-                const catalogs = (addon.catalogs || []).slice(0, 4); // cap per addon
+                if (cancelled) return;
+                const catalogs = (addon.catalogs || [])
+                    .filter((c) => BROWSABLE_TYPES.has(c.type))
+                    .slice(0, 4);
+
                 for (const cat of catalogs) {
+                    if (cancelled) return;
                     try {
                         const res = await Vesper.getCatalog(
                             addon.id,
@@ -32,7 +42,7 @@ export function useLiveShelves(addons) {
                         );
                         const metas = res?.data?.metas || [];
                         if (!metas.length) continue;
-                        out.push({
+                        const shelf = {
                             id: `${addon.id}-${cat.type}-${cat.id}`,
                             title: cat.name || prettify(cat.id),
                             eyebrow: `${addon.name} · ${capitalize(cat.type)}`,
@@ -41,25 +51,25 @@ export function useLiveShelves(addons) {
                                 imdbId: m.id,
                                 type: cat.type,
                                 title: m.name,
-                                sub: [m.releaseInfo, m.imdbRating ? `★ ${m.imdbRating}` : null]
+                                sub: [
+                                    m.releaseInfo,
+                                    m.imdbRating ? `★ ${m.imdbRating}` : null,
+                                ]
                                     .filter(Boolean)
                                     .join(' · '),
                                 poster: m.poster,
                                 background: m.background,
                                 routePath: `/title/${cat.type}/${m.id}`,
                             })),
-                        });
-                        if (cancelled) return;
-                    } catch (e) {
+                        };
+                        acc.push(shelf);
+                        if (!cancelled) setShelves([...acc]);
+                    } catch {
                         // skip silently — one bad catalog shouldn't kill the row
                     }
                 }
             }
-
-            if (!cancelled) {
-                setShelves(out);
-                setLoading(false);
-            }
+            if (!cancelled) setLoading(false);
         })();
 
         return () => {
@@ -71,9 +81,7 @@ export function useLiveShelves(addons) {
 }
 
 const prettify = (s = '') =>
-    s
-        .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+    s.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 const capitalize = (s = '') =>
     (s.charAt(0).toUpperCase() + s.slice(1)).trim();

@@ -7,11 +7,13 @@ import { SHELVES as MOCK_SHELVES } from '@/data/mockCatalog';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
+import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 
 export default function Home() {
     useSpatialFocus();
     const { addons } = useAddons();
     const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(addons);
+    const { heroes: liveHeroes } = useLiveHeroes(addons);
 
     const shelves = useMemo(() => {
         if (liveShelves && liveShelves.length > 0) return liveShelves;
@@ -31,7 +33,7 @@ export default function Home() {
                 className="absolute inset-0 overflow-y-auto"
                 style={{ scrollBehavior: 'smooth' }}
             >
-                <HeroBillboard />
+                <HeroBillboard heroes={liveHeroes} />
 
                 {addons.length === 0 && (
                     <section
