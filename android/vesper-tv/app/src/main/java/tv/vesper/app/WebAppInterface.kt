@@ -12,9 +12,9 @@ import android.widget.Toast
  * The web app calls `window.OnNowTV.playVideo(url, title, mime)` when
  * the user picks a stream.  We hand the URL off to the user's
  * preferred system video player (VLC, MX Player, Kodi, ExoPlayer-based
- * players, anything that handles ACTION_VIEW for video/*).
+ * players, anything that handles ACTION_VIEW for "video/*").
  *
- * Why?  The HK1 box's WebView is software-rendered for video → no
+ * Why?  The HK1 box's WebView is software-rendered for video — no
  * audio without gesture, awful frame rates on 1080p HLS.  System
  * players are hardware-accelerated, handle every codec under the sun,
  * have built-in subtitle pickers, and are what the user already knows.
