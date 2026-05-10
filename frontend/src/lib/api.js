@@ -25,10 +25,5 @@ export const Vesper = {
         api.get(`/streams/${type}/${itemId}`).then((r) => r.data),
 };
 
-/** Resolve a Stremio poster URL or fall back to a placeholder gradient. */
-export const resolvePoster = (item) =>
-    item?.poster ||
-    item?.posterUrl ||
-    item?.posterShape === 'landscape'
-        ? item?.poster
-        : item?.poster || null;
+/** Resolve a Stremio poster URL or fall back to null. */
+export const resolvePoster = (item) => item?.poster || item?.posterUrl || null;
