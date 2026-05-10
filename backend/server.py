@@ -119,6 +119,10 @@ class StatusCheckCreate(BaseModel):
 
 class AddonInstallRequest(BaseModel):
     url: str
+    # Optional pre-fetched manifest.  When the frontend can fetch the
+    # addon directly (residential IP, no Cloudflare bot wall), it sends
+    # the parsed manifest along and we skip the server-side HTTP fetch.
+    manifest: Optional[Dict[str, Any]] = None
 
 
 class AddonOut(BaseModel):
@@ -268,8 +272,15 @@ async def addons_list():
 @api.post("/addons/install")
 async def addons_install(req: AddonInstallRequest):
     base, manifest_url = _normalize_manifest_url(req.url)
-    async with httpx.AsyncClient() as client:
-        manifest = await _fetch_json(client, manifest_url)
+
+    # Prefer the manifest the client supplied (it could fetch from a
+    # residential IP that the upstream allows; our datacentre IP often
+    # gets bot-walled by Cloudflare).  Otherwise fetch ourselves.
+    if req.manifest and isinstance(req.manifest, dict):
+        manifest = req.manifest
+    else:
+        async with httpx.AsyncClient() as client:
+            manifest = await _fetch_json(client, manifest_url)
 
     if not isinstance(manifest, dict):
         raise HTTPException(400, "Manifest is not an object")
