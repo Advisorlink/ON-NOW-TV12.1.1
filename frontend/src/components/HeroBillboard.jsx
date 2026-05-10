@@ -91,7 +91,7 @@ export default function HeroBillboard({ heroes }) {
                 }}
             />
 
-            <div className="absolute inset-0 flex items-end pb-6">
+            <div className="absolute inset-0 flex items-center">
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
