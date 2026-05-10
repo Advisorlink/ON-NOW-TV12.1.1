@@ -10,7 +10,7 @@ import Search from '@/pages/Search';
 function NotImplemented({ name }) {
     return (
         <div
-            className="w-screen h-screen flex items-center justify-center"
+            className="w-screen h-[100dvh] min-h-screen flex items-center justify-center"
             style={{ background: 'var(--vesper-bg-0)' }}
         >
             <div

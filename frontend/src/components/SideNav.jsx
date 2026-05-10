@@ -124,14 +124,19 @@ export default function SideNav() {
                 <div
                     className="vesper-mono transition-opacity duration-300"
                     style={{
-                        opacity: expanded ? 0.5 : 0,
+                        opacity: expanded ? 0.6 : 0,
                         fontSize: 11,
-                        color: 'var(--vesper-text-3)',
+                        color: 'var(--vesper-text-2)',
                         letterSpacing: '0.18em',
                         textTransform: 'uppercase',
+                        lineHeight: 1.6,
                     }}
                 >
-                    v0.2 · Vespertine
+                    Press F for fullscreen
+                    <br />
+                    <span style={{ color: 'var(--vesper-text-3)' }}>
+                        v0.2 · Vespertine
+                    </span>
                 </div>
             </div>
         </nav>

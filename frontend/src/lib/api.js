@@ -95,30 +95,36 @@ export const Vesper = {
         api.delete(`/addons/${addonId}`).then((r) => r.data),
 
     /**
-     * Catalog — try direct fetch from addon, fall back to backend proxy.
+     * Catalog — try backend proxy first (fast, cached, server-side
+     * aggregation), and only fall back to direct browser fetch if the
+     * backend can't reach the addon (e.g. Cloudflare-walled).
      */
     getCatalog: async (addonId, type, catalogId, params = {}) => {
-        const addon = await findAddonById(addonId);
-        if (addon?.url) {
-            const url = `${trimSlash(addon.url)}/catalog/${type}/${catalogId}${buildExtraPath(params)}.json`;
-            try {
-                const data = await fetchJsonDirect(url);
-                return { cached: false, data };
-            } catch (_e) {
-                // fall through
-            }
+        try {
+            const r = await api.get(
+                `/addons/${addonId}/catalog/${type}/${catalogId}`,
+                { params }
+            );
+            return r.data;
+        } catch (_e) {
+            // fall through to direct fetch
         }
-        const r = await api.get(
-            `/addons/${addonId}/catalog/${type}/${catalogId}`,
-            { params }
-        );
-        return r.data;
+        const addon = await findAddonById(addonId);
+        if (!addon?.url) throw new Error('Addon not installed');
+        const url = `${trimSlash(addon.url)}/catalog/${type}/${catalogId}${buildExtraPath(params)}.json`;
+        const data = await fetchJsonDirect(url);
+        return { cached: false, data };
     },
 
-    /** Meta — iterate installed addons in browser, then fall back to backend. */
+    /** Meta — backend first, browser direct fallback. */
     getMeta: async (type, itemId) => {
+        try {
+            const r = await api.get(`/meta/${type}/${itemId}`);
+            if (r.data?.data?.meta) return r.data;
+        } catch (_e) {
+            // fall through
+        }
         const addons = await Vesper.listAddons();
-        // Cinemeta first
         addons.sort((a, b) =>
             /cinemeta/i.test(a.id) ? -1 : /cinemeta/i.test(b.id) ? 1 : 0
         );
@@ -127,9 +133,6 @@ export const Vesper = {
                 typeof r === 'string' ? r === 'meta' : r?.name === 'meta'
             );
             if (!supportsMeta) continue;
-            const prefixes = a.id_prefixes || [];
-            if (prefixes.length && !prefixes.some((p) => itemId.startsWith(p)))
-                continue;
             const url = `${trimSlash(a.url)}/meta/${type}/${itemId}.json`;
             try {
                 const data = await fetchJsonDirect(url);
@@ -138,41 +141,97 @@ export const Vesper = {
                 continue;
             }
         }
-        // Last resort: backend (might also fail if addon is CF-walled)
-        const r = await api.get(`/meta/${type}/${itemId}`);
-        return r.data;
+        throw new Error('No metadata available');
     },
 
-    /** Streams — aggregate across all addons in the browser. */
+    /**
+     * Streams — try backend proxy first, then browser-direct on each
+     * addon for the ones the backend couldn't reach.  Returns
+     * { streams, diagnostics } either way.
+     */
     getStreams: async (type, itemId) => {
+        // 1. Try backend aggregator (cached, parallel)
+        let backendStreams = [];
+        try {
+            const r = await api.get(`/streams/${type}/${itemId}`);
+            backendStreams = r.data?.streams || [];
+        } catch (_e) {
+            // ignore — fall to browser path
+        }
+
+        // 2. Browser-direct probe per addon (catches Cloudflare-walled ones).
         const addons = await Vesper.listAddons();
-        const tasks = addons.map(async (a) => {
-            const supportsStream = (a.resources || []).some((r) =>
-                typeof r === 'string' ? r === 'stream' : r?.name === 'stream'
-            );
-            if (!supportsStream) return [];
-            const prefixes = a.id_prefixes || [];
-            if (prefixes.length && !prefixes.some((p) => itemId.startsWith(p)))
-                return [];
-            const url = `${trimSlash(a.url)}/stream/${type}/${itemId}.json`;
-            try {
-                const data = await fetchJsonDirect(url, { timeout: 20000 });
-                const streams = Array.isArray(data?.streams) ? data.streams : [];
-                return streams.map((s) => ({
-                    ...s,
-                    _addon_id: a.id,
-                    _addon_name: a.name || a.id,
-                }));
-            } catch (_e) {
-                return [];
-            }
-        });
-        const lists = await Promise.all(tasks);
-        const direct = lists.flat();
-        if (direct.length > 0) return { cached: false, streams: direct };
-        // Fallback to server-side aggregator (works for non-CF addons)
-        const r = await api.get(`/streams/${type}/${itemId}`);
-        return r.data;
+        const seenAddonIds = new Set(
+            backendStreams.map((s) => s._addon_id).filter(Boolean)
+        );
+
+        const results = await Promise.all(
+            addons.map(async (a) => {
+                let streamResource = null;
+                for (const r of a.resources || []) {
+                    if (typeof r === 'string' && r === 'stream') {
+                        streamResource = { name: 'stream' };
+                        break;
+                    }
+                    if (typeof r === 'object' && r?.name === 'stream') {
+                        streamResource = r;
+                        break;
+                    }
+                }
+                if (!streamResource) {
+                    return { addon: a, count: 0, skipped: 'no stream resource' };
+                }
+
+                // Backend already returned streams from this addon; trust it.
+                if (seenAddonIds.has(a.id)) {
+                    const fromBackend = backendStreams.filter(
+                        (s) => s._addon_id === a.id
+                    );
+                    return { addon: a, count: fromBackend.length, streams: fromBackend };
+                }
+
+                // Honour resource-level idPrefixes (Torrentio scopes here).
+                const prefixes =
+                    (Array.isArray(streamResource.idPrefixes) &&
+                        streamResource.idPrefixes) ||
+                    a.id_prefixes ||
+                    [];
+                if (
+                    prefixes.length &&
+                    !prefixes.some((p) => itemId.startsWith(p))
+                ) {
+                    return { addon: a, count: 0, skipped: 'id prefix mismatch' };
+                }
+
+                const url = `${trimSlash(a.url)}/stream/${type}/${itemId}.json`;
+                try {
+                    const data = await fetchJsonDirect(url, { timeout: 20000 });
+                    const streams = Array.isArray(data?.streams)
+                        ? data.streams
+                        : [];
+                    return {
+                        addon: a,
+                        count: streams.length,
+                        streams: streams.map((s) => ({
+                            ...s,
+                            _addon_id: a.id,
+                            _addon_name: a.name || a.id,
+                        })),
+                    };
+                } catch (e) {
+                    return {
+                        addon: a,
+                        count: 0,
+                        error: e?.status
+                            ? `HTTP ${e.status}`
+                            : e?.message || 'fetch failed',
+                    };
+                }
+            })
+        );
+
+        const direct = results.flatMap((r) => r.streams || []);
+        return { streams: direct, diagnostics: results };
     },
 };
 

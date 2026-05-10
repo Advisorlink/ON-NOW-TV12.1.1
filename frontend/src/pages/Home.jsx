@@ -21,7 +21,7 @@ export default function Home() {
     return (
         <div
             data-testid="home-page"
-            className="relative w-screen h-screen overflow-hidden"
+            className="relative w-screen h-[100dvh] min-h-screen overflow-hidden"
             style={{ background: 'var(--vesper-bg-0)' }}
         >
             <SideNav />

@@ -54,10 +54,19 @@ html,
 body,
 #root {
     height: 100%;
+    min-height: 100dvh;
+    width: 100%;
     background: var(--vesper-bg-0);
     color: var(--vesper-text);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+.App {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100vh;     /* fallback for older browsers */
     overflow: hidden;
 }
 

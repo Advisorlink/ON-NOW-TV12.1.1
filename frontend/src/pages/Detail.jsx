@@ -12,6 +12,7 @@ export default function Detail() {
 
     const [meta, setMeta] = useState(null);
     const [streams, setStreams] = useState([]);
+    const [diagnostics, setDiagnostics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [streamLoading, setStreamLoading] = useState(true);
     const [err, setErr] = useState(null);
@@ -41,9 +42,15 @@ export default function Detail() {
             setStreamLoading(true);
             try {
                 const s = await Vesper.getStreams(type, id);
-                if (!cancel) setStreams(s?.streams || []);
+                if (!cancel) {
+                    setStreams(s?.streams || []);
+                    setDiagnostics(s?.diagnostics || []);
+                }
             } catch {
-                if (!cancel) setStreams([]);
+                if (!cancel) {
+                    setStreams([]);
+                    setDiagnostics([]);
+                }
             } finally {
                 if (!cancel) setStreamLoading(false);
             }
@@ -96,7 +103,7 @@ export default function Detail() {
     const playable = streams.filter((s) => !!s.url);
 
     return (
-        <div data-testid="detail-page" className="relative w-screen h-screen overflow-hidden">
+        <div data-testid="detail-page" className="relative w-screen h-[100dvh] min-h-screen overflow-hidden">
             <FullscreenButton />
 
             {/* Backdrop */}
@@ -222,7 +229,9 @@ export default function Detail() {
                                         textTransform: 'uppercase',
                                     }}
                                 >
-                                    {playable.length} sources
+                                    {playable.length > 0
+                                        ? `${playable.length} playable`
+                                        : `${streams.length} found`}
                                 </span>
                             )}
                         </h3>
@@ -236,12 +245,63 @@ export default function Detail() {
                                 Searching installed addons…
                             </div>
                         ) : playable.length === 0 ? (
-                            <div
-                                className="vesper-glass rounded-2xl p-6"
-                                style={{ color: 'var(--vesper-text-2)' }}
-                            >
-                                No playable streams yet — install a stream addon (Torrentio,
-                                etc) on the Sources screen.
+                            <div className="vesper-glass rounded-2xl p-6">
+                                <div
+                                    style={{
+                                        color: 'var(--vesper-text)',
+                                        fontSize: 17,
+                                        fontWeight: 500,
+                                    }}
+                                >
+                                    No playable streams from your installed
+                                    addons.
+                                </div>
+                                {diagnostics.length > 0 && (
+                                    <ul
+                                        className="mt-4 space-y-2"
+                                        data-testid="stream-diagnostics"
+                                    >
+                                        {diagnostics.map((d) => (
+                                            <li
+                                                key={d.addon.id}
+                                                className="flex items-center justify-between gap-4 vesper-mono"
+                                                style={{
+                                                    fontSize: 13,
+                                                    color: 'var(--vesper-text-2)',
+                                                    letterSpacing: '0.06em',
+                                                }}
+                                            >
+                                                <span>{d.addon.name}</span>
+                                                <span
+                                                    style={{
+                                                        color: d.error
+                                                            ? '#ffb5b5'
+                                                            : d.count > 0
+                                                            ? 'var(--vesper-blue-bright)'
+                                                            : 'var(--vesper-text-3)',
+                                                    }}
+                                                >
+                                                    {d.error
+                                                        ? `failed · ${d.error}`
+                                                        : d.skipped
+                                                        ? `skipped · ${d.skipped}`
+                                                        : `${d.count} streams`}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                <div
+                                    className="mt-5"
+                                    style={{
+                                        fontSize: 14,
+                                        color: 'var(--vesper-text-3)',
+                                    }}
+                                >
+                                    Tip: many stream addons return zero results
+                                    for unreleased or very recent titles. Try a
+                                    well-known catalogue movie to verify.
+                                </div>
                             </div>
                         ) : (
                             <ul className="flex flex-col gap-3">
@@ -316,7 +376,7 @@ const Bullet = () => (
 
 const CenterMsg = ({ children }) => (
     <div
-        className="w-screen h-screen flex flex-col items-center justify-center"
+        className="w-screen h-[100dvh] min-h-screen flex flex-col items-center justify-center"
         style={{ color: 'var(--vesper-text-2)', fontSize: 18, gap: 12 }}
     >
         {children}

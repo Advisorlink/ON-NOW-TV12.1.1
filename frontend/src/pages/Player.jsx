@@ -200,7 +200,7 @@ export default function Player() {
 
 const CenterMsg = ({ children }) => (
     <div
-        className="w-screen h-screen flex flex-col items-center justify-center"
+        className="w-screen h-[100dvh] min-h-screen flex flex-col items-center justify-center"
         style={{
             color: 'var(--vesper-text-2)',
             fontSize: 18,

@@ -47,7 +47,7 @@ export default function Sources() {
     return (
         <div
             data-testid="sources-page"
-            className="relative w-screen h-screen overflow-hidden"
+            className="relative w-screen h-[100dvh] min-h-screen overflow-hidden"
         >
             <SideNav />
             <FullscreenButton />
