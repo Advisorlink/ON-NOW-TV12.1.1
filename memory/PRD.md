@@ -34,6 +34,39 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 2 — Feb 2026)
+- **Auto-install on first launch** (`useAddons.js`) — silently installs
+  Cinemeta + OpenSubtitles v3 if either is missing; persists per-default
+  flag in `localStorage` (`vesper-bootstrap-attempted-v1`) so user
+  removals are respected.
+- **"Browse by Network" shelf** (`NetworksShelf.jsx` + `lib/networks.js`)
+  on the Home screen — 6 brand-coloured 16:9 tiles (Netflix, HBO,
+  Disney+, Prime Video, Apple TV+, Hulu) using each network's wordmark
+  in their accent colour, no third-party logo assets.
+- **`/networks/:slug` page** (`Network.jsx`) — branded gradient hero
+  strip per network + grid of curated shows, each resolved via direct
+  browser fetch to `https://v3-cinemeta.strem.io/meta/series/<id>.json`.
+  Failures skipped silently so one dead id can't blank the page.
+- **Subtitle picker** (`Player.jsx`) — passes `type` + `imdbId` from
+  Detail through to `/play`; in-Player picker fetches
+  `/api/subtitles/{type}/{imdbId}`, groups by language (English first),
+  fetches the SRT body in-browser, converts SRT→WebVTT inline (handles
+  `\r\n`, BOM, `,###` → `.###`), creates a Blob URL, and mounts a
+  `<track default>` on the `<video>`. Active state surfaces a blue
+  indicator dot on the subtitles button.
+
+### Iteration 2 Verification
+- 18/18 pytest backend tests passing
+  (`/app/backend/tests/test_vesper_api.py` +
+  `/app/backend/tests/test_subtitles_and_addons.py`).
+- Testing agent v3 frontend e2e: 100% — auto-install fires on `/`,
+  all 6 network tiles render, network pages each show 8–10 posters,
+  subtitle picker opens / shows OFF + English rows / closes / sets
+  the active-dot indicator.
+- HK1 box audio confirmed: `mediaPlaybackRequiresUserGesture = false`
+  is set in `MainActivity.kt` line 57 — the autoplay block is purely
+  a desktop-Chrome dev-policy and will not trigger inside the WebView.
+
 ## Implemented (Iteration 1 — May 2026)
 - **Design system** — neon-blue palette, Geist typography, multi-style
   focus states (tile / pill / nav / key / quiet), shelf scroll-snap,
@@ -98,9 +131,11 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 ### P2
 - Multi-user auth (Emergent Google login or JWT).
 - Watch-progress sync.
-- Subtitle picker (OpenSubtitles addon already plugs in).
 - Cast / continue-watching cross-device.
 - ErrorBoundary at the app root.
+- Network catalog refinement: `lib/networks.js` mixes a few movie ids
+  inside the series-only meta fetch — they 404 and are silently
+  skipped. Cleanup or `(imdbId, type)` pairs would tighten this.
 
 ## Non-Goals
 - We will not modify, repackage, or distribute the decompiled
