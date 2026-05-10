@@ -11,8 +11,8 @@ android {
         applicationId = "tv.onnowtv.app"
         minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.1.2"
+        versionCode = 7
+        versionName = "1.1.3"
     }
 
     signingConfigs {

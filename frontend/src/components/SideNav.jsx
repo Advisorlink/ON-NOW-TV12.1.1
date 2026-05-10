@@ -127,7 +127,7 @@ export default function SideNav() {
                     Press F for fullscreen
                     <br />
                     <span style={{ color: 'var(--vesper-text-3)' }}>
-                        v1.1.2 ·{' '}
+                        v1.1.3 ·{' '}
                         {Host.isAndroid
                             ? 'BUNDLED ✓'
                             : window.location.protocol === 'file:'

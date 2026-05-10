@@ -11,8 +11,10 @@ import {
     Subtitles as SubtitlesIcon,
     Check,
     X as CloseIcon,
+    ExternalLink,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import Host from '@/lib/host';
 import { API } from '@/lib/api';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
@@ -111,12 +113,28 @@ export default function Player() {
     const startPlayback = async () => {
         const v = videoRef.current;
         if (!v) return;
-        v.muted = true;
+        // Inside the Android wrapper, WebView allows unmuted autoplay
+        // (we set mediaPlaybackRequiresUserGesture=false in MainActivity).
+        // Start unmuted directly so HK1 box users hear sound immediately.
+        const tryUnmuted = Host.isAndroid;
+        v.muted = !tryUnmuted;
         try {
             await v.play();
-            setMuted(true);
-            setShowUnmuteHint(true);
+            if (!v.muted) {
+                setMuted(false);
+                setShowUnmuteHint(false);
+            } else {
+                setMuted(true);
+                setShowUnmuteHint(true);
+            }
         } catch {
+            // Browser blocked unmuted autoplay — fall back to muted
+            v.muted = true;
+            try {
+                await v.play();
+            } catch {
+                /* still failed */
+            }
             setMuted(true);
             setShowUnmuteHint(true);
         }
@@ -825,6 +843,34 @@ export default function Player() {
 
             {/* Bottom right action cluster */}
             <div className="absolute bottom-8 right-8 z-10 flex items-center gap-3">
+                {Host.isAndroid && url && (
+                    <button
+                        data-testid="player-external"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => {
+                            Host.playExternal({
+                                url,
+                                title: previewMeta?.title || title,
+                                type,
+                            });
+                        }}
+                        aria-label="Open in external player"
+                        className="flex items-center gap-2 h-12 px-5 rounded-full font-sans font-medium"
+                        style={{
+                            background:
+                                'linear-gradient(180deg, rgba(93,200,255,0.95) 0%, rgba(93,200,255,0.75) 100%)',
+                            color: '#06080f',
+                            fontSize: 14,
+                            boxShadow:
+                                '0 4px 24px rgba(93,200,255,0.35), 0 0 0 1px rgba(93,200,255,0.4) inset',
+                        }}
+                    >
+                        <ExternalLink size={16} strokeWidth={2.4} />
+                        Open in VLC
+                    </button>
+                )}
                 {imdbId && (
                     <button
                         data-testid="player-subtitles"
