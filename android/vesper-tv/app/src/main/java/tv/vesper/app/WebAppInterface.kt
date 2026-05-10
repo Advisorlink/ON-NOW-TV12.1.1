@@ -1,5 +1,6 @@
 package tv.vesper.app
 
+// Build marker: 2026-02-10-r2 — forces fresh compilation post-comment-fix
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
