@@ -58,12 +58,15 @@ class MainActivity : AppCompatActivity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 allowFileAccess = false
                 allowContentAccess = false
-                userAgentString = userAgentString + " VesperTV/" + BuildConfig.VERSION_NAME
+                userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
             }
 
             // Keep all navigation inside the WebView.
             webViewClient = VesperWebViewClient()
             webChromeClient = WebChromeClient()
+
+            // Bridge so the web app can hand video off to VLC/MX Player.
+            addJavascriptInterface(WebAppInterface(this@MainActivity), "OnNowTV")
 
             // Make the WebView itself focusable so the D-pad has somewhere
             // to land when the page first loads.

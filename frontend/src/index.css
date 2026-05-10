@@ -334,3 +334,52 @@ body {
         display: contents !important;
     }
 }
+
+
+/* ------------------------------------------------------------------
+   Performance mode — applied automatically when running inside the
+   OnNowTV Android WebView OR on any device the host detects as
+   low-end (≤2 cores / ≤2 GB RAM heuristic).  Disables the most
+   GPU-expensive effects (backdrop-blur, grain, ken-burns, pulse)
+   so cheap HK1 boxes can scroll at 60 fps.
+------------------------------------------------------------------ */
+.vesper-low-end .vesper-glass,
+.vesper-host-android .vesper-glass {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(15, 21, 36, 0.92) !important;
+}
+.vesper-low-end .vesper-grain::after,
+.vesper-host-android .vesper-grain::after {
+    display: none !important;
+}
+.vesper-low-end *,
+.vesper-host-android *:not([data-keep-anim='true']) {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+}
+.vesper-low-end [data-focusable='true'],
+.vesper-host-android [data-focusable='true'] {
+    transition:
+        background-color 120ms ease,
+        outline-color 120ms ease !important;
+    transform: none !important;
+}
+.vesper-low-end [data-focusable='true']:focus-visible,
+.vesper-host-android [data-focusable='true']:focus-visible {
+    transform: none !important;
+    box-shadow: 0 0 0 3px rgba(93, 200, 255, 0.85) !important;
+}
+.vesper-low-end img,
+.vesper-host-android img {
+    image-rendering: optimizeSpeed;
+}
+
+/* Tighter sizing inside the Android wrapper — cheap HK1 boxes
+   often sit on small TVs (24"-32") where our default desktop
+   sizing felt cramped.  Shrinks paddings + hero so everything
+   fits a 1280x720 panel comfortably. */
+.vesper-host-android {
+    --vesper-side-pad-min: 96px;
+    --vesper-side-pad-max: 132px;
+}

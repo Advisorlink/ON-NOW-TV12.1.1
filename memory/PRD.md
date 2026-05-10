@@ -34,6 +34,34 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 7 — Feb 2026)
+- **External video player handoff** — biggest win for HK1 boxes:
+  - New `WebAppInterface.kt` Android JS bridge (registered as
+    `window.OnNowTV`).  Web app calls
+    `OnNowTV.playVideo(url, title, mime)` → bridge fires
+    `Intent.ACTION_VIEW` → user's preferred player (VLC / MX Player /
+    Kodi) handles playback with hardware decoding.
+  - `Intent.createChooser` lets the user pick once and remember.
+  - Solves: no-audio (system players bypass autoplay restrictions),
+    poor performance (hardware decode), codec gaps (VLC plays
+    everything), built-in subtitle picker (replacing our own when
+    inside the wrapper).
+  - `<queries>` declared in `AndroidManifest.xml` for Android 11+
+    package visibility.
+- **Performance mode** — `lib/host.js` detects the wrapper via JS
+  bridge + UA; toggles `html.vesper-host-android` and `.vesper-low-end`
+  classes.  CSS rules disable backdrop-blur, grain noise, ken-burns,
+  pulse, and the fancy focus transforms — keeps cheap RK3318 / S905
+  boxes scrolling smoothly.
+- **FullscreenButton hidden inside wrapper** — the Android WebView is
+  already immersive fullscreen; the browser fullscreen API was
+  showing an ugly "press ESC" banner.  Hidden when `Host.isAndroid`
+  or `Host.isOnNowTV`.
+- **Detail.jsx + SeriesEpisodes.jsx** route Play through
+  `Host.playVideo()` first, falling back to in-page `<video>`
+  player when not in the wrapper.
+- **`INSTALL_ON_TV.md`** prepended with VLC install instructions.
+
 ## Implemented (Iteration 6 — Feb 2026)
 - **3-path TV deployment guide** at `/app/INSTALL_ON_TV.md`:
   - Path 1: TV Bro / Puffin TV browser (60s, zero build).

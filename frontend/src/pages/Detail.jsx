@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
+import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { Vesper } from '@/lib/api';
 
@@ -99,6 +100,16 @@ export default function Detail() {
     const playStream = (stream) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
+            // Inside the Android wrapper, hand off to VLC/MX Player.
+            if (
+                Host.playVideo({
+                    url: stream.url,
+                    title: meta?.name || '',
+                    type: type,
+                })
+            ) {
+                return;
+            }
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url

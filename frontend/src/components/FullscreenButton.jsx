@@ -1,9 +1,14 @@
 import React from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import useFullscreen from '@/hooks/useFullscreen';
+import Host from '@/lib/host';
 
 export default function FullscreenButton() {
     const { isFs, toggle } = useFullscreen();
+    // Already fullscreen inside the OnNowTV WebView wrapper — the
+    // browser fullscreen API just shows a "press ESC to exit" banner
+    // there which we don't want.
+    if (Host.isAndroid || Host.isOnNowTV) return null;
     return (
         <button
             data-testid="fullscreen-button"

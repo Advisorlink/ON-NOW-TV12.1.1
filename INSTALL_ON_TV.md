@@ -1,5 +1,14 @@
 # Get ON NOW TV V2 onto your HK1 box
 
+> **❗ Required first**: install **VLC for Android** (or MX Player) on
+> your HK1 box from the Play Store *before* you start watching.  The
+> ON NOW TV V2 app hands video playback off to it for hardware
+> decoding — that's how we get sound, smooth playback, and codec
+> support that the WebView itself can't deliver.
+>
+> Open Play Store on the HK1 → search **"VLC"** → Install.  60 seconds,
+> one-time.
+
 You have **3 paths** ranked from fastest to most polished.  Pick whichever
 suits — they're all using the same live web app, just wrapped differently.
 

@@ -10,6 +10,7 @@ import {
     Star,
 } from 'lucide-react';
 import { Vesper } from '@/lib/api';
+import Host from '@/lib/host';
 
 /**
  * Cinematic seasons + episodes browser for TV series.
@@ -137,12 +138,13 @@ export default function SeriesEpisodes({ meta, parentId }) {
     const playStream = (stream, ep) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
+            const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
+            // Hand off to system video player on Android wrapper.
+            if (Host.playVideo({ url: stream.url, title, type: 'series' })) return;
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url
-                )}&title=${encodeURIComponent(
-                    `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`
-                )}&type=series&imdbId=${encodeURIComponent(ep.id)}`
+                )}&title=${encodeURIComponent(title)}&type=series&imdbId=${encodeURIComponent(ep.id)}`
             );
         } else if (mode === 'external') {
             try {
