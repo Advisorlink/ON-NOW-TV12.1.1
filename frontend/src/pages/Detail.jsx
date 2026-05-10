@@ -10,6 +10,7 @@ import {
     Info,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
+import SeriesEpisodes from '@/components/SeriesEpisodes';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { Vesper } from '@/lib/api';
 
@@ -67,6 +68,11 @@ export default function Detail() {
     }, [type, id]);
 
     useEffect(() => {
+        if (type === 'series') {
+            // Series streams are fetched per-episode inside <SeriesEpisodes>
+            setStreamLoading(false);
+            return;
+        }
         let cancel = false;
         (async () => {
             setStreamLoading(true);
@@ -275,7 +281,10 @@ export default function Detail() {
                         </p>
                     )}
 
-                    {/* Stream picker */}
+                    {/* Stream picker (movies) / Episode browser (series) */}
+                    {type === 'series' ? (
+                        <SeriesEpisodes meta={meta} parentId={id} />
+                    ) : (
                     <section
                         data-testid="stream-picker"
                         className="mt-10"
@@ -566,6 +575,7 @@ export default function Detail() {
                             </>
                         )}
                     </section>
+                    )}
                 </div>
             </main>
         </div>

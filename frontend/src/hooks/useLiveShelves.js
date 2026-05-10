@@ -10,7 +10,7 @@ import { Vesper } from '@/lib/api';
  */
 const BROWSABLE_TYPES = new Set(['movie', 'series', 'channel', 'tv', 'anime']);
 
-export function useLiveShelves(addons) {
+export function useLiveShelves(addons, filterType = null) {
     const [shelves, setShelves] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -30,6 +30,7 @@ export function useLiveShelves(addons) {
                 if (cancelled) return;
                 const catalogs = (addon.catalogs || [])
                     .filter((c) => BROWSABLE_TYPES.has(c.type))
+                    .filter((c) => !filterType || c.type === filterType)
                     .slice(0, 4);
 
                 for (const cat of catalogs) {
@@ -75,7 +76,7 @@ export function useLiveShelves(addons) {
         return () => {
             cancelled = true;
         };
-    }, [addons]);
+    }, [addons, filterType]);
 
     return { shelves, loading };
 }

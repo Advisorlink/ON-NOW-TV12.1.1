@@ -1,0 +1,35 @@
+{
+  "summary": "All 3 P0 features verified end-to-end on the live preview URL. (1) Home tabs render with [data-testid='home-tabs'] containing home-tab-all, home-tab-series, home-tab-movie; default 'all' has var(--vesper-blue) background, networks-shelf renders for all+series and is hidden for movie, tab choice persists in localStorage 'vesper-home-tab' across reload. (2) Network pages return far more than 18 tiles: /networks/netflix shows 25 of 41 with the live counter, /networks/hbo loads 25 progressively, /networks/disney-plus shows 34 tiles including BOTH 'The Mandalorian' (series) AND 'Star Wars: Episode V - The Empire Strikes Back' / 'Doctor Strange in the Multiverse of Madness' / 'Oppenheimer' (movies) — the resolveMeta() type fallback works exactly as designed and silently drops missing IDs. (3) Series Detail at /title/series/tt0944947 renders [data-testid='series-episodes'] with [data-testid='season-picker'] containing 8 buttons season-1..season-8; episode-1-1, episode-1-2, episode-1-3 all visible (149-char description text confirmed). Clicking season-2 swaps the list and episode-2-1 becomes visible. Clicking episode-1-1 opens [data-testid='episode-streams-1-1'], shows 'Searching streams for S1E1…' loader and resolves to 'No streams available' (acceptable per spec — only Cinemeta + OpenSubtitles v3 are installed; Torrentio not installed). Movie detail at /title/movie/tt0111161 (Shawshank) still renders [data-testid='stream-picker'] (count=1) and does NOT render series-episodes (count=0). Backend pytest /app/backend/tests/ → 18/18 passing in 3.79s.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Per-episode + per-movie streams", "issue": "All stream addon calls return 'skipped · no stream resource' / 'No streams available' because no stream-providing addon (e.g., Torrentio) is currently installed for user_id=default. This is the same observation noted in iteration_2; the auto-install bootstrap only installs Cinemeta + OpenSubtitles v3 (both meta/subtitle, not stream). The new SeriesEpisodes inline streams panel itself is wired correctly — it shows the loader and the empty-state card properly — it just has nothing to play. Recommend either auto-installing a stream addon (Torrentio) or surfacing a clearer 'install a stream addon in Sources' CTA inside both [data-testid='episode-streams-…'] and [data-testid='stream-picker'] empty states.", "affected_selectors": ["[data-testid='episode-streams-1-1']", "[data-testid='stream-picker']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_subtitles_and_addons.py",
+    "/app/backend/tests/test_vesper_api.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "(Optional, not required for this P0) Consider auto-installing a stream addon (e.g., Torrentio) at bootstrap so series episode streams + movie streams actually return rows; right now empty-state is shown which is technically per-spec but UX-reduces TV/Movie watchability."
+  ],
+  "critical_code_review_comments": [
+    "networks.js intentionally has duplicate IDs and 'fill' IDs that don't match the network — Network.jsx already dedupes by imdbId and silently skips 404s, so this is fine, but the file is starting to feel like 'curated-but-noisy' (e.g., Disney+ row 138 'tt9412466' commented '(actually Netflix)'). Worth a follow-up pass to clean up false-positives so the 'X of Y' counter looks tighter (currently Netflix shows 25 of 41 = ~39 percent drop-rate).",
+    "SeriesEpisodes.jsx is 650 lines — close to but under the 700-line guideline. The inline EpisodeCard component could be extracted to /components/EpisodeCard.jsx for modularity. Not blocking.",
+    "SeriesEpisodes.jsx lines 80-93 sort seasons numerically but `Map.entries()` preserves insertion order — the explicit `.sort(([a],[b]) => a - b)` guards against unsorted input from Cinemeta and is good defensive code.",
+    "Network.jsx Promise.all over the entire queue (35-50 IDs) fires concurrently against Cinemeta — works fine in practice (cdn handles it) but a small concurrency limit (e.g., 8 at a time via p-limit) would be friendlier to constrained TV browsers.",
+    "Detail.jsx line 71-74: when type==='series' it short-circuits the streams useEffect — clean separation between movie streams and series per-episode streams. Good.",
+    "Pre-existing from iter1/iter2: Torrentio addon CORS-blocks browser-direct fetches for series:imdb:s:e ids the same way it does for movies. Worth a backend-proxied stream endpoint."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "N/A - single-user mode (user_id=default).",
+  "seed_data_creation": "None — addons (Cinemeta, OpenSubtitles v3) already persisted from prior iterations.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All P0 acceptance criteria met. Verified flows: Home tabs (all/series/movie + localStorage persist), Networks shelf visibility per tab, /networks/{netflix,hbo,disney-plus} with >18 tiles + type-fallback, /title/series/tt0944947 SeriesEpisodes (8 seasons, episode cards, expand→streams panel), /title/movie/tt0111161 still uses stream-picker. Backend pytest at /app/backend/tests/ remains 18/18 passing — RUN `pytest /app/backend/tests/ -v` to verify. Live URL https://rebrand-app-5.preview.emergentagent.com. The only outstanding observation across all 3 iterations is that no STREAM addon is installed (Cinemeta is meta-only, OpenSubtitles v3 is subs-only) so /api/streams + per-episode streams always return empty. If the next P0 needs actual playable streams, install Torrentio (https://torrentio.strem.fun/manifest.json) — though browser CORS may still block its non-debrid endpoint and require a backend proxy.",
+  "rca of the issue": "No bugs found in this iteration. Episode streams panel showing 'No streams available' is expected per the test spec ('they may be 0 if Torrentio returns nothing, that's fine')."
+}

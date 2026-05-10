@@ -8,11 +8,30 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { findNetwork } from '@/lib/networks';
 
 /**
- * Network catalogue page.  Pulls each curated imdb id through Cinemeta
- * directly from the browser (residential IP, public CORS), in parallel,
- * and renders successful resolutions as poster tiles.  Failures are
- * skipped silently so a single dead id doesn't blank the page.
+ * Cinemeta meta lookup — tries the declared type first, then falls
+ * back to the other type on 404 so the curated catalogue is forgiving
+ * about misclassified ids.  Returns `null` on hard failure.
  */
+async function resolveMeta(imdbId, declaredType) {
+    const order = declaredType === 'movie' ? ['movie', 'series'] : ['series', 'movie'];
+    for (const t of order) {
+        try {
+            const r = await fetch(
+                `https://v3-cinemeta.strem.io/meta/${t}/${imdbId}.json`,
+                { mode: 'cors', cache: 'force-cache' }
+            );
+            if (!r.ok) continue;
+            const data = await r.json();
+            const m = data?.meta;
+            if (!m || !m.poster) continue;
+            return { meta: m, type: t };
+        } catch {
+            /* try next */
+        }
+    }
+    return null;
+}
+
 export default function Network() {
     useSpatialFocus();
     const { slug } = useParams();
@@ -21,56 +40,74 @@ export default function Network() {
 
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [resolved, setResolved] = useState(0);
+    const [total, setTotal] = useState(0);
 
     useEffect(() => {
         if (!network) return;
         let cancelled = false;
         setLoading(true);
         setItems([]);
+        setResolved(0);
 
-        (async () => {
-            const acc = [];
-            await Promise.all(
-                network.imdbIds.map(async (imdbId) => {
-                    try {
-                        const r = await fetch(
-                            `https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`,
-                            { mode: 'cors', cache: 'force-cache' }
-                        );
-                        if (!r.ok) return;
-                        const data = await r.json();
-                        const m = data?.meta;
-                        if (!m || !m.poster) return;
-                        acc.push({
-                            id: `${slug}-${imdbId}`,
-                            imdbId,
-                            type: 'series',
-                            title: m.name,
-                            sub: [
-                                m.releaseInfo,
-                                m.imdbRating ? `★ ${m.imdbRating}` : null,
-                            ]
-                                .filter(Boolean)
-                                .join(' · '),
-                            poster: m.poster,
-                            routePath: `/title/series/${imdbId}`,
-                        });
-                    } catch {
-                        /* swallow individual failures */
-                    }
-                })
-            );
-            if (!cancelled) {
-                // Preserve the curated order when possible
-                acc.sort(
-                    (a, b) =>
-                        network.imdbIds.indexOf(a.imdbId) -
-                        network.imdbIds.indexOf(b.imdbId)
-                );
-                setItems(acc);
-                setLoading(false);
-            }
+        // Dedupe input by imdbId so the curated list staying messy
+        // never produces duplicate cards.
+        const seen = new Set();
+        const queue = network.titles.filter(({ id }) => {
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+        setTotal(queue.length);
+
+        let progressive = [];
+        let progressiveCount = 0;
+        const flushSoon = (() => {
+            let pending = false;
+            return () => {
+                if (pending || cancelled) return;
+                pending = true;
+                requestAnimationFrame(() => {
+                    pending = false;
+                    if (cancelled) return;
+                    setItems([...progressive]);
+                });
+            };
         })();
+
+        // Resolve all in parallel for speed; render progressively as
+        // each one lands.  Cinemeta's CDN has no real concurrency limit.
+        Promise.all(
+            queue.map(async ({ id: imdbId, type: declaredType }, idx) => {
+                const r = await resolveMeta(imdbId, declaredType);
+                if (cancelled) return;
+                progressiveCount += 1;
+                setResolved(progressiveCount);
+                if (!r) return;
+                const { meta: m, type: t } = r;
+                progressive.push({
+                    _order: idx,
+                    id: `${slug}-${imdbId}`,
+                    imdbId,
+                    type: t,
+                    title: m.name,
+                    sub: [m.releaseInfo, m.imdbRating ? `★ ${m.imdbRating}` : null]
+                        .filter(Boolean)
+                        .join(' · '),
+                    poster: m.poster,
+                    rating: parseFloat(m.imdbRating) || 0,
+                    routePath: `/title/${t}/${imdbId}`,
+                });
+                flushSoon();
+            })
+        ).then(() => {
+            if (cancelled) return;
+            // Final pass: keep curated order but list items at the end
+            // even if they came back later.
+            progressive.sort((a, b) => a._order - b._order);
+            setItems([...progressive]);
+            setLoading(false);
+        });
 
         return () => {
             cancelled = true;
@@ -174,13 +211,32 @@ export default function Network() {
                                     fontSize: 'clamp(56px, 6vw, 92px)',
                                     letterSpacing: '-0.035em',
                                     color: '#fff',
-                                    textShadow:
-                                        '0 4px 24px rgba(0,0,0,0.45)',
+                                    textShadow: '0 4px 24px rgba(0,0,0,0.45)',
                                 }}
                             >
                                 {network.name}
                             </h1>
                         </div>
+                        {total > 0 && (
+                            <div
+                                className="vesper-mono shrink-0"
+                                style={{
+                                    fontSize: 12,
+                                    letterSpacing: '0.22em',
+                                    textTransform: 'uppercase',
+                                    color: 'rgba(255,255,255,0.78)',
+                                    paddingBottom: 14,
+                                }}
+                            >
+                                {items.length} of {total}
+                                {loading && resolved < total && (
+                                    <Loader2
+                                        className="vesper-spin inline-block ml-2"
+                                        size={12}
+                                    />
+                                )}
+                            </div>
+                        )}
                     </div>
                 </header>
 
@@ -193,7 +249,7 @@ export default function Network() {
                         paddingBottom: 'clamp(56px, 6vw, 96px)',
                     }}
                 >
-                    {loading ? (
+                    {items.length === 0 && loading ? (
                         <div
                             className="flex items-center gap-3"
                             style={{ color: 'var(--vesper-text-2)' }}

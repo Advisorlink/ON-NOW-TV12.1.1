@@ -7,7 +7,7 @@ import { Vesper } from '@/lib/api';
  * to an empty array when no addons are installed; the hero
  * component will then show its baked-in placeholder set.
  */
-export function useLiveHeroes(addons) {
+export function useLiveHeroes(addons, type = 'movie') {
     const [heroes, setHeroes] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -24,8 +24,8 @@ export function useLiveHeroes(addons) {
 
         const cat =
             (cinemeta.catalogs || []).find(
-                (c) => c.type === 'movie' && /top|popular/i.test(c.id || c.name || '')
-            ) || (cinemeta.catalogs || []).find((c) => c.type === 'movie');
+                (c) => c.type === type && /top|popular/i.test(c.id || c.name || '')
+            ) || (cinemeta.catalogs || []).find((c) => c.type === type);
         if (!cat) {
             setHeroes([]);
             return;
@@ -74,7 +74,7 @@ export function useLiveHeroes(addons) {
         return () => {
             cancelled = true;
         };
-    }, [addons]);
+    }, [addons, type]);
 
     return { heroes, loading };
 }

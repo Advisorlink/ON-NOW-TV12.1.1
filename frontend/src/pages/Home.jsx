@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import SideNav from '@/components/SideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
+import HomeTabs from '@/components/HomeTabs';
 import FullscreenButton from '@/components/FullscreenButton';
 import { SHELVES as MOCK_SHELVES } from '@/data/mockCatalog';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -10,16 +11,43 @@ import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 
+const TAB_KEY = 'vesper-home-tab';
+
 export default function Home() {
     useSpatialFocus();
     const { addons } = useAddons();
-    const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(addons);
-    const { heroes: liveHeroes } = useLiveHeroes(addons);
+
+    const [tab, setTab] = useState(() => {
+        try {
+            return localStorage.getItem(TAB_KEY) || 'all';
+        } catch {
+            return 'all';
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem(TAB_KEY, tab);
+        } catch {
+            /* ignore */
+        }
+    }, [tab]);
+
+    // 'all' lets every catalogue in; 'series'/'movie' filter strictly.
+    const shelfFilter = tab === 'all' ? null : tab;
+    const heroType = tab === 'movie' ? 'movie' : 'series';
+
+    const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(
+        addons,
+        shelfFilter
+    );
+    const { heroes: liveHeroes } = useLiveHeroes(addons, heroType);
 
     const shelves = useMemo(() => {
         if (liveShelves && liveShelves.length > 0) return liveShelves;
         return MOCK_SHELVES;
     }, [liveShelves]);
+
+    const showNetworks = tab === 'series' || tab === 'all';
 
     return (
         <div
@@ -36,13 +64,16 @@ export default function Home() {
             >
                 <HeroBillboard heroes={liveHeroes} />
 
-                <NetworksShelf />
+                <HomeTabs value={tab} onChange={setTab} />
+
+                {showNetworks && <NetworksShelf />}
 
                 {addons.length === 0 && (
                     <section
                         className="flex items-center justify-between"
                         style={{
-                            margin: '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
+                            margin:
+                                '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
                             padding: '20px 28px',
                             borderRadius: 16,
                             background:
@@ -107,7 +138,7 @@ export default function Home() {
                             textTransform: 'uppercase',
                         }}
                     >
-                        Vesper · v0.2 · Vespertine
+                        Vesper · v0.3 · Vespertine
                     </div>
                     <div
                         className="vesper-mono"
