@@ -15,18 +15,24 @@ export default function NetworksShelf() {
         <section
             data-testid="networks-shelf"
             className="relative w-full"
-            style={{ paddingTop: 48, paddingBottom: 16 }}
+            style={{
+                paddingTop: 'clamp(28px, 3vw, 48px)',
+                paddingBottom: 16,
+            }}
         >
             <header
                 className="flex items-end justify-between mb-5"
-                style={{ paddingLeft: 180, paddingRight: 80 }}
+                style={{
+                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                    paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                }}
             >
-                <div className="flex items-baseline gap-4">
-                    <span className="vesper-eyebrow">Browse</span>
+                <div className="flex items-baseline gap-4 min-w-0">
+                    <span className="vesper-eyebrow truncate">Browse</span>
                     <h2
-                        className="vesper-display"
+                        className="vesper-display truncate"
                         style={{
-                            fontSize: 34,
+                            fontSize: 'clamp(22px, 2.2vw, 34px)',
                             letterSpacing: '-0.025em',
                             color: 'var(--vesper-text)',
                         }}
@@ -35,10 +41,10 @@ export default function NetworksShelf() {
                     </h2>
                 </div>
                 <span
-                    className="vesper-mono"
+                    className="vesper-mono shrink-0"
                     style={{
                         color: 'var(--vesper-text-3)',
-                        fontSize: 11,
+                        fontSize: 'clamp(9px, 0.62vw, 11px)',
                         letterSpacing: '0.22em',
                         textTransform: 'uppercase',
                     }}
@@ -48,12 +54,13 @@ export default function NetworksShelf() {
             </header>
 
             <div
-                className="vesper-shelf flex gap-6"
+                className="vesper-shelf flex"
                 style={{
-                    paddingLeft: 180,
-                    paddingRight: 180,
-                    paddingTop: 28,
-                    paddingBottom: 56,
+                    gap: 'clamp(14px, 1.25vw, 24px)',
+                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                    paddingRight: 'clamp(124px, 9.5vw, 180px)',
+                    paddingTop: 'clamp(18px, 1.6vw, 28px)',
+                    paddingBottom: 'clamp(32px, 3vw, 56px)',
                 }}
             >
                 {NETWORKS.map((n) => (
@@ -66,7 +73,7 @@ export default function NetworksShelf() {
                         onClick={() => navigate(`/networks/${n.slug}`)}
                         className="group relative shrink-0 overflow-hidden rounded-2xl text-left"
                         style={{
-                            width: 360,
+                            width: 'clamp(220px, 19vw, 320px)',
                             aspectRatio: '16 / 9',
                             background: n.background,
                             border: '1px solid rgba(255,255,255,0.08)',
@@ -80,7 +87,7 @@ export default function NetworksShelf() {
                             }}
                         />
                         <div
-                            className="absolute inset-0 flex items-center justify-center"
+                            className="absolute inset-0 flex items-center justify-center px-4 text-center"
                             style={{
                                 color: n.accent,
                                 fontFamily: '"Geist", system-ui, sans-serif',
@@ -88,20 +95,24 @@ export default function NetworksShelf() {
                                 letterSpacing: '-0.04em',
                                 fontSize:
                                     n.wordmark.length > 6
-                                        ? 'clamp(34px, 3.6vw, 56px)'
-                                        : 'clamp(48px, 4.8vw, 72px)',
+                                        ? 'clamp(28px, 2.4vw, 48px)'
+                                        : 'clamp(38px, 3.4vw, 64px)',
                                 textShadow:
                                     '0 4px 24px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.6)',
+                                lineHeight: 1.05,
                             }}
                         >
                             {n.wordmark}
                         </div>
 
-                        <div className="absolute inset-x-0 bottom-0 p-4">
+                        <div
+                            className="absolute inset-x-0 bottom-0"
+                            style={{ padding: 'clamp(10px, 0.9vw, 16px)' }}
+                        >
                             <div
                                 className="vesper-mono"
                                 style={{
-                                    fontSize: 11,
+                                    fontSize: 'clamp(9px, 0.6vw, 11px)',
                                     letterSpacing: '0.22em',
                                     textTransform: 'uppercase',
                                     color: 'rgba(255,255,255,0.78)',

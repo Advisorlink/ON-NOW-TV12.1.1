@@ -121,10 +121,10 @@ export default function Network() {
                 <header
                     className="relative w-full"
                     style={{
-                        height: 320,
+                        height: 'clamp(220px, 28vw, 360px)',
                         background: network.background,
-                        paddingLeft: 180,
-                        paddingRight: 80,
+                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     }}
                 >
                     <div
@@ -187,10 +187,10 @@ export default function Network() {
                 <section
                     className="relative w-full"
                     style={{
-                        paddingLeft: 180,
-                        paddingRight: 180,
-                        paddingTop: 32,
-                        paddingBottom: 96,
+                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingRight: 'clamp(124px, 9.5vw, 180px)',
+                        paddingTop: 'clamp(20px, 2.4vw, 32px)',
+                        paddingBottom: 'clamp(56px, 6vw, 96px)',
                     }}
                 >
                     {loading ? (
@@ -211,7 +211,10 @@ export default function Network() {
                             moment.
                         </div>
                     ) : (
-                        <div className="flex flex-wrap gap-6">
+                        <div
+                            className="flex flex-wrap"
+                            style={{ gap: 'clamp(14px, 1.25vw, 24px)' }}
+                        >
                             {items.map((item) => (
                                 <PosterTile key={item.id} item={item} />
                             ))}

@@ -36,11 +36,13 @@ export default function Home() {
             >
                 <HeroBillboard heroes={liveHeroes} />
 
+                <NetworksShelf />
+
                 {addons.length === 0 && (
                     <section
                         className="flex items-center justify-between"
                         style={{
-                            margin: '32px 80px 0 180px',
+                            margin: '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
                             padding: '20px 28px',
                             borderRadius: 16,
                             background:
@@ -87,15 +89,13 @@ export default function Home() {
                     <Shelf key={shelf.id} shelf={shelf} />
                 ))}
 
-                <NetworksShelf />
-
                 <footer
                     className="flex items-center justify-between"
                     style={{
-                        paddingLeft: 180,
-                        paddingRight: 80,
-                        paddingTop: 64,
-                        paddingBottom: 80,
+                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                        paddingTop: 'clamp(40px, 4vw, 64px)',
+                        paddingBottom: 'clamp(48px, 5vw, 80px)',
                     }}
                 >
                     <div

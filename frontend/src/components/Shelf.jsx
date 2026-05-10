@@ -1,6 +1,12 @@
 import React, { useRef } from 'react';
 import PosterTile from './PosterTile';
 
+/**
+ * Responsive shelf row.  All horizontal paddings + gaps + type sizes
+ * scale via clamp() so the layout stays readable from a 720p browser
+ * window all the way up to 4K.  The left rail (SideNav) is 108px when
+ * collapsed, so the minimum left padding stays well clear of it.
+ */
 export default function Shelf({ shelf, onSelect }) {
     const scroller = useRef(null);
 
@@ -8,20 +14,28 @@ export default function Shelf({ shelf, onSelect }) {
         <section
             data-testid={`shelf-${shelf.id}`}
             className="relative w-full"
-            style={{ paddingTop: 48, paddingBottom: 16 }}
+            style={{
+                paddingTop: 'clamp(28px, 3vw, 48px)',
+                paddingBottom: 16,
+            }}
         >
             <header
                 className="flex items-end justify-between mb-5"
-                style={{ paddingLeft: 180, paddingRight: 80 }}
+                style={{
+                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                    paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                }}
             >
-                <div className="flex items-baseline gap-4">
+                <div className="flex items-baseline gap-4 min-w-0">
                     {shelf.eyebrow && (
-                        <span className="vesper-eyebrow">{shelf.eyebrow}</span>
+                        <span className="vesper-eyebrow truncate">
+                            {shelf.eyebrow}
+                        </span>
                     )}
                     <h2
-                        className="vesper-display"
+                        className="vesper-display truncate"
                         style={{
-                            fontSize: 34,
+                            fontSize: 'clamp(22px, 2.2vw, 34px)',
                             letterSpacing: '-0.025em',
                             color: 'var(--vesper-text)',
                         }}
@@ -30,10 +44,10 @@ export default function Shelf({ shelf, onSelect }) {
                     </h2>
                 </div>
                 <span
-                    className="vesper-mono"
+                    className="vesper-mono shrink-0"
                     style={{
                         color: 'var(--vesper-text-3)',
-                        fontSize: 11,
+                        fontSize: 'clamp(9px, 0.62vw, 11px)',
                         letterSpacing: '0.22em',
                         textTransform: 'uppercase',
                     }}
@@ -44,12 +58,13 @@ export default function Shelf({ shelf, onSelect }) {
 
             <div
                 ref={scroller}
-                className="vesper-shelf flex gap-6"
+                className="vesper-shelf flex"
                 style={{
-                    paddingLeft: 180,
-                    paddingRight: 180,
-                    paddingTop: 28,
-                    paddingBottom: 56,
+                    gap: 'clamp(14px, 1.25vw, 24px)',
+                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                    paddingRight: 'clamp(124px, 9.5vw, 180px)',
+                    paddingTop: 'clamp(18px, 1.6vw, 28px)',
+                    paddingBottom: 'clamp(32px, 3vw, 56px)',
                 }}
             >
                 {shelf.items.map((item) => (

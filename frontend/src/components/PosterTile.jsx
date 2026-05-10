@@ -24,7 +24,7 @@ export default function PosterTile({ item, onSelect }) {
             onClick={handleClick}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                width: 264,
+                width: 'clamp(150px, 13.5vw, 220px)',
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
@@ -69,7 +69,7 @@ export default function PosterTile({ item, onSelect }) {
                 <div
                     className="font-sans"
                     style={{
-                        fontSize: 19,
+                        fontSize: 'clamp(13px, 1vw, 17px)',
                         fontWeight: 600,
                         letterSpacing: '-0.015em',
                         lineHeight: 1.15,
@@ -82,7 +82,7 @@ export default function PosterTile({ item, onSelect }) {
                     <div
                         className="vesper-mono mt-1.5"
                         style={{
-                            fontSize: 11,
+                            fontSize: 'clamp(9px, 0.62vw, 11px)',
                             letterSpacing: '0.18em',
                             textTransform: 'uppercase',
                             color: 'var(--vesper-text-2)',

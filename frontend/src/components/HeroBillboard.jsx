@@ -95,7 +95,7 @@ export default function HeroBillboard({ heroes }) {
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
-                    style={{ paddingLeft: '180px' }}
+                    style={{ paddingLeft: 'clamp(124px, 9.5vw, 180px)' }}
                 >
                     <div className="vesper-eyebrow mb-5">{hero.eyebrow}</div>
                     <h1
