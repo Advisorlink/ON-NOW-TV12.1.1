@@ -1,45 +1,49 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ------------------------------------------------------------------
-   Vesper – Vespertine Observatory design tokens
+   Vesper – Modern / Neon-Glass design tokens (v2)
+   Inky near-black with a subtle blue undertone; vivid electric
+   blue as the single signal accent; tight modern grotesque type.
 ------------------------------------------------------------------ */
 :root {
-    --vesper-bg-0: #050505;
-    --vesper-bg-1: #0a0d14;
-    --vesper-bg-2: #121620;
-    --vesper-surface: #1a1f2d;
-    --vesper-text: #f8f9fa;
-    --vesper-text-2: #a1a7b3;
-    --vesper-text-3: #6c7486;
-    --vesper-copper: #e58a59;
-    --vesper-copper-dim: #b96a3f;
-    --vesper-line: rgba(255, 255, 255, 0.08);
+    --vesper-bg-0: #06080f;
+    --vesper-bg-1: #0a0e1a;
+    --vesper-bg-2: #111827;
+    --vesper-surface: #1a2238;
+    --vesper-surface-2: #232c47;
+    --vesper-text: #f5f7fa;
+    --vesper-text-2: #9ba8c2;
+    --vesper-text-3: #5b6580;
+    --vesper-blue: #5dc8ff; /* signal accent */
+    --vesper-blue-bright: #8de0ff;
+    --vesper-blue-dim: #2a82b8;
+    --vesper-blue-glow: rgba(93, 200, 255, 0.55);
+    --vesper-line: rgba(255, 255, 255, 0.07);
 
-    /* shadcn baseline (kept for compat) */
-    --background: 0 0% 2%;
-    --foreground: 210 17% 98%;
-    --card: 220 22% 11%;
-    --card-foreground: 210 17% 98%;
-    --popover: 220 22% 11%;
-    --popover-foreground: 210 17% 98%;
-    --primary: 21 71% 62%;
-    --primary-foreground: 0 0% 2%;
-    --secondary: 220 22% 11%;
-    --secondary-foreground: 210 17% 98%;
-    --muted: 220 22% 11%;
-    --muted-foreground: 217 9% 67%;
-    --accent: 21 71% 62%;
-    --accent-foreground: 0 0% 2%;
-    --destructive: 0 84% 60%;
+    --background: 222 32% 5%;
+    --foreground: 220 18% 97%;
+    --card: 222 30% 9%;
+    --card-foreground: 220 18% 97%;
+    --popover: 222 30% 9%;
+    --popover-foreground: 220 18% 97%;
+    --primary: 199 100% 68%;
+    --primary-foreground: 222 32% 5%;
+    --secondary: 222 30% 15%;
+    --secondary-foreground: 220 18% 97%;
+    --muted: 222 30% 12%;
+    --muted-foreground: 220 14% 65%;
+    --accent: 199 100% 68%;
+    --accent-foreground: 222 32% 5%;
+    --destructive: 0 80% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 100% / 0.08;
-    --input: 220 22% 11%;
-    --ring: 21 71% 62%;
-    --radius: 8px;
+    --border: 220 15% 100% / 0.08;
+    --input: 222 30% 12%;
+    --ring: 199 100% 68%;
+    --radius: 12px;
 }
 
 * {
@@ -59,19 +63,31 @@ body,
 
 body {
     margin: 0;
-    font-family: 'Outfit', sans-serif;
-    font-weight: 300;
-    font-size: 24px;
-    line-height: 1.4;
-    letter-spacing: 0.005em;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.45;
+    letter-spacing: -0.005em;
+    /* Subtle radial blue ambient lift behind everything */
+    background:
+        radial-gradient(
+            ellipse 80% 60% at 70% 0%,
+            rgba(93, 200, 255, 0.07) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            ellipse 60% 50% at 0% 100%,
+            rgba(93, 200, 255, 0.04) 0%,
+            transparent 50%
+        ),
+        var(--vesper-bg-0);
 }
 
 ::selection {
-    background: var(--vesper-copper);
+    background: var(--vesper-blue);
     color: var(--vesper-bg-0);
 }
 
-/* Hide scrollbars on TV; we rely on focus + scroll-snap */
 ::-webkit-scrollbar {
     width: 0;
     height: 0;
@@ -81,57 +97,71 @@ body {
     scrollbar-width: none;
 }
 
-/* Default focus style is removed — we draw our own everywhere */
 *:focus {
     outline: none;
 }
 
 /* ------------------------------------------------------------------
-   Vesper utility classes
+   Vesper text utilities
 ------------------------------------------------------------------ */
 @layer components {
     .vesper-display {
-        font-family: 'Cormorant Garamond', serif;
-        font-weight: 500;
-        letter-spacing: -0.01em;
-        line-height: 0.95;
+        font-family: 'Geist', system-ui, sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1;
     }
     .vesper-eyebrow {
         font-family: 'JetBrains Mono', monospace;
         font-weight: 500;
-        font-size: 16px;
+        font-size: 13px;
         letter-spacing: 0.32em;
         text-transform: uppercase;
-        color: var(--vesper-copper);
+        color: var(--vesper-blue);
+    }
+    .vesper-mono {
+        font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+        letter-spacing: 0.04em;
     }
     .vesper-meta {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Geist', sans-serif;
         font-weight: 400;
         font-size: 22px;
         color: var(--vesper-text-2);
+    }
+    .vesper-glass {
+        background: linear-gradient(
+            180deg,
+            rgba(26, 34, 56, 0.7) 0%,
+            rgba(17, 24, 39, 0.6) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
     }
     .vesper-grain::after {
         content: '';
         pointer-events: none;
         position: absolute;
         inset: 0;
-        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.06 0 0 0 0 0.08 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-        opacity: 0.18;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.08 0 0 0 0 0.12 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+        opacity: 0.13;
         mix-blend-mode: overlay;
         z-index: 1;
     }
 }
 
 /* ------------------------------------------------------------------
-   Focus state — THE most important interaction in the app
+   Focus state — TV / D-pad primary interaction
 ------------------------------------------------------------------ */
 [data-focusable='true'] {
     transition:
-        transform 320ms cubic-bezier(0.25, 1, 0.5, 1),
-        box-shadow 280ms cubic-bezier(0.25, 1, 0.5, 1),
-        background-color 220ms ease,
-        color 220ms ease,
-        opacity 220ms ease;
+        transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 200ms ease,
+        color 200ms ease,
+        border-color 200ms ease,
+        opacity 200ms ease;
     transform-origin: center center;
     will-change: transform;
 }
@@ -141,34 +171,34 @@ body {
     z-index: 50;
 }
 
-/* Tile-style focus (posters, hero billboard cards) */
+/* Tile focus — posters, hero cards */
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
-    transform: scale(1.08) translateY(-4px);
+    transform: scale(1.07) translateY(-4px);
     box-shadow:
-        0 0 0 4px var(--vesper-bg-0),
-        0 0 0 8px var(--vesper-copper),
-        0 28px 60px -12px rgba(229, 138, 89, 0.45),
-        0 0 80px -10px rgba(229, 138, 89, 0.25);
+        0 0 0 3px var(--vesper-bg-0),
+        0 0 0 6px var(--vesper-blue),
+        0 0 56px -2px var(--vesper-blue-glow),
+        0 30px 60px -16px rgba(0, 0, 0, 0.6);
 }
 
-/* Pill-style focus (buttons) */
+/* Pill focus — buttons */
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {
     transform: scale(1.04);
     box-shadow:
         0 0 0 3px var(--vesper-bg-0),
-        0 0 0 6px var(--vesper-copper),
-        0 16px 32px -8px rgba(229, 138, 89, 0.5);
+        0 0 0 6px var(--vesper-blue),
+        0 0 40px -4px var(--vesper-blue-glow);
 }
 
-/* Nav-style focus (side-nav rows) */
+/* Nav focus — sidebar */
 [data-focus-style='nav']:focus-visible,
 [data-focus-style='nav'][data-focused='true'] {
     background: linear-gradient(
         90deg,
-        rgba(229, 138, 89, 0.18) 0%,
-        rgba(229, 138, 89, 0.04) 100%
+        rgba(93, 200, 255, 0.18) 0%,
+        rgba(93, 200, 255, 0.04) 100%
     );
     color: var(--vesper-text);
     transform: translateX(4px);
@@ -179,40 +209,50 @@ body {
     content: '';
     position: absolute;
     left: 0;
-    top: 12%;
-    bottom: 12%;
+    top: 14%;
+    bottom: 14%;
     width: 4px;
-    background: var(--vesper-copper);
+    background: var(--vesper-blue);
     border-radius: 0 4px 4px 0;
-    box-shadow: 0 0 24px rgba(229, 138, 89, 0.7);
+    box-shadow: 0 0 24px var(--vesper-blue-glow);
 }
 
-/* Key-style focus (on-screen keyboard) */
+/* Key focus — on-screen keyboard */
 [data-focus-style='key']:focus-visible,
 [data-focus-style='key'][data-focused='true'] {
-    background: var(--vesper-copper);
+    background: var(--vesper-blue);
     color: var(--vesper-bg-0);
-    transform: scale(1.1);
-    box-shadow: 0 12px 32px -8px rgba(229, 138, 89, 0.6);
+    transform: scale(1.12);
+    box-shadow:
+        0 12px 32px -8px var(--vesper-blue-glow),
+        0 0 32px -4px var(--vesper-blue-glow);
+}
+
+/* Quiet focus — small icon buttons */
+[data-focus-style='quiet']:focus-visible,
+[data-focus-style='quiet'][data-focused='true'] {
+    background: rgba(93, 200, 255, 0.15);
+    color: var(--vesper-blue);
+    box-shadow: 0 0 0 2px var(--vesper-blue);
+    transform: scale(1.06);
 }
 
 /* ------------------------------------------------------------------
-   Scroll snap shelf
+   Shelf scroll-snap
 ------------------------------------------------------------------ */
 .vesper-shelf {
     scroll-snap-type: x mandatory;
-    scroll-padding-left: 128px;
+    scroll-padding-left: 160px;
     overflow-x: auto;
     overflow-y: visible;
     scroll-behavior: smooth;
 }
-
 .vesper-shelf > * {
     scroll-snap-align: start;
 }
 
 /* ------------------------------------------------------------------
-   Hero Ken Burns
+   Animations
 ------------------------------------------------------------------ */
 @keyframes vesperKenBurns {
     0% {
@@ -230,7 +270,7 @@ body {
 @keyframes vesperFadeUp {
     0% {
         opacity: 0;
-        transform: translateY(24px);
+        transform: translateY(20px);
     }
     100% {
         opacity: 1;
@@ -238,7 +278,7 @@ body {
     }
 }
 .vesper-fade-up {
-    animation: vesperFadeUp 700ms cubic-bezier(0.25, 1, 0.5, 1) both;
+    animation: vesperFadeUp 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @keyframes vesperPulse {
@@ -254,14 +294,32 @@ body {
     animation: vesperPulse 2s ease-in-out infinite;
 }
 
-/* ------------------------------------------------------------------
-   Overscan-safe area
------------------------------------------------------------------- */
+@keyframes vesperSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+.vesper-spin {
+    animation: vesperSpin 1s linear infinite;
+}
+
+@keyframes vesperGlow {
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+.vesper-text-glow {
+    text-shadow: 0 0 24px var(--vesper-blue-glow);
+}
+
 .vesper-overscan {
     padding: 5vh 5vw;
 }
 
-/* shadcn legacy bridge */
 @layer base {
     [data-debug-wrapper='true'] {
         display: contents !important;

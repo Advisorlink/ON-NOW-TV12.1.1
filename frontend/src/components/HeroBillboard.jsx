@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Info, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { HEROES } from '@/data/mockCatalog';
 
 export default function HeroBillboard() {
     const [idx, setIdx] = useState(0);
     const hero = HEROES[idx];
+    const navigate = useNavigate();
 
     useEffect(() => {
         const t = setInterval(
             () => setIdx((i) => (i + 1) % HEROES.length),
-            9000
+            9500
         );
         return () => clearInterval(t);
     }, []);
@@ -20,7 +22,6 @@ export default function HeroBillboard() {
             className="relative w-full overflow-hidden"
             style={{ height: '82vh' }}
         >
-            {/* Backdrops — crossfade */}
             {HEROES.map((h, i) => (
                 <div
                     key={h.id}
@@ -38,61 +39,75 @@ export default function HeroBillboard() {
                 </div>
             ))}
 
-            {/* Layered scrims (cheap on slow GPUs — pure gradients) */}
             <div
                 className="absolute inset-0"
                 style={{
                     background: `linear-gradient(180deg,
-                        rgba(5,5,5,0.4) 0%,
-                        rgba(5,5,5,0) 30%,
-                        rgba(5,5,5,0) 50%,
-                        rgba(5,5,5,0.85) 88%,
-                        #050505 100%)`,
+                        rgba(6,8,15,0.55) 0%,
+                        rgba(6,8,15,0) 28%,
+                        rgba(6,8,15,0) 50%,
+                        rgba(6,8,15,0.88) 88%,
+                        var(--vesper-bg-0) 100%)`,
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
                     background: `linear-gradient(90deg,
-                        rgba(5,5,5,0.95) 0%,
-                        rgba(5,5,5,0.6) 28%,
-                        rgba(5,5,5,0.1) 60%,
-                        rgba(5,5,5,0) 100%)`,
+                        rgba(6,8,15,0.94) 0%,
+                        rgba(6,8,15,0.55) 28%,
+                        rgba(6,8,15,0.05) 60%,
+                        rgba(6,8,15,0) 100%)`,
                 }}
             />
+            {/* Subtle blue ambient glow */}
             <div
-                className="absolute inset-0 pointer-events-none vesper-grain"
-                style={{ opacity: 0.4 }}
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    background:
+                        'radial-gradient(ellipse 50% 60% at 80% 50%, rgba(93,200,255,0.10) 0%, transparent 70%)',
+                }}
             />
 
-            {/* Content */}
             <div className="absolute inset-0 flex items-end pb-24">
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
-                    style={{ paddingLeft: '160px' }}
+                    style={{ paddingLeft: '180px' }}
                 >
-                    <div className="vesper-eyebrow mb-6">{hero.eyebrow}</div>
+                    <div className="vesper-eyebrow mb-5">{hero.eyebrow}</div>
                     <h1
                         data-testid="hero-title"
                         className="vesper-display"
-                        style={{ fontSize: 'clamp(72px, 7.5vw, 116px)' }}
+                        style={{
+                            fontSize: 'clamp(56px, 6.4vw, 96px)',
+                            letterSpacing: '-0.035em',
+                            lineHeight: 0.95,
+                        }}
                     >
                         {hero.title}
                     </h1>
 
-                    <div className="flex items-center gap-5 mt-5 vesper-meta">
-                        <span className="text-vesper-copper font-medium">
+                    <div className="flex items-center gap-4 mt-6 vesper-meta flex-wrap">
+                        <span
+                            style={{
+                                color: 'var(--vesper-blue)',
+                                fontWeight: 500,
+                            }}
+                        >
                             {hero.year}
                         </span>
                         <Dot />
                         <span>{hero.runtime}</span>
                         <Dot />
                         <span
-                            className="px-2 py-1 text-[14px] font-mono tracking-widest border"
+                            className="px-2 py-1 vesper-mono"
                             style={{
-                                borderColor: 'rgba(255,255,255,0.25)',
-                                color: 'var(--vesper-text2)',
+                                fontSize: 12,
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: 4,
+                                color: 'var(--vesper-text-2)',
+                                letterSpacing: '0.18em',
                             }}
                         >
                             {hero.rating}
@@ -102,30 +117,33 @@ export default function HeroBillboard() {
                     </div>
 
                     <p
-                        className="mt-7 text-vesper-text2 max-w-[44ch]"
+                        className="mt-6 max-w-[46ch]"
                         style={{
-                            fontSize: 22,
+                            fontSize: 20,
                             lineHeight: 1.55,
-                            fontWeight: 300,
+                            fontWeight: 400,
+                            color: 'var(--vesper-text-2)',
                         }}
                     >
                         {hero.synopsis}
                     </p>
 
-                    <div className="flex items-center gap-4 mt-9">
+                    <div className="flex items-center gap-3 mt-9">
                         <button
                             data-testid="hero-play-button"
                             data-focusable="true"
                             data-focus-style="pill"
                             data-initial-focus="true"
                             tabIndex={0}
-                            className="flex items-center gap-3 h-16 px-9 rounded-full font-sans font-semibold text-[22px]"
+                            onClick={() => navigate(`/title/${hero.id}`)}
+                            className="flex items-center gap-3 h-14 px-8 rounded-full font-sans font-semibold text-[19px]"
                             style={{
-                                background: '#f8f9fa',
-                                color: '#050505',
+                                background:
+                                    'linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%)',
+                                color: '#06080f',
                             }}
                         >
-                            <Play size={24} strokeWidth={2.5} fill="#050505" />
+                            <Play size={22} strokeWidth={2.5} fill="#06080f" />
                             Play
                         </button>
                         <button
@@ -133,14 +151,15 @@ export default function HeroBillboard() {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
-                            className="flex items-center gap-3 h-16 px-9 rounded-full font-sans font-medium text-[22px]"
+                            onClick={() => navigate(`/title/${hero.id}`)}
+                            className="flex items-center gap-3 h-14 px-7 rounded-full font-sans font-medium text-[19px]"
                             style={{
                                 background: 'rgba(255,255,255,0.08)',
                                 color: 'var(--vesper-text)',
-                                border: '1px solid rgba(255,255,255,0.18)',
+                                border: '1px solid rgba(255,255,255,0.16)',
                             }}
                         >
-                            <Info size={22} strokeWidth={1.7} />
+                            <Info size={20} strokeWidth={1.7} />
                             More Info
                         </button>
                         <button
@@ -148,28 +167,32 @@ export default function HeroBillboard() {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
-                            className="flex items-center gap-3 h-16 px-7 rounded-full font-sans font-medium text-[22px]"
+                            className="flex items-center gap-3 h-14 px-6 rounded-full font-sans font-medium text-[19px]"
                             style={{
                                 background: 'transparent',
-                                color: 'var(--vesper-text2)',
-                                border: '1px solid rgba(255,255,255,0.18)',
+                                color: 'var(--vesper-text-2)',
+                                border: '1px solid rgba(255,255,255,0.16)',
                             }}
                         >
-                            <Plus size={22} strokeWidth={1.7} />
+                            <Plus size={20} strokeWidth={1.7} />
                             My List
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3 mt-8 vesper-eyebrow">
-                        <span style={{ color: 'var(--vesper-text3)' }}>
-                            Available on
+                    <div className="flex items-center gap-3 mt-7 vesper-eyebrow flex-wrap">
+                        <span style={{ color: 'var(--vesper-text-3)' }}>
+                            On
                         </span>
                         {hero.sources.map((s) => (
                             <span
                                 key={s}
+                                className="px-2.5 py-1 rounded-md"
                                 style={{
-                                    color: 'var(--vesper-text2)',
-                                    letterSpacing: '0.18em',
+                                    color: 'var(--vesper-blue-bright)',
+                                    background: 'rgba(93,200,255,0.08)',
+                                    border: '1px solid rgba(93,200,255,0.25)',
+                                    letterSpacing: '0.16em',
+                                    fontSize: 11,
                                 }}
                             >
                                 {s}
@@ -179,20 +202,23 @@ export default function HeroBillboard() {
                 </div>
             </div>
 
-            {/* Hero index dots */}
-            <div className="absolute bottom-10 right-12 flex items-center gap-3 z-10">
+            <div className="absolute bottom-10 right-12 flex items-center gap-2.5 z-10">
                 {HEROES.map((_, i) => (
                     <span
                         key={i}
                         className="block transition-all duration-500"
                         style={{
                             width: i === idx ? 36 : 8,
-                            height: 4,
+                            height: 3,
                             borderRadius: 2,
                             background:
                                 i === idx
-                                    ? 'var(--vesper-copper)'
-                                    : 'rgba(255,255,255,0.25)',
+                                    ? 'var(--vesper-blue)'
+                                    : 'rgba(255,255,255,0.22)',
+                            boxShadow:
+                                i === idx
+                                    ? '0 0 16px var(--vesper-blue-glow)'
+                                    : 'none',
                         }}
                     />
                 ))}
@@ -204,6 +230,6 @@ export default function HeroBillboard() {
 const Dot = () => (
     <span
         className="inline-block w-1 h-1 rounded-full"
-        style={{ background: 'rgba(255,255,255,0.35)' }}
+        style={{ background: 'rgba(255,255,255,0.32)' }}
     />
 );

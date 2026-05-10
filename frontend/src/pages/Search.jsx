@@ -1,0 +1,131 @@
+import React, { useEffect, useState } from 'react';
+import { Search as SearchIcon, Loader2 } from 'lucide-react';
+import SideNav from '@/components/SideNav';
+import FullscreenButton from '@/components/FullscreenButton';
+import OnScreenKeyboard from '@/components/OnScreenKeyboard';
+import PosterTile from '@/components/PosterTile';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
+import { useAddons } from '@/hooks/useAddons';
+import { Vesper } from '@/lib/api';
+
+export default function Search() {
+    useSpatialFocus();
+    const { addons } = useAddons();
+    const [q, setQ] = useState('');
+    const [results, setResults] = useState([]);
+    const [busy, setBusy] = useState(false);
+
+    const searchable = addons.flatMap((a) =>
+        (a.catalogs || [])
+            .filter(
+                (c) =>
+                    Array.isArray(c.extra) &&
+                    c.extra.some((e) => e?.name === 'search')
+            )
+            .map((c) => ({ addon: a, catalog: c }))
+    );
+
+    const doSearch = async (query) => {
+        if (!query || query.trim().length < 2) return;
+        setBusy(true);
+        const out = [];
+        await Promise.all(
+            searchable.map(async ({ addon, catalog }) => {
+                try {
+                    const res = await Vesper.getCatalog(
+                        addon.id,
+                        catalog.type,
+                        catalog.id,
+                        { search: query }
+                    );
+                    const metas = res?.data?.metas || [];
+                    metas.forEach((m) =>
+                        out.push({
+                            id: `${addon.id}-${m.id}`,
+                            imdbId: m.id,
+                            type: catalog.type,
+                            title: m.name,
+                            sub: [m.releaseInfo, m.imdbRating ? `★ ${m.imdbRating}` : null]
+                                .filter(Boolean)
+                                .join(' · '),
+                            poster: m.poster,
+                            routePath: `/title/${catalog.type}/${m.id}`,
+                        })
+                    );
+                } catch {}
+            })
+        );
+        setResults(out);
+        setBusy(false);
+    };
+
+    return (
+        <div
+            data-testid="search-page"
+            className="relative w-screen h-screen overflow-hidden"
+        >
+            <SideNav />
+            <FullscreenButton />
+
+            <main
+                className="absolute inset-0 overflow-y-auto"
+                style={{
+                    paddingLeft: 180,
+                    paddingRight: 80,
+                    paddingTop: 80,
+                    paddingBottom: 80,
+                }}
+            >
+                <div className="vesper-eyebrow mb-3">Search</div>
+                <h1
+                    className="vesper-display mb-8"
+                    style={{ fontSize: 'clamp(56px, 5.6vw, 80px)' }}
+                >
+                    What are you looking for?
+                </h1>
+
+                <div className="mb-12 max-w-[760px]">
+                    <OnScreenKeyboard
+                        value={q}
+                        placeholder="Title, actor, keyword…"
+                        onChange={setQ}
+                        onSubmit={(v) => doSearch(v)}
+                        submitLabel={busy ? 'Searching…' : 'Search'}
+                    />
+                </div>
+
+                {!searchable.length && (
+                    <p style={{ color: 'var(--vesper-text-2)' }}>
+                        Install a searchable addon on Sources to enable search.
+                    </p>
+                )}
+
+                {busy ? (
+                    <div
+                        className="flex items-center gap-3"
+                        style={{ color: 'var(--vesper-text-2)' }}
+                    >
+                        <Loader2 className="vesper-spin" size={20} /> Searching…
+                    </div>
+                ) : results.length > 0 ? (
+                    <>
+                        <h2
+                            className="vesper-display mb-5"
+                            style={{
+                                fontSize: 28,
+                                letterSpacing: '-0.02em',
+                            }}
+                        >
+                            {results.length} results
+                        </h2>
+                        <div className="flex flex-wrap gap-6">
+                            {results.slice(0, 30).map((item) => (
+                                <PosterTile key={item.id} item={item} />
+                            ))}
+                        </div>
+                    </>
+                ) : null}
+            </main>
+        </div>
+    );
+}

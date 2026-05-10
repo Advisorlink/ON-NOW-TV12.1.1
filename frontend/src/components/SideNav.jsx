@@ -5,76 +5,85 @@ import {
     Library,
     Plug,
     Settings,
-    Star,
 } from 'lucide-react';
-import { NAV } from '@/data/mockCatalog';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-const ICONS = {
-    home: HomeIcon,
-    search: Search,
-    library: Library,
-    plug: Plug,
-    settings: Settings,
-};
+const NAV = [
+    { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
+    { id: 'search', label: 'Search', icon: Search, path: '/search' },
+    { id: 'library', label: 'My Library', icon: Library, path: '/library' },
+    { id: 'sources', label: 'Sources', icon: Plug, path: '/sources' },
+    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+];
 
-export default function SideNav({ active = 'home', onNavigate = () => {} }) {
+export default function SideNav() {
     const [expanded, setExpanded] = useState(false);
+    const location = useLocation();
+    const navigate = useNavigate();
+    const activePath = location.pathname;
 
     return (
         <nav
             data-testid="side-nav"
             onFocus={() => setExpanded(true)}
             onBlur={(e) => {
-                // collapse only when focus leaves the entire nav
                 if (!e.currentTarget.contains(e.relatedTarget))
                     setExpanded(false);
             }}
-            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-10 transition-[width] duration-300"
+            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-9 transition-[width,background] duration-300"
             style={{
-                width: expanded ? '320px' : '96px',
+                width: expanded ? '320px' : '108px',
                 background: expanded
-                    ? 'linear-gradient(90deg, rgba(10,13,20,0.96) 0%, rgba(10,13,20,0.85) 60%, rgba(10,13,20,0) 100%)'
+                    ? 'linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.85) 60%, rgba(10,14,26,0) 100%)'
                     : 'transparent',
-                backdropFilter: expanded ? 'blur(8px)' : 'none',
+                backdropFilter: expanded ? 'blur(14px)' : 'none',
             }}
         >
             {/* Brand mark */}
-            <div className="flex items-center gap-4 px-7 mb-12 select-none">
+            <div className="flex items-center gap-4 pl-7 pr-4 mb-12 select-none">
                 <div
-                    className="flex items-center justify-center w-12 h-12 rounded-full"
+                    className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
                     style={{
-                        background: 'rgba(229,138,89,0.12)',
-                        border: '1px solid rgba(229,138,89,0.5)',
+                        background:
+                            'linear-gradient(135deg, rgba(93,200,255,0.25) 0%, rgba(93,200,255,0.05) 100%)',
+                        border: '1px solid rgba(93,200,255,0.5)',
+                        boxShadow: '0 0 24px rgba(93,200,255,0.25) inset',
                     }}
                 >
-                    <Star
-                        size={22}
-                        strokeWidth={1.5}
-                        className="text-vesper-copper"
-                        fill="currentColor"
-                    />
+                    <span
+                        className="vesper-display"
+                        style={{
+                            fontSize: 22,
+                            color: 'var(--vesper-blue)',
+                            lineHeight: 1,
+                        }}
+                    >
+                        V
+                    </span>
                 </div>
                 <div
                     className="overflow-hidden whitespace-nowrap transition-opacity duration-300"
                     style={{ opacity: expanded ? 1 : 0 }}
                 >
-                    <div className="vesper-display text-3xl tracking-tight">
+                    <div
+                        className="vesper-display"
+                        style={{ fontSize: 26, lineHeight: 1.1 }}
+                    >
                         Vesper
                     </div>
-                    <div
-                        className="vesper-eyebrow"
-                        style={{ fontSize: 11, letterSpacing: '0.32em' }}
-                    >
-                        Vespertine
+                    <div className="vesper-eyebrow" style={{ fontSize: 10 }}>
+                        for HK1 · TV
                     </div>
                 </div>
             </div>
 
             {/* Items */}
-            <div className="flex flex-col gap-1 px-3">
+            <div className="flex flex-col gap-1 px-4">
                 {NAV.map((item) => {
-                    const Icon = ICONS[item.icon] || HomeIcon;
-                    const isActive = active === item.id;
+                    const Icon = item.icon;
+                    const isActive =
+                        activePath === item.path ||
+                        (item.path !== '/' && activePath.startsWith(item.path));
                     return (
                         <button
                             key={item.id}
@@ -82,8 +91,8 @@ export default function SideNav({ active = 'home', onNavigate = () => {} }) {
                             data-focusable="true"
                             data-focus-style="nav"
                             tabIndex={0}
-                            onClick={() => onNavigate(item.id)}
-                            className={`relative flex items-center gap-5 h-16 px-4 rounded-md text-left ${
+                            onClick={() => navigate(item.path)}
+                            className={`relative flex items-center gap-5 h-14 px-3 rounded-lg text-left ${
                                 isActive
                                     ? 'text-vesper-text'
                                     : 'text-vesper-text2'
@@ -91,17 +100,17 @@ export default function SideNav({ active = 'home', onNavigate = () => {} }) {
                         >
                             <span className="flex items-center justify-center w-12 h-12 shrink-0">
                                 <Icon
-                                    size={26}
-                                    strokeWidth={1.5}
+                                    size={24}
+                                    strokeWidth={1.6}
                                     style={{
                                         color: isActive
-                                            ? 'var(--vesper-copper)'
+                                            ? 'var(--vesper-blue)'
                                             : 'currentColor',
                                     }}
                                 />
                             </span>
                             <span
-                                className="font-sans text-[22px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                                className="font-sans text-[20px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
                                 style={{ opacity: expanded ? 1 : 0 }}
                             >
                                 {item.label}
@@ -111,16 +120,18 @@ export default function SideNav({ active = 'home', onNavigate = () => {} }) {
                 })}
             </div>
 
-            <div className="mt-auto px-7">
+            <div className="mt-auto pl-7 pr-4">
                 <div
-                    className="vesper-eyebrow transition-opacity duration-300"
+                    className="vesper-mono transition-opacity duration-300"
                     style={{
-                        opacity: expanded ? 1 : 0,
+                        opacity: expanded ? 0.5 : 0,
                         fontSize: 11,
-                        letterSpacing: '0.32em',
+                        color: 'var(--vesper-text-3)',
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
                     }}
                 >
-                    HK1 · TV
+                    v0.2 · Vespertine
                 </div>
             </div>
         </nav>

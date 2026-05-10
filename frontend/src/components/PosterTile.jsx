@@ -1,69 +1,97 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-export default function PosterTile({ item, onSelect = () => {} }) {
+export default function PosterTile({ item, onSelect }) {
+    const navigate = useNavigate();
+    const handleClick = () => {
+        if (onSelect) {
+            onSelect(item);
+        } else if (item.routePath) {
+            navigate(item.routePath);
+        } else if (item.imdbId) {
+            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
+        } else {
+            navigate(`/title/${item.id}`);
+        }
+    };
+
     return (
         <button
             data-testid={`poster-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={() => onSelect(item)}
-            className="group relative shrink-0 overflow-hidden rounded-lg text-left"
+            onClick={handleClick}
+            className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                width: 280,
+                width: 264,
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.05)',
             }}
         >
-            <img
-                src={item.poster}
-                alt={item.title}
-                loading="lazy"
-                className="absolute inset-0 w-full h-full object-cover"
-            />
+            {item.poster ? (
+                <img
+                    src={item.poster}
+                    alt={item.title}
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
+            ) : (
+                <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                        background:
+                            'linear-gradient(180deg, var(--vesper-bg-2) 0%, var(--vesper-bg-1) 100%)',
+                    }}
+                >
+                    <span
+                        className="vesper-display"
+                        style={{
+                            fontSize: 64,
+                            color: 'rgba(93,200,255,0.18)',
+                        }}
+                    >
+                        {(item.title || '?')[0]}
+                    </span>
+                </div>
+            )}
 
-            {/* Always-on bottom scrim for legibility */}
             <div
                 className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
                 style={{
                     background:
-                        'linear-gradient(180deg, rgba(5,5,5,0) 0%, rgba(5,5,5,0.92) 78%, #050505 100%)',
+                        'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.93) 78%, var(--vesper-bg-0) 100%)',
                 }}
             />
 
-            {/* Title block */}
-            <div className="absolute inset-x-0 bottom-0 p-5">
+            <div className="absolute inset-x-0 bottom-0 p-4">
                 <div
-                    className="vesper-display"
+                    className="font-sans"
                     style={{
-                        fontSize: 28,
-                        lineHeight: 1.05,
+                        fontSize: 19,
+                        fontWeight: 600,
+                        letterSpacing: '-0.015em',
+                        lineHeight: 1.15,
                         color: 'var(--vesper-text)',
                     }}
                 >
                     {item.title}
                 </div>
-                <div
-                    className="font-mono mt-2"
-                    style={{
-                        fontSize: 13,
-                        letterSpacing: '0.18em',
-                        textTransform: 'uppercase',
-                        color: 'var(--vesper-text2)',
-                    }}
-                >
-                    {item.sub}
-                </div>
+                {item.sub && (
+                    <div
+                        className="vesper-mono mt-1.5"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-2)',
+                        }}
+                    >
+                        {item.sub}
+                    </div>
+                )}
             </div>
-
-            {/* Subtle copper edge that brightens on focus */}
-            <span
-                className="absolute inset-0 pointer-events-none rounded-lg"
-                style={{
-                    boxShadow: 'inset 0 0 0 1px rgba(229,138,89,0)',
-                }}
-            />
         </button>
     );
 }
