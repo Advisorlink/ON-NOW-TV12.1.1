@@ -35,9 +35,11 @@ export default function Sources() {
             setTimeout(() => setSuccess(null), 4000);
         } catch (e) {
             setError(
-                e?.response?.data?.detail ||
-                    e?.message ||
-                    'Install failed — check the URL'
+                e?.userFacing
+                    ? e.message
+                    : e?.response?.data?.detail ||
+                          e?.message ||
+                          'Install failed — check the URL'
             );
         } finally {
             setBusy(false);

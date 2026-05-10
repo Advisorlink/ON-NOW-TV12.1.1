@@ -23,12 +23,41 @@ const trimSlash = (s) => s.replace(/\/+$/, '');
 export function normaliseManifestUrl(raw) {
     let u = (raw || '').trim();
     if (!u) return null;
+
+    // Stremio deep-link → plain https URL
+    u = u.replace(/^stremio:\/\//i, 'https://');
+
+    // Strip duplicate scheme prefixes that arise from copy-paste mishaps:
+    //   "https://stremio://host/..."  →  "https://host/..."
+    //   "https://https://host/..."    →  "https://host/..."
+    u = u.replace(/^https?:\/\/(?:stremio:\/\/|https?:\/\/)/i, 'https://');
+    // Also handle stray "s://" that's been seen in the wild
+    u = u.replace(/^https?:\/\/s:\/\//i, 'https://');
+
     if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-    if (u.endsWith('/manifest.json')) {
-        return { base: u.slice(0, -'/manifest.json'.length), manifest: u };
+
+    let parsed;
+    try {
+        parsed = new URL(u);
+    } catch {
+        return null;
     }
-    const base = trimSlash(u);
-    return { base, manifest: base + '/manifest.json' };
+    const host = parsed.hostname || '';
+    if (host.length < 3 || !host.includes('.')) return null;
+
+    const pathname = parsed.pathname.replace(/\/$/, '');
+    if (pathname.endsWith('/manifest.json')) {
+        const baseP = pathname.slice(0, -'/manifest.json'.length);
+        return {
+            base: parsed.origin + baseP,
+            manifest: parsed.origin + pathname + (parsed.search || ''),
+        };
+    }
+    const base = parsed.origin + pathname;
+    return {
+        base,
+        manifest: base + '/manifest.json' + (parsed.search || ''),
+    };
 }
 
 async function fetchJsonDirect(url, { timeout = 15000 } = {}) {
@@ -79,7 +108,13 @@ export const Vesper = {
      */
     installAddon: async (rawUrl) => {
         const norm = normaliseManifestUrl(rawUrl);
-        if (!norm) throw new Error('Empty URL');
+        if (!norm) {
+            const err = new Error(
+                'That URL doesn\'t look right. It should start with https:// (or stremio://) and point at a real host.'
+            );
+            err.userFacing = true;
+            throw err;
+        }
         let manifest = null;
         try {
             manifest = await fetchJsonDirect(norm.manifest);
