@@ -34,6 +34,34 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 4 — Feb 2026)
+- **TMDB-powered network catalogues** — completely replaced curated
+  imdb-id lists with a live TMDB integration:
+  - `backend/.env` carries the user-provided TMDB v4 Bearer token.
+  - `GET /api/networks/{slug}?type=tv|movie&page=N` proxies TMDB's
+    `/discover` endpoint via `with_watch_providers`, with 1-hour
+    backend cache.
+  - `GET /api/tmdb/imdb/{type}/{tmdb_id}` resolves a TMDB id → IMDB
+    id (7-day cache) so the existing `/title/{type}/{imdb}` Detail
+    page keeps working unchanged.
+  - Provider IDs verified live: Netflix 8 / HBO Max 1899 / Disney+
+    337 / Prime Video 9 / Apple TV+ 350 / Hulu 15.
+- **Frontend**:
+  - `Network.jsx` rewritten — TV / Movies sub-tabs, infinite-scroll
+    pagination via IntersectionObserver, "X of Y" counter (e.g. *20
+    of 3,368*), dedupes overlapping pages by `tmdb_id`, persists
+    sub-tab choice in `localStorage`.
+  - `NetworkPosterTile.jsx` — clickable TMDB tile that lazy-resolves
+    IMDB id with a loading overlay before navigating to Detail.
+- Total catalogue exposed: **~40,000+ titles** across 6 networks.
+
+### Iteration 4 Verification
+- 27/27 pytest backend tests passing (added 9 new TMDB-specific
+  tests in `/app/backend/tests/test_networks_tmdb.py`).
+- Testing agent v3 frontend e2e: 100% — Netflix TV+Movies tabs work,
+  Load More grows tiles by 20 per page, tile click resolves IMDB and
+  routes to Detail with full series episode picker.
+
 ## Implemented (Iteration 3 — Feb 2026)
 - **Browse-by-Network expanded** — `lib/networks.js` now ships ~30–50
   curated `{id, type}` titles per network across Netflix / HBO /

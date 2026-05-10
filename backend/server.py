@@ -539,7 +539,7 @@ NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
     "netflix": {"id": 8, "label": "Netflix"},
     "hbo": {"id": 1899, "label": "HBO Max"},
     "disney-plus": {"id": 337, "label": "Disney Plus"},
-    "prime-video": {"id": 119, "label": "Amazon Prime Video"},
+    "prime-video": {"id": 9, "label": "Amazon Prime Video"},
     "apple-tv": {"id": 350, "label": "Apple TV Plus"},
     "hulu": {"id": 15, "label": "Hulu"},
 }

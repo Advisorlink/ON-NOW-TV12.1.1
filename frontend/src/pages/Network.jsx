@@ -99,7 +99,14 @@ export default function Network() {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const json = await r.json();
             const data = json?.data || {};
-            setItems((prev) => [...prev, ...(data.results || [])]);
+            const fresh = data.results || [];
+            // De-dupe: TMDB's popularity-sorted /discover may return
+            // the same title on adjacent pages when popularity shifts
+            // mid-request.  Keep the first occurrence.
+            setItems((prev) => {
+                const seen = new Set(prev.map((p) => p.tmdb_id));
+                return [...prev, ...fresh.filter((n) => !seen.has(n.tmdb_id))];
+            });
             setPage(next);
         } catch {
             /* swallow */
