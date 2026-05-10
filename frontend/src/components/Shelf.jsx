@@ -15,12 +15,12 @@ export default function Shelf({ shelf, onSelect }) {
             data-testid={`shelf-${shelf.id}`}
             className="relative w-full"
             style={{
-                paddingTop: 'clamp(28px, 3vw, 48px)',
-                paddingBottom: 16,
+                paddingTop: 'clamp(16px, 1.8vw, 32px)',
+                paddingBottom: 8,
             }}
         >
             <header
-                className="flex items-end justify-between mb-5"
+                className="flex items-end justify-between mb-3"
                 style={{
                     paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',

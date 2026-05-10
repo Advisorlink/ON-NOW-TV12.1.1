@@ -84,6 +84,17 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        // On every new APK install, clear the WebView cache once so users
+        // never see a stale React bundle from a previous version.
+        val prefs = getSharedPreferences("onnowtv", MODE_PRIVATE)
+        val lastVersion = prefs.getInt("last_version", 0)
+        if (lastVersion != BuildConfig.VERSION_CODE) {
+            webView.clearCache(true)
+            webView.clearHistory()
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            prefs.edit().putInt("last_version", BuildConfig.VERSION_CODE).apply()
+        }
+
         setContentView(webView)
 
         webView.loadUrl(getString(R.string.app_url))

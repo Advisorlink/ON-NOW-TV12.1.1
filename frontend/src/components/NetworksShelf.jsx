@@ -16,12 +16,12 @@ export default function NetworksShelf() {
             data-testid="networks-shelf"
             className="relative w-full"
             style={{
-                paddingTop: 'clamp(28px, 3vw, 48px)',
-                paddingBottom: 16,
+                paddingTop: 'clamp(16px, 1.6vw, 28px)',
+                paddingBottom: 8,
             }}
         >
             <header
-                className="flex items-end justify-between mb-5"
+                className="flex items-end justify-between mb-3"
                 style={{
                     paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
@@ -73,7 +73,7 @@ export default function NetworksShelf() {
                         onClick={() => navigate(`/networks/${n.slug}`)}
                         className="group relative shrink-0 overflow-hidden rounded-2xl text-left"
                         style={{
-                            width: 'clamp(220px, 19vw, 320px)',
+                            width: 'clamp(180px, 15vw, 260px)',
                             aspectRatio: '16 / 9',
                             background: n.background,
                             border: '1px solid rgba(255,255,255,0.08)',

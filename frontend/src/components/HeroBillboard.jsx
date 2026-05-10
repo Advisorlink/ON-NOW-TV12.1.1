@@ -42,7 +42,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: '82vh' }}
+            style={{ height: '68vh', minHeight: 480 }}
         >
             {list.map((h, i) => (
                 <div
@@ -91,18 +91,18 @@ export default function HeroBillboard({ heroes }) {
                 }}
             />
 
-            <div className="absolute inset-0 flex items-end pb-24">
+            <div className="absolute inset-0 flex items-end pb-12">
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
                     style={{ paddingLeft: 'clamp(124px, 9.5vw, 180px)' }}
                 >
-                    <div className="vesper-eyebrow mb-5">{hero.eyebrow}</div>
+                    <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>
                     <h1
                         data-testid="hero-title"
                         className="vesper-display"
                         style={{
-                            fontSize: 'clamp(56px, 6.4vw, 96px)',
+                            fontSize: 'clamp(36px, 4.2vw, 64px)',
                             letterSpacing: '-0.035em',
                             lineHeight: 0.95,
                         }}
@@ -111,7 +111,7 @@ export default function HeroBillboard({ heroes }) {
                     </h1>
 
                     {meta.length > 0 && (
-                        <div className="flex items-center gap-4 mt-6 vesper-meta flex-wrap">
+                        <div className="flex items-center gap-3 mt-3 vesper-meta flex-wrap">
                             {meta.map((m, i) => (
                                 <React.Fragment key={i}>
                                     {i > 0 && <Dot />}
@@ -134,14 +134,14 @@ export default function HeroBillboard({ heroes }) {
 
                     {hero.synopsis && (
                         <p
-                            className="mt-6 max-w-[46ch]"
+                            className="mt-3 max-w-[52ch]"
                             style={{
-                                fontSize: 20,
-                                lineHeight: 1.55,
+                                fontSize: 'clamp(13px, 1vw, 16px)',
+                                lineHeight: 1.5,
                                 fontWeight: 400,
                                 color: 'var(--vesper-text-2)',
                                 display: '-webkit-box',
-                                WebkitLineClamp: 4,
+                                WebkitLineClamp: 2,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden',
                             }}
@@ -150,7 +150,7 @@ export default function HeroBillboard({ heroes }) {
                         </p>
                     )}
 
-                    <div className="flex items-center gap-3 mt-9">
+                    <div className="flex items-center gap-3 mt-5">
                         <button
                             data-testid="hero-play-button"
                             data-focusable="true"
@@ -158,14 +158,18 @@ export default function HeroBillboard({ heroes }) {
                             data-initial-focus="true"
                             tabIndex={0}
                             onClick={goToDetail}
-                            className="flex items-center gap-3 h-14 px-8 rounded-full font-sans font-semibold text-[19px]"
+                            className="flex items-center gap-2 rounded-full font-sans font-semibold"
                             style={{
+                                height: 'clamp(44px, 3.6vw, 52px)',
+                                paddingLeft: 'clamp(20px, 1.6vw, 26px)',
+                                paddingRight: 'clamp(20px, 1.6vw, 26px)',
+                                fontSize: 'clamp(14px, 1.05vw, 17px)',
                                 background:
                                     'linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%)',
                                 color: '#06080f',
                             }}
                         >
-                            <Play size={22} strokeWidth={2.5} fill="#06080f" />
+                            <Play size={18} strokeWidth={2.5} fill="#06080f" />
                             Play
                         </button>
                         <button
@@ -174,14 +178,18 @@ export default function HeroBillboard({ heroes }) {
                             data-focus-style="pill"
                             tabIndex={0}
                             onClick={goToDetail}
-                            className="flex items-center gap-3 h-14 px-7 rounded-full font-sans font-medium text-[19px]"
+                            className="flex items-center gap-2 rounded-full font-sans font-medium"
                             style={{
+                                height: 'clamp(44px, 3.6vw, 52px)',
+                                paddingLeft: 'clamp(18px, 1.4vw, 22px)',
+                                paddingRight: 'clamp(18px, 1.4vw, 22px)',
+                                fontSize: 'clamp(14px, 1.05vw, 17px)',
                                 background: 'rgba(255,255,255,0.08)',
                                 color: 'var(--vesper-text)',
                                 border: '1px solid rgba(255,255,255,0.16)',
                             }}
                         >
-                            <Info size={20} strokeWidth={1.7} />
+                            <Info size={16} strokeWidth={1.7} />
                             More Info
                         </button>
                         <button
@@ -189,20 +197,24 @@ export default function HeroBillboard({ heroes }) {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
-                            className="flex items-center gap-3 h-14 px-6 rounded-full font-sans font-medium text-[19px]"
+                            className="flex items-center gap-2 rounded-full font-sans font-medium"
                             style={{
+                                height: 'clamp(44px, 3.6vw, 52px)',
+                                paddingLeft: 'clamp(16px, 1.3vw, 20px)',
+                                paddingRight: 'clamp(16px, 1.3vw, 20px)',
+                                fontSize: 'clamp(14px, 1.05vw, 17px)',
                                 background: 'transparent',
                                 color: 'var(--vesper-text-2)',
                                 border: '1px solid rgba(255,255,255,0.16)',
                             }}
                         >
-                            <Plus size={20} strokeWidth={1.7} />
+                            <Plus size={16} strokeWidth={1.7} />
                             My List
                         </button>
                     </div>
 
                     {hero.sources?.length > 0 && (
-                        <div className="flex items-center gap-3 mt-7 vesper-eyebrow flex-wrap">
+                        <div className="flex items-center gap-2 mt-4 vesper-eyebrow flex-wrap">
                             <span style={{ color: 'var(--vesper-text-3)' }}>
                                 On
                             </span>

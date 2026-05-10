@@ -34,6 +34,23 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 8 — Feb 2026)
+- **Tighter Home layout** — all 6 networks now fit on screen with the
+  hero at 1080p without scrolling:
+  - Hero height: 82vh → 68vh (min 480px)
+  - Hero title: clamp 56→96px → clamp 36→64px
+  - Synopsis: 4 lines → 2 lines, smaller font
+  - Action buttons: scaled via clamp() — 56px → ~52px max
+  - Vertical padding compressed throughout
+  - Network tiles: 320px → 260px max, gap reduced
+  - Section headers: mb-5 → mb-3
+- **TV box stale-cache fix** — `MainActivity.kt` now wipes the
+  WebView cache + cookies + history on every new APK install
+  (tracked via `BuildConfig.VERSION_CODE` in SharedPreferences).
+  Bumped versionCode 2 → 3, versionName "1.0.0" → "1.0.1".  This
+  fixes the user's complaint that the Network pages showed old
+  curated content on the box but live TMDB content on the web.
+
 ## Implemented (Iteration 7 — Feb 2026)
 - **External video player handoff** — biggest win for HK1 boxes:
   - New `WebAppInterface.kt` Android JS bridge (registered as
