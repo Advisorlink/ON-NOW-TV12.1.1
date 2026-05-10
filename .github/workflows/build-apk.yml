@@ -1,19 +1,27 @@
 name: Build ON NOW TV V2 APK
 
-# Builds an installable Android APK for the HK1 box.  Drops the
-# signed-debug APK as a workflow artifact AND attaches it to a
-# GitHub Release tagged "apk-latest".
+# Workflow:
+#   1. Build the React app with the live REACT_APP_BACKEND_URL baked in
+#      (so the bundled APK still talks to the deployed backend for
+#      TMDB / Stremio addons).
+#   2. Copy the build output into android/vesper-tv/app/src/main/assets/web/
+#      so the WebView loads it from file:///android_asset/.
+#   3. Build the debug APK.  Publish artifact + auto-update Release.
 
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'android/**'
-      - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
 permissions:
   contents: write   # needed by softprops/action-gh-release
+
+env:
+  # Live deployed backend URL — the APK bakes this into the
+  # production JS bundle, so the sideloaded app keeps fetching real
+  # TMDB and addon data without any preview-URL dependency on the
+  # frontend side.
+  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
 
 jobs:
   build:
@@ -22,6 +30,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Yarn deps
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build React app (production)
+        working-directory: frontend
+        env:
+          CI: 'false'  # don't fail the build on lint warnings
+        run: yarn build
+
+      - name: Bundle frontend into Android assets
+        run: |
+          rm -rf android/vesper-tv/app/src/main/assets/web
+          mkdir -p android/vesper-tv/app/src/main/assets/web
+          cp -r frontend/build/. android/vesper-tv/app/src/main/assets/web/
+          ls -la android/vesper-tv/app/src/main/assets/web | head
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -44,14 +74,12 @@ jobs:
         run: |
           gradle wrapper --gradle-version 8.7
           chmod +x ./gradlew
-          ls -la gradlew gradle/wrapper/
 
       - name: Build debug APK
         working-directory: android/vesper-tv
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Locate APK
-        id: locate
         run: |
           APK=$(find android/vesper-tv/app/build/outputs/apk -name "*.apk" | head -n1)
           echo "Found APK: $APK"
@@ -66,13 +94,15 @@ jobs:
           retention-days: 30
 
       - name: Publish/update "apk-latest" Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
           name: ON NOW TV V2 — latest debug build
           body: |
             Sideload-ready debug APK auto-built from the latest commit.
+            React frontend is bundled inside the APK; backend calls go
+            to the deployed TMDB/addons proxy.
+
             Install on your HK1 box via "Downloader" by AFTVnews — paste
             this release page's APK download URL.
           files: onnowtv-v2-debug.apk

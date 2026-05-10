@@ -1,12 +1,19 @@
 import React from 'react';
 import '@/index.css';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
 import Home from '@/pages/Home';
 import Sources from '@/pages/Sources';
 import Detail from '@/pages/Detail';
 import Player from '@/pages/Player';
 import Search from '@/pages/Search';
 import Network from '@/pages/Network';
+
+// HashRouter works under file:// (sideloaded APK); BrowserRouter
+// is nicer everywhere else (hosted preview, PWA install).
+const Router =
+    typeof window !== 'undefined' && window.location.protocol === 'file:'
+        ? HashRouter
+        : BrowserRouter;
 
 function NotImplemented({ name }) {
     return (
@@ -28,7 +35,7 @@ function NotImplemented({ name }) {
 function App() {
     return (
         <div className="App">
-            <BrowserRouter>
+            <Router>
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/sources" element={<Sources />} />
@@ -40,7 +47,7 @@ function App() {
                     <Route path="/title/:id" element={<Detail />} />
                     <Route path="/play" element={<Player />} />
                 </Routes>
-            </BrowserRouter>
+            </Router>
         </div>
     );
 }

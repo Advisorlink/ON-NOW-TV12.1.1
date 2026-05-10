@@ -383,3 +383,14 @@ body {
     --vesper-side-pad-min: 96px;
     --vesper-side-pad-max: 132px;
 }
+
+/* Hide the Emergent preview badge inside the production app /
+   sideloaded WebView.  The badge is injected by Emergent's preview
+   shell; it has no business being on top of the user's app. */
+.vesper-host-android #emergent-badge,
+.vesper-host-android [class*="emergent-badge"],
+.vesper-host-android [id*="emergent-badge"],
+.vesper-host-android iframe[src*="emergent"],
+.vesper-host-android a[href*="emergent.sh"] {
+    display: none !important;
+}

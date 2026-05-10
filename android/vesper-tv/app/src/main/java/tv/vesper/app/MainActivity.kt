@@ -56,7 +56,9 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                allowFileAccess = false
+                // Local-asset bundle needs file:// access; we still
+                // disable arbitrary content:// access for safety.
+                allowFileAccess = true
                 allowContentAccess = false
                 userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
             }
@@ -97,7 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(webView)
 
-        webView.loadUrl(getString(R.string.app_url))
+        webView.loadUrl("file:///android_asset/web/index.html")
     }
 
     override fun onResume() {

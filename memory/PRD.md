@@ -34,6 +34,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 9 — Feb 2026)
+- **Real APK with bundled frontend** — addressed user's observation
+  that the previous APK was just a WebView pointing at the live
+  preview URL.  Now the React build is **bundled inside the APK** as
+  `assets/web/`, the WebView loads `file:///android_asset/web/index.html`,
+  and only backend calls (TMDB / addons) hit the deployed server.
+  - `homepage: "."` in `frontend/package.json` for relative paths.
+  - `App.js` switches `BrowserRouter` → `HashRouter` automatically
+    when running under `file:///` so deep links work offline.
+  - `MainActivity.kt` enables `allowFileAccess`.
+  - `VesperWebViewClient.kt` allows `file://` URLs, blocks unknown
+    schemes, dispatches `intent://` / `magnet://` / `market://` to
+    Android natively.
+  - GitHub Actions workflow now: yarn install → yarn build →
+    copy `build/.` → `assets/web/` → gradle assembleDebug.
+  - APK version 3 → 4, versionName 1.0.1 → 1.1.0.
+- **Emergent badge nuker** — `VesperWebViewClient` injects a tiny
+  `MutationObserver` JS snippet on every page load that removes any
+  Emergent preview badge (CSS rule + JS belt-and-braces).
+- **Smaller posters** — PosterTile and NetworkPosterTile both bumped
+  from `clamp(150–220px, 13.5vw)` → `clamp(120–180px, 10.5vw)`.
+
 ## Implemented (Iteration 8 — Feb 2026)
 - **Tighter Home layout** — all 6 networks now fit on screen with the
   hero at 1080p without scrolling:
