@@ -394,3 +394,25 @@ body {
 .vesper-host-android a[href*="emergent.sh"] {
     display: none !important;
 }
+
+/* Shimmer band — used by the player preview screen. */
+.vesper-shimmer {
+    position: relative;
+    overflow: hidden;
+}
+.vesper-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    animation: vesperShimmer 1.6s ease-in-out infinite;
+}
+@keyframes vesperShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}

@@ -101,6 +101,12 @@ export default function Player() {
     const [subsLoading, setSubsLoading] = useState(false);
     const [activeSubId, setActiveSubId] = useState(null); // null = off
     const [pickerOpen, setPickerOpen] = useState(false);
+    const [autoSubApplied, setAutoSubApplied] = useState(false);
+
+    // Cinematic preview meta (poster, synopsis, year, rating)
+    const [previewMeta, setPreviewMeta] = useState(null);
+    const [streamReady, setStreamReady] = useState(false);
+    const [showPreview, setShowPreview] = useState(true);
 
     const startPlayback = async () => {
         const v = videoRef.current;
@@ -132,6 +138,7 @@ export default function Player() {
             hls.attachMedia(v);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 setLoading(false);
+                setStreamReady(true);
                 startPlayback();
             });
             hls.on(Hls.Events.ERROR, (_, data) => {
@@ -145,6 +152,7 @@ export default function Player() {
             v.src = url;
             const onLoaded = () => {
                 setLoading(false);
+                setStreamReady(true);
                 startPlayback();
             };
             const onErr = () => {
@@ -262,6 +270,54 @@ export default function Player() {
         return Array.from(groups.values());
     }, [subs]);
 
+    // Pull cinematic preview meta (poster, synopsis, year, rating)
+    // — gives the loading screen a real cover instead of a black void.
+    useEffect(() => {
+        if (!imdbId) return;
+        let cancel = false;
+        const baseId = imdbId.split(':')[0];
+        const fetchType = type === 'series' ? 'series' : 'movie';
+        (async () => {
+            try {
+                const r = await fetch(
+                    `https://v3-cinemeta.strem.io/meta/${fetchType}/${baseId}.json`,
+                    { mode: 'cors', cache: 'force-cache' }
+                );
+                if (!r.ok) return;
+                const data = await r.json();
+                if (cancel) return;
+                const m = data?.meta;
+                if (m) {
+                    setPreviewMeta({
+                        title: m.name,
+                        poster: m.poster,
+                        background: m.background || m.poster,
+                        year: m.releaseInfo,
+                        runtime: m.runtime,
+                        rating: m.imdbRating,
+                        synopsis: m.description,
+                        genres: Array.isArray(m.genres)
+                            ? m.genres.slice(0, 3)
+                            : [],
+                    });
+                }
+            } catch {
+                /* swallow */
+            }
+        })();
+        return () => {
+            cancel = true;
+        };
+    }, [imdbId, type]);
+
+    // Hide preview screen 2s after stream is ready, so the viewer
+    // gets a beat to see what's loading even on fast connections.
+    useEffect(() => {
+        if (!streamReady) return;
+        const t = setTimeout(() => setShowPreview(false), 2000);
+        return () => clearTimeout(t);
+    }, [streamReady]);
+
     const togglePlay = () => {
         const v = videoRef.current;
         if (!v) return;
@@ -328,6 +384,19 @@ export default function Player() {
             setTimeout(() => setError(null), 4000);
         }
     };
+
+    // Auto-apply the first English subtitle as soon as it's available.
+    // Runs once per <Player> mount; user can switch via the picker.
+    useEffect(() => {
+        if (autoSubApplied) return;
+        if (!streamReady) return;
+        if (subs.length === 0) return;
+        const eng = subs.find((s) => /^en/i.test(s.lang || ''));
+        if (!eng) return;
+        setAutoSubApplied(true);
+        applySubtitle(eng);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streamReady, subs, autoSubApplied]);
 
     if (!url) {
         return (
@@ -409,16 +478,157 @@ export default function Player() {
                 </div>
             </div>
 
-            {loading && (
+            {/* Cinematic preview / loading screen */}
+            {showPreview && (
                 <div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                    style={{ color: 'var(--vesper-text-2)' }}
+                    data-testid="player-preview"
+                    className="absolute inset-0 z-30"
+                    style={{
+                        background: previewMeta?.background
+                            ? `linear-gradient(180deg, rgba(6,8,15,0.6) 0%, rgba(6,8,15,0.95) 100%), url(${previewMeta.background}) center/cover no-repeat`
+                            : 'radial-gradient(ellipse at center, #0a1020 0%, #06080f 70%)',
+                        opacity: streamReady ? 0 : 1,
+                        transition: 'opacity 700ms ease',
+                    }}
                 >
-                    <Loader2 className="vesper-spin" size={36} />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div
+                            className="flex items-end gap-10"
+                            style={{
+                                paddingLeft: 'clamp(40px, 6vw, 120px)',
+                                paddingRight: 'clamp(40px, 6vw, 120px)',
+                                maxWidth: '1280px',
+                            }}
+                        >
+                            {previewMeta?.poster && (
+                                <img
+                                    src={previewMeta.poster}
+                                    alt=""
+                                    className="rounded-2xl shrink-0"
+                                    style={{
+                                        width: 'clamp(180px, 18vw, 280px)',
+                                        aspectRatio: '2/3',
+                                        objectFit: 'cover',
+                                        boxShadow:
+                                            '0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
+                                    }}
+                                />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <div
+                                    className="vesper-eyebrow"
+                                    style={{
+                                        marginBottom: 12,
+                                        color: 'var(--vesper-blue)',
+                                    }}
+                                >
+                                    Now playing · ON NOW TV V2
+                                </div>
+                                <h1
+                                    className="vesper-display"
+                                    style={{
+                                        fontSize: 'clamp(36px, 4.4vw, 64px)',
+                                        letterSpacing: '-0.035em',
+                                        lineHeight: 0.98,
+                                        color: '#fff',
+                                    }}
+                                >
+                                    {previewMeta?.title || title}
+                                </h1>
+
+                                {(previewMeta?.year ||
+                                    previewMeta?.rating ||
+                                    previewMeta?.runtime) && (
+                                    <div
+                                        className="flex items-center gap-3 mt-3 vesper-meta flex-wrap"
+                                        style={{ fontSize: 14 }}
+                                    >
+                                        {previewMeta?.year && (
+                                            <span style={{ color: 'var(--vesper-blue)' }}>
+                                                {previewMeta.year}
+                                            </span>
+                                        )}
+                                        {previewMeta?.rating && (
+                                            <>
+                                                <Bullet />
+                                                <span>★ {previewMeta.rating}</span>
+                                            </>
+                                        )}
+                                        {previewMeta?.runtime && (
+                                            <>
+                                                <Bullet />
+                                                <span>{previewMeta.runtime}</span>
+                                            </>
+                                        )}
+                                        {previewMeta?.genres?.map((g) => (
+                                            <React.Fragment key={g}>
+                                                <Bullet />
+                                                <span>{g}</span>
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {previewMeta?.synopsis && (
+                                    <p
+                                        className="mt-4 max-w-[58ch]"
+                                        style={{
+                                            fontSize: 'clamp(13px, 1vw, 16px)',
+                                            lineHeight: 1.55,
+                                            color: 'var(--vesper-text-2)',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 3,
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        {previewMeta.synopsis}
+                                    </p>
+                                )}
+
+                                {/* Status pills */}
+                                <div className="flex items-center gap-3 mt-6 flex-wrap">
+                                    <StatusPill
+                                        active={streamReady}
+                                        label={streamReady ? 'Stream ready' : 'Loading stream'}
+                                    />
+                                    <StatusPill
+                                        active={!subsLoading && subs.length > 0}
+                                        loading={subsLoading}
+                                        label={
+                                            subsLoading
+                                                ? 'Loading subtitles'
+                                                : subs.length > 0
+                                                ? `${subs.filter((s) => /^en/i.test(s.lang || '')).length} English subtitles`
+                                                : imdbId
+                                                ? 'No subtitles found'
+                                                : 'Subtitles unavailable'
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Buffering shimmer at bottom */}
+                    <div
+                        className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden"
+                        style={{ background: 'rgba(255,255,255,0.04)' }}
+                    >
+                        <div
+                            className="vesper-shimmer h-full"
+                            style={{
+                                width: streamReady ? '100%' : '40%',
+                                background:
+                                    'linear-gradient(90deg, var(--vesper-blue) 0%, rgba(93,200,255,0.5) 100%)',
+                                transition: 'width 600ms ease',
+                            }}
+                        />
+                    </div>
                 </div>
             )}
 
-            {showUnmuteHint && !loading && (
+            {showUnmuteHint && !loading && !showPreview && (
                 <button
                     data-testid="unmute-hint"
                     onClick={toggleMute}
@@ -756,5 +966,46 @@ const CenterMsg = ({ children }) => (
         }}
     >
         {children}
+    </div>
+);
+
+
+const Bullet = () => (
+    <span
+        className="inline-block w-1 h-1 rounded-full"
+        style={{ background: 'rgba(255,255,255,0.32)' }}
+    />
+);
+
+const StatusPill = ({ active, loading, label }) => (
+    <div
+        className="flex items-center gap-2 rounded-full"
+        style={{
+            paddingLeft: 14,
+            paddingRight: 16,
+            height: 36,
+            background: active
+                ? 'rgba(93,200,255,0.14)'
+                : 'rgba(255,255,255,0.04)',
+            border: active
+                ? '1px solid rgba(93,200,255,0.4)'
+                : '1px solid rgba(255,255,255,0.08)',
+            color: active ? 'var(--vesper-blue)' : 'var(--vesper-text-2)',
+            fontSize: 12,
+            fontWeight: 500,
+            letterSpacing: '0.02em',
+        }}
+    >
+        {loading ? (
+            <Loader2 size={12} className="vesper-spin" />
+        ) : active ? (
+            <Check size={12} strokeWidth={2.5} />
+        ) : (
+            <span
+                className="block w-2 h-2 rounded-full"
+                style={{ background: 'rgba(255,255,255,0.25)' }}
+            />
+        )}
+        {label}
     </div>
 );

@@ -34,6 +34,16 @@ const Host = (() => {
 
     const playVideo = ({ url, title, type } = {}) => {
         if (!url) return false;
+        // We deliberately DO NOT auto-route to VLC any more.  The
+        // built-in Player has subtitles, a preview screen, and
+        // works even when no system video player is installed.
+        // External handoff is now an *opt-in* button inside the
+        // Player overlay.
+        return false;
+    };
+
+    const playExternal = ({ url, title, type } = {}) => {
+        if (!url) return false;
         if (isAndroid && typeof a.playVideo === 'function') {
             try {
                 a.playVideo(url, title || '', mimeFor(url, type));
@@ -49,7 +59,8 @@ const Host = (() => {
         isAndroid,
         isOnNowTV,
         isLowEnd: lowEnd,
-        playVideo,
+        playVideo,    // legacy — now always returns false
+        playExternal, // explicit "open in VLC" — opt-in only
     };
 })();
 
