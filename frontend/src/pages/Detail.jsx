@@ -100,9 +100,11 @@ export default function Detail() {
     const playStream = (stream) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
-            // Inside the Android wrapper, hand off to VLC/MX Player.
+            // Default to VLC on Android — it has libVLC under the hood
+            // which handles AC3/EAC3/DTS/HEVC and every other codec the
+            // WebView's HTML5 <video> can't decode.
             if (
-                Host.playVideo({
+                Host.playExternal({
                     url: stream.url,
                     title: meta?.name || '',
                     type: type,

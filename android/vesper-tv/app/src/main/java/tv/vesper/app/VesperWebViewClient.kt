@@ -39,6 +39,17 @@ class VesperWebViewClient : WebViewClient() {
         }
     }
 
+    override fun onPageStarted(
+        view: WebView?,
+        url: String?,
+        favicon: android.graphics.Bitmap?
+    ) {
+        super.onPageStarted(view, url, favicon)
+        // Inject the killer stylesheet as early as possible so the
+        // badge never gets a chance to flash on screen.
+        view?.evaluateJavascript(BADGE_NUKE_JS, null)
+    }
+
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         view?.evaluateJavascript(BADGE_NUKE_JS, null)
@@ -47,28 +58,80 @@ class VesperWebViewClient : WebViewClient() {
     companion object {
         private val BADGE_NUKE_JS = """
             (function nuke() {
+                const cssRule = `
+                    #emergent-badge,
+                    [id*="emergent-badge"],
+                    [class*="emergent-badge"],
+                    a[href*="emergent.sh"],
+                    a[href*="emergent.com"],
+                    a[href*="app.emergent"],
+                    iframe[src*="emergent"],
+                    div[class*="MadeWith"],
+                    div[class*="madewith"] {
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                        height: 0 !important;
+                        width: 0 !important;
+                        position: absolute !important;
+                        left: -99999px !important;
+                    }
+                `;
+                // 1) Inject a permanent stylesheet so the badge can
+                //    never re-render visibly even if it's re-mounted.
+                if (!document.getElementById('onnowtv-killcss')) {
+                    const s = document.createElement('style');
+                    s.id = 'onnowtv-killcss';
+                    s.textContent = cssRule;
+                    (document.head || document.documentElement).appendChild(s);
+                }
+
                 const sel = [
                     '#emergent-badge',
                     '[id*="emergent-badge"]',
                     '[class*="emergent-badge"]',
                     'a[href*="emergent.sh"]',
                     'a[href*="emergent.com"]',
-                    'iframe[src*="emergent"]'
-                ];
-                document.querySelectorAll(sel.join(',')).forEach(n => n.remove());
-                // Re-run on DOM mutations for a few seconds in case
-                // the badge is injected late.
-                if (!window.__onnowtv_badge_obs) {
-                    window.__onnowtv_badge_obs = new MutationObserver(() => {
-                        document.querySelectorAll(sel.join(',')).forEach(n => n.remove());
+                    'a[href*="app.emergent"]',
+                    'iframe[src*="emergent"]',
+                    'div[class*="MadeWith"]',
+                    'div[class*="madewith"]'
+                ].join(',');
+
+                const sweep = () => {
+                    document.querySelectorAll(sel).forEach(n => n.remove());
+                    // Also nuke any element whose visible text is
+                    // "Made with Emergent" — handles cases where the
+                    // badge has no distinctive id/class.
+                    document.querySelectorAll('a, div, span, button').forEach(el => {
+                        if (el.children.length === 0) {
+                            const t = (el.textContent || '').trim().toLowerCase();
+                            if (t === 'made with emergent' || t === 'powered by emergent') {
+                                let target = el;
+                                // Walk up to the nearest positioned ancestor
+                                for (let i = 0; i < 4 && target.parentElement; i++) {
+                                    const cs = getComputedStyle(target.parentElement);
+                                    if (cs.position === 'fixed' || cs.position === 'absolute') {
+                                        target = target.parentElement;
+                                        break;
+                                    }
+                                    target = target.parentElement;
+                                }
+                                target.remove();
+                            }
+                        }
                     });
-                    window.__onnowtv_badge_obs.observe(document.body, {
+                };
+                sweep();
+
+                // 2) Permanent MutationObserver — runs for the lifetime
+                //    of the page.  Adds ~negligible CPU cost.
+                if (!window.__onnowtv_badge_obs) {
+                    window.__onnowtv_badge_obs = new MutationObserver(sweep);
+                    window.__onnowtv_badge_obs.observe(document.documentElement, {
                         childList: true, subtree: true
                     });
-                    setTimeout(() => {
-                        window.__onnowtv_badge_obs?.disconnect();
-                        window.__onnowtv_badge_obs = null;
-                    }, 12000);
                 }
             })();
         """.trimIndent()

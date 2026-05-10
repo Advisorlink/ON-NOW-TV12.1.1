@@ -139,8 +139,8 @@ export default function SeriesEpisodes({ meta, parentId }) {
         const mode = streamMode(stream);
         if (mode === 'direct') {
             const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
-            // Hand off to system video player on Android wrapper.
-            if (Host.playVideo({ url: stream.url, title, type: 'series' })) return;
+            // Default to VLC on Android — full codec support.
+            if (Host.playExternal({ url: stream.url, title, type: 'series' })) return;
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url
