@@ -1,15 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Delete, CornerDownLeft } from 'lucide-react';
 
 /**
- * D-pad-friendly on-screen keyboard.
- * - Letters + numbers + URL punctuation
- * - Arrow keys move focus between keys (handled by global spatial nav)
- * - Enter inserts the focused character
+ * D-pad-friendly on-screen keyboard with a real <input> address bar
+ * at the top — you can click into it, type, or paste with Ctrl+V.
+ * The OSK keys below remain as a fallback for the TV remote.
  *
- * For a TV box without a paired keyboard, this is the primary input.
- * On desktop we still expose the underlying <input> so the user can
- * type / paste directly.
+ * Both modes feed the same React state.
  */
 const KEYS = [
     'qwertyuiop'.split(''),
@@ -25,9 +22,25 @@ export default function OnScreenKeyboard({
     onSubmit,
     placeholder = '',
     submitLabel = 'Done',
+    autoFocusInput = true,
 }) {
     const [v, setV] = useState(value || '');
+    const inputRef = useRef(null);
+
     useEffect(() => setV(value || ''), [value]);
+
+    // Auto-focus the input the first time the keyboard appears so a
+    // desktop user can start typing/pasting immediately. TV users with
+    // a remote can still D-pad past it to the on-screen keys.
+    useEffect(() => {
+        if (autoFocusInput && inputRef.current) {
+            const t = setTimeout(() => {
+                inputRef.current?.focus({ preventScroll: true });
+                inputRef.current?.select?.();
+            }, 80);
+            return () => clearTimeout(t);
+        }
+    }, [autoFocusInput]);
 
     const update = (next) => {
         setV(next);
@@ -41,27 +54,36 @@ export default function OnScreenKeyboard({
 
     return (
         <div className="vesper-glass rounded-2xl p-7" style={{ width: '100%' }}>
-            <div
+            <input
+                ref={inputRef}
                 data-testid="osk-input"
-                className="px-5 py-4 rounded-xl mb-5 font-mono text-[20px] truncate"
+                data-focusable="true"
+                data-focus-style="quiet"
+                tabIndex={0}
+                type="url"
+                value={v}
+                placeholder={placeholder}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                onChange={(e) => update(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        onSubmit?.(v);
+                    }
+                }}
+                className="w-full px-5 py-4 rounded-xl mb-5 font-mono outline-none"
                 style={{
                     background: 'rgba(255,255,255,0.04)',
                     border: '1px solid rgba(93,200,255,0.25)',
                     color: 'var(--vesper-text)',
+                    fontSize: 20,
+                    letterSpacing: '0.02em',
                     minHeight: 60,
+                    caretColor: 'var(--vesper-blue)',
                 }}
-            >
-                {v ? (
-                    v
-                ) : (
-                    <span style={{ color: 'var(--vesper-text-3)' }}>
-                        {placeholder}
-                    </span>
-                )}
-                <span className="vesper-pulse ml-1" style={{ color: 'var(--vesper-blue)' }}>
-                    |
-                </span>
-            </div>
+            />
 
             <div className="flex flex-col gap-2.5">
                 {KEYS.map((row, ri) => (

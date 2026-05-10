@@ -97,6 +97,18 @@ export default function useSpatialFocus() {
         };
 
         const onKey = (e) => {
+            // When the user is typing in an input/textarea, let the
+            // browser handle keys natively (cursor movement, paste,
+            // typing, Enter-to-submit handled by the input's own
+            // onKeyDown).  Escape blurs the input so D-pad nav resumes.
+            const tag = (document.activeElement?.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea') {
+                if (e.key === 'Escape') {
+                    document.activeElement.blur();
+                }
+                return;
+            }
+
             const dirMap = {
                 ArrowRight: 'right',
                 ArrowLeft: 'left',
