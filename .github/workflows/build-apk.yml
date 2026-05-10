@@ -1,16 +1,8 @@
 name: Build ON NOW TV V2 APK
 
-# Builds an installable Android APK for the HK1 box on every push to
-# main (or manual trigger).  Drops the signed-debug APK as a workflow
-# artifact AND attaches it to a GitHub Release tagged "apk-latest".
-#
-# How to use:
-#   1. Click "Save to Github" inside Emergent (or push this repo
-#      yourself).
-#   2. Open the repo on github.com → Actions tab → wait ~3 minutes.
-#   3. Download "onnowtv-v2-debug.apk" from the run's Artifacts
-#      section (or from the auto-updating "apk-latest" Release).
-#   4. Sideload on the HK1 box (see android/vesper-tv/README.md).
+# Builds an installable Android APK for the HK1 box.  Drops the
+# signed-debug APK as a workflow artifact AND attaches it to a
+# GitHub Release tagged "apk-latest".
 
 on:
   push:
@@ -19,6 +11,9 @@ on:
       - 'android/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release
 
 jobs:
   build:
@@ -34,19 +29,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
-      - name: Make gradlew executable
+      - name: Generate gradle wrapper
         working-directory: android/vesper-tv
         run: |
-          if [ -f ./gradlew ]; then
-            chmod +x ./gradlew
-          else
-            # Generate the wrapper if it isn't checked in
-            gradle wrapper --gradle-version 8.7
-            chmod +x ./gradlew
-          fi
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+          ls -la gradlew gradle/wrapper/
 
       - name: Build debug APK
         working-directory: android/vesper-tv
@@ -54,12 +52,11 @@ jobs:
 
       - name: Locate APK
         id: locate
-        working-directory: android/vesper-tv
         run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -n1)
+          APK=$(find android/vesper-tv/app/build/outputs/apk -name "*.apk" | head -n1)
           echo "Found APK: $APK"
           cp "$APK" "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
-          echo "apk_path=onnowtv-v2-debug.apk" >> "$GITHUB_OUTPUT"
+          ls -la "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
 
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
@@ -76,9 +73,8 @@ jobs:
           name: ON NOW TV V2 — latest debug build
           body: |
             Sideload-ready debug APK auto-built from the latest commit.
-            Install on your HK1 box via "Downloader" by AFTVnews
-            (URL: this release's APK download).
+            Install on your HK1 box via "Downloader" by AFTVnews — paste
+            this release page's APK download URL.
           files: onnowtv-v2-debug.apk
           prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          make_latest: 'false'
