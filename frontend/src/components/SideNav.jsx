@@ -7,6 +7,7 @@ import {
     Settings,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import Host from '@/lib/host';
 
 const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
@@ -126,7 +127,12 @@ export default function SideNav() {
                     Press F for fullscreen
                     <br />
                     <span style={{ color: 'var(--vesper-text-3)' }}>
-                        v0.2 · Vespertine
+                        v1.1.1 ·{' '}
+                        {Host.isAndroid
+                            ? 'BUNDLED ✓'
+                            : window.location.protocol === 'file:'
+                            ? 'FILE://'
+                            : 'WEB'}
                     </span>
                 </div>
             </div>

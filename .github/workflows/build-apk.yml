@@ -60,7 +60,20 @@ jobs:
           cp -r frontend/build/. android/vesper-tv/app/src/main/assets/web/
           echo "=== Bundled into APK assets: ==="
           ls -la android/vesper-tv/app/src/main/assets/web/ | head
-          echo "Total files: $(find android/vesper-tv/app/src/main/assets/web/ -type f | wc -l)"
+          FILES=$(find android/vesper-tv/app/src/main/assets/web/ -type f | wc -l)
+          echo "Total files: $FILES"
+          # Fail fast if React build silently produced an empty folder
+          if [ "$FILES" -lt 5 ]; then
+            echo "❌ ERROR: bundled assets folder has fewer than 5 files — React build likely failed!"
+            exit 1
+          fi
+          # Sanity check: index.html must exist and reference assets
+          if [ ! -f android/vesper-tv/app/src/main/assets/web/index.html ]; then
+            echo "❌ ERROR: index.html missing from bundled assets!"
+            exit 1
+          fi
+          echo "=== index.html first 30 lines: ==="
+          head -30 android/vesper-tv/app/src/main/assets/web/index.html
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
