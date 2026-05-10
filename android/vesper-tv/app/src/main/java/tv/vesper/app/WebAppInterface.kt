@@ -23,6 +23,38 @@ class WebAppInterface(private val activity: Activity) {
 
     @JavascriptInterface
     fun playVideo(url: String, title: String?, mime: String?) {
+        // Legacy bridge — kept for backwards compat with v1.1.x APKs.
+        // Routes to the internal libVLC player.
+        playInternal(url, title, null)
+    }
+
+    @JavascriptInterface
+    fun playInternal(url: String, title: String?, subtitleUrl: String?) {
+        if (url.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
+                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(
+                    activity,
+                    "Could not start player: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun playExternal(url: String, title: String?, mime: String?) {
+        // Opt-in path: hand to system video player (VLC stand-alone,
+        // MX Player, Kodi, etc.).  Used by power users from a button
+        // inside our own player.
         if (url.isBlank()) return
         activity.runOnUiThread {
             try {
@@ -31,11 +63,9 @@ class WebAppInterface(private val activity: Activity) {
                     setDataAndType(uri, mime ?: guessMime(url))
                     if (!title.isNullOrBlank()) {
                         putExtra("title", title)
-                        // VLC reads this:
                         putExtra("itemTitle", title)
-                        // MX Player reads these:
                         putExtra("video_title", title)
-                        putExtra("decode_mode", 1) // hardware
+                        putExtra("decode_mode", 1)
                     }
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -45,7 +75,7 @@ class WebAppInterface(private val activity: Activity) {
             } catch (e: Exception) {
                 Toast.makeText(
                     activity,
-                    "No video player installed.  Install VLC from Play Store.",
+                    "No external video player installed.",
                     Toast.LENGTH_LONG
                 ).show()
             }

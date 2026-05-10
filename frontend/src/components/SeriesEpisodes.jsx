@@ -10,6 +10,7 @@ import {
     Star,
 } from 'lucide-react';
 import { Vesper } from '@/lib/api';
+import { API } from '@/lib/api';
 import Host from '@/lib/host';
 
 /**
@@ -135,12 +136,36 @@ export default function SeriesEpisodes({ meta, parentId }) {
         }
     };
 
-    const playStream = (stream, ep) => {
+    const playStream = async (stream, ep) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
             const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
-            // Default to VLC on Android — full codec support.
-            if (Host.playExternal({ url: stream.url, title, type: 'series' })) return;
+            // Pre-fetch English subtitle for this exact episode
+            let subtitleUrl = '';
+            try {
+                const r = await fetch(
+                    `${API}/subtitles/series/${encodeURIComponent(ep.id)}`,
+                    { cache: 'no-store' }
+                );
+                if (r.ok) {
+                    const data = await r.json();
+                    const list = Array.isArray(data?.subtitles)
+                        ? data.subtitles
+                        : [];
+                    const eng = list.find((s) => /^en/i.test(s.lang || ''));
+                    if (eng?.url) subtitleUrl = eng.url;
+                }
+            } catch {
+                /* ignore */
+            }
+            if (
+                Host.playVideo({
+                    url: stream.url,
+                    title,
+                    type: 'series',
+                    subtitleUrl,
+                })
+            ) return;
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url

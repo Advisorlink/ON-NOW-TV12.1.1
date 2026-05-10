@@ -13,7 +13,7 @@ import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import { Vesper } from '@/lib/api';
+import { API, Vesper } from '@/lib/api';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -97,17 +97,35 @@ export default function Detail() {
         };
     }, [type, id]);
 
-    const playStream = (stream) => {
+    const playStream = async (stream) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
-            // Default to VLC on Android — it has libVLC under the hood
-            // which handles AC3/EAC3/DTS/HEVC and every other codec the
-            // WebView's HTML5 <video> can't decode.
+            // Native libVLC Activity — handles every codec Stremio does.
+            // Fetch a default English subtitle URL up front so the
+            // native player can attach it on launch.
+            let subtitleUrl = '';
+            try {
+                const r = await fetch(
+                    `${API}/subtitles/${type}/${encodeURIComponent(id)}`,
+                    { cache: 'no-store' }
+                );
+                if (r.ok) {
+                    const data = await r.json();
+                    const list = Array.isArray(data?.subtitles)
+                        ? data.subtitles
+                        : [];
+                    const eng = list.find((s) => /^en/i.test(s.lang || ''));
+                    if (eng?.url) subtitleUrl = eng.url;
+                }
+            } catch {
+                /* swallow — player still works without subs */
+            }
             if (
-                Host.playExternal({
+                Host.playVideo({
                     url: stream.url,
                     title: meta?.name || '',
                     type: type,
+                    subtitleUrl,
                 })
             ) {
                 return;

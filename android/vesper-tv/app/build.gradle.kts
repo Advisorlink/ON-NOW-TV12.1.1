@@ -11,8 +11,14 @@ android {
         applicationId = "tv.onnowtv.app"
         minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.1.4"
+        versionCode = 9
+        versionName = "1.2.0"
+
+        // HK1 / RK / S905 boxes are all arm64-v8a.  Bundling only this
+        // ABI keeps the libVLC payload down to ~30 MB instead of 100+.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -60,4 +66,11 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.webkit:webkit:1.11.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+
+    // libVLC — bundles native FFmpeg + libVLC; supports every codec
+    // Stremio supports (AC3 / EAC3 / DTS / HEVC / TrueHD / Opus / etc).
+    // Adds ~80 MB per architecture; we ship arm64 only since every
+    // HK1/RK/S905 box is arm64-v8a.
+    implementation("org.videolan.android:libvlc-all:3.6.0")
 }

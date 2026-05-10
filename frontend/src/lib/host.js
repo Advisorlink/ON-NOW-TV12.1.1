@@ -32,18 +32,31 @@ const Host = (() => {
         if (cores <= 2 || mem <= 2) lowEnd = true;
     }
 
-    const playVideo = ({ url, title, type } = {}) => {
+    const playVideo = ({ url, title, type, subtitleUrl } = {}) => {
         if (!url) return false;
-        // We deliberately DO NOT auto-route to VLC any more.  The
-        // built-in Player has subtitles, a preview screen, and
-        // works even when no system video player is installed.
-        // External handoff is now an *opt-in* button inside the
-        // Player overlay.
+        // Internal libVLC player (native, every codec, in-app).
+        if (isAndroid && typeof a.playInternal === 'function') {
+            try {
+                a.playInternal(url, title || '', subtitleUrl || '');
+                return true;
+            } catch {
+                return false;
+            }
+        }
         return false;
     };
 
     const playExternal = ({ url, title, type } = {}) => {
         if (!url) return false;
+        if (isAndroid && typeof a.playExternal === 'function') {
+            try {
+                a.playExternal(url, title || '', mimeFor(url, type));
+                return true;
+            } catch {
+                return false;
+            }
+        }
+        // Older APK versions used `playVideo` as the external handoff
         if (isAndroid && typeof a.playVideo === 'function') {
             try {
                 a.playVideo(url, title || '', mimeFor(url, type));
