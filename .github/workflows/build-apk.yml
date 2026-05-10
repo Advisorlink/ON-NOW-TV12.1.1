@@ -78,11 +78,19 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
-      - name: Generate gradle wrapper
+      - name: Generate gradle wrapper + local.properties
         working-directory: android/vesper-tv
         run: |
+          # Point local.properties at the Android SDK that
+          # setup-android@v3 installed.
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "=== local.properties ==="
+          cat local.properties
+          # Generate the gradlew wrapper using the Gradle from
+          # setup-gradle@v3.
           gradle wrapper --gradle-version 8.7
           chmod +x ./gradlew
+          ./gradlew --version
 
       - name: Build debug APK
         working-directory: android/vesper-tv
