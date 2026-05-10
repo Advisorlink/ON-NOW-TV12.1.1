@@ -19,8 +19,8 @@ export default function HomeTabs({ value, onChange }) {
             style={{
                 paddingLeft: 'clamp(124px, 9.5vw, 180px)',
                 paddingRight: 'clamp(40px, 4.2vw, 80px)',
-                paddingTop: 'clamp(8px, 1vw, 16px)',
-                paddingBottom: 'clamp(4px, 0.5vw, 8px)',
+                paddingTop: 'clamp(6px, 0.7vw, 10px)',
+                paddingBottom: 0,
                 gap: 'clamp(8px, 0.7vw, 12px)',
             }}
         >

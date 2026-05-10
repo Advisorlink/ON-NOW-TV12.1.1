@@ -42,7 +42,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: '68vh', minHeight: 480 }}
+            style={{ height: 'clamp(380px, 56vh, 620px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -91,7 +91,7 @@ export default function HeroBillboard({ heroes }) {
                 }}
             />
 
-            <div className="absolute inset-0 flex items-end pb-12">
+            <div className="absolute inset-0 flex items-end pb-6">
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
