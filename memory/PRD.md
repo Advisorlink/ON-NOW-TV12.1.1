@@ -35,6 +35,22 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 20 — Feb 2026)
+- **Autoplay 1080p defaults to ON** — `getAutoplay1080p()` in
+  `lib/prefs.js` now returns true when the localStorage key is
+  unset (was false). User can press Play immediately and the
+  first 1080p stream auto-fires without having to find Settings.
+- **Hero-row Auto 1080p toggle pill** — new "Auto 1080p · ON/OFF"
+  pill button next to "My List" in the hero. Shows a filled
+  lightning-zap icon when on, hollow when off. Neon-blue glow +
+  border when active. One D-pad Right from Play / More Info / My
+  List reaches it directly — no sidebar navigation needed.
+- **Hero-row Settings shortcut** — circular gear button right after
+  the Auto 1080p pill. Single D-pad press from the toggle takes you
+  to /settings — no longer need to navigate down through the
+  sidebar to find it.
+
+
 ## Implemented (Iteration 19 — Feb 2026)
 - **TV Shows black-screen bug fixed** — `EpisodeCard` was reading
   `parentId` but the prop was never passed through. ReferenceError
