@@ -35,6 +35,24 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 14 — Feb 2026)
+- **Offline-resilient cache** — `lib/cache.js` now mirrors `addons`,
+  `shelves:*`, `heroes:*` and `networks:*` cache entries to
+  localStorage (was sessionStorage only). On a cold APK start, the
+  Home / Movies / TV Shows grids render their last-known-good
+  catalogues instantly even when the backend preview environment is
+  paused. Background revalidation still runs the moment the backend
+  is reachable again. (`PERSIST_KEYS` set → `PERSIST_PREFIXES` array
+  for prefix matching.)
+- **Aggressive Emergent badge / preview-banner removal** — added a
+  global CSS rule in both `index.css` and an inline `<style>` block
+  at the top of `public/index.html`, so even the very first frame
+  before React boots hides `#emergent-badge`,
+  `[id*="static-preview"]`, `[data-resume-preview]` and all related
+  selectors. The badge is now invisible in the live preview, the
+  bundled APK, and any future regression.
+
+
 ## Implemented (Iteration 13 — Feb 2026)
 - **Network page right-edge cutoff fixed** — `Network.jsx`'s poster
   grid had `paddingRight: clamp(124px, 9.5vw, 180px)`, exactly one

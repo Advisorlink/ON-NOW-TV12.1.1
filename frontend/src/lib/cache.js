@@ -16,7 +16,18 @@
 
 const memory = new Map();
 const PREFIX = 'onnowtv:cache:';
-const PERSIST_KEYS = new Set(['addons']);
+// Keys we want to survive a full APK restart (so the TV box can
+// still show its last-known catalogues / heroes / shelves even when
+// the backend preview environment is paused or unreachable on a
+// cold boot).  Anything starting with these prefixes is mirrored
+// to localStorage in addition to sessionStorage.
+const PERSIST_PREFIXES = ['addons', 'shelves:', 'heroes:', 'networks:'];
+
+function isPersistKey(key) {
+    return PERSIST_PREFIXES.some(
+        (p) => key === p.replace(/:$/, '') || key.startsWith(p)
+    );
+}
 
 function nowMs() {
     return Date.now();
@@ -31,10 +42,10 @@ function readSession(key) {
         /* ignore */
     }
     // Fallback to localStorage for keys we explicitly persist
-    // across full app restarts (e.g. the addon list — so when the
+    // across full app restarts (e.g. catalogues — so when the
     // preview backend is asleep or unreachable on a cold boot, the
-    // app still renders the last-known-good catalogues).
-    if (PERSIST_KEYS.has(key) && typeof localStorage !== 'undefined') {
+    // app still renders the last-known-good data).
+    if (isPersistKey(key) && typeof localStorage !== 'undefined') {
         try {
             const raw = localStorage.getItem(PREFIX + key);
             if (raw) return JSON.parse(raw);
@@ -53,7 +64,7 @@ function writeSession(key, entry) {
     } catch {
         /* quota exceeded or disabled */
     }
-    if (PERSIST_KEYS.has(key)) {
+    if (isPersistKey(key)) {
         try {
             if (typeof localStorage !== 'undefined') {
                 localStorage.setItem(PREFIX + key, JSON.stringify(entry));

@@ -24,6 +24,31 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>ON NOW TV V2</title>
+        <style>
+            /* Force-hide Emergent preview UI before React boots so
+               the badge / static-preview banner can never flash on
+               screen — final safety net alongside the build-time
+               strip in .github/workflows/build-apk.yml. */
+            #emergent-badge,
+            [class*="emergent-badge"],
+            [id*="emergent-badge"],
+            iframe[src*="emergent"],
+            a[href*="emergent.sh"],
+            a[href*="app.emergent"],
+            [id*="static-preview"],
+            [class*="static-preview"],
+            [class*="staticPreview"],
+            [class*="preview-banner"],
+            [data-emergent],
+            [data-resume-preview] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                position: absolute !important;
+                left: -99999px !important;
+            }
+        </style>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
     </head>

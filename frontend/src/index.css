@@ -424,15 +424,29 @@ body {
     --vesper-side-pad-max: 132px;
 }
 
-/* Hide the Emergent preview badge inside the production app /
-   sideloaded WebView.  The badge is injected by Emergent's preview
-   shell; it has no business being on top of the user's app. */
-.vesper-host-android #emergent-badge,
-.vesper-host-android [class*="emergent-badge"],
-.vesper-host-android [id*="emergent-badge"],
-.vesper-host-android iframe[src*="emergent"],
-.vesper-host-android a[href*="emergent.sh"] {
+/* Permanently hide the Emergent preview badge AND the
+   "static preview / Resume to interact" banner.  The badge HTML
+   ships in our index.html template; the banner is injected by
+   `emergent-main.js`.  We strip both at APK-build time, but this
+   global CSS rule is a final, host-agnostic safety net so they
+   can never flash on screen even during the React boot or while
+   browsing the live preview URL itself. */
+#emergent-badge,
+[class*="emergent-badge"],
+[id*="emergent-badge"],
+iframe[src*="emergent"],
+a[href*="emergent.sh"],
+a[href*="app.emergent"],
+[id*="static-preview"],
+[class*="static-preview"],
+[class*="staticPreview"],
+[class*="preview-banner"],
+[data-emergent],
+[data-resume-preview] {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 /* Shimmer band — used by the player preview screen. */
