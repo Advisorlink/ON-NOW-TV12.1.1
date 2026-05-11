@@ -13,6 +13,7 @@ import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
 /**
@@ -114,20 +115,58 @@ export default function SeriesEpisodes({ meta, parentId }) {
     const [loadingEpisodeId, setLoadingEpisodeId] = useState(null);
     const [copied, setCopied] = useState(null);
 
+    const pickAutoplayCandidate = (streamsArr) => {
+        if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
+        return (
+            streamsArr.find(
+                (s) =>
+                    streamMode(s) === 'direct' &&
+                    qualityBadge(s)?.label === '1080p'
+            ) ||
+            streamsArr.find((s) => qualityBadge(s)?.label === '1080p') ||
+            null
+        );
+    };
+
     const handleEpisodeClick = async (ep) => {
-        if (openEpisodeId === ep.id) {
+        const autoplay = getAutoplay1080p();
+        if (openEpisodeId === ep.id && !autoplay) {
             setOpenEpisodeId(null);
             return;
         }
         setOpenEpisodeId(ep.id);
-        if (episodeStreams[ep.id]) return;
+        // Reuse cached streams if we already fetched this episode.
+        const cached = episodeStreams[ep.id];
+        if (cached) {
+            if (autoplay) {
+                const cand = pickAutoplayCandidate(cached.streams);
+                if (cand) {
+                    playStream(cand, ep);
+                    return;
+                }
+            }
+            return;
+        }
         setLoadingEpisodeId(ep.id);
         try {
             const res = await Vesper.getStreams('series', ep.id);
+            const streamsArr = res?.streams || [];
             setEpisodeStreams((s) => ({
                 ...s,
-                [ep.id]: { streams: res?.streams || [], diagnostics: res?.diagnostics || [] },
+                [ep.id]: {
+                    streams: streamsArr,
+                    diagnostics: res?.diagnostics || [],
+                },
             }));
+            // Autoplay: as soon as streams resolve, fire 1080p if
+            // we have it.  Falls back to the expanded stream list
+            // when no 1080p candidate is available.
+            if (autoplay) {
+                const cand = pickAutoplayCandidate(streamsArr);
+                if (cand) {
+                    playStream(cand, ep);
+                }
+            }
         } catch {
             setEpisodeStreams((s) => ({
                 ...s,

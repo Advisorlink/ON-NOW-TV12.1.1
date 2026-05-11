@@ -35,6 +35,23 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 24 — Feb 2026)
+- **Autoplay now applies to TV show episodes** — `SeriesEpisodes.jsx`
+  `handleEpisodeClick` checks `getAutoplay1080p()` on every episode
+  click. When ON:
+  - Streams are fetched as usual via `Vesper.getStreams('series', ep.id)`.
+  - The first 1080p direct stream (or any 1080p stream) is selected
+    via the shared `pickAutoplayCandidate()` helper.
+  - `playStream(candidate, ep)` fires immediately — no source list,
+    no expand/collapse, no extra clicks.
+  - If no 1080p stream is found, the episode card stays expanded
+    with the full streams list as a manual fallback.
+  - Cached episode streams are re-checked too: clicking an already-
+    opened episode while Autoplay is ON re-fires the auto-pick (so
+    toggling Autoplay on after opening an episode still works).
+  When OFF, the existing expand-to-show-streams flow is preserved.
+
+
 ## Implemented (Iteration 23 — Feb 2026)
 - **"Autoplay" toggle moved into sidebar** — removed the Auto 1080p
   pill + Settings cog from the hero. Added a new "Autoplay" item
