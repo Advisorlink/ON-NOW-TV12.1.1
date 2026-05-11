@@ -118,81 +118,58 @@ function NetworkTile({ net, logo, onClick }) {
                 width: 'clamp(180px, 15vw, 260px)',
                 aspectRatio: '16 / 9',
                 borderRadius: 18,
-                background:
-                    'linear-gradient(155deg, #0E1422 0%, #0A0F1A 60%, #06080F 100%)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: net.background,
+                border: '1px solid rgba(255,255,255,0.08)',
                 boxShadow:
-                    '0 14px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
+                    '0 14px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
         >
-            {/* Brand-tinted inner glow */}
+            {logo ? (
+                <img
+                    src={img.poster(logo)}
+                    alt={net.name}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        // `contain` shows the full TMDB logo (which is
+                        // square-cropped) without slicing the wordmark
+                        // edges; the branded `net.background` gradient
+                        // fills the remaining width so the tile still
+                        // looks like a full-bleed brand banner.
+                        objectFit: 'contain',
+                        objectPosition: 'center',
+                        display: 'block',
+                    }}
+                />
+            ) : (
+                <div
+                    className="absolute inset-0 flex items-center justify-center px-4 text-center"
+                    style={{
+                        color: net.accent,
+                        fontFamily: '"Geist", system-ui, sans-serif',
+                        fontWeight: 800,
+                        letterSpacing: '-0.04em',
+                        fontSize:
+                            net.wordmark.length > 6
+                                ? 'clamp(26px, 2.2vw, 44px)'
+                                : 'clamp(34px, 3vw, 56px)',
+                        textShadow: '0 4px 16px rgba(0,0,0,0.55)',
+                    }}
+                >
+                    {net.wordmark}
+                </div>
+            )}
+
+            {/* Inner highlight for a premium feel */}
             <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                    background: `
-                        radial-gradient(circle at 28% 18%, ${net.accent}33 0%, transparent 55%),
-                        radial-gradient(circle at 78% 88%, ${net.accent}1F 0%, transparent 60%)
-                    `,
-                }}
-            />
-
-            {/* Subtle diagonal sheen */}
-            <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                    background:
-                        'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.04) 100%)',
-                }}
-            />
-
-            {/* Logo plate */}
-            <div className="absolute inset-0 flex items-center justify-center p-5">
-                {logo ? (
-                    <img
-                        src={img.poster(logo)}
-                        alt={net.name}
-                        loading="lazy"
-                        decoding="async"
-                        style={{
-                            maxWidth: '78%',
-                            maxHeight: '58%',
-                            objectFit: 'contain',
-                            filter:
-                                'drop-shadow(0 4px 14px rgba(0,0,0,0.55)) drop-shadow(0 1px 1px rgba(0,0,0,0.7))',
-                        }}
-                    />
-                ) : (
-                    <span
-                        style={{
-                            color: net.accent,
-                            fontFamily: '"Geist", system-ui, sans-serif',
-                            fontWeight: 800,
-                            letterSpacing: '-0.04em',
-                            fontSize:
-                                net.wordmark.length > 6
-                                    ? 'clamp(26px, 2.2vw, 44px)'
-                                    : 'clamp(34px, 3vw, 56px)',
-                            textShadow:
-                                '0 4px 16px rgba(0,0,0,0.55)',
-                        }}
-                    >
-                        {net.wordmark}
-                    </span>
-                )}
-            </div>
-
-            {/* Bottom accent rule — animates in on focus via the
-               theme's [data-focus-style='tile'] focus rule. */}
-            <div
-                className="absolute"
-                style={{
-                    left: 14,
-                    right: 14,
-                    bottom: 10,
-                    height: 2,
-                    borderRadius: 999,
-                    background: `linear-gradient(90deg, ${net.accent}00 0%, ${net.accent}88 50%, ${net.accent}00 100%)`,
-                    opacity: 0.6,
+                    boxShadow:
+                        'inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.45)',
                 }}
             />
         </button>
