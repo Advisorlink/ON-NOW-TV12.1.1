@@ -237,7 +237,15 @@ export default function useSpatialFocus() {
                         }
                     }
                     if (Math.abs(delta) > 4) {
-                        hs.scrollBy({ left: delta, behavior: scrollBehavior });
+                        // Schedule the scroll on the next animation
+                        // frame so the WebView batches it with the
+                        // CSS-driven focus glow transition — single
+                        // GPU commit instead of two.
+                        const _hs = hs;
+                        const _delta = delta;
+                        requestAnimationFrame(() => {
+                            _hs.scrollBy({ left: _delta, behavior: 'auto' });
+                        });
                     }
                 }
                 return;
@@ -280,7 +288,13 @@ export default function useSpatialFocus() {
                 scrollerTop + Math.max(scrollerHeight * 0.22, 90);
             const delta = rect.top - targetTop;
             if (Math.abs(delta) > 4) {
-                vs.scrollBy({ top: delta, behavior: scrollBehavior });
+                // RAF the vertical scroll too — gives the WebView
+                // compositor a clean chance to batch.
+                const _vs = vs;
+                const _delta = delta;
+                requestAnimationFrame(() => {
+                    _vs.scrollBy({ top: _delta, behavior: 'auto' });
+                });
             }
         };
 

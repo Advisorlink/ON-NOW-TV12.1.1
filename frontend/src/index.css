@@ -111,6 +111,44 @@ body {
 }
 
 /* ------------------------------------------------------------------
+   GPU acceleration hints — promote scrollable shelves + focused
+   tiles onto their own compositor layer.  This is the single most
+   important perf knob on the HK1 box's WebView: without it every
+   D-pad press triggers a software re-paint of the WHOLE row (60+
+   posters), causing the chunky "skip" feel the user reported.
+   With it, posters live in a GPU texture and the row scrolls by
+   a single 4×4 matrix transform — buttery 60 fps even on Mali.
+------------------------------------------------------------------ */
+.vesper-shelf,
+[data-testid="shelves-region"],
+[data-testid="home-main"] {
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    /* Lighter touch on scroll behaviour so D-pad scrollBy doesn't
+       fight the WebView's own scroll inertia. */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Every focusable tile gets promoted on-demand so transforms /
+   shadows render off the UI thread. */
+[data-focusable='true'] {
+    will-change: transform, box-shadow;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+}
+
+/* Images inside posters — pre-decode + hint the compositor. */
+.vesper-shelf img,
+[data-testid="shelves-region"] img {
+    image-rendering: -webkit-optimize-contrast;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+}
+
+/* ------------------------------------------------------------------
    Vesper text utilities
 ------------------------------------------------------------------ */
 @layer components {

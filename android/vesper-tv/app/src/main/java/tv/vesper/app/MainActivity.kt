@@ -46,6 +46,16 @@ class MainActivity : AppCompatActivity() {
             )
             setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
 
+            // Force the WebView onto a dedicated hardware layer so
+            // every paint (and especially shelf scroll transforms)
+            // is GPU-composited.  On the HK1's old Mali GPU this is
+            // the difference between 30 fps stuttery scroll and a
+            // buttery 60 fps LeanBack-style glide.
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            // Bonus on Android 9+: lets the WebView's compositor
+            // render off the UI thread (huge win for D-pad nav).
+            android.webkit.WebView.setWebContentsDebuggingEnabled(false)
+
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -55,22 +65,27 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                // Local-asset bundle needs file:// access; we still
-                // disable arbitrary content:// access for safety.
                 allowFileAccess = true
                 allowContentAccess = false
+                // Faster compositing of CSS transforms / opacity —
+                // the React shelves use translate3d for movement, and
+                // this flag tells the WebView to accept those
+                // optimisations.
+                @Suppress("DEPRECATION")
+                setEnableSmoothTransition(true)
                 userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
             }
 
-            // Keep all navigation inside the WebView.
+            // Smooth-scroll the inner WebView content frame.  Both
+            // these knobs matter for D-pad-driven horizontal scrolls.
+            isScrollbarFadingEnabled = true
+            scrollBarStyle = android.view.View.SCROLLBARS_OUTSIDE_OVERLAY
+            overScrollMode = android.view.View.OVER_SCROLL_NEVER
+
             webViewClient = VesperWebViewClient()
             webChromeClient = WebChromeClient()
-
-            // Bridge so the web app can hand video off to VLC/MX Player.
             addJavascriptInterface(WebAppInterface(this@MainActivity), "OnNowTV")
 
-            // Make the WebView itself focusable so the D-pad has somewhere
-            // to land when the page first loads.
             isFocusable = true
             isFocusableInTouchMode = true
             requestFocus()

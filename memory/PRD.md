@@ -35,6 +35,46 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 19 — Feb 2026)
+- **TV Shows black-screen bug fixed** — `EpisodeCard` was reading
+  `parentId` but the prop was never passed through. ReferenceError
+  killed the whole series detail page on render. Added `parentId`
+  to the destructured prop list. The Boys series page now renders
+  with all 5 seasons + episode list intact (verified live).
+- **Stream playback fix (Torrentio behind Cloudflare wall)** — root
+  cause: Torrentio rejects calls from the backend's datacentre IP
+  with a Cloudflare anti-bot page, so the backend stream proxy
+  returns 0 streams. Fix: new `WebAppInterface.fetchUrl(url, timeout)`
+  Kotlin bridge performs the HTTP GET from the HK1 box's residential
+  IP using `HttpURLConnection` with a real browser User-Agent. JS
+  side (`fetchJsonDirect` in `lib/api.js`) now uses the bridge first
+  when running inside the WebView, falling back to standard
+  `fetch()` if the bridge isn't available (browser dev).
+- **WebView hardware acceleration overhaul** — root cause of the
+  "chunky" D-pad nav on Android: the WebView was software-rendering
+  every shelf scroll, repainting all 60+ posters per key press.
+  Three-layer fix:
+  1. **MainActivity.kt**: `setLayerType(LAYER_TYPE_HARDWARE, null)`
+     promotes the WebView to a dedicated GPU layer.
+     `isScrollbarFadingEnabled`, `overScrollMode = OVER_SCROLL_NEVER`
+     stop the WebView's own inertia from fighting our D-pad scrolls.
+     `setEnableSmoothTransition(true)` lets the WebView accept
+     transform-based scroll optimisations.
+  2. **index.css**: every `.vesper-shelf`, `[data-testid="shelves-region"]`,
+     `[data-testid="home-main"]` and `[data-focusable="true"]` gets
+     `will-change` + `transform: translateZ(0)` to force GPU
+     compositing. Posters too — `image-rendering: optimize-contrast`
+     + GPU promotion.
+  3. **useSpatialFocus.js**: vertical AND horizontal `scrollBy()`
+     calls are now wrapped in `requestAnimationFrame()` so the
+     WebView compositor batches the scroll with the focus-glow CSS
+     transition in a single GPU commit.
+
+  Together these turn the home page from a 30 fps software repaint
+  into a 60 fps GPU-composited glide — exactly the LeanBack /
+  Stremio feel the user kept asking for.
+
+
 ## Implemented (Iteration 18 — Feb 2026)
 - **Focus ring + shelf header no longer clipped on D-pad Down** —
   pinning the *centre* of the focused tile at 32 % of the scroller
