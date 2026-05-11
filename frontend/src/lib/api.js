@@ -61,6 +61,43 @@ export function normaliseManifestUrl(raw) {
 }
 
 async function fetchJsonDirect(url, { timeout = 15000 } = {}) {
+    // Prefer the native Android HTTP bridge when running inside the
+    // sideloaded APK.  This is critical for stream addons like
+    // Torrentio that reject calls from datacentre IPs — the HK1
+    // box's residential IP succeeds where the backend proxy gets a
+    // Cloudflare wall.  The bridge runs on a background binder
+    // thread so it doesn't block the JS event loop visibly.
+    if (typeof window !== 'undefined' && window.OnNowTV?.fetchUrl) {
+        try {
+            const raw = window.OnNowTV.fetchUrl(url, timeout);
+            const parsed = JSON.parse(raw);
+            if (!parsed.ok) {
+                const err = new Error(
+                    parsed.error || `HTTP ${parsed.status} from ${url}`
+                );
+                err.status = parsed.status;
+                throw err;
+            }
+            try {
+                return JSON.parse(parsed.body || '{}');
+            } catch {
+                const err = new Error(
+                    `Non-JSON response from ${url}`
+                );
+                err.body = (parsed.body || '').slice(0, 200);
+                throw err;
+            }
+        } catch (e) {
+            // If the bridge throws a *bridge* error (not an HTTP one)
+            // fall through to the standard browser fetch path.
+            if (e?.status === undefined) {
+                // bridge failure — try browser fallback
+            } else {
+                throw e;
+            }
+        }
+    }
+
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
     try {

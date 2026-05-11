@@ -183,4 +183,52 @@ class WebAppInterface(private val activity: Activity) {
             else -> "video/*"
         }
     }
+
+    /**
+     * Native HTTP GET that returns the JSON response body as a
+     * string.  Used by the React side to call stream addons
+     * (notably Torrentio) which block calls from datacenter IPs —
+     * the HK1 box has a residential IP, so calls fired from Kotlin
+     * succeed where the backend proxy fails.
+     *
+     * Returns a JSON object like:
+     *   {"ok": true, "status": 200, "body": "{...}"}
+     *   {"ok": false, "status": 0,   "error": "timeout"}
+     *
+     * Blocking call from Kotlin's perspective; JS treats it as
+     * synchronous because @JavascriptInterface methods are invoked
+     * on a private binder thread.  Hard cap timeout of 20 s.
+     */
+    @JavascriptInterface
+    fun fetchUrl(url: String, timeoutMs: Int): String {
+        return try {
+            val u = java.net.URL(url)
+            val conn = u.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = timeoutMs.coerceIn(1000, 30000)
+            conn.readTimeout = timeoutMs.coerceIn(1000, 30000)
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Accept", "application/json,text/plain,*/*")
+            conn.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 11; HK1) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/119.0 Mobile Safari/537.36 OnNowTV/1.0"
+            )
+            conn.instanceFollowRedirects = true
+            val code = conn.responseCode
+            val stream =
+                if (code in 200..299) conn.inputStream else conn.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+            org.json.JSONObject().apply {
+                put("ok", code in 200..299)
+                put("status", code)
+                put("body", body)
+            }.toString()
+        } catch (e: Exception) {
+            org.json.JSONObject().apply {
+                put("ok", false)
+                put("status", 0)
+                put("error", e.message ?: e.javaClass.simpleName)
+            }.toString()
+        }
+    }
 }
