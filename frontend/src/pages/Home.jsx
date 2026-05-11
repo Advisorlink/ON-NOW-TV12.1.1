@@ -9,10 +9,21 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
+import Lazy from '@/components/Lazy';
+import { useTheme } from '@/themes/ThemeProvider';
+import HomePaper from '@/themes/home/HomePaper';
+import HomeArcade from '@/themes/home/HomeArcade';
 
 const TAB_KEY = 'vesper-home-tab';
 
 export default function Home() {
+    const { theme } = useTheme();
+    if (theme.layout === 'paper') return <HomePaper />;
+    if (theme.layout === 'arcade') return <HomeArcade />;
+    return <HomeVesper />;
+}
+
+function HomeVesper() {
     useSpatialFocus();
     const { addons } = useAddons();
 
@@ -114,8 +125,10 @@ export default function Home() {
                     </section>
                 )}
 
-                {shelves.map((shelf) => (
-                    <Shelf key={shelf.id} shelf={shelf} />
+                {shelves.map((shelf, i) => (
+                    <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
+                        <Shelf shelf={shelf} />
+                    </Lazy>
                 ))}
 
                 <footer

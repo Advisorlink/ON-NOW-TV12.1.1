@@ -393,6 +393,18 @@ body {
     image-rendering: optimizeSpeed;
 }
 
+/* `content-visibility: auto` lets the browser skip layout / paint
+   for off-screen shelves entirely.  On Chromium-based WebViews
+   (which all modern HK1 boxes ship) this is a huge win — the
+   browser only paints what's in the scroll viewport.
+   We attach `contain-intrinsic-size` so the placeholder is the
+   same height as a real shelf, preventing scroll jumps. */
+.vesper-low-end .vesper-shelf-section,
+.vesper-host-android .vesper-shelf-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 360px;
+}
+
 /* Tighter sizing inside the Android wrapper — cheap HK1 boxes
    often sit on small TVs (24"-32") where our default desktop
    sizing felt cramped.  Shrinks paddings + hero so everything

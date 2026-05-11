@@ -8,6 +8,8 @@ import Player from '@/pages/Player';
 import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Resolve from '@/pages/Resolve';
+import Settings from '@/pages/Settings';
+import { ThemeProvider } from '@/themes/ThemeProvider';
 
 // HashRouter works under file:// (sideloaded APK); BrowserRouter
 // is nicer everywhere else (hosted preview, PWA install).
@@ -36,20 +38,22 @@ function NotImplemented({ name }) {
 function App() {
     return (
         <div className="App">
-            <Router>
-                <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/sources" element={<Sources />} />
-                    <Route path="/search" element={<Search />} />
-                    <Route path="/networks/:slug" element={<Network />} />
-                    <Route path="/resolve/:type/:id" element={<Resolve />} />
-                    <Route path="/library" element={<NotImplemented name="My Library" />} />
-                    <Route path="/settings" element={<NotImplemented name="Settings" />} />
-                    <Route path="/title/:type/:id" element={<Detail />} />
-                    <Route path="/title/:id" element={<Detail />} />
-                    <Route path="/play" element={<Player />} />
-                </Routes>
-            </Router>
+            <ThemeProvider>
+                <Router>
+                    <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/sources" element={<Sources />} />
+                        <Route path="/search" element={<Search />} />
+                        <Route path="/networks/:slug" element={<Network />} />
+                        <Route path="/resolve/:type/:id" element={<Resolve />} />
+                        <Route path="/library" element={<NotImplemented name="My Library" />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/title/:type/:id" element={<Detail />} />
+                        <Route path="/title/:id" element={<Detail />} />
+                        <Route path="/play" element={<Player />} />
+                    </Routes>
+                </Router>
+            </ThemeProvider>
         </div>
     );
 }

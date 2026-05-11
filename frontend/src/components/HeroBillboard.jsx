@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Info, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import * as img from '@/lib/img';
+import Host from '@/lib/host';
 
 export default function HeroBillboard({ heroes }) {
     const list = Array.isArray(heroes) ? heroes : [];
@@ -16,9 +18,12 @@ export default function HeroBillboard({ heroes }) {
 
     useEffect(() => {
         if (list.length <= 1) return;
+        // Slower rotation on cheap boxes so the GPU spends less time
+        // blending crossfade frames.
+        const period = (Host.isAndroid || Host.isLowEnd) ? 14000 : 9500;
         const t = setInterval(
             () => setIdx((i) => (i + 1) % list.length),
-            9500
+            period
         );
         return () => clearInterval(t);
     }, [list.length]);
@@ -53,9 +58,11 @@ export default function HeroBillboard({ heroes }) {
                     <div
                         key={`${h.id}-${idx}`}
                         className={`absolute inset-0 bg-cover bg-center ${
-                            i === idx ? 'vesper-kenburns' : ''
+                            i === idx && !Host.isAndroid && !Host.isLowEnd
+                                ? 'vesper-kenburns'
+                                : ''
                         }`}
-                        style={{ backgroundImage: `url(${h.backdrop})` }}
+                        style={{ backgroundImage: `url(${img.backdrop(h.backdrop)})` }}
                     />
                 </div>
             ))}

@@ -13,7 +13,7 @@ export default function Shelf({ shelf, onSelect }) {
     return (
         <section
             data-testid={`shelf-${shelf.id}`}
-            className="relative w-full"
+            className="relative w-full vesper-shelf-section"
             style={{
                 paddingTop: 'clamp(6px, 0.8vw, 14px)',
                 paddingBottom: 4,

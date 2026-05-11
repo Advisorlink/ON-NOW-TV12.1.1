@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
+import * as img from '@/lib/img';
 
 /**
  * Poster tile for TMDB-sourced network catalogues.  The TMDB discover
@@ -66,9 +67,10 @@ export default function NetworkPosterTile({ item }) {
         >
             {item.poster ? (
                 <img
-                    src={item.poster}
+                    src={img.poster(item.poster)}
                     alt={item.title}
                     loading="lazy"
+                    decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
                 />
             ) : (

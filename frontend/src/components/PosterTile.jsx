@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as img from '@/lib/img';
 
 export default function PosterTile({ item, onSelect }) {
     const navigate = useNavigate();
@@ -32,9 +33,10 @@ export default function PosterTile({ item, onSelect }) {
         >
             {item.poster ? (
                 <img
-                    src={item.poster}
+                    src={img.poster(item.poster)}
                     alt={item.title}
                     loading="lazy"
+                    decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
                 />
             ) : (

@@ -104,23 +104,6 @@ export default function NetworksShelf() {
                         >
                             {n.wordmark}
                         </div>
-
-                        <div
-                            className="absolute inset-x-0 bottom-0"
-                            style={{ padding: 'clamp(10px, 0.9vw, 16px)' }}
-                        >
-                            <div
-                                className="vesper-mono"
-                                style={{
-                                    fontSize: 'clamp(9px, 0.6vw, 11px)',
-                                    letterSpacing: '0.22em',
-                                    textTransform: 'uppercase',
-                                    color: 'rgba(255,255,255,0.78)',
-                                }}
-                            >
-                                {n.name} · top picks →
-                            </div>
-                        </div>
                     </button>
                 ))}
             </div>
