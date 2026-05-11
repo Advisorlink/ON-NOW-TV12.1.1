@@ -1,23 +1,12 @@
 /**
  * ON NOW TV V2 — theme registry.
  *
- * Each theme controls THREE things:
- *
- *   1. Layout — which Home-page React component is mounted
- *      (vesper / paper / arcade).  Themes that share an architecture
- *      can still vary heavily via tokens.
- *   2. CSS tokens — applied as CSS variables on <html> so every
- *      existing component re-styles itself instantly.
- *   3. Font stack — applied via `font-family` on <body>.
- *
- * Add a new theme by appending an entry to THEMES.  Settings will
- * automatically render a preview tile for it.
+ * Currently a single theme (Vesper Neon).  The provider + Settings
+ * page are theme-agnostic, so adding more themes later is just a
+ * matter of appending entries to `THEMES`.
  */
 
 export const THEMES = [
-    /* ------------------------------------------------------------- */
-    /*  THEME 1 — Vesper Neon (default)                              */
-    /* ------------------------------------------------------------- */
     {
         id: 'vesper',
         name: 'Vesper Neon',
@@ -48,81 +37,6 @@ export const THEMES = [
                 '"Geist", "SF Pro Text", system-ui, sans-serif',
             '--theme-font-mono':
                 '"JetBrains Mono", "Geist Mono", monospace',
-        },
-    },
-
-    /* ------------------------------------------------------------- */
-    /*  THEME 2 — Paper Cinema (editorial, warm, magazine-style)     */
-    /* ------------------------------------------------------------- */
-    {
-        id: 'paper',
-        name: 'Paper Cinema',
-        tagline:
-            'Cream paper · serif headlines · single-feature editorial · Letterboxd vibes',
-        layout: 'paper',
-        preview: {
-            background:
-                'linear-gradient(180deg, #F4ECDC 0%, #E2D5BC 100%)',
-            wordmark: { color: '#1F1A14', font: 'Cormorant Garamond', weight: 700 },
-            accent: '#B0382C',
-        },
-        tokens: {
-            '--vesper-bg-0': '#F4ECDC',
-            '--vesper-bg-1': '#EBE0C7',
-            '--vesper-bg-2': '#DCCFB2',
-            '--vesper-text': '#1F1A14',
-            '--vesper-text-2': '#5A4F40',
-            '--vesper-text-3': '#8C7E68',
-            '--vesper-blue': '#B0382C',
-            '--vesper-blue-bright': '#C9483A',
-            '--vesper-blue-glow': 'rgba(176,56,44,0.30)',
-            '--theme-accent': '#B0382C',
-            '--theme-accent-soft': 'rgba(176,56,44,0.10)',
-            '--theme-radius': '4px',
-            '--theme-font-display':
-                '"Cormorant Garamond", "Playfair Display", Georgia, serif',
-            '--theme-font-body':
-                '"Source Sans 3", "Source Sans Pro", Georgia, sans-serif',
-            '--theme-font-mono':
-                '"IBM Plex Mono", "Courier New", monospace',
-        },
-    },
-
-    /* ------------------------------------------------------------- */
-    /*  THEME 3 — Arcade (cyberpunk neon, dense landscape grid)      */
-    /* ------------------------------------------------------------- */
-    {
-        id: 'arcade',
-        name: 'Arcade',
-        tagline:
-            'Pink/cyan cyberpunk · brutalist mono · dense landscape grid · top nav',
-        layout: 'arcade',
-        preview: {
-            background:
-                'linear-gradient(135deg, #0A0014 0%, #2A0040 50%, #001A2E 100%)',
-            wordmark: { color: '#FF2EAB', font: 'JetBrains Mono', weight: 700 },
-            accent: '#FF2EAB',
-        },
-        tokens: {
-            '--vesper-bg-0': '#0A0014',
-            '--vesper-bg-1': '#180028',
-            '--vesper-bg-2': '#28003E',
-            '--vesper-text': '#FBE9FF',
-            '--vesper-text-2': '#B79CD0',
-            '--vesper-text-3': '#7A6090',
-            '--vesper-blue': '#FF2EAB',
-            '--vesper-blue-bright': '#FF6ECF',
-            '--vesper-blue-glow': 'rgba(255,46,171,0.55)',
-            '--theme-accent': '#FF2EAB',
-            '--theme-accent-soft': 'rgba(255,46,171,0.16)',
-            '--theme-cyan': '#23E5FF',
-            '--theme-radius': '2px',
-            '--theme-font-display':
-                '"JetBrains Mono", "Courier New", monospace',
-            '--theme-font-body':
-                '"JetBrains Mono", "Courier New", monospace',
-            '--theme-font-mono':
-                '"JetBrains Mono", "Courier New", monospace',
         },
     },
 ];

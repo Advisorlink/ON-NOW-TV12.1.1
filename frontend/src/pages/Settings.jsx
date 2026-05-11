@@ -77,7 +77,7 @@ export default function Settings() {
                     marginBottom: 12,
                 }}
             >
-                Choose a theme
+                Theme
             </h1>
 
             <p
@@ -89,9 +89,9 @@ export default function Settings() {
                     marginBottom: 40,
                 }}
             >
-                Each theme rebuilds the entire app — different layout,
-                typography, and palette. Pick one with your remote, press
-                Enter to apply. Your choice is remembered.
+                ON NOW TV V2 ships with Vesper Neon — a cinematic, neon-blue
+                aesthetic tuned for big-screen TV viewing. More themes coming
+                soon.
             </p>
 
             <div

@@ -10,20 +10,10 @@ import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
-import { useTheme } from '@/themes/ThemeProvider';
-import HomePaper from '@/themes/home/HomePaper';
-import HomeArcade from '@/themes/home/HomeArcade';
 
 const TAB_KEY = 'vesper-home-tab';
 
 export default function Home() {
-    const { theme } = useTheme();
-    if (theme.layout === 'paper') return <HomePaper />;
-    if (theme.layout === 'arcade') return <HomeArcade />;
-    return <HomeVesper />;
-}
-
-function HomeVesper() {
     useSpatialFocus();
     const { addons } = useAddons();
 
