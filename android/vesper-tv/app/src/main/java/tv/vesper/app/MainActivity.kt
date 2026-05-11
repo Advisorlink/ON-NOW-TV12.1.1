@@ -141,16 +141,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * The HK1 remote sends BACK as KEYCODE_BACK. Translate it to
-     * web history navigation when possible so the user doesn't get
-     * kicked out of the app on every detail-page back-press.
+     * The HK1 remote sends BACK as KEYCODE_BACK.  Behaviour:
+     *
+     *   • If the WebView's current page sets `window.__vesperOnHome
+     *     === 'home-root'` → pop the "Close ON NOW TV?" confirm
+     *     dialog instead of unwinding history all the way back to
+     *     the launcher.
+     *   • Otherwise fall back to the normal goBack / finish flow,
+     *     which keeps Detail / Sources / Settings working as before.
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack()
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            webView.evaluateJavascript("(window.__vesperOnHome||'')") { raw ->
+                val flag = raw?.trim('"') ?: ""
+                runOnUiThread {
+                    when (flag) {
+                        "home-root" -> showExitConfirm()
+                        else -> {
+                            if (webView.canGoBack()) webView.goBack()
+                            else finish()
+                        }
+                    }
+                }
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    private fun showExitConfirm() {
+        androidx.appcompat.app.AlertDialog.Builder(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+        )
+            .setTitle("Close ON NOW TV?")
+            .setMessage("Are you sure you want to exit the app?")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Close") { _, _ -> finish() }
+            .show()
     }
 
     override fun onDestroy() {

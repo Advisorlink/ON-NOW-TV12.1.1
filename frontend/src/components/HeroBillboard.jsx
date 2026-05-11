@@ -46,7 +46,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: 'clamp(300px, 42vh, 480px)' }}
+            style={{ height: 'clamp(360px, 56vh, 620px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -97,11 +97,14 @@ export default function HeroBillboard({ heroes }) {
                 }}
             />
 
-            <div className="absolute inset-0 flex items-center">
+            <div className="absolute inset-0 flex items-end">
                 <div
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
-                    style={{ paddingLeft: 'clamp(124px, 9.5vw, 180px)' }}
+                    style={{
+                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingBottom: 'clamp(48px, 5vw, 96px)',
+                    }}
                 >
                     <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>
                     <h1
@@ -218,30 +221,6 @@ export default function HeroBillboard({ heroes }) {
                             My List
                         </button>
                     </div>
-
-                    {hero.sources?.length > 0 && (
-                        <div className="flex items-center gap-2 mt-4 vesper-eyebrow flex-wrap">
-                            <span style={{ color: 'var(--vesper-text-3)' }}>
-                                On
-                            </span>
-                            {hero.sources.map((s) => (
-                                <span
-                                    key={s}
-                                    className="px-2.5 py-1 rounded-md"
-                                    style={{
-                                        color: 'var(--vesper-blue-bright)',
-                                        background: 'rgba(93,200,255,0.08)',
-                                        border:
-                                            '1px solid rgba(93,200,255,0.25)',
-                                        letterSpacing: '0.16em',
-                                        fontSize: 11,
-                                    }}
-                                >
-                                    {s}
-                                </span>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </div>
 

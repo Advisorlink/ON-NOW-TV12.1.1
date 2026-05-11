@@ -35,6 +35,38 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 11 — Feb 2026)
+- **TV Shows / Movies moved into SideNav** — `SideNav.jsx` now has
+  dedicated `Tv` and `Film` entries that navigate to `/?filter=series`
+  and `/?filter=movie`. The standalone `<HomeTabs>` segmented control
+  is removed from the home page, freeing the vertical real-estate
+  under the hero.
+- **Newest-first Movies / TV Shows grid** — new `TabGridView.jsx`
+  flattens every type-matching catalogue, dedupes by IMDb id, sorts by
+  year desc and renders a responsive poster grid. `useLiveShelves`
+  gained an `itemsPerCatalog` parameter (60 in filter mode, 18
+  elsewhere) so the grid has enough density to feel "endless". CW
+  shelf, Networks shelf and Hero billboard are all hidden when a
+  filter is active.
+- **Back-key exit confirm** — `useHomeBackHandler` writes a
+  `window.__vesperOnHome` flag (`home-root` / `home-filter`).
+  `MainActivity.onKeyDown` evaluates that flag on every KEYCODE_BACK:
+  on `home-root` it pops an AppCompat `AlertDialog` ("Close ON NOW TV?")
+  instead of unwinding history back to the launcher.
+- **Snap-to-top on D-pad Up** — `useSpatialFocus.js` now scrolls the
+  vertical container to `scrollTop = 0` when the focused element is
+  already the topmost focusable, so the page header sits flush against
+  the top edge instead of being half-clipped by the LeanBack pin.
+- **Hero re-spaced** — `HeroBillboard` height bumped from 42 vh →
+  56 vh, content aligned to bottom with `paddingBottom: clamp(48 px,
+  5 vw, 96 px)` so Featured / Title / Play / More Info / My List sit
+  in the lower third with proper breathing room. The "On Cinemeta /
+  TMDB" sources pill-row at the bottom of the hero is removed.
+- **Source-name leak removed from shelves** — shelf eyebrows
+  (`useLiveShelves`) no longer show `"<addon.name> · MOVIE"`; just
+  the type (e.g. `MOVIES`).
+
+
 - **LeanBack-style spatial nav** — `useSpatialFocus.js` now pins the
   focused row at ~32 % of the viewport height so shelves glide under a
   stationary focus, matching Android TV's launcher feel. Cooldowns

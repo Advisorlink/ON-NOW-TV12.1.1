@@ -227,7 +227,22 @@ export default function useSpatialFocus() {
                         : focusables()[0];
                 if (!active) return;
                 const next = findNext(active, dir);
-                if (next) focusEl(next, dir, repeat);
+                if (next) {
+                    focusEl(next, dir, repeat);
+                } else if (dir === 'up') {
+                    // Already on the topmost focusable — snap the
+                    // page to its absolute top so the heading sits
+                    // flush against the top edge instead of being
+                    // half-clipped by the LeanBack pin.
+                    const vs =
+                        verticalScroller(active) || document.scrollingElement;
+                    if (vs && vs.scrollTop > 0) {
+                        vs.scrollTo({
+                            top: 0,
+                            behavior: repeat ? 'auto' : 'smooth',
+                        });
+                    }
+                }
                 return;
             }
 

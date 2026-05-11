@@ -1,53 +1,62 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import SideNav from '@/components/SideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
-import HomeTabs from '@/components/HomeTabs';
+import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
 
-const TAB_KEY = 'vesper-home-tab';
-
 export default function Home() {
     useSpatialFocus();
     const { addons } = useAddons();
+    const location = useLocation();
 
-    const [tab, setTab] = useState(() => {
-        try {
-            return localStorage.getItem(TAB_KEY) || 'all';
-        } catch {
-            return 'all';
-        }
-    });
-    useEffect(() => {
-        try {
-            localStorage.setItem(TAB_KEY, tab);
-        } catch {
-            /* ignore */
-        }
-    }, [tab]);
+    // Filter drives the entire page mode:
+    //   - null   → full home (hero + Continue Watching + networks + shelves)
+    //   - movie  → movies-only grid sorted newest-first
+    //   - series → tv-shows-only grid sorted newest-first
+    const filter = new URLSearchParams(location.search).get('filter');
+    const isFilterView = filter === 'movie' || filter === 'series';
 
-    // 'all' lets every catalogue in; 'series'/'movie' filter strictly.
-    const shelfFilter = tab === 'all' ? null : tab;
-    const heroType = tab === 'movie' ? 'movie' : 'series';
+    // Tell the native wrapper which "home mode" we're in so it can
+    // pop up the exit-confirm dialog only on the bare home, not on
+    // the filter views (where back should just go back to home).
+    useHomeBackHandler(isFilterView ? 'home-filter' : 'home-root');
+
+    // Filter views fetch up to 60 items per catalogue so the grid
+    // has enough density to feel "endless".  Default home stays at
+    // the standard 18 to keep horizontal shelves snappy.
+    const itemsPerCatalog = isFilterView ? 60 : 18;
+    const shelfFilter = isFilterView ? filter : null;
+    const heroType = filter === 'movie' ? 'movie' : 'series';
 
     const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(
         addons,
-        shelfFilter
+        shelfFilter,
+        itemsPerCatalog
     );
     const { heroes: liveHeroes } = useLiveHeroes(addons, heroType);
 
-    const shelves = useMemo(() => {
-        return Array.isArray(liveShelves) ? liveShelves : [];
-    }, [liveShelves]);
+    const shelves = useMemo(
+        () => (Array.isArray(liveShelves) ? liveShelves : []),
+        [liveShelves]
+    );
 
-    const showNetworks = tab === 'series' || tab === 'all';
+    // Whenever the filter changes, snap the page back to the top so
+    // the user lands on the new heading instead of mid-grid.
+    useEffect(() => {
+        document.scrollingElement?.scrollTo({ top: 0, behavior: 'auto' });
+        const main = document.querySelector('[data-testid="home-main"]');
+        if (main) main.scrollTop = 0;
+    }, [filter]);
 
     return (
         <div
@@ -59,70 +68,33 @@ export default function Home() {
             <FullscreenButton />
 
             <main
+                data-testid="home-main"
                 className="absolute inset-0 overflow-y-auto"
                 style={{ scrollBehavior: 'auto' }}
             >
-                <HeroBillboard heroes={liveHeroes} />
+                {isFilterView ? (
+                    <TabGridView
+                        shelves={shelves}
+                        loading={liveLoading}
+                        type={filter}
+                    />
+                ) : (
+                    <>
+                        <HeroBillboard heroes={liveHeroes} />
 
-                <HomeTabs value={tab} onChange={setTab} />
+                        <ContinueWatchingShelf />
 
-                <ContinueWatchingShelf />
+                        <NetworksShelf />
 
-                {showNetworks && <NetworksShelf />}
+                        {addons.length === 0 && <EmptyAddonsBanner />}
 
-                {addons.length === 0 && (
-                    <section
-                        className="flex items-center justify-between"
-                        style={{
-                            margin:
-                                '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
-                            padding: '20px 28px',
-                            borderRadius: 16,
-                            background:
-                                'linear-gradient(90deg, rgba(93,200,255,0.10) 0%, rgba(93,200,255,0.02) 100%)',
-                            border: '1px solid rgba(93,200,255,0.25)',
-                        }}
-                    >
-                        <div>
-                            <div
-                                className="vesper-eyebrow"
-                                style={{ fontSize: 11 }}
-                            >
-                                Demo content shown
-                            </div>
-                            <div
-                                className="vesper-display mt-1"
-                                style={{ fontSize: 22, letterSpacing: '-0.02em' }}
-                            >
-                                Install a Stremio addon to see real catalogues here.
-                            </div>
-                        </div>
-                        <a
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            tabIndex={0}
-                            href="/sources"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                window.history.pushState({}, '', '/sources');
-                                window.dispatchEvent(new PopStateEvent('popstate'));
-                            }}
-                            className="h-12 px-5 rounded-full flex items-center font-sans font-semibold text-[16px]"
-                            style={{
-                                background: 'var(--vesper-blue)',
-                                color: 'var(--vesper-bg-0)',
-                            }}
-                        >
-                            Open Sources →
-                        </a>
-                    </section>
+                        {shelves.map((shelf, i) => (
+                            <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
+                                <Shelf shelf={shelf} />
+                            </Lazy>
+                        ))}
+                    </>
                 )}
-
-                {shelves.map((shelf, i) => (
-                    <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
-                        <Shelf shelf={shelf} />
-                    </Lazy>
-                ))}
 
                 <footer
                     className="flex items-center justify-between"
@@ -155,10 +127,59 @@ export default function Home() {
                     >
                         {liveLoading
                             ? 'Loading addons…'
-                            : `${addons.length} source${addons.length === 1 ? '' : 's'} active`}
+                            : `${addons.length} source${
+                                  addons.length === 1 ? '' : 's'
+                              } active`}
                     </div>
                 </footer>
             </main>
         </div>
+    );
+}
+
+function EmptyAddonsBanner() {
+    return (
+        <section
+            className="flex items-center justify-between"
+            style={{
+                margin:
+                    '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
+                padding: '20px 28px',
+                borderRadius: 16,
+                background:
+                    'linear-gradient(90deg, rgba(93,200,255,0.10) 0%, rgba(93,200,255,0.02) 100%)',
+                border: '1px solid rgba(93,200,255,0.25)',
+            }}
+        >
+            <div>
+                <div className="vesper-eyebrow" style={{ fontSize: 11 }}>
+                    Demo content shown
+                </div>
+                <div
+                    className="vesper-display mt-1"
+                    style={{ fontSize: 22, letterSpacing: '-0.02em' }}
+                >
+                    Install a Stremio addon to see real catalogues here.
+                </div>
+            </div>
+            <a
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                href="/sources"
+                onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/sources');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="h-12 px-5 rounded-full flex items-center font-sans font-semibold text-[16px]"
+                style={{
+                    background: 'var(--vesper-blue)',
+                    color: 'var(--vesper-bg-0)',
+                }}
+            >
+                Open Sources →
+            </a>
+        </section>
     );
 }

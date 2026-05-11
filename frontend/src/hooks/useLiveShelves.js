@@ -18,13 +18,13 @@ import * as cache from '@/lib/cache';
 const BROWSABLE_TYPES = new Set(['movie', 'series', 'channel', 'tv', 'anime']);
 const TTL_MS = 10 * 60 * 1000; // 10 min stale window
 
-function cacheKey(addons, filterType) {
+function cacheKey(addons, filterType, itemsPerCatalog) {
     const ids = (addons || []).map((a) => a.id).sort().join(',');
-    return `shelves:${filterType || 'all'}:${ids}`;
+    return `shelves:${filterType || 'all'}:${itemsPerCatalog || 18}:${ids}`;
 }
 
-export function useLiveShelves(addons, filterType = null) {
-    const key = cacheKey(addons, filterType);
+export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) {
+    const key = cacheKey(addons, filterType, itemsPerCatalog);
     const cached = cache.get(key);
     const [shelves, setShelves] = useState(
         Array.isArray(cached?.value) ? cached.value : []
@@ -75,8 +75,8 @@ export function useLiveShelves(addons, filterType = null) {
                         const shelf = {
                             id: `${addon.id}-${cat.type}-${cat.id}`,
                             title: cat.name || prettify(cat.id),
-                            eyebrow: `${addon.name} · ${capitalize(cat.type)}`,
-                            items: metas.slice(0, 18).map((m) => ({
+                            eyebrow: capitalize(cat.type === 'movie' ? 'movies' : cat.type),
+                            items: metas.slice(0, itemsPerCatalog).map((m) => ({
                                 id: `${addon.id}-${m.id}`,
                                 imdbId: m.id,
                                 type: cat.type,
@@ -108,7 +108,7 @@ export function useLiveShelves(addons, filterType = null) {
         return () => {
             cancelled = true;
         };
-    }, [addons, filterType, key]);
+    }, [addons, filterType, itemsPerCatalog, key]);
 
     return { shelves, loading };
 }

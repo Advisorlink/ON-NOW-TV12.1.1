@@ -5,12 +5,16 @@ import {
     Library,
     Plug,
     Settings,
+    Tv,
+    Film,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Host from '@/lib/host';
 
 const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
+    { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
+    { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'sources', label: 'Sources', icon: Plug, path: '/sources' },
@@ -21,6 +25,7 @@ export default function SideNav() {
     const [expanded, setExpanded] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
+    const currentFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
 
     return (
@@ -73,9 +78,26 @@ export default function SideNav() {
             <div className="flex flex-col gap-1 px-4">
                 {NAV.map((item) => {
                     const Icon = item.icon;
-                    const isActive =
-                        activePath === item.path ||
-                        (item.path !== '/' && activePath.startsWith(item.path));
+                    // For the home / TV Shows / Movies items we need
+                    // to disambiguate by `?filter=…` query because
+                    // they all share the `/` pathname.
+                    const itemFilter = (() => {
+                        const i = item.path.indexOf('?');
+                        if (i < 0) return null;
+                        return new URLSearchParams(item.path.slice(i + 1)).get(
+                            'filter'
+                        );
+                    })();
+                    const itemPathname = item.path.split('?')[0];
+                    let isActive = false;
+                    if (itemPathname === '/') {
+                        isActive =
+                            activePath === '/' && currentFilter === itemFilter;
+                    } else {
+                        isActive =
+                            activePath === itemPathname ||
+                            activePath.startsWith(itemPathname);
+                    }
                     return (
                         <button
                             key={item.id}
