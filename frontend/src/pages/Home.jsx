@@ -3,6 +3,7 @@ import SideNav from '@/components/SideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
+import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
 import HomeTabs from '@/components/HomeTabs';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -64,6 +65,8 @@ export default function Home() {
                 <HeroBillboard heroes={liveHeroes} />
 
                 <HomeTabs value={tab} onChange={setTab} />
+
+                <ContinueWatchingShelf />
 
                 {showNetworks && <NetworksShelf />}
 

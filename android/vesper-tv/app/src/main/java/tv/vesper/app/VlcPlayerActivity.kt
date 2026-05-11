@@ -123,6 +123,10 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var isSeries: Boolean = false
     private var skipIntroShown: Boolean = false
     private var skipIntroDismissed: Boolean = false
+    private var startAtMs: Long = 0L
+    private var hasSeekedToStart: Boolean = false
+    private var cwId: String? = null
+    private var lastProgressSaveAt: Long = 0L
     private var isSeeking = false
     private var previewDismissed = false
 
@@ -160,6 +164,8 @@ class VlcPlayerActivity : AppCompatActivity() {
         genresText = intent.getStringExtra(EXTRA_GENRES)
         contentType = intent.getStringExtra(EXTRA_TYPE)
         isSeries = contentType?.equals("series", ignoreCase = true) == true
+        startAtMs = intent.getLongExtra(EXTRA_START_AT_MS, 0L)
+        cwId = intent.getStringExtra(EXTRA_CW_ID)
 
         if (streamUrl.isNullOrBlank()) {
             finish()
@@ -402,6 +408,13 @@ class VlcPlayerActivity : AppCompatActivity() {
                 MediaPlayer.Event.Playing -> {
                     loadingView.visibility = View.GONE
                     playBtn.setImageResource(R.drawable.ic_pause)
+                    // Resume from saved position if requested
+                    if (!hasSeekedToStart && startAtMs > 5_000L) {
+                        hasSeekedToStart = true
+                        mediaPlayer.time = startAtMs
+                    } else {
+                        hasSeekedToStart = true
+                    }
                     // Keep preview visible for a beat so the user
                     // gets to read the synopsis even on fast streams.
                     mainHandler.postDelayed({ dismissPreview() }, 1200)
@@ -476,6 +489,32 @@ class VlcPlayerActivity : AppCompatActivity() {
             positionTv.text = formatMillis(time)
         }
         maybeToggleSkipIntro(time)
+        maybePersistProgress(time, length)
+    }
+
+    /**
+     * Throttled save of (positionMs, durationMs) into
+     * SharedPreferences keyed by `cwId`.  Web side polls this via
+     * OnNowTV.getProgressMap() to keep the Continue Watching shelf
+     * up to date.
+     */
+    private fun maybePersistProgress(timeMs: Long, lengthMs: Long) {
+        val id = cwId ?: return
+        if (id.isBlank() || timeMs <= 0L) return
+        val now = System.currentTimeMillis()
+        if (now - lastProgressSaveAt < 5_000L) return
+        lastProgressSaveAt = now
+        try {
+            val obj = org.json.JSONObject().apply {
+                put("positionMs", timeMs)
+                put("durationMs", lengthMs)
+                put("updatedAt", now)
+            }
+            getSharedPreferences("onnowtv_progress", MODE_PRIVATE)
+                .edit()
+                .putString(id, obj.toString())
+                .apply()
+        } catch (_: Exception) { /* ignore */ }
     }
 
     /**
@@ -751,6 +790,14 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // Final progress flush so the Continue Watching shelf picks
+        // up the exit position even before the 5 s throttle window.
+        try {
+            if (this::mediaPlayer.isInitialized) {
+                lastProgressSaveAt = 0
+                maybePersistProgress(mediaPlayer.time, mediaPlayer.length)
+            }
+        } catch (_: Exception) { }
         tickHandler.removeCallbacks(tickRunnable)
         hideHandler.removeCallbacks(hideRunnable)
         loadingDotsHandler.removeCallbacksAndMessages(null)
@@ -786,5 +833,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_RUNTIME = "runtime"
         const val EXTRA_GENRES = "genres"
         const val EXTRA_TYPE = "type"
+        const val EXTRA_START_AT_MS = "startAtMs"
+        const val EXTRA_CW_ID = "cwId"
     }
 }

@@ -44,6 +44,8 @@ const Host = (() => {
         rating,
         runtime,
         genres,
+        startAtMs,
+        cwId,
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
@@ -61,7 +63,9 @@ const Host = (() => {
                     rating == null ? '' : String(rating),
                     runtime || '',
                     Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
-                    type || ''
+                    type || '',
+                    typeof startAtMs === 'number' ? Math.floor(startAtMs) : 0,
+                    cwId || ''
                 );
                 return true;
             } catch {

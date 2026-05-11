@@ -13,6 +13,7 @@ import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import * as cw from '@/lib/continueWatching';
 
 /**
  * Cinematic seasons + episodes browser for TV series.
@@ -159,16 +160,31 @@ export default function SeriesEpisodes({ meta, parentId }) {
             } catch {
                 /* ignore */
             }
+            const cwId = `${meta?.id || ''}:s${ep.season}e${ep.episode}`;
+            const existing = cw.getEntries().find((e) => e.id === cwId);
+            cw.upsert({
+                id: cwId,
+                type: 'series',
+                title,
+                backdrop: meta?.background || meta?.poster || '',
+                poster: meta?.poster || '',
+                synopsis: ep.overview || meta?.description || '',
+                year: ep.firstAired ? String(ep.firstAired).slice(0, 4) : (meta?.releaseInfo || ''),
+                rating: meta?.imdbRating || '',
+                runtime: ep.runtime || meta?.runtime || '',
+                genres: meta?.genres || [],
+                streamUrl: stream.url,
+                subtitleUrl,
+                positionMs: existing?.positionMs || 0,
+                durationMs: existing?.durationMs || 0,
+                route: `/title/series/${meta?.id || ''}`,
+            });
             if (
                 Host.playVideo({
                     url: stream.url,
                     title,
                     type: 'series',
                     subtitleUrl,
-                    // Use the series cover (not the episode thumbnail)
-                    // on the native player's loading screen — the user
-                    // wants the show identity, not the per-episode
-                    // still frame, while the stream buffers.
                     poster: meta?.poster || '',
                     backdrop: meta?.background || meta?.poster || '',
                     synopsis: ep.overview || meta?.description || '',
@@ -176,6 +192,8 @@ export default function SeriesEpisodes({ meta, parentId }) {
                     rating: meta?.imdbRating || '',
                     runtime: ep.runtime || meta?.runtime || '',
                     genres: meta?.genres || [],
+                    cwId,
+                    startAtMs: existing?.positionMs || 0,
                 })
             ) return;
             navigate(

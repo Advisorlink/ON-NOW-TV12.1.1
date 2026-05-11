@@ -21,6 +21,30 @@ import android.widget.Toast
  */
 class WebAppInterface(private val activity: Activity) {
 
+    /**
+     * Return the SharedPreferences-backed progress map as JSON so
+     * the web app can populate its Continue Watching shelf with
+     * accurate positions.  Shape:
+     *
+     *   { "<cwId>": { "positionMs": 12345, "durationMs": 67890,
+     *                  "updatedAt": 1700000000000 }, ... }
+     */
+    @JavascriptInterface
+    fun getProgressMap(): String {
+        val prefs = activity.getSharedPreferences(
+            "onnowtv_progress", android.content.Context.MODE_PRIVATE
+        )
+        val out = org.json.JSONObject()
+        for ((k, v) in prefs.all) {
+            if (v is String) {
+                try {
+                    out.put(k, org.json.JSONObject(v))
+                } catch (_: Exception) { /* ignore malformed */ }
+            }
+        }
+        return out.toString()
+    }
+
     @JavascriptInterface
     fun playVideo(url: String, title: String?, mime: String?) {
         // Legacy bridge — kept for backwards compat with v1.1.x APKs.
@@ -68,7 +92,9 @@ class WebAppInterface(private val activity: Activity) {
         rating: String?,
         runtime: String?,
         genres: String?,
-        type: String?
+        type: String?,
+        startAtMs: Long,
+        cwId: String?
     ) {
         if (url.isBlank()) return
         activity.runOnUiThread {
@@ -85,6 +111,8 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
                     putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
                     putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
+                    putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
+                    putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 activity.startActivity(intent)

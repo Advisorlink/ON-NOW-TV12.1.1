@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Play,
     ArrowLeft,
@@ -15,6 +15,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import * as cw from '@/lib/continueWatching';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -41,6 +42,11 @@ export default function Detail() {
     useSpatialFocus();
     const { type, id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const resumeRequested = useMemo(
+        () => new URLSearchParams(location.search).get('resume') === '1',
+        [location.search]
+    );
 
     const [meta, setMeta] = useState(null);
     const [streams, setStreams] = useState([]);
@@ -101,6 +107,13 @@ export default function Detail() {
     const playStream = async (stream) => {
         const mode = streamMode(stream);
         if (mode === 'direct') {
+            // Look up any previously-saved position so we can resume.
+            const cwList = cw.getEntries();
+            const existing = cwList.find((e) => e.id === id);
+            const startAtMs =
+                resumeRequested && existing?.positionMs
+                    ? existing.positionMs
+                    : 0;
             // Native libVLC Activity — handles every codec Stremio does.
             // Fetch a default English subtitle URL up front so the
             // native player can attach it on launch.
@@ -121,6 +134,26 @@ export default function Detail() {
             } catch {
                 /* swallow — player still works without subs */
             }
+            // Track / refresh the Continue Watching entry up front so
+            // the show appears on Home even before the native player
+            // reports any progress.
+            cw.upsert({
+                id,
+                type,
+                title: meta?.name || '',
+                backdrop: meta?.background || meta?.poster || '',
+                poster: meta?.poster || '',
+                synopsis: meta?.description || '',
+                year: meta?.releaseInfo || meta?.year || '',
+                rating: meta?.imdbRating || '',
+                runtime: meta?.runtime || '',
+                genres: meta?.genres || [],
+                streamUrl: stream.url,
+                subtitleUrl,
+                positionMs: existing?.positionMs || 0,
+                durationMs: existing?.durationMs || 0,
+                route: `/title/${type}/${id}`,
+            });
             if (
                 Host.playVideo({
                     url: stream.url,
@@ -134,6 +167,7 @@ export default function Detail() {
                     rating: meta?.imdbRating || '',
                     runtime: meta?.runtime || '',
                     genres: meta?.genres || [],
+                    startAtMs: startAtMs,
                 })
             ) {
                 return;
