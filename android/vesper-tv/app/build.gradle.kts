@@ -11,8 +11,8 @@ android {
         applicationId = "tv.onnowtv.app"
         minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.5.2"
+        versionCode = 16
+        versionName = "1.5.3"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.

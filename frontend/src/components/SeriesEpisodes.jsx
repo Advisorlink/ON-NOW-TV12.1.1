@@ -545,7 +545,7 @@ function EpisodeCard({
                             installed addons.
                         </div>
                     ) : (
-                        <ul className="flex flex-col gap-2">
+                        <ul className="flex flex-col" style={{ gap: 12 }}>
                             {data.streams.slice(0, 30).map((s, i) => {
                                 const mode = streamMode(s);
                                 const ModeIcon =
@@ -564,8 +564,28 @@ function EpisodeCard({
                                         : mode === 'torrent'
                                         ? '#ffd28a'
                                         : 'var(--vesper-text-3)';
-                                const label =
+                                const rawLabel =
                                     s.title || s.name || s._addon_name || 'Stream';
+                                const labelLines = rawLabel.split('\n');
+                                const titleLine = labelLines[0];
+                                const metaLines = labelLines.slice(1)
+                                    .map((l) => l.trim())
+                                    .filter(Boolean);
+                                const chips = [];
+                                const SEED = /👤\s*(\d+[\d.,]*)/u;
+                                const SIZE = /💾\s*([^\s][^⚙⚡]+?)(?=\s+[⚙⚡]|$)/u;
+                                const TRACKER = /⚙\s*([^\s][^👤💾⚡]+?)$/u;
+                                const LANG_LINE = /^([A-Z]{2}(\s*\/\s*[A-Z]{2})+)$/i;
+                                for (const ml of metaLines) {
+                                    const seed = ml.match(SEED);
+                                    const size = ml.match(SIZE);
+                                    const trk = ml.match(TRACKER);
+                                    const lang = ml.match(LANG_LINE);
+                                    if (seed) chips.push({ k: 'seed', v: `${seed[1]} seeders` });
+                                    if (size) chips.push({ k: 'size', v: size[1].trim() });
+                                    if (trk) chips.push({ k: 'trk', v: trk[1].trim() });
+                                    if (lang) chips.push({ k: 'lang', v: lang[1].toUpperCase() });
+                                }
                                 const isCopied =
                                     mode === 'torrent' && copied === s.infoHash;
                                 return (
@@ -579,19 +599,27 @@ function EpisodeCard({
                                             data-focus-style="pill"
                                             tabIndex={0}
                                             onClick={() => playStream(s, ep)}
-                                            className="flex-1 text-left flex items-center gap-3 px-4 rounded-xl"
+                                            className="flex-1 text-left flex items-start gap-4"
                                             style={{
-                                                height: 56,
-                                                background: 'rgba(17,24,39,0.6)',
+                                                padding: '16px 20px',
+                                                borderRadius: 14,
+                                                background:
+                                                    'rgba(13,18,28,0.78)',
                                                 border:
                                                     '1px solid rgba(255,255,255,0.06)',
+                                                boxShadow:
+                                                    '0 6px 18px rgba(0,0,0,0.28)',
                                             }}
                                         >
                                             <span
-                                                className="flex items-center justify-center w-8 h-8 rounded-full shrink-0"
+                                                className="flex items-center justify-center shrink-0"
                                                 style={{
-                                                    background: `${accent.startsWith('#') ? accent : 'var(--vesper-blue)'}22`,
+                                                    width: 38,
+                                                    height: 38,
+                                                    borderRadius: 999,
+                                                    background: `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
                                                     color: accent,
+                                                    marginTop: 2,
                                                 }}
                                             >
                                                 <ModeIcon
@@ -605,27 +633,86 @@ function EpisodeCard({
                                             </span>
                                             <div className="min-w-0 flex-1">
                                                 <div
-                                                    className="font-sans"
                                                     style={{
+                                                        fontFamily:
+                                                            'var(--theme-font-body, "Geist", system-ui, sans-serif)',
                                                         fontSize: 14,
-                                                        lineHeight: 1.25,
-                                                        whiteSpace: 'pre-wrap',
+                                                        fontWeight: 500,
+                                                        lineHeight: 1.35,
+                                                        color: 'var(--vesper-text)',
                                                         wordBreak: 'break-word',
+                                                        display: '-webkit-box',
+                                                        WebkitBoxOrient: 'vertical',
+                                                        WebkitLineClamp: 2,
+                                                        overflow: 'hidden',
                                                     }}
                                                 >
-                                                    {label}
+                                                    {titleLine}
                                                 </div>
+
+                                                {chips.length > 0 && (
+                                                    <div
+                                                        className="flex flex-wrap items-center"
+                                                        style={{
+                                                            gap: 8,
+                                                            marginTop: 10,
+                                                        }}
+                                                    >
+                                                        {chips.map((c, ci) => (
+                                                            <span
+                                                                key={ci}
+                                                                className="vesper-mono"
+                                                                style={{
+                                                                    fontSize: 11,
+                                                                    letterSpacing: '0.06em',
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: 999,
+                                                                    background:
+                                                                        c.k === 'seed'
+                                                                            ? 'rgba(93,200,255,0.12)'
+                                                                            : c.k === 'size'
+                                                                            ? 'rgba(255,210,138,0.12)'
+                                                                            : c.k === 'lang'
+                                                                            ? 'rgba(255,255,255,0.06)'
+                                                                            : 'rgba(255,255,255,0.05)',
+                                                                    color:
+                                                                        c.k === 'seed'
+                                                                            ? 'var(--vesper-blue)'
+                                                                            : c.k === 'size'
+                                                                            ? '#ffd28a'
+                                                                            : 'var(--vesper-text-2)',
+                                                                    border: '1px solid rgba(255,255,255,0.05)',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                            >
+                                                                {c.v}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <div
                                                     className="vesper-mono"
                                                     style={{
                                                         fontSize: 10,
                                                         color: 'var(--vesper-text-3)',
-                                                        letterSpacing: '0.06em',
-                                                        marginTop: 2,
+                                                        letterSpacing: '0.18em',
+                                                        textTransform: 'uppercase',
+                                                        marginTop: chips.length > 0 ? 10 : 8,
                                                     }}
                                                 >
-                                                    {mode.toUpperCase()} ·{' '}
+                                                    <span style={{ color: accent }}>
+                                                        {mode}
+                                                    </span>
+                                                    {' · '}
                                                     {s._addon_name || 'addon'}
+                                                    {s.behaviorHints?.bingeGroup
+                                                        ? ` · ${s.behaviorHints.bingeGroup
+                                                            .replace(/torrentio\|?/i, '')
+                                                            .split('|')
+                                                            .filter(Boolean)
+                                                            .join(' · ')}`
+                                                        : ''}
                                                 </div>
                                             </div>
                                         </button>
@@ -636,10 +723,12 @@ function EpisodeCard({
                                                 tabIndex={0}
                                                 onClick={() => copyMagnet(s, ep)}
                                                 aria-label="Copy magnet"
-                                                className="shrink-0 flex items-center justify-center w-12 rounded-xl"
+                                                className="shrink-0 flex items-center justify-center"
                                                 style={{
+                                                    width: 50,
+                                                    borderRadius: 14,
                                                     background:
-                                                        'rgba(17,24,39,0.6)',
+                                                        'rgba(13,18,28,0.78)',
                                                     color: isCopied
                                                         ? 'var(--vesper-blue)'
                                                         : 'var(--vesper-text-2)',
@@ -655,12 +744,13 @@ function EpisodeCard({
                             })}
                             {data.streams.length > 30 && (
                                 <li
-                                    className="vesper-mono mt-2"
+                                    className="vesper-mono"
                                     style={{
                                         fontSize: 11,
                                         color: 'var(--vesper-text-3)',
                                         letterSpacing: '0.18em',
                                         textTransform: 'uppercase',
+                                        marginTop: 8,
                                     }}
                                 >
                                     + {data.streams.length - 30} more streams
