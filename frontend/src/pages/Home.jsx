@@ -50,12 +50,25 @@ export default function Home() {
         [liveShelves]
     );
 
-    // Whenever the filter changes, snap the page back to the top so
-    // the user lands on the new heading instead of mid-grid.
-    useEffect(() => {
-        document.scrollingElement?.scrollTo({ top: 0, behavior: 'auto' });
-        const main = document.querySelector('[data-testid="home-main"]');
-        if (main) main.scrollTop = 0;
+    // Whenever the page mounts or the filter changes, snap to the
+    // very top so the hero / heading is flush against the top edge
+    // (which is where its content sits in its bottom-aligned layout).
+    // Done as a layout-effect + a deferred re-snap because the
+    // shelves load asynchronously and can push the scroll position
+    // after the initial paint.
+    React.useLayoutEffect(() => {
+        const snap = () => {
+            const main = document.querySelector('[data-testid="home-main"]');
+            if (main) main.scrollTop = 0;
+            document.scrollingElement?.scrollTo({ top: 0, behavior: 'auto' });
+        };
+        snap();
+        const t1 = setTimeout(snap, 80);
+        const t2 = setTimeout(snap, 240);
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
     }, [filter]);
 
     return (

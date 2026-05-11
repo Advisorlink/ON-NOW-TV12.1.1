@@ -1,18 +1,41 @@
 package tv.vesper.app
 
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
 
 /**
  * - Locks navigation to local assets + the configured backend host
  *   (so signing into Plex / Jellyfin etc. opens in-place rather than
  *   ricocheting to the system browser).
+ * - Blocks any outbound request to Emergent / PostHog hosts so the
+ *   sideloaded APK can never show the "You're viewing a static
+ *   preview — Resume to interact" banner that those scripts inject.
  * - On every page finish, injects a tiny JS snippet that nukes any
  *   "Made with Emergent" preview badge that may have been bundled in
  *   the build — belt-and-braces alongside the CSS rule.
  */
 class VesperWebViewClient : WebViewClient() {
+
+    override fun shouldInterceptRequest(
+        view: WebView?,
+        request: WebResourceRequest?
+    ): WebResourceResponse? {
+        val host = request?.url?.host?.lowercase() ?: return null
+        val blocked = BLOCKED_HOSTS.any { suffix -> host.endsWith(suffix) }
+        if (blocked) {
+            // Return an empty 200 so the WebView doesn't render an
+            // ugly net-error banner — the script just silently no-ops.
+            return WebResourceResponse(
+                "text/plain",
+                "utf-8",
+                ByteArrayInputStream(ByteArray(0))
+            )
+        }
+        return super.shouldInterceptRequest(view, request)
+    }
 
     override fun shouldOverrideUrlLoading(
         view: WebView?,
@@ -56,6 +79,19 @@ class VesperWebViewClient : WebViewClient() {
     }
 
     companion object {
+        // Hosts whose scripts inject the "You're viewing a static
+        // preview" banner / "Made with Emergent" badge / PostHog
+        // session recording.  Blocked at network level so they
+        // never reach the WebView.
+        private val BLOCKED_HOSTS = listOf(
+            "assets.emergent.sh",
+            "app.emergent.sh",
+            "emergent.sh",
+            "us.i.posthog.com",
+            "i.posthog.com",
+            "posthog.com",
+        )
+
         private val BADGE_NUKE_JS = """
             (function nuke() {
                 const cssRule = `

@@ -17,21 +17,19 @@ import { useEffect } from 'react';
  */
 export default function useSpatialFocus() {
     useEffect(() => {
-        // Two-mode pacing tuned to match Android TV's LeanBack launcher:
+        // Pacing tuned to match Android TV LeanBack / Stremio TV.
+        // Reference apps both use INSTANT scroll while the user
+        // navigates — the smoothness comes from the focus-glow CSS
+        // transition, NOT animated scrollTo (which queues frames
+        // mid-flight and causes the "skipped icon" bug the user
+        // reported).
         //
-        //   • SINGLE press → 75 ms cooldown, smooth scroll
-        //   • HOLD / repeat (e.repeat === true) → 55 ms cooldown,
-        //     instant scroll
-        //
-        // LeanBack accepts ~14 presses/sec while held; we mirror that
-        // by detecting key auto-repeat (`e.repeat`) and switching to
-        // instant scroll while the user holds — so tiles glide through
-        // rather than queueing smooth animations that pile up.
-        const COOLDOWN_PRESS_MS = 75;
+        //   • SINGLE press → 90 ms cooldown
+        //   • HOLD / repeat → 55 ms cooldown
+        const COOLDOWN_PRESS_MS = 90;
         const COOLDOWN_REPEAT_MS = 55;
-        // LeanBack pins the focused row at ~32% of the viewport so the
-        // next row down is already visible (and the row above stays in
-        // peripheral view).  Rows slide; focused tile stays put.
+        // LeanBack pins the focused row at ~32% of the viewport so
+        // the next row down is already visible.
         const VERTICAL_PIN_RATIO = 0.32;
         let lastDirAt = 0;
 
@@ -70,7 +68,10 @@ export default function useSpatialFocus() {
                 let inDirection = false;
                 let primary = 0;
                 let perpendicular = 0;
-                const overlapTol = 8;
+                // More forgiving alignment tolerance — picks up
+                // items that are a few px off the row/column due to
+                // rounding or fractional shelves.
+                const overlapTol = 20;
 
                 if (dir === 'right') {
                     inDirection = r.left >= cur.right - overlapTol;
@@ -93,9 +94,12 @@ export default function useSpatialFocus() {
                 if (!inDirection) continue;
                 if (primary < 0) primary = 0;
 
-                // Heavy weight on perpendicular distance so we prefer items
-                // roughly aligned with the current focused item.
-                const score = primary + perpendicular * 2;
+                // Heavy weight on perpendicular distance so we
+                // strongly prefer items on the same row/column as
+                // the focused one — mirrors how Stremio's launcher
+                // refuses to jump diagonally unless nothing's
+                // directly in line.
+                const score = primary + perpendicular * 3;
                 if (score < bestScore) {
                     bestScore = score;
                     best = el;
@@ -153,14 +157,19 @@ export default function useSpatialFocus() {
             }
         };
 
-        const focusEl = (el, dir, instant = false) => {
+        const focusEl = (el, dir, _instant = false) => {
             if (!el) return;
             el.focus({ preventScroll: true });
             setFocusAttr(el);
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight;
-            const scrollBehavior = instant ? 'auto' : 'smooth';
+            // ALWAYS instant — the focus glow CSS transition gives
+            // visual fluidity; animated scrollTo queues frames that
+            // make subsequent key presses see stale rects and skip
+            // candidates.  Reference launchers (LeanBack, Stremio)
+            // both scroll instantly.
+            const scrollBehavior = 'auto';
 
             if (dir === 'left' || dir === 'right') {
                 const hs = horizontalScroller(el);
@@ -237,10 +246,7 @@ export default function useSpatialFocus() {
                     const vs =
                         verticalScroller(active) || document.scrollingElement;
                     if (vs && vs.scrollTop > 0) {
-                        vs.scrollTo({
-                            top: 0,
-                            behavior: repeat ? 'auto' : 'smooth',
-                        });
+                        vs.scrollTo({ top: 0, behavior: 'auto' });
                     }
                 }
                 return;

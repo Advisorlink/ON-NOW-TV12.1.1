@@ -35,6 +35,43 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 12 — Feb 2026)
+- **"Static Preview" banner killed inside the APK** — the bundled
+  `index.html` was still loading `assets.emergent.sh/scripts/emergent-main.js`
+  + the PostHog telemetry init, both of which injected the
+  "You're viewing a static preview. Resume to interact" banner and
+  the "Made with Emergent" badge into the WebView. The
+  `build-apk.yml` workflow now runs a Python `re.sub` pass that
+  strips:
+    1. the `<script ... assets.emergent.sh ...>` tag,
+    2. the `<a id="emergent-badge">…</a>` element, and
+    3. the PostHog `<script>…posthog.init(…)…</script>` block
+  from `frontend/build/index.html` before copying into Android
+  assets. Build fails fast (`grep -q` sanity checks) if any of
+  them slip through.
+- **Runtime safety net** — `VesperWebViewClient.shouldInterceptRequest`
+  returns an empty 200 for any request to `assets.emergent.sh`,
+  `app.emergent.sh`, `emergent.sh` and `*.posthog.com`, so even if
+  a future build leaks the script tag back in, the WebView will
+  never fetch it.
+- **D-pad navigation overhaul — instant scroll** — `useSpatialFocus.js`
+  was using `behavior: 'smooth'` for scrollBy, which queued mid-flight
+  scroll animations.  Subsequent key presses then read mid-animation
+  rects and picked wrong candidates ("skipping icons" bug the user
+  reported). Switched to **always-instant** scroll — fluidity comes
+  from the focus-glow CSS transition, exactly like Stremio / LeanBack.
+  Other tuning: perpendicular score weight 2 → 3 (stronger row/column
+  preference), overlapTol 8 → 20 px (more forgiving alignment), single
+  press cooldown 75 → 90 ms (rejects accidental double-presses), hold
+  cooldown 55 ms.
+- **Home snaps to top on every (re)mount** — `useLayoutEffect` +
+  two deferred re-snaps (80 ms / 240 ms) force
+  `home-main.scrollTop = 0` whenever Home mounts or the filter
+  changes, so the bottom-aligned hero ("Featured · Action / The
+  Boys / Play / More Info / My List") is always visible at the
+  natural position.
+
+
 ## Implemented (Iteration 11 — Feb 2026)
 - **TV Shows / Movies moved into SideNav** — `SideNav.jsx` now has
   dedicated `Tv` and `Film` entries that navigate to `/?filter=series`

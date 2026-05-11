@@ -58,6 +58,34 @@ jobs:
           rm -rf android/vesper-tv/app/src/main/assets/web
           mkdir -p android/vesper-tv/app/src/main/assets/web
           cp -r frontend/build/. android/vesper-tv/app/src/main/assets/web/
+
+          # --- Strip Emergent preview / PostHog telemetry from the
+          # bundled index.html.  These scripts inject the "You're
+          # viewing a static preview — Resume to interact" banner and
+          # the "Made with Emergent" badge, both of which show up on
+          # the sideloaded APK because the WebView fetches them over
+          # the internet.  We want a clean, branded experience inside
+          # the box, so we surgically remove them at bundle time.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/vesper-tv/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          # 1) Remove the emergent-main.js loader script.
+          html = re.sub(
+              r'<script[^>]*assets\.emergent\.sh[^>]*></script>\s*',
+              '', html, flags=re.IGNORECASE)
+          # 2) Remove the "Made with Emergent" badge anchor element.
+          html = re.sub(
+              r'<a\s+id="emergent-badge"[\s\S]*?</a>\s*',
+              '', html, flags=re.IGNORECASE)
+          # 3) Remove the PostHog telemetry init script block.
+          html = re.sub(
+              r'<script>\s*!\(function\s*\([^)]*\)\s*\{[\s\S]*?posthog\.init\([\s\S]*?\}\);?\s*</script>\s*',
+              '', html, flags=re.IGNORECASE)
+          p.write_text(html, encoding='utf-8')
+          print('=== index.html cleaned of Emergent / PostHog tracking ===')
+          PY
+
           echo "=== Bundled into APK assets: ==="
           ls -la android/vesper-tv/app/src/main/assets/web/ | head
           FILES=$(find android/vesper-tv/app/src/main/assets/web/ -type f | wc -l)
@@ -72,7 +100,16 @@ jobs:
             echo "❌ ERROR: index.html missing from bundled assets!"
             exit 1
           fi
-          echo "=== index.html first 30 lines: ==="
+          # Sanity check: emergent.sh script must be gone
+          if grep -q "assets.emergent.sh" android/vesper-tv/app/src/main/assets/web/index.html; then
+            echo "❌ ERROR: emergent script not stripped from index.html"
+            exit 1
+          fi
+          if grep -q "emergent-badge" android/vesper-tv/app/src/main/assets/web/index.html; then
+            echo "❌ ERROR: emergent-badge not stripped from index.html"
+            exit 1
+          fi
+          echo "=== index.html (sanitized) first 30 lines: ==="
           head -30 android/vesper-tv/app/src/main/assets/web/index.html
 
       - name: Set up JDK 17
