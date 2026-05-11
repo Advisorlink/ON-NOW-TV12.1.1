@@ -15,6 +15,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
 const streamMode = (s) => {
@@ -45,6 +46,14 @@ export default function Detail() {
     const location = useLocation();
     const resumeRequested = useMemo(
         () => new URLSearchParams(location.search).get('resume') === '1',
+        [location.search]
+    );
+    // ?autoplay=1 lands here from the hero's Play button — when the
+    // Autoplay 1080p setting is on, we pick the first 1080p direct
+    // stream the moment the streams list resolves and start playback
+    // automatically, skipping the source picker.
+    const autoplayRequested = useMemo(
+        () => new URLSearchParams(location.search).get('autoplay') === '1',
         [location.search]
     );
 
@@ -103,6 +112,36 @@ export default function Detail() {
             cancel = true;
         };
     }, [type, id]);
+
+    // ---------- AUTOPLAY 1080p ----------
+    // When the user pressed Play from the hero / detail page AND the
+    // "Autoplay 1080p" setting is on, pick the first playable 1080p
+    // direct stream and fire playStream automatically.  Falls back
+    // silently to the source list if no 1080p stream exists.
+    const autoplayFiredRef = React.useRef(false);
+    useEffect(() => {
+        if (autoplayFiredRef.current) return;
+        if (!autoplayRequested) return;
+        if (type === 'series') return; // series uses per-episode flow
+        if (streamLoading) return;
+        if (!getAutoplay1080p()) return;
+        const candidate =
+            streams.find(
+                (s) =>
+                    streamMode(s) === 'direct' &&
+                    qualityBadge(s)?.label === '1080p'
+            ) ||
+            // Fallback: any 1080p stream even if non-direct so the
+            // user at least sees the right pick highlighted.
+            streams.find((s) => qualityBadge(s)?.label === '1080p');
+        if (!candidate) return;
+        autoplayFiredRef.current = true;
+        // Defer to next tick so the playStream closure has the
+        // latest meta available.
+        const t = setTimeout(() => playStream(candidate), 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streams, streamLoading, autoplayRequested, type]);
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);

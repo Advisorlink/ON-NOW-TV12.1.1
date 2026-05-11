@@ -35,6 +35,51 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 15 — Feb 2026)
+- **Slimmer SideNav** — collapsed 108 px → 76 px, expanded 320 px →
+  240 px. Items shrank from h-14 to h-11, icons 24 → 20, padding
+  py-9 → py-7, label font 20 px → 15 px. Logo from 56 px → 40 px.
+  Page padding-left tokens dropped from `clamp(124px, 9.5vw, 180px)`
+  to `clamp(92px, 6.5vw, 132px)` everywhere (Home, Network,
+  Networks, ContinueWatching, TabGridView, HeroBillboard, Shelf).
+- **Sidebar opens only on FAR-LEFT press** — `useSpatialFocus` now
+  filters the SideNav out of the candidate set when navigating
+  Up/Down/Right from the content area. Pressing Left when no further
+  left target exists is the dedicated trigger for moving focus into
+  the sidebar (which auto-expands via its own onFocus handler).
+  Pressing Right from inside the nav jumps back to the first
+  non-nav focusable.
+- **Hero locked in place** — Home now splits its layout: hero
+  billboard is in a `shrink-0` div outside the scroll region; the
+  Continue Watching / Networks / shelves all live inside a separate
+  `flex-1 overflow-y-auto` container. When the user D-pad-Downs from
+  Play into shelves, only that inner region scrolls — hero stays
+  visible at the top forever.
+- **TV Shows tab now actually loads** — root cause: I'd added
+  `itemsPerCatalog` to the `useLiveShelves` cache key (`shelves:series:60:...`)
+  which was a brand-new key with no localStorage fallback, so the
+  first cold hit on the TV Shows tab had nothing to fall back to
+  while the live fetch was in flight. Fixed by dropping the
+  per-limit cache split: cache always stores the larger of
+  `(itemsPerCatalog, 60)` items, and consumers slice down at render
+  time. One cache entry now satisfies both home (18) and tab-grid
+  (60) views.
+- **Autoplay 1080p toggle in Settings** — new
+  `lib/prefs.js` with `getAutoplay1080p()` / `setAutoplay1080p()`.
+  Settings page gained a "Streams · Autoplay 1080p" toggle row.
+  When ON, pressing the hero's Play button navigates with
+  `?autoplay=1`; Detail.jsx watches for `autoplayRequested` +
+  `streamLoading=false`, picks the first stream whose
+  `qualityBadge.label === '1080p'` (preferring direct mode), and
+  fires `playStream(candidate)` automatically — skipping the source
+  picker entirely. Falls back to the picker silently if no 1080p
+  stream is available.
+- **Thin bright-blue focus glow** — replaced the fat 6 px ring +
+  96 px halo + multi-layer shadow with a sharp 2 px neon ring + a
+  tight 18 px outer glow. Matches Android TV / LeanBack default
+  aesthetic. Applied to tile, pill, key, and quiet focus styles.
+
+
 ## Implemented (Iteration 14 — Feb 2026)
 - **Offline-resilient cache** — `lib/cache.js` now mirrors `addons`,
   `shelves:*`, `heroes:*` and `networks:*` cache entries to

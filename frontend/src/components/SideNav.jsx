@@ -36,22 +36,22 @@ export default function SideNav() {
                 if (!e.currentTarget.contains(e.relatedTarget))
                     setExpanded(false);
             }}
-            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-9 transition-[width,background] duration-300"
+            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-300"
             style={{
-                width: expanded ? '320px' : '108px',
+                width: expanded ? '240px' : '76px',
                 background: expanded
-                    ? 'linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.85) 60%, rgba(10,14,26,0) 100%)'
+                    ? 'linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.82) 60%, rgba(10,14,26,0) 100%)'
                     : 'transparent',
                 backdropFilter: expanded ? 'blur(14px)' : 'none',
             }}
         >
             {/* Brand mark */}
-            <div className="flex items-center gap-3 pl-5 pr-4 mb-12 select-none">
+            <div className="flex items-center gap-3 pl-3 pr-3 mb-8 select-none">
                 <img
                     src={Host.publicAsset('/brand/onnowtv-logo.png')}
                     alt="ON NOW TV V2"
-                    className="shrink-0 w-14 h-14 object-contain"
-                    style={{ filter: 'drop-shadow(0 0 16px rgba(93,200,255,0.35))' }}
+                    className="shrink-0 w-10 h-10 object-contain"
+                    style={{ filter: 'drop-shadow(0 0 14px rgba(93,200,255,0.3))' }}
                 />
                 <div
                     className="overflow-hidden whitespace-nowrap transition-opacity duration-300"
@@ -60,7 +60,7 @@ export default function SideNav() {
                     <div
                         className="vesper-display"
                         style={{
-                            fontSize: 22,
+                            fontSize: 16,
                             lineHeight: 1.05,
                             letterSpacing: '-0.02em',
                         }}
@@ -68,14 +68,14 @@ export default function SideNav() {
                         ON NOW TV{' '}
                         <span style={{ color: 'var(--vesper-blue)' }}>V2</span>
                     </div>
-                    <div className="vesper-eyebrow" style={{ fontSize: 10 }}>
+                    <div className="vesper-eyebrow" style={{ fontSize: 9 }}>
                         for HK1 · TV
                     </div>
                 </div>
             </div>
 
             {/* Items */}
-            <div className="flex flex-col gap-1 px-4">
+            <div className="flex flex-col gap-1 px-3">
                 {NAV.map((item) => {
                     const Icon = item.icon;
                     // For the home / TV Shows / Movies items we need
@@ -106,16 +106,16 @@ export default function SideNav() {
                             data-focus-style="nav"
                             tabIndex={0}
                             onClick={() => navigate(item.path)}
-                            className={`relative flex items-center gap-5 h-14 px-3 rounded-lg text-left ${
+                            className={`relative flex items-center gap-4 h-11 px-2 rounded-lg text-left ${
                                 isActive
                                     ? 'text-vesper-text'
                                     : 'text-vesper-text2'
                             }`}
                         >
-                            <span className="flex items-center justify-center w-12 h-12 shrink-0">
+                            <span className="flex items-center justify-center w-9 h-9 shrink-0">
                                 <Icon
-                                    size={24}
-                                    strokeWidth={1.6}
+                                    size={20}
+                                    strokeWidth={1.7}
                                     style={{
                                         color: isActive
                                             ? 'var(--vesper-blue)'
@@ -124,7 +124,7 @@ export default function SideNav() {
                                 />
                             </span>
                             <span
-                                className="font-sans text-[20px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                                className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
                                 style={{ opacity: expanded ? 1 : 0 }}
                             >
                                 {item.label}

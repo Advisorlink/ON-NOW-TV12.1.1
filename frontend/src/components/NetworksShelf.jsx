@@ -53,7 +53,7 @@ export default function NetworksShelf() {
             <header
                 className="flex items-end justify-between mb-3"
                 style={{
-                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                 }}
             >
@@ -87,8 +87,8 @@ export default function NetworksShelf() {
                 className="vesper-shelf flex"
                 style={{
                     gap: 'clamp(14px, 1.25vw, 24px)',
-                    paddingLeft: 'clamp(124px, 9.5vw, 180px)',
-                    paddingRight: 'clamp(124px, 9.5vw, 180px)',
+                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                    paddingRight: 'clamp(92px, 6.5vw, 132px)',
                     paddingTop: 'clamp(14px, 1.4vw, 22px)',
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
                 }}

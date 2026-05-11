@@ -5,18 +5,22 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
+import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 
 /**
- * Settings → Appearance → Theme picker.
- *
- * Renders a preview card for each theme in THEMES.  D-pad focusable;
- * pressing Enter applies the theme immediately + persists to local
- * storage, then navigates Home so the user sees the change.
+ * Settings → Appearance → Theme picker + Playback toggles.
  */
 export default function Settings() {
     useSpatialFocus();
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
+    const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
+
+    const toggleAutoplay = () => {
+        const next = !autoplay;
+        setAutoplay1080p(next);
+        setAutoplay(next);
+    };
 
     return (
         <div
@@ -110,7 +114,112 @@ export default function Settings() {
                     />
                 ))}
             </div>
+
+            {/* ---- Playback section ---- */}
+            <div
+                style={{
+                    fontFamily: 'var(--theme-font-mono, monospace)',
+                    fontSize: 11,
+                    letterSpacing: '0.32em',
+                    textTransform: 'uppercase',
+                    color: 'var(--theme-accent, var(--vesper-blue))',
+                    marginTop: 64,
+                    marginBottom: 8,
+                }}
+            >
+                Settings · Playback
+            </div>
+            <h2
+                style={{
+                    fontFamily: 'var(--theme-font-display, "Geist", sans-serif)',
+                    fontSize: 'clamp(28px, 3.2vw, 48px)',
+                    fontWeight: 700,
+                    letterSpacing: '-0.025em',
+                    lineHeight: 0.95,
+                    marginBottom: 24,
+                }}
+            >
+                Streams
+            </h2>
+
+            <ToggleRow
+                testid="autoplay-1080p"
+                title="Autoplay 1080p"
+                description="Skip the sources list and instantly play the first 1080p stream when you press Play.  Falls back to the source picker if no 1080p stream is available."
+                value={autoplay}
+                onToggle={toggleAutoplay}
+            />
         </div>
+    );
+}
+
+function ToggleRow({ testid, title, description, value, onToggle }) {
+    return (
+        <button
+            data-testid={`toggle-${testid}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={onToggle}
+            className="w-full flex items-center justify-between gap-6 text-left"
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 16,
+                padding: '20px 24px',
+            }}
+        >
+            <div className="flex-1 min-w-0">
+                <div
+                    style={{
+                        fontSize: 18,
+                        fontWeight: 600,
+                        letterSpacing: '-0.01em',
+                        color: 'var(--vesper-text)',
+                    }}
+                >
+                    {title}
+                </div>
+                <div
+                    style={{
+                        marginTop: 6,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        color: 'var(--vesper-text-2)',
+                        maxWidth: '70ch',
+                    }}
+                >
+                    {description}
+                </div>
+            </div>
+            <span
+                style={{
+                    flex: '0 0 auto',
+                    width: 56,
+                    height: 32,
+                    borderRadius: 999,
+                    background: value
+                        ? 'var(--vesper-blue)'
+                        : 'rgba(255,255,255,0.12)',
+                    position: 'relative',
+                    transition: 'background 220ms ease',
+                }}
+            >
+                <span
+                    style={{
+                        position: 'absolute',
+                        top: 3,
+                        left: value ? 27 : 3,
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        background: '#fff',
+                        transition: 'left 220ms ease',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                    }}
+                />
+            </span>
+        </button>
     );
 }
 

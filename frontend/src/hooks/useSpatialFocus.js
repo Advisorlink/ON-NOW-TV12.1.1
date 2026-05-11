@@ -54,7 +54,28 @@ export default function useSpatialFocus() {
         const findNext = (current, dir) => {
             const cur = current.getBoundingClientRect();
             const c = center(cur);
-            const candidates = focusables().filter((el) => el !== current);
+            const currentInNav = !!current.closest(
+                '[data-testid="side-nav"]'
+            );
+            // The side-nav participates in spatial navigation ONLY
+            // when:
+            //   • the user is already inside it (moving up/down
+            //     through the menu items), or
+            //   • the user pressed Left from outside (handled as a
+            //     fallback after findNext() returns null).
+            // For all other directions we filter SideNav items out
+            // of the candidate set so going Up from a shelf never
+            // accidentally lands on Home / TV Shows / Movies.
+            const candidates = focusables().filter((el) => {
+                if (el === current) return false;
+                const inNav = !!el.closest('[data-testid="side-nav"]');
+                if (!currentInNav && inNav) return false;
+                if (currentInNav && !inNav && dir === 'right') {
+                    // Allow leaving the nav rightwards
+                    return true;
+                }
+                return true;
+            });
 
             let best = null;
             let bestScore = Infinity;
@@ -238,15 +259,46 @@ export default function useSpatialFocus() {
                 const next = findNext(active, dir);
                 if (next) {
                     focusEl(next, dir, repeat);
+                } else if (dir === 'left') {
+                    // No left-candidate found inside the content area.
+                    // Reveal & focus the SideNav.  This is what makes
+                    // the sidebar feel like Stremio TV / LeanBack —
+                    // only the FAR-left press opens it; pressing Up
+                    // from a shelf never accidentally jumps into the
+                    // nav.  The nav already auto-expands on focus via
+                    // its own onFocus handler.
+                    const navItems = Array.from(
+                        document.querySelectorAll(
+                            '[data-testid="side-nav"] [data-focusable="true"]'
+                        )
+                    );
+                    // If the user is already inside the side-nav, no
+                    // further-left target exists — stay put.
+                    const inNav = active.closest('[data-testid="side-nav"]');
+                    if (!inNav && navItems.length > 0) {
+                        focusEl(navItems[0], 'left', repeat);
+                    }
                 } else if (dir === 'up') {
                     // Already on the topmost focusable — snap the
-                    // page to its absolute top so the heading sits
-                    // flush against the top edge instead of being
-                    // half-clipped by the LeanBack pin.
+                    // page (or its scroll region) to its absolute top.
                     const vs =
                         verticalScroller(active) || document.scrollingElement;
                     if (vs && vs.scrollTop > 0) {
                         vs.scrollTo({ top: 0, behavior: 'auto' });
+                    }
+                } else if (dir === 'right') {
+                    // From the side-nav, pressing right should jump
+                    // back into the content area (first non-nav
+                    // focusable).
+                    const inNav = active.closest('[data-testid="side-nav"]');
+                    if (inNav) {
+                        const all = focusables();
+                        const firstContent = all.find(
+                            (el) => !el.closest('[data-testid="side-nav"]')
+                        );
+                        if (firstContent) {
+                            focusEl(firstContent, 'right', repeat);
+                        }
                     }
                 }
                 return;

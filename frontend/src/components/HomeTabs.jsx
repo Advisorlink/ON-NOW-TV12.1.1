@@ -17,7 +17,7 @@ export default function HomeTabs({ value, onChange }) {
             data-testid="home-tabs"
             className="flex items-center"
             style={{
-                paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                 paddingRight: 'clamp(40px, 4.2vw, 80px)',
                 paddingTop: 'clamp(6px, 0.7vw, 10px)',
                 paddingBottom: 0,

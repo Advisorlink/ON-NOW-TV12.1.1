@@ -45,7 +45,7 @@ export default function TabGridView({ shelves, loading, type }) {
         <section
             data-testid={`tab-grid-${type}`}
             style={{
-                paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                 paddingRight: 'clamp(40px, 4.2vw, 80px)',
                 paddingTop: 'clamp(60px, 6vw, 96px)',
                 paddingBottom: 'clamp(40px, 5vw, 80px)',

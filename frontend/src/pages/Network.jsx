@@ -180,7 +180,7 @@ export default function Network() {
                     style={{
                         height: 'clamp(220px, 28vw, 360px)',
                         background: network.background,
-                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                         paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     }}
                 >
@@ -260,7 +260,7 @@ export default function Network() {
                     data-testid="network-subtabs"
                     className="flex items-center"
                     style={{
-                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                         paddingRight: 'clamp(40px, 4.2vw, 80px)',
                         paddingTop: 'clamp(16px, 1.6vw, 24px)',
                         paddingBottom: 0,
@@ -284,7 +284,7 @@ export default function Network() {
                 <section
                     className="relative w-full"
                     style={{
-                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                         paddingRight: 'clamp(40px, 4.2vw, 80px)',
                         paddingTop: 'clamp(20px, 2.4vw, 32px)',
                         paddingBottom: 'clamp(56px, 6vw, 96px)',

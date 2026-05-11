@@ -37,9 +37,13 @@ export default function HeroBillboard({ heroes }) {
         hero.genres?.length ? hero.genres.slice(0, 3).join(' · ') : null,
     ].filter(Boolean);
 
-    const goToDetail = () => {
-        if (hero.routePath) navigate(hero.routePath);
-        else navigate(`/title/${hero.id}`);
+    const goToDetail = (autoplay = false) => {
+        // Append `?autoplay=1` for the Play button so the Detail
+        // page can auto-pick a 1080p stream when the user enabled
+        // that setting (and silently fall back otherwise).
+        const suffix = autoplay ? '?autoplay=1' : '';
+        if (hero.routePath) navigate(hero.routePath + suffix);
+        else navigate(`/title/${hero.id}${suffix}`);
     };
 
     return (
@@ -102,7 +106,7 @@ export default function HeroBillboard({ heroes }) {
                     key={hero.id}
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
                     style={{
-                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
+                        paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                         paddingBottom: 'clamp(48px, 5vw, 96px)',
                     }}
                 >
@@ -166,7 +170,7 @@ export default function HeroBillboard({ heroes }) {
                             data-focus-style="pill"
                             data-initial-focus="true"
                             tabIndex={0}
-                            onClick={goToDetail}
+                            onClick={() => goToDetail(true)}
                             className="flex items-center gap-2 rounded-full font-sans font-semibold"
                             style={{
                                 height: 'clamp(44px, 3.6vw, 52px)',
@@ -186,7 +190,7 @@ export default function HeroBillboard({ heroes }) {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
-                            onClick={goToDetail}
+                            onClick={() => goToDetail(false)}
                             className="flex items-center gap-2 rounded-full font-sans font-medium"
                             style={{
                                 height: 'clamp(44px, 3.6vw, 52px)',

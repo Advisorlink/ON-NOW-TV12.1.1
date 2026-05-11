@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import SideNav from '@/components/SideNav';
 import HeroBillboard from '@/components/HeroBillboard';
@@ -19,21 +19,11 @@ export default function Home() {
     const { addons } = useAddons();
     const location = useLocation();
 
-    // Filter drives the entire page mode:
-    //   - null   → full home (hero + Continue Watching + networks + shelves)
-    //   - movie  → movies-only grid sorted newest-first
-    //   - series → tv-shows-only grid sorted newest-first
     const filter = new URLSearchParams(location.search).get('filter');
     const isFilterView = filter === 'movie' || filter === 'series';
 
-    // Tell the native wrapper which "home mode" we're in so it can
-    // pop up the exit-confirm dialog only on the bare home, not on
-    // the filter views (where back should just go back to home).
     useHomeBackHandler(isFilterView ? 'home-filter' : 'home-root');
 
-    // Filter views fetch up to 60 items per catalogue so the grid
-    // has enough density to feel "endless".  Default home stays at
-    // the standard 18 to keep horizontal shelves snappy.
     const itemsPerCatalog = isFilterView ? 60 : 18;
     const shelfFilter = isFilterView ? filter : null;
     const heroType = filter === 'movie' ? 'movie' : 'series';
@@ -50,25 +40,16 @@ export default function Home() {
         [liveShelves]
     );
 
-    // Whenever the page mounts or the filter changes, snap to the
-    // very top so the hero / heading is flush against the top edge
-    // (which is where its content sits in its bottom-aligned layout).
-    // Done as a layout-effect + a deferred re-snap because the
-    // shelves load asynchronously and can push the scroll position
-    // after the initial paint.
+    // Reset the scrollable shelves region to the top whenever the
+    // filter changes (so a new heading sits flush at the top of the
+    // shelves area).  Hero stays put as it isn't part of the scroll.
     React.useLayoutEffect(() => {
-        const snap = () => {
-            const main = document.querySelector('[data-testid="home-main"]');
-            if (main) main.scrollTop = 0;
-            document.scrollingElement?.scrollTo({ top: 0, behavior: 'auto' });
-        };
-        snap();
-        const t1 = setTimeout(snap, 80);
-        const t2 = setTimeout(snap, 240);
-        return () => {
-            clearTimeout(t1);
-            clearTimeout(t2);
-        };
+        const region = document.querySelector(
+            '[data-testid="shelves-region"]'
+        );
+        if (region) region.scrollTop = 0;
+        const main = document.querySelector('[data-testid="home-main"]');
+        if (main) main.scrollTop = 0;
     }, [filter]);
 
     return (
@@ -80,72 +61,87 @@ export default function Home() {
             <SideNav />
             <FullscreenButton />
 
-            <main
-                data-testid="home-main"
-                className="absolute inset-0 overflow-y-auto"
-                style={{ scrollBehavior: 'auto' }}
-            >
-                {isFilterView ? (
+            {isFilterView ? (
+                <main
+                    data-testid="home-main"
+                    className="absolute inset-0 overflow-y-auto"
+                    style={{ scrollBehavior: 'auto' }}
+                >
                     <TabGridView
                         shelves={shelves}
                         loading={liveLoading}
                         type={filter}
                     />
-                ) : (
-                    <>
+                </main>
+            ) : (
+                /* Split layout — hero stays LOCKED at the top, only
+                   the shelves region (Continue Watching, Networks,
+                   shelves...) scrolls vertically.  This matches what
+                   the user kept asking for: "only the Rows should
+                   move".  Hero is pinned; D-pad Down from Play moves
+                   focus into the shelves and the shelves region
+                   scrolls under the hero. */
+                <main
+                    data-testid="home-main"
+                    className="absolute inset-0 flex flex-col"
+                >
+                    <div className="shrink-0">
                         <HeroBillboard heroes={liveHeroes} />
+                    </div>
 
+                    <div
+                        data-testid="shelves-region"
+                        className="flex-1 overflow-y-auto"
+                        style={{ scrollBehavior: 'auto' }}
+                    >
                         <ContinueWatchingShelf />
-
                         <NetworksShelf />
-
                         {addons.length === 0 && <EmptyAddonsBanner />}
-
                         {shelves.map((shelf, i) => (
                             <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
                                 <Shelf shelf={shelf} />
                             </Lazy>
                         ))}
-                    </>
-                )}
 
-                <footer
-                    className="flex items-center justify-between"
-                    style={{
-                        paddingLeft: 'clamp(124px, 9.5vw, 180px)',
-                        paddingRight: 'clamp(40px, 4.2vw, 80px)',
-                        paddingTop: 'clamp(20px, 2vw, 32px)',
-                        paddingBottom: 'clamp(24px, 2.5vw, 40px)',
-                    }}
-                >
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            fontSize: 11,
-                            color: 'var(--vesper-text-3)',
-                            letterSpacing: '0.22em',
-                            textTransform: 'uppercase',
-                        }}
-                    >
-                        ON NOW TV V2 · v1.0
+                        <footer
+                            className="flex items-center justify-between"
+                            style={{
+                                paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                                paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                                paddingTop: 'clamp(20px, 2vw, 32px)',
+                                paddingBottom: 'clamp(24px, 2.5vw, 40px)',
+                            }}
+                        >
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    color: 'var(--vesper-text-3)',
+                                    letterSpacing: '0.22em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                ON NOW TV V2 · v1.0
+                            </div>
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    color: 'var(--vesper-text-3)',
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {liveLoading
+                                    ? 'Loading addons…'
+                                    : `${addons.length} source${
+                                          addons.length === 1 ? '' : 's'
+                                      } active`}
+                            </div>
+                        </footer>
                     </div>
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            color: 'var(--vesper-text-3)',
-                            fontSize: 11,
-                            letterSpacing: '0.22em',
-                            textTransform: 'uppercase',
-                        }}
-                    >
-                        {liveLoading
-                            ? 'Loading addons…'
-                            : `${addons.length} source${
-                                  addons.length === 1 ? '' : 's'
-                              } active`}
-                    </div>
-                </footer>
-            </main>
+                </main>
+            )}
         </div>
     );
 }
@@ -156,7 +152,7 @@ function EmptyAddonsBanner() {
             className="flex items-center justify-between"
             style={{
                 margin:
-                    '32px clamp(40px, 4.2vw, 80px) 0 clamp(124px, 9.5vw, 180px)',
+                    '32px clamp(40px, 4.2vw, 80px) 0 clamp(92px, 6.5vw, 132px)',
                 padding: '20px 28px',
                 borderRadius: 16,
                 background:

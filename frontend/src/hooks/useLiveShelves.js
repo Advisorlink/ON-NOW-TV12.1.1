@@ -18,13 +18,22 @@ import * as cache from '@/lib/cache';
 const BROWSABLE_TYPES = new Set(['movie', 'series', 'channel', 'tv', 'anime']);
 const TTL_MS = 10 * 60 * 1000; // 10 min stale window
 
-function cacheKey(addons, filterType, itemsPerCatalog) {
+function cacheKey(addons, filterType) {
+    // Cache is keyed by addon set + filter only — NOT by
+    // itemsPerCatalog.  We always store up to 60 items per
+    // catalogue; consumers slice down at render time if they only
+    // want 18.  Keying by itemsPerCatalog caused stale-cache misses
+    // when the user clicked the TV Shows tab for the first time
+    // after we changed the limit.
     const ids = (addons || []).map((a) => a.id).sort().join(',');
-    return `shelves:${filterType || 'all'}:${itemsPerCatalog || 18}:${ids}`;
+    return `shelves:${filterType || 'all'}:${ids}`;
 }
 
 export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) {
-    const key = cacheKey(addons, filterType, itemsPerCatalog);
+    // ALWAYS fetch the larger of (itemsPerCatalog, 60) so a single
+    // cache entry can satisfy both home (18) and tab-grid (60).
+    const FETCH_LIMIT = Math.max(itemsPerCatalog, 60);
+    const key = cacheKey(addons, filterType);
     const cached = cache.get(key);
     const [shelves, setShelves] = useState(
         Array.isArray(cached?.value) ? cached.value : []
@@ -76,7 +85,7 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                             id: `${addon.id}-${cat.type}-${cat.id}`,
                             title: cat.name || prettify(cat.id),
                             eyebrow: capitalize(cat.type === 'movie' ? 'movies' : cat.type),
-                            items: metas.slice(0, itemsPerCatalog).map((m) => ({
+                            items: metas.slice(0, FETCH_LIMIT).map((m) => ({
                                 id: `${addon.id}-${m.id}`,
                                 imdbId: m.id,
                                 type: cat.type,
@@ -108,7 +117,7 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
         return () => {
             cancelled = true;
         };
-    }, [addons, filterType, itemsPerCatalog, key]);
+    }, [addons, filterType, FETCH_LIMIT, key]);
 
     return { shelves, loading };
 }
