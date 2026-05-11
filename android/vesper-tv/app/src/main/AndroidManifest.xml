@@ -53,12 +53,25 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
             android:theme="@style/Theme.Vesper.Fullscreen">
+
+            <!-- Phone / generic-Android launcher entry.  Kept in its
+                 OWN filter (separate from LEANBACK) because some old
+                 Chinese Android-7 launchers fail to scan combined
+                 filters — splitting them is the most defensive
+                 pattern and matches what Google's own AOSP samples
+                 use for "TV apps that also run on phones". -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <!-- Show on Android TV / leanback launchers (HK1 launchers
-                     usually honour either LAUNCHER or LEANBACK_LAUNCHER) -->
+            </intent-filter>
+
+            <!-- Android TV / Leanback launcher entry. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>

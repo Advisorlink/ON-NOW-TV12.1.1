@@ -35,6 +35,31 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 22 — Feb 2026)
+- **"Installed but invisible on Chinese Android 7 launcher" fix** —
+  three root causes mitigated:
+  1. **Vector banner replaced with raster PNGs** — `tv_banner.xml`
+     was a vector drawable. Old Chinese AOSP launchers on Android 7
+     sometimes fail to decode banner vectors, which causes the
+     launcher to silently skip the app's tile entirely (the user's
+     symptom: installed but not shown in launcher). Wrote 320×180
+     PNG at mdpi + 640×360 PNG at xhdpi. Deleted the vector file.
+  2. **Split intent-filters** — `LAUNCHER` and `LEANBACK_LAUNCHER`
+     categories were sharing one `<intent-filter>` block. Some old
+     Chinese launchers fail to scan combined filters and only pick
+     up the first category. Split into two separate `<intent-filter>`
+     blocks (matches Google's AOSP "TV apps that also run on phones"
+     sample pattern).
+  3. **Belt-and-braces** — added `android:icon`, `android:roundIcon`,
+     `android:label` directly on the `<activity>` element so the
+     launcher resolver always has icon metadata even when the
+     application-level fallback chain breaks.
+- **APK version bumped to 1.9.0 / versionCode 24** — ensures the
+  reinstall on the Android 7.1.2 box replaces the existing entry
+  cleanly (some old package managers refuse the install silently
+  if the version doesn't increment).
+
+
 ## Implemented (Iteration 21 — Feb 2026)
 - **Android 7.1.2 (API 25) compatibility confirmed + hardened** —
   Audit results:
