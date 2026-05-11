@@ -105,8 +105,13 @@ jobs:
             echo "❌ ERROR: emergent script not stripped from index.html"
             exit 1
           fi
-          if grep -q "emergent-badge" android/vesper-tv/app/src/main/assets/web/index.html; then
-            echo "❌ ERROR: emergent-badge not stripped from index.html"
+          # The id="emergent-badge" anchor element must be gone (we
+          # still keep the CSS-selector string in our inline <style>
+          # block as a runtime safety net, so we look for the
+          # specific `id="emergent-badge"` attribute, not just the
+          # bare substring).
+          if grep -q 'id="emergent-badge"' android/vesper-tv/app/src/main/assets/web/index.html; then
+            echo "❌ ERROR: emergent-badge anchor element not stripped from index.html"
             exit 1
           fi
           echo "=== index.html (sanitized) first 30 lines: ==="
