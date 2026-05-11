@@ -35,6 +35,32 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 13 — Feb 2026)
+- **Network page right-edge cutoff fixed** — `Network.jsx`'s poster
+  grid had `paddingRight: clamp(124px, 9.5vw, 180px)`, exactly one
+  poster's width of dead space.  Changed to the standard
+  `clamp(40px, 4.2vw, 80px)` (same as Home shelves) so 8 posters now
+  fit per row instead of 7.
+- **Episode "Watched" badge** — new `cw.isWatched(id)` /
+  `cw.getProgress(id)` helpers backed by a durable
+  `onnowtv-watched-v1` localStorage set that's seeded automatically
+  whenever progress ≥ 92 % or within 60 s of the end.
+  `SeriesEpisodes.jsx` renders a neon-blue "Watched" check pill on
+  the top-right of episode thumbnails plus a 4 px progress bar at
+  the bottom for in-progress episodes; the text column is dimmed to
+  0.68 opacity when watched.
+- **Custom-themed Exit Confirm dialog** — `dialog_exit_confirm.xml`
+  with matching `exit_card_bg`, `exit_glow`, `exit_btn_primary` and
+  `exit_btn_secondary` drawables.  Replaces the stock AlertDialog
+  with a 560 dp glass card: blue eyebrow, "Close the app?" headline,
+  warm copy ("Your Continue Watching list is saved on this box — pick
+  up right where you left off whenever you come back."), neon
+  divider, and two D-pad-focusable pill buttons (Stay / Close app).
+  `MainActivity.showExitConfirm()` inflates and shows it with a
+  transparent window background so the rounded card corners render
+  cleanly.
+
+
 ## Implemented (Iteration 12 — Feb 2026)
 - **"Static Preview" banner killed inside the APK** — the bundled
   `index.html` was still loading `assets.emergent.sh/scripts/emergent-main.js`

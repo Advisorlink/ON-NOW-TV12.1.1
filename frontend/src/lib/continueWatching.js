@@ -26,6 +26,7 @@
  */
 
 const STORAGE_KEY = 'onnowtv-continue-watching-v1';
+const WATCHED_KEY = 'onnowtv-watched-v1';
 const MAX_ENTRIES = 30;
 
 function readAll() {
@@ -47,6 +48,50 @@ function writeAll(list) {
     }
 }
 
+function readWatchedSet() {
+    try {
+        const raw = localStorage.getItem(WATCHED_KEY);
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw);
+        return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+        return new Set();
+    }
+}
+
+function writeWatchedSet(set) {
+    try {
+        localStorage.setItem(
+            WATCHED_KEY,
+            JSON.stringify(Array.from(set))
+        );
+    } catch {
+        /* ignore */
+    }
+}
+
+/**
+ * Check whether a given entry's progress qualifies as "watched"
+ * (≥92 % through, or within the last 60 s).
+ */
+function progressIsWatched(positionMs, durationMs) {
+    const p = Number(positionMs) || 0;
+    const d = Number(durationMs) || 0;
+    if (!d || !p) return false;
+    if (p / d >= 0.92) return true;
+    if (d - p <= 60_000) return true;
+    return false;
+}
+
+function markWatchedIfDone(id, positionMs, durationMs) {
+    if (!id) return;
+    if (!progressIsWatched(positionMs, durationMs)) return;
+    const set = readWatchedSet();
+    if (set.has(id)) return;
+    set.add(id);
+    writeWatchedSet(set);
+}
+
 export function getEntries() {
     return readAll()
         .slice()
@@ -64,6 +109,7 @@ export function upsert(partial) {
     if (i >= 0) list[i] = next;
     else list.unshift(next);
     writeAll(list);
+    markWatchedIfDone(next.id, next.positionMs, next.durationMs);
 }
 
 export function remove(id) {
@@ -105,6 +151,11 @@ export function syncFromNative() {
                     durationMs: p.durationMs || list[i].durationMs,
                     updatedAt: Math.max(oldUpdated, newUpdated),
                 };
+                markWatchedIfDone(
+                    id,
+                    list[i].positionMs,
+                    list[i].durationMs
+                );
                 changed = true;
             }
         }
@@ -124,4 +175,41 @@ export function maybeMarkCompleted(id, positionMs, durationMs) {
     if (durationMs - positionMs < 30_000) {
         remove(id);
     }
+}
+
+/**
+ * Returns true when the given cwId has been watched at least 92 % of
+ * the way through (or within 60 s of the end if duration is known).
+ * Reads the durable watched-set so the badge persists even after
+ * the user removes the entry from the Continue Watching shelf.
+ */
+export function isWatched(id) {
+    if (!id) return false;
+    const set = readWatchedSet();
+    if (set.has(id)) return true;
+    // Fallback: derive from any current CW entry — handles items
+    // recorded before the watched set was introduced.
+    const list = readAll();
+    const e = list.find((x) => x.id === id);
+    return !!e && progressIsWatched(e.positionMs, e.durationMs);
+}
+
+/**
+ * Hard-clear the "watched" flag for a single id.  Useful if the
+ * user wants to re-mark an episode as unseen.
+ */
+export function markUnwatched(id) {
+    if (!id) return;
+    const set = readWatchedSet();
+    if (set.delete(id)) writeWatchedSet(set);
+}
+
+/**
+ * Return the raw progress entry (or null) so callers can show a
+ * partial progress bar on tiles for in-progress titles.
+ */
+export function getProgress(id) {
+    if (!id) return null;
+    const list = readAll();
+    return list.find((x) => x.id === id) || null;
 }

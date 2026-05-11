@@ -170,15 +170,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showExitConfirm() {
-        androidx.appcompat.app.AlertDialog.Builder(
-            this,
-            androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+        // Build a fully custom Vesper-themed exit sheet instead of
+        // the stock AlertDialog.  Uses our inflated dialog layout
+        // with neon-blue accent buttons and a glass-card background.
+        val view = layoutInflater.inflate(
+            R.layout.dialog_exit_confirm, null
         )
-            .setTitle("Close ON NOW TV?")
-            .setMessage("Are you sure you want to exit the app?")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Close") { _, _ -> finish() }
-            .show()
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Dialog
+        )
+            .setView(view)
+            .setCancelable(true)
+            .create()
+
+        // Transparent decor window so our drawable corner radius
+        // shows through (default would put a white rectangle behind).
+        dialog.window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT
+            )
+        )
+        dialog.window?.setLayout(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        )
+
+        val btnCancel = view.findViewById<android.widget.Button>(
+            R.id.exit_btn_cancel
+        )
+        val btnClose = view.findViewById<android.widget.Button>(
+            R.id.exit_btn_close
+        )
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+        btnClose.setOnClickListener {
+            dialog.dismiss()
+            finish()
+        }
+
+        dialog.setOnShowListener {
+            // Land focus on Cancel ("Stay") so the safer action is
+            // the default — the user has to explicitly press Right
+            // to land on "Close app".
+            btnCancel.requestFocus()
+        }
+
+        dialog.show()
     }
 
     override fun onDestroy() {

@@ -369,6 +369,20 @@ function EpisodeCard({
 
     const runtime = fmtRuntime(ep.runtime);
     const released = fmtDate(ep.released || ep.firstAired);
+    // CW key is "<parentId>:s<N>e<M>" — same as the resume entry
+    // upsert in handleEpisodeClick / playStream below.  If the user
+    // has watched this episode all the way through we flag it with
+    // a "WATCHED" badge on the thumbnail.
+    const cwIdForEp = `${parentId || ''}:s${ep.season}e${ep.episode}`;
+    const watched = cw.isWatched(cwIdForEp);
+    const progress = cw.getProgress(cwIdForEp);
+    const pct =
+        !watched && progress?.durationMs && progress?.positionMs
+            ? Math.min(
+                  100,
+                  Math.max(0, (progress.positionMs / progress.durationMs) * 100)
+              )
+            : 0;
 
     return (
         <li
@@ -446,6 +460,61 @@ function EpisodeCard({
                     >
                         S{ep.season} · E{ep.episode}
                     </div>
+                    {watched && (
+                        <div
+                            data-testid={`watched-${ep.season}-${ep.episode}`}
+                            className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
+                            style={{
+                                background: 'rgba(93,200,255,0.92)',
+                                color: '#06080F',
+                                fontSize: 'clamp(9px, 0.62vw, 11px)',
+                                letterSpacing: '0.18em',
+                                textTransform: 'uppercase',
+                                fontWeight: 700,
+                                padding: '4px 9px 4px 7px',
+                                borderRadius: 6,
+                                boxShadow:
+                                    '0 4px 14px rgba(93,200,255,0.45)',
+                            }}
+                        >
+                            <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            Watched
+                        </div>
+                    )}
+                    {pct > 0 && (
+                        <div
+                            data-testid={`ep-progress-${ep.season}-${ep.episode}`}
+                            className="absolute"
+                            style={{
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                height: 4,
+                                background: 'rgba(255,255,255,0.16)',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: `${pct}%`,
+                                    height: '100%',
+                                    background: 'var(--vesper-blue)',
+                                    boxShadow:
+                                        '0 0 12px var(--vesper-blue-glow)',
+                                }}
+                            />
+                        </div>
+                    )}
                     <div
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                         style={{
@@ -474,7 +543,7 @@ function EpisodeCard({
                 </div>
 
                 {/* Text */}
-                <div className="min-w-0 flex-1 flex flex-col">
+                <div className="min-w-0 flex-1 flex flex-col" style={{ opacity: watched ? 0.68 : 1 }}>
                     <div
                         className="flex items-baseline gap-3 flex-wrap"
                         style={{ marginBottom: 6 }}

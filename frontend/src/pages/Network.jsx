@@ -285,7 +285,7 @@ export default function Network() {
                     className="relative w-full"
                     style={{
                         paddingLeft: 'clamp(124px, 9.5vw, 180px)',
-                        paddingRight: 'clamp(124px, 9.5vw, 180px)',
+                        paddingRight: 'clamp(40px, 4.2vw, 80px)',
                         paddingTop: 'clamp(20px, 2.4vw, 32px)',
                         paddingBottom: 'clamp(56px, 6vw, 96px)',
                     }}
