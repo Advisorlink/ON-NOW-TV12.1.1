@@ -17,6 +17,16 @@ import { useEffect } from 'react';
  */
 export default function useSpatialFocus() {
     useEffect(() => {
+        // Rapid-press throttle.  On HK1 boxes the IR remote auto-
+        // repeats arrow keys at ~12 Hz; without throttling the JS
+        // focus loop runs faster than the smooth-scroll animation
+        // resolves, so the user sees focused tiles "skip" past
+        // intermediate items without ever lighting up.  We pace
+        // direction moves to ~110 ms apart so every tile in the
+        // path gets a chance to animate its focus ring + pop-out.
+        const DIR_COOLDOWN_MS = 110;
+        let lastDirAt = 0;
+
         const focusables = () =>
             Array.from(
                 document.querySelectorAll('[data-focusable="true"]')
@@ -203,13 +213,24 @@ export default function useSpatialFocus() {
             const dir = dirMap[e.key];
 
             if (dir) {
+                e.preventDefault();
+                // Throttle: discard the press if the previous one is
+                // still within the cooldown window.  This is what
+                // stops the visual "skip" on auto-repeat — every
+                // accepted press now has time to animate.
+                const now =
+                    typeof performance !== 'undefined'
+                        ? performance.now()
+                        : Date.now();
+                if (now - lastDirAt < DIR_COOLDOWN_MS) return;
+                lastDirAt = now;
+
                 const active =
                     document.activeElement &&
                     document.activeElement.matches('[data-focusable="true"]')
                         ? document.activeElement
                         : focusables()[0];
                 if (!active) return;
-                e.preventDefault();
                 const next = findNext(active, dir);
                 if (next) focusEl(next, dir);
                 return;

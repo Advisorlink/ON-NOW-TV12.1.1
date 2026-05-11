@@ -59,6 +59,8 @@
                 android:layout_marginEnd="48dp"
                 android:scaleType="centerCrop"
                 android:background="@drawable/poster_bg"
+                android:clipToOutline="true"
+                android:elevation="24dp"
                 android:contentDescription="@null" />
 
             <LinearLayout
@@ -114,17 +116,29 @@
                     android:id="@+id/preview_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Loading stream…"
+                    android:text="ON NOW TV V2 is loading your program"
                     android:textColor="#5DC8FF"
-                    android:textSize="12sp"
-                    android:letterSpacing="0.18"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.16"
                     android:fontFamily="monospace"
                     android:layout_marginTop="28dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
                     android:background="@drawable/status_pill" />
+
+                <TextView
+                    android:id="@+id/preview_loading_dots"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="●  ●  ●"
+                    android:textColor="#5DC8FF"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.6"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginStart="4dp" />
             </LinearLayout>
         </LinearLayout>
 

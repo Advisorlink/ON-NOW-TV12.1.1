@@ -4,16 +4,20 @@ import android.annotation.SuppressLint
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Outline
+import android.graphics.Rect
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -62,6 +66,9 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var previewMeta: TextView
     private lateinit var previewSynopsis: TextView
     private lateinit var previewStatus: TextView
+    private var previewDots: TextView? = null
+    private val loadingDotsHandler = Handler(Looper.getMainLooper())
+    private var loadingDotsStep = 0
 
     // Controls
     private lateinit var rootControls: View
@@ -172,6 +179,24 @@ class VlcPlayerActivity : AppCompatActivity() {
         previewMeta = findViewById(R.id.preview_meta)
         previewSynopsis = findViewById(R.id.preview_synopsis)
         previewStatus = findViewById(R.id.preview_status)
+        previewDots = findViewById(R.id.preview_loading_dots)
+
+        // Round corners on the loading poster via OutlineProvider so
+        // the elevation shadow we set in XML clips to the curved
+        // shape (instead of a sharp rectangle bleeding past it).
+        val cornerPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 18f, resources.displayMetrics
+        )
+        previewPoster.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(
+                    0, 0, view.width, view.height, cornerPx
+                )
+            }
+        }
+        previewPoster.clipToOutline = true
+
+        startLoadingDotsAnimation()
 
         pickerRoot = findViewById(R.id.picker_root)
         pickerTitle = findViewById(R.id.picker_title)
@@ -284,12 +309,44 @@ class VlcPlayerActivity : AppCompatActivity() {
     private fun dismissPreview() {
         if (previewDismissed) return
         previewDismissed = true
+        stopLoadingDotsAnimation()
         previewStatus.text = "Stream ready"
         previewRoot.animate()
             .alpha(0f)
             .setDuration(700)
             .withEndAction { previewRoot.visibility = View.GONE }
             .start()
+    }
+
+    /**
+     * Cycle three dots ".  .  ." → "●  .  ." → "●  ●  ." → "●  ●  ●"
+     * → repeat, giving the loading screen a subtle "still alive"
+     * pulse while the stream buffers.  Driven by a Handler post-
+     * delayed loop rather than ValueAnimator so it stays cheap.
+     */
+    private fun startLoadingDotsAnimation() {
+        loadingDotsStep = 0
+        val frames = arrayOf(
+            "○  ○  ○",
+            "●  ○  ○",
+            "●  ●  ○",
+            "●  ●  ●",
+        )
+        val loop = object : Runnable {
+            override fun run() {
+                previewDots?.text = frames[loadingDotsStep % frames.size]
+                loadingDotsStep++
+                if (!previewDismissed) {
+                    loadingDotsHandler.postDelayed(this, 380)
+                }
+            }
+        }
+        loadingDotsHandler.post(loop)
+    }
+
+    private fun stopLoadingDotsAnimation() {
+        loadingDotsHandler.removeCallbacksAndMessages(null)
+        previewDots?.visibility = View.GONE
     }
 
     // -----------------------------------------------------------------
@@ -634,6 +691,7 @@ class VlcPlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         tickHandler.removeCallbacks(tickRunnable)
         hideHandler.removeCallbacks(hideRunnable)
+        loadingDotsHandler.removeCallbacksAndMessages(null)
         imgExecutor.shutdownNow()
         if (this::mediaPlayer.isInitialized) {
             mediaPlayer.stop()

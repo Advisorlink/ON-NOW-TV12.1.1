@@ -14,6 +14,7 @@ import SeriesEpisodes from '@/components/SeriesEpisodes';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
+import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -493,6 +494,8 @@ export default function Detail() {
                                         const isCopied =
                                             mode === 'torrent' &&
                                             copied === s.infoHash;
+                                        const badge = qualityBadge(s);
+                                        const tags = qualityTags(s);
                                         const rawLabel =
                                             s.title || s.name || s._addon_name || 'Stream';
                                         // Split Torrentio's title field:
@@ -549,24 +552,56 @@ export default function Detail() {
                                                     }}
                                                 >
                                                     <span
-                                                        className="flex items-center justify-center shrink-0"
+                                                        className="flex flex-col items-center justify-center shrink-0"
                                                         style={{
-                                                            width: 40,
-                                                            height: 40,
-                                                            borderRadius: 999,
-                                                            background: `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
-                                                            color: accent,
-                                                            marginTop: 4,
+                                                            width: badge ? 64 : 44,
+                                                            minHeight: 56,
+                                                            borderRadius: 12,
+                                                            background: badge
+                                                                ? toneColors[badge.tone].bg
+                                                                : `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
+                                                            color: badge
+                                                                ? toneColors[badge.tone].fg
+                                                                : accent,
+                                                            border: badge
+                                                                ? `1px solid ${toneColors[badge.tone].border}`
+                                                                : 'none',
+                                                            marginTop: 2,
+                                                            gap: 4,
+                                                            padding: '8px 4px',
                                                         }}
                                                     >
+                                                        {badge ? (
+                                                            <span
+                                                                style={{
+                                                                    fontFamily:
+                                                                        'var(--theme-font-display, "Geist", system-ui, sans-serif)',
+                                                                    fontSize:
+                                                                        badge.label.length <= 3 ? 18 : 13,
+                                                                    fontWeight: 800,
+                                                                    letterSpacing: '-0.02em',
+                                                                    lineHeight: 1,
+                                                                }}
+                                                            >
+                                                                {badge.label}
+                                                            </span>
+                                                        ) : (
+                                                            <ModeIcon
+                                                                size={18}
+                                                                fill={
+                                                                    mode === 'direct'
+                                                                        ? 'currentColor'
+                                                                        : 'none'
+                                                                }
+                                                            />
+                                                        )}
                                                         <ModeIcon
-                                                            size={16}
-                                                            fill={
-                                                                mode ===
-                                                                'direct'
-                                                                    ? 'currentColor'
-                                                                    : 'none'
-                                                            }
+                                                            size={badge ? 10 : 0}
+                                                            style={{
+                                                                opacity: badge ? 0.55 : 0,
+                                                                display: badge ? 'block' : 'none',
+                                                            }}
+                                                            fill={mode === 'direct' ? 'currentColor' : 'none'}
                                                         />
                                                     </span>
 
@@ -588,6 +623,40 @@ export default function Detail() {
                                                         >
                                                             {titleLine}
                                                         </div>
+
+                                                        {/* Quality tag pills (HDR / DV / Atmos / REMUX) */}
+                                                        {tags.length > 0 && (
+                                                            <div
+                                                                className="flex flex-wrap items-center"
+                                                                style={{
+                                                                    gap: 6,
+                                                                    marginTop: 10,
+                                                                }}
+                                                            >
+                                                                {tags.map((t, ti) => {
+                                                                    const c = toneColors[t.tone];
+                                                                    return (
+                                                                        <span
+                                                                            key={ti}
+                                                                            className="vesper-mono"
+                                                                            style={{
+                                                                                fontSize: 10,
+                                                                                fontWeight: 700,
+                                                                                letterSpacing: '0.1em',
+                                                                                padding: '3px 8px',
+                                                                                borderRadius: 4,
+                                                                                background: c.bg,
+                                                                                color: c.fg,
+                                                                                border: `1px solid ${c.border}`,
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}
+                                                                        >
+                                                                            {t.label}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
 
                                                         {/* Metadata chip row */}
                                                         {chips.length > 0 && (

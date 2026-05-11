@@ -12,6 +12,7 @@ import {
 import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
+import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 
 /**
  * Cinematic seasons + episodes browser for TV series.
@@ -164,7 +165,11 @@ export default function SeriesEpisodes({ meta, parentId }) {
                     title,
                     type: 'series',
                     subtitleUrl,
-                    poster: ep.thumbnail || meta?.poster || '',
+                    // Use the series cover (not the episode thumbnail)
+                    // on the native player's loading screen — the user
+                    // wants the show identity, not the per-episode
+                    // still frame, while the stream buffers.
+                    poster: meta?.poster || '',
                     backdrop: meta?.background || meta?.poster || '',
                     synopsis: ep.overview || meta?.description || '',
                     year: ep.firstAired ? String(ep.firstAired).slice(0, 4) : (meta?.releaseInfo || ''),
@@ -588,6 +593,8 @@ function EpisodeCard({
                                 }
                                 const isCopied =
                                     mode === 'torrent' && copied === s.infoHash;
+                                const badge = qualityBadge(s);
+                                const tags = qualityTags(s);
                                 return (
                                     <li
                                         key={i}
@@ -612,24 +619,49 @@ function EpisodeCard({
                                             }}
                                         >
                                             <span
-                                                className="flex items-center justify-center shrink-0"
+                                                className="flex flex-col items-center justify-center shrink-0"
                                                 style={{
-                                                    width: 38,
-                                                    height: 38,
-                                                    borderRadius: 999,
-                                                    background: `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
-                                                    color: accent,
+                                                    width: badge ? 60 : 40,
+                                                    minHeight: 52,
+                                                    borderRadius: 12,
+                                                    background: badge
+                                                        ? toneColors[badge.tone].bg
+                                                        : `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
+                                                    color: badge
+                                                        ? toneColors[badge.tone].fg
+                                                        : accent,
+                                                    border: badge
+                                                        ? `1px solid ${toneColors[badge.tone].border}`
+                                                        : 'none',
                                                     marginTop: 2,
+                                                    gap: 3,
+                                                    padding: '6px 4px',
                                                 }}
                                             >
-                                                <ModeIcon
-                                                    size={14}
-                                                    fill={
-                                                        mode === 'direct'
-                                                            ? 'currentColor'
-                                                            : 'none'
-                                                    }
-                                                />
+                                                {badge ? (
+                                                    <span
+                                                        style={{
+                                                            fontFamily:
+                                                                'var(--theme-font-display, "Geist", system-ui, sans-serif)',
+                                                            fontSize:
+                                                                badge.label.length <= 3 ? 16 : 12,
+                                                            fontWeight: 800,
+                                                            letterSpacing: '-0.02em',
+                                                            lineHeight: 1,
+                                                        }}
+                                                    >
+                                                        {badge.label}
+                                                    </span>
+                                                ) : (
+                                                    <ModeIcon
+                                                        size={16}
+                                                        fill={
+                                                            mode === 'direct'
+                                                                ? 'currentColor'
+                                                                : 'none'
+                                                        }
+                                                    />
+                                                )}
                                             </span>
                                             <div className="min-w-0 flex-1">
                                                 <div
@@ -649,6 +681,39 @@ function EpisodeCard({
                                                 >
                                                     {titleLine}
                                                 </div>
+
+                                                {tags.length > 0 && (
+                                                    <div
+                                                        className="flex flex-wrap items-center"
+                                                        style={{
+                                                            gap: 6,
+                                                            marginTop: 10,
+                                                        }}
+                                                    >
+                                                        {tags.map((t, ti) => {
+                                                            const c = toneColors[t.tone];
+                                                            return (
+                                                                <span
+                                                                    key={ti}
+                                                                    className="vesper-mono"
+                                                                    style={{
+                                                                        fontSize: 10,
+                                                                        fontWeight: 700,
+                                                                        letterSpacing: '0.1em',
+                                                                        padding: '3px 8px',
+                                                                        borderRadius: 4,
+                                                                        background: c.bg,
+                                                                        color: c.fg,
+                                                                        border: `1px solid ${c.border}`,
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    {t.label}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
 
                                                 {chips.length > 0 && (
                                                     <div
