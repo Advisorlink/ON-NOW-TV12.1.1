@@ -32,9 +32,41 @@ const Host = (() => {
         if (cores <= 2 || mem <= 2) lowEnd = true;
     }
 
-    const playVideo = ({ url, title, type, subtitleUrl } = {}) => {
+    const playVideo = ({
+        url,
+        title,
+        type,
+        subtitleUrl,
+        poster,
+        backdrop,
+        synopsis,
+        year,
+        rating,
+        runtime,
+        genres,
+    } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
+        // Prefer the rich bridge (passes cinematic preview meta).
+        if (isAndroid && typeof a.playInternalRich === 'function') {
+            try {
+                a.playInternalRich(
+                    url,
+                    title || '',
+                    subtitleUrl || '',
+                    poster || '',
+                    backdrop || '',
+                    synopsis || '',
+                    year || '',
+                    rating == null ? '' : String(rating),
+                    runtime || '',
+                    Array.isArray(genres) ? genres.join(' · ') : (genres || '')
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        }
         if (isAndroid && typeof a.playInternal === 'function') {
             try {
                 a.playInternal(url, title || '', subtitleUrl || '');

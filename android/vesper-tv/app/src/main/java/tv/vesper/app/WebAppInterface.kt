@@ -50,6 +50,52 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /**
+     * Rich variant — used by the web layer to pass the full cinematic
+     * preview meta (poster / backdrop / synopsis / year / rating /
+     * runtime / genres) so the native player can render a Stremio-
+     * style loading screen instead of a bare spinner.
+     */
+    @JavascriptInterface
+    fun playInternalRich(
+        url: String,
+        title: String?,
+        subtitleUrl: String?,
+        poster: String?,
+        backdrop: String?,
+        synopsis: String?,
+        year: String?,
+        rating: String?,
+        runtime: String?,
+        genres: String?
+    ) {
+        if (url.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
+                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
+                    putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
+                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
+                    putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
+                    putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
+                    putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
+                    putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
+                    putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(
+                    activity,
+                    "Could not start player: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     @JavascriptInterface
     fun playExternal(url: String, title: String?, mime: String?) {
         // Opt-in path: hand to system video player (VLC stand-alone,

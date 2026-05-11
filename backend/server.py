@@ -660,6 +660,61 @@ async def tmdb_to_imdb(type_: str, tmdb_id: int):
     return {"cached": False, "imdb_id": imdb}
 
 
+@api.get("/tmdb/trending")
+async def tmdb_trending(
+    window: str = Query("week", regex="^(day|week)$"),
+    media: str = Query("all", regex="^(all|movie|tv)$"),
+):
+    """TMDB trending feed — used as the home-screen hero billboard
+    when no addons are installed.  Returns a curated set of items
+    with a high-res backdrop, synopsis, and meta — i.e. exactly the
+    shape the HeroBillboard expects."""
+    cache_key = f"tmdb_trend:{media}:{window}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    data = await _tmdb_get(f"/trending/{media}/{window}")
+    out: List[Dict[str, Any]] = []
+    for item in (data.get("results") or [])[:20]:
+        # Skip items without a usable backdrop — the hero
+        # needs a wide cinematic image.
+        if not item.get("backdrop_path"):
+            continue
+        is_tv = (item.get("media_type") == "tv") or (
+            media == "tv" and item.get("media_type") is None
+        )
+        title = item.get("name") if is_tv else item.get("title")
+        year_raw = (
+            item.get("first_air_date") if is_tv else item.get("release_date")
+        ) or ""
+        out.append(
+            {
+                "tmdb_id": item.get("id"),
+                "type": "series" if is_tv else "movie",
+                "title": title,
+                "backdrop": f"{TMDB_IMG}/original{item['backdrop_path']}",
+                "poster": (
+                    f"{TMDB_IMG}/w500{item['poster_path']}"
+                    if item.get("poster_path")
+                    else None
+                ),
+                "year": year_raw[:4] if year_raw else "",
+                "rating": (
+                    round(item.get("vote_average"), 1)
+                    if isinstance(item.get("vote_average"), (int, float))
+                    else None
+                ),
+                "synopsis": item.get("overview"),
+            }
+        )
+        if len(out) >= 8:
+            break
+
+    await cache.set(cache_key, out, 1800)  # 30 min — TMDB trending updates daily
+    return {"cached": False, "data": out}
+
+
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
 

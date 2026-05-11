@@ -263,7 +263,51 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   Sources OSK works, Detail page meta + stream picker render, HLS.js
   attaches to `.m3u8` test streams.
 
-## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 11 — Feb 2026)
+- **APK ABI fix** — Previous `arm64-v8a only` build refused to install
+  on most HK1 boxes (which ship 32-bit Android ROMs even on 64-bit
+  SoCs).  Now ships both `armeabi-v7a` + `arm64-v8a`.  Bumped to
+  versionCode 11 / versionName 1.3.0.
+- **"By network" section moved down** — NetworksShelf paddingTop
+  increased from `clamp(4px, 0.6vw, 10px)` → `clamp(28px, 3vw, 56px)`
+  to add proper breathing room below the All / TV Shows / Movies
+  tabs.
+- **Demo / mock data completely removed** — deleted
+  `frontend/src/data/mockCatalog.js`, stripped `MOCK_HEROES` and
+  `MOCK_SHELVES` fallbacks from `HeroBillboard` and `Home`.  When no
+  Cinemeta data is available, hero billboard now falls back to live
+  TMDB Trending (new `/api/tmdb/trending` endpoint) instead of
+  baked-in fake titles.  Hero clicks resolve TMDB → IMDB via the
+  new `/resolve/:type/:tmdb_id` route then route to the existing
+  Detail page.
+- **Native player — cinematic preview overlay** — `VlcPlayerActivity`
+  now renders a full-screen Stremio-style loading screen with:
+  - Backdrop image (dim 55%) behind a vertical vignette
+  - 220×330 poster on the left
+  - Eyebrow "NOW PLAYING · ON NOW TV V2"
+  - Big title
+  - Meta line: year · ★rating · runtime · genres
+  - 3-line synopsis
+  - Live "Buffering · NN%" status pill driven by VLC events
+  - Bottom shimmer bar
+  - Fades out 1.2s after the first PLAYING event
+  Meta is plumbed end-to-end via `Host.playVideo({poster, backdrop,
+  synopsis, year, rating, runtime, genres})` → new
+  `OnNowTV.playInternalRich` JS bridge → intent extras.
+- **Native player — track picker overlay** — D-pad-navigable side
+  sheet with four entry buttons in the bottom controls:
+  *Subtitles*, *Audio*, *Speed*, *Aspect*.
+  Each opens a RecyclerView of options pulled directly from VLC at
+  runtime (`mediaPlayer.spuTracks`, `mediaPlayer.audioTracks`) plus
+  static lists for playback speed (0.5×–2×) and aspect ratio
+  (`SURFACE_BEST_FIT`, `SURFACE_FILL`, `SURFACE_16_9`, `SURFACE_4_3`,
+  `SURFACE_ORIGINAL`).  BACK closes the sheet.  Track rows have an
+  active indicator dot + custom blue focus ring drawable.
+- **Recyclerview dep added** — `androidx.recyclerview:recyclerview:1.3.2`.
+- **New drawables** — `preview_vignette`, `poster_bg`, `status_pill`,
+  `track_row_bg`, `track_dot_on`, `track_dot_off`.
+
+
 - **APK Kotlin compile fix** — `VlcPlayerActivity.kt` failed Gradle
   compile with `Unresolved reference: Slave`. In libvlc-android
   3.6.0, the `Slave` class lives on `IMedia` (not `Media`).  Imported

@@ -7,6 +7,7 @@ import Detail from '@/pages/Detail';
 import Player from '@/pages/Player';
 import Search from '@/pages/Search';
 import Network from '@/pages/Network';
+import Resolve from '@/pages/Resolve';
 
 // HashRouter works under file:// (sideloaded APK); BrowserRouter
 // is nicer everywhere else (hosted preview, PWA install).
@@ -41,6 +42,7 @@ function App() {
                     <Route path="/sources" element={<Sources />} />
                     <Route path="/search" element={<Search />} />
                     <Route path="/networks/:slug" element={<Network />} />
+                    <Route path="/resolve/:type/:id" element={<Resolve />} />
                     <Route path="/library" element={<NotImplemented name="My Library" />} />
                     <Route path="/settings" element={<NotImplemented name="Settings" />} />
                     <Route path="/title/:type/:id" element={<Detail />} />

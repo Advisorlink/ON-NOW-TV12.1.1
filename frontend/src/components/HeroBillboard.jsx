@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Info, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { HEROES as MOCK_HEROES } from '@/data/mockCatalog';
 
 export default function HeroBillboard({ heroes }) {
-    const list = heroes && heroes.length > 0 ? heroes : MOCK_HEROES;
+    const list = Array.isArray(heroes) ? heroes : [];
     const [idx, setIdx] = useState(0);
     const hero = list[idx] || list[0];
     const navigate = useNavigate();

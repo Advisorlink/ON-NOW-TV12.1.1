@@ -126,6 +126,13 @@ export default function Detail() {
                     title: meta?.name || '',
                     type: type,
                     subtitleUrl,
+                    poster: meta?.poster || '',
+                    backdrop: meta?.background || meta?.poster || '',
+                    synopsis: meta?.description || '',
+                    year: meta?.releaseInfo || meta?.year || '',
+                    rating: meta?.imdbRating || '',
+                    runtime: meta?.runtime || '',
+                    genres: meta?.genres || [],
                 })
             ) {
                 return;

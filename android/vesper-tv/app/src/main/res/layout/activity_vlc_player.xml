@@ -17,19 +17,144 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Loading spinner -->
+    <!-- =========================================================
+         CINEMATIC PREVIEW OVERLAY
+         Shown until the first PLAYING event, fades out 1.2s later.
+         ========================================================= -->
+    <FrameLayout
+        android:id="@+id/preview_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#06080F">
+
+        <!-- Backdrop (covers full screen, dimmed) -->
+        <ImageView
+            android:id="@+id/preview_backdrop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:alpha="0.55"
+            android:contentDescription="@null" />
+
+        <!-- Vertical gradient overlay for legibility -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/preview_vignette" />
+
+        <!-- Content row: poster + meta -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="80dp"
+            android:paddingEnd="80dp"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/preview_poster"
+                android:layout_width="220dp"
+                android:layout_height="330dp"
+                android:layout_marginEnd="48dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/poster_bg"
+                android:contentDescription="@null" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/preview_eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NOW PLAYING · ON NOW TV V2"
+                    android:textColor="#5DC8FF"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.22"
+                    android:fontFamily="monospace"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:id="@+id/preview_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="44sp"
+                    android:textStyle="bold"
+                    android:lineSpacingMultiplier="1.0"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/preview_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#A8B5C7"
+                    android:textSize="15sp"
+                    android:layout_marginTop="14dp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/preview_synopsis"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#C7CFDB"
+                    android:textSize="15sp"
+                    android:lineSpacingMultiplier="1.45"
+                    android:layout_marginTop="18dp"
+                    android:maxLines="3"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/preview_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Loading stream…"
+                    android:textColor="#5DC8FF"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.18"
+                    android:fontFamily="monospace"
+                    android:layout_marginTop="28dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="@drawable/status_pill" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Loading shimmer at the bottom -->
+        <View
+            android:id="@+id/preview_shimmer"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_gravity="bottom"
+            android:background="#5DC8FF" />
+    </FrameLayout>
+
+    <!-- =========================================================
+         BUFFERING SPINNER (during playback only, after preview)
+         ========================================================= -->
     <ProgressBar
         android:id="@+id/loading_view"
         android:layout_width="64dp"
         android:layout_height="64dp"
         android:indeterminate="true"
         android:indeterminateTint="#5DC8FF"
+        android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Controls overlay -->
+    <!-- =========================================================
+         CONTROLS OVERLAY
+         ========================================================= -->
     <FrameLayout
         android:id="@+id/controls_root"
         android:layout_width="match_parent"
@@ -45,7 +170,7 @@
         <!-- Bottom gradient bar -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="180dp"
+            android:layout_height="220dp"
             android:background="@drawable/grad_bottom"
             android:layout_gravity="bottom" />
 
@@ -81,7 +206,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Bottom controls: play, seek, time -->
+        <!-- Bottom controls: track buttons, seek, time, play/pause -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -91,6 +216,68 @@
             android:paddingHorizontal="24dp"
             android:paddingBottom="32dp">
 
+            <!-- Track / settings row -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginBottom="14dp">
+
+                <Button
+                    android:id="@+id/btn_subs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="Subtitles"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btn_audio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="Audio"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btn_speed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="Speed"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btn_aspect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="Aspect"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Seek row -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -136,6 +323,69 @@
                 android:contentDescription="Play / Pause"
                 android:padding="18dp"
                 android:src="@drawable/ic_pause" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- =========================================================
+         TRACK PICKER SHEET (Subtitles / Audio / Speed / Aspect)
+         Slides in from the right, D-pad navigable.
+         ========================================================= -->
+    <FrameLayout
+        android:id="@+id/picker_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#A6000000"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="420dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:background="#F00A0E18"
+            android:orientation="vertical"
+            android:paddingTop="40dp"
+            android:paddingBottom="32dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp">
+
+            <TextView
+                android:id="@+id/picker_eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SETTINGS"
+                android:textColor="#5DC8FF"
+                android:textSize="11sp"
+                android:letterSpacing="0.22"
+                android:fontFamily="monospace" />
+
+            <TextView
+                android:id="@+id/picker_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="20dp"
+                android:text="Subtitles"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/picker_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:scrollbars="vertical" />
+
+            <Button
+                android:id="@+id/picker_close"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/btn_pill"
+                android:text="Close"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
         </LinearLayout>
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -16,7 +16,7 @@ export default function NetworksShelf() {
             data-testid="networks-shelf"
             className="relative w-full"
             style={{
-                paddingTop: 'clamp(4px, 0.6vw, 10px)',
+                paddingTop: 'clamp(28px, 3vw, 56px)',
                 paddingBottom: 0,
             }}
         >

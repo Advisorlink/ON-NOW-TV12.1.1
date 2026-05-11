@@ -11,8 +11,8 @@ android {
         applicationId = "tv.onnowtv.app"
         minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.2.1"
+        versionCode = 11
+        versionName = "1.3.0"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -72,6 +72,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 
     // libVLC — bundles native FFmpeg + libVLC; supports every codec
     // Stremio supports (AC3 / EAC3 / DTS / HEVC / TrueHD / Opus / etc).

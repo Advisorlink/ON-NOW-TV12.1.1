@@ -5,7 +5,6 @@ import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import HomeTabs from '@/components/HomeTabs';
 import FullscreenButton from '@/components/FullscreenButton';
-import { SHELVES as MOCK_SHELVES } from '@/data/mockCatalog';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
@@ -43,8 +42,7 @@ export default function Home() {
     const { heroes: liveHeroes } = useLiveHeroes(addons, heroType);
 
     const shelves = useMemo(() => {
-        if (liveShelves && liveShelves.length > 0) return liveShelves;
-        return MOCK_SHELVES;
+        return Array.isArray(liveShelves) ? liveShelves : [];
     }, [liveShelves]);
 
     const showNetworks = tab === 'series' || tab === 'all';

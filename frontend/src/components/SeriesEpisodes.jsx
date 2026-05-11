@@ -164,6 +164,13 @@ export default function SeriesEpisodes({ meta, parentId }) {
                     title,
                     type: 'series',
                     subtitleUrl,
+                    poster: ep.thumbnail || meta?.poster || '',
+                    backdrop: meta?.background || meta?.poster || '',
+                    synopsis: ep.overview || meta?.description || '',
+                    year: ep.firstAired ? String(ep.firstAired).slice(0, 4) : (meta?.releaseInfo || ''),
+                    rating: meta?.imdbRating || '',
+                    runtime: ep.runtime || meta?.runtime || '',
+                    genres: meta?.genres || [],
                 })
             ) return;
             navigate(
