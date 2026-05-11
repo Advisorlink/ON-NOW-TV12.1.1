@@ -7,9 +7,11 @@ import {
     Settings,
     Tv,
     Film,
+    Zap,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Host from '@/lib/host';
+import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 
 const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
@@ -23,10 +25,17 @@ const NAV = [
 
 export default function SideNav() {
     const [expanded, setExpanded] = useState(false);
+    const [autoplay, setAutoplay] = useState(getAutoplay1080p());
     const location = useLocation();
     const navigate = useNavigate();
     const currentFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
+
+    const toggleAutoplay = () => {
+        const next = !autoplay;
+        setAutoplay1080p(next);
+        setAutoplay(next);
+    };
 
     return (
         <nav
@@ -132,6 +141,62 @@ export default function SideNav() {
                         </button>
                     );
                 })}
+
+                {/* Autoplay toggle — sits right after Settings.
+                    Same visual treatment as nav items, but tapping
+                    flips the localStorage flag instead of routing. */}
+                <button
+                    data-testid="nav-autoplay"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={toggleAutoplay}
+                    className="relative flex items-center gap-4 h-11 px-2 rounded-lg text-left"
+                    style={{
+                        color: autoplay
+                            ? 'var(--vesper-blue-bright)'
+                            : 'var(--vesper-text-2)',
+                    }}
+                >
+                    <span className="flex items-center justify-center w-9 h-9 shrink-0">
+                        <Zap
+                            size={20}
+                            strokeWidth={autoplay ? 2.2 : 1.7}
+                            fill={autoplay ? 'currentColor' : 'none'}
+                            style={{
+                                color: autoplay
+                                    ? 'var(--vesper-blue)'
+                                    : 'currentColor',
+                            }}
+                        />
+                    </span>
+                    <span
+                        className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300 flex items-center gap-2"
+                        style={{ opacity: expanded ? 1 : 0 }}
+                    >
+                        Autoplay
+                        <span
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 10,
+                                letterSpacing: '0.18em',
+                                padding: '2px 7px',
+                                borderRadius: 999,
+                                background: autoplay
+                                    ? 'rgba(93,200,255,0.18)'
+                                    : 'rgba(255,255,255,0.08)',
+                                color: autoplay
+                                    ? 'var(--vesper-blue-bright)'
+                                    : 'var(--vesper-text-3)',
+                                border: autoplay
+                                    ? '1px solid rgba(93,200,255,0.45)'
+                                    : '1px solid rgba(255,255,255,0.12)',
+                            }}
+                        >
+                            {autoplay ? 'ON' : 'OFF'}
+                        </span>
+                    </span>
+                </button>
             </div>
 
             <div className="mt-auto pl-7 pr-4">

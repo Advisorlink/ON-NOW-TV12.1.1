@@ -113,11 +113,53 @@ export default function Detail() {
         };
     }, [type, id]);
 
-    // ---------- AUTOPLAY 1080p ----------
-    // When the user pressed Play from the hero / detail page AND the
-    // "Autoplay 1080p" setting is on, pick the first playable 1080p
-    // direct stream and fire playStream automatically.  Falls back
-    // silently to the source list if no 1080p stream exists.
+    // ---------- AUTOPLAY 1080p — derived state ----------
+    // `autoplayEnabled` reflects the live preference.  We read it
+    // through state so a toggle from the side-nav re-renders Detail
+    // (cross-component pref sync via storage event, see below).
+    const [autoplayEnabled, setAutoplayEnabledState] = useState(
+        getAutoplay1080p()
+    );
+    useEffect(() => {
+        const onStorage = () =>
+            setAutoplayEnabledState(getAutoplay1080p());
+        window.addEventListener('storage', onStorage);
+        // Also poll once per second — the side-nav toggle writes to
+        // localStorage in the SAME window which doesn't fire `storage`
+        // (that event only fires for OTHER windows).
+        const i = setInterval(onStorage, 1000);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            clearInterval(i);
+        };
+    }, []);
+
+    // Pick the best 1080p candidate from the resolved streams list.
+    // Prefer direct mode; fall back to any 1080p stream.  Null means
+    // "no 1080p available → fall back to manual picker".
+    const autoplayCandidate = useMemo(() => {
+        if (type !== 'movie') return null;
+        if (!streams || streams.length === 0) return null;
+        return (
+            streams.find(
+                (s) =>
+                    streamMode(s) === 'direct' &&
+                    qualityBadge(s)?.label === '1080p'
+            ) ||
+            streams.find((s) => qualityBadge(s)?.label === '1080p') ||
+            null
+        );
+    }, [streams, type]);
+
+    // Manual trigger for the on-page Play button.
+    const triggerAutoplay = () => {
+        if (autoplayCandidate) playStream(autoplayCandidate);
+    };
+
+    // ---------- AUTOPLAY (via ?autoplay=1 URL) ----------
+    // Fires automatically when the user arrived via hero Play / a
+    // CW resume etc.  Falls back silently to the manual picker if
+    // no 1080p candidate is found.
     const autoplayFiredRef = React.useRef(false);
     useEffect(() => {
         if (autoplayFiredRef.current) return;
@@ -125,23 +167,12 @@ export default function Detail() {
         if (type === 'series') return; // series uses per-episode flow
         if (streamLoading) return;
         if (!getAutoplay1080p()) return;
-        const candidate =
-            streams.find(
-                (s) =>
-                    streamMode(s) === 'direct' &&
-                    qualityBadge(s)?.label === '1080p'
-            ) ||
-            // Fallback: any 1080p stream even if non-direct so the
-            // user at least sees the right pick highlighted.
-            streams.find((s) => qualityBadge(s)?.label === '1080p');
-        if (!candidate) return;
+        if (!autoplayCandidate) return;
         autoplayFiredRef.current = true;
-        // Defer to next tick so the playStream closure has the
-        // latest meta available.
-        const t = setTimeout(() => playStream(candidate), 0);
+        const t = setTimeout(() => playStream(autoplayCandidate), 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate]);
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);
@@ -394,9 +425,91 @@ export default function Detail() {
                         </p>
                     )}
 
+                    {/* AUTOPLAY MODE — when on, show a big Play
+                        button that fires the same ?autoplay=1 flow
+                        (auto-pick first 1080p direct stream).  The
+                        streams list stays hidden until the user
+                        either turns Autoplay off (from the sidebar)
+                        or no 1080p stream is available, in which
+                        case the streams list reappears as a manual
+                        fallback. */}
+                    {type === 'movie' && autoplayEnabled && (
+                        <div className="mt-8 flex items-center gap-3 flex-wrap">
+                            <button
+                                data-testid="detail-play-autoplay"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                data-initial-focus="true"
+                                tabIndex={0}
+                                onClick={triggerAutoplay}
+                                disabled={
+                                    streamLoading || autoplayCandidate === null
+                                }
+                                className="flex items-center gap-2.5 rounded-full font-sans font-semibold"
+                                style={{
+                                    height: 'clamp(50px, 4vw, 60px)',
+                                    paddingLeft: 'clamp(24px, 1.8vw, 32px)',
+                                    paddingRight: 'clamp(28px, 2.2vw, 38px)',
+                                    fontSize: 'clamp(15px, 1.15vw, 18px)',
+                                    background:
+                                        streamLoading ||
+                                        autoplayCandidate === null
+                                            ? 'rgba(255,255,255,0.10)'
+                                            : 'var(--vesper-blue)',
+                                    color:
+                                        streamLoading ||
+                                        autoplayCandidate === null
+                                            ? 'var(--vesper-text-2)'
+                                            : 'var(--vesper-bg-0)',
+                                    opacity:
+                                        streamLoading ||
+                                        autoplayCandidate === null
+                                            ? 0.7
+                                            : 1,
+                                }}
+                            >
+                                {streamLoading ? (
+                                    <>
+                                        <Loader2
+                                            className="vesper-spin"
+                                            size={18}
+                                        />
+                                        Finding 1080p…
+                                    </>
+                                ) : autoplayCandidate ? (
+                                    <>
+                                        <Play size={18} fill="currentColor" />
+                                        Play 1080p
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={18} />
+                                        No 1080p stream found
+                                    </>
+                                )}
+                            </button>
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    color: 'var(--vesper-text-3)',
+                                    letterSpacing: '0.18em',
+                                    textTransform: 'uppercase',
+                                    paddingLeft: 8,
+                                }}
+                            >
+                                Autoplay ON · turn off in side menu for picker
+                            </div>
+                        </div>
+                    )}
+
                     {/* Stream picker (movies) / Episode browser (series) */}
                     {type === 'series' ? (
                         <SeriesEpisodes meta={meta} parentId={id} />
+                    ) : autoplayEnabled && autoplayCandidate ? (
+                        // Autoplay is on AND we have a 1080p candidate
+                        // → hide the manual stream picker entirely.
+                        null
                     ) : (
                     <section
                         data-testid="stream-picker"

@@ -35,6 +35,34 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 23 — Feb 2026)
+- **"Autoplay" toggle moved into sidebar** — removed the Auto 1080p
+  pill + Settings cog from the hero. Added a new "Autoplay" item
+  with a lightning-zap icon at the bottom of `SideNav.jsx` (below
+  Settings, separate from the routing items). Tapping toggles the
+  pref via `lib/prefs`; icon fills + label gains a neon-blue "ON"
+  pill when active.
+- **Detail page Play button (movies only, autoplay-aware)** — new
+  big rounded Play pill below the movie metadata. When Autoplay is
+  ON and a 1080p candidate exists in the resolved streams, the
+  manual source picker is hidden entirely; the Play button fires
+  the same auto-pick logic as the hero `?autoplay=1` flow. States:
+  - **Loading** → spinner + "Finding 1080p…"
+  - **Candidate found** → blue pill + "Play 1080p"
+  - **No 1080p stream** → disabled grey pill + "No 1080p stream
+    found"; the manual picker fades back in so the user always has
+    a fallback.
+  When Autoplay is OFF, the Play button is hidden completely and
+  the streams list appears directly (existing behavior).
+- **Cross-component pref sync** — Detail listens for `storage`
+  events + polls every second so toggling Autoplay from the sidebar
+  immediately re-renders the Detail page (storage events don't
+  fire in the same window, so the poll is the workaround).
+- **Refactored autoplay flow** — pulled `autoplayCandidate` into a
+  `useMemo` so both the URL-triggered (`?autoplay=1`) path and the
+  Play-button path share the exact same candidate-selection logic.
+
+
 ## Implemented (Iteration 22 — Feb 2026)
 - **"Installed but invisible on Chinese Android 7 launcher" fix** —
   three root causes mitigated:

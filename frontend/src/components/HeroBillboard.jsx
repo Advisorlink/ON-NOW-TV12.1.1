@@ -1,22 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Info, Plus, Zap, Settings as Cog } from 'lucide-react';
+import { Play, Info, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
-import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 
 export default function HeroBillboard({ heroes }) {
     const list = Array.isArray(heroes) ? heroes : [];
     const [idx, setIdx] = useState(0);
     const hero = list[idx] || list[0];
     const navigate = useNavigate();
-    const [autoplay, setAutoplay] = useState(getAutoplay1080p());
-
-    const toggleAutoplay = () => {
-        const next = !autoplay;
-        setAutoplay1080p(next);
-        setAutoplay(next);
-    };
 
     useEffect(() => {
         // Reset to first hero whenever the list changes (e.g. when live
@@ -231,54 +223,6 @@ export default function HeroBillboard({ heroes }) {
                         >
                             <Plus size={16} strokeWidth={1.7} />
                             My List
-                        </button>
-                        <button
-                            data-testid="hero-autoplay-toggle"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            tabIndex={0}
-                            onClick={toggleAutoplay}
-                            className="flex items-center gap-2 rounded-full font-sans font-medium"
-                            style={{
-                                height: 'clamp(44px, 3.6vw, 52px)',
-                                paddingLeft: 'clamp(16px, 1.3vw, 20px)',
-                                paddingRight: 'clamp(16px, 1.3vw, 20px)',
-                                fontSize: 'clamp(13px, 1vw, 16px)',
-                                background: autoplay
-                                    ? 'rgba(93,200,255,0.16)'
-                                    : 'transparent',
-                                color: autoplay
-                                    ? 'var(--vesper-blue-bright)'
-                                    : 'var(--vesper-text-2)',
-                                border: autoplay
-                                    ? '1px solid rgba(93,200,255,0.45)'
-                                    : '1px solid rgba(255,255,255,0.16)',
-                            }}
-                        >
-                            <Zap
-                                size={15}
-                                strokeWidth={2}
-                                fill={autoplay ? 'currentColor' : 'none'}
-                            />
-                            Auto 1080p · {autoplay ? 'ON' : 'OFF'}
-                        </button>
-                        <button
-                            data-testid="hero-settings-shortcut"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            tabIndex={0}
-                            onClick={() => navigate('/settings')}
-                            className="flex items-center justify-center rounded-full"
-                            style={{
-                                width: 'clamp(44px, 3.6vw, 52px)',
-                                height: 'clamp(44px, 3.6vw, 52px)',
-                                background: 'rgba(255,255,255,0.08)',
-                                color: 'var(--vesper-text-2)',
-                                border: '1px solid rgba(255,255,255,0.16)',
-                            }}
-                            aria-label="Settings"
-                        >
-                            <Cog size={18} strokeWidth={1.6} />
                         </button>
                     </div>
                 </div>
