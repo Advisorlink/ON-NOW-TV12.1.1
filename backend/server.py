@@ -572,6 +572,39 @@ async def _tmdb_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
             raise HTTPException(504, f"TMDB network error: {e}")
 
 
+@api.get("/networks/logos")
+async def network_logos():
+    """Return TMDB-hosted logo URLs + brand colors for every network
+    we expose under /networks/:slug.  Cached aggressively (24 h) since
+    TMDB watch-provider logo paths are extremely stable."""
+    cache_key = "networks:logos:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    # Pull every watch provider TMDB knows about (movies + tv), build
+    # an id → logo_path map.
+    movie = await _tmdb_get("/watch/providers/movie")
+    tv = await _tmdb_get("/watch/providers/tv")
+    by_id: Dict[int, str] = {}
+    for entry in (movie.get("results") or []) + (tv.get("results") or []):
+        pid = entry.get("provider_id")
+        lp = entry.get("logo_path")
+        if pid and lp and pid not in by_id:
+            by_id[pid] = lp
+
+    out: Dict[str, Dict[str, Optional[str]]] = {}
+    for slug, cfg in NETWORK_PROVIDERS.items():
+        lp = by_id.get(cfg["id"])
+        out[slug] = {
+            "name": cfg["label"],
+            "logo": f"{TMDB_IMG}/original{lp}" if lp else None,
+        }
+
+    await cache.set(cache_key, out, 24 * 3600)
+    return {"cached": False, "data": out}
+
+
 @api.get("/networks/{slug}")
 async def network_titles(
     slug: str,

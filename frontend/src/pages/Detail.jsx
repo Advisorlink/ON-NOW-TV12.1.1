@@ -468,7 +468,8 @@ export default function Detail() {
                                 )}
 
                                 <ul
-                                    className="flex flex-col gap-2.5"
+                                    className="flex flex-col"
+                                    style={{ gap: 14 }}
                                     data-testid="stream-list"
                                 >
                                     {streams.slice(0, 60).map((s, i) => {
@@ -492,8 +493,36 @@ export default function Detail() {
                                         const isCopied =
                                             mode === 'torrent' &&
                                             copied === s.infoHash;
-                                        const label =
+                                        const rawLabel =
                                             s.title || s.name || s._addon_name || 'Stream';
+                                        // Split Torrentio's title field:
+                                        // line 1 = filename, lines 2+ = metadata
+                                        // (seeders / size / source / langs).
+                                        // We only want the filename in the heading
+                                        // so multi-line file titles stay clean.
+                                        const labelLines = rawLabel.split('\n');
+                                        const titleLine = labelLines[0];
+                                        const metaLines = labelLines.slice(1)
+                                            .map((l) => l.trim())
+                                            .filter(Boolean);
+                                        // Pull seeders/size/tracker out of the
+                                        // meta lines (Torrentio puts them on
+                                        // line 2 as "👤 24  💾 5.38 GB  ⚙ ThePirateBay").
+                                        const chips = [];
+                                        const SEED = /👤\s*(\d+[\d.,]*)/u;
+                                        const SIZE = /💾\s*([^\s][^⚙⚡]+?)(?=\s+[⚙⚡]|$)/u;
+                                        const TRACKER = /⚙\s*([^\s][^👤💾⚡]+?)$/u;
+                                        const LANG_LINE = /^([A-Z]{2}(\s*\/\s*[A-Z]{2})+)$/i;
+                                        for (const ml of metaLines) {
+                                            const seed = ml.match(SEED);
+                                            const size = ml.match(SIZE);
+                                            const trk = ml.match(TRACKER);
+                                            const lang = ml.match(LANG_LINE);
+                                            if (seed) chips.push({ k: 'seed', v: `${seed[1]} seeders` });
+                                            if (size) chips.push({ k: 'size', v: size[1].trim() });
+                                            if (trk) chips.push({ k: 'trk', v: trk[1].trim() });
+                                            if (lang) chips.push({ k: 'lang', v: lang[1].toUpperCase() });
+                                        }
                                         return (
                                             <li
                                                 key={i}
@@ -507,19 +536,27 @@ export default function Detail() {
                                                     onClick={() =>
                                                         playStream(s)
                                                     }
-                                                    className="flex-1 text-left flex items-center gap-4 px-5 h-16 rounded-xl"
+                                                    className="flex-1 text-left flex items-start gap-4"
                                                     style={{
+                                                        padding: '18px 22px',
+                                                        borderRadius: 14,
                                                         background:
-                                                            'rgba(17,24,39,0.7)',
+                                                            'rgba(13,18,28,0.78)',
                                                         border:
-                                                            '1px solid rgba(255,255,255,0.07)',
+                                                            '1px solid rgba(255,255,255,0.06)',
+                                                        boxShadow:
+                                                            '0 6px 18px rgba(0,0,0,0.28)',
                                                     }}
                                                 >
                                                     <span
-                                                        className="flex items-center justify-center w-10 h-10 rounded-full shrink-0"
+                                                        className="flex items-center justify-center shrink-0"
                                                         style={{
-                                                            background: `${accent.startsWith('#') ? accent : 'var(--vesper-blue)'}22`,
+                                                            width: 40,
+                                                            height: 40,
+                                                            borderRadius: 999,
+                                                            background: `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
                                                             color: accent,
+                                                            marginTop: 4,
                                                         }}
                                                     >
                                                         <ModeIcon
@@ -532,35 +569,90 @@ export default function Detail() {
                                                             }
                                                         />
                                                     </span>
+
                                                     <div className="min-w-0 flex-1">
                                                         <div
-                                                            className="font-sans font-medium"
                                                             style={{
+                                                                fontFamily:
+                                                                    'var(--theme-font-body, "Geist", system-ui, sans-serif)',
                                                                 fontSize: 15,
-                                                                lineHeight: 1.3,
-                                                                whiteSpace:
-                                                                    'pre-wrap',
-                                                                wordBreak:
-                                                                    'break-word',
+                                                                fontWeight: 500,
+                                                                lineHeight: 1.35,
+                                                                color: 'var(--vesper-text)',
+                                                                wordBreak: 'break-word',
+                                                                display: '-webkit-box',
+                                                                WebkitBoxOrient: 'vertical',
+                                                                WebkitLineClamp: 2,
+                                                                overflow: 'hidden',
                                                             }}
                                                         >
-                                                            {label}
+                                                            {titleLine}
                                                         </div>
+
+                                                        {/* Metadata chip row */}
+                                                        {chips.length > 0 && (
+                                                            <div
+                                                                className="flex flex-wrap items-center"
+                                                                style={{
+                                                                    gap: 8,
+                                                                    marginTop: 12,
+                                                                }}
+                                                            >
+                                                                {chips.map((c, ci) => (
+                                                                    <span
+                                                                        key={ci}
+                                                                        className="vesper-mono"
+                                                                        style={{
+                                                                            fontSize: 11,
+                                                                            letterSpacing: '0.06em',
+                                                                            padding: '4px 10px',
+                                                                            borderRadius: 999,
+                                                                            background:
+                                                                                c.k === 'seed'
+                                                                                    ? 'rgba(93,200,255,0.12)'
+                                                                                    : c.k === 'size'
+                                                                                    ? 'rgba(255,210,138,0.12)'
+                                                                                    : c.k === 'lang'
+                                                                                    ? 'rgba(255,255,255,0.06)'
+                                                                                    : 'rgba(255,255,255,0.05)',
+                                                                            color:
+                                                                                c.k === 'seed'
+                                                                                    ? 'var(--vesper-blue)'
+                                                                                    : c.k === 'size'
+                                                                                    ? '#ffd28a'
+                                                                                    : 'var(--vesper-text-2)',
+                                                                            border: '1px solid rgba(255,255,255,0.05)',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}
+                                                                    >
+                                                                        {c.v}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Bottom tagline */}
                                                         <div
-                                                            className="vesper-mono mt-0.5"
+                                                            className="vesper-mono"
                                                             style={{
-                                                                fontSize: 11,
+                                                                fontSize: 10,
                                                                 color: 'var(--vesper-text-3)',
-                                                                letterSpacing:
-                                                                    '0.04em',
+                                                                letterSpacing: '0.18em',
+                                                                textTransform: 'uppercase',
+                                                                marginTop: chips.length > 0 ? 10 : 8,
                                                             }}
                                                         >
-                                                            {mode.toUpperCase()}{' '}
-                                                            ·{' '}
-                                                            {s._addon_name ||
-                                                                'addon'}
+                                                            <span style={{ color: accent }}>
+                                                                {mode}
+                                                            </span>
+                                                            {' · '}
+                                                            {s._addon_name || 'addon'}
                                                             {s.behaviorHints?.bingeGroup
-                                                                ? ` · ${s.behaviorHints.bingeGroup}`
+                                                                ? ` · ${s.behaviorHints.bingeGroup
+                                                                    .replace(/torrentio\|?/i, '')
+                                                                    .split('|')
+                                                                    .filter(Boolean)
+                                                                    .join(' · ')}`
                                                                 : ''}
                                                         </div>
                                                     </div>
@@ -577,15 +669,17 @@ export default function Detail() {
                                                         }
                                                         aria-label="Copy magnet"
                                                         title="Copy magnet link"
-                                                        className="shrink-0 flex items-center justify-center w-12 rounded-xl"
+                                                        className="shrink-0 flex items-center justify-center"
                                                         style={{
+                                                            width: 52,
+                                                            borderRadius: 14,
                                                             background:
-                                                                'rgba(17,24,39,0.7)',
+                                                                'rgba(13,18,28,0.78)',
                                                             color: isCopied
                                                                 ? 'var(--vesper-blue)'
                                                                 : 'var(--vesper-text-2)',
                                                             border:
-                                                                '1px solid rgba(255,255,255,0.07)',
+                                                                '1px solid rgba(255,255,255,0.06)',
                                                         }}
                                                     >
                                                         <Copy size={16} />

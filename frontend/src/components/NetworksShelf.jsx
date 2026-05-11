@@ -1,20 +1,49 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NETWORKS } from '@/lib/networks';
+import { API } from '@/lib/api';
+import * as cache from '@/lib/cache';
+import * as img from '@/lib/img';
 
 /**
- * "Browse by Network" — a horizontal rail of branded entry-point
- * tiles.  Each tile is a focusable D-pad target that routes to the
- * dedicated /networks/:slug catalogue page.  No third-party logos —
- * we use the network's own wordmark in their brand-derived colour.
+ * "Browse by Network" — premium tile rail.
+ *
+ * Tiles use the network's real wordmark logo, served via TMDB's
+ * watch-provider asset CDN (cached server-side for 24 h and locally
+ * for 7 days).  Each tile is a dark glass plate with the brand color
+ * as a subtle inner glow + the logo centred on a square plate so all
+ * six wordmarks share the same optical weight regardless of source.
  */
+const LOGOS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default function NetworksShelf() {
     const navigate = useNavigate();
+    const [logos, setLogos] = useState(() => {
+        const c = cache.get('networks:logos');
+        return c?.value || {};
+    });
+
+    useEffect(() => {
+        const c = cache.get('networks:logos');
+        if (c && !cache.isStale(c, LOGOS_TTL_MS)) return;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/networks/logos`);
+                if (!r.ok) return;
+                const json = await r.json();
+                const data = json?.data || {};
+                cache.set('networks:logos', data);
+                setLogos(data);
+            } catch {
+                /* keep cached or empty */
+            }
+        })();
+    }, []);
 
     return (
         <section
             data-testid="networks-shelf"
-            className="relative w-full"
+            className="relative w-full vesper-shelf-section"
             style={{
                 paddingTop: 'clamp(28px, 3vw, 56px)',
                 paddingBottom: 0,
@@ -64,49 +93,108 @@ export default function NetworksShelf() {
                 }}
             >
                 {NETWORKS.map((n) => (
-                    <button
+                    <NetworkTile
                         key={n.slug}
-                        data-testid={`network-${n.slug}`}
-                        data-focusable="true"
-                        data-focus-style="tile"
-                        tabIndex={0}
+                        net={n}
+                        logo={logos[n.slug]?.logo}
                         onClick={() => navigate(`/networks/${n.slug}`)}
-                        className="group relative shrink-0 overflow-hidden rounded-2xl text-left"
-                        style={{
-                            width: 'clamp(180px, 15vw, 260px)',
-                            aspectRatio: '16 / 9',
-                            background: n.background,
-                            border: '1px solid rgba(255,255,255,0.08)',
-                        }}
-                    >
-                        <div
-                            className="absolute inset-0 pointer-events-none"
-                            style={{
-                                background:
-                                    'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 55%)',
-                            }}
-                        />
-                        <div
-                            className="absolute inset-0 flex items-center justify-center px-4 text-center"
-                            style={{
-                                color: n.accent,
-                                fontFamily: '"Geist", system-ui, sans-serif',
-                                fontWeight: 800,
-                                letterSpacing: '-0.04em',
-                                fontSize:
-                                    n.wordmark.length > 6
-                                        ? 'clamp(28px, 2.4vw, 48px)'
-                                        : 'clamp(38px, 3.4vw, 64px)',
-                                textShadow:
-                                    '0 4px 24px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.6)',
-                                lineHeight: 1.05,
-                            }}
-                        >
-                            {n.wordmark}
-                        </div>
-                    </button>
+                    />
                 ))}
             </div>
         </section>
+    );
+}
+
+function NetworkTile({ net, logo, onClick }) {
+    return (
+        <button
+            data-testid={`network-${net.slug}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={onClick}
+            className="group relative shrink-0 overflow-hidden text-left"
+            style={{
+                width: 'clamp(180px, 15vw, 260px)',
+                aspectRatio: '16 / 9',
+                borderRadius: 18,
+                background:
+                    'linear-gradient(155deg, #0E1422 0%, #0A0F1A 60%, #06080F 100%)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow:
+                    '0 14px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
+            }}
+        >
+            {/* Brand-tinted inner glow */}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    background: `
+                        radial-gradient(circle at 28% 18%, ${net.accent}33 0%, transparent 55%),
+                        radial-gradient(circle at 78% 88%, ${net.accent}1F 0%, transparent 60%)
+                    `,
+                }}
+            />
+
+            {/* Subtle diagonal sheen */}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    background:
+                        'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.04) 100%)',
+                }}
+            />
+
+            {/* Logo plate */}
+            <div className="absolute inset-0 flex items-center justify-center p-5">
+                {logo ? (
+                    <img
+                        src={img.poster(logo)}
+                        alt={net.name}
+                        loading="lazy"
+                        decoding="async"
+                        style={{
+                            maxWidth: '78%',
+                            maxHeight: '58%',
+                            objectFit: 'contain',
+                            filter:
+                                'drop-shadow(0 4px 14px rgba(0,0,0,0.55)) drop-shadow(0 1px 1px rgba(0,0,0,0.7))',
+                        }}
+                    />
+                ) : (
+                    <span
+                        style={{
+                            color: net.accent,
+                            fontFamily: '"Geist", system-ui, sans-serif',
+                            fontWeight: 800,
+                            letterSpacing: '-0.04em',
+                            fontSize:
+                                net.wordmark.length > 6
+                                    ? 'clamp(26px, 2.2vw, 44px)'
+                                    : 'clamp(34px, 3vw, 56px)',
+                            textShadow:
+                                '0 4px 16px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {net.wordmark}
+                    </span>
+                )}
+            </div>
+
+            {/* Bottom accent rule — animates in on focus via the
+               theme's [data-focus-style='tile'] focus rule. */}
+            <div
+                className="absolute"
+                style={{
+                    left: 14,
+                    right: 14,
+                    bottom: 10,
+                    height: 2,
+                    borderRadius: 999,
+                    background: `linear-gradient(90deg, ${net.accent}00 0%, ${net.accent}88 50%, ${net.accent}00 100%)`,
+                    opacity: 0.6,
+                }}
+            />
+        </button>
     );
 }
