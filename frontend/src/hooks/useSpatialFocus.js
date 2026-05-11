@@ -210,10 +210,35 @@ export default function useSpatialFocus() {
             if (dir === 'left' || dir === 'right') {
                 const hs = horizontalScroller(el);
                 if (hs) {
+                    // EDGE-COMFORT horizontal scroll — matches
+                    // Stremio / Apple TV / Google TV behaviour.
+                    // The focused tile is allowed to drift naturally
+                    // across the row; the rail only scrolls when the
+                    // tile is about to go off-screen.  Concretely:
+                    //   • While moving Right, scroll once the tile's
+                    //     right edge is within `margin` px of the
+                    //     rail's right edge.
+                    //   • Same on the left side.
+                    // Net effect: the first 3-4 cards stay anchored
+                    // at the left, the cursor drifts to the right,
+                    // and only the middle of the row "scrolls" the
+                    // shelf at all.  The last card sits flush at the
+                    // right edge — no center-pinning forever.
                     const cRect = hs.getBoundingClientRect();
-                    const delta =
-                        rect.left - cRect.left - (cRect.width - rect.width) / 2;
-                    hs.scrollBy({ left: delta, behavior: scrollBehavior });
+                    const margin = Math.max(80, cRect.width * 0.18);
+                    let delta = 0;
+                    if (dir === 'right') {
+                        if (rect.right > cRect.right - margin) {
+                            delta = rect.right - (cRect.right - margin);
+                        }
+                    } else {
+                        if (rect.left < cRect.left + margin) {
+                            delta = rect.left - (cRect.left + margin);
+                        }
+                    }
+                    if (Math.abs(delta) > 4) {
+                        hs.scrollBy({ left: delta, behavior: scrollBehavior });
+                    }
                 }
                 return;
             }

@@ -15,8 +15,8 @@ export default function Shelf({ shelf, onSelect }) {
             data-testid={`shelf-${shelf.id}`}
             className="relative w-full vesper-shelf-section"
             style={{
-                paddingTop: 'clamp(6px, 0.8vw, 14px)',
-                paddingBottom: 4,
+                paddingTop: 'clamp(14px, 1.4vw, 24px)',
+                paddingBottom: 'clamp(14px, 1.4vw, 24px)',
             }}
         >
             <header

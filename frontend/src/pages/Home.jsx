@@ -92,7 +92,14 @@ export default function Home() {
                     <div
                         data-testid="shelves-region"
                         className="flex-1 overflow-y-auto"
-                        style={{ scrollBehavior: 'auto' }}
+                        style={{
+                            scrollBehavior: 'auto',
+                            // Top padding so the focus ring around
+                            // the FIRST shelf's tiles isn't clipped
+                            // by the scroller's top edge (the focus
+                            // ring extends ~22 px above each tile).
+                            paddingTop: 26,
+                        }}
                     >
                         <ContinueWatchingShelf />
                         <NetworksShelf />

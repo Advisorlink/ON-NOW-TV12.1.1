@@ -35,6 +35,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 17 — Feb 2026)
+- **Focus ring no longer clipped at the top of shelves** — added
+  26 px paddingTop to the shelves-region container in Home so the
+  first row of tiles has breathing room above. Each Shelf section's
+  vertical padding bumped from 6→14 / 4→14 px so consecutive rows
+  also don't squeeze each other's focus rings.
+- **Bigger, more obvious pop-out** — tile focus transform now
+  `scale(1.08) translateY(-2px)` (was 1.05 / -3 px). Box-shadow ring
+  unchanged thickness but glow halo expanded 18 → 22 px for a more
+  visible "lift" without overflowing row boundaries.
+- **Horizontal scroll now edge-comfort instead of center-pin** —
+  `useSpatialFocus.focusEl` for left/right was always centering the
+  focused tile (so the rail scrolled even when the focused tile was
+  visible already). Replaced with edge-comfort logic: rail only
+  scrolls when the focused tile is within `max(80, cRect.width × 0.18)`
+  of the visible band's edge in the direction of travel. Net effect:
+  the first 3-4 cards stay anchored at the left as the cursor drifts
+  rightward; only when the tile nears the right edge does the rail
+  scroll; the last card sits flush at the right edge. Matches
+  Stremio / Apple TV / Google TV behaviour.
+
+
 ## Implemented (Iteration 16 — Feb 2026)
 - **D-pad Down from hero now focuses tiles correctly** — the focus
   was being clipped / lost because of three compounding bugs after
