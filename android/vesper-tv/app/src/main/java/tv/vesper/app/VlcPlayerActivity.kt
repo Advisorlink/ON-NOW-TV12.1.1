@@ -95,6 +95,7 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var pickerClose: Button
 
     private var controlsVisible = true
+    private var lastFocusedControl: View? = null
     private val hideHandler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hideControls() }
 
@@ -243,10 +244,10 @@ class VlcPlayerActivity : AppCompatActivity() {
             seekBy(85_000)
             hideSkipIntro()
         }
-        btnSubs.setOnClickListener { openSubtitlePicker() }
-        btnAudio.setOnClickListener { openAudioPicker() }
-        btnSpeed.setOnClickListener { openSpeedPicker() }
-        btnAspect.setOnClickListener { openAspectPicker() }
+        btnSubs.setOnClickListener { lastFocusedControl = btnSubs; openSubtitlePicker() }
+        btnAudio.setOnClickListener { lastFocusedControl = btnAudio; openAudioPicker() }
+        btnSpeed.setOnClickListener { lastFocusedControl = btnSpeed; openSpeedPicker() }
+        btnAspect.setOnClickListener { lastFocusedControl = btnAspect; openAspectPicker() }
         pickerClose.setOnClickListener { closePicker() }
         pickerRoot.setOnClickListener { closePicker() }
 
@@ -679,6 +680,14 @@ class VlcPlayerActivity : AppCompatActivity() {
         pickerRoot.animate().alpha(0f).setDuration(160)
             .withEndAction { pickerRoot.visibility = View.GONE }.start()
         scheduleHide()
+        // Restore focus to whichever bottom-row button opened the
+        // picker so the user can keep D-pad-navigating instead of
+        // having to call up the controls again.
+        val target = lastFocusedControl ?: btnSubs
+        rootControls.post {
+            if (!controlsVisible) showControls()
+            target.requestFocus()
+        }
     }
 
     private fun isPickerOpen(): Boolean = pickerRoot.visibility == View.VISIBLE

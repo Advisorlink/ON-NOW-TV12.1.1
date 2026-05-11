@@ -17,20 +17,22 @@ import { useEffect } from 'react';
  */
 export default function useSpatialFocus() {
     useEffect(() => {
-        // Two-mode pacing tuned to feel like Android TV's launcher:
+        // Two-mode pacing tuned to match Android TV's LeanBack launcher:
         //
-        //   • SINGLE press → 90 ms cooldown, smooth scroll
-        //   • HOLD / repeat (e.repeat === true) → 70 ms cooldown,
+        //   • SINGLE press → 75 ms cooldown, smooth scroll
+        //   • HOLD / repeat (e.repeat === true) → 55 ms cooldown,
         //     instant scroll
         //
-        // On stock Android TV the launcher accepts ~12 presses/sec
-        // when you hold the D-pad, and each focus shift settles
-        // before the next.  We mirror that by detecting key auto-
-        // repeat (`e.repeat`) and switching to instant scroll while
-        // the user holds — so the tiles glide through rather than
-        // queueing smooth animations that pile up.
-        const COOLDOWN_PRESS_MS = 90;
-        const COOLDOWN_REPEAT_MS = 70;
+        // LeanBack accepts ~14 presses/sec while held; we mirror that
+        // by detecting key auto-repeat (`e.repeat`) and switching to
+        // instant scroll while the user holds — so tiles glide through
+        // rather than queueing smooth animations that pile up.
+        const COOLDOWN_PRESS_MS = 75;
+        const COOLDOWN_REPEAT_MS = 55;
+        // LeanBack pins the focused row at ~32% of the viewport so the
+        // next row down is already visible (and the row above stays in
+        // peripheral view).  Rows slide; focused tile stays put.
+        const VERTICAL_PIN_RATIO = 0.32;
         let lastDirAt = 0;
 
         const focusables = () =>
@@ -173,14 +175,14 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
-            const topBand = vh * 0.22;
-            const bottomBand = vh * 0.7;
-            let delta = 0;
-            if (rect.top < topBand) {
-                delta = rect.top - topBand;
-            } else if (rect.bottom > bottomBand) {
-                delta = rect.bottom - bottomBand;
-            }
+            // LeanBack-style: pin focused element at a fixed Y so the
+            // shelves glide under it rather than the focused tile
+            // drifting around within a band.  We use the centre of the
+            // focused element for the pin point and only scroll when
+            // it's measurably off-target.
+            const targetY = vh * VERTICAL_PIN_RATIO;
+            const focusedY = rect.top + rect.height / 2;
+            const delta = focusedY - targetY;
             if (Math.abs(delta) > 4) {
                 vs.scrollBy({ top: delta, behavior: scrollBehavior });
             }

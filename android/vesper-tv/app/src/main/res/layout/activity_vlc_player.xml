@@ -192,19 +192,32 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <!-- Full-screen scrim so the buttons stay legible even over
+             very bright scenes (sky shots, white backgrounds, etc.) -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#66000000" />
+
         <!-- Top gradient -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="200dp"
             android:background="@drawable/grad_top"
             android:layout_gravity="top" />
 
         <!-- Bottom gradient -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="280dp"
+            android:layout_height="340dp"
             android:background="@drawable/grad_bottom"
             android:layout_gravity="bottom" />
+
+        <!-- Centre vignette so the play/skip buttons stay readable -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/grad_center_dim" />
 
         <!-- ─── Top row: back + title ──────────────────────────── -->
         <LinearLayout

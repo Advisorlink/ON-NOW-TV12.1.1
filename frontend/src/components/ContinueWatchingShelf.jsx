@@ -42,12 +42,38 @@ export default function ContinueWatchingShelf() {
 
     if (!entries.length) return null;
 
-    const resume = (e) => {
-        // Re-open the Detail page with a `resume=1` query.  Detail
-        // reads the entry's positionMs from the CW store and passes
-        // it to the player as EXTRA_START_AT_MS.
+    const resume = async (e) => {
+        // Direct play — re-use the previously selected stream so the
+        // user doesn't have to pick a source again.  Falls back to
+        // the Detail page only if we don't have the stream URL.
+        if (e.streamUrl && Host.playVideo) {
+            const startAtMs = Math.max(0, (e.positionMs || 0) - 5_000);
+            const fired = Host.playVideo({
+                url: e.streamUrl,
+                title: e.title || '',
+                type: e.type || 'movie',
+                subtitleUrl: e.subtitleUrl || '',
+                poster: e.poster || '',
+                backdrop: e.backdrop || '',
+                synopsis: e.synopsis || '',
+                year: e.year || '',
+                rating: e.rating || '',
+                runtime: e.runtime || '',
+                genres: e.genres || [],
+                startAtMs,
+                cwId: e.id,
+            });
+            if (fired) return;
+        }
+        // Fallback: route to the detail page for source pick.
         const t = e.type || 'movie';
-        navigate(`/title/${t}/${e.id}?resume=1`);
+        // For series CW ids look like "tt1234:s1e1" — strip the suffix
+        // when constructing the route so meta resolves.
+        const baseId =
+            (t === 'series' && e.id?.includes(':')
+                ? e.id.split(':')[0]
+                : e.id) || e.id;
+        navigate(`/title/${t}/${baseId}?resume=1`);
     };
 
     return (

@@ -168,6 +168,7 @@ export default function Detail() {
                     runtime: meta?.runtime || '',
                     genres: meta?.genres || [],
                     startAtMs: startAtMs,
+                    cwId: id,
                 })
             ) {
                 return;

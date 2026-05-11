@@ -34,6 +34,30 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 10 — Feb 2026)
+- **LeanBack-style spatial nav** — `useSpatialFocus.js` now pins the
+  focused row at ~32 % of the viewport height so shelves glide under a
+  stationary focus, matching Android TV's launcher feel. Cooldowns
+  tightened to 75 ms (press) / 55 ms (hold).
+- **Continue Watching now plays directly** — clicking a CW tile uses
+  the saved `streamUrl` / `subtitleUrl` and goes straight into
+  `VlcPlayerActivity` with `startAtMs = positionMs - 5 000`, skipping
+  the source picker. Falls back to the Detail page only if the entry
+  is missing a stream URL (older CW entries).
+- **Movies persist progress** — `Detail.jsx` now passes `cwId: id` to
+  `Host.playVideo`, so libVLC's `maybePersistProgress()` actually
+  writes to `onnowtv_progress` for movies (previously only series
+  episodes worked).
+- **Player legibility scrim** — the controls overlay now lays a 40 %
+  flat black scrim plus a radial centre dim (`grad_center_dim.xml`)
+  behind the controls, so buttons stay readable over bright scenes.
+  Top/bottom gradient bands also enlarged (140 → 200 dp, 280 → 340 dp).
+- **Subtitle / Audio / Speed / Aspect focus restore** — `closePicker()`
+  in `VlcPlayerActivity.kt` now re-focuses the bottom-row button that
+  opened the sheet (tracked via `lastFocusedControl`) instead of
+  dumping focus into the void.
+
+
 ## Implemented (Iteration 9 — Feb 2026)
 - **Real APK with bundled frontend** — addressed user's observation
   that the previous APK was just a WebView pointing at the live
