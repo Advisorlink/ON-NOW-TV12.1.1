@@ -356,6 +356,7 @@ function EpisodeCard({
     playStream,
     copyMagnet,
     copied,
+    parentId,
 }) {
     const cardRef = useRef(null);
     useEffect(() => {
