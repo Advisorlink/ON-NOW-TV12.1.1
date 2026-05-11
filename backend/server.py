@@ -537,11 +537,13 @@ TMDB_IMG = "https://image.tmdb.org/t/p"
 # "produced by", which is what users actually mean.
 NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
     "netflix": {"id": 8, "label": "Netflix"},
-    "hbo": {"id": 1899, "label": "HBO Max"},
+    "hbo": {"id": 1899, "label": "Max"},
     "disney-plus": {"id": 337, "label": "Disney Plus"},
     "prime-video": {"id": 9, "label": "Amazon Prime Video"},
     "apple-tv": {"id": 350, "label": "Apple TV Plus"},
+    "paramount-plus": {"id": 531, "label": "Paramount Plus"},
     "hulu": {"id": 15, "label": "Hulu"},
+    "binge": {"id": 385, "label": "BINGE"},
     "stan": {"id": 21, "label": "Stan"},
 }
 

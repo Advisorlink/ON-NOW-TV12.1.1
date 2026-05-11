@@ -16,14 +16,16 @@ export const NETWORKS = [
         accent: '#e50914',
         background:
             'linear-gradient(135deg, #1c0306 0%, #4a070b 55%, #e50914 100%)',
+        customLogo: '/networks/netflix.webp',
     },
     {
         slug: 'hbo',
-        name: 'HBO Max',
-        wordmark: 'HBO',
+        name: 'Max',
+        wordmark: 'max',
         accent: '#ffffff',
         background:
-            'linear-gradient(135deg, #000000 0%, #1a1a1a 60%, #2b2b2b 100%)',
+            'linear-gradient(135deg, #000000 0%, #0a1842 55%, #1e6dff 100%)',
+        customLogo: '/networks/hbo.webp',
     },
     {
         slug: 'disney-plus',
@@ -53,6 +55,15 @@ export const NETWORKS = [
         customLogo: '/networks/apple-tv.webp',
     },
     {
+        slug: 'paramount-plus',
+        name: 'Paramount+',
+        wordmark: 'P+',
+        accent: '#0064ff',
+        background:
+            'linear-gradient(135deg, #000010 0%, #002073 55%, #0064ff 100%)',
+        customLogo: '/networks/paramount-plus.webp',
+    },
+    {
         slug: 'hulu',
         name: 'Hulu',
         wordmark: 'hulu',
@@ -60,6 +71,15 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #001b0c 0%, #006a37 55%, #1ce783 100%)',
         customLogo: '/networks/hulu.webp',
+    },
+    {
+        slug: 'binge',
+        name: 'Binge',
+        wordmark: 'BiNGE',
+        accent: '#ff3d8a',
+        background:
+            'linear-gradient(135deg, #03001a 0%, #410066 50%, #ff3d8a 100%)',
+        customLogo: '/networks/binge.webp',
     },
     {
         slug: 'stan',
