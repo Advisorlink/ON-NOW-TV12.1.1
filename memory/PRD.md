@@ -35,6 +35,26 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 18 — Feb 2026)
+- **Focus ring + shelf header no longer clipped on D-pad Down** —
+  pinning the *centre* of the focused tile at 32 % of the scroller
+  viewport worked when the scroller was the full window, but in
+  the shelves region (≈ 350 px tall, sitting below the locked hero)
+  a 280 px-tall poster's centre at 32 % put its TOP at -28 px —
+  clipped. The shelf header (eyebrow + title, ~50 px above the row)
+  got pushed even further off-screen. Switched to pinning the
+  rect's **TOP** at `max(scrollerHeight × 0.22, 90 px)` — guarantees
+  ≥ 90 px above every focused row for the shelf header + focus
+  ring, regardless of tile size or scroller dimensions.
+- **TV Shows tab is NOT broken** — verified in the live preview at
+  /?filter=series: returns 155 titles instantly (Man on Fire,
+  Widow's Bay, Unchosen, Half Man, etc.). The empty TV Shows tab the
+  user is seeing is because the HK1 box is still running the older
+  APK with the broken `shelves:series:60:...` cache key from
+  iteration 14. The next APK build (which includes iteration 15's
+  cache-key fix) will resolve it on the box.
+
+
 ## Implemented (Iteration 17 — Feb 2026)
 - **Focus ring no longer clipped at the top of shelves** — added
   26 px paddingTop to the shelves-region container in Home so the

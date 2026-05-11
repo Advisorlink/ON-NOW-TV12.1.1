@@ -245,18 +245,23 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
-            // The pin point must be expressed relative to the
-            // VISIBLE area of the scroller, NOT the window.  When
-            // the shelves region is a sub-container (e.g. Home's
-            // `flex-1 overflow-y-auto` below the locked hero), its
-            // top is not 0 — it might start at y=620.  Using
-            // `window.innerHeight * 0.32` as the target would give
-            // ~256 px, which is INSIDE the hero, so the container
-            // would try to scroll upward to put content there but
-            // can't, fighting itself and clipping the focused tile.
+            // Pin the TOP edge of the focused element (with enough
+            // offset that the shelf header above it stays visible
+            // AND the focus ring above the tile is never clipped).
             //
-            // Compute the scroller's own viewport rect and pin
-            // inside that band instead.
+            // Pinning by centre is fine on a big desktop browser but
+            // when the scroller is short (e.g. the shelves region
+            // below the locked hero is ~350 px tall), a tile that's
+            // 280 px tall has its centre at 32 % = 112 px which puts
+            // its TOP at -28 px — clipped above the scroller.  The
+            // shelf header that lives just above the tile gets
+            // pushed even further out of view.
+            //
+            // Solution: pin the rect TOP at the larger of
+            //   (scrollerHeight × 0.22, 90 px)
+            // so the focused row sits roughly a fifth of the way
+            // down with a guaranteed 90 px above it — enough for the
+            // shelf eyebrow + title PLUS the focus ring (~22 px).
             let scrollerTop;
             let scrollerHeight;
             if (
@@ -271,9 +276,9 @@ export default function useSpatialFocus() {
                 scrollerTop = sr.top;
                 scrollerHeight = sr.height;
             }
-            const targetY = scrollerTop + scrollerHeight * VERTICAL_PIN_RATIO;
-            const focusedY = rect.top + rect.height / 2;
-            const delta = focusedY - targetY;
+            const targetTop =
+                scrollerTop + Math.max(scrollerHeight * 0.22, 90);
+            const delta = rect.top - targetTop;
             if (Math.abs(delta) > 4) {
                 vs.scrollBy({ top: delta, behavior: scrollBehavior });
             }
