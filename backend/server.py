@@ -542,6 +542,7 @@ NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
     "prime-video": {"id": 9, "label": "Amazon Prime Video"},
     "apple-tv": {"id": 350, "label": "Apple TV Plus"},
     "hulu": {"id": 15, "label": "Hulu"},
+    "stan": {"id": 21, "label": "Stan"},
 }
 
 CACHE_TTL_NETWORK = 3600          # 1 hour — TMDB's discover updates daily

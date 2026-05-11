@@ -96,7 +96,7 @@ export default function NetworksShelf() {
                     <NetworkTile
                         key={n.slug}
                         net={n}
-                        logo={logos[n.slug]?.logo}
+                        logo={n.customLogo || logos[n.slug]?.logo}
                         onClick={() => navigate(`/networks/${n.slug}`)}
                     />
                 ))}
@@ -126,7 +126,7 @@ function NetworkTile({ net, logo, onClick }) {
         >
             {logo ? (
                 <img
-                    src={img.poster(logo)}
+                    src={net.customLogo ? logo : img.poster(logo)}
                     alt={net.name}
                     loading="lazy"
                     decoding="async"
@@ -135,12 +135,13 @@ function NetworkTile({ net, logo, onClick }) {
                         inset: 0,
                         width: '100%',
                         height: '100%',
-                        // `contain` shows the full TMDB logo (which is
-                        // square-cropped) without slicing the wordmark
-                        // edges; the branded `net.background` gradient
-                        // fills the remaining width so the tile still
-                        // looks like a full-bleed brand banner.
-                        objectFit: 'contain',
+                        // Custom user-supplied tiles are designed as
+                        // full-bleed brand banners (logo centered with
+                        // decorative background) → cover for impact.
+                        // TMDB watch-provider logos are tight crops of
+                        // the wordmark alone → contain so nothing
+                        // critical gets sliced off.
+                        objectFit: net.customLogo ? 'cover' : 'contain',
                         objectPosition: 'center',
                         display: 'block',
                     }}
