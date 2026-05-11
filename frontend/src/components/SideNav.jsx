@@ -43,7 +43,7 @@ export default function SideNav() {
             {/* Brand mark */}
             <div className="flex items-center gap-3 pl-5 pr-4 mb-12 select-none">
                 <img
-                    src="/brand/onnowtv-logo.png"
+                    src={Host.publicAsset('/brand/onnowtv-logo.png')}
                     alt="ON NOW TV V2"
                     className="shrink-0 w-14 h-14 object-contain"
                     style={{ filter: 'drop-shadow(0 0 16px rgba(93,200,255,0.35))' }}

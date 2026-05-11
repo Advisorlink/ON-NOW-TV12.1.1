@@ -4,6 +4,7 @@ import { NETWORKS } from '@/lib/networks';
 import { API } from '@/lib/api';
 import * as cache from '@/lib/cache';
 import * as img from '@/lib/img';
+import Host from '@/lib/host';
 
 /**
  * "Browse by Network" — premium tile rail.
@@ -96,7 +97,11 @@ export default function NetworksShelf() {
                     <NetworkTile
                         key={n.slug}
                         net={n}
-                        logo={n.customLogo || logos[n.slug]?.logo}
+                        logo={
+                            n.customLogo
+                                ? Host.publicAsset(n.customLogo)
+                                : logos[n.slug]?.logo
+                        }
                         onClick={() => navigate(`/networks/${n.slug}`)}
                     />
                 ))}

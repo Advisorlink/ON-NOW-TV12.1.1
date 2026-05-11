@@ -106,8 +106,32 @@ const Host = (() => {
         isLowEnd: lowEnd,
         playVideo,    // legacy — now always returns false
         playExternal, // explicit "open in VLC" — opt-in only
+        publicAsset,
     };
 })();
+
+/**
+ * Resolve a public-folder asset URL (e.g. "networks/disney-plus.webp")
+ * to something that works both in the hosted preview (http://) and
+ * in the sideloaded APK (file:///android_asset/web/index.html).
+ *
+ * Under `file://` an absolute path like "/networks/x.webp" resolves
+ * to the device root and 404s.  We resolve against `document.baseURI`
+ * instead, which always points at the index.html the WebView loaded.
+ */
+function publicAsset(path) {
+    if (!path) return path;
+    const clean = path.startsWith('/') ? path.slice(1) : path;
+    if (typeof window === 'undefined') return `/${clean}`;
+    if (window.location.protocol === 'file:' && typeof document !== 'undefined') {
+        try {
+            return new URL(clean, document.baseURI).toString();
+        } catch {
+            return `./${clean}`;
+        }
+    }
+    return `/${clean}`;
+}
 
 function mimeFor(url, type) {
     const u = (url || '').toLowerCase();
