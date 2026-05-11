@@ -1,27 +1,35 @@
 import { useEffect, useState } from 'react';
 import { Vesper, API } from '@/lib/api';
+import * as cache from '@/lib/cache';
 
-/**
- * Hero billboard data source.
- *
- *   1. Preferred  — Cinemeta "top movies/series" via the user's
- *      installed Stremio addons (gives a clickable /title/... route).
- *   2. Fallback   — TMDB trending (`/api/tmdb/trending`) so the hero
- *      is *always* populated with real, current content even when no
- *      addons are installed.  The TMDB hero items route into the
- *      same Detail page via a TMDB→IMDB lookup on click.
- *
- * Returns hero objects shaped exactly like HeroBillboard expects:
- *   { id, title, eyebrow, year, runtime, rating, genres,
- *     synopsis, backdrop, sources, routePath }
- */
+const TTL_MS = 10 * 60 * 1000;
+
+function heroKey(addons, type) {
+    const ids = (addons || []).map((a) => a.id).sort().join(',');
+    return `heroes:${type}:${ids}`;
+}
+
 export function useLiveHeroes(addons, type = 'movie') {
-    const [heroes, setHeroes] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const key = heroKey(addons, type);
+    const cached = cache.get(key);
+    const [heroes, setHeroes] = useState(
+        Array.isArray(cached?.value) ? cached.value : []
+    );
+    const [loading, setLoading] = useState(!cached);
 
     useEffect(() => {
+        // Hot path: cached and fresh → paint instantly, no refetch.
+        const cur = cache.get(key);
+        if (cur) {
+            setHeroes(Array.isArray(cur.value) ? cur.value : []);
+            setLoading(false);
+            if (!cache.isStale(cur, TTL_MS)) return;
+            // Stale — background refresh, but keep showing cached.
+        } else {
+            setLoading(true);
+        }
+
         let cancelled = false;
-        setLoading(true);
 
         const fromCinemeta = async () => {
             if (!addons || addons.length === 0) return null;
@@ -100,10 +108,14 @@ export function useLiveHeroes(addons, type = 'movie') {
                 const cinemetaHeroes = await fromCinemeta();
                 if (cinemetaHeroes && !cancelled) {
                     setHeroes(cinemetaHeroes);
+                    cache.set(key, cinemetaHeroes);
                     return;
                 }
                 const tmdbHeroes = await fromTmdb();
-                if (!cancelled) setHeroes(tmdbHeroes);
+                if (!cancelled) {
+                    setHeroes(tmdbHeroes);
+                    cache.set(key, tmdbHeroes);
+                }
             } catch {
                 if (!cancelled) setHeroes([]);
             } finally {
@@ -114,7 +126,7 @@ export function useLiveHeroes(addons, type = 'movie') {
         return () => {
             cancelled = true;
         };
-    }, [addons, type]);
+    }, [addons, type, key]);
 
     return { heroes, loading };
 }

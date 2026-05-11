@@ -1,30 +1,34 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Vesper } from '@/lib/api';
+import * as cache from '@/lib/cache';
 
-/**
- * Default addons we silently bootstrap on first run.  Cinemeta is the
- * IMDB-id metadata backbone everything else depends on; OpenSubtitles
- * v3 unlocks the Player's subtitle picker.  We only auto-install when
- * the user has *zero* addons to avoid resurrecting an addon they
- * deliberately removed.
- */
 const BOOTSTRAP_ADDONS = [
     'https://v3-cinemeta.strem.io/manifest.json',
     'https://opensubtitles-v3.strem.io/manifest.json',
 ];
 const BOOTSTRAP_FLAG = 'vesper-bootstrap-attempted-v1';
+const ADDONS_CACHE_KEY = 'addons';
+const ADDONS_TTL_MS = 5 * 60 * 1000; // refresh in background after 5 min
 
 export function useAddons() {
-    const [addons, setAddons] = useState([]);
-    const [loading, setLoading] = useState(true);
+    // Hydrate from cache synchronously so the first paint already
+    // has the addon list — no flash of empty home screen on navigation.
+    const cached = cache.get(ADDONS_CACHE_KEY);
+    const [addons, setAddons] = useState(
+        Array.isArray(cached?.value) ? cached.value : []
+    );
+    const [loading, setLoading] = useState(!cached);
     const [error, setError] = useState(null);
     const bootstrapping = useRef(false);
 
     const refresh = useCallback(async () => {
         try {
-            setLoading(true);
+            // Only show the spinner if we have nothing to render.
+            const hasCache = !!cache.get(ADDONS_CACHE_KEY);
+            if (!hasCache) setLoading(true);
             const data = await Vesper.listAddons();
             const list = Array.isArray(data) ? data : [];
+            cache.set(ADDONS_CACHE_KEY, list);
             setAddons(list);
             setError(null);
             return list;
@@ -44,7 +48,13 @@ export function useAddons() {
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const list = await refresh();
+            // Stale-while-revalidate: if we already have cached addons,
+            // skip the network call for the first 5 minutes after a
+            // refresh.  This is what makes back-to-Home feel instant.
+            const cur = cache.get(ADDONS_CACHE_KEY);
+            const list = cur && !cache.isStale(cur, ADDONS_TTL_MS)
+                ? cur.value
+                : await refresh();
             if (cancelled) return;
             if (bootstrapping.current) return;
 
@@ -108,6 +118,7 @@ export function useAddons() {
     const install = useCallback(
         async (url) => {
             const res = await Vesper.installAddon(url);
+            cache.clear(ADDONS_CACHE_KEY);
             await refresh();
             return res;
         },
@@ -117,6 +128,7 @@ export function useAddons() {
     const remove = useCallback(
         async (id) => {
             await Vesper.removeAddon(id);
+            cache.clear(ADDONS_CACHE_KEY);
             await refresh();
         },
         [refresh]

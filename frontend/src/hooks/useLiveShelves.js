@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Vesper } from '@/lib/api';
+import * as cache from '@/lib/cache';
 
 /**
  * Pulls real catalogs from every installed addon and emits them
@@ -7,22 +8,50 @@ import { Vesper } from '@/lib/api';
  * home screen.  Returns shelves shaped like
  *   { id, title, eyebrow, items[] }
  * which drop straight into <Shelf />.
+ *
+ * Results are cached in memory + sessionStorage keyed by the
+ * combination of installed-addon ids + active filter, so navigating
+ * back to Home (or switching between All/Movies/TV tabs you've
+ * already visited) is instant.  After TTL_MS the hook silently
+ * refetches in the background to keep things fresh.
  */
 const BROWSABLE_TYPES = new Set(['movie', 'series', 'channel', 'tv', 'anime']);
+const TTL_MS = 10 * 60 * 1000; // 10 min stale window
+
+function cacheKey(addons, filterType) {
+    const ids = (addons || []).map((a) => a.id).sort().join(',');
+    return `shelves:${filterType || 'all'}:${ids}`;
+}
 
 export function useLiveShelves(addons, filterType = null) {
-    const [shelves, setShelves] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const key = cacheKey(addons, filterType);
+    const cached = cache.get(key);
+    const [shelves, setShelves] = useState(
+        Array.isArray(cached?.value) ? cached.value : []
+    );
+    const [loading, setLoading] = useState(!cached);
 
     useEffect(() => {
         if (!addons || addons.length === 0) {
             setShelves([]);
+            setLoading(false);
             return;
         }
 
+        // Hot path: cached and fresh — just paint and bail.
+        const cur = cache.get(key);
+        if (cur) {
+            setShelves(Array.isArray(cur.value) ? cur.value : []);
+            setLoading(false);
+            if (!cache.isStale(cur, TTL_MS)) return;
+            // Stale — fall through to background refetch but do NOT
+            // wipe the screen; keep showing the cached value.
+        } else {
+            setShelves([]);
+            setLoading(true);
+        }
+
         let cancelled = false;
-        setShelves([]);
-        setLoading(true);
         const acc = [];
 
         (async () => {
@@ -70,13 +99,16 @@ export function useLiveShelves(addons, filterType = null) {
                     }
                 }
             }
-            if (!cancelled) setLoading(false);
+            if (!cancelled) {
+                cache.set(key, acc);
+                setLoading(false);
+            }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [addons, filterType]);
+    }, [addons, filterType, key]);
 
     return { shelves, loading };
 }
