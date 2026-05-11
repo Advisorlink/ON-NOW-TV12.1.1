@@ -35,6 +35,37 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 21 — Feb 2026)
+- **Android 7.1.2 (API 25) compatibility confirmed + hardened** —
+  Audit results:
+  - `app/build.gradle.kts` already targets `minSdk = 21` (Android
+    5.0+), so API 25 boxes are fully supported.
+  - Hardware features (`leanback`, `touchscreen`, `faketouch`) all
+    declared `android:required="false"` so the Play Store / Android
+    install path won't reject the APK on phones-without-leanback
+    or boxes-without-touchscreen.
+  - APK signing uses v1 + v2 + v3 — old Android 6/7 boxes can only
+    parse v1, so this combo unblocks them.
+  - libVLC 3.6 supports API 17+, so playback works on Android 7.
+  - Both `armeabi-v7a` and `arm64-v8a` ABIs bundled, so 32-bit-only
+    Chinese boxes install without "App not installed" errors.
+  - One API guard already present: `applyImmersiveMode()` branches
+    on `Build.VERSION.SDK_INT >= R` (API 30) for the new
+    `WindowInsetsController` and falls back to deprecated
+    `systemUiVisibility` on older boxes.
+  - All recent additions (`setLayerType(LAYER_TYPE_HARDWARE, null)`,
+    `WebAppInterface.fetchUrl` using `HttpURLConnection`,
+    `AlertDialog` from AppCompat, the custom exit dialog drawables,
+    radial gradient drawables) are all API 21-safe.
+- **JS/Web compatibility hardening** — `package.json` browserslist
+  bumped to explicitly target `chrome >= 60` and `android >= 7` for
+  the production build. This forces CRA's Babel to transpile
+  optional chaining (`?.`), nullish coalescing (`??`) and other
+  ES2020+ features down to ES5 equivalents that Android 7's stock
+  WebView (Chrome ~56-60) can parse natively, even when the user
+  hasn't updated the Android System WebView.
+
+
 ## Implemented (Iteration 20 — Feb 2026)
 - **Autoplay 1080p defaults to ON** — `getAutoplay1080p()` in
   `lib/prefs.js` now returns true when the localStorage key is
