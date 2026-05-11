@@ -60,7 +60,8 @@ const Host = (() => {
                     year || '',
                     rating == null ? '' : String(rating),
                     runtime || '',
-                    Array.isArray(genres) ? genres.join(' · ') : (genres || '')
+                    Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
+                    type || ''
                 );
                 return true;
             } catch {

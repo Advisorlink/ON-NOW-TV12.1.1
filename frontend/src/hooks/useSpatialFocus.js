@@ -18,13 +18,14 @@ import { useEffect } from 'react';
 export default function useSpatialFocus() {
     useEffect(() => {
         // Rapid-press throttle.  On HK1 boxes the IR remote auto-
-        // repeats arrow keys at ~12 Hz; without throttling the JS
-        // focus loop runs faster than the smooth-scroll animation
-        // resolves, so the user sees focused tiles "skip" past
-        // intermediate items without ever lighting up.  We pace
-        // direction moves to ~110 ms apart so every tile in the
-        // path gets a chance to animate its focus ring + pop-out.
-        const DIR_COOLDOWN_MS = 110;
+        // repeats arrow keys at ~12 Hz (one event every ~83 ms).
+        // We pace direction moves to ~190 ms apart so every tile in
+        // the path gets a chance to animate its focus ring + pop-out.
+        // Without this the JS focus loop outruns the smooth-scroll
+        // animation and tiles appear to "skip" past without ever
+        // lighting up — most noticeable on tightly-packed poster
+        // shelves and on vertical row-to-row jumps.
+        const DIR_COOLDOWN_MS = 190;
         let lastDirAt = 0;
 
         const focusables = () =>

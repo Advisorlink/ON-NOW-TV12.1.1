@@ -74,6 +74,9 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var rootControls: View
     private lateinit var backBtn: ImageButton
     private lateinit var playBtn: ImageButton
+    private lateinit var skipBackBtn: ImageButton
+    private lateinit var skipFwdBtn: ImageButton
+    private lateinit var skipIntroBtn: Button
     private lateinit var titleTv: TextView
     private lateinit var positionTv: TextView
     private lateinit var durationTv: TextView
@@ -116,6 +119,10 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var ratingText: String? = null
     private var runtimeText: String? = null
     private var genresText: String? = null
+    private var contentType: String? = null
+    private var isSeries: Boolean = false
+    private var skipIntroShown: Boolean = false
+    private var skipIntroDismissed: Boolean = false
     private var isSeeking = false
     private var previewDismissed = false
 
@@ -151,6 +158,8 @@ class VlcPlayerActivity : AppCompatActivity() {
         ratingText = intent.getStringExtra(EXTRA_RATING)
         runtimeText = intent.getStringExtra(EXTRA_RUNTIME)
         genresText = intent.getStringExtra(EXTRA_GENRES)
+        contentType = intent.getStringExtra(EXTRA_TYPE)
+        isSeries = contentType?.equals("series", ignoreCase = true) == true
 
         if (streamUrl.isNullOrBlank()) {
             finish()
@@ -162,6 +171,9 @@ class VlcPlayerActivity : AppCompatActivity() {
         rootControls = findViewById(R.id.controls_root)
         backBtn = findViewById(R.id.btn_back)
         playBtn = findViewById(R.id.btn_play_pause)
+        skipBackBtn = findViewById(R.id.btn_skip_back)
+        skipFwdBtn = findViewById(R.id.btn_skip_fwd)
+        skipIntroBtn = findViewById(R.id.btn_skip_intro)
         titleTv = findViewById(R.id.tv_title)
         positionTv = findViewById(R.id.tv_position)
         durationTv = findViewById(R.id.tv_duration)
@@ -212,6 +224,18 @@ class VlcPlayerActivity : AppCompatActivity() {
         playBtn.setOnClickListener {
             togglePlayPause()
             scheduleHide()
+        }
+        skipBackBtn.setOnClickListener {
+            seekBy(-10_000)
+        }
+        skipFwdBtn.setOnClickListener {
+            seekBy(10_000)
+        }
+        skipIntroBtn.setOnClickListener {
+            // Netflix-style: skip a typical 85-second intro.  Hide
+            // the button afterwards so it doesn't keep tempting clicks.
+            seekBy(85_000)
+            hideSkipIntro()
         }
         btnSubs.setOnClickListener { openSubtitlePicker() }
         btnAudio.setOnClickListener { openAudioPicker() }
@@ -445,6 +469,35 @@ class VlcPlayerActivity : AppCompatActivity() {
             durationTv.text = formatMillis(length)
             positionTv.text = formatMillis(time)
         }
+        maybeToggleSkipIntro(time)
+    }
+
+    /**
+     * Netflix-style "Skip Intro" pill.  Shows for TV series between
+     * 5 s and 90 s into the episode.  Once dismissed (or after the
+     * window passes) it stays hidden for the rest of the playback.
+     */
+    private fun maybeToggleSkipIntro(timeMs: Long) {
+        if (!isSeries || skipIntroDismissed) return
+        val inIntroWindow = timeMs in 5_000..90_000
+        if (inIntroWindow && !skipIntroShown) {
+            skipIntroShown = true
+            skipIntroBtn.alpha = 0f
+            skipIntroBtn.visibility = View.VISIBLE
+            skipIntroBtn.animate().alpha(1f).setDuration(280).start()
+        } else if (!inIntroWindow && skipIntroShown) {
+            hideSkipIntro()
+        }
+    }
+
+    private fun hideSkipIntro() {
+        skipIntroDismissed = true
+        skipIntroShown = false
+        skipIntroBtn.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .withEndAction { skipIntroBtn.visibility = View.GONE }
+            .start()
     }
 
     // -----------------------------------------------------------------
@@ -723,5 +776,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_RATING = "rating"
         const val EXTRA_RUNTIME = "runtime"
         const val EXTRA_GENRES = "genres"
+        const val EXTRA_TYPE = "type"
     }
 }

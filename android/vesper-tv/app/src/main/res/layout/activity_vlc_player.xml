@@ -17,17 +17,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- =========================================================
-         CINEMATIC PREVIEW OVERLAY
-         Shown until the first PLAYING event, fades out 1.2s later.
-         ========================================================= -->
+    <!-- ============================================================
+         CINEMATIC PREVIEW OVERLAY  (loading screen)
+         ============================================================ -->
     <FrameLayout
         android:id="@+id/preview_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#06080F">
 
-        <!-- Backdrop (covers full screen, dimmed) -->
         <ImageView
             android:id="@+id/preview_backdrop"
             android:layout_width="match_parent"
@@ -36,13 +34,11 @@
             android:alpha="0.55"
             android:contentDescription="@null" />
 
-        <!-- Vertical gradient overlay for legibility -->
         <View
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@drawable/preview_vignette" />
 
-        <!-- Content row: poster + meta -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -142,7 +138,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Loading shimmer at the bottom -->
         <View
             android:id="@+id/preview_shimmer"
             android:layout_width="match_parent"
@@ -151,9 +146,9 @@
             android:background="#5DC8FF" />
     </FrameLayout>
 
-    <!-- =========================================================
-         BUFFERING SPINNER (during playback only, after preview)
-         ========================================================= -->
+    <!-- ============================================================
+         BUFFERING SPINNER (during playback only)
+         ============================================================ -->
     <ProgressBar
         android:id="@+id/loading_view"
         android:layout_width="64dp"
@@ -166,137 +161,155 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- =========================================================
+    <!-- ============================================================
+         SKIP INTRO PILL (bottom-right, TV shows only)
+         ============================================================ -->
+    <Button
+        android:id="@+id/btn_skip_intro"
+        android:layout_width="wrap_content"
+        android:layout_height="52dp"
+        android:layout_marginEnd="40dp"
+        android:layout_marginBottom="160dp"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:text="Skip Intro"
+        android:textAllCaps="false"
+        android:textColor="#0B1322"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="@drawable/btn_skip_intro"
+        android:visibility="gone"
+        android:elevation="12dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- ============================================================
          CONTROLS OVERLAY
-         ========================================================= -->
+         ============================================================ -->
     <FrameLayout
         android:id="@+id/controls_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Top gradient bar -->
+        <!-- Top gradient -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="120dp"
+            android:layout_height="140dp"
             android:background="@drawable/grad_top"
             android:layout_gravity="top" />
 
-        <!-- Bottom gradient bar -->
+        <!-- Bottom gradient -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="220dp"
+            android:layout_height="280dp"
             android:background="@drawable/grad_bottom"
             android:layout_gravity="bottom" />
 
-        <!-- Top row: back + title -->
+        <!-- ─── Top row: back + title ──────────────────────────── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="24dp"
-            android:paddingTop="24dp">
+            android:paddingHorizontal="32dp"
+            android:paddingTop="28dp">
 
             <ImageButton
                 android:id="@+id/btn_back"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@drawable/btn_pill"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/btn_glass_circle"
                 android:contentDescription="Back"
-                android:padding="12dp"
+                android:padding="14dp"
                 android:src="@drawable/ic_back" />
 
-            <TextView
-                android:id="@+id/tv_title"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
+                android:layout_marginStart="20dp"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NOW PLAYING"
+                    android:textColor="#5DC8FF"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.22"
+                    android:fontFamily="monospace" />
+
+                <TextView
+                    android:id="@+id/tv_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Bottom controls: track buttons, seek, time, play/pause -->
+        <!-- ─── CENTRE: skip back / play / skip fwd ────────────── -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btn_skip_back"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="@drawable/btn_glass_circle"
+                android:contentDescription="Skip back 10 seconds"
+                android:padding="22dp"
+                android:src="@drawable/ic_replay_10" />
+
+            <ImageButton
+                android:id="@+id/btn_play_pause"
+                android:layout_width="104dp"
+                android:layout_height="104dp"
+                android:layout_marginStart="32dp"
+                android:layout_marginEnd="32dp"
+                android:background="@drawable/btn_round"
+                android:contentDescription="Play / Pause"
+                android:padding="28dp"
+                android:src="@drawable/ic_pause"
+                android:elevation="6dp" />
+
+            <ImageButton
+                android:id="@+id/btn_skip_fwd"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="@drawable/btn_glass_circle"
+                android:contentDescription="Skip forward 10 seconds"
+                android:padding="22dp"
+                android:src="@drawable/ic_forward_10" />
+        </LinearLayout>
+
+        <!-- ─── BOTTOM: seek bar + time + settings row ─────────── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
             android:gravity="center_vertical"
             android:orientation="vertical"
-            android:paddingHorizontal="24dp"
-            android:paddingBottom="32dp">
+            android:paddingHorizontal="40dp"
+            android:paddingBottom="40dp">
 
-            <!-- Track / settings row -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:layout_marginBottom="14dp">
-
-                <Button
-                    android:id="@+id/btn_subs"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/btn_pill"
-                    android:paddingStart="18dp"
-                    android:paddingEnd="18dp"
-                    android:text="Subtitles"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/btn_audio"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/btn_pill"
-                    android:paddingStart="18dp"
-                    android:paddingEnd="18dp"
-                    android:text="Audio"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/btn_speed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/btn_pill"
-                    android:paddingStart="18dp"
-                    android:paddingEnd="18dp"
-                    android:text="Speed"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/btn_aspect"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:background="@drawable/btn_pill"
-                    android:paddingStart="18dp"
-                    android:paddingEnd="18dp"
-                    android:text="Aspect"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp" />
-            </LinearLayout>
-
-            <!-- Seek row -->
+            <!-- Seek bar with inline time labels -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:layout_marginBottom="20dp">
 
                 <TextView
                     android:id="@+id/tv_position"
@@ -305,17 +318,20 @@
                     android:text="0:00"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="monospace"
+                    android:minWidth="56dp" />
 
                 <SeekBar
                     android:id="@+id/seek_bar"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginHorizontal="14dp"
                     android:layout_weight="1"
                     android:focusable="true"
                     android:progressTint="#5DC8FF"
-                    android:thumbTint="#5DC8FF" />
+                    android:thumbTint="#5DC8FF"
+                    android:progressBackgroundTint="#33FFFFFF"
+                    android:maxHeight="3dp" />
 
                 <TextView
                     android:id="@+id/tv_duration"
@@ -324,26 +340,84 @@
                     android:text="0:00"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="monospace"
+                    android:minWidth="56dp"
+                    android:gravity="end" />
             </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/btn_play_pause"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:layout_marginTop="16dp"
-                android:layout_gravity="center_horizontal"
-                android:background="@drawable/btn_round"
-                android:contentDescription="Play / Pause"
-                android:padding="18dp"
-                android:src="@drawable/ic_pause" />
+            <!-- Settings row: subtitles / audio / speed / aspect -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_subs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_subtitles"
+                    android:drawablePadding="10dp"
+                    android:text="Subtitles"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btn_audio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_audio"
+                    android:drawablePadding="10dp"
+                    android:text="Audio"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btn_speed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_speed"
+                    android:drawablePadding="10dp"
+                    android:text="Speed"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btn_aspect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_aspect"
+                    android:drawablePadding="10dp"
+                    android:text="Aspect"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 
-    <!-- =========================================================
+    <!-- ============================================================
          TRACK PICKER SHEET (Subtitles / Audio / Speed / Aspect)
-         Slides in from the right, D-pad navigable.
-         ========================================================= -->
+         ============================================================ -->
     <FrameLayout
         android:id="@+id/picker_root"
         android:layout_width="match_parent"
@@ -352,15 +426,15 @@
         android:visibility="gone">
 
         <LinearLayout
-            android:layout_width="420dp"
+            android:layout_width="460dp"
             android:layout_height="match_parent"
             android:layout_gravity="end"
             android:background="#F00A0E18"
             android:orientation="vertical"
-            android:paddingTop="40dp"
-            android:paddingBottom="32dp"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp">
+            android:paddingTop="44dp"
+            android:paddingBottom="36dp"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp">
 
             <TextView
                 android:id="@+id/picker_eyebrow"
@@ -377,10 +451,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:layout_marginBottom="20dp"
+                android:layout_marginBottom="24dp"
                 android:text="Subtitles"
                 android:textColor="#FFFFFF"
-                android:textSize="26sp"
+                android:textSize="30sp"
                 android:textStyle="bold" />
 
             <androidx.recyclerview.widget.RecyclerView
@@ -393,8 +467,8 @@
             <Button
                 android:id="@+id/picker_close"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="14dp"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
                 android:background="@drawable/btn_pill"
                 android:text="Close"
                 android:textAllCaps="false"

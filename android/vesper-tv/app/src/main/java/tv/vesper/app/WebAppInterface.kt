@@ -67,7 +67,8 @@ class WebAppInterface(private val activity: Activity) {
         year: String?,
         rating: String?,
         runtime: String?,
-        genres: String?
+        genres: String?,
+        type: String?
     ) {
         if (url.isBlank()) return
         activity.runOnUiThread {
@@ -83,6 +84,7 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
                     putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
                     putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 activity.startActivity(intent)
