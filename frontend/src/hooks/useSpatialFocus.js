@@ -180,16 +180,31 @@ export default function useSpatialFocus() {
 
         const focusEl = (el, dir, _instant = false) => {
             if (!el) return;
+            // Detect a focus transition that CROSSES into a different
+            // scroll container — e.g. moving from the locked hero into
+            // the shelves region.  When that happens we snap the new
+            // scroller to its top FIRST so the focused tile is fully
+            // visible from the start, rather than letting the pin
+            // logic chase a delta that overlaps the locked hero.
+            const prevVs = lastFocused
+                ? verticalScroller(lastFocused)
+                : null;
+            const nextVs = verticalScroller(el);
+            const crossingScrollers =
+                nextVs && nextVs !== prevVs && nextVs !== document.scrollingElement;
+            if (crossingScrollers) {
+                try {
+                    nextVs.scrollTop = 0;
+                } catch {
+                    /* ignore */
+                }
+            }
+
             el.focus({ preventScroll: true });
             setFocusAttr(el);
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight;
-            // ALWAYS instant — the focus glow CSS transition gives
-            // visual fluidity; animated scrollTo queues frames that
-            // make subsequent key presses see stale rects and skip
-            // candidates.  Reference launchers (LeanBack, Stremio)
-            // both scroll instantly.
             const scrollBehavior = 'auto';
 
             if (dir === 'left' || dir === 'right') {
@@ -205,12 +220,33 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
-            // LeanBack-style: pin focused element at a fixed Y so the
-            // shelves glide under it rather than the focused tile
-            // drifting around within a band.  We use the centre of the
-            // focused element for the pin point and only scroll when
-            // it's measurably off-target.
-            const targetY = vh * VERTICAL_PIN_RATIO;
+            // The pin point must be expressed relative to the
+            // VISIBLE area of the scroller, NOT the window.  When
+            // the shelves region is a sub-container (e.g. Home's
+            // `flex-1 overflow-y-auto` below the locked hero), its
+            // top is not 0 — it might start at y=620.  Using
+            // `window.innerHeight * 0.32` as the target would give
+            // ~256 px, which is INSIDE the hero, so the container
+            // would try to scroll upward to put content there but
+            // can't, fighting itself and clipping the focused tile.
+            //
+            // Compute the scroller's own viewport rect and pin
+            // inside that band instead.
+            let scrollerTop;
+            let scrollerHeight;
+            if (
+                vs === document.scrollingElement ||
+                vs === document.body ||
+                vs === document.documentElement
+            ) {
+                scrollerTop = 0;
+                scrollerHeight = vh;
+            } else {
+                const sr = vs.getBoundingClientRect();
+                scrollerTop = sr.top;
+                scrollerHeight = sr.height;
+            }
+            const targetY = scrollerTop + scrollerHeight * VERTICAL_PIN_RATIO;
             const focusedY = rect.top + rect.height / 2;
             const delta = focusedY - targetY;
             if (Math.abs(delta) > 4) {
@@ -315,31 +351,68 @@ export default function useSpatialFocus() {
             }
         };
 
-        // Initial focus: prefer an element marked data-initial-focus,
-        // otherwise the first focusable on the page.
-        const init = () => {
-            if (
-                document.activeElement &&
-                document.activeElement.matches('[data-focusable="true"]')
-            ) {
-                setFocusAttr(document.activeElement);
-                return;
-            }
+        // Initial focus: prefer `data-initial-focus`, but the hero
+        // Play button mounts asynchronously after TMDB / Cinemeta
+        // respond — so we retry over a 2 s window.  Only the FINAL
+        // retry falls back to "first non-nav focusable"; earlier
+        // retries strictly wait for the preferred element to appear.
+        const tryPreferred = () => {
             const preferred = document.querySelector(
                 '[data-focusable="true"][data-initial-focus="true"]'
             );
-            const target = preferred || focusables()[0];
-            if (target) {
-                target.focus({ preventScroll: true });
-                setFocusAttr(target);
+            if (!preferred) return false;
+            preferred.focus({ preventScroll: true });
+            setFocusAttr(preferred);
+            return true;
+        };
+
+        const tryFallback = () => {
+            // Only ever set a fallback if NOTHING is currently
+            // focused — if the user already moved focus we leave
+            // them alone.
+            const ae = document.activeElement;
+            if (
+                ae &&
+                ae.matches('[data-focusable="true"]') &&
+                !ae.closest('[data-testid="side-nav"]')
+            ) {
+                setFocusAttr(ae);
+                return;
+            }
+            const all = focusables();
+            const firstContent = all.find(
+                (el) => !el.closest('[data-testid="side-nav"]')
+            );
+            if (firstContent) {
+                firstContent.focus({ preventScroll: true });
+                setFocusAttr(firstContent);
             }
         };
 
-        const t = setTimeout(init, 250);
+        const timers = [];
+        // Strict retries — only succeed once the preferred element
+        // mounts.  After the strict window expires, fall back so
+        // the user is never left with NO focused element.
+        let preferredSet = false;
+        [50, 200, 500, 1000, 1500].forEach((ms) => {
+            timers.push(
+                setTimeout(() => {
+                    if (preferredSet) return;
+                    if (tryPreferred()) preferredSet = true;
+                }, ms)
+            );
+        });
+        timers.push(
+            setTimeout(() => {
+                if (preferredSet) return;
+                tryFallback();
+            }, 1800)
+        );
+
         window.addEventListener('keydown', onKey);
         return () => {
             window.removeEventListener('keydown', onKey);
-            clearTimeout(t);
+            timers.forEach((t) => clearTimeout(t));
         };
     }, []);
 }

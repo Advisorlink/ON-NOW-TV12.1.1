@@ -754,6 +754,10 @@ async def tmdb_trending(
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
 
+# Xtream Codes IPTV proxy (auth, categories, streams, EPG)
+from xtream import router as xtream_router  # noqa: E402
+app.include_router(xtream_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

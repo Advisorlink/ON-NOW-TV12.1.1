@@ -35,6 +35,32 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 16 — Feb 2026)
+- **D-pad Down from hero now focuses tiles correctly** — the focus
+  was being clipped / lost because of three compounding bugs after
+  the Home layout split:
+  1. **Pin-point used `window.innerHeight`** — wrong reference when
+     the scroller is a sub-container (the shelves region starts at
+     y=620 below the locked hero, so the pin at 0.32 × vh = 256 was
+     inside the hero, fighting itself). Now uses the scroller's own
+     `getBoundingClientRect()` so `targetY = scrollerTop +
+     scrollerHeight × 0.32` lands inside the visible band.
+  2. **Cross-scroller transitions** — moving from hero (outside the
+     scroll region) into a shelf tile (inside it) now snaps the new
+     scroller's `scrollTop = 0` first, so the focused tile is never
+     clipped on entry.
+  3. **Initial-focus retry strategy** — Play button mounts async after
+     TMDB / Cinemeta respond, so the first focus attempt hit
+     FullscreenButton (first non-nav focusable in DOM order).  Five
+     strict retries at 50 / 200 / 500 / 1000 / 1500 ms now wait for
+     `data-initial-focus` to appear; fallback only kicks in at 1.8 s.
+  4. **Right-edge clipping on shelves** — `paddingRight` of every
+     horizontal shelf (Shelf.jsx, NetworksShelf.jsx,
+     ContinueWatchingShelf.jsx) was `clamp(92px, 6.5vw, 132px)`
+     (one full poster's width). Trimmed to `clamp(40px, 4.2vw, 80px)`
+     so posters now reach the right edge of the screen.
+
+
 ## Implemented (Iteration 15 — Feb 2026)
 - **Slimmer SideNav** — collapsed 108 px → 76 px, expanded 320 px →
   240 px. Items shrank from h-14 to h-11, icons 24 → 20, padding
