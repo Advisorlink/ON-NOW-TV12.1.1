@@ -276,7 +276,13 @@ class VlcPlayerActivity : AppCompatActivity() {
 
         initVlc()
         startPlayback()
-        scheduleHide()
+        // Start with controls HIDDEN — the cinematic preview is the
+        // only thing visible until the stream begins.  Controls
+        // appear on first tap / D-pad press (handled in onKeyDown
+        // and the video surface click listener).
+        rootControls.visibility = View.GONE
+        rootControls.alpha = 0f
+        controlsVisible = false
         tickHandler.post(tickRunnable)
     }
 
@@ -406,7 +412,7 @@ class VlcPlayerActivity : AppCompatActivity() {
                 MediaPlayer.Event.Buffering -> {
                     if (!previewDismissed) {
                         previewStatus.text =
-                            "Buffering · ${event.buffering.toInt()}%"
+                            "Loading · ${event.buffering.toInt()}%"
                     } else if (event.buffering < 100f) {
                         loadingView.visibility = View.VISIBLE
                     } else {
@@ -678,6 +684,11 @@ class VlcPlayerActivity : AppCompatActivity() {
             .withStartAction { rootControls.visibility = View.VISIBLE }
             .start()
         controlsVisible = true
+        // Auto-focus the play/pause button so the remote can fan
+        // out from the centre via D-pad arrows.
+        rootControls.post {
+            if (!playBtn.hasFocus()) playBtn.requestFocus()
+        }
     }
 
     private fun hideControls() {
@@ -711,27 +722,25 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (isPickerOpen()) {
             return super.onKeyDown(keyCode, event)
         }
-        // Show controls on any remote keypress, then handle the action
+        // Controls are hidden → ANY key reveals them.  We don't
+        // execute the action (e.g. seek) on this first press; the
+        // user gets a chance to see what they're about to do.
         if (!controlsVisible) {
             showControls()
             scheduleHide()
-            return when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_CENTER,
-                KeyEvent.KEYCODE_ENTER,
-                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlayPause(); true }
-                else -> true
-            }
+            return true
         }
+        // Reset the auto-hide timer on every D-pad press so the
+        // controls don't fade out while the user is navigating.
+        scheduleHide()
         return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                togglePlayPause(); scheduleHide(); true
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT,
+            // Media-key shortcuts still work regardless of focus
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlayPause(); true }
             KeyEvent.KEYCODE_MEDIA_REWIND -> { seekBy(-10_000); true }
-            KeyEvent.KEYCODE_DPAD_RIGHT,
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekBy(10_000); true }
+            // Everything else (arrows + center) falls through to
+            // Android's native focus traversal, which moves between
+            // our buttons using the nextFocus* XML directives.
             else -> super.onKeyDown(keyCode, event)
         }
     }

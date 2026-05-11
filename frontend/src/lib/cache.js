@@ -16,6 +16,7 @@
 
 const memory = new Map();
 const PREFIX = 'onnowtv:cache:';
+const PERSIST_KEYS = new Set(['addons']);
 
 function nowMs() {
     return Date.now();
@@ -25,19 +26,41 @@ function readSession(key) {
     if (typeof sessionStorage === 'undefined') return null;
     try {
         const raw = sessionStorage.getItem(PREFIX + key);
-        if (!raw) return null;
-        return JSON.parse(raw);
+        if (raw) return JSON.parse(raw);
     } catch {
-        return null;
+        /* ignore */
     }
+    // Fallback to localStorage for keys we explicitly persist
+    // across full app restarts (e.g. the addon list — so when the
+    // preview backend is asleep or unreachable on a cold boot, the
+    // app still renders the last-known-good catalogues).
+    if (PERSIST_KEYS.has(key) && typeof localStorage !== 'undefined') {
+        try {
+            const raw = localStorage.getItem(PREFIX + key);
+            if (raw) return JSON.parse(raw);
+        } catch {
+            /* ignore */
+        }
+    }
+    return null;
 }
 
 function writeSession(key, entry) {
-    if (typeof sessionStorage === 'undefined') return;
     try {
-        sessionStorage.setItem(PREFIX + key, JSON.stringify(entry));
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(PREFIX + key, JSON.stringify(entry));
+        }
     } catch {
         /* quota exceeded or disabled */
+    }
+    if (PERSIST_KEYS.has(key)) {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(PREFIX + key, JSON.stringify(entry));
+            }
+        } catch {
+            /* ignore */
+        }
     }
 }
 

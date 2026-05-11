@@ -26,7 +26,20 @@ export function useAddons() {
             // Only show the spinner if we have nothing to render.
             const hasCache = !!cache.get(ADDONS_CACHE_KEY);
             if (!hasCache) setLoading(true);
-            const data = await Vesper.listAddons();
+
+            // Hard-cap the backend call.  On preview environments
+            // the backend can sleep and HTTPS requests hang for 60+
+            // seconds.  We bail at 6s and fall back to whatever
+            // cache we have (or empty), so the UI never spinners
+            // forever.
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            let data;
+            try {
+                data = await Vesper.listAddons({ signal: controller.signal });
+            } finally {
+                clearTimeout(timeoutId);
+            }
             const list = Array.isArray(data) ? data : [];
             cache.set(ADDONS_CACHE_KEY, list);
             setAddons(list);
@@ -34,7 +47,9 @@ export function useAddons() {
             return list;
         } catch (e) {
             setError(e?.message || 'Failed to load addons');
-            return [];
+            // Keep whatever cached addons we had.
+            const c = cache.get(ADDONS_CACHE_KEY);
+            return Array.isArray(c?.value) ? c.value : [];
         } finally {
             setLoading(false);
         }

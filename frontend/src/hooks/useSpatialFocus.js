@@ -17,15 +17,20 @@ import { useEffect } from 'react';
  */
 export default function useSpatialFocus() {
     useEffect(() => {
-        // Rapid-press throttle.  On HK1 boxes the IR remote auto-
-        // repeats arrow keys at ~12 Hz (one event every ~83 ms).
-        // We pace direction moves to ~190 ms apart so every tile in
-        // the path gets a chance to animate its focus ring + pop-out.
-        // Without this the JS focus loop outruns the smooth-scroll
-        // animation and tiles appear to "skip" past without ever
-        // lighting up — most noticeable on tightly-packed poster
-        // shelves and on vertical row-to-row jumps.
-        const DIR_COOLDOWN_MS = 190;
+        // Two-mode pacing tuned to feel like Android TV's launcher:
+        //
+        //   • SINGLE press → 90 ms cooldown, smooth scroll
+        //   • HOLD / repeat (e.repeat === true) → 70 ms cooldown,
+        //     instant scroll
+        //
+        // On stock Android TV the launcher accepts ~12 presses/sec
+        // when you hold the D-pad, and each focus shift settles
+        // before the next.  We mirror that by detecting key auto-
+        // repeat (`e.repeat`) and switching to instant scroll while
+        // the user holds — so the tiles glide through rather than
+        // queueing smooth animations that pile up.
+        const COOLDOWN_PRESS_MS = 90;
+        const COOLDOWN_REPEAT_MS = 70;
         let lastDirAt = 0;
 
         const focusables = () =>
@@ -146,39 +151,28 @@ export default function useSpatialFocus() {
             }
         };
 
-        const focusEl = (el, dir) => {
+        const focusEl = (el, dir, instant = false) => {
             if (!el) return;
             el.focus({ preventScroll: true });
             setFocusAttr(el);
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight;
+            const scrollBehavior = instant ? 'auto' : 'smooth';
 
             if (dir === 'left' || dir === 'right') {
-                // Horizontal move: scroll ONLY the shelf, never the
-                // page.  CSS scroll-snap on the shelf has been
-                // disabled to prevent rubber-banding against this
-                // JS-controlled smooth scroll.
                 const hs = horizontalScroller(el);
                 if (hs) {
                     const cRect = hs.getBoundingClientRect();
                     const delta =
                         rect.left - cRect.left - (cRect.width - rect.width) / 2;
-                    hs.scrollBy({ left: delta, behavior: 'smooth' });
+                    hs.scrollBy({ left: delta, behavior: scrollBehavior });
                 }
                 return;
             }
 
-            // Vertical move: scroll the page (not the shelf) so the
-            // focused tile sits in a comfortable band.  Compute the
-            // delta ourselves and animate via the outer scroller —
-            // never via scrollIntoView, which double-scrolls when
-            // CSS scroll-behavior is also smooth.
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
-
-            // Target band: keep the focused row between 22% and 70%
-            // of the viewport height.
             const topBand = vh * 0.22;
             const bottomBand = vh * 0.7;
             let delta = 0;
@@ -188,7 +182,7 @@ export default function useSpatialFocus() {
                 delta = rect.bottom - bottomBand;
             }
             if (Math.abs(delta) > 4) {
-                vs.scrollBy({ top: delta, behavior: 'smooth' });
+                vs.scrollBy({ top: delta, behavior: scrollBehavior });
             }
         };
 
@@ -215,15 +209,13 @@ export default function useSpatialFocus() {
 
             if (dir) {
                 e.preventDefault();
-                // Throttle: discard the press if the previous one is
-                // still within the cooldown window.  This is what
-                // stops the visual "skip" on auto-repeat — every
-                // accepted press now has time to animate.
+                const repeat = !!e.repeat;
+                const cooldown = repeat ? COOLDOWN_REPEAT_MS : COOLDOWN_PRESS_MS;
                 const now =
                     typeof performance !== 'undefined'
                         ? performance.now()
                         : Date.now();
-                if (now - lastDirAt < DIR_COOLDOWN_MS) return;
+                if (now - lastDirAt < cooldown) return;
                 lastDirAt = now;
 
                 const active =
@@ -233,7 +225,7 @@ export default function useSpatialFocus() {
                         : focusables()[0];
                 if (!active) return;
                 const next = findNext(active, dir);
-                if (next) focusEl(next, dir);
+                if (next) focusEl(next, dir, repeat);
                 return;
             }
 

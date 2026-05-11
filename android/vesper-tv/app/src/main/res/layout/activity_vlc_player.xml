@@ -167,19 +167,20 @@
     <Button
         android:id="@+id/btn_skip_intro"
         android:layout_width="wrap_content"
-        android:layout_height="52dp"
-        android:layout_marginEnd="40dp"
-        android:layout_marginBottom="160dp"
-        android:paddingStart="28dp"
-        android:paddingEnd="28dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="180dp"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
         android:text="Skip Intro"
         android:textAllCaps="false"
-        android:textColor="#0B1322"
-        android:textSize="16sp"
+        android:textColor="#000000"
+        android:textSize="17sp"
         android:textStyle="bold"
         android:background="@drawable/btn_skip_intro"
         android:visibility="gone"
-        android:elevation="12dp"
+        android:elevation="20dp"
+        android:focusable="true"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
@@ -222,7 +223,9 @@
                 android:background="@drawable/btn_glass_circle"
                 android:contentDescription="Back"
                 android:padding="14dp"
-                android:src="@drawable/ic_back" />
+                android:src="@drawable/ic_back"
+                android:focusable="true"
+                android:nextFocusDown="@id/btn_play_pause" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -269,7 +272,11 @@
                 android:background="@drawable/btn_glass_circle"
                 android:contentDescription="Skip back 10 seconds"
                 android:padding="22dp"
-                android:src="@drawable/ic_replay_10" />
+                android:src="@drawable/ic_replay_10"
+                android:focusable="true"
+                android:nextFocusLeft="@id/btn_back"
+                android:nextFocusRight="@id/btn_play_pause"
+                android:nextFocusDown="@id/btn_subs" />
 
             <ImageButton
                 android:id="@+id/btn_play_pause"
@@ -281,7 +288,12 @@
                 android:contentDescription="Play / Pause"
                 android:padding="28dp"
                 android:src="@drawable/ic_pause"
-                android:elevation="6dp" />
+                android:elevation="6dp"
+                android:focusable="true"
+                android:nextFocusLeft="@id/btn_skip_back"
+                android:nextFocusRight="@id/btn_skip_fwd"
+                android:nextFocusUp="@id/btn_back"
+                android:nextFocusDown="@id/btn_audio" />
 
             <ImageButton
                 android:id="@+id/btn_skip_fwd"
@@ -290,7 +302,11 @@
                 android:background="@drawable/btn_glass_circle"
                 android:contentDescription="Skip forward 10 seconds"
                 android:padding="22dp"
-                android:src="@drawable/ic_forward_10" />
+                android:src="@drawable/ic_forward_10"
+                android:focusable="true"
+                android:nextFocusLeft="@id/btn_play_pause"
+                android:nextFocusRight="@id/btn_skip_intro"
+                android:nextFocusDown="@id/btn_speed" />
         </LinearLayout>
 
         <!-- ─── BOTTOM: seek bar + time + settings row ─────────── -->
@@ -366,7 +382,10 @@
                     android:text="Subtitles"
                     android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/btn_skip_back"
+                    android:nextFocusRight="@id/btn_audio" />
 
                 <Button
                     android:id="@+id/btn_audio"
@@ -381,7 +400,11 @@
                     android:text="Audio"
                     android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/btn_play_pause"
+                    android:nextFocusLeft="@id/btn_subs"
+                    android:nextFocusRight="@id/btn_speed" />
 
                 <Button
                     android:id="@+id/btn_speed"
@@ -396,7 +419,11 @@
                     android:text="Speed"
                     android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/btn_skip_fwd"
+                    android:nextFocusLeft="@id/btn_audio"
+                    android:nextFocusRight="@id/btn_aspect" />
 
                 <Button
                     android:id="@+id/btn_aspect"
@@ -410,7 +437,10 @@
                     android:text="Aspect"
                     android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/btn_skip_fwd"
+                    android:nextFocusLeft="@id/btn_speed" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>

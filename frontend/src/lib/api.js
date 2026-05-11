@@ -95,7 +95,7 @@ const buildExtraPath = (extra) => {
 // ---------------------------------------------------------------------------
 
 export const Vesper = {
-    listAddons: () => api.get('/addons').then((r) => r.data),
+    listAddons: (opts = {}) => api.get('/addons', opts).then((r) => r.data),
     suggestedAddons: () => api.get('/addons/suggested').then((r) => r.data),
 
     /**
