@@ -268,14 +268,15 @@ body {
    Focus state — TV / D-pad primary interaction
 ------------------------------------------------------------------ */
 [data-focusable='true'] {
-    /* Tighter, single-curve transition.  130ms tracks the eye
-       during normal D-pad use without lag.  Limited to transform
-       + box-shadow which the compositor can run on its own thread
-       — background/color/border transitions force repaints we
-       don't actually need for tile focus. */
-    transition:
-        transform 130ms cubic-bezier(0.2, 0.8, 0.2, 1),
-        box-shadow 130ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    /* INSTANT focus.  We deliberately do NOT transition the focus
+       scale or box-shadow: any transition means the previous tile
+       is still animating-out when the next press fires, which on
+       a low-end Android WebView paints as a "ghost glow" lingering
+       under the new focus.  Snapping to the new state on every
+       press is what gives the buttery, 1:1 D-pad feel users expect
+       from a TV remote (think Apple TV / Google TV).  We still
+       keep transform-origin so the scale anchors correctly. */
+    transition: none;
     transform-origin: center center;
 }
 
@@ -555,11 +556,11 @@ body.vesper-scrubbing [data-focus-style='nav'] {
 }
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {
-    transition:
-        transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1),
-        background-color 160ms ease,
-        outline-color 160ms ease,
-        box-shadow 200ms ease !important;
+    /* Override: snap focus instantly on the TV box.  The 200 ms
+       transition was the biggest source of the "ghost glow under
+       the next tile" the user kept reporting — the previous tile's
+       scale-out was still in flight while the new tile scaled in. */
+    transition: none !important;
 }
 /* Pop-out effect on focused tiles + pills — kept enabled even in
    perf mode because it's the single most "alive" feedback users get
