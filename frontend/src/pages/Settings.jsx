@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Users, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
@@ -287,7 +287,132 @@ export default function Settings() {
                 ]}
                 onChange={(v) => updateKids({ maxRatingSeries: v })}
             />
+
+            {/* ---- DEVELOPER ---- */}
+            <SectionHeader
+                eyebrow="Settings · Developer"
+                title="Live preview"
+                icon={Code2}
+            />
+            <DeveloperPanel />
             </div>
+        </div>
+    );
+}
+
+function DeveloperPanel() {
+    const [busy, setBusy] = React.useState(false);
+    const PREVIEW_URL =
+        'https://rebrand-app-5.preview.emergentagent.com/';
+
+    // Live preview is only useful inside the Android wrapper.  In a
+    // desktop browser this panel just explains what it does.
+    const isAndroid =
+        typeof window !== 'undefined' &&
+        !!(window.OnNowTV && window.OnNowTV.setDevUrl);
+
+    const onLoadLive = () => {
+        if (busy) return;
+        setBusy(true);
+        try {
+            if (isAndroid) {
+                window.OnNowTV.setDevUrl(PREVIEW_URL);
+            } else {
+                window.location.href = PREVIEW_URL;
+            }
+        } catch {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div
+            data-testid="dev-panel"
+            className="w-full"
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 16,
+                padding: '22px 24px',
+                marginBottom: 16,
+            }}
+        >
+            <div style={{ marginBottom: 14 }}>
+                <div
+                    style={{
+                        fontSize: 17,
+                        fontWeight: 600,
+                        color: 'var(--vesper-text)',
+                        marginBottom: 4,
+                    }}
+                >
+                    Load live preview
+                </div>
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: 'var(--vesper-text-2)',
+                        lineHeight: 1.55,
+                    }}
+                >
+                    Switch the app to load the live preview URL
+                    instead of the bundled offline copy.  Same
+                    fullscreen experience, same D-pad, same native
+                    bridges — just always running the very latest
+                    build straight from the web.  Tap the pink{' '}
+                    <b style={{ color: '#FF6BCB' }}>DEV · Exit</b>{' '}
+                    badge in the top-right at any time to return to
+                    the bundled app.
+                </div>
+                <div
+                    style={{
+                        fontSize: 11,
+                        color: 'var(--vesper-text-3)',
+                        letterSpacing: '0.02em',
+                        marginTop: 8,
+                        fontFamily:
+                            'var(--theme-font-mono, ui-monospace, monospace)',
+                    }}
+                >
+                    {PREVIEW_URL}
+                </div>
+            </div>
+            <button
+                data-testid="dev-load-preview"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onLoadLive}
+                disabled={busy}
+                className="flex items-center gap-2 rounded-full"
+                style={{
+                    height: 44,
+                    padding: '0 22px',
+                    background: 'var(--vesper-blue)',
+                    color: 'var(--vesper-bg-0)',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    letterSpacing: '0.01em',
+                    cursor: busy ? 'wait' : 'pointer',
+                    opacity: busy ? 0.6 : 1,
+                }}
+            >
+                <ExternalLink size={16} strokeWidth={2.4} />
+                {busy ? 'Switching…' : 'Load live preview'}
+            </button>
+            {!isAndroid && (
+                <div
+                    style={{
+                        marginTop: 12,
+                        fontSize: 11,
+                        color: 'var(--vesper-text-3)',
+                    }}
+                >
+                    (Native bridge not detected — this control only
+                    persists across launches inside the Android app.)
+                </div>
+            )}
         </div>
     );
 }
