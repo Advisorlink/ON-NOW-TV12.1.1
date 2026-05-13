@@ -26,6 +26,75 @@ import androidx.webkit.WebViewFeature
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private var pendingVoiceCallbackId: String? = null
+
+    /** Launches the system speech recognizer and routes the result
+     *  back to the React side via window.__voiceSearchResult(id,...). */
+    fun startVoiceRecognition(callbackId: String) {
+        pendingVoiceCallbackId = callbackId
+        try {
+            val intent = android.content.Intent(
+                android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+            ).apply {
+                putExtra(
+                    android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+                putExtra(
+                    android.speech.RecognizerIntent.EXTRA_PROMPT,
+                    "Say a movie or show name"
+                )
+                putExtra(
+                    android.speech.RecognizerIntent.EXTRA_MAX_RESULTS,
+                    1
+                )
+            }
+            startActivityForResult(intent, REQ_VOICE_SEARCH)
+        } catch (e: Exception) {
+            dispatchVoiceResult(callbackId, null, "no-recognizer")
+            pendingVoiceCallbackId = null
+        }
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: android.content.Intent?
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_VOICE_SEARCH) {
+            val cbId = pendingVoiceCallbackId ?: return
+            pendingVoiceCallbackId = null
+            if (resultCode != RESULT_OK || data == null) {
+                dispatchVoiceResult(cbId, null, "cancelled")
+                return
+            }
+            val results = data.getStringArrayListExtra(
+                android.speech.RecognizerIntent.EXTRA_RESULTS
+            )
+            val text = results?.firstOrNull()
+            if (text.isNullOrBlank()) {
+                dispatchVoiceResult(cbId, null, "empty")
+            } else {
+                dispatchVoiceResult(cbId, text, null)
+            }
+        }
+    }
+
+    private fun dispatchVoiceResult(
+        callbackId: String,
+        text: String?,
+        error: String?
+    ) {
+        val esc = { s: String? -> (s ?: "").replace("\\", "\\\\").replace("'", "\\'") }
+        val js = "window.__voiceSearchResult && window.__voiceSearchResult(" +
+            "'${esc(callbackId)}', '${esc(text)}', '${esc(error)}')"
+        runOnUiThread { webView.evaluateJavascript(js, null) }
+    }
+
+    companion object {
+        private const val REQ_VOICE_SEARCH = 9201
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Loader2, Search as SearchIcon } from 'lucide-react';
+import { Loader2, Search as SearchIcon, Mic, MicOff } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import KidsSideNav from '@/components/KidsSideNav';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -9,6 +9,7 @@ import { useAddons } from '@/hooks/useAddons';
 import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
 import { isKidsActive } from '@/lib/profiles';
+import Host from '@/lib/host';
 
 /**
  * Single native text input + a Search button.  We deliberately do NOT
@@ -29,7 +30,10 @@ export default function Search() {
     const [busy, setBusy] = useState(false);
     const [searched, setSearched] = useState(false);
     const [lastQuery, setLastQuery] = useState('');
+    const [listening, setListening] = useState(false);
+    const [voiceError, setVoiceError] = useState('');
     const inputRef = useRef(null);
+    const voiceAvailable = Host.isVoiceSearchAvailable();
 
     const searchable = addons.flatMap((a) =>
         (a.catalogs || [])
@@ -137,6 +141,33 @@ export default function Search() {
         }
     };
 
+    const onMicClick = async () => {
+        if (listening) return;
+        setVoiceError('');
+        setListening(true);
+        try {
+            const text = await Host.voiceSearch();
+            const clean = (text || '').trim();
+            if (!clean) {
+                setVoiceError("Sorry, I didn't catch that.");
+            } else {
+                setQ(clean);
+                // Auto-run the search the moment we have a clean phrase.
+                doSearch(clean);
+            }
+        } catch (err) {
+            const msg = err?.message || 'error';
+            if (msg === 'cancelled') setVoiceError('');
+            else if (msg === 'unsupported')
+                setVoiceError('Voice search not available on this device.');
+            else if (msg === 'empty')
+                setVoiceError("Sorry, I didn't catch that.");
+            else setVoiceError("Couldn't hear you — try again.");
+        } finally {
+            setListening(false);
+        }
+    };
+
     return (
         <div
             data-testid="search-page"
@@ -220,7 +251,9 @@ export default function Search() {
                             }}
                             onKeyDown={onInputKeyDown}
                             placeholder={
-                                kids
+                                listening
+                                    ? 'Listening…'
+                                    : kids
                                     ? 'Try "Bluey" or "Mario"…'
                                     : 'Title, actor, keyword…'
                             }
@@ -234,13 +267,49 @@ export default function Search() {
                                 fontWeight: 500,
                                 letterSpacing: '-0.01em',
                                 color: 'var(--vesper-text)',
-                                /* No focus ring on the input itself —
-                                   the wrap handles the focus signal. */
                                 boxShadow: 'none',
                                 appearance: 'none',
                                 WebkitAppearance: 'none',
                             }}
                         />
+                        {voiceAvailable && (
+                            <button
+                                data-testid="search-mic"
+                                data-focusable="true"
+                                data-focus-style="bare"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMicClick();
+                                }}
+                                className="flex items-center justify-center rounded-full shrink-0"
+                                aria-label={
+                                    listening ? 'Listening' : 'Voice search'
+                                }
+                                style={{
+                                    width: 44,
+                                    height: 44,
+                                    background: listening
+                                        ? 'var(--vesper-blue)'
+                                        : 'rgba(255,255,255,0.08)',
+                                    border: '1px solid rgba(255,255,255,0.16)',
+                                    color: listening
+                                        ? 'var(--vesper-bg-0)'
+                                        : 'var(--vesper-text)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {listening ? (
+                                    <Mic
+                                        size={18}
+                                        strokeWidth={2.4}
+                                        className="vesper-pulse"
+                                    />
+                                ) : (
+                                    <Mic size={18} strokeWidth={2.2} />
+                                )}
+                            </button>
+                        )}
                     </div>
                     <button
                         data-testid="search-submit"
@@ -283,6 +352,37 @@ export default function Search() {
                         Search
                     </button>
                 </div>
+
+                {(listening || voiceError) && (
+                    <div
+                        data-testid="search-voice-status"
+                        className="mb-8 flex items-center gap-2"
+                        style={{
+                            marginTop: -36,
+                            color: listening
+                                ? 'var(--vesper-blue-bright)'
+                                : '#FCA5A5',
+                            fontSize: 13,
+                            letterSpacing: '0.02em',
+                        }}
+                    >
+                        {listening ? (
+                            <>
+                                <Mic
+                                    size={14}
+                                    strokeWidth={2.4}
+                                    className="vesper-pulse"
+                                />
+                                Listening — say a movie or show…
+                            </>
+                        ) : (
+                            <>
+                                <MicOff size={14} strokeWidth={2} />
+                                {voiceError}
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {!kids && !searchable.length && (
                     <p style={{ color: 'var(--vesper-text-2)' }}>

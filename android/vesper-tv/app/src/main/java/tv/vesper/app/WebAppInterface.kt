@@ -161,6 +161,32 @@ class WebAppInterface(private val activity: Activity) {
     @JavascriptInterface
     fun isAndroidHost(): Boolean = true
 
+    /**
+     * Launch the system speech recognizer (Google Voice / OEM STT)
+     * and route the recognized text back to the React side.  React
+     * stashes a Promise resolver in `window.__voiceSearch[callbackId]`
+     * before calling this; the Activity's onActivityResult fires
+     * `window.__voiceSearchResult(id, text, error)` once done.
+     */
+    @JavascriptInterface
+    fun startVoiceSearch(callbackId: String) {
+        activity.runOnUiThread {
+            if (activity is MainActivity) {
+                (activity as MainActivity).startVoiceRecognition(callbackId)
+            } else {
+                activity.runOnUiThread {
+                    activity.window?.decorView?.post {
+                        // Should never happen, but emit a graceful error.
+                        val esc = callbackId.replace("\\", "\\\\").replace("'", "\\'")
+                        val js = "window.__voiceSearchResult && " +
+                            "window.__voiceSearchResult('$esc','','no-host')"
+                        // No webView handle here — best-effort no-op.
+                    }
+                }
+            }
+        }
+    }
+
     @JavascriptInterface
     fun deviceClass(): String {
         // Crude low-end heuristic — most cheap HK1/RK boxes have <=2 GB RAM

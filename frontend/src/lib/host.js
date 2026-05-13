@@ -105,12 +105,96 @@ const Host = (() => {
         return false;
     };
 
+    /**
+     * Voice search.  Two modes:
+     *
+     *   1. Native (Android WebView) — calls
+     *      `window.OnNowTV.startVoiceSearch(id)` which launches the
+     *      system speech recognizer (Google Voice).  The bridge fires
+     *      `window.__voiceSearchResult(id, text, error)` when done.
+     *
+     *   2. Browser preview — falls back to the Web Speech API
+     *      (`webkitSpeechRecognition`) so the developer can test
+     *      the flow in Chrome without flashing an APK.
+     *
+     * Returns a Promise<string> that resolves with the recognized
+     * phrase, or rejects with an Error whose message is one of
+     * `cancelled` / `unsupported` / `empty` / `error`.
+     */
+    const voiceSearch = () => {
+        // Native path
+        if (isAndroid && a && typeof a.startVoiceSearch === 'function') {
+            return new Promise((resolve, reject) => {
+                const id =
+                    'vs_' +
+                    Date.now() +
+                    '_' +
+                    Math.random().toString(36).slice(2, 8);
+                if (typeof window !== 'undefined') {
+                    window.__voiceSearchResult = (
+                        callbackId,
+                        text,
+                        error
+                    ) => {
+                        if (callbackId !== id) return;
+                        if (error) reject(new Error(error));
+                        else if (!text) reject(new Error('empty'));
+                        else resolve(text);
+                    };
+                }
+                try {
+                    a.startVoiceSearch(id);
+                } catch (e) {
+                    reject(new Error('unsupported'));
+                }
+            });
+        }
+        // Browser fallback — Web Speech API.
+        if (typeof window === 'undefined') {
+            return Promise.reject(new Error('unsupported'));
+        }
+        const SR =
+            window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return Promise.reject(new Error('unsupported'));
+        return new Promise((resolve, reject) => {
+            const rec = new SR();
+            rec.lang = navigator.language || 'en-US';
+            rec.interimResults = false;
+            rec.maxAlternatives = 1;
+            rec.continuous = false;
+            rec.onresult = (e) => {
+                const r = e.results?.[0]?.[0]?.transcript || '';
+                if (r) resolve(r);
+                else reject(new Error('empty'));
+            };
+            rec.onerror = (e) => reject(new Error(e.error || 'error'));
+            rec.onend = () => {
+                /* If we got here without resolving, treat as cancelled. */
+            };
+            try {
+                rec.start();
+            } catch (err) {
+                reject(new Error('error'));
+            }
+        });
+    };
+
+    /** True if either native or browser STT is available. */
+    const isVoiceSearchAvailable = () => {
+        if (isAndroid && a && typeof a.startVoiceSearch === 'function')
+            return true;
+        if (typeof window === 'undefined') return false;
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    };
+
     return {
         isAndroid,
         isOnNowTV,
         isLowEnd: lowEnd,
         playVideo,    // legacy — now always returns false
         playExternal, // explicit "open in VLC" — opt-in only
+        voiceSearch,
+        isVoiceSearchAvailable,
         publicAsset,
     };
 })();

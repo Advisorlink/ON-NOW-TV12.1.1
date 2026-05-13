@@ -307,6 +307,14 @@ body {
         transform: scale(1.18);
     }
 }
+
+@keyframes vesper-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+.vesper-pulse {
+    animation: vesper-pulse 0.9s ease-in-out infinite;
+}
 [data-focusable='true'][data-pressed='true'] {
     animation: vesper-press 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
