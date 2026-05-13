@@ -344,9 +344,9 @@ export default function Network() {
                                         className="flex items-center gap-2 h-12 px-6 rounded-full font-sans font-semibold"
                                         style={{
                                             background:
-                                                'rgba(93,200,255,0.12)',
+                                                'rgba(var(--vesper-blue-rgb),0.12)',
                                             color: 'var(--vesper-blue)',
-                                            border: '1px solid rgba(93,200,255,0.35)',
+                                            border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
                                             fontSize: 15,
                                             opacity: loadingMore ? 0.6 : 1,
                                         }}

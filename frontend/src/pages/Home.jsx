@@ -163,8 +163,8 @@ function EmptyAddonsBanner() {
                 padding: '20px 28px',
                 borderRadius: 16,
                 background:
-                    'linear-gradient(90deg, rgba(93,200,255,0.10) 0%, rgba(93,200,255,0.02) 100%)',
-                border: '1px solid rgba(93,200,255,0.25)',
+                    'linear-gradient(90deg, rgba(var(--vesper-blue-rgb),0.10) 0%, rgba(var(--vesper-blue-rgb),0.02) 100%)',
+                border: '1px solid rgba(var(--vesper-blue-rgb),0.25)',
             }}
         >
             <div>

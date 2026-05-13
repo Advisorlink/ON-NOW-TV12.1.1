@@ -65,7 +65,7 @@ export default function ProfileSelect() {
             className="relative w-screen h-[100dvh] flex flex-col items-center justify-center"
             style={{
                 background:
-                    'radial-gradient(circle at 50% 30%, rgba(93,200,255,0.18) 0%, transparent 60%), var(--vesper-bg-0)',
+                    'radial-gradient(circle at 50% 30%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 60%), var(--vesper-bg-0)',
             }}
         >
             <div

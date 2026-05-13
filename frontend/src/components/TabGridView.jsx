@@ -163,7 +163,7 @@ function GridTile({ item, navigate }) {
                 >
                     <span
                         className="vesper-display"
-                        style={{ fontSize: 64, color: 'rgba(93,200,255,0.18)' }}
+                        style={{ fontSize: 64, color: 'rgba(var(--vesper-blue-rgb),0.18)' }}
                     >
                         {(item.title || '?')[0]}
                     </span>

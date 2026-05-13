@@ -10,7 +10,6 @@ import {
     Zap,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Host from '@/lib/host';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 
 const NAV = [
@@ -54,31 +53,50 @@ export default function SideNav() {
                 backdropFilter: expanded ? 'blur(14px)' : 'none',
             }}
         >
-            {/* Brand mark */}
-            <div className="flex items-center gap-3 pl-3 pr-3 mb-8 select-none">
-                <img
-                    src={Host.publicAsset('/brand/onnowtv-logo.png')}
-                    alt="ON NOW TV V2"
-                    className="shrink-0 w-10 h-10 object-contain"
-                    style={{ filter: 'drop-shadow(0 0 14px rgba(93,200,255,0.3))' }}
-                />
+            {/* Brand mark — glowing "V2" letterform.
+                When collapsed: just the V2 sits centred in the rail.
+                When expanded: full "ON NOW TV V2" wordmark renders
+                to the right of the V2, aligned and bigger.  Pure
+                text + CSS — no PNG, so the accent recolours with
+                the active theme automatically. */}
+            <div className="flex items-center pl-3 pr-3 mb-10 select-none" style={{ height: 56 }}>
                 <div
-                    className="overflow-hidden whitespace-nowrap transition-opacity duration-300"
-                    style={{ opacity: expanded ? 1 : 0 }}
+                    className="vesper-display shrink-0 flex items-center justify-center"
+                    style={{
+                        width: 50,
+                        fontSize: 38,
+                        lineHeight: 1,
+                        fontWeight: 800,
+                        letterSpacing: '-0.04em',
+                        color: 'var(--vesper-blue-bright)',
+                        textShadow:
+                            '0 0 12px rgba(var(--vesper-blue-rgb), 0.65), 0 0 28px rgba(var(--vesper-blue-rgb), 0.4)',
+                    }}
+                >
+                    V2
+                </div>
+                <div
+                    className="overflow-hidden whitespace-nowrap"
+                    style={{
+                        opacity: expanded ? 1 : 0,
+                        // Snap-in once the rail finishes expanding so
+                        // the wordmark doesn't drag during the width
+                        // animation.
+                        transition: 'opacity 220ms ease',
+                        marginLeft: 14,
+                    }}
                 >
                     <div
                         className="vesper-display"
                         style={{
-                            fontSize: 16,
-                            lineHeight: 1.05,
-                            letterSpacing: '-0.02em',
+                            fontSize: 22,
+                            lineHeight: 1,
+                            letterSpacing: '-0.025em',
+                            fontWeight: 700,
+                            color: 'var(--vesper-text)',
                         }}
                     >
-                        ON NOW TV{' '}
-                        <span style={{ color: 'var(--vesper-blue)' }}>V2</span>
-                    </div>
-                    <div className="vesper-eyebrow" style={{ fontSize: 9 }}>
-                        for HK1 · TV
+                        ON NOW TV
                     </div>
                 </div>
             </div>
@@ -183,13 +201,13 @@ export default function SideNav() {
                                 padding: '2px 7px',
                                 borderRadius: 999,
                                 background: autoplay
-                                    ? 'rgba(93,200,255,0.18)'
+                                    ? 'rgba(var(--vesper-blue-rgb),0.18)'
                                     : 'rgba(255,255,255,0.08)',
                                 color: autoplay
                                     ? 'var(--vesper-blue-bright)'
                                     : 'var(--vesper-text-3)',
                                 border: autoplay
-                                    ? '1px solid rgba(93,200,255,0.45)'
+                                    ? '1px solid rgba(var(--vesper-blue-rgb),0.45)'
                                     : '1px solid rgba(255,255,255,0.12)',
                             }}
                         >
@@ -197,31 +215,6 @@ export default function SideNav() {
                         </span>
                     </span>
                 </button>
-            </div>
-
-            <div className="mt-auto pl-7 pr-4">
-                <div
-                    className="vesper-mono transition-opacity duration-300"
-                    style={{
-                        opacity: expanded ? 0.6 : 0,
-                        fontSize: 11,
-                        color: 'var(--vesper-text-2)',
-                        letterSpacing: '0.18em',
-                        textTransform: 'uppercase',
-                        lineHeight: 1.6,
-                    }}
-                >
-                    Press F for fullscreen
-                    <br />
-                    <span style={{ color: 'var(--vesper-text-3)' }}>
-                        v1.2.0 · libVLC ·{' '}
-                        {Host.isAndroid
-                            ? 'BUNDLED ✓'
-                            : window.location.protocol === 'file:'
-                            ? 'FILE://'
-                            : 'WEB'}
-                    </span>
-                </div>
             </div>
         </nav>
     );

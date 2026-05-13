@@ -76,7 +76,7 @@ export default function OnScreenKeyboard({
                 className="w-full px-5 py-4 rounded-xl mb-5 font-mono outline-none"
                 style={{
                     background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(93,200,255,0.25)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb),0.25)',
                     color: 'var(--vesper-text)',
                     fontSize: 20,
                     letterSpacing: '0.02em',

@@ -34,6 +34,36 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 34 — Feb 13, 2026)
+### Full theme accent propagation + SideNav brand redesign
+- **`--vesper-blue-rgb` triplet added to every theme** (themes.js).
+  Drives every translucent accent in the app via
+  `rgba(var(--vesper-blue-rgb), 0.4)`.  Combined with the existing
+  `--vesper-blue` / `--vesper-blue-bright` / `--vesper-blue-glow`
+  tokens, every focus ring, glow, hero radial, player progress
+  fill, active pill, autoplay badge, etc. now recolours with the
+  active theme.
+- **Bulk swept** every hardcoded `rgba(93, 200, 255, X)` and
+  `#5DC8FF` in 15 files (pages: Settings, Detail, Home, Player,
+  ProfileEdit, Network, ProfileSelect, Sources; components:
+  SideNav, OnScreenKeyboard, SeriesEpisodes, TabGridView,
+  HeroBillboard, PosterTile, NetworkPosterTile).  `lib/avatars.jsx`
+  and `lib/streamMeta.js` deliberately left alone — those use
+  blue semantically (avatar identity, quality badge) not as a
+  theme accent.
+- **SideNav brand redesign**:
+  - Removed PNG logo + "for HK1 · TV" subtitle.
+  - Replaced with a glowing **V2** letterform in the active
+    theme's bright accent (`var(--vesper-blue-bright)` + dual
+    text-shadow halo).
+  - When collapsed: just the V2 sits at the top-left.
+  - When expanded: "ON NOW TV" wordmark fades in to the right,
+    bigger (22px, weight 700, tight letter-spacing), aligned
+    with the V2's baseline.
+- **Removed SideNav footer block** — "Press F for fullscreen",
+  "v1.2.0 · libVLC · BUNDLED ✓" all stripped.  User explicitly
+  asked for these to be gone.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

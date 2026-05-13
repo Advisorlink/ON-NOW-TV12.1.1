@@ -754,7 +754,7 @@ export default function Detail() {
                                                             borderRadius: 12,
                                                             background: badge
                                                                 ? toneColors[badge.tone].bg
-                                                                : `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
+                                                                : `${accent.startsWith('#') ? accent : 'rgba(var(--vesper-blue-rgb),1)'}22`,
                                                             color: badge
                                                                 ? toneColors[badge.tone].fg
                                                                 : accent,
@@ -873,7 +873,7 @@ export default function Detail() {
                                                                             borderRadius: 999,
                                                                             background:
                                                                                 c.k === 'seed'
-                                                                                    ? 'rgba(93,200,255,0.12)'
+                                                                                    ? 'rgba(var(--vesper-blue-rgb),0.12)'
                                                                                     : c.k === 'size'
                                                                                     ? 'rgba(255,210,138,0.12)'
                                                                                     : c.k === 'lang'

@@ -638,7 +638,7 @@ export default function Player() {
                             style={{
                                 width: streamReady ? '100%' : '40%',
                                 background:
-                                    'linear-gradient(90deg, var(--vesper-blue) 0%, rgba(93,200,255,0.5) 100%)',
+                                    'linear-gradient(90deg, var(--vesper-blue) 0%, rgba(var(--vesper-blue-rgb),0.5) 100%)',
                                 transition: 'width 600ms ease',
                             }}
                         />
@@ -665,10 +665,10 @@ export default function Player() {
                             width: 132,
                             height: 132,
                             background:
-                                'radial-gradient(circle, rgba(93,200,255,0.95) 0%, rgba(93,200,255,0.7) 70%, rgba(93,200,255,0) 100%)',
+                                'radial-gradient(circle, rgba(var(--vesper-blue-rgb),0.95) 0%, rgba(var(--vesper-blue-rgb),0.7) 70%, rgba(var(--vesper-blue-rgb),0) 100%)',
                             color: '#06080f',
                             boxShadow:
-                                '0 0 80px rgba(93,200,255,0.7), 0 0 120px rgba(93,200,255,0.35)',
+                                '0 0 80px rgba(var(--vesper-blue-rgb),0.7), 0 0 120px rgba(var(--vesper-blue-rgb),0.35)',
                         }}
                     >
                         <VolumeX size={56} strokeWidth={2.2} />
@@ -860,11 +860,11 @@ export default function Player() {
                         className="flex items-center gap-2 h-12 px-5 rounded-full font-sans font-medium"
                         style={{
                             background:
-                                'linear-gradient(180deg, rgba(93,200,255,0.95) 0%, rgba(93,200,255,0.75) 100%)',
+                                'linear-gradient(180deg, rgba(var(--vesper-blue-rgb),0.95) 0%, rgba(var(--vesper-blue-rgb),0.75) 100%)',
                             color: '#06080f',
                             fontSize: 14,
                             boxShadow:
-                                '0 4px 24px rgba(93,200,255,0.35), 0 0 0 1px rgba(93,200,255,0.4) inset',
+                                '0 4px 24px rgba(var(--vesper-blue-rgb),0.35), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.4) inset',
                         }}
                     >
                         <ExternalLink size={16} strokeWidth={2.4} />
@@ -904,7 +904,7 @@ export default function Player() {
                                     borderRadius: '50%',
                                     background: 'var(--vesper-blue)',
                                     boxShadow:
-                                        '0 0 10px rgba(93,200,255,0.9)',
+                                        '0 0 10px rgba(var(--vesper-blue-rgb),0.9)',
                                 }}
                             />
                         )}
@@ -959,9 +959,9 @@ const SubRow = ({ testId, active, title, detail, onClick }) => (
         className="w-full text-left flex items-center gap-3 px-3 rounded-xl"
         style={{
             height: 56,
-            background: active ? 'rgba(93,200,255,0.12)' : 'rgba(255,255,255,0.02)',
+            background: active ? 'rgba(var(--vesper-blue-rgb),0.12)' : 'rgba(255,255,255,0.02)',
             border: active
-                ? '1px solid rgba(93,200,255,0.45)'
+                ? '1px solid rgba(var(--vesper-blue-rgb),0.45)'
                 : '1px solid rgba(255,255,255,0.04)',
             color: active ? 'var(--vesper-text)' : 'var(--vesper-text-2)',
             marginTop: 6,
@@ -1031,10 +1031,10 @@ const StatusPill = ({ active, loading, label }) => (
             paddingRight: 16,
             height: 36,
             background: active
-                ? 'rgba(93,200,255,0.14)'
+                ? 'rgba(var(--vesper-blue-rgb),0.14)'
                 : 'rgba(255,255,255,0.04)',
             border: active
-                ? '1px solid rgba(93,200,255,0.4)'
+                ? '1px solid rgba(var(--vesper-blue-rgb),0.4)'
                 : '1px solid rgba(255,255,255,0.08)',
             color: active ? 'var(--vesper-blue)' : 'var(--vesper-text-2)',
             fontSize: 12,

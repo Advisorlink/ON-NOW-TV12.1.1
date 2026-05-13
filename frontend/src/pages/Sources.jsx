@@ -133,8 +133,8 @@ export default function Sources() {
                         data-testid="install-success"
                         className="rounded-xl px-5 py-4 mb-6 flex items-center gap-3"
                         style={{
-                            background: 'rgba(93,200,255,0.08)',
-                            border: '1px solid rgba(93,200,255,0.35)',
+                            background: 'rgba(var(--vesper-blue-rgb),0.08)',
+                            border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
                             color: 'var(--vesper-blue-bright)',
                             fontSize: 17,
                         }}
@@ -307,7 +307,7 @@ export default function Sources() {
                                         className="mt-auto flex items-center justify-center gap-2 h-12 px-5 rounded-full font-sans font-medium text-[16px]"
                                         style={{
                                             background: installed
-                                                ? 'rgba(93,200,255,0.1)'
+                                                ? 'rgba(var(--vesper-blue-rgb),0.1)'
                                                 : 'rgba(255,255,255,0.06)',
                                             color: installed
                                                 ? 'var(--vesper-blue-bright)'

@@ -192,7 +192,7 @@ export default function ProfileEdit() {
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         boxShadow:
-                                            '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(93,200,255,0.6)',
+                                            '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
                                     }}
                                 >
                                     <Check size={16} strokeWidth={3} />

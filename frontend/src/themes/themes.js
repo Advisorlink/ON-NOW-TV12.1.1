@@ -32,6 +32,11 @@ const make = (id, name, tagline, accent, bright, glow, bg0) => ({
         '--vesper-blue': accent,
         '--vesper-blue-bright': bright,
         '--vesper-blue-glow': glow,
+        // Bare RGB triplet for the accent — lets components do
+        // `rgba(var(--vesper-blue-rgb), 0.4)` and have the alpha
+        // recolour with the active theme.  Used by Player UI,
+        // SideNav accents, hero glows, etc.
+        '--vesper-blue-rgb': hexToRgb(accent),
         '--theme-accent': accent,
         '--theme-accent-soft': glow.replace('0.55', '0.14'),
         '--theme-radius': '14px',
@@ -57,6 +62,19 @@ function lighten(hex, amount) {
             .map((c) => c.toString(16).padStart(2, '0'))
             .join('')
     );
+}
+
+/* Convert "#RRGGBB" → "R, G, B" so the same accent can drive any
+   alpha via `rgba(var(--vesper-blue-rgb), ${alpha})`.  This lets
+   every translucent accent (hero glows, player progress fill,
+   active-pill backgrounds, etc.) follow the active theme without
+   hardcoding the blue triplet at the call site. */
+function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 0xff;
+    const g = (n >> 8) & 0xff;
+    const b = n & 0xff;
+    return `${r}, ${g}, ${b}`;
 }
 
 export const THEMES = [

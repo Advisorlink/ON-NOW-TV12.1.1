@@ -431,7 +431,7 @@ function EpisodeCard({
             style={{
                 background: open ? 'rgba(17,24,39,0.7)' : 'rgba(17,24,39,0.4)',
                 border: open
-                    ? '1px solid rgba(93,200,255,0.35)'
+                    ? '1px solid rgba(var(--vesper-blue-rgb),0.35)'
                     : '1px solid rgba(255,255,255,0.06)',
                 transition: 'background-color 200ms ease, border-color 200ms ease',
             }}
@@ -470,8 +470,8 @@ function EpisodeCard({
                             className="absolute inset-0 flex items-center justify-center"
                             style={{
                                 background:
-                                    'linear-gradient(135deg, rgba(93,200,255,0.08) 0%, rgba(93,200,255,0) 100%)',
-                                color: 'rgba(93,200,255,0.55)',
+                                    'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.08) 0%, rgba(var(--vesper-blue-rgb),0) 100%)',
+                                color: 'rgba(var(--vesper-blue-rgb),0.55)',
                                 fontFamily: '"Geist", system-ui, sans-serif',
                                 fontWeight: 700,
                                 fontSize: 'clamp(34px, 3vw, 56px)',
@@ -505,7 +505,7 @@ function EpisodeCard({
                             data-testid={`watched-${ep.season}-${ep.episode}`}
                             className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
                             style={{
-                                background: 'rgba(93,200,255,0.92)',
+                                background: 'rgba(var(--vesper-blue-rgb),0.92)',
                                 color: '#06080F',
                                 fontSize: 'clamp(9px, 0.62vw, 11px)',
                                 letterSpacing: '0.18em',
@@ -514,7 +514,7 @@ function EpisodeCard({
                                 padding: '4px 9px 4px 7px',
                                 borderRadius: 6,
                                 boxShadow:
-                                    '0 4px 14px rgba(93,200,255,0.45)',
+                                    '0 4px 14px rgba(var(--vesper-blue-rgb),0.45)',
                             }}
                         >
                             <svg
@@ -569,12 +569,12 @@ function EpisodeCard({
                             style={{
                                 width: 56,
                                 height: 56,
-                                background: 'rgba(93,200,255,0.92)',
+                                background: 'rgba(var(--vesper-blue-rgb),0.92)',
                                 color: '#06080f',
                                 opacity: open ? 1 : 0,
                                 transform: open ? 'scale(1)' : 'scale(0.85)',
                                 transition: 'opacity 200ms ease, transform 200ms ease',
-                                boxShadow: '0 0 40px rgba(93,200,255,0.5)',
+                                boxShadow: '0 0 40px rgba(var(--vesper-blue-rgb),0.5)',
                             }}
                         >
                             <Play size={20} fill="currentColor" />
@@ -753,7 +753,7 @@ function EpisodeCard({
                                                     borderRadius: 12,
                                                     background: badge
                                                         ? toneColors[badge.tone].bg
-                                                        : `${accent.startsWith('#') ? accent : 'rgba(93,200,255,1)'}22`,
+                                                        : `${accent.startsWith('#') ? accent : 'rgba(var(--vesper-blue-rgb),1)'}22`,
                                                     color: badge
                                                         ? toneColors[badge.tone].fg
                                                         : accent,
@@ -861,7 +861,7 @@ function EpisodeCard({
                                                                     borderRadius: 999,
                                                                     background:
                                                                         c.k === 'seed'
-                                                                            ? 'rgba(93,200,255,0.12)'
+                                                                            ? 'rgba(var(--vesper-blue-rgb),0.12)'
                                                                             : c.k === 'size'
                                                                             ? 'rgba(255,210,138,0.12)'
                                                                             : c.k === 'lang'

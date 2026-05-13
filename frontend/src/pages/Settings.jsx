@@ -856,12 +856,12 @@ function SavedToast({ trigger }) {
                 padding: '12px 22px',
                 borderRadius: 999,
                 background: 'rgba(20,28,48,0.95)',
-                border: '1px solid rgba(93,200,255,0.45)',
+                border: '1px solid rgba(var(--vesper-blue-rgb),0.45)',
                 color: 'var(--vesper-blue-bright)',
                 fontSize: 14,
                 fontWeight: 600,
                 letterSpacing: '0.01em',
-                boxShadow: '0 14px 36px rgba(0,0,0,0.45), 0 0 24px rgba(93,200,255,0.35)',
+                boxShadow: '0 14px 36px rgba(0,0,0,0.45), 0 0 24px rgba(var(--vesper-blue-rgb),0.35)',
             }}
         >
             <Check size={16} strokeWidth={3} />

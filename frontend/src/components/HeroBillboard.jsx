@@ -97,7 +97,7 @@ export default function HeroBillboard({ heroes }) {
                 className="absolute inset-0 pointer-events-none"
                 style={{
                     background:
-                        'radial-gradient(ellipse 50% 60% at 80% 50%, rgba(93,200,255,0.10) 0%, transparent 70%)',
+                        'radial-gradient(ellipse 50% 60% at 80% 50%, rgba(var(--vesper-blue-rgb),0.10) 0%, transparent 70%)',
                 }}
             />
 

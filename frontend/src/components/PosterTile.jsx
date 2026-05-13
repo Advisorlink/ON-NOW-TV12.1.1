@@ -60,7 +60,7 @@ export default function PosterTile({ item, onSelect }) {
                         className="vesper-display"
                         style={{
                             fontSize: 64,
-                            color: 'rgba(93,200,255,0.18)',
+                            color: 'rgba(var(--vesper-blue-rgb),0.18)',
                         }}
                     >
                         {(item.title || '?')[0]}
