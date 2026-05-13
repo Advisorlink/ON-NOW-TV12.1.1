@@ -54,6 +54,84 @@
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
+        <!-- Boot splash + WebView-too-old detection.
+             Pure ES5 so it parses on ANY Android WebView (4.0+).
+             Runs before the React bundle even tries to evaluate.
+             • If React mounts within 12 s → the splash is removed.
+             • If the bundle throws a SyntaxError (modern syntax the
+               WebView can't parse) → window.onerror catches it and
+               we swap the splash for a friendly "please update
+               WebView" screen rather than the dreaded white death.
+        -->
+        <div id="vesper-boot" style="position:fixed;inset:0;display:-webkit-box;display:flex;-webkit-box-align:center;align-items:center;-webkit-box-pack:center;justify-content:center;background:#06080F;color:#A8B5C7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;z-index:9000;">
+            <div style="text-align:center;max-width:520px;padding:24px;">
+                <div id="vesper-boot-title" style="font-size:22px;font-weight:700;color:#F4F8FF;letter-spacing:-0.01em;margin-bottom:10px;">ON NOW TV</div>
+                <div id="vesper-boot-sub" style="font-size:14px;color:#67738A;letter-spacing:0.02em;">Loading your library&hellip;</div>
+                <div id="vesper-boot-spinner" style="margin:22px auto 0;width:30px;height:30px;border-radius:50%;border:3px solid rgba(93,200,255,0.18);border-top-color:#5DC8FF;-webkit-animation:vsp 0.9s linear infinite;animation:vsp 0.9s linear infinite;"></div>
+            </div>
+            <style>@-webkit-keyframes vsp{to{-webkit-transform:rotate(360deg);}}@keyframes vsp{to{transform:rotate(360deg);}}</style>
+        </div>
+        <script>
+            (function () {
+                /* Detect the WebView's UA + Chrome version so we can
+                   show a helpful message rather than a blank screen
+                   when the user's box is too old.  We tag it onto
+                   the boot div so any error overlay can read it. */
+                try {
+                    var m = (navigator.userAgent || '').match(/Chrome\/(\d+)/);
+                    var chromeVer = m ? parseInt(m[1], 10) : 0;
+                    document.getElementById('vesper-boot').setAttribute('data-chrome', chromeVer);
+                    if (chromeVer && chromeVer < 49) {
+                        document.getElementById('vesper-boot-title').textContent = 'WebView is too old';
+                        document.getElementById('vesper-boot-sub').innerHTML =
+                            'Your Android box is running Chrome ' + chromeVer +
+                            '.<br/>ON NOW TV needs Chrome 49 or newer.' +
+                            '<br/><br/>Open the Play Store and update <b>Android System WebView</b>.';
+                        document.getElementById('vesper-boot-spinner').style.display = 'none';
+                    }
+                } catch (e) {}
+                /* If the React bundle dies on a SyntaxError or
+                   ReferenceError, show the fallback screen instead of
+                   leaving a blank app forever. */
+                window.addEventListener('error', function (ev) {
+                    if (!ev || !ev.error) return;
+                    var name = ev.error && ev.error.name;
+                    if (name === 'SyntaxError' || name === 'ReferenceError') {
+                        var boot = document.getElementById('vesper-boot');
+                        if (!boot) return;
+                        document.getElementById('vesper-boot-title').textContent =
+                            "Your box can't run ON NOW TV yet";
+                        document.getElementById('vesper-boot-sub').innerHTML =
+                            'Please open the Play Store and update <b>Android System WebView</b>, ' +
+                            'then re-open ON NOW TV.<br/><br/>' +
+                            '<span style="font-size:11px;color:#67738A;">' +
+                            (ev.message || '') + '</span>';
+                        document.getElementById('vesper-boot-spinner').style.display = 'none';
+                    }
+                }, true);
+                /* When React mounts successfully it adds a child to
+                   #root.  Poll briefly and fade the splash when we
+                   see one.  12 s is generous on a slow Mali GPU. */
+                var tries = 0;
+                var iv = setInterval(function () {
+                    tries++;
+                    var root = document.getElementById('root');
+                    if (root && root.firstChild) {
+                        var b = document.getElementById('vesper-boot');
+                        if (b && b.parentNode) {
+                            b.style.transition = 'opacity 220ms ease';
+                            b.style.opacity = '0';
+                            setTimeout(function () {
+                                if (b.parentNode) b.parentNode.removeChild(b);
+                            }, 260);
+                        }
+                        clearInterval(iv);
+                    } else if (tries > 60) {
+                        clearInterval(iv);
+                    }
+                }, 200);
+            })();
+        </script>
         <div id="root"></div>
         <!--
       This HTML file is a template.

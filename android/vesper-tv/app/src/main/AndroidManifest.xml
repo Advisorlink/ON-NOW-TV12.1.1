@@ -4,6 +4,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Voice search via RecognizerIntent — needs mic at runtime
+         only when the user actually taps the mic.  Declared here so
+         older AOSP ROMs that pre-grant permissions don't choke. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <!-- Android 11+ requires explicit visibility for chooser intents
          to enumerate video player apps. -->

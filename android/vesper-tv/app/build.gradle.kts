@@ -9,10 +9,16 @@ android {
 
     defaultConfig {
         applicationId = "tv.onnowtv.app"
-        minSdk = 21            // Android 5.0+ — covers literally every HK1/RK/S905 box
+        // minSdk = 19 (Android 4.4 KitKat) — covers the absolute
+        // bottom of the cheap Chinese Android TV box market.  Below
+        // 4.4 the stock WebView is WebKit-based and can't run modern
+        // JS at all (no Promise, no Symbol, no fetch).  KitKat is the
+        // first AOSP release with a Chromium-based WebView and is the
+        // realistic floor.
+        minSdk = 19
         targetSdk = 34
-        versionCode = 24
-        versionName = "1.9.0"
+        versionCode = 25
+        versionName = "1.9.1"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
