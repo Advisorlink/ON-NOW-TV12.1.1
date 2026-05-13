@@ -442,7 +442,16 @@ export default function useSpatialFocus() {
                     document.activeElement.matches('[data-focusable="true"]')
                 ) {
                     e.preventDefault();
-                    document.activeElement.click();
+                    const target = document.activeElement;
+                    // Fire the press-ripple feedback animation — a
+                    // pure-CSS @keyframes triggered by the
+                    // `data-pressed` attribute.  Removed after
+                    // 320 ms so it can re-fire on the next press.
+                    target.setAttribute('data-pressed', 'true');
+                    setTimeout(() => {
+                        target.removeAttribute('data-pressed');
+                    }, 320);
+                    target.click();
                 }
             }
         };

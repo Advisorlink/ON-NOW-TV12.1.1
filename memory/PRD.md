@@ -35,6 +35,22 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 26 — Feb 2026)
+- **Press-feedback ripple** — pressing Enter on any focused tile
+  fires a 280 ms pure-CSS animation:
+  - Tile briefly punches inward (scale 1.08 → 0.97 → 1.08) for
+    tactile feedback.
+  - A 2 px neon-blue ring radiates outward from the tile (`::after`
+    pseudo-element animating from scale 1 → 1.18, opacity 0.85 →
+    0) for a clean ripple effect.
+  - `useSpatialFocus` sets `data-pressed="true"` on the active
+    element when Enter / Space is pressed, removes it 320 ms later
+    so the ripple can re-fire on the next press.
+  - Zero JS perf cost — the ripple is rendered entirely on the
+    compositor via @keyframes. Works even on the HK1's slow GPU
+    because the animated properties are only transform + opacity.
+
+
 ## Implemented (Iteration 25 — Feb 2026)
 - **Full perf overhaul — native-app smoothness in the WebView** —
   five high-impact changes:
