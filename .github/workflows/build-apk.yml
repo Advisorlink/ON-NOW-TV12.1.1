@@ -86,6 +86,51 @@ jobs:
           print('=== index.html cleaned of Emergent / PostHog tracking ===')
           PY
 
+          # --- Wrap each main JS chunk in try/catch so any runtime
+          # failure on the box becomes a readable error string in the
+          # boot splash diagnostic panel — instead of a CORS-masked
+          # "Script error." with no message (the default behaviour
+          # for any file:// loaded script on Android WebView).
+          python3 - <<'PY'
+          import pathlib, re
+          js_dir = pathlib.Path('android/vesper-tv/app/src/main/assets/web/static/js')
+          if not js_dir.exists():
+              print('!! no static/js dir, skipping wrapper')
+          else:
+              # Wrap every entry/chunk so a runtime error in ANY of
+              # them surfaces a readable message instead of the
+              # CORS-masked "Script error.".  We skip ones already
+              # tagged with /*WRAP*/ to stay idempotent if the
+              # workflow ever re-runs against the same artifact.
+              for f in sorted(js_dir.glob('*.js')):
+                  if f.name.endswith('.LICENSE.txt'):
+                      continue
+                  body = f.read_text(encoding='utf-8')
+                  if body.startswith('/*WRAP*/'):
+                      continue
+                  wrapped = (
+                      "/*WRAP*/try{\n" + body + "\n}catch(e){\n"
+                      "try{\n"
+                      "  window.__bundleError = e;\n"
+                      "  var stack = (e && (e.stack || e.message || String(e))) || 'unknown error';\n"
+                      "  var t = document.getElementById('vesper-boot-title');\n"
+                      "  var s = document.getElementById('vesper-boot-sub');\n"
+                      "  var sp = document.getElementById('vesper-boot-spinner');\n"
+                      "  if (t) t.innerHTML = \"ON NOW TV couldn't start\";\n"
+                      "  if (s) s.innerHTML = "
+                      "    \"<span style='font-size:12px;color:#A8B5C7;'>Real error from the JS bundle:</span><br/><br/>\""
+                      "    + \"<pre style='text-align:left;font-size:10px;color:#FCA5A5;background:rgba(255,255,255,0.04);padding:12px;border-radius:8px;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-all;'>\""
+                      "    + (stack + '').replace(/</g,'&lt;')"
+                      "    + \"</pre>\";\n"
+                      "  if (sp) sp.style.display = 'none';\n"
+                      "}catch(_){}\n"
+                      "throw e;\n"
+                      "}\n"
+                  )
+                  f.write_text(wrapped, encoding='utf-8')
+                  print('wrapped:', f.name, 'size:', f.stat().st_size)
+          PY
+
           echo "=== Bundled into APK assets: ==="
           ls -la android/vesper-tv/app/src/main/assets/web/ | head
           FILES=$(find android/vesper-tv/app/src/main/assets/web/ -type f | wc -l)
