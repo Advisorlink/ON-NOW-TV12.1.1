@@ -34,8 +34,29 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
-## Implemented (Iteration 30 — Feb 13, 2026)
-### Locked-down Kids Mode + per-profile PINs
+## Implemented (Iteration 31 — Feb 13, 2026)
+### Reactive Kids settings + clearer Exit-PIN escape
+- **KidsHome now respects Settings live.**  Reads `KidsConfig`
+  on mount and listens for `vesper:kids-config-change` /
+  `storage` events so flipping "TV Shows only" / "Movies only"
+  in Settings instantly filters the rendered shelves, and hides
+  the hero billboard when only TV is requested (no kid-safe TV
+  hero exists).  Search results obey the same `contentTypes`
+  mask.
+- **"Saved — Kids home updated" toast** on the Settings page
+  appears for ~1.6 s after every Family-Controls change so the
+  user gets explicit confirmation the change persisted (previously
+  the save was silent and felt like nothing happened).
+- **Clearer KidsExitPin escape.**  Two unambiguous ways back:
+  - top-left "Back to Kids" pill (kept as a quick exit)
+  - prominent yellow "← Stay in Kids mode" CTA below the digit
+    boxes (the obvious primary action for a parent who landed
+    here by accident).
+  Both route to `/`, which RequireProfile resolves to the
+  themed Kids Home thanks to the existing sandbox guard.
+
+
+### Locked-down Kids Mode + per-profile PINs (Iteration 30)
 - **Kid-safe Search** — Search now switches to a new
   `/api/tmdb/kids/search` endpoint when a kid profile is active.
   The endpoint pre-filters by family/animation genres + bans

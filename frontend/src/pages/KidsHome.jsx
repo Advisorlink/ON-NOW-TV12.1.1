@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import KidsSideNav from '@/components/KidsSideNav';
 import HeroBillboard from '@/components/HeroBillboard';
@@ -7,6 +7,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useKidsShelves } from '@/hooks/useKidsShelves';
 import { useKidsHeroes } from '@/hooks/useKidsHeroes';
+import { getKidsConfig } from '@/lib/profiles';
 import Lazy from '@/components/Lazy';
 
 /**
@@ -30,21 +31,48 @@ export default function KidsHome() {
 
     const filter = new URLSearchParams(location.search).get('filter');
 
+    // Live-track the kids settings so toggling "TV Shows only" or
+    // "Movies only" in Settings reflects on Kids Home immediately.
+    const [cfg, setCfg] = useState(getKidsConfig());
+    useEffect(() => {
+        const sync = () => setCfg(getKidsConfig());
+        window.addEventListener('vesper:kids-config-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:kids-config-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
     const { shelves: allShelves, loading: shelvesLoading } = useKidsShelves();
-    const { heroes } = useKidsHeroes();
+    const { heroes: allHeroes } = useKidsHeroes();
+
+    // Apply both URL `?filter=` AND the persisted contentTypes
+    // preference.  contentTypes has 3 values: 'both', 'movies',
+    // 'series'.  Both filters compose intersectionally.
+    const typeMask = useMemo(() => {
+        if (filter === 'movie') return 'movie';
+        if (filter === 'series') return 'series';
+        if (cfg.contentTypes === 'movies') return 'movie';
+        if (cfg.contentTypes === 'series') return 'series';
+        return null;
+    }, [filter, cfg.contentTypes]);
 
     const shelves = useMemo(() => {
         if (!Array.isArray(allShelves)) return [];
-        if (filter === 'movie')
-            return allShelves.filter((s) =>
-                (s.items || []).some((i) => i.type === 'movie')
-            );
-        if (filter === 'series')
-            return allShelves.filter((s) =>
-                (s.items || []).some((i) => i.type === 'series')
-            );
-        return allShelves;
-    }, [allShelves, filter]);
+        if (!typeMask) return allShelves;
+        return allShelves.filter((s) =>
+            (s.items || []).some((i) => i.type === typeMask)
+        );
+    }, [allShelves, typeMask]);
+
+    // Hero billboard is always cinematic-movie shaped, so when the
+    // user picks "TV Shows only" we hide it entirely (no kid-safe
+    // TV hero exists yet) to avoid a misleading movie poster.
+    const heroes = useMemo(() => {
+        if (typeMask === 'series') return [];
+        return allHeroes;
+    }, [allHeroes, typeMask]);
 
     React.useLayoutEffect(() => {
         const region = document.querySelector(

@@ -68,17 +68,24 @@ export default function KidsExitPin() {
                 data-focusable="true"
                 data-focus-style="quiet"
                 tabIndex={0}
-                onClick={() => navigate(-1)}
-                className="absolute top-8 left-8 flex items-center justify-center rounded-full"
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 rounded-full"
                 style={{
-                    width: 48,
-                    height: 48,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
+                    position: 'absolute',
+                    top: 32,
+                    left: 32,
+                    height: 44,
+                    padding: '0 18px',
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.16)',
                     color: 'var(--vesper-text-2)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    zIndex: 5,
                 }}
             >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={16} strokeWidth={2} />
+                Back to Kids
             </button>
 
             <div
@@ -155,6 +162,28 @@ export default function KidsExitPin() {
                     {error}
                 </div>
             )}
+
+            <button
+                data-testid="kids-pin-stay"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 rounded-full"
+                style={{
+                    marginTop: 28,
+                    height: 48,
+                    padding: '0 22px',
+                    background: 'rgba(255,212,59,0.14)',
+                    color: '#FFD43B',
+                    border: '1px solid rgba(255,212,59,0.42)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                }}
+            >
+                <ArrowLeft size={16} strokeWidth={2.4} />
+                Stay in Kids mode
+            </button>
         </div>
     );
 }

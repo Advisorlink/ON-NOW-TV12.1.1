@@ -21,6 +21,7 @@ export default function Settings() {
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
     const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
+    const [savedFlash, setSavedFlash] = React.useState(0);
 
     const toggleAutoplay = () => {
         const next = !autoplay;
@@ -31,6 +32,7 @@ export default function Settings() {
     const updateKids = (patch) => {
         const next = saveKidsConfig(patch);
         setKidsCfgState(next);
+        setSavedFlash((x) => x + 1);
     };
 
     return (
@@ -53,6 +55,7 @@ export default function Settings() {
             }}
         >
             <FullscreenButton />
+            <SavedToast trigger={savedFlash} />
             <div
                 data-testid="settings-scroll"
                 style={{
@@ -701,5 +704,40 @@ function ThemeCard({ theme, active, onPick }) {
                 </div>
             )}
         </button>
+    );
+}
+
+
+function SavedToast({ trigger }) {
+    const [visible, setVisible] = React.useState(false);
+    React.useEffect(() => {
+        if (!trigger) return undefined;
+        setVisible(true);
+        const t = setTimeout(() => setVisible(false), 1600);
+        return () => clearTimeout(t);
+    }, [trigger]);
+    if (!visible) return null;
+    return (
+        <div
+            data-testid="saved-toast"
+            className="fixed z-[60] flex items-center gap-2"
+            style={{
+                bottom: 'clamp(24px, 3vw, 40px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '12px 22px',
+                borderRadius: 999,
+                background: 'rgba(20,28,48,0.95)',
+                border: '1px solid rgba(93,200,255,0.45)',
+                color: 'var(--vesper-blue-bright)',
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: '0.01em',
+                boxShadow: '0 14px 36px rgba(0,0,0,0.45), 0 0 24px rgba(93,200,255,0.35)',
+            }}
+        >
+            <Check size={16} strokeWidth={3} />
+            Saved — Kids home updated
+        </div>
     );
 }

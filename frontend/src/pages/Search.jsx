@@ -30,23 +30,35 @@ export default function Search() {
 
     const doKidSearch = async (query) => {
         try {
+            const cfg = await import('@/lib/profiles').then((m) =>
+                m.getKidsConfig()
+            );
             const r = await fetch(
                 `${API}/tmdb/kids/search?q=${encodeURIComponent(query)}`
             );
             if (!r.ok) return [];
             const json = await r.json();
-            return (json?.data || []).map((it) => ({
-                id: `kids-search-${it.tmdb_id}`,
-                imdbId: null,
-                type: it.type,
-                title: it.title,
-                sub: [
-                    it.year,
-                    it.rating ? `★ ${it.rating}` : null,
-                ].filter(Boolean).join(' · '),
-                poster: it.poster,
-                routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
-            }));
+            const all = (json?.data || []);
+            const typeMask =
+                cfg.contentTypes === 'movies'
+                    ? 'movie'
+                    : cfg.contentTypes === 'series'
+                    ? 'series'
+                    : null;
+            return all
+                .filter((it) => (typeMask ? it.type === typeMask : true))
+                .map((it) => ({
+                    id: `kids-search-${it.tmdb_id}`,
+                    imdbId: null,
+                    type: it.type,
+                    title: it.title,
+                    sub: [
+                        it.year,
+                        it.rating ? `★ ${it.rating}` : null,
+                    ].filter(Boolean).join(' · '),
+                    poster: it.poster,
+                    routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
+                }));
         } catch {
             return [];
         }
