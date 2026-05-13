@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Lock } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
     listProfiles,
     setActiveProfile,
     removeProfile,
+    profileHasPin,
+    checkProfilePin,
 } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
+import PinGate from '@/components/PinGate';
 
 /**
  * Netflix-style "Who's watching?" profile picker.  Shown on every
@@ -20,10 +23,38 @@ export default function ProfileSelect() {
     const navigate = useNavigate();
     const [profiles, setProfiles] = useState(listProfiles());
     const [editMode, setEditMode] = useState(false);
+    const [pinTarget, setPinTarget] = useState(null);   // profile awaiting PIN
+    const [pinError, setPinError] = useState('');
+    const [pinReset, setPinReset] = useState(0);
 
-    const pick = (id) => {
+    const activate = (id) => {
         setActiveProfile(id);
         navigate('/');
+    };
+
+    const pick = (p) => {
+        if (editMode) {
+            navigate(`/profiles/edit/${p.id}`);
+            return;
+        }
+        if (profileHasPin(p)) {
+            setPinError('');
+            setPinTarget(p);
+            return;
+        }
+        activate(p.id);
+    };
+
+    const onPinSubmit = (entered) => {
+        if (!pinTarget) return;
+        if (checkProfilePin(pinTarget, entered)) {
+            const id = pinTarget.id;
+            setPinTarget(null);
+            activate(id);
+        } else {
+            setPinError('Incorrect PIN. Try again.');
+            setPinReset((x) => x + 1);
+        }
     };
 
     const refresh = () => setProfiles(listProfiles());
@@ -78,7 +109,7 @@ export default function ProfileSelect() {
                         key={p.id}
                         profile={p}
                         editMode={editMode}
-                        onPick={() => (editMode ? navigate(`/profiles/edit/${p.id}`) : pick(p.id))}
+                        onPick={() => pick(p)}
                         onRemove={() => {
                             removeProfile(p.id);
                             refresh();
@@ -112,11 +143,23 @@ export default function ProfileSelect() {
                 <Pencil size={14} strokeWidth={2} />
                 {editMode ? 'Done' : 'Manage profiles'}
             </button>
+
+            {pinTarget && (
+                <PinGate
+                    title={`Enter ${pinTarget.name}'s PIN`}
+                    subtitle="4-digit PIN required to switch into this profile"
+                    onSuccess={onPinSubmit}
+                    onCancel={() => setPinTarget(null)}
+                    error={pinError}
+                    resetSignal={pinReset}
+                />
+            )}
         </div>
     );
 }
 
 function ProfileTile({ profile, editMode, onPick, onRemove }) {
+    const locked = profileHasPin(profile);
     return (
         <div className="flex flex-col items-center" style={{ width: 152 }}>
             <button
@@ -126,7 +169,7 @@ function ProfileTile({ profile, editMode, onPick, onRemove }) {
                 data-initial-focus={profile.id !== 'kids' ? 'true' : undefined}
                 tabIndex={0}
                 onClick={onPick}
-                className="rounded-full"
+                className="rounded-full relative"
                 style={{
                     width: 130,
                     height: 130,
@@ -136,6 +179,28 @@ function ProfileTile({ profile, editMode, onPick, onRemove }) {
                 }}
             >
                 <AvatarCircle avatarId={profile.avatarId} size={130} />
+                {locked && (
+                    <span
+                        data-testid={`profile-lock-${profile.id}`}
+                        style={{
+                            position: 'absolute',
+                            bottom: -2,
+                            right: -2,
+                            width: 36,
+                            height: 36,
+                            borderRadius: '50%',
+                            background: 'rgba(6,8,15,0.92)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '2px solid var(--vesper-blue)',
+                            boxShadow: '0 0 14px var(--vesper-blue-glow)',
+                            color: 'var(--vesper-blue-bright)',
+                        }}
+                    >
+                        <Lock size={16} strokeWidth={2.4} />
+                    </span>
+                )}
             </button>
             <div
                 className="vesper-display"

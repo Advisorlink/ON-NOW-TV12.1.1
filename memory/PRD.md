@@ -34,9 +34,37 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
-## Implemented (Iteration 10 — Feb 2026)
-## Implemented (Iteration 29 — Feb 13, 2026)
-### Kids Mode redesign — mirror of regular Home, kid-safe content
+## Implemented (Iteration 30 — Feb 13, 2026)
+### Locked-down Kids Mode + per-profile PINs
+- **Kid-safe Search** — Search now switches to a new
+  `/api/tmdb/kids/search` endpoint when a kid profile is active.
+  The endpoint pre-filters by family/animation genres + bans
+  Horror/Thriller/Crime/War, **then** verifies each movie candidate's
+  real US MPAA cert ≤ PG via `/movie/{id}/release_dates` (parallel
+  asyncio.gather, capped at 16 candidates).  Result: "family guy",
+  "joker", "saw", "deadpool", "rick and morty" all return 0
+  matches; "shrek", "frozen", "bluey" work perfectly.
+- **PIN-locked kid escape** — moved the kid-sandbox check
+  *before* the `NO_PROFILE_REQUIRED` exemption in `RequireProfile`,
+  and wrapped `/profiles`, `/profiles/new`, `/profiles/edit/:id`,
+  `/kids/exit-pin` in `RequireProfile` so a child can no longer
+  type `/profiles` into the URL to slip out.  Only allowed paths
+  for an active kid profile: `/`, `/play`, `/title/`, `/search`,
+  `/resolve/`, `/kids/exit-pin`.  The PIN gate remains the only
+  exit.
+- **Per-profile PIN** — added `pin: string` field to the profile
+  shape (4 digits, blank = open).  `ProfileEdit` exposes a Lock
+  toggle + 4-digit input.  `ProfileSelect` shows a neon lock badge
+  on protected tiles and pops a reusable `<PinGate>` modal that
+  blocks activation until the right PIN is entered.  Kids can no
+  longer pick Mum/Dad without the PIN.
+- **Kid-themed Search page** — Search now applies
+  `data-kids-theme="1"` + `KidsSideNav` whenever a kid profile is
+  active, with copy switched to "Kid-safe search" / "What do you
+  want to watch?".
+
+
+### Kids Mode redesign — mirror of regular Home, kid-safe content (Iteration 29)
 - **New Kids Home** (`KidsHome.jsx`) now mirrors the regular Home
   structure: `KidsSideNav` rail + `HeroBillboard` + horizontal
   `Shelf` rows + kid-safe banner.

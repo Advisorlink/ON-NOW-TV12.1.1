@@ -60,24 +60,33 @@ function RequireProfile({ children }) {
         };
     }, []);
 
+    // Kids profile is sandboxed FIRST — before any "exempt" path check.
+    // Otherwise a kid could type /profiles into the URL bar and walk
+    // straight out of the kid-safe area.  The ONLY way out is
+    // /kids/exit-pin, which then clears the active profile after a
+    // correct PIN.
+    if (active && active.kids) {
+        const allowedKids = [
+            '/',
+            '/play',
+            '/title/',
+            '/search',
+            '/resolve/',
+            '/kids/exit-pin',
+        ];
+        const ok = allowedKids.some((p) =>
+            p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
+        );
+        if (!ok) return <Navigate to="/" replace />;
+        return children;
+    }
+
     const pathExempt = NO_PROFILE_REQUIRED.some((p) =>
         location.pathname.startsWith(p)
     );
     if (pathExempt) return children;
 
     if (!active) return <Navigate to="/profiles" replace />;
-
-    // Kids: only Home / Detail / Play / Search / Resolve are reachable.
-    // Sources, Settings, Networks etc. are blocked.  Resolve is used by
-    // the TMDB-curated kid shelves to bounce into the regular Detail
-    // page once the IMDB id is known.
-    if (active.kids) {
-        const allowedKids = ['/', '/play', '/title/', '/search', '/resolve/'];
-        const ok = allowedKids.some((p) =>
-            p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
-        );
-        if (!ok) return <Navigate to="/" replace />;
-    }
     return children;
 }
 
@@ -91,10 +100,10 @@ function App() {
             <ThemeProvider>
                 <Router>
                     <Routes>
-                        <Route path="/profiles" element={<ProfileSelect />} />
-                        <Route path="/profiles/new" element={<ProfileEdit />} />
-                        <Route path="/profiles/edit/:id" element={<ProfileEdit />} />
-                        <Route path="/kids/exit-pin" element={<KidsExitPin />} />
+                        <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
+                        <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
+                        <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
+                        <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
 
                         <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
                         <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />

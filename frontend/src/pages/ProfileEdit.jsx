@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft, Check, Lock, Unlock } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AvatarCircle } from '@/lib/avatars';
@@ -24,13 +24,17 @@ export default function ProfileEdit() {
 
     const [name, setName] = useState(existing?.name || '');
     const [avatarId, setAvatarId] = useState(existing?.avatarId || AVATARS[0].id);
+    const [pin, setPin] = useState(existing?.pin || '');
 
     const onSave = () => {
         const trimmed = name.trim() || 'Profile';
+        const cleanPin = (pin || '').replace(/\D/g, '');
+        if (cleanPin && cleanPin.length !== 4) return; // ignore partial PIN
         saveProfile({
             id: existing?.id,
             name: trimmed,
             avatarId,
+            pin: cleanPin,
             createdAt: existing?.createdAt,
         });
         navigate('/profiles');
@@ -131,6 +135,8 @@ export default function ProfileEdit() {
                 </button>
             </div>
 
+            <ProfilePinField pin={pin} onChange={setPin} />
+
             <h2
                 className="vesper-mono"
                 style={{
@@ -199,3 +205,151 @@ export default function ProfileEdit() {
         </div>
     );
 }
+
+function ProfilePinField({ pin, onChange }) {
+    const [enabled, setEnabled] = useState(pin.length === 4);
+    const [digits, setDigits] = useState(() => {
+        const arr = ['', '', '', ''];
+        for (let i = 0; i < Math.min(pin.length, 4); i++) arr[i] = pin[i];
+        return arr;
+    });
+    const refs = useRef([]);
+
+    const sync = (next) => {
+        setDigits(next);
+        const joined = next.join('');
+        onChange(joined.length === 4 ? joined : '');
+    };
+
+    const onDigit = (i, val) => {
+        const v = val.replace(/[^\d]/g, '').slice(-1);
+        const next = [...digits];
+        next[i] = v;
+        sync(next);
+        if (v && i < 3) refs.current[i + 1]?.focus();
+    };
+
+    const toggle = () => {
+        const nextEnabled = !enabled;
+        setEnabled(nextEnabled);
+        if (!nextEnabled) {
+            sync(['', '', '', '']);
+        } else {
+            setTimeout(() => refs.current[0]?.focus(), 80);
+        }
+    };
+
+    return (
+        <section
+            data-testid="profile-pin-section"
+            className="mb-10"
+            style={{
+                padding: '20px 22px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+            }}
+        >
+            <div className="flex items-center justify-between mb-3">
+                <div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            color: 'var(--vesper-text-3)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        Profile lock
+                    </div>
+                    <div
+                        className="vesper-display"
+                        style={{
+                            fontSize: 20,
+                            letterSpacing: '-0.015em',
+                            marginTop: 4,
+                        }}
+                    >
+                        {enabled ? 'PIN required to enter' : 'No PIN (open access)'}
+                    </div>
+                    <div
+                        style={{
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 13,
+                            marginTop: 4,
+                            maxWidth: 540,
+                        }}
+                    >
+                        Add a 4-digit PIN so the kids (or anyone else) can&apos;t
+                        switch into this profile without you.
+                    </div>
+                </div>
+                <button
+                    data-testid="profile-pin-toggle"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={toggle}
+                    className="flex items-center gap-2 rounded-full"
+                    style={{
+                        height: 40,
+                        padding: '0 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        background: enabled
+                            ? 'var(--vesper-blue)'
+                            : 'rgba(255,255,255,0.08)',
+                        color: enabled
+                            ? 'var(--vesper-bg-0)'
+                            : 'var(--vesper-text-2)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                    }}
+                >
+                    {enabled ? (
+                        <Lock size={14} strokeWidth={2.4} />
+                    ) : (
+                        <Unlock size={14} strokeWidth={2} />
+                    )}
+                    {enabled ? 'PIN on' : 'Set a PIN'}
+                </button>
+            </div>
+
+            {enabled && (
+                <div className="flex gap-3 mt-3">
+                    {digits.map((d, i) => (
+                        <input
+                            key={i}
+                            data-testid={`profile-pin-${i}`}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            ref={(el) => (refs.current[i] = el)}
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={d}
+                            onChange={(e) => onDigit(i, e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Backspace' && !d && i > 0)
+                                    refs.current[i - 1]?.focus();
+                            }}
+                            className="text-center"
+                            style={{
+                                width: 56,
+                                height: 64,
+                                fontSize: 28,
+                                fontWeight: 700,
+                                borderRadius: 12,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.18)',
+                                color: 'var(--vesper-text)',
+                                outline: 'none',
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+

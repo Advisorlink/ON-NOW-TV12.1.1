@@ -822,6 +822,86 @@ async def tmdb_kids_shelves():
     return {"cached": False, "data": out}
 
 
+@api.get("/tmdb/kids/search")
+async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
+    """Kid-safe search.  Hits TMDB multi-search and post-filters every
+    result against the same hard criteria the discover shelves use.
+
+    Movies: require Family (10751) or Animation (16) genre; drop
+    Horror/Thriller/Crime/War; then verify each candidate's actual US
+    MPAA certification is G or PG (no rating → drop, PG-13 → drop).
+
+    TV: require BOTH Family (10751) AND Animation (16); English origin
+    only; drop Drama/Crime/Thriller/Horror/War/Soap shows.
+    """
+    q = q.strip()
+    if not q:
+        return {"data": []}
+
+    cache_key = f"kids_search:{q.lower()}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"data": cached}
+
+    data = await _tmdb_get(
+        "/search/multi",
+        {"query": q, "include_adult": "false", "page": 1},
+    )
+
+    BANNED_MOVIE = {27, 53, 80, 10752}
+    BANNED_TV = {18, 80, 9648, 53, 27, 10752, 10763, 10764, 10767, 10768, 10766}
+
+    movie_candidates: List[Dict[str, Any]] = []
+    tv_out: List[Dict[str, Any]] = []
+    for item in data.get("results") or []:
+        if item.get("adult"):
+            continue
+        mt = item.get("media_type")
+        gids = set(item.get("genre_ids") or [])
+        if mt == "movie":
+            if not (16 in gids or 10751 in gids):
+                continue
+            if gids & BANNED_MOVIE:
+                continue
+            shaped = _shape_tmdb_item(item, "movie")
+            if shaped:
+                movie_candidates.append(shaped)
+        elif mt == "tv":
+            if not (16 in gids and 10751 in gids):
+                continue
+            if gids & BANNED_TV:
+                continue
+            orig = (item.get("original_language") or "").lower()
+            if orig and orig != "en":
+                continue
+            shaped = _shape_tmdb_item(item, "tv")
+            if shaped:
+                tv_out.append(shaped)
+
+    # Verify MPAA cert for up to 16 movie candidates in parallel.
+    async def cert_ok(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            rel = await _tmdb_get(f"/movie/{m['tmdb_id']}/release_dates")
+        except HTTPException:
+            return None
+        for entry in rel.get("results") or []:
+            if entry.get("iso_3166_1") != "US":
+                continue
+            for d in entry.get("release_dates") or []:
+                cert = (d.get("certification") or "").strip().upper()
+                if cert in ("G", "PG"):
+                    return m
+            return None  # US entry exists but no qualifying cert
+        return None      # No US release info → drop (too risky)
+
+    verified = await asyncio.gather(*[cert_ok(m) for m in movie_candidates[:16]])
+    movie_out = [m for m in verified if m]
+
+    out = movie_out + tv_out
+    await cache.set(cache_key, out, 6 * 3600)
+    return {"data": out}
+
+
 @api.get("/tmdb/kids/heroes")
 async def tmdb_kids_heroes():
     """Curated hero billboard for Kids mode — popular, kid-safe family

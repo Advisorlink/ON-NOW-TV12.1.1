@@ -12,6 +12,7 @@
  *       name: string,
  *       avatarId: string,          // from AVATARS in /lib/avatars.js
  *       kids: boolean,             // true → kids-only filter applied
+ *       pin: string,               // 4-digit PIN; '' = none (free access)
  *       createdAt: number,
  *   }
  *
@@ -19,7 +20,7 @@
  *       maxRatingMovie: 'G' | 'PG' | 'PG-13',
  *       maxRatingSeries: 'TV-Y' | 'TV-Y7' | 'TV-G' | 'TV-PG' | 'TV-14',
  *       contentTypes: 'both' | 'movies' | 'series',
- *       pin: string,               // 4-digit PIN; '' = none set yet
+ *       pin: string,               // 4-digit PIN required to EXIT kids
  *   }
  */
 
@@ -82,6 +83,7 @@ export function saveProfile(partial) {
         name: partial.name || 'Profile',
         avatarId: partial.avatarId || 'a1',
         kids: false,
+        pin: typeof partial.pin === 'string' ? partial.pin : '',
         createdAt: partial.createdAt || Date.now(),
     };
     const i = list.findIndex((p) => p.id === id);
@@ -134,6 +136,17 @@ export function clearActiveProfile() {
 export function isKidsActive() {
     const p = getActiveProfile();
     return p?.id === 'kids';
+}
+
+/** True if this profile requires a PIN before it can be made active. */
+export function profileHasPin(p) {
+    return !!(p && p.pin && p.pin.length === 4);
+}
+
+/** Validate a PIN against the given profile. */
+export function checkProfilePin(p, entered) {
+    if (!profileHasPin(p)) return true;
+    return p.pin === entered;
 }
 
 // ---------- Kids config ----------
