@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import '@/index.css';
-import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Home from '@/pages/Home';
 import Sources from '@/pages/Sources';
 import Detail from '@/pages/Detail';
@@ -9,10 +9,13 @@ import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Resolve from '@/pages/Resolve';
 import Settings from '@/pages/Settings';
+import ProfileSelect from '@/pages/ProfileSelect';
+import ProfileEdit from '@/pages/ProfileEdit';
+import KidsHome from '@/pages/KidsHome';
+import KidsExitPin from '@/pages/KidsExitPin';
 import { ThemeProvider } from '@/themes/ThemeProvider';
+import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 
-// HashRouter works under file:// (sideloaded APK); BrowserRouter
-// is nicer everywhere else (hosted preview, PWA install).
 const Router =
     typeof window !== 'undefined' && window.location.protocol === 'file:'
         ? HashRouter
@@ -24,15 +27,60 @@ function NotImplemented({ name }) {
             className="w-screen h-[100dvh] min-h-screen flex items-center justify-center"
             style={{ background: 'var(--vesper-bg-0)' }}
         >
-            <div
-                className="vesper-display"
-                style={{ fontSize: 56, letterSpacing: '-0.03em' }}
-            >
-                {name} <span style={{ color: 'var(--vesper-blue)' }}>·</span> coming
-                next
+            <div className="vesper-display" style={{ fontSize: 56, letterSpacing: '-0.03em' }}>
+                {name} <span style={{ color: 'var(--vesper-blue)' }}>·</span> coming next
             </div>
         </div>
     );
+}
+
+/**
+ * Routes that don't require an active profile (profile picker,
+ * editor, kids exit gate).  Everything else funnels through the
+ * RequireProfile guard.
+ */
+const NO_PROFILE_REQUIRED = [
+    '/profiles',
+    '/profiles/new',
+    '/profiles/edit',
+    '/kids/exit-pin',
+];
+
+function RequireProfile({ children }) {
+    const location = useLocation();
+    const [active, setActive] = useState(getActiveProfile());
+
+    useEffect(() => {
+        const sync = () => setActive(getActiveProfile());
+        window.addEventListener('vesper:profile-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:profile-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
+    const pathExempt = NO_PROFILE_REQUIRED.some((p) =>
+        location.pathname.startsWith(p)
+    );
+    if (pathExempt) return children;
+
+    if (!active) return <Navigate to="/profiles" replace />;
+
+    // Kids: only Home / Detail / Play are reachable.  Settings,
+    // Sources, Search etc. are blocked.
+    if (active.kids) {
+        const allowedKids = ['/', '/play', '/title/'];
+        const ok = allowedKids.some((p) =>
+            p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
+        );
+        if (!ok) return <Navigate to="/" replace />;
+    }
+    return children;
+}
+
+function HomeRouter() {
+    return isKidsActive() ? <KidsHome /> : <Home />;
 }
 
 function App() {
@@ -41,16 +89,21 @@ function App() {
             <ThemeProvider>
                 <Router>
                     <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/sources" element={<Sources />} />
-                        <Route path="/search" element={<Search />} />
-                        <Route path="/networks/:slug" element={<Network />} />
-                        <Route path="/resolve/:type/:id" element={<Resolve />} />
-                        <Route path="/library" element={<NotImplemented name="My Library" />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/title/:type/:id" element={<Detail />} />
-                        <Route path="/title/:id" element={<Detail />} />
-                        <Route path="/play" element={<Player />} />
+                        <Route path="/profiles" element={<ProfileSelect />} />
+                        <Route path="/profiles/new" element={<ProfileEdit />} />
+                        <Route path="/profiles/edit/:id" element={<ProfileEdit />} />
+                        <Route path="/kids/exit-pin" element={<KidsExitPin />} />
+
+                        <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
+                        <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />
+                        <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
+                        <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
+                        <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
+                        <Route path="/library" element={<RequireProfile><NotImplemented name="My Library" /></RequireProfile>} />
+                        <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
+                        <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
+                        <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />
+                        <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
                     </Routes>
                 </Router>
             </ThemeProvider>

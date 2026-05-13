@@ -370,6 +370,24 @@ export default function useSpatialFocus() {
         };
 
         const onKey = (e) => {
+            // Per-shelf focus memory: remember which tile was
+            // focused in each horizontal rail so navigating away
+            // (Up/Down) and back returns focus to that exact tile.
+            // Map: rail element → focused element id (or fallback
+            // to a numeric data-key we set when the tile is missing
+            // a stable id).
+            const rememberFocusInRail = () => {
+                const ae = document.activeElement;
+                if (!ae || !ae.matches('[data-focusable="true"]')) return;
+                const rail = horizontalScroller(ae);
+                if (!rail) return;
+                rail.__lastFocusedKey =
+                    ae.getAttribute('data-testid') || null;
+            };
+            // Save the last-focused tile in the rail before we
+            // process the press — so when the press moves focus
+            // out of the rail we have the bookmark ready.
+            rememberFocusInRail();
             // When the user is typing in an input/textarea, let the
             // browser handle keys natively (cursor movement, paste,
             // typing, Enter-to-submit handled by the input's own
@@ -409,7 +427,26 @@ export default function useSpatialFocus() {
                 if (!active) return;
                 const next = findNext(active, dir);
                 if (next) {
-                    focusEl(next, dir, repeat);
+                    // Focus memory: if this is a vertical move INTO
+                    // a new horizontal rail (dir == up/down), try to
+                    // restore the rail's last-focused tile instead
+                    // of just landing on `next`.
+                    let target = next;
+                    if (dir === 'up' || dir === 'down') {
+                        const nextRail = horizontalScroller(next);
+                        const curRail = horizontalScroller(active);
+                        if (
+                            nextRail &&
+                            nextRail !== curRail &&
+                            nextRail.__lastFocusedKey
+                        ) {
+                            const bookmarked = nextRail.querySelector(
+                                `[data-testid="${nextRail.__lastFocusedKey}"]`
+                            );
+                            if (bookmarked) target = bookmarked;
+                        }
+                    }
+                    focusEl(target, dir, repeat);
                 } else if (dir === 'left') {
                     // No left-candidate found inside the content area.
                     // Reveal & focus the SideNav.  This is what makes

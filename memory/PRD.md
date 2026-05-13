@@ -35,6 +35,54 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 28 — Feb 2026)
+- **Per-shelf focus memory** — `useSpatialFocus` now bookmarks the
+  last focused tile in each horizontal rail (stored as
+  `rail.__lastFocusedKey` = its `data-testid`). On vertical re-entry
+  into a rail (Up/Down lands on a different rail), focus restores
+  to the bookmarked tile instead of the first one.
+
+## Implemented (Iteration 29 — Feb 2026)
+- **Netflix-style profile system** — three new pages + a profile
+  library:
+  - **`lib/profiles.js`** — localStorage CRUD (`listProfiles`,
+    `saveProfile`, `removeProfile`, `setActiveProfile`,
+    `getActiveProfile`, `isKidsActive`), Kids config
+    (`getKidsConfig` / `saveKidsConfig`), and a kid-safe content
+    filter (`isKidsSafe(meta, cfg)`) that ranks meta against
+    movie & TV ceilings. Permanent immutable "Kids" profile.
+  - **`lib/avatars.jsx`** — 30 unique avatars rendered inline as
+    emoji-on-gradient circles + 1 hidden Kids default (teddy bear).
+    Reusable `<AvatarCircle avatarId size ring />` component.
+    Mix: 10 animals, 8 fantasy / cool, 5 sports / profession,
+    3 faces, 4 symbols.
+  - **`pages/ProfileSelect.jsx`** — "Who's watching?" Netflix-style
+    picker. Shown on every app launch when no active profile.
+    "Manage profiles" toggle exposes a Remove button on each user
+    profile (Kids can't be removed).
+  - **`pages/ProfileEdit.jsx`** — name input + 30-avatar grid with
+    a check badge on the selected one. Max 20-char name.
+  - **`pages/KidsExitPin.jsx`** — 4-digit PIN gate to exit Kids
+    mode. No PIN configured → bypasses to the picker (so parents
+    can leave freely until they set one).
+  - **`pages/KidsHome.jsx`** — playful pink/yellow/green radial
+    gradient bg, "Let's watch!" + teddy bear branding, filtered
+    shelves via `isKidsSafe`, 2/3 aspect 180px tiles with yellow
+    accent borders, "Exit Kids" button top-right.
+- **App.js route guard** — `<RequireProfile>` HOC enforces:
+  - No active profile → redirect to `/profiles`
+  - Kids profile active → only `/`, `/title/`, `/play` are
+    reachable; everything else (Settings, Sources, Search,
+    Library) redirects back to `/`
+  - `<HomeRouter />` chooses between `<Home />` and `<KidsHome />`
+    based on active profile.
+- **Settings additions**:
+  - "Switch profile" tile → clears active + returns to picker.
+  - "Family controls" section with: parent PIN (4-digit set/change),
+    content type filter (movies / series / both), max movie rating
+    (G / PG / PG-13), max TV rating (TV-Y / TV-Y7 / TV-G / TV-PG).
+
+
 ## Implemented (Iteration 27 — Feb 2026)
 - **D-pad Down now jumps shelves correctly on Android TV** — root
   cause: `content-visibility: auto` on shelf sections made off-screen

@@ -1,0 +1,223 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil } from 'lucide-react';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
+import {
+    listProfiles,
+    setActiveProfile,
+    removeProfile,
+} from '@/lib/profiles';
+import { AvatarCircle } from '@/lib/avatars';
+
+/**
+ * Netflix-style "Who's watching?" profile picker.  Shown on every
+ * app launch (App.js routes / → here if no active profile).
+ * Includes the always-present Kids profile at the end + an
+ * "Add profile" tile (max 4 user profiles for clean UI).
+ */
+export default function ProfileSelect() {
+    useSpatialFocus();
+    const navigate = useNavigate();
+    const [profiles, setProfiles] = useState(listProfiles());
+    const [editMode, setEditMode] = useState(false);
+
+    const pick = (id) => {
+        setActiveProfile(id);
+        navigate('/');
+    };
+
+    const refresh = () => setProfiles(listProfiles());
+
+    return (
+        <div
+            data-testid="profile-select"
+            className="relative w-screen h-[100dvh] flex flex-col items-center justify-center"
+            style={{
+                background:
+                    'radial-gradient(circle at 50% 30%, rgba(93,200,255,0.18) 0%, transparent 60%), var(--vesper-bg-0)',
+            }}
+        >
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 12,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-blue-bright)',
+                    marginBottom: 14,
+                }}
+            >
+                ON NOW TV V2
+            </div>
+            <h1
+                className="vesper-display"
+                style={{
+                    fontSize: 'clamp(40px, 5vw, 72px)',
+                    letterSpacing: '-0.03em',
+                    lineHeight: 1,
+                    marginBottom: 8,
+                }}
+            >
+                Who's watching?
+            </h1>
+            <p
+                style={{
+                    color: 'var(--vesper-text-2)',
+                    fontSize: 16,
+                    marginBottom: 48,
+                }}
+            >
+                Choose a profile to continue
+            </p>
+
+            <div
+                className="flex items-start justify-center flex-wrap"
+                style={{ gap: 'clamp(24px, 3vw, 56px)', maxWidth: 1200 }}
+            >
+                {profiles.map((p) => (
+                    <ProfileTile
+                        key={p.id}
+                        profile={p}
+                        editMode={editMode}
+                        onPick={() => (editMode ? navigate(`/profiles/edit/${p.id}`) : pick(p.id))}
+                        onRemove={() => {
+                            removeProfile(p.id);
+                            refresh();
+                        }}
+                    />
+                ))}
+                {profiles.filter((p) => !p.kids).length < 4 && (
+                    <AddProfileTile onClick={() => navigate('/profiles/new')} />
+                )}
+            </div>
+
+            <button
+                data-testid="manage-profiles"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={() => setEditMode((v) => !v)}
+                className="flex items-center gap-2 mt-12 rounded-full"
+                style={{
+                    height: 44,
+                    padding: '0 22px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    background: editMode
+                        ? 'var(--vesper-blue)'
+                        : 'rgba(255,255,255,0.08)',
+                    color: editMode ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                }}
+            >
+                <Pencil size={14} strokeWidth={2} />
+                {editMode ? 'Done' : 'Manage profiles'}
+            </button>
+        </div>
+    );
+}
+
+function ProfileTile({ profile, editMode, onPick, onRemove }) {
+    return (
+        <div className="flex flex-col items-center" style={{ width: 152 }}>
+            <button
+                data-testid={`profile-${profile.id}`}
+                data-focusable="true"
+                data-focus-style="tile"
+                data-initial-focus={profile.id !== 'kids' ? 'true' : undefined}
+                tabIndex={0}
+                onClick={onPick}
+                className="rounded-full"
+                style={{
+                    width: 130,
+                    height: 130,
+                    border: 'none',
+                    padding: 0,
+                    background: 'transparent',
+                }}
+            >
+                <AvatarCircle avatarId={profile.avatarId} size={130} />
+            </button>
+            <div
+                className="vesper-display"
+                style={{
+                    marginTop: 16,
+                    fontSize: 19,
+                    letterSpacing: '-0.01em',
+                    color: profile.kids
+                        ? 'var(--vesper-blue-bright)'
+                        : 'var(--vesper-text)',
+                }}
+            >
+                {profile.name}
+            </div>
+            {profile.kids && (
+                <div
+                    className="vesper-mono"
+                    style={{
+                        marginTop: 4,
+                        fontSize: 10,
+                        letterSpacing: '0.24em',
+                        color: 'var(--vesper-text-3)',
+                    }}
+                >
+                    KID SAFE
+                </div>
+            )}
+            {editMode && !profile.kids && (
+                <button
+                    data-testid={`remove-${profile.id}`}
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onRemove}
+                    style={{
+                        marginTop: 10,
+                        fontSize: 12,
+                        padding: '4px 12px',
+                        borderRadius: 999,
+                        background: 'rgba(239,68,68,0.16)',
+                        color: '#FCA5A5',
+                        border: '1px solid rgba(239,68,68,0.32)',
+                    }}
+                >
+                    Remove
+                </button>
+            )}
+        </div>
+    );
+}
+
+function AddProfileTile({ onClick }) {
+    return (
+        <div className="flex flex-col items-center" style={{ width: 152 }}>
+            <button
+                data-testid="profile-add"
+                data-focusable="true"
+                data-focus-style="tile"
+                tabIndex={0}
+                onClick={onClick}
+                className="rounded-full flex items-center justify-center"
+                style={{
+                    width: 130,
+                    height: 130,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '2px dashed rgba(255,255,255,0.20)',
+                    color: 'var(--vesper-text-3)',
+                }}
+            >
+                <Plus size={48} strokeWidth={1.5} />
+            </button>
+            <div
+                className="vesper-display"
+                style={{
+                    marginTop: 16,
+                    fontSize: 19,
+                    letterSpacing: '-0.01em',
+                    color: 'var(--vesper-text-2)',
+                }}
+            >
+                Add Profile
+            </div>
+        </div>
+    );
+}
