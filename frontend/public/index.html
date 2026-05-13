@@ -55,79 +55,141 @@
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <!-- Boot splash + WebView-too-old detection.
-             Pure ES5 so it parses on ANY Android WebView (4.0+).
-             Runs before the React bundle even tries to evaluate.
-             • If React mounts within 12 s → the splash is removed.
-             • If the bundle throws a SyntaxError (modern syntax the
-               WebView can't parse) → window.onerror catches it and
-               we swap the splash for a friendly "please update
-               WebView" screen rather than the dreaded white death.
+             Pure ES5 + absolute positioning (translate -50%) so it
+             centres correctly even on Chrome 21-era stock WebViews
+             where modern flex centering is quirky.
+             • If React mounts within 25 s → the splash is removed.
+             • Any uncaught error (SyntaxError, ReferenceError,
+               TypeError, unhandled promise) → splash flips to a
+               readable error screen with the message + Chrome
+               version + "Update WebView" advice.
+             • Tap-tap-tap (5×) on the splash → reveals a low-tech
+               diagnostics panel (UA, viewport, error log) you can
+               read off the TV with no ADB.
         -->
-        <div id="vesper-boot" style="position:fixed;inset:0;display:-webkit-box;display:flex;-webkit-box-align:center;align-items:center;-webkit-box-pack:center;justify-content:center;background:#06080F;color:#A8B5C7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;z-index:9000;">
-            <div style="text-align:center;max-width:520px;padding:24px;">
+        <div id="vesper-boot" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#06080F;color:#A8B5C7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;z-index:9000;">
+            <div id="vesper-boot-inner" style="position:absolute;top:50%;left:50%;-webkit-transform:translate(-50%,-50%);-ms-transform:translate(-50%,-50%);transform:translate(-50%,-50%);text-align:center;width:90%;max-width:520px;padding:24px;">
                 <div id="vesper-boot-title" style="font-size:22px;font-weight:700;color:#F4F8FF;letter-spacing:-0.01em;margin-bottom:10px;">ON NOW TV</div>
-                <div id="vesper-boot-sub" style="font-size:14px;color:#67738A;letter-spacing:0.02em;">Loading your library&hellip;</div>
+                <div id="vesper-boot-sub" style="font-size:14px;color:#67738A;letter-spacing:0.02em;line-height:1.5;">Loading your library&hellip;</div>
                 <div id="vesper-boot-spinner" style="margin:22px auto 0;width:30px;height:30px;border-radius:50%;border:3px solid rgba(93,200,255,0.18);border-top-color:#5DC8FF;-webkit-animation:vsp 0.9s linear infinite;animation:vsp 0.9s linear infinite;"></div>
+                <pre id="vesper-boot-diag" style="display:none;margin-top:20px;padding:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);border-radius:8px;text-align:left;font-family:monospace;font-size:10px;line-height:1.5;color:#67738A;max-height:280px;overflow:auto;word-break:break-all;white-space:pre-wrap;"></pre>
             </div>
             <style>@-webkit-keyframes vsp{to{-webkit-transform:rotate(360deg);}}@keyframes vsp{to{transform:rotate(360deg);}}</style>
         </div>
         <script>
             (function () {
-                /* Detect the WebView's UA + Chrome version so we can
-                   show a helpful message rather than a blank screen
-                   when the user's box is too old.  We tag it onto
-                   the boot div so any error overlay can read it. */
+                var errors = [];
+                function $(id) { return document.getElementById(id); }
+                function setTitle(t) { try { $('vesper-boot-title').innerHTML = t; } catch (e) {} }
+                function setSub(t) { try { $('vesper-boot-sub').innerHTML = t; } catch (e) {} }
+                function hideSpinner() { try { $('vesper-boot-spinner').style.display = 'none'; } catch (e) {} }
+                function showDiag() {
+                    var pre = $('vesper-boot-diag'); if (!pre) return;
+                    var ua = navigator.userAgent || '';
+                    var lines = [
+                        'UA: ' + ua,
+                        'View: ' + (window.innerWidth || 0) + 'x' + (window.innerHeight || 0),
+                        'href: ' + location.href,
+                        'localStorage: ' + (typeof localStorage !== 'undefined' ? 'yes' : 'no'),
+                        'fetch: ' + (typeof fetch !== 'undefined' ? 'yes' : 'no'),
+                        'Promise: ' + (typeof Promise !== 'undefined' ? 'yes' : 'no'),
+                        'Symbol: ' + (typeof Symbol !== 'undefined' ? 'yes' : 'no'),
+                        '',
+                        'Errors:'
+                    ];
+                    for (var i = 0; i < errors.length; i++) lines.push('  ' + errors[i]);
+                    pre.style.display = 'block';
+                    pre.innerHTML = '';
+                    pre.appendChild(document.createTextNode(lines.join('\n')));
+                }
+
+                /* Chrome version detection. */
+                var chromeVer = 0;
                 try {
                     var m = (navigator.userAgent || '').match(/Chrome\/(\d+)/);
-                    var chromeVer = m ? parseInt(m[1], 10) : 0;
-                    document.getElementById('vesper-boot').setAttribute('data-chrome', chromeVer);
-                    if (chromeVer && chromeVer < 49) {
-                        document.getElementById('vesper-boot-title').textContent = 'WebView is too old';
-                        document.getElementById('vesper-boot-sub').innerHTML =
-                            'Your Android box is running Chrome ' + chromeVer +
-                            '.<br/>ON NOW TV needs Chrome 49 or newer.' +
-                            '<br/><br/>Open the Play Store and update <b>Android System WebView</b>.';
-                        document.getElementById('vesper-boot-spinner').style.display = 'none';
-                    }
+                    chromeVer = m ? parseInt(m[1], 10) : 0;
+                    $('vesper-boot').setAttribute('data-chrome', String(chromeVer));
                 } catch (e) {}
-                /* If the React bundle dies on a SyntaxError or
-                   ReferenceError, show the fallback screen instead of
-                   leaving a blank app forever. */
+
+                /* Pre-emptive too-old warning. */
+                if (chromeVer && chromeVer < 49) {
+                    setTitle('WebView is too old');
+                    setSub(
+                        'Your Android box is running Chrome ' + chromeVer +
+                        '.<br/>ON NOW TV needs Chrome 49 or newer.<br/><br/>' +
+                        'Open the Play Store and update <b>Android System WebView</b>, ' +
+                        'then re-open ON NOW TV.'
+                    );
+                    hideSpinner();
+                }
+
+                /* Catch every uncaught error and surface it. */
+                function fail(label, msg) {
+                    errors.push('[' + label + '] ' + (msg || ''));
+                    setTitle("ON NOW TV couldn't start");
+                    setSub(
+                        'Something blocked the app from loading on this box.<br/><br/>' +
+                        '<span style="font-size:11px;color:#67738A;font-family:monospace;">' +
+                        (msg || '').toString().slice(0, 240) + '</span><br/><br/>' +
+                        '<span style="font-size:12px;color:#A8B5C7;">' +
+                        'Try opening the Play Store and updating <b>Android System WebView</b>.<br/>' +
+                        'Tap the screen 5 times to see diagnostic info.' +
+                        '</span>'
+                    );
+                    hideSpinner();
+                }
                 window.addEventListener('error', function (ev) {
-                    if (!ev || !ev.error) return;
-                    var name = ev.error && ev.error.name;
-                    if (name === 'SyntaxError' || name === 'ReferenceError') {
-                        var boot = document.getElementById('vesper-boot');
-                        if (!boot) return;
-                        document.getElementById('vesper-boot-title').textContent =
-                            "Your box can't run ON NOW TV yet";
-                        document.getElementById('vesper-boot-sub').innerHTML =
-                            'Please open the Play Store and update <b>Android System WebView</b>, ' +
-                            'then re-open ON NOW TV.<br/><br/>' +
-                            '<span style="font-size:11px;color:#67738A;">' +
-                            (ev.message || '') + '</span>';
-                        document.getElementById('vesper-boot-spinner').style.display = 'none';
-                    }
+                    try {
+                        var name = (ev && ev.error && ev.error.name) || 'Error';
+                        var msg  = (ev && (ev.message || (ev.error && ev.error.message))) || '';
+                        fail(name, msg);
+                    } catch (e) {}
                 }, true);
-                /* When React mounts successfully it adds a child to
-                   #root.  Poll briefly and fade the splash when we
-                   see one.  12 s is generous on a slow Mali GPU. */
+                if (window.addEventListener) {
+                    window.addEventListener('unhandledrejection', function (ev) {
+                        try {
+                            var r = ev && ev.reason;
+                            var msg = r && r.message ? r.message : (r ? String(r) : 'rejected');
+                            fail('PromiseReject', msg);
+                        } catch (e) {}
+                    });
+                }
+
+                /* 5-tap diagnostic reveal. */
+                var taps = 0, tapTimer = null;
+                $('vesper-boot').addEventListener('click', function () {
+                    taps++;
+                    if (tapTimer) clearTimeout(tapTimer);
+                    tapTimer = setTimeout(function () { taps = 0; }, 1200);
+                    if (taps >= 5) { taps = 0; showDiag(); }
+                });
+
+                /* React-mount poll. */
                 var tries = 0;
                 var iv = setInterval(function () {
                     tries++;
                     var root = document.getElementById('root');
                     if (root && root.firstChild) {
-                        var b = document.getElementById('vesper-boot');
+                        var b = $('vesper-boot');
                         if (b && b.parentNode) {
-                            b.style.transition = 'opacity 220ms ease';
                             b.style.opacity = '0';
+                            b.style.transition = 'opacity 220ms ease';
                             setTimeout(function () {
                                 if (b.parentNode) b.parentNode.removeChild(b);
                             }, 260);
                         }
                         clearInterval(iv);
-                    } else if (tries > 60) {
+                    } else if (tries === 60) {
+                        /* 12 s in: hint the user something might be wrong. */
+                        setSub(
+                            'Still loading&hellip; this is taking longer than usual.<br/>' +
+                            '<span style="font-size:12px;color:#A8B5C7;">' +
+                            'Tap the screen 5 times if it doesn&rsquo;t finish.</span>'
+                        );
+                    } else if (tries > 125) {
+                        /* 25 s in: declare failure even without a thrown error. */
                         clearInterval(iv);
+                        fail('Timeout', 'React did not mount within 25s');
                     }
                 }, 200);
             })();

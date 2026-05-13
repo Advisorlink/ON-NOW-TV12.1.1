@@ -70,10 +70,11 @@
       ">0.2%",
       "not dead",
       "not op_mini all",
-      "chrome >= 49",
+      "chrome >= 30",
       "android >= 4.4",
-      "safari >= 10",
-      "firefox >= 60"
+      "safari >= 9",
+      "firefox >= 52",
+      "ie 11"
     ],
     "development": [
       "last 1 chrome version",
