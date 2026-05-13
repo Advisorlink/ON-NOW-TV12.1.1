@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Loader2, Search as SearchIcon } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import KidsSideNav from '@/components/KidsSideNav';
 import FullscreenButton from '@/components/FullscreenButton';
-import OnScreenKeyboard from '@/components/OnScreenKeyboard';
 import PosterTile from '@/components/PosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
@@ -11,6 +10,16 @@ import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
 import { isKidsActive } from '@/lib/profiles';
 
+/**
+ * Single native text input + a Search button.  We deliberately do NOT
+ * ship an on-screen keyboard:
+ *   • Android TV / HK1 boxes already pop the system keyboard when an
+ *     <input> is focused with a D-pad OK press.
+ *   • A custom OSK adds friction on devices that have native input.
+ * The "blocked / no-results" message only renders AFTER the user has
+ * pressed Search once, so partial typing never accuses them of being
+ * naughty halfway through a perfectly valid kid-safe query.
+ */
 export default function Search() {
     useSpatialFocus();
     const kids = isKidsActive();
@@ -18,6 +27,9 @@ export default function Search() {
     const [q, setQ] = useState('');
     const [results, setResults] = useState([]);
     const [busy, setBusy] = useState(false);
+    const [searched, setSearched] = useState(false);
+    const [lastQuery, setLastQuery] = useState('');
+    const inputRef = useRef(null);
 
     const searchable = addons.flatMap((a) =>
         (a.catalogs || [])
@@ -41,7 +53,7 @@ export default function Search() {
             const r = await fetch(`${API}/tmdb/kids/search?${params}`);
             if (!r.ok) return [];
             const json = await r.json();
-            const all = (json?.data || []);
+            const all = json?.data || [];
             const typeMask =
                 cfg.contentTypes === 'movies'
                     ? 'movie'
@@ -58,7 +70,9 @@ export default function Search() {
                     sub: [
                         it.year,
                         it.rating ? `★ ${it.rating}` : null,
-                    ].filter(Boolean).join(' · '),
+                    ]
+                        .filter(Boolean)
+                        .join(' · '),
                     poster: it.poster,
                     routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
                 }));
@@ -103,14 +117,24 @@ export default function Search() {
         return out;
     };
 
-    const doSearch = async (query) => {
-        if (!query || query.trim().length < 2) return;
+    const doSearch = async (raw) => {
+        const query = (raw ?? q).trim();
+        if (query.length < 2) return;
         setBusy(true);
+        setSearched(true);
+        setLastQuery(query);
         const out = kids
-            ? await doKidSearch(query.trim())
-            : await doAddonSearch(query.trim());
+            ? await doKidSearch(query)
+            : await doAddonSearch(query);
         setResults(out);
         setBusy(false);
+    };
+
+    const onInputKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            doSearch();
+        }
     };
 
     return (
@@ -146,16 +170,102 @@ export default function Search() {
                         : 'What are you looking for?'}
                 </h1>
 
-                <div className="mb-12 max-w-[760px]">
-                    <OnScreenKeyboard
-                        value={q}
-                        placeholder={
-                            kids ? 'Try "Bluey" or "Mario"…' : 'Title, actor, keyword…'
-                        }
-                        onChange={setQ}
-                        onSubmit={(v) => doSearch(v)}
-                        submitLabel={busy ? 'Searching…' : 'Search'}
-                    />
+                <div
+                    className="flex items-center gap-3 mb-12"
+                    style={{ maxWidth: 760 }}
+                >
+                    <div
+                        data-testid="search-input-wrap"
+                        className="flex items-center gap-3 flex-1"
+                        style={{
+                            height: 64,
+                            padding: '0 22px',
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                        }}
+                    >
+                        <SearchIcon
+                            size={20}
+                            strokeWidth={2}
+                            color="var(--vesper-text-3)"
+                        />
+                        <input
+                            ref={inputRef}
+                            data-testid="search-input"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            data-initial-focus="true"
+                            tabIndex={0}
+                            type="text"
+                            value={q}
+                            onChange={(e) => {
+                                setQ(e.target.value);
+                                // Typing more after a search hides the
+                                // previous result/blocked banner so the
+                                // user never sees "we can't show you that"
+                                // halfway through retyping.
+                                if (searched) setSearched(false);
+                            }}
+                            onKeyDown={onInputKeyDown}
+                            placeholder={
+                                kids
+                                    ? 'Try "Bluey" or "Mario"…'
+                                    : 'Title, actor, keyword…'
+                            }
+                            className="vesper-display"
+                            style={{
+                                flex: 1,
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                fontSize: 20,
+                                fontWeight: 500,
+                                letterSpacing: '-0.01em',
+                                color: 'var(--vesper-text)',
+                            }}
+                        />
+                    </div>
+                    <button
+                        data-testid="search-submit"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => doSearch()}
+                        disabled={busy || q.trim().length < 2}
+                        className="flex items-center gap-2 rounded-full"
+                        style={{
+                            height: 64,
+                            padding: '0 28px',
+                            background:
+                                q.trim().length >= 2 && !busy
+                                    ? 'var(--vesper-blue)'
+                                    : 'rgba(255,255,255,0.08)',
+                            color:
+                                q.trim().length >= 2 && !busy
+                                    ? 'var(--vesper-bg-0)'
+                                    : 'var(--vesper-text-3)',
+                            border: 'none',
+                            fontSize: 15,
+                            fontWeight: 700,
+                            letterSpacing: '0.01em',
+                            cursor:
+                                q.trim().length >= 2 && !busy
+                                    ? 'pointer'
+                                    : 'not-allowed',
+                        }}
+                    >
+                        {busy ? (
+                            <Loader2
+                                className="vesper-spin"
+                                size={18}
+                                strokeWidth={2.4}
+                            />
+                        ) : (
+                            <SearchIcon size={18} strokeWidth={2.4} />
+                        )}
+                        Search
+                    </button>
                 </div>
 
                 {!kids && !searchable.length && (
@@ -171,28 +281,25 @@ export default function Search() {
                     >
                         <Loader2 className="vesper-spin" size={20} /> Searching…
                     </div>
-                ) : results.length > 0 ? (
+                ) : searched && results.length > 0 ? (
                     <>
                         <h2
                             className="vesper-display mb-5"
-                            style={{
-                                fontSize: 28,
-                                letterSpacing: '-0.02em',
-                            }}
+                            style={{ fontSize: 28, letterSpacing: '-0.02em' }}
                         >
                             {results.length} {kids ? 'kid-safe ' : ''}result
                             {results.length === 1 ? '' : 's'}
                         </h2>
                         <div className="flex flex-wrap gap-6">
-                            {results.slice(0, 60).map((item) => (
+                            {results.slice(0, 80).map((item) => (
                                 <PosterTile key={item.id} item={item} />
                             ))}
                         </div>
                     </>
-                ) : q && !busy && results.length === 0 ? (
+                ) : searched && results.length === 0 ? (
                     kids ? (
                         <KidsBlockedMessage
-                            query={q}
+                            query={lastQuery}
                             onPick={(s) => {
                                 setQ(s);
                                 doSearch(s);
