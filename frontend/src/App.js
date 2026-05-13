@@ -13,6 +13,7 @@ import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
+import DevModeBadge from '@/components/DevModeBadge';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 
@@ -99,6 +100,7 @@ function App() {
         <div className="App">
             <ThemeProvider>
                 <Router>
+                    <DevModeBadge />
                     <Routes>
                         <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                         <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />

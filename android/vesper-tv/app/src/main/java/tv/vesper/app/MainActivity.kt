@@ -193,9 +193,17 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putInt("last_version", BuildConfig.VERSION_CODE).apply()
         }
 
-        setContentView(webView)
+        // Dev-mode URL.  When set (via the splash diagnostic
+        // "Try loading from network" button, or via Settings →
+        // Developer), the WebView loads this URL instead of the
+        // bundled `file:///android_asset/web/index.html`.  Lets us
+        // iterate on the React side without rebuilding the APK.
+        val devPrefs = getSharedPreferences("onnowtv-dev", MODE_PRIVATE)
+        val devUrl = devPrefs.getString("dev_url", null)?.takeIf { it.startsWith("http") }
+        val bootUrl = devUrl ?: "file:///android_asset/web/index.html"
 
-        webView.loadUrl("file:///android_asset/web/index.html")
+        setContentView(webView)
+        webView.loadUrl(bootUrl)
     }
 
     override fun onResume() {

@@ -164,6 +164,50 @@
                     if (taps >= 5) { taps = 0; showDiag(); }
                 });
 
+                /* Dev-mode helpers — exposed globally so the diag
+                   panel buttons can call them.  These hand off to
+                   the native bridge `OnNowTV.setDevUrl()` which
+                   re-creates the Activity with the new URL. */
+                var DEV_URLS = [
+                    'https://rebrand-app-5.preview.emergentagent.com/'
+                ];
+                window.__vesperGoDev = function (url) {
+                    try {
+                        if (window.OnNowTV && OnNowTV.setDevUrl) {
+                            OnNowTV.setDevUrl(url);
+                            return;
+                        }
+                    } catch (e) {}
+                    /* Browser-preview fallback: just navigate. */
+                    try { window.location.href = url; } catch (e) {}
+                };
+                window.__vesperExitDev = function () {
+                    try { if (window.OnNowTV && OnNowTV.setDevUrl) OnNowTV.setDevUrl(''); } catch (e) {}
+                };
+
+                /* Append dev-mode buttons to the diag panel the
+                   FIRST time it's shown. */
+                var origShowDiag = showDiag;
+                showDiag = function () {
+                    origShowDiag();
+                    var pre = $('vesper-boot-diag');
+                    if (!pre || pre.getAttribute('data-dev-buttons')) return;
+                    pre.setAttribute('data-dev-buttons', '1');
+                    var box = document.createElement('div');
+                    box.style.cssText = 'margin-top:14px;text-align:center;';
+                    box.innerHTML =
+                        '<div style="font-size:11px;color:#67738A;letter-spacing:0.22em;text-transform:uppercase;margin-bottom:10px;">Dev mode</div>' +
+                        '<button id="vesper-dev-net" style="display:inline-block;padding:10px 18px;margin:4px;background:rgba(93,200,255,0.18);color:#5DC8FF;border:1px solid #5DC8FF;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Try loading from network</button>' +
+                        '<button id="vesper-dev-exit" style="display:inline-block;padding:10px 18px;margin:4px;background:rgba(255,255,255,0.06);color:#A8B5C7;border:1px solid rgba(255,255,255,0.14);border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Reset to bundled</button>';
+                    pre.parentNode.appendChild(box);
+                    document.getElementById('vesper-dev-net').addEventListener('click', function () {
+                        window.__vesperGoDev(DEV_URLS[0]);
+                    });
+                    document.getElementById('vesper-dev-exit').addEventListener('click', function () {
+                        window.__vesperExitDev();
+                    });
+                };
+
                 /* React-mount poll. */
                 var tries = 0;
                 var iv = setInterval(function () {

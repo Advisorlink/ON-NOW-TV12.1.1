@@ -162,6 +162,43 @@ class WebAppInterface(private val activity: Activity) {
     fun isAndroidHost(): Boolean = true
 
     /**
+     * Dev-mode network override.  Persists a URL in
+     * SharedPreferences("onnowtv-dev") that MainActivity.onCreate
+     * uses instead of the bundled file:// URL on every launch.
+     * Pass `null` or "" to clear and return to the bundled SPA.
+     * After setting, we reload the WebView so the change takes
+     * effect immediately without a force-close.
+     */
+    @JavascriptInterface
+    fun setDevUrl(url: String?) {
+        val prefs = activity.getSharedPreferences("onnowtv-dev", android.content.Context.MODE_PRIVATE)
+        if (url.isNullOrBlank()) {
+            prefs.edit().remove("dev_url").apply()
+        } else {
+            prefs.edit().putString("dev_url", url).apply()
+        }
+        // Reload the WebView (must run on UI thread).
+        activity.runOnUiThread {
+            val target = if (url.isNullOrBlank()) "file:///android_asset/web/index.html" else url
+            try {
+                val mainAct = activity as? MainActivity
+                mainAct?.findViewById<android.webkit.WebView>(android.R.id.content)
+                // Simpler: pull the webview field directly via the
+                // bridge — but the WebAppInterface only has access
+                // through the activity.  We trigger a reload via JS.
+            } catch (_: Exception) {}
+            activity.recreate()
+        }
+    }
+
+    /** Current dev URL, or "" if unset. */
+    @JavascriptInterface
+    fun getDevUrl(): String {
+        val prefs = activity.getSharedPreferences("onnowtv-dev", android.content.Context.MODE_PRIVATE)
+        return prefs.getString("dev_url", "") ?: ""
+    }
+
+    /**
      * Launch the system speech recognizer (Google Voice / OEM STT)
      * and route the recognized text back to the React side.  React
      * stashes a Promise resolver in `window.__voiceSearch[callbackId]`
