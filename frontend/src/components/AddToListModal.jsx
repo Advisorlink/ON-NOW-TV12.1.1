@@ -36,11 +36,19 @@ export default function AddToListModal() {
     const [closing, setClosing] = useState(false);
     const lastFocusedRef = useRef(null);
     const confirmBtnRef = useRef(null);
+    // "armed" flips to true the moment the user releases the OK
+    // key / mouse button after the modal mounts.  Until then, we
+    // swallow Enter / Space keydowns so that the held-key repeats
+    // from the original long-press DON'T fire a programmatic click
+    // on the now-focused confirm button (which would instantly
+    // confirm + close the modal).
+    const armedRef = useRef(false);
 
     useEffect(() => {
         const onRequest = (e) => {
             if (!e.detail || !e.detail.id) return;
             lastFocusedRef.current = document.activeElement;
+            armedRef.current = false;
             setPayload(e.detail);
         };
         window.addEventListener('vesper:request-add-to-list', onRequest);
@@ -75,6 +83,53 @@ export default function AddToListModal() {
             }
         });
         return () => cancelAnimationFrame(id);
+    }, [payload]);
+
+    // Capture-phase guards.  We MUST run before React's synthetic
+    // handlers AND before the window-level spatial-focus handler so
+    // we can veto the held-key auto-confirm.  We also catch leftover
+    // mouseup on the backdrop here so it doesn't dismiss the modal.
+    useEffect(() => {
+        if (!payload) return;
+        const onKeyDownCapture = (e) => {
+            if (
+                (e.key === 'Enter' || e.key === ' ') &&
+                !armedRef.current
+            ) {
+                // First-keydown burst is still flowing from the
+                // long-press — eat it.
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        const onKeyUpCapture = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                armedRef.current = true;
+                // Eat this release too — it's the tail of the same
+                // press the user used to open the modal.
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        const onMouseUpCapture = (e) => {
+            // The same press that opened the modal may resolve as
+            // a mouseup over the backdrop.  Disarm one such event
+            // so the backdrop click handler doesn't dismiss the
+            // modal under the user.
+            if (!armedRef.current) {
+                e.preventDefault();
+                e.stopPropagation();
+                armedRef.current = true;
+            }
+        };
+        document.addEventListener('keydown', onKeyDownCapture, true);
+        document.addEventListener('keyup', onKeyUpCapture, true);
+        document.addEventListener('mouseup', onMouseUpCapture, true);
+        return () => {
+            document.removeEventListener('keydown', onKeyDownCapture, true);
+            document.removeEventListener('keyup', onKeyUpCapture, true);
+            document.removeEventListener('mouseup', onMouseUpCapture, true);
+        };
     }, [payload]);
 
     const close = () => {

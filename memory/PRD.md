@@ -174,6 +174,36 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   through to the modal so Watch Later can pick it up for
   landscape rendering.
 
+## Implemented (Iteration 38 — Feb 13, 2026)
+### Long-press remove fix + Fire-test-notification dev button
+- **Bug fix — held-OK auto-confirmed the modal**.  Root cause:
+  the global spatial-focus hook fires `el.click()` on EVERY Enter
+  keydown including OS auto-repeats.  When the long-press timer
+  tripped and the modal opened, focus moved to the confirm
+  button — but the user was STILL holding OK from the original
+  long-press.  The next held-key repeat fired a programmatic
+  click on the now-focused confirm button → instant
+  remove/close.  Fix: `AddToListModal` now installs three
+  capture-phase listeners on `document` while the modal is open:
+    - `keydown`: swallow Enter/Space while `armedRef === false`.
+    - `keyup`:   set `armedRef = true` and swallow the release
+                 (it's the tail of the press that opened the modal).
+    - `mouseup`: swallow the first one too so the backdrop click
+                 handler doesn't dismiss when the long-press
+                 release lands on the backdrop overlay.
+  After the user releases for the first time, the modal is
+  "armed" and all subsequent keystrokes / clicks flow through
+  normally.  Verified end-to-end: held Enter 900 ms → modal stays
+  open after release → second Enter tap confirms cleanly.
+- **"Fire test notification"** dev-only button added to Settings
+  → Developer panel.  Dispatches a synthetic
+  `vesper:new-episode-test` event with one of three rotating
+  fake payloads (Game of Thrones, Stranger Things, Chernobyl) so
+  the user can practise the Play / Watch Later flow without
+  waiting for real Cinemeta `videos` air dates.  Tap repeatedly
+  to stack the Watch Later rail.  `NewEpisodeToast` now also
+  listens for the test event in addition to the real poll.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

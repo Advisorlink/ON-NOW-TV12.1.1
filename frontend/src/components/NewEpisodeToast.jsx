@@ -50,11 +50,19 @@ export default function NewEpisodeToast() {
             if (timer) clearTimeout(timer);
             tick();
         };
+        const onTestEvent = (e) => {
+            if (!e.detail) return;
+            // Dev-mode "Fire test notification" — bypass the live
+            // Cinemeta scan and just surface this synthetic payload.
+            setToast(e.detail);
+        };
         window.addEventListener('vesper:library-change', onLibChange);
+        window.addEventListener('vesper:new-episode-test', onTestEvent);
         return () => {
             cancelled = true;
             if (timer) clearTimeout(timer);
             window.removeEventListener('vesper:library-change', onLibChange);
+            window.removeEventListener('vesper:new-episode-test', onTestEvent);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [toast?.showId]);

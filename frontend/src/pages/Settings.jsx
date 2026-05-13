@@ -413,6 +413,134 @@ function DeveloperPanel() {
                     persists across launches inside the Android app.)
                 </div>
             )}
+
+            {/* New-episode notification test trigger.  Fires a
+                synthesized toast so you can verify the look + the
+                "Watch Later" → rail flow without waiting for a real
+                episode to air. */}
+            <TestNewEpisodeButton />
+        </div>
+    );
+}
+
+function TestNewEpisodeButton() {
+    const SAMPLES = [
+        {
+            showId: 'tt0944947',
+            showMeta: {
+                name: 'Game of Thrones',
+                poster: 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01Hi2I9w0pVTuvqVj.jpg',
+                background: 'https://image.tmdb.org/t/p/w1280/2OMB0ynKlyIenMJWI2Dy9IWT4c.jpg',
+            },
+            episode: {
+                season: 8,
+                number: 6,
+                name: 'The Iron Throne',
+                aired: '2019-05-19',
+                thumbnail: 'https://image.tmdb.org/t/p/w500/zb6fM1CX41D9rF9hdgclu0peUmy.jpg',
+            },
+        },
+        {
+            showId: 'tt4574334',
+            showMeta: {
+                name: 'Stranger Things',
+                poster: 'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
+                background: 'https://image.tmdb.org/t/p/w1280/56v2KjBlU4XaOv9rVYEQypROD7P.jpg',
+            },
+            episode: {
+                season: 4,
+                number: 9,
+                name: 'The Piggyback',
+                aired: '2022-07-01',
+                thumbnail: 'https://image.tmdb.org/t/p/w500/agQRbX4mU3yEbU3PCK7vGS0YPpA.jpg',
+            },
+        },
+        {
+            showId: 'tt7366338',
+            showMeta: {
+                name: 'Chernobyl',
+                poster: 'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
+                background: 'https://image.tmdb.org/t/p/w1280/jzAEXMRkfFp4S5RGfvKGOL9z76m.jpg',
+            },
+            episode: {
+                season: 1,
+                number: 5,
+                name: 'Vichnaya Pamyat',
+                aired: '2019-06-03',
+                thumbnail: 'https://image.tmdb.org/t/p/w500/y5fAuLBQ4FYxsDi0SwHFkXOzZqK.jpg',
+            },
+        },
+    ];
+
+    const onFire = () => {
+        // Pick a random sample so a clicker can stack a few in the
+        // Watch Later rail just by tapping the button repeatedly.
+        const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
+        // Tag with a unique season+number suffix so each click
+        // qualifies as a "new" episode even if you keep firing the
+        // same sample.
+        const seasonBump = Math.floor(Math.random() * 99) + 1;
+        const payload = {
+            ...s,
+            episode: { ...s.episode, number: seasonBump },
+        };
+        window.dispatchEvent(
+            new CustomEvent('vesper:new-episode-test', { detail: payload })
+        );
+    };
+
+    return (
+        <div
+            style={{
+                marginTop: 24,
+                paddingTop: 22,
+                borderTop: '1px dashed rgba(255,255,255,0.1)',
+            }}
+        >
+            <div
+                style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: 'var(--vesper-text)',
+                    marginBottom: 4,
+                }}
+            >
+                Fire test notification
+            </div>
+            <div
+                style={{
+                    fontSize: 13,
+                    color: 'var(--vesper-text-2)',
+                    lineHeight: 1.55,
+                    marginBottom: 12,
+                }}
+            >
+                Pops a fake "new episode" toast in the top-right
+                corner so you can practise the Play / Watch Later
+                flow without waiting for real episodes to air.  Tap
+                repeatedly to stack the Watch Later rail in My
+                Library.
+            </div>
+            <button
+                data-testid="dev-fire-test-toast"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onFire}
+                className="flex items-center gap-2 rounded-full"
+                style={{
+                    height: 44,
+                    padding: '0 22px',
+                    background: 'rgba(var(--vesper-blue-rgb), 0.14)',
+                    color: 'var(--vesper-blue-bright)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    letterSpacing: '0.01em',
+                }}
+            >
+                Fire test notification
+            </button>
         </div>
     );
 }
