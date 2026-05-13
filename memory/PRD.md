@@ -34,6 +34,58 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
+
+**THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS
+"ABSOLUTELY PERFECT" AND ORDERED "DO NOT CHANGE A THING".**
+This means *nothing* about how focus moves, scales, paints, or
+animates may be modified without an EXPLICIT new instruction from
+the user.  The current behaviour is the gold standard.  Future
+agents: if a user complains about anything else, fix that —
+DO NOT touch any of the following as a side effect:
+
+### Files frozen — DO NOT EDIT without explicit user permission:
+- `/app/frontend/src/hooks/useSpatialFocus.js` (entire file)
+- `/app/frontend/src/index.css` — the `[data-focusable='true']`
+  block (line ~270), all `[data-focus-style='...']` rules
+  (lines ~350-440), and the `.vesper-host-android` overrides
+  (lines ~557-585).
+
+### Frozen rules — exact properties that must not be changed:
+1. **`transition: none`** on every `[data-focusable='true']`.
+   Focus snaps INSTANTLY.  No 130ms ease, no 200ms ease, no
+   `transition: all`.  The previous tile must NOT animate-out
+   while the new tile animates-in — that was the "ghost glow
+   underneath" the user reported.
+2. **Solid no-blur box-shadows only** on every focus style.
+   Tile: `0 0 0 3px var(--vesper-blue-bright)`.  Pill / quiet /
+   key: `0 0 0 2px var(--vesper-blue-bright)`.  No `Xpx Ypx Zpx`
+   shadow with non-zero blur radius.  No `0 18px 36px` drop
+   shadow.  No `0 0 22px` halo glow.
+3. **Pop-out scale preserved**: tile `1.08`, pill `1.03`, key
+   `1.10`, quiet `1.04`.  These are the "alive" feedback the
+   user wants — never remove them.
+4. **DOM-sibling fast path** in `findNext()` for Left/Right
+   within a horizontal rail.  Geometry path is reserved for
+   cross-shelf vertical nav + edge-of-rail nav into the side-nav.
+5. **Synchronous keydown handler.**  Every `keydown` runs
+   `applyMove(dir)` directly in the handler.  No rAF queue, no
+   held-key throttle, no scrubbing class.  Per-press latency is
+   ~0.5-1.2 ms in preview, ~10-20× headroom on the HK1.
+6. **Cached focusables list** invalidated by debounced
+   MutationObserver (`requestAnimationFrame` coalesced).  Plus
+   a per-rail `__sfChildFocusables` cache keyed by `cacheGen`.
+7. **rAF-coalesced `scrollBy()` calls** — multiple scrolls in
+   one frame collapse into a single commit per scroller.
+
+### If you accidentally regress this:
+- Look at git log for the commit that broke it.
+- The user will tell you it's "chunky" or "skipping tiles" or
+  "ghost glow underneath".
+- Revert to this baseline before doing anything else.
+
+---
+
 ## Implemented (Iteration 33 — Feb 13, 2026)
 ### D-pad: DOM-sibling fast path for horizontal nav (Profile-Select speed for Home shelves)
 - **Root insight**: Profile Select screen felt buttery because its
