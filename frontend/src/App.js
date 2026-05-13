@@ -67,10 +67,12 @@ function RequireProfile({ children }) {
 
     if (!active) return <Navigate to="/profiles" replace />;
 
-    // Kids: only Home / Detail / Play are reachable.  Settings,
-    // Sources, Search etc. are blocked.
+    // Kids: only Home / Detail / Play / Search / Resolve are reachable.
+    // Sources, Settings, Networks etc. are blocked.  Resolve is used by
+    // the TMDB-curated kid shelves to bounce into the regular Detail
+    // page once the IMDB id is known.
     if (active.kids) {
-        const allowedKids = ['/', '/play', '/title/'];
+        const allowedKids = ['/', '/play', '/title/', '/search', '/resolve/'];
         const ok = allowedKids.some((p) =>
             p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
         );

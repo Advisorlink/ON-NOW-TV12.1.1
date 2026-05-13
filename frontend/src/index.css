@@ -46,6 +46,49 @@
     --radius: 12px;
 }
 
+/* ------------------------------------------------------------------
+   Kids theme — applied via `data-kids-theme="1"` on the page root.
+   Swaps the cyber-blue accent for a playful sunshine-yellow + magenta,
+   warms the background into a deep grape/berry, and rounds the
+   visual identity (handled inline + via .vesper-kids-* below).
+------------------------------------------------------------------ */
+[data-kids-theme='1'] {
+    --vesper-bg-0: #1a0c2e;
+    --vesper-bg-1: #28133f;
+    --vesper-bg-2: #371a52;
+    --vesper-surface: #3f1f5c;
+    --vesper-surface-2: #4e2870;
+    --vesper-text: #fffaf2;
+    --vesper-text-2: #f7d8ee;
+    --vesper-text-3: #b78fc9;
+    --vesper-blue: #ffd43b;         /* sunshine yellow as the accent */
+    --vesper-blue-bright: #ffe066;
+    --vesper-blue-dim: #d4a017;
+    --vesper-blue-glow: rgba(255, 212, 59, 0.55);
+    --vesper-line: rgba(255, 255, 255, 0.10);
+}
+
+/* Kids-themed playful ambient gradient on the body backdrop. */
+[data-kids-theme='1'].vesper-kids-root {
+    background:
+        radial-gradient(
+            ellipse 70% 50% at 18% 8%,
+            rgba(255, 107, 203, 0.20) 0%,
+            transparent 55%
+        ),
+        radial-gradient(
+            ellipse 60% 50% at 90% 30%,
+            rgba(255, 212, 59, 0.18) 0%,
+            transparent 55%
+        ),
+        radial-gradient(
+            ellipse 80% 60% at 50% 100%,
+            rgba(61, 220, 151, 0.15) 0%,
+            transparent 60%
+        ),
+        var(--vesper-bg-0) !important;
+}
+
 * {
     box-sizing: border-box;
 }

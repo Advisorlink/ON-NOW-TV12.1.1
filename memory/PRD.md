@@ -35,6 +35,37 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 29 — Feb 13, 2026)
+### Kids Mode redesign — mirror of regular Home, kid-safe content
+- **New Kids Home** (`KidsHome.jsx`) now mirrors the regular Home
+  structure: `KidsSideNav` rail + `HeroBillboard` + horizontal
+  `Shelf` rows + kid-safe banner.
+- **Hard-filtered, curated content from TMDB** — relies on TMDB's
+  `discover` API with strict filters instead of unreliable Stremio
+  addon `certification` fields:
+    - Movies: `certification_country=US`, `certification.lte=PG`,
+      `with_genres=Family|Animation` (10751,16).
+    - TV: requires BOTH Family AND Animation (`with_genres=10751,16`)
+      plus explicit `without_genres=Drama|Crime|Thriller|Horror|War|
+      Soap|Reality|News|Talk` and `with_original_language=en`.  This
+      eliminates Family Guy / Rick and Morty / adult anime that the
+      old "Animation only" filter was leaking.
+    - Hero billboard: `certification.lte=PG`, popular family films.
+- **New backend endpoints** (`/api/tmdb/kids/shelves`,
+  `/api/tmdb/kids/heroes`) return 7 curated shelves and 6 hero
+  candidates, cached server-side for 6 h.
+- **Kids theme** — scoped CSS via `data-kids-theme="1"` swaps the
+  cyber-blue accent for sunshine yellow + magenta and warms the
+  background into a deep grape/berry gradient.  Applied on Kids
+  Home and Detail (when viewing from a kid profile).
+- **KidsSideNav** — playful gradient rail with chunky rounded icons,
+  limited destinations (Home, Movies, Cartoons, Search) plus Exit
+  Kids that opens the PIN gate.
+- **Routing whitelist updated** — kids may now hit `/search` and
+  `/resolve/`; Sources / Settings / Networks / Library remain
+  blocked.
+
+
 ## Implemented (Iteration 28 — Feb 2026)
 - **Per-shelf focus memory** — `useSpatialFocus` now bookmarks the
   last focused tile in each horizontal rail (stored as

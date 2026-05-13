@@ -696,6 +696,171 @@ async def tmdb_to_imdb(type_: str, tmdb_id: int):
     return {"cached": False, "imdb_id": imdb}
 
 
+# ----- Kid-safe TMDB curation -------------------------------------------------
+# We never rely on Stremio addons reporting a `certification` field — almost
+# none do.  Instead we go straight to TMDB's `discover` with hard filters:
+#   movies → certification_country=US, certification.lte=PG, genre family/animation
+#   tv     → animation/family genres + kids-network whitelist (Disney, Nick, etc.)
+# Adult flag is force-excluded.  The result is a curated, predictable set of
+# shelves and heroes that the parent can hand to a child with confidence.
+
+KIDS_TV_NETWORKS = "13,44,56,2697,3919,4674"  # Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr
+KIDS_MOVIE_CERTS = "G|PG"
+KIDS_MOVIE_GENRES = "10751,16"  # Family, Animation
+KIDS_FAMILY_GENRE = "10751"      # Family alone
+KIDS_ANIMATION_GENRE = "16"      # Animation alone
+
+
+def _shape_tmdb_item(item: Dict[str, Any], media: str) -> Optional[Dict[str, Any]]:
+    if not item.get("poster_path"):
+        return None
+    is_tv = media == "tv"
+    title = item.get("name") if is_tv else item.get("title")
+    if not title:
+        return None
+    year_raw = (
+        item.get("first_air_date") if is_tv else item.get("release_date")
+    ) or ""
+    return {
+        "tmdb_id": item.get("id"),
+        "type": "series" if is_tv else "movie",
+        "title": title,
+        "poster": f"{TMDB_IMG}/w500{item['poster_path']}",
+        "backdrop": (
+            f"{TMDB_IMG}/w1280{item['backdrop_path']}"
+            if item.get("backdrop_path")
+            else None
+        ),
+        "year": year_raw[:4] if year_raw else "",
+        "rating": (
+            round(item.get("vote_average"), 1)
+            if isinstance(item.get("vote_average"), (int, float))
+            else None
+        ),
+        "synopsis": item.get("overview") or "",
+    }
+
+
+async def _tmdb_discover_kids(
+    media: str, *, sort: str = "popularity.desc", page: int = 1, extra: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
+    """Discover with hardened kid-safe filters."""
+    base: Dict[str, Any] = {
+        "include_adult": "false",
+        "sort_by": sort,
+        "page": page,
+        "vote_count.gte": 30,  # filter out long-tail low-quality
+    }
+    if media == "movie":
+        base.update(
+            {
+                "certification_country": "US",
+                "certification.lte": "PG",
+                "with_genres": KIDS_MOVIE_GENRES,
+            }
+        )
+    else:  # tv
+        # Animation alone leaks Family Guy / Rick & Morty / adult anime.
+        # Requiring Family AND Animation (or just Family) keeps things
+        # genuinely kid-safe.  We also strip every non-kid genre + force
+        # English origin so we don't get late-night anime by mistake.
+        base.update(
+            {
+                "with_genres": "10751",                # Family (children/family-targeted)
+                # Exclude: reality, news, talk, war, soap, drama, crime,
+                # mystery, thriller, horror.
+                "without_genres": "10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
+                "with_original_language": "en",
+            }
+        )
+    if extra:
+        base.update(extra)
+    data = await _tmdb_get(f"/discover/{media}", base)
+    out: List[Dict[str, Any]] = []
+    for it in data.get("results") or []:
+        shaped = _shape_tmdb_item(it, media)
+        if shaped:
+            out.append(shaped)
+    return out
+
+
+@api.get("/tmdb/kids/shelves")
+async def tmdb_kids_shelves():
+    """Returns a curated set of kid-safe shelves with TMDB data."""
+    cache_key = "tmdb_kids_shelves:v4"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    # Each shelf is independently filtered.  We run them in parallel.
+    async def shelf(id_, title, media, params):
+        items = await _tmdb_discover_kids(media, extra=params)
+        return {
+            "id": id_,
+            "title": title,
+            "eyebrow": "Movies" if media == "movie" else "Cartoons",
+            "type": "movie" if media == "movie" else "series",
+            "items": items[:24],
+        }
+
+    queries = [
+        shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}),
+        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}),  # Animation AND Family
+        shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}),
+        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}),  # Family + Adventure
+        shelf("animated-series", "Animated Shows",    "tv",    {"with_genres": "10751,16", "sort_by": "popularity.desc"}),  # Family AND Animation
+        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"with_genres": "10751,16", "sort_by": "vote_average.desc", "vote_count.gte": 100}),
+        shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}),
+    ]
+
+    results = await asyncio.gather(*queries, return_exceptions=True)
+    out = [
+        r for r in results
+        if isinstance(r, dict) and r.get("items")
+    ]
+    await cache.set(cache_key, out, 6 * 3600)  # 6 h
+    return {"cached": False, "data": out}
+
+
+@api.get("/tmdb/kids/heroes")
+async def tmdb_kids_heroes():
+    """Curated hero billboard for Kids mode — popular, kid-safe family
+    films with rich backdrops.  Always strictly G/PG."""
+    cache_key = "tmdb_kids_heroes:v3"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    items = await _tmdb_discover_kids(
+        "movie",
+        extra={"sort_by": "popularity.desc", "vote_count.gte": 500},
+    )
+    out: List[Dict[str, Any]] = []
+    for it in items:
+        if not it.get("backdrop") or not it.get("synopsis") or len(it["synopsis"]) < 60:
+            continue
+        out.append(
+            {
+                "id": f"tmdb-{it['tmdb_id']}",
+                "title": it["title"],
+                "eyebrow": "Family Pick",
+                "year": it.get("year", ""),
+                "runtime": "",
+                "rating": f"★ {it['rating']}" if it.get("rating") else "",
+                "genres": [],
+                "synopsis": it["synopsis"],
+                "backdrop": it["backdrop"],
+                "sources": ["TMDB"],
+                "routePath": f"/resolve/movie/{it['tmdb_id']}",
+            }
+        )
+        if len(out) >= 6:
+            break
+
+    await cache.set(cache_key, out, 6 * 3600)
+    return {"cached": False, "data": out}
+
+
 @api.get("/tmdb/trending")
 async def tmdb_trending(
     window: str = Query("week", regex="^(day|week)$"),

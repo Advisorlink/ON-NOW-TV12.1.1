@@ -1,236 +1,210 @@
-import React, { useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
+import KidsSideNav from '@/components/KidsSideNav';
+import HeroBillboard from '@/components/HeroBillboard';
+import Shelf from '@/components/Shelf';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import { useAddons } from '@/hooks/useAddons';
-import { useLiveShelves } from '@/hooks/useLiveShelves';
-import { getKidsConfig, isKidsSafe } from '@/lib/profiles';
-import * as img from '@/lib/img';
+import useHomeBackHandler from '@/hooks/useHomeBackHandler';
+import { useKidsShelves } from '@/hooks/useKidsShelves';
+import { useKidsHeroes } from '@/hooks/useKidsHeroes';
+import Lazy from '@/components/Lazy';
 
 /**
  * Kids-mode home page.
- *  - Bright, playful gradient background (no neon-blue
- *    cyberpunk vibes — that's for the adult mode).
- *  - Filters every shelf through `isKidsSafe(meta, cfg)`.
- *  - Exit button bottom-right → routes to /kids/exit-pin, which
- *    requires the parent PIN if one is set.
+ *
+ * Visually mirrors the regular Home (Hero + horizontal Shelves) so
+ * children get the same premium TV experience, but:
+ *   • Data comes EXCLUSIVELY from TMDB's curated kid-safe discover
+ *     endpoints — never from raw Stremio addon catalogs that may
+ *     include R-rated titles.
+ *   • A scoped CSS theme (data-kids-theme="1") swaps the cyber-blue
+ *     accent for sunshine-yellow + magenta, warms the background to
+ *     a playful grape/berry gradient, and softens every focus ring.
+ *   • A KidsSideNav rail with limited destinations replaces the main
+ *     SideNav — no Sources, no Settings, no APK fiddling for kids.
  */
 export default function KidsHome() {
     useSpatialFocus();
-    const navigate = useNavigate();
-    const { addons } = useAddons();
-    const cfg = useMemo(() => getKidsConfig(), []);
+    const location = useLocation();
+    useHomeBackHandler('kids-home');
 
-    const { shelves, loading } = useLiveShelves(addons, null, 60);
+    const filter = new URLSearchParams(location.search).get('filter');
 
-    const filteredShelves = useMemo(() => {
-        return (shelves || [])
-            .map((s) => ({
-                ...s,
-                items: (s.items || []).filter((it) => {
-                    // Coerce minimal meta shape for the filter.
-                    return isKidsSafe(
-                        {
-                            type: it.type || s.type,
-                            adult: it.adult,
-                            certification:
-                                it.certification ||
-                                it.certificate ||
-                                it.rating,
-                            imdbRating: it.imdbRating,
-                        },
-                        cfg
-                    );
-                }),
-            }))
-            .filter((s) => s.items.length > 0);
-    }, [shelves, cfg]);
+    const { shelves: allShelves, loading: shelvesLoading } = useKidsShelves();
+    const { heroes } = useKidsHeroes();
 
-    useEffect(() => {
-        const main = document.querySelector('[data-testid="kids-main"]');
-        if (main) main.scrollTop = 0;
-    }, []);
+    const shelves = useMemo(() => {
+        if (!Array.isArray(allShelves)) return [];
+        if (filter === 'movie')
+            return allShelves.filter((s) =>
+                (s.items || []).some((i) => i.type === 'movie')
+            );
+        if (filter === 'series')
+            return allShelves.filter((s) =>
+                (s.items || []).some((i) => i.type === 'series')
+            );
+        return allShelves;
+    }, [allShelves, filter]);
+
+    React.useLayoutEffect(() => {
+        const region = document.querySelector(
+            '[data-testid="kids-shelves-region"]'
+        );
+        if (region) region.scrollTop = 0;
+    }, [filter]);
 
     return (
         <div
             data-testid="kids-home"
-            className="relative w-screen h-[100dvh] overflow-hidden"
-            style={{
-                background:
-                    'radial-gradient(circle at 15% 10%, #FF6BCB22 0%, transparent 40%), ' +
-                    'radial-gradient(circle at 85% 30%, #FACC1522 0%, transparent 45%), ' +
-                    'radial-gradient(circle at 50% 90%, #3DDC9722 0%, transparent 50%), ' +
-                    'var(--vesper-bg-0)',
-            }}
+            data-kids-theme="1"
+            className="vesper-kids-root relative w-screen h-[100dvh] min-h-screen overflow-hidden"
+            style={{ background: 'var(--vesper-bg-0)' }}
         >
-            {/* Top bar */}
-            <header
-                className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between"
-                style={{
-                    padding: '24px 40px',
-                    background:
-                        'linear-gradient(180deg, rgba(6,8,15,0.7) 0%, transparent 100%)',
-                }}
+            <KidsSideNav />
+
+            <main
+                data-testid="kids-home-main"
+                className="absolute inset-0 flex flex-col"
             >
-                <div className="flex items-center gap-3">
-                    <span style={{ fontSize: 40 }}>🧸</span>
-                    <div>
+                <div className="shrink-0">
+                    <HeroBillboard heroes={heroes} />
+                </div>
+
+                <div
+                    data-testid="kids-shelves-region"
+                    className="flex-1 overflow-y-auto"
+                    style={{ scrollBehavior: 'auto', paddingTop: 26 }}
+                >
+                    <KidsBadgeBanner />
+
+                    {shelvesLoading && shelves.length === 0 && (
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                textAlign: 'center',
+                                padding: 60,
+                                color: 'var(--vesper-text-3)',
+                                letterSpacing: '0.22em',
+                                fontSize: 12,
+                            }}
+                        >
+                            FINDING FUN STUFF…
+                        </div>
+                    )}
+
+                    {!shelvesLoading && shelves.length === 0 && (
+                        <div
+                            style={{
+                                textAlign: 'center',
+                                padding: '60px 40px',
+                                color: 'var(--vesper-text-2)',
+                            }}
+                        >
+                            <div
+                                className="vesper-display"
+                                style={{ fontSize: 28, color: '#fff' }}
+                            >
+                                No shows right now
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: 15 }}>
+                                Ask a grown-up to check the internet.
+                            </div>
+                        </div>
+                    )}
+
+                    {shelves.map((shelf, i) => (
+                        <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
+                            <Shelf shelf={shelf} />
+                        </Lazy>
+                    ))}
+
+                    <footer
+                        className="flex items-center justify-between"
+                        style={{
+                            paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                            paddingRight: 'clamp(40px, 4.2vw, 80px)',
+                            paddingTop: 'clamp(20px, 2vw, 32px)',
+                            paddingBottom: 'clamp(24px, 2.5vw, 40px)',
+                        }}
+                    >
                         <div
                             className="vesper-mono"
                             style={{
                                 fontSize: 11,
-                                letterSpacing: '0.32em',
-                                color: '#FFC857',
+                                color: 'var(--vesper-text-3)',
+                                letterSpacing: '0.22em',
+                                textTransform: 'uppercase',
                             }}
                         >
-                            KIDS MODE
+                            ON NOW TV · KIDS
                         </div>
                         <div
-                            className="vesper-display"
+                            className="vesper-mono"
                             style={{
-                                fontSize: 28,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1,
-                                color: '#fff',
+                                color: 'var(--vesper-text-3)',
+                                fontSize: 11,
+                                letterSpacing: '0.22em',
+                                textTransform: 'uppercase',
                             }}
                         >
-                            Let's watch!
+                            {shelves.length} shelves
                         </div>
-                    </div>
+                    </footer>
                 </div>
-                <button
-                    data-testid="kids-exit"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={() => navigate('/kids/exit-pin')}
-                    className="flex items-center gap-2 rounded-full"
-                    style={{
-                        height: 44,
-                        padding: '0 18px',
-                        background: 'rgba(255,255,255,0.10)',
-                        color: '#fff',
-                        border: '1px solid rgba(255,255,255,0.20)',
-                        fontSize: 14,
-                        fontWeight: 600,
-                    }}
-                >
-                    <LogOut size={15} strokeWidth={2} />
-                    Exit Kids
-                </button>
-            </header>
-
-            <main
-                data-testid="kids-main"
-                className="absolute inset-0 overflow-y-auto"
-                style={{ paddingTop: 120, paddingBottom: 40 }}
-            >
-                {loading && filteredShelves.length === 0 && (
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            textAlign: 'center',
-                            padding: 40,
-                            color: 'var(--vesper-text-3)',
-                        }}
-                    >
-                        LOADING…
-                    </div>
-                )}
-
-                {!loading && filteredShelves.length === 0 && (
-                    <div
-                        style={{
-                            textAlign: 'center',
-                            padding: '60px 40px',
-                            color: 'var(--vesper-text-2)',
-                        }}
-                    >
-                        <div style={{ fontSize: 64, marginBottom: 16 }}>🐻</div>
-                        <div className="vesper-display" style={{ fontSize: 28 }}>
-                            No kid-safe shows yet
-                        </div>
-                        <div style={{ marginTop: 8, fontSize: 15 }}>
-                            Ask a grown-up to add some catalogues.
-                        </div>
-                    </div>
-                )}
-
-                {filteredShelves.map((shelf) => (
-                    <KidsShelf key={shelf.id} shelf={shelf} navigate={navigate} />
-                ))}
             </main>
         </div>
     );
 }
 
-function KidsShelf({ shelf, navigate }) {
+function KidsBadgeBanner() {
     return (
         <section
-            data-testid={`kids-shelf-${shelf.id}`}
-            style={{ marginBottom: 36 }}
+            className="flex items-center justify-between"
+            style={{
+                margin:
+                    '6px clamp(40px, 4.2vw, 80px) 0 clamp(92px, 6.5vw, 132px)',
+                padding: '14px 22px',
+                borderRadius: 18,
+                background:
+                    'linear-gradient(90deg, rgba(255,107,203,0.16) 0%, rgba(255,212,59,0.10) 50%, rgba(61,220,151,0.10) 100%)',
+                border: '1px solid rgba(255,212,59,0.25)',
+            }}
         >
-            <div style={{ padding: '0 40px', marginBottom: 14 }}>
-                <h2
-                    className="vesper-display"
+            <div className="flex items-center gap-3">
+                <div
                     style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        background:
+                            'linear-gradient(135deg, #FFD43B 0%, #FF6BCB 100%)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        boxShadow: '0 8px 22px rgba(255,212,59,0.35)',
                         fontSize: 24,
-                        letterSpacing: '-0.02em',
-                        color: '#fff',
                     }}
                 >
-                    {shelf.title}
-                </h2>
-            </div>
-            <div
-                className="vesper-shelf flex"
-                style={{
-                    gap: 18,
-                    overflowX: 'auto',
-                    padding: '12px 40px',
-                    scrollbarWidth: 'none',
-                }}
-            >
-                {(shelf.items || []).slice(0, 28).map((it) => (
-                    <button
-                        key={it.imdbId || it.id}
-                        data-testid={`kids-${it.imdbId || it.id}`}
-                        data-focusable="true"
-                        data-focus-style="tile"
-                        tabIndex={0}
-                        onClick={() =>
-                            navigate(
-                                it.routePath ||
-                                    `/title/${it.type || 'movie'}/${it.imdbId || it.id}`
-                            )
-                        }
-                        className="rounded-2xl overflow-hidden shrink-0"
+                    🌈
+                </div>
+                <div>
+                    <div
+                        className="vesper-eyebrow"
+                        style={{ fontSize: 11, color: '#FFD43B' }}
+                    >
+                        Kid-safe zone
+                    </div>
+                    <div
+                        className="vesper-display"
                         style={{
-                            width: 180,
-                            aspectRatio: '2 / 3',
-                            border: '3px solid rgba(255,200,87,0.30)',
-                            padding: 0,
-                            background: 'rgba(255,255,255,0.05)',
+                            fontSize: 20,
+                            color: '#fff',
+                            letterSpacing: '-0.02em',
+                            marginTop: 2,
                         }}
                     >
-                        {it.poster ? (
-                            <img
-                                src={img.poster(it.poster)}
-                                alt={it.title}
-                                loading="lazy"
-                                decoding="async"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                        ) : (
-                            <div
-                                className="flex items-center justify-center w-full h-full"
-                                style={{ fontSize: 64 }}
-                            >
-                                🎬
-                            </div>
-                        )}
-                    </button>
-                ))}
+                        Pick a show and let&apos;s go!
+                    </div>
+                </div>
             </div>
         </section>
     );

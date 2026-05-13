@@ -16,6 +16,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
+import { isKidsActive } from '@/lib/profiles';
 import * as cw from '@/lib/continueWatching';
 
 const streamMode = (s) => {
@@ -319,7 +320,14 @@ export default function Detail() {
     ).length;
 
     return (
-        <div data-testid="detail-page" className="relative w-screen h-[100dvh] min-h-screen overflow-hidden">
+        <div
+            data-testid="detail-page"
+            data-kids-theme={isKidsActive() ? '1' : undefined}
+            className={`relative w-screen h-[100dvh] min-h-screen overflow-hidden ${
+                isKidsActive() ? 'vesper-kids-root' : ''
+            }`}
+            style={isKidsActive() ? { background: 'var(--vesper-bg-0)' } : undefined}
+        >
             <FullscreenButton />
 
             {/* Backdrop */}
