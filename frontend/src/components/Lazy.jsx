@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
  */
 export default function Lazy({
     minHeight = 300,
-    rootMargin = '600px 0px',
+    rootMargin = '1200px 0px',
     eager = false,
     children,
 }) {
@@ -41,7 +41,17 @@ export default function Lazy({
             { rootMargin }
         );
         io.observe(el);
-        return () => io.disconnect();
+        // Belt-and-braces fallback: even if IO never fires (e.g.
+        // a slow Mali GPU paints the placeholder offscreen and the
+        // box-internal viewport doesn't match the document
+        // viewport our IO is watching), mount after 1.5 s of
+        // existing in the tree so D-pad Down can always reach
+        // the next shelf.
+        const safety = setTimeout(() => setShown(true), 1500);
+        return () => {
+            io.disconnect();
+            clearTimeout(safety);
+        };
     }, [shown, rootMargin]);
 
     if (shown) return children;

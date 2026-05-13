@@ -81,9 +81,70 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                         );
                         const metas = res?.data?.metas || [];
                         if (!metas.length) continue;
+                        // Strip the addon name from catalog labels.
+                        // Stremio catalogs often look like
+                        //   "Cinemeta - Popular Movies" or
+                        //   "Torrentio: Trending".
+                        // The user only wants the CATEGORY visible
+                        // ("Popular Movies", "Trending") — the actual
+                        // source/addon kicks in once they hit Play.
+                        const rawTitle = cat.name || prettify(cat.id);
+                        const addonName = (addon.name || '').trim();
+                        let cleanTitle = rawTitle;
+                        if (addonName) {
+                            const esc = addonName.replace(
+                                /[.*+?^${}()|[\]\\]/g,
+                                '\\$&'
+                            );
+                            cleanTitle = cleanTitle
+                                .replace(
+                                    new RegExp(
+                                        '^' + esc + '\\s*[-–—:•|]\\s*',
+                                        'i'
+                                    ),
+                                    ''
+                                )
+                                .replace(
+                                    new RegExp(
+                                        '\\s*[-–—:•|]\\s*' + esc + '$',
+                                        'i'
+                                    ),
+                                    ''
+                                )
+                                .replace(
+                                    new RegExp('\\(' + esc + '\\)', 'gi'),
+                                    ''
+                                )
+                                .replace(
+                                    new RegExp('\\b' + esc + '\\b', 'gi'),
+                                    ''
+                                )
+                                .replace(/\s+/g, ' ')
+                                .replace(/^[\s\-–—:•|]+|[\s\-–—:•|]+$/g, '')
+                                .trim();
+                            if (!cleanTitle) cleanTitle = rawTitle;
+                        }
+                        // Final pass: many Stremio addons append their
+                        // brand as `Title | EP-STREM` or `Title -
+                        // OMDB` regardless of their declared name.
+                        // Strip any final ` | X` / ` - X` / ` • X`
+                        // segment whose suffix is mostly uppercase /
+                        // hyphenated (a brand) — not a normal English
+                        // word like "Drama" or "Top Rated".
+                        cleanTitle = cleanTitle
+                            .replace(
+                                /\s*[|•]\s*[A-Z][A-Z0-9._\- ]{1,30}$/,
+                                ''
+                            )
+                            .replace(
+                                /\s*[-–—]\s*([A-Z]{2,}[A-Z0-9._\- ]*)$/,
+                                ''
+                            )
+                            .trim();
+                        if (!cleanTitle) cleanTitle = rawTitle;
                         const shelf = {
                             id: `${addon.id}-${cat.type}-${cat.id}`,
-                            title: cat.name || prettify(cat.id),
+                            title: cleanTitle,
                             eyebrow: capitalize(cat.type === 'movie' ? 'movies' : cat.type),
                             items: metas.slice(0, FETCH_LIMIT).map((m) => ({
                                 id: `${addon.id}-${m.id}`,

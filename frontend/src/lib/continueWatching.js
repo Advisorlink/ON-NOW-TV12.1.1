@@ -29,9 +29,16 @@ const STORAGE_KEY = 'onnowtv-continue-watching-v1';
 const WATCHED_KEY = 'onnowtv-watched-v1';
 const MAX_ENTRIES = 30;
 
+// All reads / writes go through profile-scoped helpers so each
+// profile keeps its own Continue Watching + Watched state.  Legacy
+// pre-profile data is still readable via the fallback inside
+// `readScopedString` so existing installs don't lose anything on
+// the upgrade.
+import { readScopedString, writeScopedString } from '@/lib/profileScope';
+
 function readAll() {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = readScopedString(STORAGE_KEY);
         if (!raw) return [];
         const list = JSON.parse(raw);
         return Array.isArray(list) ? list : [];
@@ -42,7 +49,10 @@ function readAll() {
 
 function writeAll(list) {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, MAX_ENTRIES)));
+        writeScopedString(
+            STORAGE_KEY,
+            JSON.stringify(list.slice(0, MAX_ENTRIES))
+        );
     } catch {
         /* quota / disabled */
     }
@@ -50,7 +60,7 @@ function writeAll(list) {
 
 function readWatchedSet() {
     try {
-        const raw = localStorage.getItem(WATCHED_KEY);
+        const raw = readScopedString(WATCHED_KEY);
         if (!raw) return new Set();
         const arr = JSON.parse(raw);
         return new Set(Array.isArray(arr) ? arr : []);
@@ -61,10 +71,7 @@ function readWatchedSet() {
 
 function writeWatchedSet(set) {
     try {
-        localStorage.setItem(
-            WATCHED_KEY,
-            JSON.stringify(Array.from(set))
-        );
+        writeScopedString(WATCHED_KEY, JSON.stringify(Array.from(set)));
     } catch {
         /* ignore */
     }

@@ -490,6 +490,55 @@ export default function useSpatialFocus() {
                     if (vs && vs.scrollTop > 0) {
                         vs.scrollTo({ top: 0, behavior: 'auto' });
                     }
+                } else if (dir === 'down') {
+                    // No focusable found below.  Most likely cause:
+                    // the next shelf is still wrapped in a <Lazy>
+                    // placeholder that hasn't mounted because the
+                    // user hasn't physically scrolled near it yet.
+                    // We force-scroll the active element's vertical
+                    // scroll ancestor by ~60% of the viewport, wait
+                    // a frame for IntersectionObserver to mount the
+                    // newly-visible shelves, then re-run findNext.
+                    const vs =
+                        verticalScroller(active) || document.scrollingElement;
+                    if (!vs) return;
+                    const before = vs.scrollTop;
+                    const chunk = Math.max(
+                        260,
+                        Math.round((vs.clientHeight || 600) * 0.55)
+                    );
+                    vs.scrollTo({
+                        top: before + chunk,
+                        behavior: 'auto',
+                    });
+                    // Bail if we didn't actually scroll — we're at
+                    // the absolute bottom of the scroller, so there
+                    // is genuinely nothing else.
+                    if (vs.scrollTop === before) return;
+                    // Two-stage retry: a single rAF for the new
+                    // Lazy mount, a second for the layout/IO settle.
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            cachedFocusables = null;
+                            const retry = findNext(active, 'down');
+                            if (retry) {
+                                let target = retry;
+                                const nextRail = horizontalScroller(retry);
+                                const curRail = horizontalScroller(active);
+                                if (
+                                    nextRail &&
+                                    nextRail !== curRail &&
+                                    nextRail.__lastFocusedKey
+                                ) {
+                                    const bookmarked = nextRail.querySelector(
+                                        `[data-testid="${nextRail.__lastFocusedKey}"]`
+                                    );
+                                    if (bookmarked) target = bookmarked;
+                                }
+                                focusEl(target, 'down', repeat);
+                            }
+                        });
+                    });
                 } else if (dir === 'right') {
                     // From the side-nav, pressing right should jump
                     // back into the content area (first non-nav
