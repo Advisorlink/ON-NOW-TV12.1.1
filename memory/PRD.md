@@ -64,6 +64,41 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   "v1.2.0 · libVLC · BUNDLED ✓" all stripped.  User explicitly
   asked for these to be gone.
 
+## Implemented (Iteration 35 — Feb 13, 2026)
+### My Library + new-episode notifications + Watch Later
+- **Per-profile library** (`lib/library.js`): favourites grouped by
+  type (series / movie), Watch Later queue, dismissed-episode map.
+  Broadcasts `vesper:library-change` events so every view re-reads
+  on add/remove.
+- **"Add to My List" toggle** on Detail page (`Detail.jsx`): plus
+  pill flips to ✓ "In My List" with theme-accented fill once added.
+- **`/library` page** (`Library.jsx`):
+  - Empty TV-Shows state has side-by-side explanation copy + an
+    inline preview of what the top-right notification will look
+    like (mini ghost-tile of the real toast UI).
+  - Empty Movies state has friendly wishlist copy.
+  - Populated state: poster grid with name/year captions.
+  - **Watch Later side rail** (sticky 320px on the right) — empty
+    state explains it, populated state shows thumbnail tiles with
+    Play and remove buttons.
+- **Top-right new-episode toast** (`NewEpisodeToast.jsx`):
+  - Globally mounted in `App.js`.
+  - Polls every 5 min + on library change events.
+  - Detects new episodes via Cinemeta `videos` array (any aired
+    episode after the favourite's `lastSeenAt` watermark, not
+    already dismissed).
+  - 380-px tile with episode thumbnail header, "NEW EPISODE" pill
+    in theme accent, show name, S/E label, Play / Watch Later
+    buttons.  **Play auto-focuses** on appear (`data-initial-focus`).
+  - Watch Later pushes the episode into the rail and dismisses
+    the notification.
+  - Slides in from the right with 220ms ease.
+- **Avatar-keypad bugfix** (`useSpatialFocus.js`): when focus is
+  in an `<input>` / `<textarea>`, LEFT/RIGHT still move the text
+  cursor natively, but UP/DOWN now forward to spatial focus so
+  the user can D-pad out of the name input into the avatar grid
+  on the Profile-Edit page.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

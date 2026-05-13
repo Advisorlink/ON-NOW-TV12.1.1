@@ -69,15 +69,33 @@ export default function ProfileSelect() {
             }}
         >
             <div
-                className="vesper-mono"
+                className="vesper-display flex items-baseline justify-center gap-3 select-none"
                 style={{
-                    fontSize: 12,
-                    letterSpacing: '0.32em',
-                    color: 'var(--vesper-blue-bright)',
-                    marginBottom: 14,
+                    marginBottom: 18,
+                    letterSpacing: '-0.03em',
+                    lineHeight: 1,
                 }}
             >
-                ON NOW TV V2
+                <span
+                    style={{
+                        fontSize: 'clamp(36px, 4vw, 56px)',
+                        fontWeight: 700,
+                        color: 'var(--vesper-text)',
+                    }}
+                >
+                    ON NOW TV
+                </span>
+                <span
+                    style={{
+                        fontSize: 'clamp(40px, 4.4vw, 62px)',
+                        fontWeight: 800,
+                        color: 'var(--vesper-blue-bright)',
+                        textShadow:
+                            '0 0 14px rgba(var(--vesper-blue-rgb), 0.7), 0 0 32px rgba(var(--vesper-blue-rgb), 0.45)',
+                    }}
+                >
+                    V2
+                </span>
             </div>
             <h1
                 className="vesper-display"

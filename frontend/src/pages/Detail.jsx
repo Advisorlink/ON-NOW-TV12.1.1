@@ -8,6 +8,8 @@ import {
     Copy,
     Magnet,
     Info,
+    Plus,
+    Check,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
@@ -18,6 +20,11 @@ import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive } from '@/lib/profiles';
 import * as cw from '@/lib/continueWatching';
+import {
+    isInLibrary,
+    addToLibrary,
+    removeFromLibrary,
+} from '@/lib/library';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -365,25 +372,28 @@ export default function Detail() {
                 className="relative z-10 w-full h-full overflow-y-auto"
                 style={{ padding: '64px 80px 80px 80px' }}
             >
-                <button
-                    data-testid="back-button"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    data-initial-focus="true"
-                    tabIndex={0}
-                    onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 h-11 px-5 rounded-full mb-8 vesper-mono"
-                    style={{
-                        background: 'rgba(17,24,39,0.6)',
-                        color: 'var(--vesper-text-2)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        fontSize: 13,
-                        letterSpacing: '0.18em',
-                        textTransform: 'uppercase',
-                    }}
-                >
-                    <ArrowLeft size={16} /> Back
-                </button>
+                <div className="flex items-center gap-3 mb-8">
+                    <button
+                        data-testid="back-button"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={() => navigate(-1)}
+                        className="flex items-center gap-2 h-11 px-5 rounded-full vesper-mono"
+                        style={{
+                            background: 'rgba(17,24,39,0.6)',
+                            color: 'var(--vesper-text-2)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            fontSize: 13,
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        <ArrowLeft size={16} /> Back
+                    </button>
+                    <LibraryToggleButton meta={meta} type={type} id={id} />
+                </div>
 
                 <div className="max-w-[60vw] vesper-fade-up">
                     {meta.imdb_id && (
@@ -984,6 +994,70 @@ const Bullet = () => (
         style={{ background: 'rgba(255,255,255,0.32)' }}
     />
 );
+
+/**
+ * "Add to My List" toggle.  Reads/writes the per-profile library
+ * via `lib/library`.  Live-syncs with the `vesper:library-change`
+ * event so add/remove anywhere flips the icon state here too.
+ *
+ * Theme-accented: the active (in-library) state uses the active
+ * theme's bright accent, the unset state is a muted glass pill.
+ */
+function LibraryToggleButton({ meta, type, id }) {
+    const [inList, setInList] = React.useState(() => isInLibrary(id));
+
+    React.useEffect(() => {
+        const sync = () => setInList(isInLibrary(id));
+        window.addEventListener('vesper:library-change', sync);
+        sync();
+        return () => window.removeEventListener('vesper:library-change', sync);
+    }, [id]);
+
+    if (!meta) return null;
+
+    const onToggle = () => {
+        if (inList) {
+            removeFromLibrary(id);
+        } else {
+            addToLibrary(id, {
+                type: type === 'series' ? 'series' : 'movie',
+                meta: {
+                    name: meta.name,
+                    poster: meta.poster,
+                    year: meta.releaseInfo || meta.year,
+                },
+            });
+        }
+    };
+
+    return (
+        <button
+            data-testid={inList ? 'library-remove' : 'library-add'}
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={onToggle}
+            className="flex items-center gap-2 h-11 px-5 rounded-full vesper-mono"
+            style={{
+                background: inList
+                    ? 'rgba(var(--vesper-blue-rgb), 0.18)'
+                    : 'rgba(17,24,39,0.6)',
+                color: inList
+                    ? 'var(--vesper-blue-bright)'
+                    : 'var(--vesper-text-2)',
+                border: inList
+                    ? '1px solid rgba(var(--vesper-blue-rgb), 0.55)'
+                    : '1px solid rgba(255,255,255,0.12)',
+                fontSize: 13,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+            }}
+        >
+            {inList ? <Check size={16} strokeWidth={2.4} /> : <Plus size={16} strokeWidth={2.2} />}
+            {inList ? 'In My List' : 'Add to My List'}
+        </button>
+    );
+}
 
 const CenterMsg = ({ children }) => (
     <div

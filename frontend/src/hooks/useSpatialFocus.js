@@ -506,14 +506,29 @@ export default function useSpatialFocus() {
         };
 
         const onKey = (e) => {
-            // While typing in an input/textarea, let the browser
-            // handle keys natively.  Escape blurs.
+            // While typing in an input/textarea, let LEFT/RIGHT move
+            // the text cursor natively, but forward UP/DOWN to the
+            // spatial focus so the user can D-pad out of the input
+            // into surrounding focusables (e.g. name field → avatar
+            // grid below).  Enter is consumed natively by inputs
+            // (form submit / commit).  Escape still blurs.  Typing,
+            // Backspace, Tab, etc. always reach the input.
             const tag = (document.activeElement?.tagName || '').toLowerCase();
             if (tag === 'input' || tag === 'textarea') {
                 if (e.key === 'Escape') {
                     document.activeElement.blur();
+                    return;
                 }
-                return;
+                if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+                    // Native text editing — let it through.
+                    return;
+                }
+                // ArrowUp / ArrowDown: fall through into the
+                // spatial logic below.  The input IS the
+                // activeElement and has data-focusable="true", so
+                // findNext(input, dir) finds the next focusable in
+                // that direction (avatar tile, PIN box, etc.) and
+                // focus() implicitly blurs the input.
             }
 
             const dirMap = {

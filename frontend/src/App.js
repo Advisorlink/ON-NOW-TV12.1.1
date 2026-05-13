@@ -9,11 +9,13 @@ import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Resolve from '@/pages/Resolve';
 import Settings from '@/pages/Settings';
+import Library from '@/pages/Library';
 import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import DevModeBadge from '@/components/DevModeBadge';
+import NewEpisodeToast from '@/components/NewEpisodeToast';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 
@@ -101,6 +103,7 @@ function App() {
             <ThemeProvider>
                 <Router>
                     <DevModeBadge />
+                    <NewEpisodeToast />
                     <Routes>
                         <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                         <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
@@ -112,7 +115,7 @@ function App() {
                         <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
                         <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                         <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
-                        <Route path="/library" element={<RequireProfile><NotImplemented name="My Library" /></RequireProfile>} />
+                        <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
                         <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
                         <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
                         <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />
