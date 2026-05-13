@@ -30,12 +30,14 @@ export default function Search() {
 
     const doKidSearch = async (query) => {
         try {
-            const cfg = await import('@/lib/profiles').then((m) =>
-                m.getKidsConfig()
-            );
-            const r = await fetch(
-                `${API}/tmdb/kids/search?q=${encodeURIComponent(query)}`
-            );
+            const { getKidsConfig } = await import('@/lib/profiles');
+            const cfg = getKidsConfig();
+            const params = new URLSearchParams({
+                q: query,
+                movie_cert: cfg.maxRatingMovie,
+                tv_level: cfg.maxRatingSeries,
+            }).toString();
+            const r = await fetch(`${API}/tmdb/kids/search?${params}`);
             if (!r.ok) return [];
             const json = await r.json();
             const all = (json?.data || []);

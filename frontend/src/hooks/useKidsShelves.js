@@ -1,18 +1,34 @@
 import { useEffect, useState } from 'react';
 import { API } from '@/lib/api';
 import * as cache from '@/lib/cache';
+import { getKidsConfig } from '@/lib/profiles';
 
 /**
  * Pulls curated, kid-safe shelves directly from TMDB (via our backend
- * proxy).  Bypasses Stremio addon catalogs because almost none of
- * them surface a `certification` field, which means the generic
- * `isKidsSafe` filter let too much through in practice.  TMDB lets us
- * hard-filter by certification + family genres + adult flag.
+ * proxy).  Strictness comes from the user's Settings (maxRatingMovie,
+ * maxRatingSeries) so flipping G ↔ PG-13 ↔ M15 in Settings reshapes
+ * the home in real time.
  */
 const TTL_MS = 30 * 60 * 1000;
-const KEY = 'kids:shelves:v3';
+
+function keyFor(cfg) {
+    return `kids:shelves:v5:${cfg.maxRatingMovie}:${cfg.maxRatingSeries}`;
+}
 
 export function useKidsShelves() {
+    const [cfg, setCfg] = useState(getKidsConfig());
+
+    useEffect(() => {
+        const sync = () => setCfg(getKidsConfig());
+        window.addEventListener('vesper:kids-config-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:kids-config-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
+    const KEY = keyFor(cfg);
     const cached = cache.get(KEY);
     const [shelves, setShelves] = useState(
         Array.isArray(cached?.value) ? cached.value : []
@@ -26,17 +42,21 @@ export function useKidsShelves() {
             setLoading(false);
             if (!cache.isStale(cur, TTL_MS)) return;
         } else {
+            setShelves([]);
             setLoading(true);
         }
 
         let cancelled = false;
         (async () => {
             try {
-                const r = await fetch(`${API}/tmdb/kids/shelves`);
+                const q = new URLSearchParams({
+                    movie_cert: cfg.maxRatingMovie,
+                    tv_level: cfg.maxRatingSeries,
+                }).toString();
+                const r = await fetch(`${API}/tmdb/kids/shelves?${q}`);
                 if (!r.ok) throw new Error('http ' + r.status);
                 const json = await r.json();
                 const list = Array.isArray(json?.data) ? json.data : [];
-                // Reshape into the structure that <Shelf> already expects.
                 const shaped = list.map((s) => ({
                     id: s.id,
                     title: s.title,
@@ -52,7 +72,6 @@ export function useKidsShelves() {
                         ].filter(Boolean).join(' · '),
                         poster: it.poster,
                         background: it.backdrop,
-                        // Detail page reaches via TMDB→IMDB resolve route.
                         routePath: `/resolve/${s.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
                     })),
                 }));
@@ -69,7 +88,7 @@ export function useKidsShelves() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [KEY, cfg.maxRatingMovie, cfg.maxRatingSeries]);
 
     return { shelves, loading };
 }

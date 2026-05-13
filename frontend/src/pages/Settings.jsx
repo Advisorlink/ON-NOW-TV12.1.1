@@ -267,6 +267,7 @@ export default function Settings() {
                     { value: 'G', label: 'G' },
                     { value: 'PG', label: 'PG' },
                     { value: 'PG-13', label: 'PG-13' },
+                    { value: 'M15', label: 'M15' },
                 ]}
                 onChange={(v) => updateKids({ maxRatingMovie: v })}
             />
@@ -281,6 +282,8 @@ export default function Settings() {
                     { value: 'TV-Y7', label: 'TV-Y7' },
                     { value: 'TV-G', label: 'TV-G' },
                     { value: 'TV-PG', label: 'TV-PG' },
+                    { value: 'TV-14', label: 'TV-14' },
+                    { value: 'M15', label: 'M15' },
                 ]}
                 onChange={(v) => updateKids({ maxRatingSeries: v })}
             />

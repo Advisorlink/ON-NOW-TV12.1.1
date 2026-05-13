@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import KidsSideNav from '@/components/KidsSideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
+import TabGridView from '@/components/TabGridView';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useKidsShelves } from '@/hooks/useKidsShelves';
@@ -74,11 +75,22 @@ export default function KidsHome() {
         return allHeroes;
     }, [allHeroes, typeMask]);
 
+    // A URL filter (`?filter=movie` / `?filter=series`) is what the
+    // KidsSideNav uses for Movies / Cartoons.  When present we render
+    // the same newest-first grid that the regular Home uses for its
+    // tab views — kids see "every Movie" / "every Cartoon" as a single
+    // big browseable wall, not a hero + shelves layout.
+    const isFilterView = filter === 'movie' || filter === 'series';
+
     React.useLayoutEffect(() => {
         const region = document.querySelector(
             '[data-testid="kids-shelves-region"]'
         );
         if (region) region.scrollTop = 0;
+        const main = document.querySelector(
+            '[data-testid="kids-home-main"]'
+        );
+        if (main) main.scrollTop = 0;
     }, [filter]);
 
     return (
@@ -90,13 +102,26 @@ export default function KidsHome() {
         >
             <KidsSideNav />
 
-            <main
-                data-testid="kids-home-main"
-                className="absolute inset-0 flex flex-col"
-            >
-                <div className="shrink-0">
-                    <HeroBillboard heroes={heroes} />
-                </div>
+            {isFilterView ? (
+                <main
+                    data-testid="kids-home-main"
+                    className="absolute inset-0 overflow-y-auto"
+                    style={{ scrollBehavior: 'auto' }}
+                >
+                    <TabGridView
+                        shelves={shelves}
+                        loading={shelvesLoading}
+                        type={filter}
+                    />
+                </main>
+            ) : (
+                <main
+                    data-testid="kids-home-main"
+                    className="absolute inset-0 flex flex-col"
+                >
+                    <div className="shrink-0">
+                        <HeroBillboard heroes={heroes} />
+                    </div>
 
                 <div
                     data-testid="kids-shelves-region"
@@ -180,6 +205,7 @@ export default function KidsHome() {
                     </footer>
                 </div>
             </main>
+            )}
         </div>
     );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Home as HomeIcon,
     Search,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Host from '@/lib/host';
+import { getKidsConfig } from '@/lib/profiles';
 
 /**
  * Kid-themed side rail.  Same spatial-focus contract as the main
@@ -16,20 +17,43 @@ import Host from '@/lib/host';
  * D-pad navigation logic keeps working.  Visually it's a playful
  * gradient with rounded chunky icons and sunshine yellow as the
  * signal accent instead of neon blue.
+ *
+ * Menu items respect the user's `contentTypes` preference: if a
+ * parent has chosen "TV Shows only", the Movies item disappears
+ * entirely (and vice versa).  Home is always shown but its content
+ * is also filtered by the same preference.
  */
-const KIDS_NAV = [
-    { id: 'kids-home', label: 'Home', icon: HomeIcon, filter: null },
-    { id: 'kids-movies', label: 'Movies', icon: Film, filter: 'movie' },
-    { id: 'kids-cartoons', label: 'Cartoons', icon: Tv, filter: 'series' },
-    { id: 'kids-search', label: 'Search', icon: Search, path: '/search' },
+const ALL_ITEMS = [
+    { id: 'kids-home', label: 'Home', icon: HomeIcon, filter: null, type: 'always' },
+    { id: 'kids-movies', label: 'Movies', icon: Film, filter: 'movie', type: 'movie' },
+    { id: 'kids-cartoons', label: 'Cartoons', icon: Tv, filter: 'series', type: 'series' },
+    { id: 'kids-search', label: 'Search', icon: Search, path: '/search', type: 'always' },
 ];
 
 export default function KidsSideNav() {
     const [expanded, setExpanded] = useState(false);
+    const [cfg, setCfg] = useState(getKidsConfig());
     const location = useLocation();
     const navigate = useNavigate();
     const activeFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
+
+    useEffect(() => {
+        const sync = () => setCfg(getKidsConfig());
+        window.addEventListener('vesper:kids-config-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:kids-config-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
+    const items = ALL_ITEMS.filter((it) => {
+        if (it.type === 'always') return true;
+        if (cfg.contentTypes === 'movies') return it.type === 'movie';
+        if (cfg.contentTypes === 'series') return it.type === 'series';
+        return true;
+    });
 
     return (
         <nav
@@ -86,7 +110,7 @@ export default function KidsSideNav() {
             </div>
 
             <div className="flex flex-col gap-1 px-3">
-                {KIDS_NAV.map((item) => {
+                {items.map((item) => {
                     const Icon = item.icon;
                     const itemPath = item.path || '/';
                     const isActive = item.path

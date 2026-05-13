@@ -34,8 +34,40 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
-## Implemented (Iteration 31 — Feb 13, 2026)
-### Reactive Kids settings + clearer Exit-PIN escape
+## Implemented (Iteration 32 — Feb 13, 2026)
+### Rating tiers + dynamic Kids nav + D-pad fix
+- **M15 / TV-14 rating tiers**: Settings now exposes Max movie
+  rating G / PG / PG-13 / M15 and Max TV rating TV-Y / TV-Y7 / TV-G
+  / TV-PG / TV-14 / M15.  Backend kid endpoints accept `movie_cert`
+  and `tv_level` query params and translate to:
+  - TMDB `certification.lte` per tier (G → G, PG → PG, PG-13 →
+    PG-13, M15 → R).
+  - Increasingly permissive genre gates per tier (e.g. M15 drops
+    the Family-genre requirement; only Horror/War stay banned).
+  - Search applies the cert ceiling on each candidate via
+    `/movie/{id}/release_dates`, with M15 trusting genre-only
+    filtering when TMDB has no US cert info.
+- **Reactive Kids nav**: `KidsSideNav` reads `KidsConfig` and
+  listens for `vesper:kids-config-change` so flipping
+  `contentTypes` to `movies` hides the Cartoons rail item, and
+  `series` hides Movies — kids never see a button that leads
+  nowhere.
+- **Movies / Cartoons tab → newest-first grid**: KidsHome detects
+  `?filter=movie|series` and renders the same `<TabGridView>` the
+  regular Home uses, so kids browse a single big poster wall
+  exactly like the grown-up experience.
+- **D-pad escape from KidsSideNav fixed**: `useSpatialFocus`
+  treated `data-testid="side-nav"` as the only nav rail, so kids
+  pressing Right from the kid-themed rail had nowhere to go.
+  Replaced every hard-coded selector with a `NAV_RAIL` constant
+  that matches both `side-nav` and `kids-side-nav`; Right now
+  always escapes to the first content tile.
+- **`useKidsShelves` / `useKidsHeroes`** re-key on the active
+  rating settings (so changing G→M15 in Settings refetches and
+  doesn't serve stale data).
+
+
+### Reactive Kids settings + clearer Exit-PIN escape (Iteration 31)
 - **KidsHome now respects Settings live.**  Reads `KidsConfig`
   on mount and listens for `vesper:kids-config-change` /
   `storage` events so flipping "TV Shows only" / "Movies only"

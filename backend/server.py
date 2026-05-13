@@ -711,6 +711,70 @@ KIDS_FAMILY_GENRE = "10751"      # Family alone
 KIDS_ANIMATION_GENRE = "16"      # Animation alone
 
 
+# ---------------------------------------------------------------------------
+# Rating-driven kid filter levels
+# ---------------------------------------------------------------------------
+# The Settings page now exposes the user's strictness preference via two
+# values: maxRatingMovie ∈ {G, PG, PG-13, M15} and maxRatingSeries ∈
+# {TV-Y, TV-Y7, TV-G, TV-PG, TV-14, M15}.  These map onto TMDB queries
+# below.  Note "M15" is the Australian classification commonly used for
+# 15+ teen content; we treat it as "no kid filter — only block adult".
+
+MOVIE_CERT_FILTER = {
+    "G":     "G",
+    "PG":    "PG",
+    "PG-13": "PG-13",
+    "M15":   "R",      # AU M15 ≈ US R (not NC-17, not Adult)
+}
+
+# Banned genres per movie strictness tier.  Higher tiers permit more
+# nuanced content (drama, sci-fi) but adult-only categories stay banned.
+MOVIE_BANNED = {
+    "G":     {27, 53, 80, 10752, 18, 9648},          # +Drama +Mystery
+    "PG":    {27, 53, 80, 10752},                    # Horror Thriller Crime War
+    "PG-13": {27, 80, 10752},                        # Horror Crime War
+    "M15":   {27, 10752},                            # Horror, War only
+}
+
+# Required genre set (must contain at least one of these).  Looser at
+# higher tiers to permit more variety (Adventure, Comedy).
+MOVIE_REQUIRED = {
+    "G":     {16, 10751},                            # Animation/Family
+    "PG":    {16, 10751},
+    "PG-13": {16, 10751, 12, 35},                    # +Adventure/Comedy
+    "M15":   None,                                   # no genre gate
+}
+
+# TV strictness: TMDB doesn't accept certification for /discover/tv,
+# so we encode the level by combining genre + language + network rules.
+TV_LEVEL_PARAMS = {
+    "TV-Y":   {"with_genres": "10751,16", "with_original_language": "en"},
+    "TV-Y7":  {"with_genres": "10751,16", "with_original_language": "en"},
+    "TV-G":   {"with_genres": "10751,16", "with_original_language": "en"},
+    "TV-PG":  {"with_genres": "10751",    "with_original_language": "en"},
+    "TV-14":  {"with_genres": "10751"},
+    "M15":    {},   # no enforced family gate; only banned-genre filter
+}
+
+TV_BANNED = {
+    "TV-Y":   "10759,10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
+    "TV-Y7":  "10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
+    "TV-G":   "10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
+    "TV-PG":  "10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
+    "TV-14":  "10763,10764,10767,10768,80,9648,27,10766,10752",
+    "M15":    "10763,10764,10767,10768,27,10766,10752",
+}
+
+
+def _resolve_movie_level(cert: Optional[str]) -> str:
+    return cert if cert in MOVIE_CERT_FILTER else "PG"
+
+
+def _resolve_tv_level(level: Optional[str]) -> str:
+    return level if level in TV_LEVEL_PARAMS else "TV-PG"
+
+
+
 def _shape_tmdb_item(item: Dict[str, Any], media: str) -> Optional[Dict[str, Any]]:
     if not item.get("poster_path"):
         return None
@@ -742,9 +806,16 @@ def _shape_tmdb_item(item: Dict[str, Any], media: str) -> Optional[Dict[str, Any
 
 
 async def _tmdb_discover_kids(
-    media: str, *, sort: str = "popularity.desc", page: int = 1, extra: Optional[Dict[str, Any]] = None
+    media: str,
+    *,
+    sort: str = "popularity.desc",
+    page: int = 1,
+    extra: Optional[Dict[str, Any]] = None,
+    movie_cert: str = "PG",
+    tv_level: str = "TV-PG",
 ) -> List[Dict[str, Any]]:
-    """Discover with hardened kid-safe filters."""
+    """Discover with hardened kid-safe filters, driven by the user's
+    Settings ratings."""
     base: Dict[str, Any] = {
         "include_adult": "false",
         "sort_by": sort,
@@ -752,27 +823,18 @@ async def _tmdb_discover_kids(
         "vote_count.gte": 30,  # filter out long-tail low-quality
     }
     if media == "movie":
+        cert = MOVIE_CERT_FILTER.get(movie_cert, "PG")
         base.update(
             {
                 "certification_country": "US",
-                "certification.lte": "PG",
+                "certification.lte": cert,
                 "with_genres": KIDS_MOVIE_GENRES,
             }
         )
     else:  # tv
-        # Animation alone leaks Family Guy / Rick & Morty / adult anime.
-        # Requiring Family AND Animation (or just Family) keeps things
-        # genuinely kid-safe.  We also strip every non-kid genre + force
-        # English origin so we don't get late-night anime by mistake.
-        base.update(
-            {
-                "with_genres": "10751",                # Family (children/family-targeted)
-                # Exclude: reality, news, talk, war, soap, drama, crime,
-                # mystery, thriller, horror.
-                "without_genres": "10763,10764,10767,10768,18,80,9648,53,27,10766,10752",
-                "with_original_language": "en",
-            }
-        )
+        params = TV_LEVEL_PARAMS.get(tv_level, TV_LEVEL_PARAMS["TV-PG"])
+        base.update(params)
+        base["without_genres"] = TV_BANNED.get(tv_level, TV_BANNED["TV-PG"])
     if extra:
         base.update(extra)
     data = await _tmdb_get(f"/discover/{media}", base)
@@ -785,16 +847,27 @@ async def _tmdb_discover_kids(
 
 
 @api.get("/tmdb/kids/shelves")
-async def tmdb_kids_shelves():
-    """Returns a curated set of kid-safe shelves with TMDB data."""
-    cache_key = "tmdb_kids_shelves:v4"
+async def tmdb_kids_shelves(
+    movie_cert: str = Query("PG"),
+    tv_level: str = Query("TV-PG"),
+):
+    """Returns a curated set of kid-safe shelves with TMDB data.
+
+    Strictness is driven by the user's Settings preferences:
+      movie_cert: G | PG | PG-13 | M15
+      tv_level:   TV-Y | TV-Y7 | TV-G | TV-PG | TV-14 | M15
+    """
+    movie_cert = _resolve_movie_level(movie_cert)
+    tv_level = _resolve_tv_level(tv_level)
+    cache_key = f"tmdb_kids_shelves:v5:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
 
-    # Each shelf is independently filtered.  We run them in parallel.
     async def shelf(id_, title, media, params):
-        items = await _tmdb_discover_kids(media, extra=params)
+        items = await _tmdb_discover_kids(
+            media, extra=params, movie_cert=movie_cert, tv_level=tv_level
+        )
         return {
             "id": id_,
             "title": title,
@@ -805,11 +878,11 @@ async def tmdb_kids_shelves():
 
     queries = [
         shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}),
-        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}),  # Animation AND Family
+        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}),
         shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}),
-        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}),  # Family + Adventure
-        shelf("animated-series", "Animated Shows",    "tv",    {"with_genres": "10751,16", "sort_by": "popularity.desc"}),  # Family AND Animation
-        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"with_genres": "10751,16", "sort_by": "vote_average.desc", "vote_count.gte": 100}),
+        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}),
+        shelf("animated-series", "Animated Shows",    "tv",    {"sort_by": "popularity.desc"}),
+        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"sort_by": "vote_average.desc", "vote_count.gte": 100}),
         shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}),
     ]
 
@@ -818,27 +891,31 @@ async def tmdb_kids_shelves():
         r for r in results
         if isinstance(r, dict) and r.get("items")
     ]
-    await cache.set(cache_key, out, 6 * 3600)  # 6 h
+    await cache.set(cache_key, out, 6 * 3600)
     return {"cached": False, "data": out}
 
 
 @api.get("/tmdb/kids/search")
-async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
-    """Kid-safe search.  Hits TMDB multi-search and post-filters every
-    result against the same hard criteria the discover shelves use.
+async def tmdb_kids_search(
+    q: str = Query(..., min_length=1, max_length=80),
+    movie_cert: str = Query("PG"),
+    tv_level: str = Query("TV-PG"),
+):
+    """Kid-safe search, strictness driven by user's Settings.
 
-    Movies: require Family (10751) or Animation (16) genre; drop
-    Horror/Thriller/Crime/War; then verify each candidate's actual US
-    MPAA certification is G or PG (no rating → drop, PG-13 → drop).
+    Movies: require allowed genre set, drop banned genres, then verify
+    each candidate's actual US MPAA certification ≤ chosen cert.
 
-    TV: require BOTH Family (10751) AND Animation (16); English origin
-    only; drop Drama/Crime/Thriller/Horror/War/Soap shows.
+    TV: require Family (and Animation, at strict levels), English at
+    strict levels, drop banned-genres.
     """
+    movie_cert = _resolve_movie_level(movie_cert)
+    tv_level = _resolve_tv_level(tv_level)
     q = q.strip()
     if not q:
         return {"data": []}
 
-    cache_key = f"kids_search:{q.lower()}"
+    cache_key = f"kids_search:{q.lower()}:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"data": cached}
@@ -848,8 +925,16 @@ async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
         {"query": q, "include_adult": "false", "page": 1},
     )
 
-    BANNED_MOVIE = {27, 53, 80, 10752}
-    BANNED_TV = {18, 80, 9648, 53, 27, 10752, 10763, 10764, 10767, 10768, 10766}
+    banned_movie = MOVIE_BANNED.get(movie_cert, MOVIE_BANNED["PG"])
+    required_movie = MOVIE_REQUIRED.get(movie_cert)
+    banned_tv = {
+        int(x) for x in TV_BANNED.get(tv_level, TV_BANNED["TV-PG"]).split(",") if x
+    }
+    tv_params = TV_LEVEL_PARAMS.get(tv_level, TV_LEVEL_PARAMS["TV-PG"])
+    # Whether to enforce strict family-animation gate (lowest tiers).
+    tv_strict_genre = tv_params.get("with_genres") == "10751,16"
+    tv_require_family = "with_genres" in tv_params
+    tv_english_only = "with_original_language" in tv_params
 
     movie_candidates: List[Dict[str, Any]] = []
     tv_out: List[Dict[str, Any]] = []
@@ -859,26 +944,36 @@ async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
         mt = item.get("media_type")
         gids = set(item.get("genre_ids") or [])
         if mt == "movie":
-            if not (16 in gids or 10751 in gids):
+            if required_movie and not (gids & required_movie):
                 continue
-            if gids & BANNED_MOVIE:
+            if gids & banned_movie:
                 continue
             shaped = _shape_tmdb_item(item, "movie")
             if shaped:
                 movie_candidates.append(shaped)
         elif mt == "tv":
-            if not (16 in gids and 10751 in gids):
+            if tv_strict_genre and not (16 in gids and 10751 in gids):
                 continue
-            if gids & BANNED_TV:
+            if tv_require_family and not tv_strict_genre and 10751 not in gids:
                 continue
-            orig = (item.get("original_language") or "").lower()
-            if orig and orig != "en":
+            if gids & banned_tv:
                 continue
+            if tv_english_only:
+                orig = (item.get("original_language") or "").lower()
+                if orig and orig != "en":
+                    continue
             shaped = _shape_tmdb_item(item, "tv")
             if shaped:
                 tv_out.append(shaped)
 
-    # Verify MPAA cert for up to 16 movie candidates in parallel.
+    # Verify MPAA cert for movie candidates against the chosen ceiling.
+    allowed_certs = []
+    for c in ("G", "PG", "PG-13", "R"):
+        allowed_certs.append(c)
+        if MOVIE_CERT_FILTER[movie_cert] == c:
+            break
+    allowed_certs_set = set(allowed_certs)
+
     async def cert_ok(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
             rel = await _tmdb_get(f"/movie/{m['tmdb_id']}/release_dates")
@@ -889,10 +984,11 @@ async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
                 continue
             for d in entry.get("release_dates") or []:
                 cert = (d.get("certification") or "").strip().upper()
-                if cert in ("G", "PG"):
+                if cert in allowed_certs_set:
                     return m
-            return None  # US entry exists but no qualifying cert
-        return None      # No US release info → drop (too risky)
+            return None
+        # No US release info → only accept at the most permissive tier.
+        return m if movie_cert == "M15" else None
 
     verified = await asyncio.gather(*[cert_ok(m) for m in movie_candidates[:16]])
     movie_out = [m for m in verified if m]
@@ -903,10 +999,11 @@ async def tmdb_kids_search(q: str = Query(..., min_length=1, max_length=80)):
 
 
 @api.get("/tmdb/kids/heroes")
-async def tmdb_kids_heroes():
-    """Curated hero billboard for Kids mode — popular, kid-safe family
-    films with rich backdrops.  Always strictly G/PG."""
-    cache_key = "tmdb_kids_heroes:v3"
+async def tmdb_kids_heroes(movie_cert: str = Query("PG")):
+    """Curated hero billboard for Kids mode.  Strictness driven by
+    user's Settings maxRatingMovie."""
+    movie_cert = _resolve_movie_level(movie_cert)
+    cache_key = f"tmdb_kids_heroes:v5:{movie_cert}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -914,6 +1011,7 @@ async def tmdb_kids_heroes():
     items = await _tmdb_discover_kids(
         "movie",
         extra={"sort_by": "popularity.desc", "vote_count.gte": 500},
+        movie_cert=movie_cert,
     )
     out: List[Dict[str, Any]] = []
     for it in items:

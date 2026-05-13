@@ -20,6 +20,10 @@ export default function useSpatialFocus() {
         const COOLDOWN_PRESS_MS = 70;
         const COOLDOWN_REPEAT_MS = 45;
         const VERTICAL_PIN_RATIO = 0.32;
+        // Both the regular SideNav and the kid-themed KidsSideNav
+        // act as a "nav rail" — spatial focus must treat them the
+        // same way (auto-enter on left edge, auto-escape on right).
+        const NAV_RAIL = '[data-testid="side-nav"], [data-testid="kids-side-nav"]';
         let lastDirAt = 0;
 
         // -------- focusables cache --------
@@ -76,9 +80,7 @@ export default function useSpatialFocus() {
         const findNext = (current, dir) => {
             const cur = current.getBoundingClientRect();
             const c = center(cur);
-            const currentInNav = !!current.closest(
-                '[data-testid="side-nav"]'
-            );
+            const currentInNav = !!current.closest(NAV_RAIL);
             // The side-nav participates in spatial navigation ONLY
             // when:
             //   • the user is already inside it (moving up/down
@@ -90,7 +92,7 @@ export default function useSpatialFocus() {
             // accidentally lands on Home / TV Shows / Movies.
             const candidates = focusables().filter((el) => {
                 if (el === current) return false;
-                const inNav = !!el.closest('[data-testid="side-nav"]');
+                const inNav = !!el.closest(NAV_RAIL);
                 if (!currentInNav && inNav) return false;
                 if (currentInNav && !inNav && dir === 'right') {
                     // Allow leaving the nav rightwards
@@ -457,12 +459,12 @@ export default function useSpatialFocus() {
                     // its own onFocus handler.
                     const navItems = Array.from(
                         document.querySelectorAll(
-                            '[data-testid="side-nav"] [data-focusable="true"]'
+                            `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                         )
                     );
                     // If the user is already inside the side-nav, no
                     // further-left target exists — stay put.
-                    const inNav = active.closest('[data-testid="side-nav"]');
+                    const inNav = active.closest(NAV_RAIL);
                     if (!inNav && navItems.length > 0) {
                         focusEl(navItems[0], 'left', repeat);
                     }
@@ -478,11 +480,11 @@ export default function useSpatialFocus() {
                     // From the side-nav, pressing right should jump
                     // back into the content area (first non-nav
                     // focusable).
-                    const inNav = active.closest('[data-testid="side-nav"]');
+                    const inNav = active.closest(NAV_RAIL);
                     if (inNav) {
                         const all = focusables();
                         const firstContent = all.find(
-                            (el) => !el.closest('[data-testid="side-nav"]')
+                            (el) => !el.closest(NAV_RAIL)
                         );
                         if (firstContent) {
                             focusEl(firstContent, 'right', repeat);
@@ -535,14 +537,14 @@ export default function useSpatialFocus() {
             if (
                 ae &&
                 ae.matches('[data-focusable="true"]') &&
-                !ae.closest('[data-testid="side-nav"]')
+                !ae.closest(NAV_RAIL)
             ) {
                 setFocusAttr(ae);
                 return;
             }
             const all = focusables();
             const firstContent = all.find(
-                (el) => !el.closest('[data-testid="side-nav"]')
+                (el) => !el.closest(NAV_RAIL)
             );
             if (firstContent) {
                 firstContent.focus({ preventScroll: true });
