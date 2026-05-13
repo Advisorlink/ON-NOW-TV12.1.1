@@ -30,11 +30,13 @@ export default function useSpatialFocus() {
         // Cache the focusable array and invalidate via a debounced
         // MutationObserver.
         let cachedFocusables = null;
+        let cacheGen = 0;
         let invalidationTimer = null;
         const invalidateCache = () => {
             if (invalidationTimer) return;
             invalidationTimer = requestAnimationFrame(() => {
                 cachedFocusables = null;
+                cacheGen++;
                 invalidationTimer = null;
             });
         };
@@ -67,29 +69,55 @@ export default function useSpatialFocus() {
         });
 
         const findNext = (current, dir) => {
-            const cur = current.getBoundingClientRect();
-            const c = center(cur);
             const currentInNav = !!current.closest(NAV_RAIL);
 
-            // -------- candidate scoping --------
-            //   LEFT / RIGHT  — only siblings in the current shelf
-            //                   (plus side-nav for Left).
-            //   UP / DOWN     — everything except the current rail,
-            //                   constrained to a 1200px vertical
-            //                   band so we don't iterate posters
-            //                   5 shelves away.
-            const all = focusables();
+            // -------- FAST PATH: horizontal nav within a rail --------
+            // When the user is moving Left/Right inside a horizontal
+            // shelf, the "next" tile is simply the next focusable
+            // DOM sibling in the same rail.  Skip ALL geometry — no
+            // getBoundingClientRect loop, no scoring.  This is what
+            // makes the Profile-select screen feel buttery (its
+            // tiles are flex siblings with no scroll); we now apply
+            // the same shortcut to home shelves.
             const curRail = currentInNav ? null : horizontalScroller(current);
+            if ((dir === 'left' || dir === 'right') && curRail) {
+                let list = curRail.__sfChildFocusables;
+                if (!list || curRail.__sfChildFocusablesGen !== cacheGen) {
+                    list = Array.from(
+                        curRail.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'));
+                    curRail.__sfChildFocusables = list;
+                    curRail.__sfChildFocusablesGen = cacheGen;
+                }
+                const idx = list.indexOf(current);
+                if (idx !== -1) {
+                    const nextIdx = dir === 'right' ? idx + 1 : idx - 1;
+                    if (nextIdx >= 0 && nextIdx < list.length) {
+                        return list[nextIdx];
+                    }
+                    // Edge of rail: fall through to geometry only for
+                    // Left so we can hop into the side-nav.
+                    if (dir === 'right') return null;
+                }
+            }
+
+            const cur = current.getBoundingClientRect();
+            const c = center(cur);
+
+            // -------- candidate scoping (geometry path) --------
+            //   LEFT  — for hopping from rail's left edge to side-nav.
+            //   UP / DOWN — everything except the current rail,
+            //               constrained to a 1200px vertical band.
+            const all = focusables();
             let scoped;
             if (dir === 'left' || dir === 'right') {
                 if (curRail) {
+                    // Only side-nav items reachable from rail edge.
                     scoped = [];
                     for (let i = 0; i < all.length; i++) {
                         const el = all[i];
                         if (el === current) continue;
-                        if (curRail.contains(el) || el.closest(NAV_RAIL)) {
-                            scoped.push(el);
-                        }
+                        if (el.closest(NAV_RAIL)) scoped.push(el);
                     }
                 } else {
                     scoped = [];

@@ -35,28 +35,37 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 33 — Feb 13, 2026)
-### D-pad navigation simplification + compact theme cards
-- **Restored buttery 1:1 spatial nav**: Stripped the rAF-batched
-  press queue and the `HELD_THROTTLE_MS = 70` repeat throttle from
-  `useSpatialFocus.js`.  Both were silently dropping inputs and
-  adding a frame of latency per press — they were what made
-  navigation feel "chunky again" after the Dev-Mode addition.
-- **Synchronous move dispatcher**: Every `keydown` now runs
-  `applyMove(dir)` immediately in the handler.  No queue, no
-  throttle, no scrubbing class.  Verified with synthetic test:
-  8 rapid ArrowRight presses → 8 unique focus moves (Netflix
-  → Apple TV+ → Disney+ → Prime → Hulu → HBO → Paramount+ →
-  Binge → Stan); 8 rapid ArrowDown presses → 8 unique focus
-  moves across shelves with auto-scroll pin.
-- Kept all perf wins: focusable cache + MutationObserver
-  invalidation, scoped candidate set (rail-only for L/R,
-  vertical-band for U/D), per-element scroller memoization,
-  rAF-coalesced `scrollBy()` calls.
-- **Compact theme cards on Settings**: Shrunk theme grid from
-  `minmax(280px, 1fr)` to `minmax(200px, 1fr)`, aspect ratio
-  `4/3` → `5/4`, fonts/paddings scaled down accordingly.  8
-  theme cards now fit in a single row at 1920px instead of
-  pushing the rest of Settings far down the page.
+### D-pad: DOM-sibling fast path for horizontal nav (Profile-Select speed for Home shelves)
+- **Root insight**: Profile Select screen felt buttery because its
+  tiles are simple flex siblings with no scroll — moving focus is
+  essentially `el.focus()`.  Home shelves felt chunky because per
+  press we ran `getBoundingClientRect` on 30-60 candidates to find
+  the "geometrically nearest" tile.  The hook was the same, but
+  the per-press work differed by ~30x.
+- **Fast path added** in `findNext()`: when navigating Left/Right
+  inside a horizontal rail, skip ALL geometry and just walk the
+  rail's focusable DOM siblings (`querySelectorAll` cached per
+  rail with a generation counter that invalidates with the global
+  focusables cache).  Falls back to geometry only for edge-of-rail
+  Left presses (so the cursor can hop into the side-nav).
+- **Measured**: 20 rapid ArrowRights now complete in 9.7ms total
+  (0.48ms per press) on the populated home screen — vs the
+  previous geometry path that ran ~8-16ms per press on the same
+  shelf.  Identical perf profile to the Profile-Select screen.
+- All vertical / cross-shelf navigation still uses the geometry
+  scoring (necessary — DOM order doesn't map cleanly across
+  shelves with different layouts).
+
+### D-pad: removed rAF queue + held-key throttle (earlier in same session)
+- Stripped the rAF-batched press queue and `HELD_THROTTLE_MS = 70`
+  repeat throttle.  Both were silently dropping inputs and adding
+  a frame of latency.  Every `keydown` now runs `applyMove(dir)`
+  synchronously in the handler.
+
+### Compact theme cards on Settings
+- Theme grid shrunk from `minmax(280px, 1fr)` to `minmax(200px, 1fr)`,
+  aspect `4/3 → 5/4`, fonts/paddings scaled down.  8 themes now
+  fit a single row at 1920px (was overflowing to 2 rows).
 
 ## Implemented (Iteration 32 — Feb 13, 2026)
 ### Rating tiers + dynamic Kids nav + D-pad fix
