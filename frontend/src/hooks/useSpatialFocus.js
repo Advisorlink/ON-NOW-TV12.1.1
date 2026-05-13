@@ -111,9 +111,6 @@ export default function useSpatialFocus() {
                 let inDirection = false;
                 let primary = 0;
                 let perpendicular = 0;
-                // More forgiving alignment tolerance — picks up
-                // items that are a few px off the row/column due to
-                // rounding or fractional shelves.
                 const overlapTol = 20;
 
                 if (dir === 'right') {
@@ -137,11 +134,33 @@ export default function useSpatialFocus() {
                 if (!inDirection) continue;
                 if (primary < 0) primary = 0;
 
+                // ---- HARD ROW / COLUMN CONSTRAINT ----
+                // For horizontal moves (Left / Right), the candidate
+                // MUST overlap the focused tile's vertical band.  In
+                // other words: if the user is at the last tile in a
+                // row and presses Right, we DO NOT fall through to a
+                // candidate on a different row — we just stop.
+                //
+                // Same idea (mirrored) for Up / Down: candidates must
+                // be reasonably aligned with the focused column,
+                // otherwise the user gets dragged sideways during a
+                // vertical scroll.
+                if (dir === 'left' || dir === 'right') {
+                    const sameRow =
+                        r.top < cur.bottom - 4 && r.bottom > cur.top + 4;
+                    if (!sameRow) continue;
+                } else {
+                    // Vertical move — allow generous column tolerance
+                    // (1.5 × the focused tile's width) so the user can
+                    // descend from a sidebar onto wider content, but
+                    // refuse jumps farther than that.
+                    const maxColumnDrift = Math.max(cur.width * 1.5, 200);
+                    if (Math.abs(dx) > maxColumnDrift) continue;
+                }
+
                 // Heavy weight on perpendicular distance so we
                 // strongly prefer items on the same row/column as
-                // the focused one — mirrors how Stremio's launcher
-                // refuses to jump diagonally unless nothing's
-                // directly in line.
+                // the focused one — mirrors Stremio's launcher.
                 const score = primary + perpendicular * 3;
                 if (score < bestScore) {
                     bestScore = score;

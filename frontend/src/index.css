@@ -136,14 +136,13 @@ body {
    one row doesn't invalidate sibling rows.  Critical for 60 fps. */
 .vesper-shelf-section {
     contain: layout style paint;
-    /* Auto skip paint/layout of shelves not currently visible.
-       The browser still reserves a rough size (intrinsic-size hint)
-       so the scroll bar doesn't jump — but it doesn't render the
-       80 posters until the row is scrolled into view.  This is the
-       BIGGEST perf win on this app: home becomes 6× faster to
-       paint, D-pad scroll never hits a hot-shelf cliff. */
-    content-visibility: auto;
-    contain-intrinsic-size: 360px;
+    /* NOTE: we previously also set `content-visibility: auto` here
+       for the off-screen-shelves perf win — but that makes a
+       shelf's descendants render with 0 × 0 layout boxes when the
+       shelf is off-screen, which causes our spatial-focus filter
+       to drop them and the D-pad can't jump to / from off-screen
+       shelves.  The `contain` rule alone gets us the bulk of the
+       perf win without breaking nav. */
 }
 
 /* Every focusable tile gets promoted on-demand so transforms /

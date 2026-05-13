@@ -35,6 +35,31 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - Single-user mode for v1 (no auth).
 
 ## Implemented (Iteration 10 — Feb 2026)
+## Implemented (Iteration 27 — Feb 2026)
+- **D-pad Down now jumps shelves correctly on Android TV** — root
+  cause: `content-visibility: auto` on shelf sections made off-screen
+  shelves render as 0 × 0 boxes, so my focusables filter (which drops
+  elements with width === 0 / height === 0) excluded them entirely.
+  On the wide web preview window most shelves were always visible →
+  worked fine. On the smaller TV box usable area, the next shelf was
+  invisible → unreachable. Removed `content-visibility: auto`; kept
+  the lighter `contain: layout style paint` which still gives
+  paint-isolation benefits without breaking nav.
+- **D-pad Up now reaches Continue Watching** — same root cause as
+  above. Once `content-visibility: auto` is gone, scrolling back up
+  finds Continue Watching as a normal focusable shelf.
+- **Right at row end no longer jumps to another row** — added a
+  HARD ROW / COLUMN CONSTRAINT in `findNext`:
+  - For Left / Right: candidate's vertical band must overlap the
+    focused tile's (`r.top < cur.bottom - 4 && r.bottom > cur.top + 4`).
+    If no candidate exists on the same row, the press is a no-op —
+    we never fall through to a tile in a different row.
+  - For Up / Down: candidate's horizontal drift must be within
+    `max(focused.width × 1.5, 200 px)` — allows descending from a
+    narrow sidebar onto wider content but refuses big sideways
+    jumps during vertical scroll.
+
+
 ## Implemented (Iteration 26 — Feb 2026)
 - **Press-feedback ripple** — pressing Enter on any focused tile
   fires a 280 ms pure-CSS animation:
