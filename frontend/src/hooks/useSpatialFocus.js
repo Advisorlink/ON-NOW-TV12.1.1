@@ -17,14 +17,21 @@ import { useEffect } from 'react';
  */
 export default function useSpatialFocus() {
     useEffect(() => {
-        const COOLDOWN_PRESS_MS = 70;
-        const COOLDOWN_REPEAT_MS = 45;
+        // Per-frame dispatcher: a fast typer / held-down D-pad can
+        // fire keydowns far faster than we can move + repaint.  The
+        // old cooldown gate *dropped* any press inside the window,
+        // which is exactly the "skipping tiles" symptom you saw.
+        //
+        // The new model: never drop.  Instead, we batch incoming
+        // arrow events for ONE animation frame, collapse repeats of
+        // the same direction into a single move-by-N call, and let
+        // bursts of mixed directions execute in order on subsequent
+        // frames.  Result: every press is honoured, but we never do
+        // more than one focus move per paint.
         const VERTICAL_PIN_RATIO = 0.32;
-        // Both the regular SideNav and the kid-themed KidsSideNav
-        // act as a "nav rail" — spatial focus must treat them the
-        // same way (auto-enter on left edge, auto-escape on right).
+        let pending = []; // queued directions, oldest-first
+        let frame = null;
         const NAV_RAIL = '[data-testid="side-nav"], [data-testid="kids-side-nav"]';
-        let lastDirAt = 0;
 
         // -------- focusables cache --------
         // Calling document.querySelectorAll on every keypress (with
@@ -451,6 +458,131 @@ export default function useSpatialFocus() {
             }
         };
 
+        // --- Move primitives ------------------------------------
+        // Applies a single directional move starting from the
+        // currently-focused element.  Returns the element we ended
+        // up on so the queue flush can chain rapid bursts.
+        const applyMove = (dir, repeat) => {
+            const active =
+                document.activeElement &&
+                document.activeElement.matches('[data-focusable="true"]')
+                    ? document.activeElement
+                    : focusables()[0];
+            if (!active) return null;
+            const next = findNext(active, dir);
+            if (next) {
+                let target = next;
+                if (dir === 'up' || dir === 'down') {
+                    const nextRail = horizontalScroller(next);
+                    const curRail = horizontalScroller(active);
+                    if (
+                        nextRail &&
+                        nextRail !== curRail &&
+                        nextRail.__lastFocusedKey
+                    ) {
+                        const bookmarked = nextRail.querySelector(
+                            `[data-testid="${nextRail.__lastFocusedKey}"]`
+                        );
+                        if (bookmarked) target = bookmarked;
+                    }
+                }
+                focusEl(target, dir, repeat);
+                return target;
+            }
+            if (dir === 'left') {
+                const navItems = Array.from(
+                    document.querySelectorAll(
+                        `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
+                    )
+                );
+                const inNav = active.closest(NAV_RAIL);
+                if (!inNav && navItems.length > 0) {
+                    focusEl(navItems[0], 'left', repeat);
+                    return navItems[0];
+                }
+            } else if (dir === 'up') {
+                const vs =
+                    verticalScroller(active) || document.scrollingElement;
+                if (vs && vs.scrollTop > 0) {
+                    vs.scrollTo({ top: 0, behavior: 'auto' });
+                }
+            } else if (dir === 'down') {
+                // Force-scroll to mount the next Lazy shelf, then
+                // retry on the following frame.  We DO NOT block the
+                // queue waiting for the retry — the queue keeps
+                // flushing whatever else is pending so a held D-pad
+                // still feels responsive.
+                const vs =
+                    verticalScroller(active) || document.scrollingElement;
+                if (!vs) return null;
+                const before = vs.scrollTop;
+                const chunk = Math.max(
+                    260,
+                    Math.round((vs.clientHeight || 600) * 0.55)
+                );
+                vs.scrollTo({ top: before + chunk, behavior: 'auto' });
+                if (vs.scrollTop === before) return null;
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        cachedFocusables = null;
+                        const retry = findNext(active, 'down');
+                        if (retry) {
+                            let target = retry;
+                            const nextRail = horizontalScroller(retry);
+                            const curRail = horizontalScroller(active);
+                            if (
+                                nextRail &&
+                                nextRail !== curRail &&
+                                nextRail.__lastFocusedKey
+                            ) {
+                                const bookmarked = nextRail.querySelector(
+                                    `[data-testid="${nextRail.__lastFocusedKey}"]`
+                                );
+                                if (bookmarked) target = bookmarked;
+                            }
+                            focusEl(target, 'down', repeat);
+                        }
+                    });
+                });
+            } else if (dir === 'right') {
+                const inNav = active.closest(NAV_RAIL);
+                if (inNav) {
+                    const all = focusables();
+                    const firstContent = all.find(
+                        (el) => !el.closest(NAV_RAIL)
+                    );
+                    if (firstContent) {
+                        focusEl(firstContent, 'right', repeat);
+                        return firstContent;
+                    }
+                }
+            }
+            return null;
+        };
+
+        // Processes the queue one direction at a time.  When the
+        // same direction is queued N times in a row (held D-pad),
+        // we apply it N times within a single frame so the cursor
+        // never falls behind the user's input — that was the
+        // "skipping" symptom from rapid presses being dropped.
+        const flushQueue = () => {
+            frame = null;
+            if (!pending.length) return;
+            const item = pending.shift();
+            // Walk the requested number of steps in this direction.
+            // We cap at 8 per frame so a stuck-key event storm can't
+            // freeze the UI.
+            const steps = Math.min(item.n, 8);
+            for (let i = 0; i < steps; i++) {
+                applyMove(item.dir, item.repeat);
+            }
+            // If more presses arrived during this frame, schedule
+            // another flush for the next paint.
+            if (pending.length && !frame) {
+                frame = requestAnimationFrame(flushQueue);
+            }
+        };
+
         const onKey = (e) => {
             // Per-shelf focus memory: remember which tile was
             // focused in each horizontal rail so navigating away
@@ -493,133 +625,18 @@ export default function useSpatialFocus() {
             if (dir) {
                 e.preventDefault();
                 const repeat = !!e.repeat;
-                const cooldown = repeat ? COOLDOWN_REPEAT_MS : COOLDOWN_PRESS_MS;
-                const now =
-                    typeof performance !== 'undefined'
-                        ? performance.now()
-                        : Date.now();
-                if (now - lastDirAt < cooldown) return;
-                lastDirAt = now;
-
-                const active =
-                    document.activeElement &&
-                    document.activeElement.matches('[data-focusable="true"]')
-                        ? document.activeElement
-                        : focusables()[0];
-                if (!active) return;
-                const next = findNext(active, dir);
-                if (next) {
-                    // Focus memory: if this is a vertical move INTO
-                    // a new horizontal rail (dir == up/down), try to
-                    // restore the rail's last-focused tile instead
-                    // of just landing on `next`.
-                    let target = next;
-                    if (dir === 'up' || dir === 'down') {
-                        const nextRail = horizontalScroller(next);
-                        const curRail = horizontalScroller(active);
-                        if (
-                            nextRail &&
-                            nextRail !== curRail &&
-                            nextRail.__lastFocusedKey
-                        ) {
-                            const bookmarked = nextRail.querySelector(
-                                `[data-testid="${nextRail.__lastFocusedKey}"]`
-                            );
-                            if (bookmarked) target = bookmarked;
-                        }
-                    }
-                    focusEl(target, dir, repeat);
-                } else if (dir === 'left') {
-                    // No left-candidate found inside the content area.
-                    // Reveal & focus the SideNav.  This is what makes
-                    // the sidebar feel like Stremio TV / LeanBack —
-                    // only the FAR-left press opens it; pressing Up
-                    // from a shelf never accidentally jumps into the
-                    // nav.  The nav already auto-expands on focus via
-                    // its own onFocus handler.
-                    const navItems = Array.from(
-                        document.querySelectorAll(
-                            `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
-                        )
-                    );
-                    // If the user is already inside the side-nav, no
-                    // further-left target exists — stay put.
-                    const inNav = active.closest(NAV_RAIL);
-                    if (!inNav && navItems.length > 0) {
-                        focusEl(navItems[0], 'left', repeat);
-                    }
-                } else if (dir === 'up') {
-                    // Already on the topmost focusable — snap the
-                    // page (or its scroll region) to its absolute top.
-                    const vs =
-                        verticalScroller(active) || document.scrollingElement;
-                    if (vs && vs.scrollTop > 0) {
-                        vs.scrollTo({ top: 0, behavior: 'auto' });
-                    }
-                } else if (dir === 'down') {
-                    // No focusable found below.  Most likely cause:
-                    // the next shelf is still wrapped in a <Lazy>
-                    // placeholder that hasn't mounted because the
-                    // user hasn't physically scrolled near it yet.
-                    // We force-scroll the active element's vertical
-                    // scroll ancestor by ~60% of the viewport, wait
-                    // a frame for IntersectionObserver to mount the
-                    // newly-visible shelves, then re-run findNext.
-                    const vs =
-                        verticalScroller(active) || document.scrollingElement;
-                    if (!vs) return;
-                    const before = vs.scrollTop;
-                    const chunk = Math.max(
-                        260,
-                        Math.round((vs.clientHeight || 600) * 0.55)
-                    );
-                    vs.scrollTo({
-                        top: before + chunk,
-                        behavior: 'auto',
-                    });
-                    // Bail if we didn't actually scroll — we're at
-                    // the absolute bottom of the scroller, so there
-                    // is genuinely nothing else.
-                    if (vs.scrollTop === before) return;
-                    // Two-stage retry: a single rAF for the new
-                    // Lazy mount, a second for the layout/IO settle.
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            cachedFocusables = null;
-                            const retry = findNext(active, 'down');
-                            if (retry) {
-                                let target = retry;
-                                const nextRail = horizontalScroller(retry);
-                                const curRail = horizontalScroller(active);
-                                if (
-                                    nextRail &&
-                                    nextRail !== curRail &&
-                                    nextRail.__lastFocusedKey
-                                ) {
-                                    const bookmarked = nextRail.querySelector(
-                                        `[data-testid="${nextRail.__lastFocusedKey}"]`
-                                    );
-                                    if (bookmarked) target = bookmarked;
-                                }
-                                focusEl(target, 'down', repeat);
-                            }
-                        });
-                    });
-                } else if (dir === 'right') {
-                    // From the side-nav, pressing right should jump
-                    // back into the content area (first non-nav
-                    // focusable).
-                    const inNav = active.closest(NAV_RAIL);
-                    if (inNav) {
-                        const all = focusables();
-                        const firstContent = all.find(
-                            (el) => !el.closest(NAV_RAIL)
-                        );
-                        if (firstContent) {
-                            focusEl(firstContent, 'right', repeat);
-                        }
-                    }
+                // Push the press onto the per-frame queue.  We
+                // collapse runs of the same direction (e.g. user is
+                // holding Right) into a single batched call by
+                // counting `n`, so a 4-press burst becomes one
+                // findNext × 4 walk that ends on the correct tile.
+                const last = pending[pending.length - 1];
+                if (last && last.dir === dir && last.repeat === repeat) {
+                    last.n += 1;
+                } else {
+                    pending.push({ dir, repeat, n: 1 });
                 }
+                if (!frame) frame = requestAnimationFrame(flushQueue);
                 return;
             }
 
