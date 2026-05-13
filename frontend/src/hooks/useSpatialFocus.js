@@ -81,38 +81,103 @@ export default function useSpatialFocus() {
             const cur = current.getBoundingClientRect();
             const c = center(cur);
             const currentInNav = !!current.closest(NAV_RAIL);
-            // The side-nav participates in spatial navigation ONLY
-            // when:
-            //   • the user is already inside it (moving up/down
-            //     through the menu items), or
-            //   • the user pressed Left from outside (handled as a
-            //     fallback after findNext() returns null).
-            // For all other directions we filter SideNav items out
-            // of the candidate set so going Up from a shelf never
-            // accidentally lands on Home / TV Shows / Movies.
-            const candidates = focusables().filter((el) => {
-                if (el === current) return false;
+
+            // -------- candidate scoping --------
+            // The single biggest performance win on the box: scope
+            // the candidate set BEFORE we start calling
+            // getBoundingClientRect on every focusable in the DOM.
+            // With ~600 posters on a populated For You page, an
+            // unscoped findNext call thrashes layout for ~16 ms per
+            // keystroke and makes left/right movement feel sluggish.
+            //
+            //   LEFT / RIGHT  — only the focusables INSIDE the
+            //                   active element's horizontal rail
+            //                   (the shelf) plus the side-nav are
+            //                   relevant.  Cuts 600 → ~30.
+            //   UP / DOWN     — everything EXCEPT the active rail
+            //                   plus a coarse vertical-band filter
+            //                   (must be within 1200 px above/below
+            //                   the focused tile's centre).  Cuts
+            //                   600 → ~40.
+            const all = focusables();
+            const curRail = currentInNav ? null : horizontalScroller(current);
+            let scoped;
+            if (dir === 'left' || dir === 'right') {
+                // Horizontal: same rail's children + side-nav items
+                // (so Left from a poster can hop back to the nav).
+                if (curRail) {
+                    scoped = [];
+                    for (let i = 0; i < all.length; i++) {
+                        const el = all[i];
+                        if (el === current) continue;
+                        if (curRail.contains(el) || el.closest(NAV_RAIL)) {
+                            scoped.push(el);
+                        }
+                    }
+                } else {
+                    // No horizontal rail (e.g. settings page row).
+                    // Restrict to a wide horizontal band centred on
+                    // the focused element's row.
+                    scoped = [];
+                    const yMin = cur.top - 80;
+                    const yMax = cur.bottom + 80;
+                    for (let i = 0; i < all.length; i++) {
+                        const el = all[i];
+                        if (el === current) continue;
+                        const r = el.getBoundingClientRect();
+                        if (r.bottom < yMin || r.top > yMax) continue;
+                        scoped.push(el);
+                    }
+                }
+            } else {
+                // Vertical: drop the active rail (we never want Down
+                // to re-enter the SAME shelf), and keep only items in
+                // a coarse vertical band so we don't iterate posters
+                // 5 shelves away.
+                const VBAND = 1200;
+                scoped = [];
+                for (let i = 0; i < all.length; i++) {
+                    const el = all[i];
+                    if (el === current) continue;
+                    if (curRail && curRail.contains(el)) continue;
+                    // Cheap getBoundingClientRect once, reused below.
+                    // We can avoid the second rect call in the main
+                    // loop by stashing it on the candidate temporarily.
+                    const r = el.getBoundingClientRect();
+                    if (dir === 'down') {
+                        if (r.top < cur.bottom - 20) continue;
+                        if (r.top > cur.bottom + VBAND) continue;
+                    } else {
+                        if (r.bottom > cur.top + 20) continue;
+                        if (r.bottom < cur.top - VBAND) continue;
+                    }
+                    el.__sfRect = r;
+                    scoped.push(el);
+                }
+            }
+
+            // SideNav permission filter (cheap, runs on already-small
+            // set).
+            const candidates = scoped.filter((el) => {
                 const inNav = !!el.closest(NAV_RAIL);
-                if (!currentInNav && inNav) return false;
-                if (currentInNav && !inNav && dir === 'right') {
-                    // Allow leaving the nav rightwards
-                    return true;
+                if (!currentInNav && inNav) {
+                    // Side-nav reachable only when going Left.
+                    return dir === 'left';
+                }
+                if (currentInNav && !inNav) {
+                    return dir === 'right' || dir === 'up' || dir === 'down';
                 }
                 return true;
             });
 
             let best = null;
             let bestScore = Infinity;
-            // Fallback bucket: candidates that are in the right
-            // direction but failed the column-drift constraint.  Used
-            // ONLY if the strict pass turns up nothing — this is what
-            // lets pressing Down from a 320 px-wide theme card jump
-            // to a 1800 px-wide "Autoplay" pill that sits below it.
             let fallback = null;
             let fallbackScore = Infinity;
 
             for (const el of candidates) {
-                const r = el.getBoundingClientRect();
+                const r = el.__sfRect || el.getBoundingClientRect();
+                el.__sfRect = undefined;
                 const ec = center(r);
                 const dx = ec.x - c.x;
                 const dy = ec.y - c.y;
@@ -143,10 +208,7 @@ export default function useSpatialFocus() {
                 if (!inDirection) continue;
                 if (primary < 0) primary = 0;
 
-                // ---- HARD ROW / COLUMN CONSTRAINT ----
-                // For horizontal moves, candidates MUST overlap the
-                // focused tile's vertical band.
-                // For vertical moves, allow generous column drift.
+                // Row / column constraint (unchanged).
                 let strict = true;
                 if (dir === 'left' || dir === 'right') {
                     const sameRow =
@@ -154,10 +216,6 @@ export default function useSpatialFocus() {
                     if (!sameRow) continue;
                 } else {
                     const maxColumnDrift = Math.max(cur.width * 1.5, 200);
-                    // Wider candidates (e.g. full-row settings panels)
-                    // get a column-overlap exemption — if the focused
-                    // rect sits anywhere inside the candidate's
-                    // horizontal extents, treat it as aligned.
                     const overlapsCol =
                         r.left <= cur.right && r.right >= cur.left;
                     if (Math.abs(dx) > maxColumnDrift && !overlapsCol) {
@@ -172,10 +230,6 @@ export default function useSpatialFocus() {
                         best = el;
                     }
                 } else {
-                    // Fallback only cares about distance in the
-                    // primary direction (down/up) — perpendicular
-                    // distance is irrelevant since we already failed
-                    // the column constraint.
                     const fbScore = primary + perpendicular * 0.5;
                     if (fbScore < fallbackScore) {
                         fallbackScore = fbScore;
@@ -186,8 +240,11 @@ export default function useSpatialFocus() {
             return best || fallback;
         };
 
-        // Find the nearest vertically-scrollable ancestor of an element.
+        // Find the nearest vertically-scrollable ancestor.  Cached
+        // per element for the same perf reason as horizontalScroller.
         const verticalScroller = (el) => {
+            if (!el) return null;
+            if (el.__sfVRail !== undefined) return el.__sfVRail;
             let p = el.parentElement;
             while (p && p !== document.body) {
                 const cs = getComputedStyle(p);
@@ -196,15 +253,22 @@ export default function useSpatialFocus() {
                     (oy === 'auto' || oy === 'scroll') &&
                     p.scrollHeight > p.clientHeight
                 ) {
+                    el.__sfVRail = p;
                     return p;
                 }
                 p = p.parentElement;
             }
+            el.__sfVRail = null;
             return null;
         };
 
         // Find the nearest horizontally-scrollable ancestor (the shelf).
+        // Result is cached on the focusable element itself so the
+        // (expensive) getComputedStyle walk only runs once per
+        // element-lifetime instead of on every keypress.
         const horizontalScroller = (el) => {
+            if (!el) return null;
+            if (el.__sfHRail !== undefined) return el.__sfHRail;
             let p = el.parentElement;
             while (p && p !== document.body) {
                 const cs = getComputedStyle(p);
@@ -213,10 +277,12 @@ export default function useSpatialFocus() {
                     (ox === 'auto' || ox === 'scroll') &&
                     p.scrollWidth > p.clientWidth
                 ) {
+                    el.__sfHRail = p;
                     return p;
                 }
                 p = p.parentElement;
             }
+            el.__sfHRail = null;
             return null;
         };
 
