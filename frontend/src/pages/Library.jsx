@@ -97,8 +97,8 @@ export default function Library() {
                 onRemove={(w) =>
                     removeFromWatchLater({
                         id: w.id,
-                        season: w.episode.season,
-                        number: w.episode.number,
+                        season: w.episode?.season,
+                        number: w.episode?.number,
                     })
                 }
             />
@@ -643,13 +643,21 @@ function WatchLaterRail({ items, onRemove }) {
                 <div className="flex flex-col gap-3">
                     {items.map((w) => (
                         <WatchLaterTile
-                            key={`${w.id}:S${w.episode.season}E${w.episode.number}`}
+                            key={
+                                w.type === 'movie'
+                                    ? `movie:${w.id}`
+                                    : `${w.id}:S${w.episode.season}E${w.episode.number}`
+                            }
                             item={w}
                             onPlay={() => {
-                                const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
-                                navigate(
-                                    `/resolve/series/${encodeURIComponent(videoId)}`
-                                );
+                                if (w.type === 'series') {
+                                    const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
+                                    navigate(
+                                        `/resolve/series/${encodeURIComponent(videoId)}`
+                                    );
+                                } else {
+                                    navigate(`/title/movie/${w.id}`);
+                                }
                             }}
                             onRemove={() => onRemove(w)}
                         />
@@ -661,8 +669,31 @@ function WatchLaterRail({ items, onRemove }) {
 }
 
 function WatchLaterTile({ item, onPlay, onRemove }) {
-    const { showMeta, episode } = item;
-    const thumb = episode.thumbnail || showMeta.poster;
+    // Unified rendering for both shapes.  We always render a 16:9
+    // landscape thumb so the rail has a consistent rhythm.
+    let title;
+    let subtitle;
+    let thumb;
+    let onActivate;
+    if (item.type === 'movie') {
+        const m = item.movie || {};
+        title = m.name;
+        subtitle = m.year || 'Movie';
+        thumb = m.background || m.poster;
+        onActivate = () =>
+            (window.location.href = `/title/movie/${item.id}`);
+    } else {
+        const { showMeta, episode } = item;
+        title = showMeta.name;
+        subtitle = `S${episode.season} · E${episode.number}${
+            episode.name && episode.name !== `S${episode.season} · E${episode.number}`
+                ? ` · ${episode.name}`
+                : ''
+        }`;
+        thumb = episode.thumbnail || showMeta.background || showMeta.poster;
+        onActivate = onPlay;
+    }
+
     return (
         <div
             className="relative overflow-hidden"
@@ -673,11 +704,11 @@ function WatchLaterTile({ item, onPlay, onRemove }) {
             }}
         >
             <button
-                data-testid={`watch-later-play-${item.id}-${episode.season}-${episode.number}`}
+                data-testid={`watch-later-${item.type}-${item.id}`}
                 data-focusable="true"
                 data-focus-style="tile"
                 tabIndex={0}
-                onClick={onPlay}
+                onClick={onActivate}
                 className="w-full text-left block"
                 style={{
                     background: 'transparent',
@@ -733,7 +764,7 @@ function WatchLaterTile({ item, onPlay, onRemove }) {
                             lineHeight: 1.25,
                         }}
                     >
-                        {showMeta.name}
+                        {title}
                     </div>
                     <div
                         style={{
@@ -742,15 +773,12 @@ function WatchLaterTile({ item, onPlay, onRemove }) {
                             marginTop: 3,
                         }}
                     >
-                        S{episode.season} · E{episode.number}
-                        {episode.name && episode.name !== `S${episode.season} · E${episode.number}` && (
-                            <> · {episode.name}</>
-                        )}
+                        {subtitle}
                     </div>
                 </div>
             </button>
             <button
-                data-testid={`watch-later-remove-${item.id}-${episode.season}-${episode.number}`}
+                data-testid={`watch-later-remove-${item.type}-${item.id}`}
                 data-focusable="true"
                 data-focus-style="quiet"
                 tabIndex={0}

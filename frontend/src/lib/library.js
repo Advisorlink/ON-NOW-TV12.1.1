@@ -120,35 +120,73 @@ export function listWatchLater() {
     );
 }
 
-export function addToWatchLater({ id, episode, showMeta }) {
-    if (!id || !episode) return;
+export function addToWatchLater({ id, episode, showMeta, movie }) {
+    if (!id) return;
     const s = read();
-    const key = `${id}:S${episode.season}E${episode.number}`;
-    // Avoid duplicates.
-    if (s.watchLater.some((w) => `${w.id}:S${w.episode.season}E${w.episode.number}` === key)) {
+    if (episode) {
+        const key = `${id}:S${episode.season}E${episode.number}`;
+        if (
+            s.watchLater.some(
+                (w) => w.type === 'series' && `${w.id}:S${w.episode.season}E${w.episode.number}` === key
+            )
+        ) {
+            return;
+        }
+        s.watchLater.push({
+            id,
+            type: 'series',
+            episode,
+            addedAt: new Date().toISOString(),
+            showMeta: showMeta || {},
+        });
+    } else if (movie) {
+        // Movie Watch Later — no episode info, just the title +
+        // landscape backdrop URL for the rail.
+        if (
+            s.watchLater.some(
+                (w) => w.type === 'movie' && w.id === id
+            )
+        ) {
+            return;
+        }
+        s.watchLater.push({
+            id,
+            type: 'movie',
+            addedAt: new Date().toISOString(),
+            movie: {
+                name: movie.name,
+                poster: movie.poster,
+                background: movie.background,
+                year: movie.year,
+                synopsis: movie.synopsis,
+            },
+        });
+    } else {
         return;
     }
-    s.watchLater.push({
-        id,
-        type: 'series',
-        episode,
-        addedAt: new Date().toISOString(),
-        showMeta: showMeta || {},
-    });
     write(s);
 }
 
 export function removeFromWatchLater({ id, season, number }) {
     const s = read();
-    s.watchLater = s.watchLater.filter(
-        (w) =>
-            !(
-                w.id === id &&
-                w.episode.season === season &&
-                w.episode.number === number
-            )
-    );
+    s.watchLater = s.watchLater.filter((w) => {
+        if (w.type === 'movie') {
+            // Movies match purely by id.
+            return w.id !== id;
+        }
+        return !(
+            w.id === id &&
+            w.episode.season === season &&
+            w.episode.number === number
+        );
+    });
     write(s);
+}
+
+export function isMovieInWatchLater(id) {
+    if (!id) return false;
+    const s = read();
+    return s.watchLater.some((w) => w.type === 'movie' && w.id === id);
 }
 
 /* --------------------- Notifications --------------------- */

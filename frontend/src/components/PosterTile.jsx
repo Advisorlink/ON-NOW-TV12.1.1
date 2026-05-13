@@ -39,6 +39,9 @@ export default function PosterTile({ item, onSelect }) {
                     type: item.type || 'movie',
                     title: item.title,
                     poster: item.poster ? img.poster(item.poster) : null,
+                    background: item.background
+                        ? img.backdrop(item.background)
+                        : null,
                     year: item.year || item.sub,
                     genres: item.genres,
                     synopsis: item.description,

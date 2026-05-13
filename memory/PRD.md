@@ -139,6 +139,41 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   - Page bottom padding bumped (60 → 120 px) so the sticky
     Watch Later rail never overlaps content.
 
+## Implemented (Iteration 37 — Feb 13, 2026)
+### Modal focus + per-type long-press flows + landscape Watch Later
+- **Modal auto-focuses the confirm button** on open (imperative
+  `el.focus()` inside a `requestAnimationFrame` after the payload
+  state lands).  Also clears `data-focused` from the previously
+  focused tile so the home behind doesn't appear to be receiving
+  arrow keys any more.  Verified: after `dispatchEvent`, the active
+  element is `BUTTON[data-testid="modal-confirm"]` with
+  `data-focused="true"`.
+- **Long-press wired into `TabGridView` (catalog grid)** — the
+  user can now press-and-hold any cover in the TV Shows or Movies
+  tab views (previously only the Home shelves worked).  Same
+  event payload as `PosterTile`; modal opens identically.
+- **Type-aware modal**: payload `type === 'movie'` → "Add to
+  Watch Later" / "Watch later?" / bookmark icon.  `type ===
+  'series'` (default) → "Add to My List" / "Add this?" / plus
+  icon.  Removal mode wording flips correspondingly.
+- **`library.js` Watch Later now supports both shapes**:
+  - series → `{ id, type: 'series', episode, showMeta, addedAt }`
+  - movie  → `{ id, type: 'movie', movie: { name, poster,
+    background, year, synopsis }, addedAt }`
+  - new `isMovieInWatchLater(id)` helper.
+  - `removeFromWatchLater({ id })` works for both (movies match
+    by id alone; series match by id+season+episode).
+- **Watch Later rail renders landscape (16:9) thumbs** for all
+  items.  Movies use the TMDB backdrop URL passed through the
+  modal payload; series episodes use the existing
+  `episode.thumbnail`.  Tile content unified:
+    - Title row: show name (series) or movie name.
+    - Subtitle: `S{n}·E{m}·…` (series) or `{year}` (movie).
+- **PosterTile** and **TabGridView GridTile** now both pass
+  `background` (Cinemeta backdrop URL via `img.backdrop()`)
+  through to the modal so Watch Later can pick it up for
+  landscape rendering.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

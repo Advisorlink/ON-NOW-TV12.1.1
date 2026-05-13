@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
+import useLongPress from '@/hooks/useLongPress';
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
@@ -124,19 +125,41 @@ export default function TabGridView({ shelves, loading, type }) {
 }
 
 function GridTile({ item, navigate }) {
-    const handleClick = () => {
+    const onTap = () => {
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
         else navigate(`/title/${item.id}`);
     };
+    const onLongPress = () => {
+        const id = item.imdbId || item.id;
+        if (!id || !id.toString().startsWith('tt')) return;
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id,
+                    type: item.type || 'movie',
+                    title: item.title,
+                    poster: item.poster ? img.poster(item.poster) : null,
+                    background: item.background
+                        ? img.backdrop(item.background)
+                        : null,
+                    year: item.year || item.releaseInfo,
+                    genres: item.genres,
+                    synopsis: item.description,
+                },
+            })
+        );
+    };
+    const press = useLongPress(onLongPress, onTap);
+
     return (
         <button
             data-testid={`grid-${item.imdbId || item.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={handleClick}
+            {...press}
             className="group relative overflow-hidden rounded-xl text-left"
             style={{
                 width: '100%',

@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Check, X, Plus, Trash2 } from 'lucide-react';
+import { Check, X, Plus, Trash2, Bookmark } from 'lucide-react';
 import {
     isInLibrary,
     addToLibrary,
     removeFromLibrary,
+    isMovieInWatchLater,
+    addToWatchLater,
+    removeFromWatchLater,
 } from '@/lib/library';
 
 /**
@@ -32,6 +35,7 @@ export default function AddToListModal() {
     const [payload, setPayload] = useState(null);
     const [closing, setClosing] = useState(false);
     const lastFocusedRef = useRef(null);
+    const confirmBtnRef = useRef(null);
 
     useEffect(() => {
         const onRequest = (e) => {
@@ -43,6 +47,35 @@ export default function AddToListModal() {
         return () =>
             window.removeEventListener('vesper:request-add-to-list', onRequest);
     }, []);
+
+    // Imperatively focus the confirm button the moment the modal
+    // mounts.  The global `data-initial-focus` retry loop in
+    // useSpatialFocus only runs once at app boot, not on modal
+    // open — so without this, focus stays on whatever poster the
+    // user just long-pressed and the home behind keeps responding
+    // to D-pad arrows.
+    useEffect(() => {
+        if (!payload) return;
+        const id = requestAnimationFrame(() => {
+            if (confirmBtnRef.current) {
+                try {
+                    confirmBtnRef.current.focus({ preventScroll: true });
+                    confirmBtnRef.current.setAttribute('data-focused', 'true');
+                    // Clear lingering data-focused on whatever was focused
+                    // before so the underlying tile doesn't appear active.
+                    if (
+                        lastFocusedRef.current &&
+                        lastFocusedRef.current !== confirmBtnRef.current
+                    ) {
+                        lastFocusedRef.current.removeAttribute('data-focused');
+                    }
+                } catch {
+                    /* ignore */
+                }
+            }
+        });
+        return () => cancelAnimationFrame(id);
+    }, [payload]);
 
     const close = () => {
         setClosing(true);
@@ -60,20 +93,42 @@ export default function AddToListModal() {
 
     if (!payload) return null;
 
-    const inList = isInLibrary(payload.id);
+    const isMovie = payload.type === 'movie';
+    // For series: "Add/Remove from My List".
+    // For movies: "Add/Remove from Watch Later".
+    const isActive = isMovie
+        ? isMovieInWatchLater(payload.id)
+        : isInLibrary(payload.id);
 
     const onConfirm = () => {
-        if (inList) {
-            removeFromLibrary(payload.id);
+        if (isMovie) {
+            if (isActive) {
+                removeFromWatchLater({ id: payload.id });
+            } else {
+                addToWatchLater({
+                    id: payload.id,
+                    movie: {
+                        name: payload.title,
+                        poster: payload.poster,
+                        background: payload.background,
+                        year: payload.year,
+                        synopsis: payload.synopsis,
+                    },
+                });
+            }
         } else {
-            addToLibrary(payload.id, {
-                type: payload.type === 'series' ? 'series' : 'movie',
-                meta: {
-                    name: payload.title,
-                    poster: payload.poster,
-                    year: payload.year,
-                },
-            });
+            if (isActive) {
+                removeFromLibrary(payload.id);
+            } else {
+                addToLibrary(payload.id, {
+                    type: 'series',
+                    meta: {
+                        name: payload.title,
+                        poster: payload.poster,
+                        year: payload.year,
+                    },
+                });
+            }
         }
         close();
     };
@@ -103,7 +158,9 @@ export default function AddToListModal() {
             >
                 <ModalCard
                     payload={payload}
-                    inList={inList}
+                    isMovie={isMovie}
+                    isActive={isActive}
+                    confirmBtnRef={confirmBtnRef}
                     onConfirm={onConfirm}
                     onCancel={close}
                 />
@@ -112,8 +169,30 @@ export default function AddToListModal() {
     );
 }
 
-function ModalCard({ payload, inList, onConfirm, onCancel }) {
+function ModalCard({ payload, isMovie, isActive, confirmBtnRef, onConfirm, onCancel }) {
     const { title, poster, year, genres, synopsis, type } = payload;
+
+    // Wording matrix:
+    //   movie  + !active → "Add to Watch Later"
+    //   movie  +  active → "Remove from Watch Later"
+    //   series + !active → "Add to My List"
+    //   series +  active → "Remove from My List"
+    let eyebrow;
+    let bigHeading;
+    let confirmLabel;
+    let ConfirmIcon;
+    if (isMovie) {
+        eyebrow = isActive ? 'Remove from Watch Later' : 'Add to Watch Later';
+        bigHeading = isActive ? 'Remove this?' : 'Watch later?';
+        confirmLabel = isActive ? 'Remove' : 'Add to Watch Later';
+        ConfirmIcon = isActive ? Trash2 : Bookmark;
+    } else {
+        eyebrow = isActive ? 'Remove from My List' : 'Add to My List';
+        bigHeading = isActive ? 'Remove this?' : 'Add this?';
+        confirmLabel = isActive ? 'Remove' : 'Add to My List';
+        ConfirmIcon = isActive ? Trash2 : Plus;
+    }
+    const destructive = isActive;
     return (
         <div
             className="overflow-hidden flex"
@@ -179,7 +258,7 @@ function ModalCard({ payload, inList, onConfirm, onCancel }) {
                         marginBottom: 6,
                     }}
                 >
-                    {inList ? 'Remove from My List' : 'Add to My List'}
+                    {eyebrow}
                 </div>
 
                 <div
@@ -192,7 +271,7 @@ function ModalCard({ payload, inList, onConfirm, onCancel }) {
                         color: 'var(--vesper-text)',
                     }}
                 >
-                    {inList ? 'Remove this?' : 'Add this?'}
+                    {bigHeading}
                 </div>
 
                 <div
@@ -249,10 +328,10 @@ function ModalCard({ payload, inList, onConfirm, onCancel }) {
 
                 <div className="flex items-center gap-3 mt-auto">
                     <button
+                        ref={confirmBtnRef}
                         data-testid="modal-confirm"
                         data-focusable="true"
                         data-focus-style="pill"
-                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onConfirm}
                         className="flex items-center gap-2 rounded-full font-sans font-semibold"
@@ -262,20 +341,16 @@ function ModalCard({ payload, inList, onConfirm, onCancel }) {
                             paddingLeft: 20,
                             paddingRight: 24,
                             fontSize: 15,
-                            background: inList
+                            background: destructive
                                 ? 'rgba(255, 81, 81, 0.92)'
                                 : 'var(--vesper-blue)',
-                            color: inList ? '#fff' : 'var(--vesper-bg-0)',
+                            color: destructive ? '#fff' : 'var(--vesper-bg-0)',
                             border: 'none',
                             justifyContent: 'center',
                         }}
                     >
-                        {inList ? (
-                            <Trash2 size={16} strokeWidth={2.4} />
-                        ) : (
-                            <Plus size={16} strokeWidth={2.4} />
-                        )}
-                        {inList ? 'Remove' : 'Add to My List'}
+                        <ConfirmIcon size={16} strokeWidth={2.4} />
+                        {confirmLabel}
                     </button>
                     <button
                         data-testid="modal-cancel"
@@ -301,7 +376,7 @@ function ModalCard({ payload, inList, onConfirm, onCancel }) {
                     </button>
                 </div>
 
-                {!inList && (
+                {!isActive && (
                     <div
                         className="vesper-mono flex items-center gap-2"
                         style={{
