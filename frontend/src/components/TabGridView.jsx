@@ -18,7 +18,12 @@ export default function TabGridView({ shelves, loading, type }) {
         const seen = new Map();
         for (const shelf of Array.isArray(shelves) ? shelves : []) {
             for (const it of shelf.items || []) {
-                const key = it.imdbId || it.id;
+                // Kid-safe catalog tiles share a TMDB-based `routePath`
+                // across shelves (e.g. /resolve/movie/12345), but each
+                // shelf gives them a different `id`.  Prefer routePath
+                // for dedupe so the same movie isn't repeated 3 times
+                // when it lives in multiple shelves.
+                const key = it.routePath || it.imdbId || it.id;
                 if (!key) continue;
                 if (!seen.has(key)) seen.set(key, it);
             }

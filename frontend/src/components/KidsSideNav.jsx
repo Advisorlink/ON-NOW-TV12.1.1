@@ -24,9 +24,9 @@ import { getKidsConfig } from '@/lib/profiles';
  * is also filtered by the same preference.
  */
 const ALL_ITEMS = [
-    { id: 'kids-home', label: 'Home', icon: HomeIcon, filter: null, type: 'always' },
+    { id: 'kids-home', label: 'For You', icon: HomeIcon, filter: null, type: 'always' },
     { id: 'kids-movies', label: 'Movies', icon: Film, filter: 'movie', type: 'movie' },
-    { id: 'kids-cartoons', label: 'Cartoons', icon: Tv, filter: 'series', type: 'series' },
+    { id: 'kids-cartoons', label: 'TV', icon: Tv, filter: 'series', type: 'series' },
     { id: 'kids-search', label: 'Search', icon: Search, path: '/search', type: 'always' },
 ];
 
