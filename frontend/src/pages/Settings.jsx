@@ -36,15 +36,33 @@ export default function Settings() {
     return (
         <div
             data-testid="settings-page"
-            className="relative w-screen min-h-[100dvh] overflow-y-auto"
+            className="relative w-screen"
             style={{
+                /* `h-[100dvh] overflow-y-auto` on a single div fails
+                   to scroll inside Android 7's WebView (`dvh` is
+                   buggy and the container's max-content height
+                   defeats the overflow rule).  Use a hard pixel
+                   height via 100vh + an inner scroll wrapper, plus
+                   ensure D-pad focus auto-scrolls down through the
+                   sections. */
+                height: '100vh',
                 background: 'var(--vesper-bg-0)',
                 color: 'var(--vesper-text)',
-                padding: 'clamp(40px, 5vw, 80px) clamp(40px, 6vw, 96px)',
                 fontFamily: 'var(--theme-font-body, "Geist", system-ui, sans-serif)',
+                overflow: 'hidden',
             }}
         >
             <FullscreenButton />
+            <div
+                data-testid="settings-scroll"
+                style={{
+                    height: '100%',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    WebkitOverflowScrolling: 'touch',
+                    padding: 'clamp(40px, 5vw, 80px) clamp(40px, 6vw, 96px) 80px',
+                }}
+            >
 
             <button
                 data-focusable="true"
@@ -263,6 +281,7 @@ export default function Settings() {
                 ]}
                 onChange={(v) => updateKids({ maxRatingSeries: v })}
             />
+            </div>
         </div>
     );
 }
