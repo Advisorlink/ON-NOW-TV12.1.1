@@ -859,31 +859,57 @@ async def tmdb_kids_shelves(
     """
     movie_cert = _resolve_movie_level(movie_cert)
     tv_level = _resolve_tv_level(tv_level)
-    cache_key = f"tmdb_kids_shelves:v5:{movie_cert}:{tv_level}"
+    cache_key = f"tmdb_kids_shelves:v6:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
 
-    async def shelf(id_, title, media, params):
-        items = await _tmdb_discover_kids(
-            media, extra=params, movie_cert=movie_cert, tv_level=tv_level
+    async def shelf(id_, title, media, params, pages=1):
+        # Pull multiple pages and merge — gives kids a deeper catalog
+        # without leaving the kid-safe filter cone.  Pages are pulled
+        # in parallel; results dedupe by tmdb_id.
+        seen: Dict[int, Dict[str, Any]] = {}
+        results = await asyncio.gather(
+            *[
+                _tmdb_discover_kids(
+                    media,
+                    extra={**params, "page": p + 1},
+                    movie_cert=movie_cert,
+                    tv_level=tv_level,
+                )
+                for p in range(pages)
+            ],
+            return_exceptions=True,
         )
+        for r in results:
+            if not isinstance(r, list):
+                continue
+            for it in r:
+                tid = it.get("tmdb_id")
+                if tid is not None and tid not in seen:
+                    seen[tid] = it
+        items = list(seen.values())
         return {
             "id": id_,
             "title": title,
             "eyebrow": "Movies" if media == "movie" else "Cartoons",
             "type": "movie" if media == "movie" else "series",
-            "items": items[:24],
+            "items": items[:60],
         }
 
     queries = [
-        shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}),
-        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}),
-        shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}),
-        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}),
-        shelf("animated-series", "Animated Shows",    "tv",    {"sort_by": "popularity.desc"}),
-        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"sort_by": "vote_average.desc", "vote_count.gte": 100}),
-        shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}),
+        shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}, pages=3),
+        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}, pages=3),
+        shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}, pages=3),
+        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}, pages=2),
+        shelf("animated-series", "Animated Shows",    "tv",    {"sort_by": "popularity.desc"}, pages=3),
+        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"sort_by": "vote_average.desc", "vote_count.gte": 100}, pages=3),
+        shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}, pages=2),
+        shelf("musical-magic",   "Sing-Alongs",       "movie", {"with_genres": "10751,10402", "sort_by": "popularity.desc"}, pages=2),
+        shelf("comedy-films",    "Family Comedies",   "movie", {"with_genres": "10751,35", "sort_by": "popularity.desc"}, pages=2),
+        shelf("fantasy-films",   "Fantasy Adventures","movie", {"with_genres": "10751,14", "sort_by": "popularity.desc"}, pages=2),
+        shelf("classic-toons",   "Classic Cartoons",  "tv",    {"sort_by": "first_air_date.asc", "first_air_date.gte": "1990-01-01", "vote_count.gte": 50}, pages=2),
+        shelf("new-tv",          "Just-Aired Shows",  "tv",    {"sort_by": "first_air_date.desc", "first_air_date.lte": datetime.now(timezone.utc).date().isoformat(), "vote_count.gte": 30}, pages=2),
     ]
 
     results = await asyncio.gather(*queries, return_exceptions=True)
@@ -920,10 +946,28 @@ async def tmdb_kids_search(
     if cached:
         return {"data": cached}
 
-    data = await _tmdb_get(
-        "/search/multi",
-        {"query": q, "include_adult": "false", "page": 1},
+    # Pull 2 pages of multi-search in parallel for a deeper result set.
+    page_results = await asyncio.gather(
+        *[
+            _tmdb_get(
+                "/search/multi",
+                {"query": q, "include_adult": "false", "page": p + 1},
+            )
+            for p in range(2)
+        ],
+        return_exceptions=True,
     )
+    raw_items: List[Dict[str, Any]] = []
+    seen_ids: set = set()
+    for pr in page_results:
+        if not isinstance(pr, dict):
+            continue
+        for it in pr.get("results") or []:
+            tid = it.get("id")
+            if tid is None or tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+            raw_items.append(it)
 
     banned_movie = MOVIE_BANNED.get(movie_cert, MOVIE_BANNED["PG"])
     required_movie = MOVIE_REQUIRED.get(movie_cert)
@@ -938,7 +982,7 @@ async def tmdb_kids_search(
 
     movie_candidates: List[Dict[str, Any]] = []
     tv_out: List[Dict[str, Any]] = []
-    for item in data.get("results") or []:
+    for item in raw_items:
         if item.get("adult"):
             continue
         mt = item.get("media_type")
@@ -990,7 +1034,9 @@ async def tmdb_kids_search(
         # No US release info → only accept at the most permissive tier.
         return m if movie_cert == "M15" else None
 
-    verified = await asyncio.gather(*[cert_ok(m) for m in movie_candidates[:16]])
+    # Verify MPAA cert on every movie candidate (cap at 60 to keep
+    # latency reasonable on shaky kid-friendly connections).
+    verified = await asyncio.gather(*[cert_ok(m) for m in movie_candidates[:60]])
     movie_out = [m for m in verified if m]
 
     out = movie_out + tv_out

@@ -125,16 +125,16 @@ export default function Settings() {
                     marginBottom: 40,
                 }}
             >
-                ON NOW TV V2 ships with Vesper Neon — a cinematic, neon-blue
-                aesthetic tuned for big-screen TV viewing. More themes coming
-                soon.
+                Pick the colour that suits your room.  Every theme keeps
+                the same cinematic, TV-tuned layout — only the accent
+                changes.  Your choice is saved instantly.
             </p>
 
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: 'clamp(16px, 1.6vw, 28px)',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: 'clamp(16px, 1.6vw, 24px)',
                 }}
             >
                 {THEMES.map((t) => (

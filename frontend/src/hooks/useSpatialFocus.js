@@ -103,6 +103,13 @@ export default function useSpatialFocus() {
 
             let best = null;
             let bestScore = Infinity;
+            // Fallback bucket: candidates that are in the right
+            // direction but failed the column-drift constraint.  Used
+            // ONLY if the strict pass turns up nothing — this is what
+            // lets pressing Down from a 320 px-wide theme card jump
+            // to a 1800 px-wide "Autoplay" pill that sits below it.
+            let fallback = null;
+            let fallbackScore = Infinity;
 
             for (const el of candidates) {
                 const r = el.getBoundingClientRect();
@@ -137,39 +144,46 @@ export default function useSpatialFocus() {
                 if (primary < 0) primary = 0;
 
                 // ---- HARD ROW / COLUMN CONSTRAINT ----
-                // For horizontal moves (Left / Right), the candidate
-                // MUST overlap the focused tile's vertical band.  In
-                // other words: if the user is at the last tile in a
-                // row and presses Right, we DO NOT fall through to a
-                // candidate on a different row — we just stop.
-                //
-                // Same idea (mirrored) for Up / Down: candidates must
-                // be reasonably aligned with the focused column,
-                // otherwise the user gets dragged sideways during a
-                // vertical scroll.
+                // For horizontal moves, candidates MUST overlap the
+                // focused tile's vertical band.
+                // For vertical moves, allow generous column drift.
+                let strict = true;
                 if (dir === 'left' || dir === 'right') {
                     const sameRow =
                         r.top < cur.bottom - 4 && r.bottom > cur.top + 4;
                     if (!sameRow) continue;
                 } else {
-                    // Vertical move — allow generous column tolerance
-                    // (1.5 × the focused tile's width) so the user can
-                    // descend from a sidebar onto wider content, but
-                    // refuse jumps farther than that.
                     const maxColumnDrift = Math.max(cur.width * 1.5, 200);
-                    if (Math.abs(dx) > maxColumnDrift) continue;
+                    // Wider candidates (e.g. full-row settings panels)
+                    // get a column-overlap exemption — if the focused
+                    // rect sits anywhere inside the candidate's
+                    // horizontal extents, treat it as aligned.
+                    const overlapsCol =
+                        r.left <= cur.right && r.right >= cur.left;
+                    if (Math.abs(dx) > maxColumnDrift && !overlapsCol) {
+                        strict = false;
+                    }
                 }
 
-                // Heavy weight on perpendicular distance so we
-                // strongly prefer items on the same row/column as
-                // the focused one — mirrors Stremio's launcher.
                 const score = primary + perpendicular * 3;
-                if (score < bestScore) {
-                    bestScore = score;
-                    best = el;
+                if (strict) {
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = el;
+                    }
+                } else {
+                    // Fallback only cares about distance in the
+                    // primary direction (down/up) — perpendicular
+                    // distance is irrelevant since we already failed
+                    // the column constraint.
+                    const fbScore = primary + perpendicular * 0.5;
+                    if (fbScore < fallbackScore) {
+                        fallbackScore = fbScore;
+                        fallback = el;
+                    }
                 }
             }
-            return best;
+            return best || fallback;
         };
 
         // Find the nearest vertically-scrollable ancestor of an element.
