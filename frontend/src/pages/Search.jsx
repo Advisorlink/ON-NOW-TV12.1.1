@@ -176,6 +176,23 @@ export default function Search() {
                 >
                     <div
                         data-testid="search-input-wrap"
+                        data-focusable="true"
+                        data-focus-style="bare"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={() => inputRef.current?.focus()}
+                        onKeyDown={(e) => {
+                            // The wrap itself receives D-pad focus.  On
+                            // OK / Enter we hand focus to the real
+                            // <input> which makes Android pop the system
+                            // keyboard.  This avoids slapping a ring on
+                            // the input itself — the wrap stays visually
+                            // calm and just changes its border tone.
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                inputRef.current?.focus();
+                            }
+                        }}
                         className="flex items-center gap-3 flex-1"
                         style={{
                             height: 64,
@@ -183,6 +200,8 @@ export default function Search() {
                             borderRadius: 999,
                             background: 'rgba(255,255,255,0.06)',
                             border: '1px solid rgba(255,255,255,0.14)',
+                            transition:
+                                'border-color 160ms ease, background 160ms ease',
                         }}
                     >
                         <SearchIcon
@@ -193,18 +212,10 @@ export default function Search() {
                         <input
                             ref={inputRef}
                             data-testid="search-input"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            data-initial-focus="true"
-                            tabIndex={0}
                             type="text"
                             value={q}
                             onChange={(e) => {
                                 setQ(e.target.value);
-                                // Typing more after a search hides the
-                                // previous result/blocked banner so the
-                                // user never sees "we can't show you that"
-                                // halfway through retyping.
                                 if (searched) setSearched(false);
                             }}
                             onKeyDown={onInputKeyDown}
@@ -223,6 +234,11 @@ export default function Search() {
                                 fontWeight: 500,
                                 letterSpacing: '-0.01em',
                                 color: 'var(--vesper-text)',
+                                /* No focus ring on the input itself —
+                                   the wrap handles the focus signal. */
+                                boxShadow: 'none',
+                                appearance: 'none',
+                                WebkitAppearance: 'none',
                             }}
                         />
                     </div>

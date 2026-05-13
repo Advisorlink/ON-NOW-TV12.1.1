@@ -357,6 +357,28 @@ body {
     z-index: 5;
 }
 
+/* Bare focus — search input wrapper.  Per user request: keep the
+   bar looking like a plain search bar.  No outline, no glow, no
+   ring, no scale.  The only signal is a very faint background
+   warm-up so a TV user can still see they've landed on it; on
+   Android the system soft-keyboard popping over the input is the
+   real feedback. */
+[data-focus-style='bare']:focus-visible,
+[data-focus-style='bare'][data-focused='true'] {
+    background: rgba(255, 255, 255, 0.085) !important;
+    border-color: rgba(255, 255, 255, 0.20) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+[data-focus-style='bare'] input:focus,
+[data-focus-style='bare'] input:focus-visible,
+[data-focus-style='bare']:focus-visible input,
+[data-focus-style='bare'][data-focused='true'] input {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
 /* Nav focus — sidebar */
 [data-focus-style='nav']:focus-visible,
 [data-focus-style='nav'][data-focused='true'] {
