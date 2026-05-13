@@ -342,6 +342,33 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     animation: vesper-ripple 280ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
     z-index: 6;
 }
+
+/* Long-press hold feedback — fires whenever data-holding="true" is
+   set on the element (via the useLongPress hook).  Grows an outer
+   glow ring over 700 ms; once the ring is full, the modal pops.
+   Uses only properties supported on Chrome 52 (box-shadow, transform)
+   so the HK1 box still gets the same feedback. */
+@keyframes vesper-hold-grow {
+    0% {
+        box-shadow:
+            0 0 0 0 rgba(var(--vesper-blue-rgb), 0.0),
+            0 0 0 0 rgba(var(--vesper-blue-rgb), 0.0);
+    }
+    60% {
+        box-shadow:
+            0 0 0 5px rgba(var(--vesper-blue-rgb), 0.45),
+            0 0 28px 6px rgba(var(--vesper-blue-rgb), 0.35);
+    }
+    100% {
+        box-shadow:
+            0 0 0 8px rgba(var(--vesper-blue-rgb), 0.85),
+            0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.55);
+    }
+}
+[data-focusable='true'][data-holding='true'] {
+    animation: vesper-hold-grow 700ms linear forwards;
+    z-index: 8;
+}
 /* Ensure the pseudo-element is positionable on tiles that don't
    already declare position. */
 [data-focusable='true'] {

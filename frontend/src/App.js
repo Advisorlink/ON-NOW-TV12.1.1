@@ -16,6 +16,7 @@ import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
+import AddToListModal from '@/components/AddToListModal';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 
@@ -104,6 +105,7 @@ function App() {
                 <Router>
                     <DevModeBadge />
                     <NewEpisodeToast />
+                    <AddToListModal />
                     <Routes>
                         <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                         <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />

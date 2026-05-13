@@ -99,6 +99,46 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   the user can D-pad out of the name input into the avatar grid
   on the Profile-Edit page.
 
+## Implemented (Iteration 36 — Feb 13, 2026)
+### Press-and-hold OK to add to library + Library polish
+- **`useLongPress` hook** (`hooks/useLongPress.js`): unified
+  press-and-hold detector that works for both remote OK (Enter
+  held) and mouse hold.  Returns spread-onto-element props.
+  Calls `onLongPress()` after 700 ms, `onTap()` on short release.
+  Sets `data-holding="true"` on the element during the hold so
+  CSS can paint a growing theme-blue glow ring (`vesper-hold-grow`
+  keyframes, 700 ms linear).  `stopPropagation()` on keydown so
+  the global spatial-focus hook's click-on-Enter doesn't fight us.
+- **`AddToListModal`** (`components/AddToListModal.jsx`): globally
+  mounted dialog fired via the `vesper:request-add-to-list`
+  custom event.  Shows large cover art on the left + show meta
+  (title, year, genres, type, 3-line synopsis) and two pill
+  buttons.  Modes:
+    - not in library: "Add to My List?" → blue Add / glass Cancel
+      + footer tip "Press &amp; hold OK on any tile to add it".
+    - in library: "Remove from My List?" → red Remove / Cancel.
+  Background blur, theme-accented border + glow, scale-in
+  animation.  Auto-focuses confirm button.
+- **Long-press wired** in:
+  - `PosterTile.jsx` — catalog posters across Home & search.
+  - `Library.jsx` favourite cards — long-press to remove.
+- **Detail page**: replaced the now-redundant "+ Add to My List"
+  button with a passive "✓ In My List" status pill that only
+  appears once the title is in the library.  Adding now happens
+  via long-press on any poster anywhere.
+- **Library page polish**:
+  - Favourite covers shrunk from `minmax(160, 1fr)` to
+    `minmax(120, 1fr)` with 12 px gap (was 16).  More fits
+    on screen.
+  - Empty-state cards are now `data-focusable="true"` with a
+    pill focus ring, so D-pad Down from a populated TV-Shows
+    grid correctly lands on the Movies empty state (verified:
+    `favorite-… → DIV → DIV → DIV` traversal).
+  - Empty-state copy updated to teach the long-press flow:
+    "Press &amp; hold OK on any show to follow it."
+  - Page bottom padding bumped (60 → 120 px) so the sticky
+    Watch Later rail never overlaps content.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

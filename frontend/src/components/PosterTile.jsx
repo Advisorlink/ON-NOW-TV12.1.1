@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
+import useLongPress from '@/hooks/useLongPress';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -9,11 +10,14 @@ import * as img from '@/lib/img';
  * native `loading="lazy"` already handles off-screen rate-limiting,
  * and the parent `<Lazy>` shelf wrapper still skips work for shelves
  * far below the viewport.
+ *
+ * Press-and-hold OK (or mouse) to fire the global "Add to My List"
+ * modal — short-tap still navigates to the detail page.
  */
 export default function PosterTile({ item, onSelect }) {
     const navigate = useNavigate();
 
-    const handleClick = () => {
+    const onTap = () => {
         if (onSelect) {
             onSelect(item);
         } else if (item.routePath) {
@@ -25,13 +29,33 @@ export default function PosterTile({ item, onSelect }) {
         }
     };
 
+    const onLongPress = () => {
+        const id = item.imdbId || item.id;
+        if (!id || !id.toString().startsWith('tt')) return;
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id,
+                    type: item.type || 'movie',
+                    title: item.title,
+                    poster: item.poster ? img.poster(item.poster) : null,
+                    year: item.year || item.sub,
+                    genres: item.genres,
+                    synopsis: item.description,
+                },
+            })
+        );
+    };
+
+    const press = useLongPress(onLongPress, onTap);
+
     return (
         <button
             data-testid={`poster-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={handleClick}
+            {...press}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
                 width: 'clamp(120px, 10.5vw, 180px)',

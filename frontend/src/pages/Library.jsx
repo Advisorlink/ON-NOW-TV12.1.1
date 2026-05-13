@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     Tv,
@@ -10,6 +10,7 @@ import {
     Trash2,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useLongPress from '@/hooks/useLongPress';
 import {
     listFavouritesByType,
     listWatchLater,
@@ -51,13 +52,15 @@ export default function Library() {
     return (
         <div
             data-testid="library-page"
-            className="relative w-screen min-h-[100dvh] flex"
+            className="relative w-screen"
             style={{
+                minHeight: '100dvh',
                 background: 'var(--vesper-bg-0)',
+                display: 'flex',
                 paddingLeft: 100,
                 paddingRight: 24,
                 paddingTop: 48,
-                paddingBottom: 60,
+                paddingBottom: 120,
             }}
         >
             <main className="flex-1 min-w-0" style={{ paddingRight: 32 }}>
@@ -192,6 +195,9 @@ function Section({ icon: Icon, eyebrow, title, style, children }) {
 function TvEmptyState() {
     return (
         <div
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
             className="grid"
             style={{
                 gridTemplateColumns: '1.1fr 1fr',
@@ -225,8 +231,7 @@ function TvEmptyState() {
                         marginBottom: 14,
                     }}
                 >
-                    Follow shows you love. We&apos;ll tell you when there&apos;s
-                    a new episode out.
+                    Press &amp; hold OK on any show to follow it.
                 </div>
                 <p
                     style={{
@@ -236,7 +241,17 @@ function TvEmptyState() {
                         maxWidth: '46ch',
                     }}
                 >
-                    Open any series and tap{' '}
+                    Find a series you love anywhere in the app, then{' '}
+                    <span
+                        style={{
+                            color: 'var(--vesper-blue-bright)',
+                            fontWeight: 600,
+                        }}
+                    >
+                        press &amp; hold the OK button
+                    </span>{' '}
+                    (or click &amp; hold) on its poster. A confirm card pops
+                    up — tap{' '}
                     <span
                         style={{
                             color: 'var(--vesper-blue-bright)',
@@ -244,9 +259,9 @@ function TvEmptyState() {
                         }}
                     >
                         Add to My List
-                    </span>
-                    . Every time a fresh episode airs, a notification pops up
-                    in the top-right corner — hit{' '}
+                    </span>{' '}
+                    and it lands here. Every time a fresh episode airs, a
+                    notification appears in the top-right with{' '}
                     <span
                         style={{
                             color: 'var(--vesper-blue-bright)',
@@ -255,7 +270,7 @@ function TvEmptyState() {
                     >
                         Play
                     </span>{' '}
-                    to start instantly, or{' '}
+                    or{' '}
                     <span
                         style={{
                             color: 'var(--vesper-blue-bright)',
@@ -263,8 +278,8 @@ function TvEmptyState() {
                         }}
                     >
                         Watch Later
-                    </span>{' '}
-                    to drop it in the rail on the right of this page.
+                    </span>
+                    .
                 </p>
             </div>
             <NotificationPreview />
@@ -401,6 +416,9 @@ function NotificationPreview() {
 function MovieEmptyState() {
     return (
         <div
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
             style={{
                 padding: '24px 30px',
                 background: 'rgba(255,255,255,0.025)',
@@ -428,17 +446,18 @@ function MovieEmptyState() {
                     maxWidth: '60ch',
                 }}
             >
-                Open any movie and tap{' '}
+                Find any movie and{' '}
                 <span
                     style={{
                         color: 'var(--vesper-blue-bright)',
                         fontWeight: 600,
                     }}
                 >
-                    Add to My List
-                </span>
-                . It&apos;ll live here, ready for whenever you&apos;re in the
-                mood.
+                    press &amp; hold OK
+                </span>{' '}
+                (or click &amp; hold) on its poster. The confirm card pops
+                up and one tap drops it here, ready for whenever you&apos;re
+                in the mood.
             </p>
         </div>
     );
@@ -451,8 +470,8 @@ function FavouriteGrid({ items, type }) {
         <div
             className="grid"
             style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-                gap: 16,
+                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                gap: 12,
             }}
         >
             {items.map((it) => (
@@ -463,18 +482,38 @@ function FavouriteGrid({ items, type }) {
 }
 
 function FavouriteCard({ item, type }) {
+    const navigate = useNavigate();
     const poster = item.meta?.poster;
+
+    const onTap = () => navigate(`/title/${type}/${item.id}`);
+    const onLongPress = () => {
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id: item.id,
+                    type,
+                    title: item.meta?.name,
+                    poster,
+                    year: item.meta?.year,
+                },
+            })
+        );
+    };
+    const press = useLongPress(onLongPress, onTap);
+
     return (
-        <Link
-            to={`/title/${type}/${item.id}`}
+        <button
             data-testid={`favorite-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            className="block relative overflow-hidden"
+            {...press}
+            className="block relative overflow-hidden text-left"
             style={{
                 aspectRatio: '2 / 3',
-                borderRadius: 12,
+                borderRadius: 10,
+                padding: 0,
+                border: 'none',
                 background: poster
                     ? '#1a1f2e'
                     : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.2), rgba(10,14,26,0.9))',
@@ -492,9 +531,9 @@ function FavouriteCard({ item, type }) {
                     className="absolute inset-0 flex items-center justify-center vesper-display"
                     style={{
                         color: 'var(--vesper-text-2)',
-                        fontSize: 14,
+                        fontSize: 13,
                         textAlign: 'center',
-                        padding: 12,
+                        padding: 10,
                         letterSpacing: '-0.01em',
                     }}
                 >
@@ -502,15 +541,16 @@ function FavouriteCard({ item, type }) {
                 </div>
             )}
             <div
-                className="absolute left-0 right-0 bottom-0 p-2.5"
+                className="absolute left-0 right-0 bottom-0"
                 style={{
+                    padding: '8px 9px 9px',
                     background:
                         'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.92) 100%)',
                 }}
             >
                 <div
                     style={{
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: 600,
                         color: 'var(--vesper-text)',
                         lineHeight: 1.2,
@@ -521,7 +561,7 @@ function FavouriteCard({ item, type }) {
                 {item.meta?.year && (
                     <div
                         style={{
-                            fontSize: 10,
+                            fontSize: 9,
                             color: 'var(--vesper-text-3)',
                             marginTop: 2,
                         }}
@@ -530,7 +570,7 @@ function FavouriteCard({ item, type }) {
                     </div>
                 )}
             </div>
-        </Link>
+        </button>
     );
 }
 

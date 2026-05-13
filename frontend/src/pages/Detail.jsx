@@ -8,7 +8,6 @@ import {
     Copy,
     Magnet,
     Info,
-    Plus,
     Check,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -20,11 +19,7 @@ import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive } from '@/lib/profiles';
 import * as cw from '@/lib/continueWatching';
-import {
-    isInLibrary,
-    addToLibrary,
-    removeFromLibrary,
-} from '@/lib/library';
+import { isInLibrary } from '@/lib/library';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -392,7 +387,7 @@ export default function Detail() {
                     >
                         <ArrowLeft size={16} /> Back
                     </button>
-                    <LibraryToggleButton meta={meta} type={type} id={id} />
+                    <LibraryStatusPill id={id} />
                 </div>
 
                 <div className="max-w-[60vw] vesper-fade-up">
@@ -996,14 +991,13 @@ const Bullet = () => (
 );
 
 /**
- * "Add to My List" toggle.  Reads/writes the per-profile library
- * via `lib/library`.  Live-syncs with the `vesper:library-change`
- * event so add/remove anywhere flips the icon state here too.
- *
- * Theme-accented: the active (in-library) state uses the active
- * theme's bright accent, the unset state is a muted glass pill.
+ * "In My List" indicator pill — non-interactive status badge that
+ * appears next to Back when the title is already in the library.
+ * Reads / live-syncs via `vesper:library-change`.  Adding /
+ * removing now happens via the long-press confirm modal — this
+ * pill only confirms the current state at a glance.
  */
-function LibraryToggleButton({ meta, type, id }) {
+function LibraryStatusPill({ id }) {
     const [inList, setInList] = React.useState(() => isInLibrary(id));
 
     React.useEffect(() => {
@@ -1013,49 +1007,24 @@ function LibraryToggleButton({ meta, type, id }) {
         return () => window.removeEventListener('vesper:library-change', sync);
     }, [id]);
 
-    if (!meta) return null;
-
-    const onToggle = () => {
-        if (inList) {
-            removeFromLibrary(id);
-        } else {
-            addToLibrary(id, {
-                type: type === 'series' ? 'series' : 'movie',
-                meta: {
-                    name: meta.name,
-                    poster: meta.poster,
-                    year: meta.releaseInfo || meta.year,
-                },
-            });
-        }
-    };
+    if (!inList) return null;
 
     return (
-        <button
-            data-testid={inList ? 'library-remove' : 'library-add'}
-            data-focusable="true"
-            data-focus-style="pill"
-            tabIndex={0}
-            onClick={onToggle}
+        <div
+            data-testid="library-status"
             className="flex items-center gap-2 h-11 px-5 rounded-full vesper-mono"
             style={{
-                background: inList
-                    ? 'rgba(var(--vesper-blue-rgb), 0.18)'
-                    : 'rgba(17,24,39,0.6)',
-                color: inList
-                    ? 'var(--vesper-blue-bright)'
-                    : 'var(--vesper-text-2)',
-                border: inList
-                    ? '1px solid rgba(var(--vesper-blue-rgb), 0.55)'
-                    : '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(var(--vesper-blue-rgb), 0.18)',
+                color: 'var(--vesper-blue-bright)',
+                border: '1px solid rgba(var(--vesper-blue-rgb), 0.55)',
                 fontSize: 13,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
             }}
         >
-            {inList ? <Check size={16} strokeWidth={2.4} /> : <Plus size={16} strokeWidth={2.2} />}
-            {inList ? 'In My List' : 'Add to My List'}
-        </button>
+            <Check size={16} strokeWidth={2.4} />
+            In My List
+        </div>
     );
 }
 
