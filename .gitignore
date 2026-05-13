@@ -480,3 +480,4 @@ credentials.json
 *.key
 .credentials
 frontend/node_modules/.cache/default-development/8.pack
+frontend/node_modules/.cache/default-development/10.pack

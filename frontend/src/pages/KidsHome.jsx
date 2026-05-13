@@ -166,7 +166,7 @@ export default function KidsHome() {
                     )}
 
                     {shelves.map((shelf, i) => (
-                        <Lazy key={shelf.id} minHeight={340} eager={i < 1}>
+                        <Lazy key={shelf.id} minHeight={340} eager={i < 3}>
                             <Shelf shelf={shelf} />
                         </Lazy>
                     ))}

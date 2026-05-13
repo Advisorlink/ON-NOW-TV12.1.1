@@ -1,43 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 
 /**
- * Poster tile.  Image rendering is deferred until the tile is
- * within ~2 viewport heights of the visible area — saves
- * substantial decoded-bitmap RAM on cheap boxes (1 GB Mali devices)
- * and lets the For You page stay buttery smooth even with 8 shelves
- * × 24 tiles loaded.  Once an image has been shown ONCE we keep it
- * mounted so a focus-return doesn't repaint a placeholder.
+ * Poster tile.  Image renders immediately on mount — we don't try
+ * to be clever about deferring decode because the user reported
+ * seeing placeholder text flash during fast D-pad scrolls.  Browser
+ * native `loading="lazy"` already handles off-screen rate-limiting,
+ * and the parent `<Lazy>` shelf wrapper still skips work for shelves
+ * far below the viewport.
  */
 export default function PosterTile({ item, onSelect }) {
     const navigate = useNavigate();
-    const ref = useRef(null);
-    const [show, setShow] = useState(false);
-
-    useEffect(() => {
-        if (show) return;
-        const el = ref.current;
-        if (!el) return;
-        if (typeof IntersectionObserver === 'undefined') {
-            setShow(true);
-            return undefined;
-        }
-        const io = new IntersectionObserver(
-            (entries) => {
-                for (const e of entries) {
-                    if (e.isIntersecting) {
-                        setShow(true);
-                        io.disconnect();
-                        return;
-                    }
-                }
-            },
-            { rootMargin: '1600px 800px' }
-        );
-        io.observe(el);
-        return () => io.disconnect();
-    }, [show]);
 
     const handleClick = () => {
         if (onSelect) {
@@ -53,7 +27,6 @@ export default function PosterTile({ item, onSelect }) {
 
     return (
         <button
-            ref={ref}
             data-testid={`poster-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
@@ -67,7 +40,7 @@ export default function PosterTile({ item, onSelect }) {
                 border: '1px solid rgba(255,255,255,0.05)',
             }}
         >
-            {item.poster && show ? (
+            {item.poster ? (
                 <img
                     src={img.poster(item.poster)}
                     alt={item.title}

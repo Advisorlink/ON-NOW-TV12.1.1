@@ -268,15 +268,27 @@ body {
    Focus state — TV / D-pad primary interaction
 ------------------------------------------------------------------ */
 [data-focusable='true'] {
-    /* Tighter, single-curve transition.  280ms felt sluggish at
-       60fps focus rate; 180ms tracks the eye without lag.  Limited
-       to transform + box-shadow which the compositor can run on
-       its own thread — background/color/border transitions force
-       repaints we don't actually need for tile focus. */
+    /* Tighter, single-curve transition.  130ms tracks the eye
+       during normal D-pad use without lag.  Limited to transform
+       + box-shadow which the compositor can run on its own thread
+       — background/color/border transitions force repaints we
+       don't actually need for tile focus. */
     transition:
-        transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
-        box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        transform 130ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 130ms cubic-bezier(0.2, 0.8, 0.2, 1);
     transform-origin: center center;
+}
+
+/* SCRUB MODE — set on <body> by useSpatialFocus whenever the user
+   is holding the D-pad / a key auto-repeats.  Kills focus
+   transitions entirely so the ring snaps to the new tile
+   instantly on every frame.  The instant the user lets go, the
+   class is removed and the smooth 130ms cubic-bezier returns. */
+body.vesper-scrubbing [data-focusable='true'],
+body.vesper-scrubbing [data-focus-style='tile'],
+body.vesper-scrubbing [data-focus-style='pill'],
+body.vesper-scrubbing [data-focus-style='nav'] {
+    transition: none !important;
 }
 
 /* Press-ripple feedback — fires once on Enter/click for the

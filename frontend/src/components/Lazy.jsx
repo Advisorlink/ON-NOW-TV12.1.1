@@ -11,7 +11,11 @@ import React, { useEffect, useRef, useState } from 'react';
  */
 export default function Lazy({
     minHeight = 300,
-    rootMargin = '1200px 0px',
+    /* Mount a shelf when within ~3 viewport heights below the
+       current scroll position.  Generous so the user always
+       sees real posters when arriving at a new shelf during D-pad
+       navigation — never a placeholder. */
+    rootMargin = '2400px 0px',
     eager = false,
     children,
 }) {

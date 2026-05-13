@@ -28,10 +28,32 @@ export default function useSpatialFocus() {
         // bursts of mixed directions execute in order on subsequent
         // frames.  Result: every press is honoured, but we never do
         // more than one focus move per paint.
+        //
+        // SCRUB MODE: when the OS fires a held-key repeat event we
+        // tag <body> with `vesper-scrubbing` so CSS kills the 130ms
+        // focus transition.  Without this the focus ring's scale
+        // animation never completes between tiles and the ring
+        // visibly "disappears" during fast holds.
         const VERTICAL_PIN_RATIO = 0.32;
+        const HELD_THROTTLE_MS = 70;   // ≈14 tiles / sec for held D-pad
         let pending = []; // queued directions, oldest-first
         let frame = null;
+        let scrubTimer = null;
+        let lastHeldAt = 0;
         const NAV_RAIL = '[data-testid="side-nav"], [data-testid="kids-side-nav"]';
+
+        const enterScrub = () => {
+            if (typeof document !== 'undefined') {
+                document.body.classList.add('vesper-scrubbing');
+            }
+            if (scrubTimer) clearTimeout(scrubTimer);
+            scrubTimer = setTimeout(() => {
+                if (typeof document !== 'undefined') {
+                    document.body.classList.remove('vesper-scrubbing');
+                }
+                scrubTimer = null;
+            }, 140);
+        };
 
         // -------- focusables cache --------
         // Calling document.querySelectorAll on every keypress (with
@@ -570,9 +592,13 @@ export default function useSpatialFocus() {
             if (!pending.length) return;
             const item = pending.shift();
             // Walk the requested number of steps in this direction.
-            // We cap at 8 per frame so a stuck-key event storm can't
-            // freeze the UI.
-            const steps = Math.min(item.n, 8);
+            // For held-D-pad presses we ALREADY throttle at the input
+            // layer (HELD_THROTTLE_MS), so the queue should never
+            // contain more than 1-2 items at a time and bursting
+            // them in one frame would defeat the throttle.  We cap
+            // at 3 per frame as a safety net for fast discrete
+            // bursts (user mashing the button).
+            const steps = Math.min(item.n, 3);
             for (let i = 0; i < steps; i++) {
                 applyMove(item.dir, item.repeat);
             }
@@ -625,6 +651,22 @@ export default function useSpatialFocus() {
             if (dir) {
                 e.preventDefault();
                 const repeat = !!e.repeat;
+                // Throttle held-key repeats so the eye can track
+                // each tile.  Browsers fire ~25–35 Hz on keyboard
+                // auto-repeat, far faster than the user can actually
+                // SEE individual posters.  Cap at ~14 Hz when
+                // repeating; discrete presses are never throttled.
+                if (repeat) {
+                    const now =
+                        typeof performance !== 'undefined'
+                            ? performance.now()
+                            : Date.now();
+                    if (now - lastHeldAt < HELD_THROTTLE_MS) {
+                        return;
+                    }
+                    lastHeldAt = now;
+                    enterScrub();
+                }
                 // Push the press onto the per-frame queue.  We
                 // collapse runs of the same direction (e.g. user is
                 // holding Right) into a single batched call by
