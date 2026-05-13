@@ -67,12 +67,21 @@ class MainActivity : AppCompatActivity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 allowFileAccess = true
                 allowContentAccess = false
-                // Faster compositing of CSS transforms / opacity —
-                // the React shelves use translate3d for movement, and
-                // this flag tells the WebView to accept those
-                // optimisations.
                 @Suppress("DEPRECATION")
                 setEnableSmoothTransition(true)
+                // Boost render priority so the WebView's compositor
+                // gets first dibs on each frame.  Deprecated on
+                // Chrome WebView ≥ 56 but still honoured on older
+                // Chinese AOSP WebViews (Chrome 49-55 territory).
+                @Suppress("DEPRECATION")
+                setRenderPriority(WebSettings.RenderPriority.HIGH)
+                // Force-disable text autosizing — these heuristics
+                // run on every layout pass.  We control font sizing
+                // explicitly via clamp() so the autosizer is wasted
+                // CPU.
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                @Suppress("DEPRECATION")
+                setDefaultZoom(WebSettings.ZoomDensity.FAR)
                 userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
             }
 
@@ -81,6 +90,10 @@ class MainActivity : AppCompatActivity() {
             isScrollbarFadingEnabled = true
             scrollBarStyle = android.view.View.SCROLLBARS_OUTSIDE_OVERLAY
             overScrollMode = android.view.View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = false
+            isVerticalFadingEdgeEnabled = false
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
 
             webViewClient = VesperWebViewClient()
             webChromeClient = WebChromeClient()
