@@ -119,11 +119,11 @@ export default function Detail() {
     // through state so a toggle from the side-nav re-renders Detail
     // (cross-component pref sync via storage event, see below).
     const [autoplayEnabled, setAutoplayEnabledState] = useState(
-        getAutoplay1080p()
+        isKidsActive() || getAutoplay1080p()
     );
     useEffect(() => {
         const onStorage = () =>
-            setAutoplayEnabledState(getAutoplay1080p());
+            setAutoplayEnabledState(isKidsActive() || getAutoplay1080p());
         window.addEventListener('storage', onStorage);
         // Also poll once per second — the side-nav toggle writes to
         // localStorage in the SAME window which doesn't fire `storage`

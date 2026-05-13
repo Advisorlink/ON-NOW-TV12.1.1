@@ -7,6 +7,7 @@ import OnScreenKeyboard from '@/components/OnScreenKeyboard';
 import PosterTile from '@/components/PosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
+import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
 import { isKidsActive } from '@/lib/profiles';
 
@@ -189,14 +190,22 @@ export default function Search() {
                         </div>
                     </>
                 ) : q && !busy && results.length === 0 ? (
-                    <p
-                        data-testid="search-empty"
-                        style={{ color: 'var(--vesper-text-2)' }}
-                    >
-                        {kids
-                            ? "Hmm, we couldn't find any kid-safe matches. Try a different word!"
-                            : 'No results.'}
-                    </p>
+                    kids ? (
+                        <KidsBlockedMessage
+                            query={q}
+                            onPick={(s) => {
+                                setQ(s);
+                                doSearch(s);
+                            }}
+                        />
+                    ) : (
+                        <p
+                            data-testid="search-empty"
+                            style={{ color: 'var(--vesper-text-2)' }}
+                        >
+                            No results.
+                        </p>
+                    )
                 ) : null}
             </main>
         </div>
