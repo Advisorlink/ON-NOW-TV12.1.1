@@ -352,28 +352,24 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     z-index: 50;
 }
 
-/* Tile focus — posters, hero cards.  Thin bright blue glow:
-   a sharp 2 px neon ring + a tight outer halo, designed for
-   Android TV.  Pop-out is generous so the focused tile clearly
-   stands out from its row, but the scale stays under 1.10 so the
-   ring doesn't get clipped at row edges. */
+/* Tile focus — posters, hero cards.  Solid neon-blue ring + scale
+   pop-out.  We deliberately use ZERO-blur box-shadows here: the
+   blurred glow looks pretty on a high-end laptop but on Chrome 52
+   / cheap Android WebViews each blur radius forces an extra paint
+   pass per frame, which is what causes the "chunky" feel during
+   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op. */
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
-    box-shadow:
-        0 0 0 2px var(--vesper-blue-bright),
-        0 0 22px 2px rgba(93, 200, 255, 0.6),
-        0 18px 36px -12px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 0 3px var(--vesper-blue-bright);
     z-index: 5;
 }
 
-/* Pill focus — buttons */
+/* Pill focus — buttons.  Same principle: solid ring, no blur. */
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {
     transform: scale(1.03);
-    box-shadow:
-        0 0 0 2px var(--vesper-blue-bright),
-        0 0 14px 0 rgba(93, 200, 255, 0.5);
+    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
     z-index: 5;
 }
 
@@ -424,26 +420,22 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     box-shadow: 0 0 24px var(--vesper-blue-glow);
 }
 
-/* Key focus — on-screen keyboard */
+/* Key focus — on-screen keyboard.  Solid ring, no blur. */
 [data-focus-style='key']:focus-visible,
 [data-focus-style='key'][data-focused='true'] {
     background: var(--vesper-blue);
     color: var(--vesper-bg-0);
     transform: scale(1.10);
-    box-shadow:
-        0 0 0 2px var(--vesper-blue-bright),
-        0 0 18px 1px rgba(93, 200, 255, 0.55);
+    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
     z-index: 5;
 }
 
-/* Quiet focus — small icon buttons */
+/* Quiet focus — small icon buttons.  Solid ring, no blur. */
 [data-focus-style='quiet']:focus-visible,
 [data-focus-style='quiet'][data-focused='true'] {
     background: rgba(93, 200, 255, 0.14);
     color: var(--vesper-blue);
-    box-shadow:
-        0 0 0 2px var(--vesper-blue-bright),
-        0 0 12px 0 rgba(93, 200, 255, 0.45);
+    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
     transform: scale(1.04);
 }
 
@@ -576,9 +568,7 @@ body.vesper-scrubbing [data-focus-style='nav'] {
 .vesper-host-android [data-focusable='true'][data-focus-style='tile']:focus-visible {
     transform: scale(1.07) translateZ(0) !important;
     z-index: 5 !important;
-    box-shadow:
-        0 12px 36px rgba(0, 0, 0, 0.55),
-        0 0 0 3px var(--vesper-blue) !important;
+    box-shadow: 0 0 0 3px var(--vesper-blue) !important;
 }
 .vesper-low-end [data-focusable='true'][data-focus-style='pill']:focus-visible,
 .vesper-host-android [data-focusable='true'][data-focus-style='pill']:focus-visible {
