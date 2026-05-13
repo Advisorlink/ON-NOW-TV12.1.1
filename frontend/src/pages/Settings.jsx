@@ -133,8 +133,8 @@ export default function Settings() {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                    gap: 'clamp(16px, 1.6vw, 24px)',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 'clamp(12px, 1.1vw, 18px)',
                 }}
             >
                 {THEMES.map((t) => (
@@ -733,17 +733,17 @@ function ThemeCard({ theme, active, onPick }) {
             onClick={onPick}
             className="relative text-left overflow-hidden"
             style={{
-                aspectRatio: '4 / 3',
+                aspectRatio: '5 / 4',
                 background: p.background,
-                borderRadius: 18,
+                borderRadius: 14,
                 border: active
-                    ? `3px solid ${p.accent}`
+                    ? `2px solid ${p.accent}`
                     : '1px solid rgba(255,255,255,0.08)',
-                padding: 'clamp(18px, 1.8vw, 28px)',
+                padding: 'clamp(12px, 1.1vw, 18px)',
                 color: '#fff',
                 boxShadow: active
-                    ? `0 0 0 4px ${p.accent}33, 0 30px 60px rgba(0,0,0,0.4)`
-                    : '0 20px 40px rgba(0,0,0,0.3)',
+                    ? `0 0 0 3px ${p.accent}33, 0 18px 36px rgba(0,0,0,0.4)`
+                    : '0 12px 24px rgba(0,0,0,0.3)',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
@@ -754,11 +754,11 @@ function ThemeCard({ theme, active, onPick }) {
                     style={{
                         fontFamily:
                             'var(--theme-font-mono, "JetBrains Mono", monospace)',
-                        fontSize: 11,
-                        letterSpacing: '0.32em',
+                        fontSize: 9,
+                        letterSpacing: '0.28em',
                         textTransform: 'uppercase',
                         color: p.accent,
-                        marginBottom: 8,
+                        marginBottom: 5,
                     }}
                 >
                     Theme · {theme.layout}
@@ -766,7 +766,7 @@ function ThemeCard({ theme, active, onPick }) {
                 <div
                     style={{
                         fontFamily: `"${p.wordmark.font}", serif`,
-                        fontSize: 'clamp(28px, 2.6vw, 40px)',
+                        fontSize: 'clamp(18px, 1.6vw, 26px)',
                         fontWeight: p.wordmark.weight,
                         color: p.wordmark.color,
                         letterSpacing: '-0.02em',
@@ -779,26 +779,26 @@ function ThemeCard({ theme, active, onPick }) {
 
             <div
                 style={{
-                    fontSize: 13,
-                    lineHeight: 1.45,
-                    color: 'rgba(255,255,255,0.85)',
-                    maxWidth: '32ch',
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    color: 'rgba(255,255,255,0.78)',
+                    maxWidth: '28ch',
                 }}
             >
                 {theme.tagline}
             </div>
 
             {/* Faux UI swatches — give a visual sense of the layout */}
-            <div className="flex items-end gap-2 mt-3">
+            <div className="flex items-end gap-1.5 mt-2">
                 {[1, 2, 3, 4].map((i) => (
                     <div
                         key={i}
                         style={{
                             flex: 1,
-                            height: 36 + i * 6,
+                            height: 22 + i * 4,
                             background: i === 1 ? p.accent : 'rgba(255,255,255,0.12)',
                             borderRadius:
-                                theme.id === 'arcade' ? 0 : theme.id === 'paper' ? 4 : 8,
+                                theme.id === 'arcade' ? 0 : theme.id === 'paper' ? 3 : 6,
                             border:
                                 theme.id === 'arcade'
                                     ? `1px solid ${p.accent}66`
@@ -816,10 +816,10 @@ function ThemeCard({ theme, active, onPick }) {
                 <div
                     className="absolute"
                     style={{
-                        top: 14,
-                        right: 14,
-                        width: 32,
-                        height: 32,
+                        top: 10,
+                        right: 10,
+                        width: 24,
+                        height: 24,
                         borderRadius: '50%',
                         background: p.accent,
                         color: '#fff',
@@ -828,7 +828,7 @@ function ThemeCard({ theme, active, onPick }) {
                         justifyContent: 'center',
                     }}
                 >
-                    <Check size={16} strokeWidth={3} />
+                    <Check size={12} strokeWidth={3} />
                 </div>
             )}
         </button>

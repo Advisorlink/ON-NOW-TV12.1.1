@@ -7,66 +7,31 @@ import { useEffect } from 'react';
  * window level and moves focus to the geometrically nearest
  * element marked with `data-focusable="true"`.
  *
- * Also forwards Enter to a click() on the focused element so
- * keyboards / remotes that don't fire native click work.
- *
- * Designed to "just work" with native browser focus + scrollIntoView,
- * so any element in the tree only needs:
+ * Designed for buttery-smooth Android TV navigation:
+ *   - Every keydown is processed SYNCHRONOUSLY (no rAF queue, no
+ *     throttle).  The OS already auto-repeats at ~30 Hz which is
+ *     the rate we want to honour 1:1 — anything slower feels
+ *     "chunky".
+ *   - Candidate set is scoped before geometry tests so populated
+ *     For-You pages (~600 tiles) don't thrash layout per press.
+ *   - Focusables list is cached and only rebuilt on DOM mutations.
+ *   - scrollBy() calls are coalesced into one commit per paint so
+ *     held-D-pad never paints 60 separate scrolls per second.
  *
  *   <button data-focusable="true" data-focus-style="tile" tabIndex={0}>
  */
 export default function useSpatialFocus() {
     useEffect(() => {
-        // Per-frame dispatcher: a fast typer / held-down D-pad can
-        // fire keydowns far faster than we can move + repaint.  The
-        // old cooldown gate *dropped* any press inside the window,
-        // which is exactly the "skipping tiles" symptom you saw.
-        //
-        // The new model: never drop.  Instead, we batch incoming
-        // arrow events for ONE animation frame, collapse repeats of
-        // the same direction into a single move-by-N call, and let
-        // bursts of mixed directions execute in order on subsequent
-        // frames.  Result: every press is honoured, but we never do
-        // more than one focus move per paint.
-        //
-        // SCRUB MODE: when the OS fires a held-key repeat event we
-        // tag <body> with `vesper-scrubbing` so CSS kills the 130ms
-        // focus transition.  Without this the focus ring's scale
-        // animation never completes between tiles and the ring
-        // visibly "disappears" during fast holds.
-        const VERTICAL_PIN_RATIO = 0.32;
-        const HELD_THROTTLE_MS = 70;   // ≈14 tiles / sec for held D-pad
-        let pending = []; // queued directions, oldest-first
-        let frame = null;
-        let scrubTimer = null;
-        let lastHeldAt = 0;
         const NAV_RAIL = '[data-testid="side-nav"], [data-testid="kids-side-nav"]';
-
-        const enterScrub = () => {
-            if (typeof document !== 'undefined') {
-                document.body.classList.add('vesper-scrubbing');
-            }
-            if (scrubTimer) clearTimeout(scrubTimer);
-            scrubTimer = setTimeout(() => {
-                if (typeof document !== 'undefined') {
-                    document.body.classList.remove('vesper-scrubbing');
-                }
-                scrubTimer = null;
-            }, 140);
-        };
 
         // -------- focusables cache --------
         // Calling document.querySelectorAll on every keypress (with
-        // 80+ tiles in the DOM) is the single biggest perf hit.  We
-        // cache the focusable array and invalidate via a debounced
-        // MutationObserver — list rebuilds happen lazily, not on
-        // every D-pad press.  Result on the HK1: ~3-4 ms saved per
-        // key press, which makes hold-down nav visibly smoother.
+        // 80+ tiles in the DOM) is the single biggest perf hit.
+        // Cache the focusable array and invalidate via a debounced
+        // MutationObserver.
         let cachedFocusables = null;
         let invalidationTimer = null;
         const invalidateCache = () => {
-            // Coalesce many mutations in one paint into one cache
-            // rebuild.
             if (invalidationTimer) return;
             invalidationTimer = requestAnimationFrame(() => {
                 cachedFocusables = null;
@@ -84,17 +49,12 @@ export default function useSpatialFocus() {
         const focusables = () => {
             if (cachedFocusables) return cachedFocusables;
             const all = document.querySelectorAll('[data-focusable="true"]');
-            // Visibility filter is still per-call because rect/style
-            // can change without a DOM mutation — but we only run it
-            // on the FILTERED list, not the full querySelectorAll.
             const arr = [];
             for (let i = 0; i < all.length; i++) {
                 const el = all[i];
                 if (el.hasAttribute('disabled')) continue;
                 const r = el.getBoundingClientRect();
                 if (r.width === 0 || r.height === 0) continue;
-                // getComputedStyle is expensive; skip it unless the
-                // element opted into a visibility-dependent layout.
                 arr.push(el);
             }
             cachedFocusables = arr;
@@ -112,28 +72,16 @@ export default function useSpatialFocus() {
             const currentInNav = !!current.closest(NAV_RAIL);
 
             // -------- candidate scoping --------
-            // The single biggest performance win on the box: scope
-            // the candidate set BEFORE we start calling
-            // getBoundingClientRect on every focusable in the DOM.
-            // With ~600 posters on a populated For You page, an
-            // unscoped findNext call thrashes layout for ~16 ms per
-            // keystroke and makes left/right movement feel sluggish.
-            //
-            //   LEFT / RIGHT  — only the focusables INSIDE the
-            //                   active element's horizontal rail
-            //                   (the shelf) plus the side-nav are
-            //                   relevant.  Cuts 600 → ~30.
-            //   UP / DOWN     — everything EXCEPT the active rail
-            //                   plus a coarse vertical-band filter
-            //                   (must be within 1200 px above/below
-            //                   the focused tile's centre).  Cuts
-            //                   600 → ~40.
+            //   LEFT / RIGHT  — only siblings in the current shelf
+            //                   (plus side-nav for Left).
+            //   UP / DOWN     — everything except the current rail,
+            //                   constrained to a 1200px vertical
+            //                   band so we don't iterate posters
+            //                   5 shelves away.
             const all = focusables();
             const curRail = currentInNav ? null : horizontalScroller(current);
             let scoped;
             if (dir === 'left' || dir === 'right') {
-                // Horizontal: same rail's children + side-nav items
-                // (so Left from a poster can hop back to the nav).
                 if (curRail) {
                     scoped = [];
                     for (let i = 0; i < all.length; i++) {
@@ -144,9 +92,6 @@ export default function useSpatialFocus() {
                         }
                     }
                 } else {
-                    // No horizontal rail (e.g. settings page row).
-                    // Restrict to a wide horizontal band centred on
-                    // the focused element's row.
                     scoped = [];
                     const yMin = cur.top - 80;
                     const yMax = cur.bottom + 80;
@@ -159,19 +104,12 @@ export default function useSpatialFocus() {
                     }
                 }
             } else {
-                // Vertical: drop the active rail (we never want Down
-                // to re-enter the SAME shelf), and keep only items in
-                // a coarse vertical band so we don't iterate posters
-                // 5 shelves away.
                 const VBAND = 1200;
                 scoped = [];
                 for (let i = 0; i < all.length; i++) {
                     const el = all[i];
                     if (el === current) continue;
                     if (curRail && curRail.contains(el)) continue;
-                    // Cheap getBoundingClientRect once, reused below.
-                    // We can avoid the second rect call in the main
-                    // loop by stashing it on the candidate temporarily.
                     const r = el.getBoundingClientRect();
                     if (dir === 'down') {
                         if (r.top < cur.bottom - 20) continue;
@@ -190,7 +128,6 @@ export default function useSpatialFocus() {
             const candidates = scoped.filter((el) => {
                 const inNav = !!el.closest(NAV_RAIL);
                 if (!currentInNav && inNav) {
-                    // Side-nav reachable only when going Left.
                     return dir === 'left';
                 }
                 if (currentInNav && !inNav) {
@@ -237,7 +174,6 @@ export default function useSpatialFocus() {
                 if (!inDirection) continue;
                 if (primary < 0) primary = 0;
 
-                // Row / column constraint (unchanged).
                 let strict = true;
                 if (dir === 'left' || dir === 'right') {
                     const sameRow =
@@ -269,8 +205,9 @@ export default function useSpatialFocus() {
             return best || fallback;
         };
 
-        // Find the nearest vertically-scrollable ancestor.  Cached
-        // per element for the same perf reason as horizontalScroller.
+        // Cached per-element scroller lookups.  The getComputedStyle
+        // walk is one of the more expensive ops per keystroke, so
+        // we memoise on the element itself.
         const verticalScroller = (el) => {
             if (!el) return null;
             if (el.__sfVRail !== undefined) return el.__sfVRail;
@@ -291,10 +228,6 @@ export default function useSpatialFocus() {
             return null;
         };
 
-        // Find the nearest horizontally-scrollable ancestor (the shelf).
-        // Result is cached on the focusable element itself so the
-        // (expensive) getComputedStyle walk only runs once per
-        // element-lifetime instead of on every keypress.
         const horizontalScroller = (el) => {
             if (!el) return null;
             if (el.__sfHRail !== undefined) return el.__sfHRail;
@@ -315,10 +248,9 @@ export default function useSpatialFocus() {
             return null;
         };
 
-        // Maintain a `data-focused` attribute so CSS focus styles
-        // (scale pop-out, glow ring) apply even when programmatic
-        // focus is used on Android WebView, where :focus-visible
-        // doesn't always trigger.
+        // `data-focused` mirrors :focus-visible for Android WebView
+        // where programmatic focus doesn't always trigger the
+        // pseudo-class.
         let lastFocused = null;
         const setFocusAttr = (el) => {
             if (lastFocused && lastFocused !== el) {
@@ -330,34 +262,30 @@ export default function useSpatialFocus() {
             }
         };
 
-        // ---- Coalesced scroll requests ----
-        // Multiple key-presses in the same animation frame all
-        // contribute to ONE scroll commit per scroller.  Without
-        // this, hold-down nav fires 60 separate scrollBy() calls
-        // per second which the WebView paints sequentially —
-        // visible as judder.
-        const scrollPending = new WeakMap(); // scroller -> {x, y}
+        // ---- Coalesced scrolls ----
+        // Multiple scrollBy()s in the same frame collapse into one
+        // commit per scroller.  Held-D-pad without this paints 30
+        // separate scrolls per second — visible judder.
+        const scrollPending = new WeakMap();
+        const scrollQueue = [];
         let scrollRafScheduled = false;
         const flushScrolls = () => {
             scrollRafScheduled = false;
-            // We can't iterate a WeakMap; track separately.
-            // eslint-disable-next-line no-use-before-define
-            scrollQueue.forEach(({ el }) => {
-                const pending = scrollPending.get(el);
-                if (!pending) return;
+            for (let i = 0; i < scrollQueue.length; i++) {
+                const el = scrollQueue[i];
+                const p = scrollPending.get(el);
+                if (!p) continue;
                 scrollPending.delete(el);
-                if (pending.x || pending.y) {
+                if (p.x || p.y) {
                     el.scrollBy({
-                        left: pending.x || 0,
-                        top: pending.y || 0,
+                        left: p.x || 0,
+                        top: p.y || 0,
                         behavior: 'auto',
                     });
                 }
-            });
-            // eslint-disable-next-line no-use-before-define
+            }
             scrollQueue.length = 0;
         };
-        const scrollQueue = []; // array of {el} for iteration
         const queueScroll = (el, dx, dy) => {
             if (!el || (Math.abs(dx) < 4 && Math.abs(dy) < 4)) return;
             const cur = scrollPending.get(el);
@@ -366,7 +294,7 @@ export default function useSpatialFocus() {
                 cur.y = (cur.y || 0) + dy;
             } else {
                 scrollPending.set(el, { x: dx, y: dy });
-                scrollQueue.push({ el });
+                scrollQueue.push(el);
             }
             if (!scrollRafScheduled) {
                 scrollRafScheduled = true;
@@ -374,14 +302,10 @@ export default function useSpatialFocus() {
             }
         };
 
-        const focusEl = (el, dir, _instant = false) => {
+        const focusEl = (el, dir) => {
             if (!el) return;
-            // Detect a focus transition that CROSSES into a different
-            // scroll container — e.g. moving from the locked hero into
-            // the shelves region.  When that happens we snap the new
-            // scroller to its top FIRST so the focused tile is fully
-            // visible from the start, rather than letting the pin
-            // logic chase a delta that overlaps the locked hero.
+            // Snap-to-top when crossing scroll containers so the new
+            // tile is fully visible from the start.
             const prevVs = lastFocused
                 ? verticalScroller(lastFocused)
                 : null;
@@ -389,11 +313,7 @@ export default function useSpatialFocus() {
             const crossingScrollers =
                 nextVs && nextVs !== prevVs && nextVs !== document.scrollingElement;
             if (crossingScrollers) {
-                try {
-                    nextVs.scrollTop = 0;
-                } catch {
-                    /* ignore */
-                }
+                try { nextVs.scrollTop = 0; } catch { /* ignore */ }
             }
 
             el.focus({ preventScroll: true });
@@ -401,25 +321,14 @@ export default function useSpatialFocus() {
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight;
-            const scrollBehavior = 'auto';
 
             if (dir === 'left' || dir === 'right') {
                 const hs = horizontalScroller(el);
                 if (hs) {
-                    // EDGE-COMFORT horizontal scroll — matches
-                    // Stremio / Apple TV / Google TV behaviour.
-                    // The focused tile is allowed to drift naturally
-                    // across the row; the rail only scrolls when the
-                    // tile is about to go off-screen.  Concretely:
-                    //   • While moving Right, scroll once the tile's
-                    //     right edge is within `margin` px of the
-                    //     rail's right edge.
-                    //   • Same on the left side.
-                    // Net effect: the first 3-4 cards stay anchored
-                    // at the left, the cursor drifts to the right,
-                    // and only the middle of the row "scrolls" the
-                    // shelf at all.  The last card sits flush at the
-                    // right edge — no center-pinning forever.
+                    // EDGE-COMFORT scroll — first cards stay anchored
+                    // left, cursor drifts naturally across the row,
+                    // shelf only scrolls when tile approaches the
+                    // rail's edge.  Matches Apple TV / Google TV.
                     const cRect = hs.getBoundingClientRect();
                     const margin = Math.max(80, cRect.width * 0.18);
                     let delta = 0;
@@ -441,23 +350,9 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
-            // Pin the TOP edge of the focused element (with enough
-            // offset that the shelf header above it stays visible
-            // AND the focus ring above the tile is never clipped).
-            //
-            // Pinning by centre is fine on a big desktop browser but
-            // when the scroller is short (e.g. the shelves region
-            // below the locked hero is ~350 px tall), a tile that's
-            // 280 px tall has its centre at 32 % = 112 px which puts
-            // its TOP at -28 px — clipped above the scroller.  The
-            // shelf header that lives just above the tile gets
-            // pushed even further out of view.
-            //
-            // Solution: pin the rect TOP at the larger of
-            //   (scrollerHeight × 0.22, 90 px)
-            // so the focused row sits roughly a fifth of the way
-            // down with a guaranteed 90 px above it — enough for the
-            // shelf eyebrow + title PLUS the focus ring (~22 px).
+            // Pin the TOP edge of the focused row roughly a fifth of
+            // the way down so the shelf eyebrow + title above it is
+            // always visible AND the focus ring isn't clipped.
             let scrollerTop;
             let scrollerHeight;
             if (
@@ -480,26 +375,35 @@ export default function useSpatialFocus() {
             }
         };
 
-        // --- Move primitives ------------------------------------
-        // Applies a single directional move starting from the
-        // currently-focused element.  Returns the element we ended
-        // up on so the queue flush can chain rapid bursts.
-        const applyMove = (dir, repeat) => {
+        // --- Move primitive ------------------------------------
+        // Applies a single directional move from the currently
+        // focused element.  Called SYNCHRONOUSLY from the keydown
+        // handler — no queueing, no rAF latency.  This is the
+        // "before Dev Mode" behaviour the user said felt perfect.
+        const applyMove = (dir) => {
             const active =
                 document.activeElement &&
                 document.activeElement.matches('[data-focusable="true"]')
                     ? document.activeElement
                     : focusables()[0];
-            if (!active) return null;
+            if (!active) return;
+            // Remember which tile was focused in this rail so when
+            // we navigate Up/Down and come back, focus returns to
+            // the same column.
+            const curRailForBookmark = horizontalScroller(active);
+            if (curRailForBookmark) {
+                curRailForBookmark.__lastFocusedKey =
+                    active.getAttribute('data-testid') || null;
+            }
+
             const next = findNext(active, dir);
             if (next) {
                 let target = next;
                 if (dir === 'up' || dir === 'down') {
                     const nextRail = horizontalScroller(next);
-                    const curRail = horizontalScroller(active);
                     if (
                         nextRail &&
-                        nextRail !== curRail &&
+                        nextRail !== curRailForBookmark &&
                         nextRail.__lastFocusedKey
                     ) {
                         const bookmarked = nextRail.querySelector(
@@ -508,42 +412,36 @@ export default function useSpatialFocus() {
                         if (bookmarked) target = bookmarked;
                     }
                 }
-                focusEl(target, dir, repeat);
-                return target;
+                focusEl(target, dir);
+                return;
             }
+
+            // Edge-of-page fallbacks
             if (dir === 'left') {
-                const navItems = Array.from(
-                    document.querySelectorAll(
-                        `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
-                    )
+                const navItems = document.querySelectorAll(
+                    `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                 );
                 const inNav = active.closest(NAV_RAIL);
                 if (!inNav && navItems.length > 0) {
-                    focusEl(navItems[0], 'left', repeat);
-                    return navItems[0];
+                    focusEl(navItems[0], 'left');
                 }
             } else if (dir === 'up') {
-                const vs =
-                    verticalScroller(active) || document.scrollingElement;
+                const vs = verticalScroller(active) || document.scrollingElement;
                 if (vs && vs.scrollTop > 0) {
                     vs.scrollTo({ top: 0, behavior: 'auto' });
                 }
             } else if (dir === 'down') {
                 // Force-scroll to mount the next Lazy shelf, then
-                // retry on the following frame.  We DO NOT block the
-                // queue waiting for the retry — the queue keeps
-                // flushing whatever else is pending so a held D-pad
-                // still feels responsive.
-                const vs =
-                    verticalScroller(active) || document.scrollingElement;
-                if (!vs) return null;
+                // retry on the following frame.
+                const vs = verticalScroller(active) || document.scrollingElement;
+                if (!vs) return;
                 const before = vs.scrollTop;
                 const chunk = Math.max(
                     260,
                     Math.round((vs.clientHeight || 600) * 0.55)
                 );
                 vs.scrollTo({ top: before + chunk, behavior: 'auto' });
-                if (vs.scrollTop === before) return null;
+                if (vs.scrollTop === before) return;
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                         cachedFocusables = null;
@@ -551,10 +449,9 @@ export default function useSpatialFocus() {
                         if (retry) {
                             let target = retry;
                             const nextRail = horizontalScroller(retry);
-                            const curRail = horizontalScroller(active);
                             if (
                                 nextRail &&
-                                nextRail !== curRail &&
+                                nextRail !== curRailForBookmark &&
                                 nextRail.__lastFocusedKey
                             ) {
                                 const bookmarked = nextRail.querySelector(
@@ -562,7 +459,7 @@ export default function useSpatialFocus() {
                                 );
                                 if (bookmarked) target = bookmarked;
                             }
-                            focusEl(target, 'down', repeat);
+                            focusEl(target, 'down');
                         }
                     });
                 });
@@ -574,64 +471,15 @@ export default function useSpatialFocus() {
                         (el) => !el.closest(NAV_RAIL)
                     );
                     if (firstContent) {
-                        focusEl(firstContent, 'right', repeat);
-                        return firstContent;
+                        focusEl(firstContent, 'right');
                     }
                 }
-            }
-            return null;
-        };
-
-        // Processes the queue one direction at a time.  When the
-        // same direction is queued N times in a row (held D-pad),
-        // we apply it N times within a single frame so the cursor
-        // never falls behind the user's input — that was the
-        // "skipping" symptom from rapid presses being dropped.
-        const flushQueue = () => {
-            frame = null;
-            if (!pending.length) return;
-            const item = pending.shift();
-            // Walk the requested number of steps in this direction.
-            // For held-D-pad presses we ALREADY throttle at the input
-            // layer (HELD_THROTTLE_MS), so the queue should never
-            // contain more than 1-2 items at a time and bursting
-            // them in one frame would defeat the throttle.  We cap
-            // at 3 per frame as a safety net for fast discrete
-            // bursts (user mashing the button).
-            const steps = Math.min(item.n, 3);
-            for (let i = 0; i < steps; i++) {
-                applyMove(item.dir, item.repeat);
-            }
-            // If more presses arrived during this frame, schedule
-            // another flush for the next paint.
-            if (pending.length && !frame) {
-                frame = requestAnimationFrame(flushQueue);
             }
         };
 
         const onKey = (e) => {
-            // Per-shelf focus memory: remember which tile was
-            // focused in each horizontal rail so navigating away
-            // (Up/Down) and back returns focus to that exact tile.
-            // Map: rail element → focused element id (or fallback
-            // to a numeric data-key we set when the tile is missing
-            // a stable id).
-            const rememberFocusInRail = () => {
-                const ae = document.activeElement;
-                if (!ae || !ae.matches('[data-focusable="true"]')) return;
-                const rail = horizontalScroller(ae);
-                if (!rail) return;
-                rail.__lastFocusedKey =
-                    ae.getAttribute('data-testid') || null;
-            };
-            // Save the last-focused tile in the rail before we
-            // process the press — so when the press moves focus
-            // out of the rail we have the bookmark ready.
-            rememberFocusInRail();
-            // When the user is typing in an input/textarea, let the
-            // browser handle keys natively (cursor movement, paste,
-            // typing, Enter-to-submit handled by the input's own
-            // onKeyDown).  Escape blurs the input so D-pad nav resumes.
+            // While typing in an input/textarea, let the browser
+            // handle keys natively.  Escape blurs.
             const tag = (document.activeElement?.tagName || '').toLowerCase();
             if (tag === 'input' || tag === 'textarea') {
                 if (e.key === 'Escape') {
@@ -650,35 +498,10 @@ export default function useSpatialFocus() {
 
             if (dir) {
                 e.preventDefault();
-                const repeat = !!e.repeat;
-                // Throttle held-key repeats so the eye can track
-                // each tile.  Browsers fire ~25–35 Hz on keyboard
-                // auto-repeat, far faster than the user can actually
-                // SEE individual posters.  Cap at ~14 Hz when
-                // repeating; discrete presses are never throttled.
-                if (repeat) {
-                    const now =
-                        typeof performance !== 'undefined'
-                            ? performance.now()
-                            : Date.now();
-                    if (now - lastHeldAt < HELD_THROTTLE_MS) {
-                        return;
-                    }
-                    lastHeldAt = now;
-                    enterScrub();
-                }
-                // Push the press onto the per-frame queue.  We
-                // collapse runs of the same direction (e.g. user is
-                // holding Right) into a single batched call by
-                // counting `n`, so a 4-press burst becomes one
-                // findNext × 4 walk that ends on the correct tile.
-                const last = pending[pending.length - 1];
-                if (last && last.dir === dir && last.repeat === repeat) {
-                    last.n += 1;
-                } else {
-                    pending.push({ dir, repeat, n: 1 });
-                }
-                if (!frame) frame = requestAnimationFrame(flushQueue);
+                // Synchronous move.  Every press — discrete or
+                // repeat — produces exactly one move call.  No
+                // queue, no throttle, no dropped inputs.
+                applyMove(dir);
                 return;
             }
 
@@ -689,10 +512,7 @@ export default function useSpatialFocus() {
                 ) {
                     e.preventDefault();
                     const target = document.activeElement;
-                    // Fire the press-ripple feedback animation — a
-                    // pure-CSS @keyframes triggered by the
-                    // `data-pressed` attribute.  Removed after
-                    // 320 ms so it can re-fire on the next press.
+                    // Press-ripple feedback (CSS @keyframes).
                     target.setAttribute('data-pressed', 'true');
                     setTimeout(() => {
                         target.removeAttribute('data-pressed');
@@ -704,9 +524,8 @@ export default function useSpatialFocus() {
 
         // Initial focus: prefer `data-initial-focus`, but the hero
         // Play button mounts asynchronously after TMDB / Cinemeta
-        // respond — so we retry over a 2 s window.  Only the FINAL
-        // retry falls back to "first non-nav focusable"; earlier
-        // retries strictly wait for the preferred element to appear.
+        // respond — so we retry over a 1.8 s window before falling
+        // back to "first non-nav focusable".
         const tryPreferred = () => {
             const preferred = document.querySelector(
                 '[data-focusable="true"][data-initial-focus="true"]'
@@ -718,9 +537,6 @@ export default function useSpatialFocus() {
         };
 
         const tryFallback = () => {
-            // Only ever set a fallback if NOTHING is currently
-            // focused — if the user already moved focus we leave
-            // them alone.
             const ae = document.activeElement;
             if (
                 ae &&
@@ -731,9 +547,7 @@ export default function useSpatialFocus() {
                 return;
             }
             const all = focusables();
-            const firstContent = all.find(
-                (el) => !el.closest(NAV_RAIL)
-            );
+            const firstContent = all.find((el) => !el.closest(NAV_RAIL));
             if (firstContent) {
                 firstContent.focus({ preventScroll: true });
                 setFocusAttr(firstContent);
@@ -741,9 +555,6 @@ export default function useSpatialFocus() {
         };
 
         const timers = [];
-        // Strict retries — only succeed once the preferred element
-        // mounts.  After the strict window expires, fall back so
-        // the user is never left with NO focused element.
         let preferredSet = false;
         [50, 200, 500, 1000, 1500].forEach((ms) => {
             timers.push(

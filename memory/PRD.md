@@ -34,6 +34,30 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 33 — Feb 13, 2026)
+### D-pad navigation simplification + compact theme cards
+- **Restored buttery 1:1 spatial nav**: Stripped the rAF-batched
+  press queue and the `HELD_THROTTLE_MS = 70` repeat throttle from
+  `useSpatialFocus.js`.  Both were silently dropping inputs and
+  adding a frame of latency per press — they were what made
+  navigation feel "chunky again" after the Dev-Mode addition.
+- **Synchronous move dispatcher**: Every `keydown` now runs
+  `applyMove(dir)` immediately in the handler.  No queue, no
+  throttle, no scrubbing class.  Verified with synthetic test:
+  8 rapid ArrowRight presses → 8 unique focus moves (Netflix
+  → Apple TV+ → Disney+ → Prime → Hulu → HBO → Paramount+ →
+  Binge → Stan); 8 rapid ArrowDown presses → 8 unique focus
+  moves across shelves with auto-scroll pin.
+- Kept all perf wins: focusable cache + MutationObserver
+  invalidation, scoped candidate set (rail-only for L/R,
+  vertical-band for U/D), per-element scroller memoization,
+  rAF-coalesced `scrollBy()` calls.
+- **Compact theme cards on Settings**: Shrunk theme grid from
+  `minmax(280px, 1fr)` to `minmax(200px, 1fr)`, aspect ratio
+  `4/3` → `5/4`, fonts/paddings scaled down accordingly.  8
+  theme cards now fit in a single row at 1920px instead of
+  pushing the rest of Settings far down the page.
+
 ## Implemented (Iteration 32 — Feb 13, 2026)
 ### Rating tiers + dynamic Kids nav + D-pad fix
 - **M15 / TV-14 rating tiers**: Settings now exposes Max movie
