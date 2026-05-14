@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle } from 'lucide-r
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AvatarCircle } from '@/lib/avatars';
+import TVKeyboard from '@/components/TVKeyboard';
 
 /**
  * Profile create / edit page.
@@ -74,13 +75,21 @@ export default function ProfileEdit() {
             className="relative w-screen flex flex-col"
             style={{
                 background: 'var(--vesper-bg-0)',
-                padding: 'clamp(40px, 5vw, 80px)',
+                padding:
+                    step === 'name'
+                        ? 'clamp(20px, 2vw, 32px) clamp(28px, 4vw, 64px)'
+                        : 'clamp(40px, 5vw, 80px)',
                 height: '100dvh',
-                overflowY: 'auto',
+                overflowY: step === 'name' ? 'hidden' : 'auto',
                 overflowX: 'hidden',
             }}
         >
-            <header className="flex items-center gap-4 mb-10">
+            <header
+                className="flex items-center gap-4"
+                style={{
+                    marginBottom: step === 'name' ? 8 : 40,
+                }}
+            >
                 <button
                     data-testid="profile-back"
                     data-focusable="true"
@@ -106,47 +115,45 @@ export default function ProfileEdit() {
                 >
                     <ArrowLeft size={20} />
                 </button>
-                <div>
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            fontSize: 11,
-                            letterSpacing: '0.28em',
-                            color: 'var(--vesper-blue-bright)',
-                        }}
-                    >
-                        {existing
-                            ? 'EDIT PROFILE'
-                            : step === 'name'
-                            ? 'NEW PROFILE · STEP 1 OF 2'
-                            : 'NEW PROFILE · STEP 2 OF 2'}
-                    </div>
-                    <h1
-                        className="vesper-display"
-                        style={{
-                            fontSize: 'clamp(32px, 4vw, 56px)',
-                            letterSpacing: '-0.025em',
-                            lineHeight: 1,
-                            marginTop: 6,
-                        }}
-                    >
-                        {step === 'name'
-                            ? "What's your name?"
-                            : `Hi, ${name.trim() || 'there'}`}
-                    </h1>
-                    {step === 'avatar' && (
+                {step !== 'name' && (
+                    <div>
                         <div
+                            className="vesper-mono"
                             style={{
-                                marginTop: 8,
-                                color: 'var(--vesper-text-2)',
-                                fontSize: 15,
+                                fontSize: 11,
+                                letterSpacing: '0.28em',
+                                color: 'var(--vesper-blue-bright)',
                             }}
                         >
-                            Pick an avatar — we&apos;ll ask before
-                            we save it.
+                            {existing
+                                ? 'EDIT PROFILE'
+                                : 'NEW PROFILE · STEP 2 OF 2'}
                         </div>
-                    )}
-                </div>
+                        <h1
+                            className="vesper-display"
+                            style={{
+                                fontSize: 'clamp(32px, 4vw, 56px)',
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1,
+                                marginTop: 6,
+                            }}
+                        >
+                            {`Hi, ${name.trim() || 'there'}`}
+                        </h1>
+                        {step === 'avatar' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Pick an avatar — we&apos;ll ask before
+                                we save it.
+                            </div>
+                        )}
+                    </div>
+                )}
             </header>
 
             {step === 'name' ? (
@@ -232,33 +239,25 @@ export default function ProfileEdit() {
 /* --------------------------- Step views --------------------------- */
 
 function NameStep({ name, setName, onNext, avatarId }) {
-    const inputRef = React.useRef(null);
     const canContinue = !!name.trim();
-
-    // The pill-wrap below receives D-pad focus.  Pressing OK hands
-    // focus to the real <input>, which makes Android pop the system
-    // keyboard.  Same pattern Search uses, so the visual rhythm
-    // between profile-create and the rest of the app stays
-    // consistent.
-    const handleWrapKey = (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            inputRef.current?.focus();
-        }
-    };
-
     return (
         <div
             data-testid="profile-step-name"
             className="flex flex-col items-center"
-            style={{ flex: 1, justifyContent: 'center' }}
+            style={{
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                justifyContent: 'flex-start',
+                paddingTop: 6,
+            }}
         >
             {/* Faint blue glow behind the card */}
             <div
                 style={{
                     position: 'absolute',
-                    inset: '12% 18% auto 18%',
-                    height: '40vh',
+                    inset: '8% 18% auto 18%',
+                    height: '32vh',
                     background:
                         'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 70%)',
                     pointerEvents: 'none',
@@ -269,20 +268,20 @@ function NameStep({ name, setName, onNext, avatarId }) {
             <div
                 className="flex flex-col items-center"
                 style={{
-                    maxWidth: 720,
+                    maxWidth: 760,
                     width: '100%',
                     position: 'relative',
                     zIndex: 1,
+                    gap: 10,
                 }}
             >
-                <AvatarCircle avatarId={avatarId} size={120} ring />
+                <AvatarCircle avatarId={avatarId} size={84} ring />
 
                 <div
                     className="vesper-mono"
                     style={{
-                        marginTop: 22,
                         fontSize: 11,
-                        letterSpacing: '0.34em',
+                        letterSpacing: '0.32em',
                         color: 'var(--vesper-blue-bright)',
                         textTransform: 'uppercase',
                     }}
@@ -293,10 +292,9 @@ function NameStep({ name, setName, onNext, avatarId }) {
                 <h2
                     className="vesper-display"
                     style={{
-                        fontSize: 'clamp(40px, 5vw, 72px)',
-                        letterSpacing: '-0.03em',
-                        lineHeight: 1,
-                        marginTop: 14,
+                        fontSize: 'clamp(26px, 3vw, 44px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.05,
                         textAlign: 'center',
                     }}
                 >
@@ -305,7 +303,7 @@ function NameStep({ name, setName, onNext, avatarId }) {
                         style={{
                             color: 'var(--vesper-blue-bright)',
                             textShadow:
-                                '0 0 18px rgba(var(--vesper-blue-rgb),0.55)',
+                                '0 0 14px rgba(var(--vesper-blue-rgb),0.55)',
                         }}
                     >
                         call
@@ -313,81 +311,63 @@ function NameStep({ name, setName, onNext, avatarId }) {
                     you?
                 </h2>
 
-                <p
-                    style={{
-                        color: 'var(--vesper-text-2)',
-                        fontSize: 15,
-                        lineHeight: 1.5,
-                        textAlign: 'center',
-                        marginTop: 12,
-                        maxWidth: 460,
-                    }}
-                >
-                    This is the name that&apos;ll show on the
-                    &ldquo;Who&apos;s watching&rdquo; screen — pick
-                    something short and friendly.
-                </p>
-
-                {/* Fancy rounded pill input — mirrors Search */}
+                {/* Display "input" — value preview only.  We DON'T
+                    use a real <input>, so the Android IME never
+                    pops up.  Typing happens entirely through the
+                    custom TVKeyboard below. */}
                 <div
-                    data-testid="profile-name-wrap"
-                    data-focusable="true"
-                    data-focus-style="bare"
-                    data-initial-focus="true"
-                    tabIndex={0}
-                    onClick={() => inputRef.current?.focus()}
-                    onKeyDown={handleWrapKey}
+                    data-testid="profile-name-display"
                     className="flex items-center gap-3"
                     style={{
-                        marginTop: 36,
                         width: '100%',
-                        maxWidth: 580,
-                        height: 76,
-                        padding: '0 28px',
+                        maxWidth: 560,
+                        height: 64,
+                        padding: '0 24px',
                         borderRadius: 999,
                         background:
                             'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
                         border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
                         boxShadow:
-                            '0 18px 60px rgba(var(--vesper-blue-rgb),0.18), 0 0 0 0 rgba(var(--vesper-blue-rgb),0.0)',
-                        transition:
-                            'border-color 160ms ease, box-shadow 160ms ease',
+                            '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
+                        marginTop: 4,
                     }}
                 >
                     <UserCircle
-                        size={26}
+                        size={22}
                         strokeWidth={1.6}
                         color="var(--vesper-blue-bright)"
                     />
-                    <input
-                        ref={inputRef}
-                        data-testid="profile-name"
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && canContinue) {
-                                e.preventDefault();
-                                onNext();
-                            }
-                        }}
-                        placeholder="Your name…"
-                        maxLength={20}
+                    <div
                         className="vesper-display"
+                        data-testid="profile-name"
                         style={{
                             flex: 1,
-                            background: 'transparent',
-                            border: 'none',
-                            outline: 'none',
-                            fontSize: 26,
+                            fontSize: 24,
                             fontWeight: 500,
                             letterSpacing: '-0.01em',
-                            color: 'var(--vesper-text)',
-                            boxShadow: 'none',
-                            appearance: 'none',
-                            WebkitAppearance: 'none',
+                            color: name
+                                ? 'var(--vesper-text)'
+                                : 'var(--vesper-text-3)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                         }}
-                    />
+                    >
+                        {name || 'Your name…'}
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: 'inline-block',
+                                width: 2,
+                                height: 22,
+                                marginLeft: 4,
+                                verticalAlign: 'middle',
+                                background: 'var(--vesper-blue-bright)',
+                                animation: 'vesperPulse 1100ms infinite',
+                                borderRadius: 1,
+                            }}
+                        />
+                    </div>
                     <span
                         className="vesper-mono"
                         style={{
@@ -401,6 +381,21 @@ function NameStep({ name, setName, onNext, avatarId }) {
                     </span>
                 </div>
 
+                {/* Themed on-screen keyboard.  Replaces the Android
+                    IME entirely — typing routes through TVKeyboard
+                    which dispatches plain setName calls. */}
+                <div style={{ marginTop: 4, width: '100%', maxWidth: 720 }}>
+                    <TVKeyboard
+                        value={name}
+                        onChange={(v) => setName(v.slice(0, 20))}
+                        onSubmit={() => {
+                            if (canContinue) onNext();
+                        }}
+                        maxLength={20}
+                        variant="name"
+                    />
+                </div>
+
                 <button
                     data-testid="profile-name-next"
                     data-focusable="true"
@@ -410,10 +405,10 @@ function NameStep({ name, setName, onNext, avatarId }) {
                     onClick={onNext}
                     className="flex items-center gap-2 rounded-full font-sans font-semibold"
                     style={{
-                        marginTop: 28,
-                        height: 60,
-                        padding: '0 38px',
-                        fontSize: 17,
+                        marginTop: 4,
+                        height: 50,
+                        padding: '0 30px',
+                        fontSize: 15,
                         background: canContinue
                             ? 'var(--vesper-blue)'
                             : 'rgba(var(--vesper-blue-rgb),0.25)',
@@ -422,12 +417,12 @@ function NameStep({ name, setName, onNext, avatarId }) {
                         opacity: canContinue ? 1 : 0.6,
                         cursor: canContinue ? 'pointer' : 'not-allowed',
                         boxShadow: canContinue
-                            ? '0 14px 36px rgba(var(--vesper-blue-rgb),0.45)'
+                            ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)'
                             : 'none',
                     }}
                 >
                     Next: choose an avatar
-                    <ArrowRight size={18} strokeWidth={2.5} />
+                    <ArrowRight size={16} strokeWidth={2.5} />
                 </button>
             </div>
         </div>
@@ -895,31 +890,12 @@ function AddPasswordPrompt({ onYes, onNo }) {
  * persists the profile with the new PIN and flashes a toast.
  */
 function EnterPinModal({ onCancel, onSave }) {
-    const [digits, setDigits] = React.useState(['', '', '', '']);
-    const refs = React.useRef([]);
-
-    React.useEffect(() => {
-        // Land focus on the first digit immediately.  Retry a
-        // few times to defeat the in-flight Enter release from
-        // the AddPasswordPrompt's Yes click.
-        const grab = () => {
-            const el = refs.current[0];
-            if (!el) return;
-            try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
-        };
-        grab();
-        const r = requestAnimationFrame(grab);
-        const t = setTimeout(grab, 80);
-        return () => {
-            cancelAnimationFrame(r);
-            clearTimeout(t);
-        };
-    }, []);
+    const [pinStr, setPinStr] = React.useState('');
 
     React.useEffect(() => {
         const onKey = (e) => {
             if (e.key === 'Escape' || e.key === 'Backspace') {
-                if (e.key === 'Backspace' && e.target?.tagName === 'INPUT') {
+                if (e.key === 'Backspace' && pinStr.length > 0) {
                     return;
                 }
                 e.preventDefault();
@@ -929,26 +905,9 @@ function EnterPinModal({ onCancel, onSave }) {
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [onCancel]);
+    }, [onCancel, pinStr]);
 
-    const setDigit = (i, val) => {
-        const v = (val || '').replace(/[^\d]/g, '').slice(-1);
-        const next = [...digits];
-        next[i] = v;
-        setDigits(next);
-        if (v && i < 3) {
-            try { refs.current[i + 1]?.focus(); } catch { /* ignore */ }
-        }
-    };
-
-    const handleDigitKeyDown = (i, e) => {
-        if (e.key === 'Backspace' && !digits[i] && i > 0) {
-            try { refs.current[i - 1]?.focus(); } catch { /* ignore */ }
-        }
-    };
-
-    const full = digits.join('');
-    const canSave = full.length === 4;
+    const canSave = pinStr.length === 4;
 
     return (
         <div
@@ -970,16 +929,16 @@ function EnterPinModal({ onCancel, onSave }) {
                     background: 'rgba(11,19,34,0.96)',
                     border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 24,
-                    padding: '36px 56px 32px',
-                    minWidth: 460,
+                    padding: '28px 52px 28px',
+                    minWidth: 480,
                     boxShadow:
                         '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
                 }}
             >
                 <div
                     style={{
-                        width: 76,
-                        height: 76,
+                        width: 64,
+                        height: 64,
                         borderRadius: 999,
                         background: 'rgba(var(--vesper-blue-rgb),0.16)',
                         border: '1px solid rgba(var(--vesper-blue-rgb),0.5)',
@@ -987,10 +946,10 @@ function EnterPinModal({ onCancel, onSave }) {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginBottom: 18,
+                        marginBottom: 12,
                     }}
                 >
-                    <Lock size={30} strokeWidth={2} />
+                    <Lock size={26} strokeWidth={2} />
                 </div>
                 <div
                     className="vesper-mono"
@@ -999,7 +958,7 @@ function EnterPinModal({ onCancel, onSave }) {
                         letterSpacing: '0.32em',
                         color: 'var(--vesper-blue-bright)',
                         textTransform: 'uppercase',
-                        marginBottom: 6,
+                        marginBottom: 4,
                     }}
                 >
                     Set profile PIN
@@ -1007,55 +966,57 @@ function EnterPinModal({ onCancel, onSave }) {
                 <h2
                     className="vesper-display"
                     style={{
-                        fontSize: 'clamp(22px, 2.2vw, 30px)',
+                        fontSize: 'clamp(20px, 2vw, 26px)',
                         letterSpacing: '-0.02em',
                         lineHeight: 1.15,
                         textAlign: 'center',
-                        marginBottom: 8,
+                        marginBottom: 14,
                     }}
                 >
                     Enter a 4-digit PIN
                 </h2>
-                <p
-                    style={{
-                        color: 'var(--vesper-text-2)',
-                        fontSize: 13,
-                        lineHeight: 1.4,
-                        textAlign: 'center',
-                        marginBottom: 22,
-                    }}
-                >
-                    You&apos;ll be asked for this when opening this profile.
-                </p>
 
-                <div className="flex" style={{ gap: 12, marginBottom: 26 }}>
-                    {digits.map((d, i) => (
-                        <input
+                {/* Display-only digit boxes — values come from the
+                    TVKeyboard below, NOT the Android IME. */}
+                <div className="flex" style={{ gap: 12, marginBottom: 16 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <div
                             key={i}
-                            ref={(el) => { refs.current[i] = el; }}
                             data-testid={`enter-pin-${i}`}
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            type="password"
-                            maxLength={1}
-                            value={d}
-                            onChange={(e) => setDigit(i, e.target.value)}
-                            onKeyDown={(e) => handleDigitKeyDown(i, e)}
-                            className="vesper-display text-center"
+                            className="vesper-display flex items-center justify-center"
                             style={{
-                                width: 60,
-                                height: 68,
+                                width: 56,
+                                height: 64,
                                 borderRadius: 14,
                                 background: 'rgba(255,255,255,0.06)',
-                                border: '1px solid rgba(255,255,255,0.14)',
+                                border: `1px solid ${
+                                    pinStr.length === i
+                                        ? 'rgba(var(--vesper-blue-rgb),0.6)'
+                                        : 'rgba(255,255,255,0.14)'
+                                }`,
                                 color: 'var(--vesper-text)',
                                 fontSize: 28,
-                                outline: 'none',
+                                boxShadow:
+                                    pinStr.length === i
+                                        ? '0 0 0 3px rgba(var(--vesper-blue-rgb),0.15)'
+                                        : 'none',
                             }}
-                        />
+                        >
+                            {pinStr[i] ? '•' : ''}
+                        </div>
                     ))}
+                </div>
+
+                <div style={{ width: 280, marginBottom: 18 }}>
+                    <TVKeyboard
+                        value={pinStr}
+                        onChange={(v) => setPinStr(v.slice(0, 4))}
+                        onSubmit={() => {
+                            if (canSave) onSave(pinStr);
+                        }}
+                        maxLength={4}
+                        variant="pin"
+                    />
                 </div>
 
                 <div className="flex" style={{ gap: 12 }}>
@@ -1067,9 +1028,9 @@ function EnterPinModal({ onCancel, onSave }) {
                         onClick={onCancel}
                         className="rounded-full font-sans font-semibold"
                         style={{
-                            height: 48,
-                            padding: '0 26px',
-                            fontSize: 15,
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
                             background: 'rgba(255,255,255,0.10)',
                             color: 'var(--vesper-text)',
                             border: '1px solid rgba(255,255,255,0.16)',
@@ -1083,12 +1044,12 @@ function EnterPinModal({ onCancel, onSave }) {
                         data-focus-style="pill"
                         tabIndex={0}
                         disabled={!canSave}
-                        onClick={() => canSave && onSave(full)}
+                        onClick={() => canSave && onSave(pinStr)}
                         className="rounded-full font-sans font-semibold"
                         style={{
-                            height: 48,
-                            padding: '0 26px',
-                            fontSize: 15,
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
                             background: canSave
                                 ? 'var(--vesper-blue)'
                                 : 'rgba(var(--vesper-blue-rgb),0.35)',
