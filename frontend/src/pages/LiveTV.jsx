@@ -63,7 +63,13 @@ export default function LiveTV() {
 
     return (
         <div data-testid="live-tv-page" className="relative w-screen" style={{
-            minHeight: '100dvh', background: 'var(--vesper-bg-0)', overflowX: 'hidden',
+            minHeight: '100dvh',
+            background: 'var(--vesper-bg-0)',
+            // Subtle top-right cyan highlight gives the page real
+            // depth without any GPU-expensive blur or filter.  Just
+            // a stacked radial-gradient on a solid background.
+            backgroundImage: 'radial-gradient(circle at 88% -8%, rgba(93,200,255,0.10) 0%, transparent 38%), radial-gradient(circle at 12% 10%, rgba(93,200,255,0.04) 0%, transparent 30%)',
+            overflowX: 'hidden',
         }}>
             <SideNav />
             <main style={{
@@ -462,6 +468,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     focusedId={focusedChannel?.stream_id}
                     favorites={favorites}
                     query={query}
+                    nowTitle={nowNext?.now?.title || ''}
                     onQueryChange={setQuery}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
@@ -479,6 +486,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onToggleFav, onPlay, onExit }) {
     const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
+    const backdropSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 600) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
     if (categoryName) eyebrowParts.push(categoryName.toUpperCase());
@@ -496,8 +504,47 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
             padding: '32px 40px 18px 40px',
             background: 'transparent',
             minHeight: 200,
+            position: 'relative',
+            overflow: 'hidden',
         }}>
-            <div className="flex items-stretch justify-between" style={{ gap: 28 }}>
+            {/* Giant dim channel-logo backdrop.  No CSS blur (kills
+                Chrome 52 GPU) — we lean on heavy opacity + a fade
+                gradient mask instead.  One <img>, ~600 px wide,
+                routed through the image proxy so it's <2 KB. */}
+            {backdropSrc && (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        top: -120, right: -120,
+                        width: 720, height: 480,
+                        pointerEvents: 'none',
+                        zIndex: 0,
+                        // Vertical fade so the logo doesn't bleed into the
+                        // categories grid below.
+                        maskImage: 'linear-gradient(180deg, #000 0%, #000 45%, transparent 95%)',
+                        WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 45%, transparent 95%)',
+                    }}
+                >
+                    <img
+                        src={backdropSrc}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{
+                            width: '100%', height: '100%',
+                            objectFit: 'contain',
+                            opacity: 0.06,
+                            // Subtle desaturate for a "muted poster" feel.
+                            // Filter: grayscale is cheap (no per-pixel
+                            // blur).  Skip entirely if it ever stutters.
+                            filter: 'grayscale(0.4)',
+                        }}
+                    />
+                </div>
+            )}
+
+            <div className="flex items-stretch justify-between" style={{ gap: 28, position: 'relative', zIndex: 1 }}>
                 {/* Channel logo card — solid bg, thin border, no filter */}
                 <div
                     data-testid="live-tv-hero-logo"
@@ -710,8 +757,8 @@ function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount,
     return (
         <div data-testid="live-tv-categories" style={{
             padding: '12px 0',
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.012) 100%)',
+            border: '1px solid rgba(255,255,255,0.07)',
             borderRadius: 14,
             maxHeight: 'calc(100dvh - 250px)',
             overflowY: 'auto',
@@ -920,7 +967,7 @@ function FavCategoryRow({ isActive, count, onPick }) {
     );
 }
 
-function ChannelsCol({ channels, totalCount, focusedId, favorites, query, onQueryChange, onFocus, onPlay }) {
+function ChannelsCol({ channels, totalCount, focusedId, favorites, query, nowTitle, onQueryChange, onFocus, onPlay }) {
     // Windowed render — Chrome 52 (HK1) doesn't support
     // content-visibility, so we hand-virtualize.  Start with 50,
     // grow by 50 every time the sentinel intersects.
@@ -965,8 +1012,8 @@ function ChannelsCol({ channels, totalCount, focusedId, favorites, query, onQuer
                 ref={containerRef}
                 style={{
                     padding: '8px 6px',
-                    background: 'rgba(255,255,255,0.018)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.010) 100%)',
+                    border: '1px solid rgba(255,255,255,0.07)',
                     borderRadius: 14,
                     maxHeight: 'calc(100dvh - 310px)',
                     overflowY: 'auto',
@@ -993,16 +1040,20 @@ function ChannelsCol({ channels, totalCount, focusedId, favorites, query, onQuer
                     )
                 ) : (
                     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                        {visible.map((c) => (
-                            <ChannelRowLean
-                                key={c.stream_id}
-                                channel={c}
-                                focused={c.stream_id === focusedId}
-                                isFav={favorites?.has(String(c.stream_id)) || false}
-                                onFocus={() => onFocus(c)}
-                                onPlay={() => { onFocus(c); onPlay(c); }}
-                            />
-                        ))}
+                        {visible.map((c) => {
+                            const isFocused = c.stream_id === focusedId;
+                            return (
+                                <ChannelRowLean
+                                    key={c.stream_id}
+                                    channel={c}
+                                    focused={isFocused}
+                                    nowTitle={isFocused ? nowTitle : ''}
+                                    isFav={favorites?.has(String(c.stream_id)) || false}
+                                    onFocus={() => onFocus(c)}
+                                    onPlay={() => { onFocus(c); onPlay(c); }}
+                                />
+                            );
+                        })}
                         {visibleCount < channels.length && (
                             <li ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
                         )}
@@ -1100,7 +1151,7 @@ function ChannelSearchBar({ query, onChange, resultCount, totalCount }) {
 }
 
 /* ============================ Channel Row (lean) ============================ */
-function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
+function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) {
     return (
         <li>
             <button
@@ -1124,7 +1175,7 @@ function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
                     borderRadius: 8,
                     color: focused ? '#fff' : 'var(--vesper-text)',
                     cursor: 'pointer',
-                    minHeight: 52,
+                    minHeight: 56,
                 }}
             >
                 {channel.num != null && (
@@ -1138,19 +1189,21 @@ function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
                     </span>
                 )}
                 <span style={{
-                    width: 44, height: 30, flexShrink: 0,
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    borderRadius: 4,
+                    width: 54, height: 36, flexShrink: 0,
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+                    border: focused
+                        ? '1px solid rgba(93,200,255,0.45)'
+                        : '1px solid rgba(255,255,255,0.07)',
+                    borderRadius: 5,
                     overflow: 'hidden',
                     position: 'relative',
                 }}>
                     {channel.stream_icon && (
                         <img
-                            src={proxiedLogo(channel.stream_icon, 44)}
+                            src={proxiedLogo(channel.stream_icon, 54)}
                             alt=""
-                            width={44}
-                            height={30}
+                            width={54}
+                            height={36}
                             loading="lazy"
                             decoding="async"
                             referrerPolicy="no-referrer"
@@ -1159,19 +1212,35 @@ function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
                                 position: 'absolute', inset: 0,
                                 width: '100%', height: '100%',
                                 objectFit: 'contain',
-                                padding: 3,
+                                padding: 4,
                             }}
                         />
                     )}
                 </span>
-                <span style={{
-                    flex: 1, minWidth: 0,
-                    fontSize: 14,
-                    fontWeight: focused ? 700 : 600,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                <div className="flex flex-col" style={{
+                    flex: 1, minWidth: 0, gap: 2,
                 }}>
-                    {channel.name}
-                </span>
+                    <span style={{
+                        fontSize: 14,
+                        fontWeight: focused ? 700 : 600,
+                        color: focused ? '#fff' : 'var(--vesper-text)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        lineHeight: 1.2,
+                    }}>
+                        {channel.name}
+                    </span>
+                    {focused && nowTitle && (
+                        <span className="vesper-mono" style={{
+                            fontSize: 10,
+                            color: 'var(--vesper-blue-bright)',
+                            letterSpacing: '0.04em',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            lineHeight: 1.2,
+                        }}>
+                            NOW · {nowTitle}
+                        </span>
+                    )}
+                </div>
                 {isFav && (
                     <Star
                         size={13}
@@ -1196,8 +1265,8 @@ function GuideCol({ channel, items }) {
             data-testid="live-tv-guide"
             style={{
                 padding: '14px 0 6px 0',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.012) 100%)',
+                border: '1px solid rgba(255,255,255,0.07)',
                 borderRadius: 14,
                 maxHeight: 'calc(100dvh - 250px)',
                 overflowY: 'auto',
