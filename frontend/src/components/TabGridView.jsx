@@ -5,6 +5,7 @@ import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
 import { useAddons } from '@/hooks/useAddons';
 import { useTabCatalog } from '@/hooks/useTabCatalog';
+import { useTabGenreCatalog } from '@/hooks/useTabGenreCatalog';
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
@@ -27,17 +28,28 @@ export default function TabGridView({ type }) {
         setGenre('');
     }, [type]);
 
-    // Visible items derived directly from the fast hook:
+    // When a genre is selected, fire a deep-page fetch that pulls
+    // EVERY title in that genre from every addon that advertises
+    // it (per Stremio's `extra.genre` filter).  While the deep
+    // results stream in, the genre hook surfaces matching items
+    // from the top-100 cache so the grid is never empty.
+    const {
+        items: genreItems,
+        loading: genreLoading,
+        progress: genreProgress,
+    } = useTabGenreCatalog(addons, type, genre, allItems);
+
+    // What we actually paint:
     // - No genre selected → top 100 newest releases (capped for
     //   speed per user spec).
-    // - A genre selected → ALL items in that genre (no cap).
+    // - A genre selected → every title in that genre, deep-paged.
     const items = React.useMemo(() => {
         if (!genre) return allItems.slice(0, 100);
-        const g = genre.toLowerCase();
-        return allItems.filter((it) =>
-            (it.genres || []).some((x) => (x || '').toLowerCase() === g)
-        );
-    }, [allItems, genre]);
+        return genreItems;
+    }, [allItems, genre, genreItems]);
+
+    const showLoading = genre ? genreLoading : loading;
+    const showProgress = genre ? genreProgress : progress;
 
     const heading = type === 'series' ? 'TV Shows' : 'Movies';
     const eyebrow = genre
@@ -85,8 +97,12 @@ export default function TabGridView({ type }) {
                         textTransform: 'uppercase',
                     }}
                 >
-                    {loading
-                        ? 'Pulling catalogues from your installed sources…'
+                    {showLoading
+                        ? genre
+                            ? `Loading every ${genre.toLowerCase()} ${
+                                  type === 'series' ? 'series' : 'movie'
+                              }…`
+                            : 'Pulling catalogues from your installed sources…'
                         : genre
                         ? `Every ${genre} ${
                               type === 'series' ? 'series' : 'movie'
@@ -107,7 +123,7 @@ export default function TabGridView({ type }) {
                 />
             )}
 
-            {items.length === 0 && !loading ? (
+            {items.length === 0 && !showLoading ? (
                 <div
                     className="vesper-glass rounded-2xl"
                     style={{
@@ -156,10 +172,10 @@ export default function TabGridView({ type }) {
                         ))}
                     </div>
 
-                    {loading && (
+                    {showLoading && (
                         <LoadingOverlay
                             type={type}
-                            progress={progress}
+                            progress={showProgress}
                             testId={`tab-grid-loading-${type}`}
                         />
                     )}
