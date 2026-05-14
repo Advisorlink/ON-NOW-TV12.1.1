@@ -1467,7 +1467,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                 className="flex items-center"
                 style={{
                     position: 'sticky',
-                    top: -6,
+                    top: 0,
                     zIndex: 30,
                     padding: '14px 16px',
                     marginBottom: 14,
@@ -1782,146 +1782,296 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
         [opts]
     );
     const set = (k) => (v) => setOpts((p) => ({ ...p, [k]: v }));
+
+    // Scoped D-pad navigation for the builder.  The global
+    // spatial-focus engine struggles inside this fixed-overlay
+    // because the chip rows are horizontally scrolling and chip
+    // bounding boxes go out of viewport.  Replicate the same
+    // DOM-order row/column walker used by AvatarStep so every
+    // arrow press lands on a real focusable target.
+    const overlayRef = React.useRef(null);
+    React.useEffect(() => {
+        const root = overlayRef.current;
+        if (!root) return undefined;
+
+        const getRows = () => {
+            const rowEls = Array.from(
+                root.querySelectorAll('[data-builder-row="true"]')
+            );
+            return rowEls
+                .map((r) =>
+                    Array.from(
+                        r.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'))
+                )
+                .filter((list) => list.length > 0);
+        };
+
+        const focusTarget = (target) => {
+            try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            try {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'center',
+                });
+            } catch { /* ignore */ }
+        };
+
+        const onKey = (e) => {
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+            const rows = getRows();
+            if (rows.length === 0) return;
+
+            let rowIdx = -1;
+            let colIdx = -1;
+            for (let r = 0; r < rows.length; r++) {
+                const c = rows[r].indexOf(active);
+                if (c !== -1) {
+                    rowIdx = r;
+                    colIdx = c;
+                    break;
+                }
+            }
+            if (rowIdx === -1) return;
+
+            let target = null;
+            if (e.key === 'ArrowRight') {
+                if (colIdx + 1 < rows[rowIdx].length) {
+                    target = rows[rowIdx][colIdx + 1];
+                } else if (rowIdx + 1 < rows.length) {
+                    target = rows[rowIdx + 1][0];
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (colIdx - 1 >= 0) {
+                    target = rows[rowIdx][colIdx - 1];
+                } else if (rowIdx - 1 >= 0) {
+                    const prev = rows[rowIdx - 1];
+                    target = prev[prev.length - 1];
+                }
+            } else {
+                const dir = e.key === 'ArrowDown' ? 1 : -1;
+                const nextRowIdx = rowIdx + dir;
+                if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
+                    const cx =
+                        active.getBoundingClientRect().left +
+                        active.getBoundingClientRect().width / 2;
+                    target = rows[nextRowIdx].reduce((best, el) => {
+                        const r = el.getBoundingClientRect();
+                        const dx = Math.abs(r.left + r.width / 2 - cx);
+                        if (!best || dx < best.dx) return { el, dx };
+                        return best;
+                    }, null)?.el || rows[nextRowIdx][0];
+                }
+            }
+            if (!target) return;
+            e.preventDefault();
+            e.stopPropagation();
+            focusTarget(target);
+        };
+
+        window.addEventListener('keydown', onKey, true);
+
+        // Land focus on the first chip ("Hair" row) when the
+        // overlay opens so the D-pad has somewhere to start.
+        const t = setTimeout(() => {
+            const rows = getRows();
+            if (rows.length && rows[0][0]) {
+                focusTarget(rows[0][0]);
+            }
+        }, 60);
+
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            clearTimeout(t);
+        };
+    }, []);
+
     return (
         <div
+            ref={overlayRef}
             data-testid="build-avatar-overlay"
             className="fixed inset-0 z-50 flex flex-col"
             style={{
                 background:
                     'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.25), transparent), var(--vesper-bg-0)',
-                padding: 'clamp(28px, 3vw, 48px)',
+                padding: 0,
                 overflowY: 'auto',
             }}
         >
-            <div className="flex items-center" style={{ gap: 16, marginBottom: 22 }}>
-                <button
-                    data-testid="build-avatar-back"
-                    data-focusable="true"
-                    data-focus-style="quiet"
-                    tabIndex={0}
-                    onClick={onCancel}
-                    className="flex items-center justify-center rounded-full"
-                    style={{
-                        width: 48,
-                        height: 48,
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: 'var(--vesper-text-2)',
-                    }}
-                >
-                    <ArrowLeft size={20} />
-                </button>
-                <div>
-                    <div
-                        className="vesper-mono"
+            {/* Sticky header: back button, title and live preview.
+                Pinned to the top of the overlay so the user always
+                sees what they're building as chip rows scroll up
+                underneath. */}
+            <div
+                data-testid="build-avatar-sticky"
+                style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 50,
+                    padding: 'clamp(20px, 2vw, 32px) clamp(28px, 3vw, 48px) 18px',
+                    background:
+                        'linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-0) 86%, rgba(6,8,15,0) 100%)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(14px)',
+                }}
+            >
+                <div className="flex items-center" style={{ gap: 16, marginBottom: 16 }}>
+                    <button
+                        data-testid="build-avatar-back"
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="flex items-center justify-center rounded-full"
                         style={{
-                            fontSize: 11,
-                            letterSpacing: '0.32em',
-                            color: 'var(--vesper-blue-bright)',
+                            width: 48,
+                            height: 48,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            color: 'var(--vesper-text-2)',
                         }}
                     >
-                        BUILD YOUR OWN AVATAR
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 11,
+                                letterSpacing: '0.32em',
+                                color: 'var(--vesper-blue-bright)',
+                            }}
+                        >
+                            BUILD YOUR OWN AVATAR
+                        </div>
+                        <h1
+                            className="vesper-display"
+                            style={{
+                                fontSize: 'clamp(22px, 2.4vw, 34px)',
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.05,
+                                marginTop: 4,
+                            }}
+                        >
+                            Make it <span style={{ color: 'var(--vesper-blue-bright)' }}>yours</span>
+                        </h1>
                     </div>
-                    <h1
-                        className="vesper-display"
+                </div>
+
+                {/* Live preview — always visible thanks to sticky
+                    wrapper. */}
+                <div className="flex items-center" style={{ gap: 'clamp(18px, 2.4vw, 32px)' }}>
+                    <div
+                        data-testid="build-avatar-preview"
+                        className="shrink-0"
                         style={{
-                            fontSize: 'clamp(28px, 3vw, 44px)',
-                            letterSpacing: '-0.02em',
-                            lineHeight: 1.05,
-                            marginTop: 4,
+                            width: 140,
+                            height: 140,
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            background: `#${opts.backgroundColor}`,
+                            border: '3px solid var(--vesper-blue-bright)',
+                            boxShadow:
+                                '0 0 0 6px rgba(var(--vesper-blue-rgb),0.18), 0 20px 40px -16px rgba(var(--vesper-blue-rgb),0.6)',
                         }}
                     >
-                        Make it <span style={{ color: 'var(--vesper-blue-bright)' }}>yours</span>
-                    </h1>
+                        <img
+                            src={previewUrl}
+                            alt="preview"
+                            loading="eager"
+                            decoding="async"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                    </div>
+                    <div
+                        style={{
+                            flex: 1,
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 13,
+                            maxWidth: '70ch',
+                            lineHeight: 1.45,
+                        }}
+                    >
+                        Use the <strong style={{ color: 'var(--vesper-blue-bright)' }}>D-pad</strong> to walk the option chips below — hair, eyes, mouth, glasses, the works.  Each tap updates the preview instantly.  Hit
+                        <strong style={{ color: 'var(--vesper-blue-bright)' }}> Save</strong> when you&apos;re happy.
+                    </div>
                 </div>
             </div>
 
-            {/* Live preview */}
-            <div className="flex items-center" style={{ gap: 'clamp(24px, 3vw, 40px)', marginBottom: 24 }}>
-                <div
-                    data-testid="build-avatar-preview"
-                    className="shrink-0"
-                    style={{
-                        width: 220,
-                        height: 220,
-                        borderRadius: '50%',
-                        overflow: 'hidden',
-                        background: `#${opts.backgroundColor}`,
-                        border: '3px solid var(--vesper-blue-bright)',
-                        boxShadow: `0 0 0 6px rgba(var(--vesper-blue-rgb),0.18), 0 30px 60px -20px rgba(var(--vesper-blue-rgb),0.6)`,
-                    }}
-                >
-                    <img
-                        src={previewUrl}
-                        alt="preview"
-                        loading="eager"
-                        decoding="async"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+            {/* Scrollable chip area */}
+            <div
+                style={{
+                    padding: 'clamp(20px, 2vw, 32px) clamp(28px, 3vw, 48px) clamp(28px, 3vw, 48px)',
+                }}
+            >
+                <div className="flex flex-col" style={{ gap: 14, marginBottom: 28 }}>
+                    <ChipRow label="Hair" group="top" value={opts.top} onSet={set('top')} />
+                    <ChipRow label="Hair color" group="hairColor" value={opts.hairColor} onSet={set('hairColor')} swatches />
+                    <ChipRow label="Skin" group="skinColor" value={opts.skinColor} onSet={set('skinColor')} swatches />
+                    <ChipRow label="Eyes" group="eyes" value={opts.eyes} onSet={set('eyes')} />
+                    <ChipRow label="Eyebrows" group="eyebrows" value={opts.eyebrows} onSet={set('eyebrows')} />
+                    <ChipRow label="Mouth" group="mouth" value={opts.mouth} onSet={set('mouth')} />
+                    <ChipRow label="Facial hair" group="facialHair" value={opts.facialHair} onSet={set('facialHair')} />
+                    <ChipRow label="Glasses" group="accessories" value={opts.accessories} onSet={set('accessories')} />
+                    <ChipRow label="Background" group="backgroundColor" value={opts.backgroundColor} onSet={set('backgroundColor')} swatches />
                 </div>
-                <div style={{ flex: 1, color: 'var(--vesper-text-2)', fontSize: 14, maxWidth: '60ch' }}>
-                    Tap any option below to instantly remix your avatar — hair,
-                    eyes, mouth, glasses, the works.  When you&apos;re happy, hit
-                    <strong style={{ color: 'var(--vesper-blue-bright)' }}> Save</strong> and we&apos;ll add it
-                    to your custom row.
+
+                <div data-builder-row="true" className="flex" style={{ gap: 12 }}>
+                    <button
+                        data-testid="build-avatar-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 28px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            scrollMarginTop: 220,
+                            scrollMarginBottom: 60,
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        data-testid="build-avatar-save"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => {
+                            const record = saveCustomAvatar(opts);
+                            onSave(record);
+                        }}
+                        className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 30px',
+                            fontSize: 15,
+                            background: 'var(--vesper-blue)',
+                            color: 'var(--vesper-bg-0)',
+                            border: 'none',
+                            boxShadow: '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                            scrollMarginTop: 220,
+                            scrollMarginBottom: 60,
+                        }}
+                    >
+                        Save & use this avatar
+                        <ArrowRight size={16} strokeWidth={2.5} />
+                    </button>
                 </div>
-            </div>
-
-            {/* Option chip groups */}
-            <div className="flex flex-col" style={{ gap: 14, marginBottom: 28 }}>
-                <ChipRow label="Hair" group="top" value={opts.top} onSet={set('top')} />
-                <ChipRow label="Hair color" group="hairColor" value={opts.hairColor} onSet={set('hairColor')} swatches />
-                <ChipRow label="Skin" group="skinColor" value={opts.skinColor} onSet={set('skinColor')} swatches />
-                <ChipRow label="Eyes" group="eyes" value={opts.eyes} onSet={set('eyes')} />
-                <ChipRow label="Eyebrows" group="eyebrows" value={opts.eyebrows} onSet={set('eyebrows')} />
-                <ChipRow label="Mouth" group="mouth" value={opts.mouth} onSet={set('mouth')} />
-                <ChipRow label="Facial hair" group="facialHair" value={opts.facialHair} onSet={set('facialHair')} />
-                <ChipRow label="Glasses" group="accessories" value={opts.accessories} onSet={set('accessories')} />
-                <ChipRow label="Background" group="backgroundColor" value={opts.backgroundColor} onSet={set('backgroundColor')} swatches />
-            </div>
-
-            <div className="flex" style={{ gap: 12 }}>
-                <button
-                    data-testid="build-avatar-cancel"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={onCancel}
-                    className="rounded-full font-sans font-semibold"
-                    style={{
-                        height: 50,
-                        padding: '0 28px',
-                        fontSize: 15,
-                        background: 'rgba(255,255,255,0.08)',
-                        color: 'var(--vesper-text)',
-                        border: '1px solid rgba(255,255,255,0.14)',
-                    }}
-                >
-                    Cancel
-                </button>
-                <button
-                    data-testid="build-avatar-save"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={() => {
-                        const record = saveCustomAvatar(opts);
-                        onSave(record);
-                    }}
-                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
-                    style={{
-                        height: 50,
-                        padding: '0 30px',
-                        fontSize: 15,
-                        background: 'var(--vesper-blue)',
-                        color: 'var(--vesper-bg-0)',
-                        border: 'none',
-                        boxShadow: '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
-                    }}
-                >
-                    Save & use this avatar
-                    <ArrowRight size={16} strokeWidth={2.5} />
-                </button>
             </div>
         </div>
     );
@@ -1930,7 +2080,7 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
 function ChipRow({ label, group, value, onSet, swatches }) {
     const options = AVATAR_BUILDER_OPTIONS[group] || [];
     return (
-        <div>
+        <div data-builder-row="true">
             <div
                 className="vesper-mono"
                 style={{
@@ -1985,6 +2135,16 @@ function ChipRow({ label, group, value, onSet, swatches }) {
                                     : '1px solid rgba(255,255,255,0.12)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
+                                // Sticky preview is ~220 px tall.
+                                // Scroll-margin-top pushes chips
+                                // safely below it; scroll-margin
+                                // sides keep horizontally-focused
+                                // chips a comfortable distance
+                                // from the row edges.
+                                scrollMarginTop: 240,
+                                scrollMarginBottom: 60,
+                                scrollMarginLeft: 200,
+                                scrollMarginRight: 60,
                             }}
                         >
                             {swatches ? '' : opt}
