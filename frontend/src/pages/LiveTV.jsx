@@ -11,6 +11,7 @@ import {
     getCategories,
     getStreams,
     getStreamUrl,
+    getNowNext,
 } from '@/lib/xtream';
 import Host from '@/lib/host';
 
@@ -193,6 +194,45 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         [cats, activeCat],
     );
 
+    // -------------------------------------------------------------------
+    //  EPG (Now/Next) — fetched only for the *focused* channel.  Cached
+    //  in-memory for 5 min so D-pad up/down on the same channel doesn't
+    //  re-hit the IPTV server.  Debounced 250 ms so fast scrubbing
+    //  through 100 channels only fires one request at the end.
+    // -------------------------------------------------------------------
+    const [nowNext, setNowNext] = useState(null); // { now, next } | null
+    const epgCache = useRef(new Map()); // stream_id -> { at, items }
+    const epgReqId = useRef(0);
+
+    useEffect(() => {
+        const ch = focusedChannel;
+        if (!ch) { setNowNext(null); return undefined; }
+        const sid = ch.stream_id;
+
+        // Cache hit (≤ 5 min) — show immediately, skip fetch.
+        const cached = epgCache.current.get(sid);
+        if (cached && Date.now() - cached.at < 5 * 60_000) {
+            setNowNext({ now: cached.items[0] || null, next: cached.items[1] || null });
+            return undefined;
+        }
+
+        // Otherwise blank current EPG while we wait, debounce 250 ms.
+        setNowNext(null);
+        const myReq = ++epgReqId.current;
+        const t = setTimeout(async () => {
+            try {
+                const items = await getNowNext(provider, sid);
+                if (epgReqId.current !== myReq) return; // stale (user moved on)
+                epgCache.current.set(sid, { at: Date.now(), items });
+                setNowNext({ now: items[0] || null, next: items[1] || null });
+            } catch {
+                if (epgReqId.current !== myReq) return;
+                setNowNext(null);
+            }
+        }, 250);
+        return () => clearTimeout(t);
+    }, [focusedChannel, provider]);
+
     if (!booted) {
         return <LiveTVBoot stages={stages} />;
     }
@@ -202,6 +242,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             <LiveHeroLean
                 channel={focusedChannel}
                 categoryName={activeCategoryName}
+                nowNext={nowNext}
                 onPlay={() => playChannel(focusedChannel)}
                 onExit={onChangeProvider}
             />
@@ -230,11 +271,15 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 /* ============================ Hero (lean) ============================ */
 
-function LiveHeroLean({ channel, categoryName, onPlay, onExit }) {
+function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
     const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
     if (categoryName) eyebrowParts.push(categoryName.toUpperCase());
+
+    const now = nowNext?.now || null;
+    const next = nowNext?.next || null;
+    const progressPct = computeProgress(now);
 
     return (
         <section data-testid="live-tv-hero" style={{
@@ -302,6 +347,60 @@ function LiveHeroLean({ channel, categoryName, onPlay, onExit }) {
                     }}>
                         {channel?.name || 'Live TV'}
                     </h1>
+
+                    {/* EPG block — only when we have a "now" entry */}
+                    {now && (
+                        <div data-testid="live-tv-hero-epg" style={{ marginTop: 4 }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'baseline',
+                                gap: 10, color: '#fff',
+                                whiteSpace: 'nowrap', overflow: 'hidden',
+                            }}>
+                                <span className="vesper-mono" style={{
+                                    fontSize: 10, letterSpacing: '0.28em',
+                                    color: 'var(--vesper-blue-bright)', flexShrink: 0,
+                                }}>
+                                    NOW
+                                </span>
+                                <span style={{
+                                    fontSize: 15, fontWeight: 600, color: 'var(--vesper-text)',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+                                }}>
+                                    {now.title || 'Untitled programme'}
+                                </span>
+                                <span className="vesper-mono" style={{
+                                    fontSize: 11, color: 'var(--vesper-text-3)', flexShrink: 0,
+                                }}>
+                                    {formatEpgWindow(now)}
+                                </span>
+                            </div>
+                            {/* Static progress bar — no animation, no transition */}
+                            <div style={{
+                                marginTop: 6,
+                                width: '100%', maxWidth: 480,
+                                height: 3, background: 'rgba(255,255,255,0.10)',
+                                borderRadius: 2, overflow: 'hidden',
+                            }}>
+                                <div style={{
+                                    width: `${progressPct}%`,
+                                    height: '100%',
+                                    background: 'var(--vesper-blue-bright)',
+                                }} />
+                            </div>
+                            {next && (
+                                <div className="vesper-mono" style={{
+                                    marginTop: 6, fontSize: 11,
+                                    color: 'var(--vesper-text-3)',
+                                    letterSpacing: '0.05em',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                    maxWidth: 480,
+                                }}>
+                                    NEXT · {formatTime(next.startTimestamp)} · {next.title || 'Untitled'}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <button
                         data-testid="live-tv-hero-play"
                         data-focusable="true"
@@ -561,4 +660,37 @@ function proxiedLogo(url, width = 36) {
     const base = process.env.REACT_APP_BACKEND_URL;
     if (!base) return url;
     return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=50`;
+}
+
+/** Returns "HH:MM–HH:MM" for an EPG entry's start/stop timestamps. */
+function formatEpgWindow(item) {
+    if (!item) return '';
+    const a = formatTime(item.startTimestamp);
+    const b = formatTime(item.stopTimestamp);
+    if (!a && !b) return '';
+    if (!a) return b;
+    if (!b) return a;
+    return `${a}–${b}`;
+}
+
+/** Returns "HH:MM" (24 h) for a unix-seconds timestamp. */
+function formatTime(ts) {
+    const n = Number(ts);
+    if (!n || !Number.isFinite(n)) return '';
+    const d = new Date(n * 1000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+}
+
+/** Returns 0–100 — how far through the current EPG window we are. */
+function computeProgress(item) {
+    if (!item) return 0;
+    const start = Number(item.startTimestamp) || 0;
+    const stop = Number(item.stopTimestamp) || 0;
+    if (stop <= start) return 0;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec <= start) return 0;
+    if (nowSec >= stop) return 100;
+    return Math.round(((nowSec - start) / (stop - start)) * 100);
 }
