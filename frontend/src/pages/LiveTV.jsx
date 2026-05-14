@@ -478,9 +478,9 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 onExit={onChangeProvider}
             />
             <div className="grid" style={{
-                gridTemplateColumns: 'minmax(200px, 240px) minmax(0, 1fr) minmax(280px, 360px)',
-                gap: 16,
-                padding: '14px 32px 0 32px',
+                gridTemplateColumns: 'minmax(180px, 210px) minmax(0, 1fr) minmax(280px, 340px)',
+                gap: 14,
+                padding: '14px 24px 0 16px',
                 alignItems: 'start',
             }}>
                 <CategoriesCol
@@ -541,16 +541,18 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
 
     return (
         <section data-testid="live-tv-hero" style={{
-            padding: '32px 40px 18px 40px',
+            padding: '32px 24px 18px 16px',
             background: 'transparent',
             minHeight: 200,
             position: 'relative',
             overflow: 'hidden',
         }}>
             {/* TMDB programme backdrop — only renders when we found a
-                hit for the current "NOW" programme.  Heavy left-side
-                fade so the hero text reads cleanly.  No CSS blur,
-                we lean on a low opacity + gradient mask. */}
+                hit for the current "NOW" programme.  Uses a single
+                linear-gradient mask (Chrome-52 safe).  No
+                mask-composite (unsupported on older Chrome) and no
+                filter:blur (kills the HK1 GPU).  Sits behind both
+                the channel-logo backdrop and the content. */}
             {tmdbBackdrop && (
                 <div
                     aria-hidden="true"
@@ -560,26 +562,18 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
                         inset: 0,
                         pointerEvents: 'none',
                         zIndex: 0,
-                        backgroundImage: `url(${tmdbBackdrop})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center right',
-                        opacity: 0.32,
-                        // Horizontal + vertical gradient mask so the
-                        // backdrop fades into the page without a
-                        // visible edge.  No filter:blur (kills the
-                        // HK1 GPU); the mask is enough.
-                        maskImage: 'linear-gradient(90deg, transparent 0%, #000 60%, #000 100%), linear-gradient(180deg, #000 0%, #000 60%, transparent 100%)',
-                        maskComposite: 'intersect',
-                        WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 60%, #000 100%), linear-gradient(180deg, #000 0%, #000 60%, transparent 100%)',
-                        WebkitMaskComposite: 'source-in',
+                        backgroundImage: `linear-gradient(90deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.0) 75%), url(${tmdbBackdrop})`,
+                        backgroundSize: 'auto, cover',
+                        backgroundPosition: 'center, center right',
+                        backgroundRepeat: 'no-repeat, no-repeat',
+                        opacity: 0.55,
                     }}
                 />
             )}
 
-            {/* Giant dim channel-logo backdrop.  No CSS blur (kills
-                Chrome 52 GPU) — we lean on heavy opacity + a fade
-                gradient mask instead.  One <img>, ~600 px wide,
-                routed through the image proxy so it's <2 KB. */}
+            {/* Giant dim channel-logo backdrop.  Uses webkit-mask
+                (Chrome 52 / Android WebView native).  One <img>, ~600
+                px wide, routed through the image proxy so it's <2 KB. */}
             {backdropSrc && (
                 <div
                     aria-hidden="true"
@@ -589,10 +583,8 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
                         width: 720, height: 480,
                         pointerEvents: 'none',
                         zIndex: 0,
-                        // Vertical fade so the logo doesn't bleed into the
-                        // categories grid below.
-                        maskImage: 'linear-gradient(180deg, #000 0%, #000 45%, transparent 95%)',
-                        WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 45%, transparent 95%)',
+                        WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 50%, transparent 95%)',
+                        maskImage: 'linear-gradient(180deg, #000 0%, #000 50%, transparent 95%)',
                     }}
                 >
                     <img
@@ -604,10 +596,6 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
                             width: '100%', height: '100%',
                             objectFit: 'contain',
                             opacity: 0.06,
-                            // Subtle desaturate for a "muted poster" feel.
-                            // Filter: grayscale is cheap (no per-pixel
-                            // blur).  Skip entirely if it ever stutters.
-                            filter: 'grayscale(0.4)',
                         }}
                     />
                 </div>
@@ -1379,6 +1367,11 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
                         const isPast = stop > 0 && stop <= nowSec;
                         const remId = channel ? `${channel.stream_id}:${start}` : '';
                         const isReminded = !isLive && !isPast && reminderKeys?.has(remId);
+                        // Every guide row is focusable so D-pad right
+                        // from the channels column always lands here.
+                        // Past + Live rows just no-op on Enter; future
+                        // rows toggle a reminder.
+                        const canRemind = !!channel && !isLive && !isPast;
                         return (
                             <GuideRow
                                 key={`${start}-${idx}`}
@@ -1386,8 +1379,8 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
                                 isLive={isLive}
                                 isPast={isPast}
                                 isReminded={isReminded}
-                                disabled={!channel || isPast || isLive}
-                                onToggleReminder={() => onToggleReminder && onToggleReminder(it)}
+                                canRemind={canRemind}
+                                onToggleReminder={() => canRemind && onToggleReminder && onToggleReminder(it)}
                             />
                         );
                     })}
@@ -1397,7 +1390,7 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
     );
 }
 
-function GuideRow({ item, isLive, isPast, isReminded, disabled, onToggleReminder }) {
+function GuideRow({ item, isLive, isPast, isReminded, canRemind, onToggleReminder }) {
     const accent = isLive
         ? 'var(--vesper-blue-bright)'
         : isReminded
@@ -1408,11 +1401,10 @@ function GuideRow({ item, isLive, isPast, isReminded, disabled, onToggleReminder
         <li>
             <button
                 data-testid={`live-guide-row-${item.startTimestamp || ''}`}
-                data-focusable={disabled ? undefined : 'true'}
+                data-focusable="true"
                 data-focus-style="quiet"
-                tabIndex={disabled ? -1 : 0}
-                onClick={disabled ? undefined : onToggleReminder}
-                disabled={disabled}
+                tabIndex={0}
+                onClick={canRemind ? onToggleReminder : undefined}
                 className="text-left w-full"
                 style={{
                     display: 'block',
@@ -1427,7 +1419,7 @@ function GuideRow({ item, isLive, isPast, isReminded, disabled, onToggleReminder
                     borderTop: 'none', borderRight: 'none', borderBottom: 'none',
                     color: isPast ? 'var(--vesper-text-3)' : 'var(--vesper-text)',
                     opacity: isPast ? 0.55 : 1,
-                    cursor: disabled ? 'default' : 'pointer',
+                    cursor: canRemind ? 'pointer' : 'default',
                 }}
             >
                 <div style={{
