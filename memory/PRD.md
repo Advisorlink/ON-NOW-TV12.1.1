@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iterations 49 + 50 — Feb 14, 2026)
+### Home rail locked to 4 shelves · Fun Faces removed · DiceBear shrunk to 160 · SideNav D-pad fix
+- **🏠 Home page rail locked to exactly 4 addon shelves** (`pages/Home.jsx`). Below Continue Watching / For You / Networks, the Home page now renders only: **Popular movies · Popular series · New movies · New series** (Cinemeta `-movie-top` / `-series-top` / `-movie-year` / `-series-year`). Every other addon-driven shelf (Trending / Anime / Channels / etc.) is filtered out for faster HK1 render. Filter views (Movies / TV tabs) remain unaffected. Iter 12 verified 6/6 PASS.
+- **🗑️ Removed the 'Fun Faces' DiceBear row** (`lib/avatars.jsx`). DICEBEAR_CATS now has 3 entries: Cartoon · Adventurer · Pixel Art. Total picker: 142 tiles (was 154). 12 fewer DiceBear PNGs to fetch.
+- **📐 DiceBear PNG size 256 → 160** (`lib/avatars.jsx`). Picker tiles render at 120 px so 160 retains retina headroom while shaving ~30% off each PNG payload (10.9 KB → 7.6 KB). Combined with row removal, step 2 fetches ~48% less data (~273 KB vs ~524 KB).
+- **🔧 SideNav D-pad bug fix** (`pages/Home.jsx`). The Home row-walker now BAILS when `document.activeElement` is inside `[data-testid="side-nav"]`. Previously pressing Down/Up while the menu was open would close it AND jump to the next home shelf in one keystroke. Now menu items walk independently; the row-walker resumes once focus leaves the menu.
+- **🧪 Testing** (iteration_12.json, iteration_13.json) — 6/6 + 8/8 PASS at 100%.
+
+
 ## Implemented (Iteration 48 — Feb 14, 2026)
 ### Avatar pre-cache · For-You rail "Similar to what you love" · Home D-pad line-by-line
 - **⚡ DiceBear avatars preloaded on app boot** (`App.js` module-load + `NameStep` useEffect). All 48 character-portrait PNGs are warmed in the browser HTTP cache before the user reaches step 2. Testing confirmed `naturalWidth=256` within 0.1 ms of step-2 mount — effectively instant render, no loading flash.
