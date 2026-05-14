@@ -87,8 +87,7 @@ export default function LiveTVBoot({ stages, message }) {
                     style={{
                         width: `${pct}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, var(--vesper-blue), var(--vesper-blue-bright))',
-                        transition: 'width 240ms ease',
+                        background: 'var(--vesper-blue-bright)',
                     }}
                 />
             </div>

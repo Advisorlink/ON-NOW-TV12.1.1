@@ -34,6 +34,25 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 66 — Feb 14, 2026)
+### Live TV — HK1 Chrome 52 perf rebuild
+- **🔬 Critical bug found**: HK1 box runs **Chrome 52** which does **NOT support `content-visibility: auto`** (that property is Chrome 85+). So the "perf optimization" from iter 64 was a no-op on the actual target hardware — we were rendering ALL 1000+ channel rows in the DOM every paint cycle. THAT was why the box felt slow.
+- **🪟 Real windowed virtualization** (`pages/LiveTV.jsx` → `ChannelsCol`):
+  - Start with first 60 channel rows rendered (`visibleCount = 60`).
+  - Sentinel `<li>` at the bottom of the list, observed via `IntersectionObserver` (supported on Chrome 51+, works on HK1).
+  - As user scrolls, sentinel enters viewport → `visibleCount += 60`.
+  - DOM stays small even with 1500-channel providers. Worst case: ~60 button DOMs on screen.
+  - `contain: strict` on the scroll container (Chrome 52 supports this — replaces `contain: paint`).
+- **📦 Boot-time full cache** (TV-Mate-style "load longer up front, instant zapping forever after"):
+  - **New stage 4**: "Caching every category in the background" — fetches `getStreams(provider, 'live', category_id)` for ALL remaining categories in parallel batches of 4, stuffs into `channelsCache`.
+  - Progress text "N / M" so the user knows how long it'll take.
+  - When the boot screen finishes, every category-switch is a synchronous Map lookup — zero network, zero spinner.
+- **📉 Lower image quality**: logos dropped from `w=64 q=70` → `w=48 q=55` (~40% smaller WebP). Hero backdrop dropped from TMDB `w780` → `w300` (5× smaller decode for the same display size since the gradients hide quality loss).
+- **🚀 Per-row progress bars removed**: was a paint hog (60-1000 separate animated `<div>`s ticking every second). Now only the **focused** row shows a NOW progress bar.
+- **▭ Static boot progress bar**: removed the `transition: width 240ms ease` and the gradient fill. The bar now jumps to its new width instantly with a flat solid colour (`--vesper-blue-bright`). User explicitly asked: "no animated progress bars, just have flat static progress bars."
+- **🧮 Memo'd progress calculation**: `useMemo` for the focused-row progress so unfocused rows skip the math entirely (was computing for every row on every re-render, even though it was thrown away).
+
+
 ## Implemented (Iteration 65 — Feb 14, 2026)
 ### Live TV — perf hardening for the HK1 + cinematic hero
 - **🐛 User reported**: "Works perfectly on the computer, but it's not working good on the actual device itself. Get rid of the logo in the top-right corner of the hero. Show what's playing on the channel as a big hero image from TMDB. Shrink down all images."

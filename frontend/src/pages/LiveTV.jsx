@@ -115,6 +115,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         { id: 'auth', label: 'Authenticating with provider', status: 'pending' },
         { id: 'cats', label: 'Fetching channel categories', status: 'pending' },
         { id: 'warm', label: 'Pre-warming the EPG guide', status: 'pending' },
+        { id: 'cache', label: 'Caching every category in the background', status: 'pending' },
     ]);
 
     // EPG caches (key: stream_id)
@@ -219,6 +220,34 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             } catch (e) {
                 if (cancel) return;
                 setStage('warm', { status: 'failed', detail: e?.message || 'Could not warm cache.' });
+            }
+
+            // ---------- stage 4: cache EVERY remaining category in the background ----------
+            // The user explicitly asked to let the boot screen run
+            // for longer so subsequent category-switches are instant.
+            // We fetch the rest in parallel batches of 4 so we don't
+            // hammer the provider, and report progress as we go.
+            setStage('cache', { status: 'active', detail: `0 / ${list.length}` });
+            try {
+                const rest = list.slice(1);
+                const total = list.length;
+                let done = 1;
+                const BATCH = 4;
+                for (let i = 0; i < rest.length; i += BATCH) {
+                    if (cancel) return;
+                    const slice = rest.slice(i, i + BATCH);
+                    await Promise.all(slice.map(async (cat) => {
+                        try {
+                            const ch = await getStreams(provider, 'live', cat.category_id);
+                            channelsCache.current.set(cat.category_id, Array.isArray(ch) ? ch : []);
+                        } catch { /* ignore individual category fails */ }
+                        done += 1;
+                    }));
+                    if (!cancel) setStage('cache', { status: 'active', detail: `${done} / ${total}` });
+                }
+                if (!cancel) setStage('cache', { status: 'done', detail: `${total} / ${total} cached.` });
+            } catch (e) {
+                if (!cancel) setStage('cache', { status: 'failed', detail: 'Some categories failed to cache.' });
             }
 
             // Let the user see the "ready" state for a beat so it doesn't
@@ -438,7 +467,7 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                 const data = await r.json();
                 if (ctl.signal.aborted) return;
                 const url = data?.backdrop
-                    ? `https://image.tmdb.org/t/p/w780${data.backdrop}`
+                    ? `https://image.tmdb.org/t/p/w300${data.backdrop}`
                     : null;
                 backdropCache.current.set(title, url);
                 setBackdrop(url);
@@ -705,14 +734,49 @@ function CategoryRow({ testid, active, onClick, label, heart, count }) {
 /* ====================== Channels column ====================== */
 
 function ChannelsCol({ channels, loading, nowNextCache, focusedId, onFocus, onPlay }) {
+    // Windowed render — Chrome 52 (HK1) does NOT support
+    // `content-visibility: auto` so a 1000-row provider would
+    // render 1000 button DOMs on every paint, killing the box.
+    // We start with 60 rows and grow by 60 each time a sentinel
+    // <li> at the end intersects with the viewport (works on
+    // Chrome 52 — IntersectionObserver is supported from 51).
+    const STEP = 60;
+    const [visibleCount, setVisibleCount] = useState(STEP);
+    const sentinelRef = useRef(null);
+    const containerRef = useRef(null);
+
+    // Reset window when the channel list itself changes (new category).
+    useEffect(() => { setVisibleCount(STEP); }, [channels]);
+
+    useEffect(() => {
+        if (!sentinelRef.current || !containerRef.current) return undefined;
+        if (typeof IntersectionObserver === 'undefined') return undefined;
+        const obs = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting)) {
+                    setVisibleCount((v) => Math.min(v + STEP, channels.length));
+                }
+            },
+            { root: containerRef.current, rootMargin: '300px' },
+        );
+        obs.observe(sentinelRef.current);
+        return () => obs.disconnect();
+    }, [channels.length, visibleCount]);
+
+    const visible = useMemo(
+        () => channels.slice(0, visibleCount),
+        [channels, visibleCount],
+    );
+
     return (
-        <div data-testid="live-tv-channels" style={{
+        <div data-testid="live-tv-channels" ref={containerRef} style={{
             padding: '12px 6px',
             background: 'rgba(255,255,255,0.018)',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 16,
-            maxHeight: 'calc(100dvh - 290px)',
-            overflowY: 'auto', contain: 'paint',
+            maxHeight: 'calc(100dvh - 300px)',
+            overflowY: 'auto',
+            contain: 'strict',
         }}>
             {loading ? (
                 <div style={{ padding: '12px', color: 'var(--vesper-text-3)', fontSize: 13, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
@@ -724,7 +788,7 @@ function ChannelsCol({ channels, loading, nowNextCache, focusedId, onFocus, onPl
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                    {channels.map((c) => (
+                    {visible.map((c) => (
                         <ChannelRow
                             key={c.stream_id}
                             channel={c}
@@ -734,6 +798,18 @@ function ChannelsCol({ channels, loading, nowNextCache, focusedId, onFocus, onPl
                             onPlay={() => { onFocus(c); onPlay(c); }}
                         />
                     ))}
+                    {/* Sentinel — when this scrolls into view we
+                        grow the render window by STEP. */}
+                    {visibleCount < channels.length && (
+                        <li
+                            ref={sentinelRef}
+                            aria-hidden="true"
+                            style={{
+                                height: 1, margin: 0, padding: 0,
+                                pointerEvents: 'none',
+                            }}
+                        />
+                    )}
                 </ul>
             )}
         </div>
@@ -742,15 +818,19 @@ function ChannelsCol({ channels, loading, nowNextCache, focusedId, onFocus, onPl
 
 function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
     const now = epg?.now;
+    // Only compute the live progress for the FOCUSED row.  On the
+    // HK1 box, having every visible row tick a progress bar 1×/sec
+    // was a measurable paint hog — for unfocused rows we just show
+    // the "NOW · title" line.
     const progress = useMemo(() => {
-        if (!now?.startTimestamp || !now?.stopTimestamp) return 0;
+        if (!focused || !now?.startTimestamp || !now?.stopTimestamp) return 0;
         const s = Number(now.startTimestamp) * 1000;
         const e = Number(now.stopTimestamp) * 1000;
         const t = Date.now();
         if (t <= s) return 0;
         if (t >= e) return 100;
         return Math.round(((t - s) / (e - s)) * 100);
-    }, [now]);
+    }, [now, focused]);
     return (
         <li style={{ contentVisibility: 'auto', containIntrinsicSize: '0 86px' }}>
             <button
@@ -790,22 +870,22 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                     position: 'relative',
                 }}>
                     {channel.stream_icon && (
-                        <img
-                            src={proxiedLogo(channel.stream_icon, 64)}
-                            alt=""
-                            width={48}
-                            height={32}
-                            loading="lazy"
-                            decoding="async"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                            style={{
-                                position: 'absolute', inset: 0,
-                                width: '100%', height: '100%',
-                                objectFit: 'contain',
-                                imageRendering: 'auto',
-                            }}
-                        />
+                            <img
+                                src={proxiedLogo(channel.stream_icon, 48)}
+                                alt=""
+                                width={48}
+                                height={32}
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
+                                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                                style={{
+                                    position: 'absolute', inset: 0,
+                                    width: '100%', height: '100%',
+                                    objectFit: 'contain',
+                                    imageRendering: 'auto',
+                                }}
+                            />
                     )}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -833,12 +913,14 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                                     {now.title || '—'}
                                 </span>
                             </div>
-                            <div style={{
-                                width: '100%', height: 2, marginTop: 6,
-                                background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden',
-                            }}>
-                                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--vesper-blue-bright)' }} />
-                            </div>
+                            {focused && (
+                                <div style={{
+                                    width: '100%', height: 2, marginTop: 6,
+                                    background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden',
+                                }}>
+                                    <div style={{ width: `${progress}%`, height: '100%', background: 'var(--vesper-blue-bright)' }} />
+                                </div>
+                            )}
                         </>
                     ) : (
                         <div style={{ fontSize: 11, color: 'var(--vesper-text-3)', marginTop: 4 }}>—</div>
@@ -1033,11 +1115,11 @@ function GuideRow({ item, channel, providerId }) {
  * REACT_APP_BACKEND_URL is missing) so we never end up with
  * broken images.
  */
-function proxiedLogo(url, width = 64) {
+function proxiedLogo(url, width = 48) {
     if (!url) return '';
     const base = process.env.REACT_APP_BACKEND_URL;
     if (!base) return url;
-    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=70`;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=55`;
 }
 
 function formatTime(s) {
