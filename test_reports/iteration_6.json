@@ -1,0 +1,58 @@
+{
+  "summary": "Frontend-only verification of the new 4-step Profile Creation wizard (name → avatar → theme → PIN). All 8 review-requested scenarios PASS with zero console errors. Theme persists to scoped localStorage key `onnowtv-theme:<profileId>` on both PIN-yes and PIN-skip paths. Back-button walks the wizard chain correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "step1_name_eyebrow_and_typing": {
+      "result": "PASS",
+      "details": "[data-testid=profile-step-name] visible. Eyebrow text 'Step 1 of 4 · pick a name' renders inside the card (CSS uppercases it visually). Typed 'test' via tv-key-t/e/s/t — [data-testid=profile-name] reflects value. profile-name-next advances to avatar step."
+    },
+    "step2_avatar_step": {
+      "result": "PASS",
+      "details": "Header eyebrow 'NEW PROFILE · STEP 2 OF 4' visible. [data-testid=profile-step-avatar] rendered with 106 avatar tiles ([data-testid^=avatar-pick-]). Clicking first tile opens [data-testid=save-avatar-confirm]; clicking save-avatar-confirm-yes advances to theme."
+    },
+    "step3_theme_step_NEW": {
+      "result": "PASS",
+      "details": "[data-testid=profile-step-theme] visible. Header eyebrow 'NEW PROFILE · STEP 3 OF 4'. Grid contains 9 theme cards [data-testid^=profile-theme-] (vesper, magenta, sunset, amethyst, emerald, ember, gold, mint). Clicking [data-testid=profile-theme-magenta] activates the card (active checkmark indicator renders). profile-theme-next advances to AddPasswordPrompt."
+    },
+    "step4_add_password_prompt_yes_pin_save": {
+      "result": "PASS",
+      "details": "[data-testid=add-password-prompt] modal appears; add-password-prompt-yes opens [data-testid=enter-pin-modal]. Typed 1234 via tv-key-1..4 then enter-pin-save fired. Navigated to /profiles. Profile persisted in onnowtv-profiles-v1 with pin='1234' and theme written at key 'onnowtv-theme:<id>' = 'magenta'."
+    },
+    "step4_skip_pin_path": {
+      "result": "PASS",
+      "details": "Fresh wizard with name 'tester2', avatar a1, theme 'emerald'. add-password-prompt-no (Skip) persists profile (pin=''), writes 'onnowtv-theme:<newId>' = 'emerald', and navigates to /profiles."
+    },
+    "back_button_regression": {
+      "result": "PASS",
+      "details": "From theme step → profile-back returns to avatar step (profile-step-avatar visible). From avatar step → profile-back returns to name step (profile-step-name visible). From name step → profile-back navigates to /profiles. Matches spec exactly."
+    },
+    "console_errors_smoke": {
+      "result": "PASS",
+      "details": "Zero console.error / pageerror events captured across the full happy path, skip-PIN path, and back-button regression flows."
+    },
+    "theme_scoped_localstorage_verification": {
+      "result": "PASS",
+      "details": "Verified onnowtv-theme:<profileId> matches the chosen theme ID for both newly created profiles. ThemeProvider will pick this up on profile-change event."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProfileEdit.jsx is 1340+ lines — consider extracting NameStep, AvatarStep, ThemeStep, ConfirmModal, EnterPinModal, PinSavedToast, and ProfileThemeCard into separate files under /app/frontend/src/pages/profile-edit/ for maintainability (currently exceeds the 700-line guideline).",
+    "Theme persistence is duplicated in two places: persistAndExit() (skip-pin path, lines 66-83) and the EnterPinModal onSave handler (lines 260-274). Both write `onnowtv-theme:<id>`. Consider extracting a single helper `persistProfileAndTheme({pin})` to keep them in lock-step if the storage key ever changes.",
+    "Minor: ThemeStep grid uses initialFocus=true on the first theme card unconditionally — when editing an existing profile whose current theme is NOT vesper, the initial focus still lands on vesper. Consider giving initialFocus to the currently active theme instead.",
+    "Minor: localStorage.setItem is wrapped in try/catch (good), but failures are silently swallowed. If a profile saves but theme write fails (quota / Safari private mode), the user gets default vesper without warning. Non-blocking for normal Chromium TV browsers."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100%"},
+  "test_credentials": "No backend auth. Client-side profiles via localStorage keys 'onnowtv-profiles-v1', 'onnowtv-active-profile-v1', and per-profile 'onnowtv-theme:<id>'.",
+  "seed_data_creation": "Used page.add_init_script + page.evaluate to clear onnowtv-profiles-v1, onnowtv-active-profile-v1, and all onnowtv-theme:* keys before each scenario.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "/profiles/new is exempt from RequireProfile, so the wizard is reachable with no profile. THEMES exposed at /app/frontend/src/themes/themes.js: vesper(default), magenta, sunset, amethyst, emerald, ember, gold, mint. Theme scoped storage key is `onnowtv-theme:<profileId>`; ThemeProvider listens for the custom 'vesper:profile-change' event. The eyebrow 'Step 1 of 4 · pick a name' is rendered with CSS text-transform:uppercase, so DOM textContent will appear uppercase — use case-insensitive matching."
+}

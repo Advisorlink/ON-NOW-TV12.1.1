@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AvatarCircle } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
+import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
 
 /**
  * Profile create / edit page.
@@ -26,9 +27,21 @@ export default function ProfileEdit() {
     const [name, setName] = useState(existing?.name || '');
     const [avatarId, setAvatarId] = useState(existing?.avatarId || AVATARS[0].id);
     const [pin, setPin] = useState(existing?.pin || '');
-    // Wizard step.  New profiles always start at the name step;
-    // when editing an existing profile we jump straight to the
-    // avatar step because the name is already set.
+    // Chosen theme for this profile.  For an existing profile we
+    // read from the scoped storage written by ThemeProvider; for a
+    // brand-new profile we default to Vesper Neon.
+    const [chosenTheme, setChosenTheme] = useState(() => {
+        if (existing) {
+            try {
+                const v = localStorage.getItem(`onnowtv-theme:${existing.id}`);
+                if (v && THEMES.some((t) => t.id === v)) return v;
+            } catch { /* ignore */ }
+        }
+        return DEFAULT_THEME_ID;
+    });
+    // Wizard step.  New profiles run name → avatar → theme → pin;
+    // editing an existing profile lands on the avatar step (name
+    // already known) and a Back/Next still walks the full chain.
     const [step, setStep] = useState(existing ? 'avatar' : 'name');
     // Pending avatar pick — when the user clicks an avatar tile,
     // we DON'T immediately apply it.  Instead we pop a "Save this
@@ -36,7 +49,7 @@ export default function ProfileEdit() {
     // commits when scrolling the grid with a TV remote.
     const [pendingAvatar, setPendingAvatar] = useState(null);
     // "Would you like to add a password to this account?" Yes/Skip
-    // prompt that fires after the avatar is confirmed.
+    // prompt that fires after the theme is confirmed.
     const [pinPromptOpen, setPinPromptOpen] = useState(false);
     // When the user clicks "Yes, add a PIN" on the prompt, this
     // opens a dedicated 4-digit entry modal.  When they hit OK,
@@ -45,19 +58,27 @@ export default function ProfileEdit() {
     const [pinEntryOpen, setPinEntryOpen] = useState(false);
     const [pinSavedToast, setPinSavedToast] = useState(false);
 
+    /**
+     * Persist the profile + write the chosen theme into the
+     * per-profile scoped storage so ThemeProvider applies it the
+     * moment this profile becomes active.
+     */
     const persistAndExit = (pinOverride) => {
         const trimmed = name.trim() || 'Profile';
         const cleanPin = (
             pinOverride !== undefined ? pinOverride : pin || ''
         ).replace(/\D/g, '');
         if (cleanPin && cleanPin.length !== 4) return;
-        saveProfile({
+        const saved = saveProfile({
             id: existing?.id,
             name: trimmed,
             avatarId,
             pin: cleanPin,
             createdAt: existing?.createdAt,
         });
+        try {
+            localStorage.setItem(`onnowtv-theme:${saved.id}`, chosenTheme);
+        } catch { /* ignore */ }
         navigate('/profiles');
     };
 
@@ -96,9 +117,13 @@ export default function ProfileEdit() {
                     data-focus-style="quiet"
                     tabIndex={0}
                     onClick={() => {
-                        // Back inside the wizard: step from avatar
-                        // back to name, or out to /profiles.
-                        if (step === 'avatar' && !existing) {
+                        // Back inside the wizard: walk one step
+                        // back through name → avatar → theme; from
+                        // the name step (or when editing) exit to
+                        // the profile picker.
+                        if (step === 'theme') {
+                            setStep('avatar');
+                        } else if (step === 'avatar' && !existing) {
                             setStep('name');
                         } else {
                             navigate('/profiles');
@@ -127,7 +152,9 @@ export default function ProfileEdit() {
                         >
                             {existing
                                 ? 'EDIT PROFILE'
-                                : 'NEW PROFILE · STEP 2 OF 2'}
+                                : step === 'theme'
+                                ? 'NEW PROFILE · STEP 3 OF 4'
+                                : 'NEW PROFILE · STEP 2 OF 4'}
                         </div>
                         <h1
                             className="vesper-display"
@@ -152,6 +179,18 @@ export default function ProfileEdit() {
                                 we save it.
                             </div>
                         )}
+                        {step === 'theme' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Pick a colour that suits your room — you can
+                                change it any time from Settings.
+                            </div>
+                        )}
                     </div>
                 )}
             </header>
@@ -162,6 +201,12 @@ export default function ProfileEdit() {
                     setName={setName}
                     onNext={onNameNext}
                     avatarId={avatarId}
+                />
+            ) : step === 'theme' ? (
+                <ThemeStep
+                    chosenTheme={chosenTheme}
+                    onPick={setChosenTheme}
+                    onNext={() => setPinPromptOpen(true)}
                 />
             ) : (
                 <AvatarStep
@@ -178,10 +223,11 @@ export default function ProfileEdit() {
                         const picked = pendingAvatar;
                         setAvatarId(picked);
                         setPendingAvatar(null);
-                        // After the avatar is confirmed, immediately
-                        // pop the PIN prompt — that's the next step
-                        // of the walkthrough.
-                        setTimeout(() => setPinPromptOpen(true), 60);
+                        // After the avatar is confirmed, walk to
+                        // the theme step (the next step in the
+                        // wizard) instead of jumping straight to
+                        // the PIN prompt.
+                        setTimeout(() => setStep('theme'), 60);
                     }}
                     onNo={() => setPendingAvatar(null)}
                 />
@@ -213,13 +259,19 @@ export default function ProfileEdit() {
                     }}
                     onSave={(newPin) => {
                         const trimmed = name.trim() || 'Profile';
-                        saveProfile({
+                        const saved = saveProfile({
                             id: existing?.id,
                             name: trimmed,
                             avatarId,
                             pin: newPin,
                             createdAt: existing?.createdAt,
                         });
+                        try {
+                            localStorage.setItem(
+                                `onnowtv-theme:${saved.id}`,
+                                chosenTheme
+                            );
+                        } catch { /* ignore */ }
                         setPin(newPin);
                         setPinEntryOpen(false);
                         setPinSavedToast(true);
@@ -286,7 +338,7 @@ function NameStep({ name, setName, onNext, avatarId }) {
                         textTransform: 'uppercase',
                     }}
                 >
-                    Step 1 of 2 · pick a name
+                    Step 1 of 4 · pick a name
                 </div>
 
                 <h2
@@ -426,6 +478,180 @@ function NameStep({ name, setName, onNext, avatarId }) {
                 </button>
             </div>
         </div>
+    );
+}
+
+function ThemeStep({ chosenTheme, onPick, onNext }) {
+    return (
+        <div
+            data-testid="profile-step-theme"
+            className="flex flex-col"
+            style={{ width: '100%', maxWidth: 1180 }}
+        >
+            <h2
+                className="vesper-mono"
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 16,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                }}
+            >
+                <Palette size={14} strokeWidth={1.8} />
+                PICK A COLOUR · {THEMES.length} THEMES
+            </h2>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                        'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 'clamp(12px, 1.1vw, 18px)',
+                    marginBottom: 28,
+                }}
+            >
+                {THEMES.map((t, i) => (
+                    <ProfileThemeCard
+                        key={t.id}
+                        theme={t}
+                        active={chosenTheme === t.id}
+                        initialFocus={i === 0}
+                        onPick={() => onPick(t.id)}
+                    />
+                ))}
+            </div>
+
+            <button
+                data-testid="profile-theme-next"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onNext}
+                className="self-start flex items-center gap-2 rounded-full font-sans font-semibold"
+                style={{
+                    height: 50,
+                    padding: '0 30px',
+                    fontSize: 15,
+                    background: 'var(--vesper-blue)',
+                    color: 'var(--vesper-bg-0)',
+                    border: 'none',
+                    boxShadow:
+                        '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                }}
+            >
+                Next: profile PIN
+                <ArrowRight size={16} strokeWidth={2.5} />
+            </button>
+        </div>
+    );
+}
+
+function ProfileThemeCard({ theme, active, initialFocus, onPick }) {
+    const p = theme.preview;
+    return (
+        <button
+            data-testid={`profile-theme-${theme.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
+            tabIndex={0}
+            onClick={onPick}
+            className="relative text-left overflow-hidden"
+            style={{
+                aspectRatio: '5 / 4',
+                background: p.background,
+                borderRadius: 14,
+                border: active
+                    ? `2px solid ${p.accent}`
+                    : '1px solid rgba(255,255,255,0.08)',
+                padding: 'clamp(12px, 1.1vw, 18px)',
+                color: '#fff',
+                boxShadow: active
+                    ? `0 0 0 3px ${p.accent}33, 0 18px 36px rgba(0,0,0,0.4)`
+                    : '0 12px 24px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+            }}
+        >
+            <div>
+                <div
+                    style={{
+                        fontFamily:
+                            'var(--theme-font-mono, "JetBrains Mono", monospace)',
+                        fontSize: 9,
+                        letterSpacing: '0.28em',
+                        textTransform: 'uppercase',
+                        color: p.accent,
+                        marginBottom: 5,
+                    }}
+                >
+                    Theme · {theme.layout}
+                </div>
+                <div
+                    style={{
+                        fontFamily: `"${p.wordmark.font}", serif`,
+                        fontSize: 'clamp(18px, 1.6vw, 26px)',
+                        fontWeight: p.wordmark.weight,
+                        color: p.wordmark.color,
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1,
+                    }}
+                >
+                    {theme.name}
+                </div>
+            </div>
+
+            <div
+                style={{
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    color: 'rgba(255,255,255,0.78)',
+                    maxWidth: '28ch',
+                }}
+            >
+                {theme.tagline}
+            </div>
+
+            {/* Faux UI swatches */}
+            <div className="flex items-end gap-1.5 mt-2">
+                {[1, 2, 3, 4].map((i) => (
+                    <div
+                        key={i}
+                        style={{
+                            flex: 1,
+                            height: 22 + i * 4,
+                            background:
+                                i === 1 ? p.accent : 'rgba(255,255,255,0.12)',
+                            borderRadius: 6,
+                        }}
+                    />
+                ))}
+            </div>
+
+            {active && (
+                <div
+                    className="absolute"
+                    style={{
+                        top: 10,
+                        right: 10,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: p.accent,
+                        color: '#fff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Check size={12} strokeWidth={3} />
+                </div>
+            )}
+        </button>
     );
 }
 
