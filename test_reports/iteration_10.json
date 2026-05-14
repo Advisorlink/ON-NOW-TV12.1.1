@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 10 — Avatar library reverted to 106 emoji baseline + 4 DiceBear bonus categories (cartoon/adventurer/pixel/fun) verified end-to-end. All 9 review requirements PASS. /app/frontend/src/lib/avatars.jsx exports AVATARS (155 = 154 picker + 1 hidden kids-default), AVATAR_CATEGORIES (16), getAvatar(id), AvatarCircle({avatarId,size,ring}) — auto-detects emoji (a.e) vs image (a.src). The 11 Netflix-only DiceBear categories from iter-9 (anime, realistic, peeps, micah, smile, bottts, notion) are correctly REMOVED. Picker now lists exactly 12 emoji rows + 4 DiceBear rows = 16, totaling 154 tiles (106 emoji + 48 DiceBear). Wizard happy path (cartoon-1) round-trips to /profiles rendering the avataaars portrait. Legacy profile injected with avatarId='a1' renders the lion emoji glyph correctly on /profiles — full backward compatibility confirmed. 0 console errors, 0 page errors throughout.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tests_executed": {
+    "avatars_jsx_static_shape": "PASS — EMOJI_AVATARS=106 (a1..a100 + m1..m6); DICEBEAR_AVATARS=48 (4 cats × 12 seeds); AVATARS flat length=155 with hidden kids-default; AVATAR_CATEGORIES length=16.",
+    "category_ids_exact_match": "PASS — order [animals, wild, fantasy, sports, music, faces, symbols, food, nature, vehicles, hobbies, magic, cartoon, adventurer, pixel, fun] confirmed by DOM testids and source.",
+    "emoji_record_a1_lion": "PASS — AVATARS.find(id='a1').e='🦁' (no src field); rendered span text='🦁', has_img=False on picker.",
+    "emoji_record_m1_tophat": "PASS — AVATARS.find(id='m1').e='🎩' (no src field); rendered span text='🎩', has_img=False on picker.",
+    "dicebear_cartoon_1_avataaars": "PASS — cartoon-1 img src='https://api.dicebear.com/9.x/avataaars/png?seed=Liam&size=256&radius=50&backgroundType=gradientLinear'.",
+    "dicebear_adventurer_1": "PASS — adventurer-1 img src='https://api.dicebear.com/9.x/adventurer/png?seed=Arthur&...'.",
+    "dicebear_pixel_1_pixelart": "PASS — pixel-1 img src='https://api.dicebear.com/9.x/pixel-art/png?seed=Mario&...'.",
+    "dicebear_fun_1_funemoji": "PASS — fun-1 img src='https://api.dicebear.com/9.x/fun-emoji/png?seed=Wow&...'.",
+    "wizard_step2_16_category_rows": "PASS — all 16 [data-testid=avatar-row-*] (animals, wild, fantasy, sports, music, faces, symbols, food, nature, vehicles, hobbies, magic, cartoon, adventurer, pixel, fun) resolved; 0 missing.",
+    "wizard_step2_tile_count": "PASS — query for [data-testid^=avatar-pick-] returned exactly 154 elements (106 emoji + 48 DiceBear).",
+    "wizard_step2_emoji_tile_render": "PASS — [data-testid=avatar-pick-a1] inner [data-testid=avatar-a1] is a <span> with text '🦁' and contains NO <img> child.",
+    "wizard_step2_dicebear_tile_render": "PASS — [data-testid=avatar-pick-cartoon-1] inner [data-testid=avatar-cartoon-1] <span> contains a child <img> whose src starts with 'https://api.dicebear.com/9.x/avataaars/png?'.",
+    "wizard_happy_path_dicebear_save": "PASS — name (TV-keyboard 'testavtr1') → profile-name-next → avatar-pick-cartoon-1 → save-avatar-confirm-yes → profile-theme-next → viewing-style-skip → autoplay-prompt-no → add-password-prompt-no → URL=/profiles. New tile renders <img> with api.dicebear.com/9.x/avataaars src. 0 console errors, 0 page errors.",
+    "backward_compat_legacy_emoji_a1": "PASS — Programmatically injected profile {id:'legacy-lion-test', avatarId:'a1'} into localStorage key 'onnowtv-profiles-v1'; after reload /profiles renders [data-testid=avatar-a1] span with text '🦁' and no <img>. Legacy emoji avatarIds remain fully renderable."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AvatarCircle <img> onError handler still only hides the img (visibility:hidden), leaving the surrounding gradient disc with no fallback glyph. If the DiceBear CDN is blocked on a viewer's network, those 48 tiles will appear as featureless coloured discs indistinguishable from a 'still loading' state. Consider showing the seed initial or a brand mark in the degraded path.",
+    "Picker fetches 48 DiceBear PNGs from api.dicebear.com on every cold open of step 2. DiceBear sets cache-control: public, max-age=31919000 so browser HTTP cache handles repeat opens, but on first run the wizard pulls ~48 × ~11KB ≈ 0.5MB. The 106 emoji tiles are now zero-network which is a net improvement vs iter-9, but pre-bundling the 48 PNGs under /public/avatars/ would harden the fully-offline scenario.",
+    "ProfileEdit.jsx remains ~1960 lines — flagged in iter-7/8/9, still outstanding. Splitting AvatarStep / ThemeStep / ViewingStyleStep / prompt modals into sub-modules is overdue.",
+    "AvatarCircle uses the avatar's `glow` for the resting boxShadow on every tile, so every picker tile already has a coloured glow. On the 154-tile picker this dilutes the D-pad focus indicator. Consider muting boxShadow for unfocused tiles in picker mode and using the brighter ring only for the focused/selected state.",
+    "AVATARS.push(KIDS_AVATAR) mutates the exported array post-construction, and the hidden filter is implicit (`!a.hidden`). Exporting a named KIDS_AVATAR_ID constant and excluding it via an explicit predicate would protect against a future contributor accidentally referencing kids-default."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only iteration)", "frontend": "100% (14/14 assertions across 2 browser runs)"},
+  "test_credentials": "None required.",
+  "seed_data_creation": "Two throwaway profiles created in isolated Playwright contexts: 'testavtr1' with avatarId='cartoon-1' (DiceBear avataaars/Liam), and 'LegacyLion' with avatarId='a1' (legacy lion emoji) — only persisted in their respective playwright contexts' localStorage.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Avatar system v4 (current): 106 emoji-on-gradient avatars (ids a1..a100 + m1..m6, each carries {id,e,from,to,glow}) + 48 DiceBear PNG portraits across 4 styles (avataaars→cartoon-N, adventurer→adventurer-N, pixel-art→pixel-N, fun-emoji→fun-N — each carries {id,src,glow,seed,style}) + 1 hidden kids-default emoji teddy. AvatarCircle picks renderer via `a.src` presence. AVATARS=155, AVATAR_CATEGORIES=16, picker tile count=154. localStorage key for profiles is 'onnowtv-profiles-v1'. Picker tile testids: [data-testid=avatar-pick-<id>]; inner span: [data-testid=avatar-<id>]; category rows: [data-testid=avatar-row-{animals|wild|fantasy|sports|music|faces|symbols|food|nature|vehicles|hobbies|magic|cartoon|adventurer|pixel|fun}]. Wizard remains 6-step: name (TV-keyboard) → avatar (with save-avatar-confirm modal) → theme → viewing-style (skip) → autoplay-prompt → add-password-prompt → /profiles.",
+  "rca_of_the_issue": "N/A — no bugs found. All 9 review requirements verified PASS."
+}
