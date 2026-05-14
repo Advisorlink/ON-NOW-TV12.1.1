@@ -7,6 +7,7 @@ import {
     Settings,
     Tv,
     Film,
+    Radio,
     Zap,
     Users,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
+    { id: 'live-tv', label: 'Live TV', icon: Radio, path: '/live-tv' },
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },

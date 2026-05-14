@@ -34,6 +34,35 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 61 — Feb 14, 2026)
+### Live TV — Xtream Codes IPTV (full UI rebuild)
+- **🎯 Goal**: Rebuild the Xtream Codes live TV browser that was parked previously due to perf issues. User confirmed the cause was the previous glow effects (now removed across app), so we can target the original "beautiful 3-column + hero" design without compromising perf.
+- **📡 Backend** (already existed from previous attempt — verified working): `/api/xtream/auth`, `/categories`, `/streams`, `/short-epg`, `/now-next`, `/stream-url`. Provider blob is JSON encoded per-request — server-side stateless. SHA256 cache key derived from credentials.
+- **🔐 Provider login** (`components/XtreamLogin.jsx`):
+  - 4-step TVKeyboard wizard: Name → Server URL → Username → Password.
+  - Smart URL parser: accepts `http://host:port`, `host:port`, `host` — splits scheme/host/port automatically.
+  - Password input masked with `•` while typed.
+  - Progress dots + Back button between steps.
+  - Multi-provider support: returning users see a "Pick a provider" list (with hold-to-remove, like Watch Later tiles) + "Add another provider" tile.
+  - Auth errors surface as a red mono pill below the keyboard.
+- **📺 Main grid** (`pages/LiveTV.jsx`):
+  - **Hero banner** (top, ~46vh): cinematic backdrop using the channel's `stream_icon` with horizontal + vertical gradient overlays for legibility. Red pulsing "LIVE NOW" pill + channel name mono ribbon. Big show title (clamp 32–56 px), `clock` icon with current EPG slot, % progress bar, 2-line synopsis, white "▶ Watch live" pill button. Provider chip on the top-right opens the login wizard for switching.
+  - **3-column body** (240 px / 1fr / 360 px):
+    - **L Categories**: scoped scroll list, each item with a 3 px blue active-border + tinted background. `onFocus` auto-selects so D-pad up/down through categories already updates the channel pane.
+    - **M Channels**: full channel list (could be 1000+). Each row is a 56 px tile with thumbnail (`stream_icon` rendered as background, never crashing on missing image), bold name, blue `NOW · …` ribbon from cached EPG. Focused row gets a stronger blue tint + chevron indicator.
+    - **R NOW / NEXT**: dedicated EPG panel showing channel logo + name, "NOW" box (blue tinted, with time slot, title, 3-line synopsis) and "UP NEXT" box (greyer). Big "▶ Watch this channel" button under both.
+- **⚡ Performance** (critical lessons from the failed previous build):
+  - **No glow / blur / scale animations** anywhere in the new UI. Focus is signalled by borders + accent shifts only.
+  - **`content-visibility: auto` + `contain-intrinsic-size`** on every channel row so the browser skips paint work for off-screen rows — handles 1000+ channels at 60 fps on the HK1.
+  - **`contain: paint`** on each of the 3 column scroll containers so independent paint regions don't invalidate the hero.
+  - **AbortController + 180 ms debounce** on NOW/NEXT fetches — user can zap through channels with D-pad up/down without queuing dozens of stale requests.
+  - **In-memory EPG cache** (Map, 60 s TTL) — once you've seen a channel's now/next, scrolling past it again is instant.
+  - **`onFocus` channel selection** so D-pad navigation is "what you're looking at is what you'd watch" — no extra Enter press needed to load EPG.
+- **🎬 Playback**: clicking "Watch live" calls `Host.playVideo(...)` with the live `.ts` URL → native libVLC Activity on the box (or JS HLS player in browser preview). CW entry uses `cwId: live:{providerId}:{streamId}` so live channels can appear in Continue Watching too.
+- **🧭 SideNav**: new "Live TV" entry inserted between Movies and Search, using the Lucide `Radio` icon.
+- **🗺 App routes**: `/live-tv` wrapped in `<RequireProfile>` like the other pages.
+
+
 ## Implemented (Iteration 60 — Feb 14, 2026)
 ### My Library — beautiful release calendar
 - **🎁 User request**: "Build a calendar into My Library — when you click on the calendar, any TV show in the watch list shows a visual calendar of when the next episodes are coming out."
