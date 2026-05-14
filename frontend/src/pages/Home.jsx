@@ -12,7 +12,6 @@ import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
-import { useTabCatalog } from '@/hooks/useTabCatalog';
 import Lazy from '@/components/Lazy';
 
 export default function Home() {
@@ -34,31 +33,33 @@ export default function Home() {
     const shelfFilter = isFilterView ? null : null;
     const heroType = filter === 'movie' ? 'movie' : 'series';
 
+    // Stable empty-array reference.  CRITICAL: a fresh `[]` on
+    // every render would invalidate the `addons` dep of the live
+    // shelves / heroes hooks and trigger React's "Maximum update
+    // depth" guard during tab swaps.  Memoising once keeps the
+    // reference identical between renders.
+    const EMPTY = React.useMemo(() => [], []);
+    const addonsForHome = isFilterView ? EMPTY : addons;
+
     const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(
-        isFilterView ? [] : addons,
+        addonsForHome,
         shelfFilter,
         itemsPerCatalog
     );
     const { heroes: liveHeroes } = useLiveHeroes(
-        isFilterView ? [] : addons,
+        addonsForHome,
         heroType
     );
 
-    // Background prefetch — warm the tab-catalog cache so a tab
-    // swap lands instantly.  We only fire this on the home root
-    // (not on filter views, where the user is already inside the
-    // grid).  Memoising the empty array keeps the prefetch from
-    // firing repeatedly while waiting for `addons` to populate.
-    const [prefetchReady, setPrefetchReady] = React.useState(false);
-    React.useEffect(() => {
-        const t = setTimeout(() => setPrefetchReady(true), 800);
-        return () => clearTimeout(t);
-    }, []);
-    const EMPTY = React.useMemo(() => [], []);
-    const prefetchAddons =
-        prefetchReady && !isFilterView ? addons : EMPTY;
-    useTabCatalog(prefetchAddons, 'movie');
-    useTabCatalog(prefetchAddons, 'series');
+    // (Prefetch removed.)  Earlier we ran two extra `useTabCatalog`
+    // calls here to warm the cache, but they were sharing setState
+    // signal-paths with the real call inside TabGridView and the
+    // box was hitting React's "Maximum update depth" guard during
+    // tab swaps.  The single in-grid call already covers the user
+    // path: click TV Shows → TabGridView mounts with type=series
+    // → catalog fetch fires.  Going back to Movies after that
+    // round-trip is instant from the cache layer (sessionStorage
+    // hit).
 
     const shelves = useMemo(
         () => (Array.isArray(liveShelves) ? liveShelves : []),
@@ -142,7 +143,7 @@ export default function Home() {
                     className="absolute inset-0 overflow-y-auto"
                     style={{ scrollBehavior: 'auto' }}
                 >
-                    <TabGridView type={filter} />
+                    <TabGridView key={filter} type={filter} />
                 </main>
             ) : (
                 /* Split layout — hero stays LOCKED at the top, only
