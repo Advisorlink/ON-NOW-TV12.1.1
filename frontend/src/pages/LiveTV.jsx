@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, LogOut, Star } from 'lucide-react';
+import { Play, LogOut, Star, Clock } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -15,9 +15,12 @@ import {
 } from '@/lib/xtream';
 import {
     getFavorites as getFavList,
-    isFavorite,
     toggleFavorite,
 } from '@/lib/liveFavorites';
+import {
+    getRecents,
+    pushRecent,
+} from '@/lib/liveRecents';
 import Host from '@/lib/host';
 
 /* ====================================================================
@@ -98,6 +101,13 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         () => new Set(getFavList(provider.id).map((v) => String(v))),
     );
     const FAV_CAT_ID = '__favorites__';
+
+    // Recently watched — array of stream_ids, MRU first.  Updated on
+    // every successful playChannel() call.
+    const [recents, setRecents] = useState(
+        () => getRecents(provider.id).map((v) => String(v)),
+    );
+    const REC_CAT_ID = '__recents__';
 
     // Per-category channel cache; populated entirely during boot so
     // the grid never has to fetch on category-switch.
@@ -199,32 +209,51 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         return out;
     }, [favorites, booted]);
 
-    /* Category switch — handles both real categories and the virtual
-     * "★ Favourites" pseudo-category.  Pure cache lookup, no fetch. */
+    /* Recently-watched channels, in MRU order.  Uses a flat lookup
+     * built from the cache so we can resolve stream_id → channel
+     * object in O(1) per recent entry. */
+    const recentChannels = useMemo(() => {
+        if (!booted || recents.length === 0) return [];
+        const lookup = new Map();
+        for (const list of channelsCache.current.values()) {
+            for (const ch of list) {
+                lookup.set(String(ch.stream_id), ch);
+            }
+        }
+        const out = [];
+        for (const sid of recents) {
+            const ch = lookup.get(String(sid));
+            if (ch) out.push(ch);
+        }
+        return out;
+    }, [recents, booted]);
+
+    /* Category switch — handles both real categories and the two
+     * virtual pseudo-categories.  Pure cache lookup, no fetch. */
     const pickCategory = useCallback((catId) => {
         if (!catId) return;
         setActiveCat(catId);
-        const list = catId === FAV_CAT_ID
-            ? favoriteChannels
-            : (channelsCache.current.get(catId) || []);
+        let list;
+        if (catId === FAV_CAT_ID) list = favoriteChannels;
+        else if (catId === REC_CAT_ID) list = recentChannels;
+        else list = channelsCache.current.get(catId) || [];
         setChannels(list);
         setFocusedChannel(list[0] || null);
-    }, [favoriteChannels]);
+    }, [favoriteChannels, recentChannels]);
 
-    /* When the favorites list changes while we're sitting on the
-     * "★ Favourites" virtual category, keep the channel list in sync
-     * so unstarring removes the row immediately. */
+    /* Keep virtual-category channel lists in sync when their source
+     * sets change (favorite toggled or new recent recorded). */
     useEffect(() => {
         if (activeCat === FAV_CAT_ID) {
             setChannels(favoriteChannels);
-            // If we just unstarred the currently-focused channel, fall
-            // back to the first remaining favorite (or null).
             if (focusedChannel && !favorites.has(String(focusedChannel.stream_id))) {
                 setFocusedChannel(favoriteChannels[0] || null);
             }
+        } else if (activeCat === REC_CAT_ID) {
+            setChannels(recentChannels);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [favoriteChannels]);
+    }, [favoriteChannels, recentChannels]);
 
     /* Star toggle — fired from the hero button + key "F" shortcut. */
     const onToggleFav = useCallback(() => {
@@ -251,6 +280,12 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         if (!channel) return;
         const url = await getStreamUrl(provider, 'live', channel.stream_id, 'ts');
         if (!url) return;
+        // Record this play in recents — bumps the channel to the
+        // front of the MRU list, persisted to localStorage.
+        try {
+            pushRecent(provider.id, channel.stream_id);
+            setRecents(getRecents(provider.id).map((v) => String(v)));
+        } catch { /* ignore */ }
         const title = channel.name;
         if (Host.playVideo({
             url, title, type: 'live',
@@ -326,6 +361,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         catCounts[c.category_id] = channelsCache.current.get(c.category_id)?.length || 0;
     }
     catCounts[FAV_CAT_ID] = favoriteChannels.length;
+    catCounts[REC_CAT_ID] = recentChannels.length;
 
     const isFocusedFav = !!focusedChannel && favorites.has(String(focusedChannel.stream_id));
 
@@ -353,6 +389,8 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     activeId={activeCat}
                     favCatId={FAV_CAT_ID}
                     favCount={favoriteChannels.length}
+                    recCatId={REC_CAT_ID}
+                    recCount={recentChannels.length}
                     onPick={pickCategory}
                 />
                 <ChannelsCol
@@ -602,7 +640,7 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
 
 /* ============================ Columns ============================ */
 
-function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount, onPick }) {
+function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount, recCatId, recCount, onPick }) {
     return (
         <div data-testid="live-tv-categories" style={{
             padding: '12px 0',
@@ -612,9 +650,17 @@ function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount,
             maxHeight: 'calc(100dvh - 250px)',
             overflowY: 'auto',
         }}>
-            {/* Favourites pseudo-category — pinned at the top of the
-                sidebar.  Always visible, even when the user hasn't
-                starred anything yet, so it advertises the feature. */}
+            {/* Recently-watched pseudo-category — pinned at the very
+                top.  Order is intentional: most-recent-first reading. */}
+            {recCatId && recCount > 0 && (
+                <RecentCategoryRow
+                    isActive={activeId === recCatId}
+                    count={recCount}
+                    onPick={() => onPick(recCatId)}
+                />
+            )}
+            {/* Favourites pseudo-category — directly below recents.
+                Always visible even when empty, to advertise the F key. */}
             {favCatId && (
                 <FavCategoryRow
                     isActive={activeId === favCatId}
@@ -682,6 +728,67 @@ function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount,
                     </button>
                 );
             })}
+        </div>
+    );
+}
+
+/* Recently-watched pseudo-category — same visual language as the
+ * favourites row but with a clock icon + a different colour so the
+ * two pinned rows feel like a related pair rather than a duplicate. */
+function RecentCategoryRow({ isActive, count, onPick }) {
+    return (
+        <div style={{
+            paddingBottom: 6,
+            marginBottom: 6,
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+            <button
+                data-testid="live-cat-recents"
+                data-focusable="true"
+                data-focus-style="quiet"
+                tabIndex={0}
+                onFocus={onPick}
+                onClick={onPick}
+                className="text-left flex items-center"
+                style={{
+                    width: 'calc(100% - 10px)', margin: '0 5px',
+                    padding: '9px 12px',
+                    gap: 10,
+                    background: isActive ? 'rgba(93,200,255,0.12)' : 'transparent',
+                    borderLeft: isActive ? '3px solid var(--vesper-blue-bright)' : '3px solid transparent',
+                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                    borderRadius: 6,
+                    color: isActive ? '#fff' : 'var(--vesper-text-2)',
+                    fontSize: 13, fontWeight: isActive ? 700 : 600,
+                    cursor: 'pointer',
+                }}
+            >
+                <Clock
+                    size={13}
+                    strokeWidth={2}
+                    color={isActive ? 'var(--vesper-blue-bright)' : 'rgba(93,200,255,0.7)'}
+                    style={{ flexShrink: 0 }}
+                />
+                <span style={{
+                    flex: 1, minWidth: 0,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    letterSpacing: '0.04em',
+                }}>
+                    Recently Watched
+                </span>
+                {count > 0 && (
+                    <span className="vesper-mono" style={{
+                        fontSize: 10, fontWeight: 700,
+                        color: isActive
+                            ? 'var(--vesper-blue-bright)'
+                            : 'var(--vesper-text-3)',
+                        letterSpacing: '0.04em',
+                        flexShrink: 0,
+                    }}>
+                        {count}
+                    </span>
+                )}
+            </button>
         </div>
     );
 }
