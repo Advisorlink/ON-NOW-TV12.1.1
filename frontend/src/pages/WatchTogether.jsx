@@ -633,6 +633,30 @@ function MoviePicker({ onPick }) {
 }
 
 function MoviePreview({ movie, status, iAmHost, onStart }) {
+    const startBtnRef = React.useRef(null);
+    // Imperative focus: as soon as the host's "Start the party"
+    // button mounts (i.e. the moment after picking a movie), focus
+    // it so the user can press OK on the remote without needing to
+    // hunt for the button with the D-pad.  Retries cover any race
+    // with the spatial-focus engine settling.
+    React.useEffect(() => {
+        if (!iAmHost || status === 'playing') return;
+        const tries = [0, 60, 200, 500];
+        const timers = tries.map((ms) =>
+            setTimeout(() => {
+                const el = startBtnRef.current;
+                if (el && document.activeElement !== el) {
+                    el.focus({ preventScroll: false });
+                    // Strip stale focus indicators from other tiles
+                    document.querySelectorAll('[data-focused="true"]').forEach((n) => {
+                        if (n !== el) n.removeAttribute('data-focused');
+                    });
+                    el.setAttribute('data-focused', 'true');
+                }
+            }, ms)
+        );
+        return () => timers.forEach(clearTimeout);
+    }, [iAmHost, status]);
     return (
         <div
             data-testid="watch-together-preview"
@@ -663,8 +687,10 @@ function MoviePreview({ movie, status, iAmHost, onStart }) {
                 </div>
                 {iAmHost && status !== 'playing' && (
                     <button
+                        ref={startBtnRef}
                         data-testid="watch-together-start"
                         data-focusable="true"
+                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onStart}
                         className="flex items-center gap-2 rounded-full font-sans font-semibold self-start"
