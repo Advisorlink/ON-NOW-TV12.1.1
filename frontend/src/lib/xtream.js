@@ -106,7 +106,73 @@ function blob(p) {
     });
 }
 
+/**
+ * Build the canonical Xtream Codes player_api.php URL for the given
+ * provider + action.  We hit this DIRECTLY from the WebView so the
+ * backend pod doesn't need outbound access to the user's IPTV server
+ * (most IPTV servers are firewalled to residential ISP ranges; the
+ * datacenter pod cannot reach them).
+ */
+function directApiUrl(provider, params = {}) {
+    const scheme = provider.scheme || 'http';
+    const port = provider.port && provider.port !== '80' && provider.port !== '443'
+        ? `:${provider.port}` : '';
+    const qs = new URLSearchParams({
+        username: provider.username || '',
+        password: provider.password || '',
+        ...params,
+    }).toString();
+    return `${scheme}://${provider.host}${port}/player_api.php?${qs}`;
+}
+
+/**
+ * Fetch wrapper that tries the IPTV server directly first; if that
+ * fails (CORS, mixed-content, network) we fall back to the backend
+ * proxy at /api/xtream/*.  This gives us the best of both worlds:
+ *   • Fast and reliable on the Android WebView (no CORS enforcement).
+ *   • Still works in browser preview if the user happens to hit a
+ *     CORS-friendly IPTV server.
+ */
+async function fetchDirectOrProxy(provider, directParams, proxyPath, proxyParams) {
+    // 1) Direct first.
+    try {
+        const r = await fetch(directApiUrl(provider, directParams), {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'omit',
+        });
+        if (r.ok) {
+            const data = await r.json();
+            return { direct: true, data };
+        }
+    } catch { /* fall through to proxy */ }
+
+    // 2) Backend proxy fallback.
+    const res = await axios.get(`${API}${proxyPath}`, { params: proxyParams });
+    return { direct: false, data: res.data };
+}
+
 export async function authenticate(provider) {
+    // Try direct first.
+    try {
+        const r = await fetch(directApiUrl(provider), {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'omit',
+        });
+        if (r.ok) {
+            const data = await r.json();
+            const auth = data?.user_info?.auth;
+            // auth === 1 means OK in the Xtream Codes API spec.
+            if (auth === 1 || auth === '1') {
+                return { ok: true, providerId: data?.user_info?.username || provider.username };
+            }
+            throw new Error('Authentication rejected by IPTV server');
+        }
+    } catch (e) {
+        // Fall through to backend proxy.
+        void e;
+    }
     const res = await axios.post(`${API}/auth`, {
         host: provider.host,
         port: provider.port,
@@ -118,41 +184,88 @@ export async function authenticate(provider) {
 }
 
 export async function getCategories(provider, type = 'live') {
-    const res = await axios.get(`${API}/categories`, {
-        params: { provider: blob(provider), type },
-    });
-    return res.data?.categories || [];
+    const action = type === 'live' ? 'get_live_categories'
+        : type === 'vod' ? 'get_vod_categories'
+        : 'get_series_categories';
+    const { direct, data } = await fetchDirectOrProxy(
+        provider,
+        { action },
+        '/categories',
+        { provider: blob(provider), type },
+    );
+    if (direct) return Array.isArray(data) ? data : [];
+    return data?.categories || [];
 }
 
 export async function getStreams(provider, type = 'live', categoryId = null) {
-    const params = { provider: blob(provider), type };
-    if (categoryId) params.category_id = categoryId;
-    const res = await axios.get(`${API}/streams`, { params });
-    return res.data?.streams || [];
+    const action = type === 'live' ? 'get_live_streams'
+        : type === 'vod' ? 'get_vod_streams'
+        : 'get_series';
+    const direct = { action };
+    if (categoryId) direct.category_id = categoryId;
+    const proxy = { provider: blob(provider), type };
+    if (categoryId) proxy.category_id = categoryId;
+    const result = await fetchDirectOrProxy(provider, direct, '/streams', proxy);
+    if (result.direct) return Array.isArray(result.data) ? result.data : [];
+    return result.data?.streams || [];
 }
 
 export async function getSeriesInfo(provider, seriesId) {
-    const res = await axios.get(`${API}/series-info`, {
-        params: { provider: blob(provider), series_id: seriesId },
-    });
-    return res.data || {};
+    const result = await fetchDirectOrProxy(
+        provider,
+        { action: 'get_series_info', series_id: seriesId },
+        '/series-info',
+        { provider: blob(provider), series_id: seriesId },
+    );
+    return result.data || {};
 }
 
+/**
+ * Now-playing + next-up EPG for a live channel.  Xtream returns an
+ * `epg_listings` array (base64-encoded title/description).  We
+ * normalise it to `{ title, description, start, end,
+ * startTimestamp, stopTimestamp }` here so the UI components stay
+ * dumb.
+ */
 export async function getNowNext(provider, streamId) {
-    const res = await axios.get(`${API}/now-next`, {
-        params: { provider: blob(provider), stream_id: streamId },
-    });
-    return res.data?.items || [];
+    const result = await fetchDirectOrProxy(
+        provider,
+        { action: 'get_short_epg', stream_id: streamId, limit: 2 },
+        '/now-next',
+        { provider: blob(provider), stream_id: streamId },
+    );
+    if (!result.direct) {
+        return result.data?.items || [];
+    }
+    const items = result.data?.epg_listings || [];
+    return items.map((it) => ({
+        title: safeAtob(it.title),
+        description: safeAtob(it.description),
+        start: it.start,
+        end: it.end,
+        startTimestamp: it.start_timestamp,
+        stopTimestamp: it.stop_timestamp,
+    }));
+}
+
+function safeAtob(s) {
+    if (!s) return '';
+    try { return decodeURIComponent(escape(atob(s))); }
+    catch { try { return atob(s); } catch { return s; } }
 }
 
 export async function getStreamUrl(provider, type, streamId, ext = 'ts') {
-    const res = await axios.get(`${API}/stream-url`, {
-        params: {
-            provider: blob(provider),
-            type,
-            stream_id: streamId,
-            container_extension: ext,
-        },
-    });
-    return res.data?.url || '';
+    // For Xtream Codes the stream URL is a direct construct — no
+    // round-trip needed.  Format is documented:
+    //   live:    {scheme}://{host}:{port}/live/{u}/{p}/{streamId}.ts
+    //   vod:     {scheme}://{host}:{port}/movie/{u}/{p}/{streamId}.{ext}
+    //   series:  {scheme}://{host}:{port}/series/{u}/{p}/{streamId}.{ext}
+    const scheme = provider.scheme || 'http';
+    const port = provider.port && provider.port !== '80' && provider.port !== '443'
+        ? `:${provider.port}` : '';
+    const path = type === 'live' ? 'live'
+        : type === 'vod' ? 'movie'
+        : 'series';
+    const extension = type === 'live' ? 'ts' : ext;
+    return `${scheme}://${provider.host}${port}/${path}/${encodeURIComponent(provider.username)}/${encodeURIComponent(provider.password)}/${streamId}.${extension}`;
 }

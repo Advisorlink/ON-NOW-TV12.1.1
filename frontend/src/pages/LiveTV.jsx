@@ -105,17 +105,24 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     const navigate = useNavigate();
 
     // Fetch categories once
+    const [catsError, setCatsError] = useState('');
     useEffect(() => {
         let cancel = false;
         (async () => {
             try {
                 setCatsLoading(true);
+                setCatsError('');
                 const list = await getCategories(provider, 'live');
                 if (cancel) return;
                 setCats(Array.isArray(list) ? list : []);
                 if (list?.length) setActiveCat(list[0].category_id);
             } catch (e) {
                 console.warn('Failed to load categories', e);
+                if (!cancel) setCatsError(
+                    e?.response?.data?.detail ||
+                    e?.message ||
+                    'Could not reach your IPTV server.'
+                );
             } finally {
                 if (!cancel) setCatsLoading(false);
             }
@@ -236,6 +243,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 <CategoriesCol
                     cats={cats}
                     loading={catsLoading}
+                    error={catsError}
                     activeId={activeCat}
                     onPick={setActiveCat}
                 />
@@ -448,7 +456,7 @@ function LiveHero({ channel, epg, provider, onChangeProvider, onPlay }) {
 
 /* ====================== Categories column ====================== */
 
-function CategoriesCol({ cats, loading, activeId, onPick }) {
+function CategoriesCol({ cats, loading, error, activeId, onPick }) {
     return (
         <div
             data-testid="live-tv-categories"
@@ -470,8 +478,20 @@ function CategoriesCol({ cats, loading, activeId, onPick }) {
                 Categories
             </div>
             {loading ? (
-                <div style={{ padding: '8px 18px', color: 'var(--vesper-text-3)', fontSize: 13 }}>
+                <div style={{ padding: '8px 18px', color: 'var(--vesper-text-3)', fontSize: 13, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                     <Loader2 size={14} className="vesper-spin" /> Loading…
+                </div>
+            ) : error ? (
+                <div style={{ padding: '12px 18px' }}>
+                    <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: '#FF6B6B', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
+                        Server unreachable
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', lineHeight: 1.4 }}>
+                        Could not reach your IPTV server.  This is normal in the
+                        web preview — Live TV works fully on the sideloaded APK,
+                        which makes requests through the native layer instead of
+                        the browser.
+                    </div>
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>

@@ -34,6 +34,21 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 62 — Feb 14, 2026)
+### Live TV — root-cause fix for "Provider unreachable"
+- **🐛 User reported**: "It didn't work" after Live TV iteration 61.
+- **🔬 Root-cause investigation** (curl/screenshot diagnostics):
+  - Emergent preview pod CANNOT reach `njala.ddns.me:8443` — connection times out. The user's IPTV server is firewalled to residential ISP ranges and silently drops datacenter traffic.
+  - Backend proxy at `/api/xtream/*` was the wrong architecture: every frontend call routed through the pod, which couldn't reach the IPTV server.
+  - Even on the HK1 box, the WebView calls our backend (REACT_APP_BACKEND_URL → preview pod) → still the same dead path.
+  - The screenshot confirmed Live TV page renders, sidebar links work, hero/3-col layout looks correct — just no data because the categories fetch was 504-ing through the proxy.
+- **🔧 Fix** — **architecture pivot: client → IPTV server direct** (with backend proxy as fallback for browsers that happen to be CORS-friendly).
+  - **`frontend/src/lib/xtream.js`**: rewritten `authenticate / getCategories / getStreams / getNowNext / getStreamUrl` to call the IPTV's `player_api.php` directly via `fetch()`. Decodes Xtream's base64 EPG title/description on the client. Stream URL is now a pure client-side string concat (`{scheme}://{host}:{port}/{live|movie|series}/{u}/{p}/{streamId}.ts`) — no round-trip.
+  - **`android/.../VesperWebViewClient.kt`**: extended `shouldInterceptRequest` to detect any request to `/player_api.php`, `/xmltv.php`, `/get.php` and proxy them through an OkHttp client at the native layer. Adds `Access-Control-Allow-Origin: *` to the synthesized response so the WebView's JS `fetch()` can read the body cross-origin. **This is the key change** — without it, the HK1 WebView would block the direct call on CORS, but the IPTV server doesn't send the CORS header itself. Native interception is invisible to the JS code, so the lib stays browser-and-native compatible.
+  - **`LiveTV.jsx`**: improved error UX. The Categories column now shows a "Server unreachable" mono ribbon with explainer text ("normal in web preview — works on sideloaded APK") instead of an infinite spinner when the fetch fails.
+- **📲 APK version bumped to 1.9.7 / versionCode 31**.
+
+
 ## Implemented (Iteration 61 — Feb 14, 2026)
 ### Live TV — Xtream Codes IPTV (full UI rebuild)
 - **🎯 Goal**: Rebuild the Xtream Codes live TV browser that was parked previously due to perf issues. User confirmed the cause was the previous glow effects (now removed across app), so we can target the original "beautiful 3-column + hero" design without compromising perf.
