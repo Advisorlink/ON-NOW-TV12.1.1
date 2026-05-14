@@ -140,34 +140,46 @@ export function useTabCatalog(addons, type) {
             }
         });
 
-        Promise.all(promises).then((batches) => {
-            if (runIdRef.current !== runId) return; // superseded
-            const seen = new Map();
-            const genreCount = new Map();
-            for (const batch of batches) {
-                for (const it of batch) {
-                    const k = it.routePath || it.imdbId || it.id;
-                    if (!k || seen.has(k)) continue;
-                    seen.set(k, it);
-                    for (const g of it.genres) {
-                        if (!g) continue;
-                        genreCount.set(g, (genreCount.get(g) || 0) + 1);
+        Promise.all(promises)
+            .then((batches) => {
+                if (runIdRef.current !== runId) return; // superseded
+                const seen = new Map();
+                const genreCount = new Map();
+                for (const batch of batches) {
+                    if (!batch) continue;
+                    for (const it of batch) {
+                        const k = it.routePath || it.imdbId || it.id;
+                        if (!k || seen.has(k)) continue;
+                        seen.set(k, it);
+                        for (const g of it.genres || []) {
+                            if (!g) continue;
+                            genreCount.set(
+                                g,
+                                (genreCount.get(g) || 0) + 1
+                            );
+                        }
                     }
                 }
-            }
-            const items = Array.from(seen.values()).sort(
-                (a, b) => b.year - a.year
-            );
-            const genres = Array.from(genreCount.entries())
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 14)
-                .map(([name]) => name);
-            const payload = { items, genres };
-            cache.set(key, payload);
-            setData(payload);
-            setLoading(false);
-            setProgress(1);
-        });
+                const items = Array.from(seen.values()).sort(
+                    (a, b) => b.year - a.year
+                );
+                const genres = Array.from(genreCount.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 14)
+                    .map(([name]) => name);
+                const payload = { items, genres };
+                try { cache.set(key, payload); } catch (_) { /* ignore */ }
+                setData(payload);
+                setLoading(false);
+                setProgress(1);
+            })
+            .catch((err) => {
+                if (runIdRef.current !== runId) return;
+                // eslint-disable-next-line no-console
+                console.error('[useTabCatalog] aggregate failed:', err);
+                setLoading(false);
+                setProgress(1);
+            });
     }, [key, addons, type]);
 
     return { ...data, loading, progress };
