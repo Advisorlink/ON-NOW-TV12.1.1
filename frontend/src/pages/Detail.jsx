@@ -277,7 +277,16 @@ export default function Detail() {
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);
-        if (mode === 'direct') {
+        if (mode === 'direct' || mode === 'torrent') {
+            // Resolve the playable URL.  Direct streams already
+            // carry a `url`; torrents are converted to a magnet:
+            // URI which libVLC's bittorrent demuxer can ingest
+            // natively (no external player needed).
+            const playUrl =
+                mode === 'direct'
+                    ? stream.url
+                    : buildMagnet(stream, meta?.name);
+            if (!playUrl) return;
             // Look up any previously-saved position so we can resume.
             const cwList = cw.getEntries();
             const existing = cwList.find((e) => e.id === id);
@@ -319,7 +328,7 @@ export default function Detail() {
                 rating: meta?.imdbRating || '',
                 runtime: meta?.runtime || '',
                 genres: meta?.genres || [],
-                streamUrl: stream.url,
+                streamUrl: playUrl,
                 subtitleUrl,
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
@@ -339,7 +348,7 @@ export default function Detail() {
                 : '';
             if (
                 Host.playVideo({
-                    url: stream.url,
+                    url: playUrl,
                     title: meta?.name || '',
                     type: type,
                     subtitleUrl,
@@ -369,7 +378,7 @@ export default function Detail() {
                 : '';
             navigate(
                 `/play?url=${encodeURIComponent(
-                    stream.url
+                    playUrl
                 )}&title=${encodeURIComponent(meta?.name || '')}&type=${encodeURIComponent(
                     type
                 )}&imdbId=${encodeURIComponent(id)}${partyQuery}`
@@ -379,15 +388,6 @@ export default function Detail() {
                 window.open(stream.externalUrl, '_blank', 'noopener,noreferrer');
             } catch {
                 /* popup blocked */
-            }
-        } else if (mode === 'torrent') {
-            const magnet = buildMagnet(stream, meta?.name);
-            if (magnet) {
-                try {
-                    window.location.href = magnet;
-                } catch {
-                    /* no handler installed for magnet: */
-                }
             }
         }
     };

@@ -34,6 +34,17 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 58 — Feb 14, 2026)
+### Torrent streams now play through libVLC (not external Android chooser)
+- **🐛 Bug report**: User reported that clicking a torrent stream (e.g. NCIS S01-S18 1080p BluRay, 12 seeders, BestTorrents) now opens the Android "Open with" chooser (`On Now VIP / Nova Video Player`) instead of libVLC. User confirmed this used to play in libVLC before.
+- **🔍 Root cause**: `Detail.jsx` and `SeriesEpisodes.jsx` had a `mode === 'torrent'` branch that called `window.location.href = magnet:...`, delegating to Android's system magnet handler chooser. There was no path to the native libVLC Activity for torrent streams.
+- **🔧 Fix**: Merged the `'torrent'` branch into the `'direct'` branch.  Torrents are converted to a magnet URI via the existing `buildMagnet()` helper and passed through the same `Host.playVideo(...)` path as direct streams.  `Host.playInternalRich` then launches `VlcPlayerActivity` with the magnet URI.
+- **🎬 Kotlin side** (`VlcPlayerActivity.startPlayback()`): When the URL is a magnet/`.torrent`, we now explicitly add `:demux=bittorrent` to the Media options (libVLC's bittorrent demuxer module — bundled in `libvlc-all:3.6.0`) plus bump `network-caching` from 1500 → 6000 ms (torrents need extra time for peer discovery + piece prefetch before the first frame can decode).
+- **📋 Same fix applied to** `SeriesEpisodes.jsx` — episode-level torrent streams now flow through libVLC the same way.
+- **♻️ Continue Watching**: torrent magnets are now written into the CW entry's `streamUrl` field so resume works (libVLC can re-open the same magnet and pick up partial peer/piece cache).
+- **🛡️ Fallback preserved**: browser preview (no Android bridge) → JS Player path → magnet URIs won't work there but the JS-side error handler degrades gracefully (the JS HTML5 video element just fails silently rather than crashing).
+
+
 ## Implemented (Iteration 57 — Feb 14, 2026)
 ### Watch Together — NATIVE libVLC sync (codec coverage parity)
 - **🎯 Why:** The iter_56 Watch Together flow forced the JS HTML5 player when a party was active so the WebSocket could pipe play/pause/seek events. On the HK1 box this meant many streams (MKV/HEVC/AC3 etc.) wouldn't decode. User requirement: native libVLC must drive party playback.

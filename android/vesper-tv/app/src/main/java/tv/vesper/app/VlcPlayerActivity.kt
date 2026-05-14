@@ -675,9 +675,21 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     private fun startPlayback() {
-        val media = Media(libVlc, Uri.parse(streamUrl))
+        val url = streamUrl ?: return
+        val isMagnet = url.startsWith("magnet:", ignoreCase = true)
+                || url.endsWith(".torrent", ignoreCase = true)
+        val media = Media(libVlc, Uri.parse(url))
         media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=1500")
+        if (isMagnet) {
+            // libVLC's bittorrent demuxer needs explicit selection
+            // for magnet URIs; without this it falls back to the
+            // HTTP demuxer and errors out immediately.
+            media.addOption(":demux=bittorrent")
+            // Larger cache for torrents since we have to wait for
+            // peers + pieces before any frame can decode.
+            media.addOption(":network-caching=6000")
+        }
         mediaPlayer.media = media
         media.release()
         mediaPlayer.play()

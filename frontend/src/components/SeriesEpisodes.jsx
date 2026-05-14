@@ -228,7 +228,15 @@ export default function SeriesEpisodes({ meta, parentId }) {
 
     const playStream = async (stream, ep) => {
         const mode = streamMode(stream);
-        if (mode === 'direct') {
+        if (mode === 'direct' || mode === 'torrent') {
+            // Resolve the playable URL — direct streams carry a
+            // `url`; torrents become a magnet: URI that libVLC's
+            // bittorrent demuxer ingests natively.
+            const playUrl =
+                mode === 'direct'
+                    ? stream.url
+                    : buildMagnet(stream, `${meta?.name || ''} S${ep.season}E${ep.episode}`);
+            if (!playUrl) return;
             const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
             // Pre-fetch English subtitle for this exact episode
             let subtitleUrl = '';
@@ -261,7 +269,7 @@ export default function SeriesEpisodes({ meta, parentId }) {
                 rating: meta?.imdbRating || '',
                 runtime: ep.runtime || meta?.runtime || '',
                 genres: meta?.genres || [],
-                streamUrl: stream.url,
+                streamUrl: playUrl,
                 subtitleUrl,
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
@@ -269,7 +277,7 @@ export default function SeriesEpisodes({ meta, parentId }) {
             });
             if (
                 Host.playVideo({
-                    url: stream.url,
+                    url: playUrl,
                     title,
                     type: 'series',
                     subtitleUrl,
@@ -286,7 +294,7 @@ export default function SeriesEpisodes({ meta, parentId }) {
             ) return;
             navigate(
                 `/play?url=${encodeURIComponent(
-                    stream.url
+                    playUrl
                 )}&title=${encodeURIComponent(title)}&type=series&imdbId=${encodeURIComponent(ep.id)}`
             );
         } else if (mode === 'external') {
@@ -294,15 +302,6 @@ export default function SeriesEpisodes({ meta, parentId }) {
                 window.open(stream.externalUrl, '_blank', 'noopener,noreferrer');
             } catch {
                 /* popup blocked */
-            }
-        } else if (mode === 'torrent') {
-            const magnet = buildMagnet(stream, `${meta?.name || ''} S${ep.season}E${ep.episode}`);
-            if (magnet) {
-                try {
-                    window.location.href = magnet;
-                } catch {
-                    /* no handler */
-                }
             }
         }
     };
