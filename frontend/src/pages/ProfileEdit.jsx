@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AvatarCircle } from '@/lib/avatars';
@@ -154,6 +154,7 @@ export default function ProfileEdit() {
                     name={name}
                     setName={setName}
                     onNext={onNameNext}
+                    avatarId={avatarId}
                 />
             ) : (
                 <AvatarStep
@@ -230,82 +231,205 @@ export default function ProfileEdit() {
 
 /* --------------------------- Step views --------------------------- */
 
-function NameStep({ name, setName, onNext }) {
+function NameStep({ name, setName, onNext, avatarId }) {
+    const inputRef = React.useRef(null);
     const canContinue = !!name.trim();
+
+    // The pill-wrap below receives D-pad focus.  Pressing OK hands
+    // focus to the real <input>, which makes Android pop the system
+    // keyboard.  Same pattern Search uses, so the visual rhythm
+    // between profile-create and the rest of the app stays
+    // consistent.
+    const handleWrapKey = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.focus();
+        }
+    };
+
     return (
         <div
             data-testid="profile-step-name"
-            className="flex flex-col items-stretch"
-            style={{ maxWidth: 640, gap: 24 }}
+            className="flex flex-col items-center"
+            style={{ flex: 1, justifyContent: 'center' }}
         >
-            <label
-                className="vesper-mono block"
+            {/* Faint blue glow behind the card */}
+            <div
                 style={{
-                    fontSize: 11,
-                    letterSpacing: '0.22em',
-                    textTransform: 'uppercase',
-                    color: 'var(--vesper-text-3)',
-                }}
-            >
-                Display name
-            </label>
-            <input
-                data-testid="profile-name"
-                data-focusable="true"
-                data-focus-style="pill"
-                data-initial-focus="true"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' && canContinue) {
-                        e.preventDefault();
-                        onNext();
-                    }
-                }}
-                placeholder="e.g. Alex"
-                maxLength={20}
-                className="w-full rounded-lg"
-                style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    color: 'var(--vesper-text)',
-                    fontSize: 28,
-                    padding: '20px 22px',
-                    outline: 'none',
+                    position: 'absolute',
+                    inset: '12% 18% auto 18%',
+                    height: '40vh',
+                    background:
+                        'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                    filter: 'blur(20px)',
                 }}
             />
-            <button
-                data-testid="profile-name-next"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                disabled={!canContinue}
-                onClick={onNext}
-                className="self-start flex items-center gap-2 rounded-full font-sans font-semibold"
+
+            <div
+                className="flex flex-col items-center"
                 style={{
-                    height: 56,
-                    padding: '0 30px',
-                    fontSize: 16,
-                    background: canContinue
-                        ? 'var(--vesper-blue)'
-                        : 'rgba(var(--vesper-blue-rgb),0.35)',
-                    color: 'var(--vesper-bg-0)',
-                    border: 'none',
-                    opacity: canContinue ? 1 : 0.6,
-                    cursor: canContinue ? 'pointer' : 'not-allowed',
-                    boxShadow: canContinue
-                        ? '0 8px 24px rgba(var(--vesper-blue-rgb),0.35)'
-                        : 'none',
+                    maxWidth: 720,
+                    width: '100%',
+                    position: 'relative',
+                    zIndex: 1,
                 }}
             >
-                Next: choose an avatar
-                <ArrowLeft
-                    size={16}
-                    strokeWidth={2.5}
-                    style={{ transform: 'rotate(180deg)' }}
-                />
-            </button>
+                <AvatarCircle avatarId={avatarId} size={120} ring />
+
+                <div
+                    className="vesper-mono"
+                    style={{
+                        marginTop: 22,
+                        fontSize: 11,
+                        letterSpacing: '0.34em',
+                        color: 'var(--vesper-blue-bright)',
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    Step 1 of 2 · pick a name
+                </div>
+
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(40px, 5vw, 72px)',
+                        letterSpacing: '-0.03em',
+                        lineHeight: 1,
+                        marginTop: 14,
+                        textAlign: 'center',
+                    }}
+                >
+                    What should we{' '}
+                    <span
+                        style={{
+                            color: 'var(--vesper-blue-bright)',
+                            textShadow:
+                                '0 0 18px rgba(var(--vesper-blue-rgb),0.55)',
+                        }}
+                    >
+                        call
+                    </span>{' '}
+                    you?
+                </h2>
+
+                <p
+                    style={{
+                        color: 'var(--vesper-text-2)',
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        textAlign: 'center',
+                        marginTop: 12,
+                        maxWidth: 460,
+                    }}
+                >
+                    This is the name that&apos;ll show on the
+                    &ldquo;Who&apos;s watching&rdquo; screen — pick
+                    something short and friendly.
+                </p>
+
+                {/* Fancy rounded pill input — mirrors Search */}
+                <div
+                    data-testid="profile-name-wrap"
+                    data-focusable="true"
+                    data-focus-style="bare"
+                    data-initial-focus="true"
+                    tabIndex={0}
+                    onClick={() => inputRef.current?.focus()}
+                    onKeyDown={handleWrapKey}
+                    className="flex items-center gap-3"
+                    style={{
+                        marginTop: 36,
+                        width: '100%',
+                        maxWidth: 580,
+                        height: 76,
+                        padding: '0 28px',
+                        borderRadius: 999,
+                        background:
+                            'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+                        border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                        boxShadow:
+                            '0 18px 60px rgba(var(--vesper-blue-rgb),0.18), 0 0 0 0 rgba(var(--vesper-blue-rgb),0.0)',
+                        transition:
+                            'border-color 160ms ease, box-shadow 160ms ease',
+                    }}
+                >
+                    <UserCircle
+                        size={26}
+                        strokeWidth={1.6}
+                        color="var(--vesper-blue-bright)"
+                    />
+                    <input
+                        ref={inputRef}
+                        data-testid="profile-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && canContinue) {
+                                e.preventDefault();
+                                onNext();
+                            }
+                        }}
+                        placeholder="Your name…"
+                        maxLength={20}
+                        className="vesper-display"
+                        style={{
+                            flex: 1,
+                            background: 'transparent',
+                            border: 'none',
+                            outline: 'none',
+                            fontSize: 26,
+                            fontWeight: 500,
+                            letterSpacing: '-0.01em',
+                            color: 'var(--vesper-text)',
+                            boxShadow: 'none',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                        }}
+                    />
+                    <span
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            color: 'var(--vesper-text-3)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        {name.length}/20
+                    </span>
+                </div>
+
+                <button
+                    data-testid="profile-name-next"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    disabled={!canContinue}
+                    onClick={onNext}
+                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                    style={{
+                        marginTop: 28,
+                        height: 60,
+                        padding: '0 38px',
+                        fontSize: 17,
+                        background: canContinue
+                            ? 'var(--vesper-blue)'
+                            : 'rgba(var(--vesper-blue-rgb),0.25)',
+                        color: 'var(--vesper-bg-0)',
+                        border: 'none',
+                        opacity: canContinue ? 1 : 0.6,
+                        cursor: canContinue ? 'pointer' : 'not-allowed',
+                        boxShadow: canContinue
+                            ? '0 14px 36px rgba(var(--vesper-blue-rgb),0.45)'
+                            : 'none',
+                    }}
+                >
+                    Next: choose an avatar
+                    <ArrowRight size={18} strokeWidth={2.5} />
+                </button>
+            </div>
         </div>
     );
 }
