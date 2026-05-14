@@ -34,6 +34,17 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 44 — Feb 14, 2026)
+### Profile isolation bug + 6-step wizard (Viewing Style + Autoplay) + Home "For You" rail
+- **🐛 Profile isolation fix** (`lib/profileScope.js`). `readScopedString` no longer falls back to the unscoped legacy key for every profile. Legacy data is promoted ONCE to the currently-active profile, then the legacy key is removed — every subsequent profile starts completely empty. `saveProfile()` also seeds the new profile's scoped namespace with explicit empty defaults for library / continue-watching / watched / autoplay / viewing-style. New profiles never inherit any prior profile's data.
+- **🪄 Profile-creation wizard now 6 steps**: Name → Avatar → Theme → **Viewing Style (NEW, skippable)** → **Autoplay 1080p (NEW, Yes/Skip modal)** → PIN. Step counter eyebrows updated to "STEP N OF 6". Back button walks the full chain.
+- **🎬 Viewing Style step** (`pages/ProfileEdit.jsx` — `ViewingStyleStep` + `GenreSection`). Two-pane layout: TMDB Movie + TV genre tiles on the left → click a genre → right pane lists top 10 popular titles in that genre with poster + "+" / "✓" toggle. Picked genres & titles persist to scoped key `onnowtv-viewing-style-v1:<id>` (JSON `{movieGenres,tvGenres,items}`).
+- **⚡ Autoplay step** (`AutoplayPrompt` modal). Yes/Skip writes scoped `onnowtv-autoplay-1080p:<id>` = '1'/'0'.
+- **✨ For You shelf** (`components/ForYouShelf.jsx`). Renders on Home between Continue Watching and Networks shelves. Combines the user's manual picks + TMDB genre-based recommendations via the new `/api/tmdb/for-you` endpoint. Hides itself when the active profile has no viewing-style preferences. Live-refreshes on `vesper:profile-change` and `vesper:viewing-style-change` events.
+- **🧠 Backend** (`server.py`). 3 new endpoints: `GET /api/tmdb/genres/{media}` (7-day cache), `GET /api/tmdb/by-genre/{media}/{genre_id}?limit=10` (6-hour cache), `GET /api/tmdb/for-you?movie_genres=&tv_genres=&limit=` (3-hour cache, mixes movies + TV interleaved).
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_7.json) — 9/9 backend pytest pass, 10/10 frontend Playwright scenarios pass. For You rail confirmed visible above Networks with 21 tiles when prefs exist; hides cleanly when empty.
+
+
 ## Implemented (Iteration 43 — Feb 14, 2026)
 ### Profile creation wizard becomes 4 steps (name → avatar → theme → PIN)
 - **New Theme step inserted between Avatar and PIN** in the Profile creation wizard (`pages/ProfileEdit.jsx`). After the user confirms an avatar, they now land on Step 3 of 4 — a 9-theme grid (Vesper Neon, Hot Magenta, Sunset, Amethyst, Emerald, Ember, Gold, Mint, etc.) with an active checkmark indicator and a "Next: profile PIN" button. The PIN yes/no prompt now fires from this new step (was previously triggered by the avatar confirm).
