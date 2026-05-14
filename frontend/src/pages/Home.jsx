@@ -74,10 +74,10 @@ export default function Home() {
         // any swappable addon that ships those catalogues still
         // surfaces them.
         const wanted = [
-            { suffix: '-movie-top',   eyebrow: 'MOVIES',   title: 'Popular movies' },
-            { suffix: '-series-top',  eyebrow: 'SERIES',   title: 'Popular series' },
             { suffix: '-movie-year',  eyebrow: 'MOVIES',   title: 'New movies' },
             { suffix: '-series-year', eyebrow: 'SERIES',   title: 'New series' },
+            { suffix: '-movie-top',   eyebrow: 'MOVIES',   title: 'Popular movies' },
+            { suffix: '-series-top',  eyebrow: 'SERIES',   title: 'Popular series' },
         ];
         const out = [];
         for (const w of wanted) {

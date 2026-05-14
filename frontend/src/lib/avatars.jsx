@@ -301,8 +301,135 @@ const KIDS_AVATAR = {
 };
 AVATARS.push(KIDS_AVATAR);
 
+/* ----- 4. Custom user-built DiceBear avatars --------------------- */
+
+const CUSTOM_KEY = 'onnowtv-custom-avatars-v1';
+
+/**
+ * Curated option palette for the in-app "Build your own" avatar
+ * builder.  Each group is rendered as a chip row in the wizard;
+ * the chosen value lands in the URLSearchParams used to call the
+ * DiceBear `avataaars` endpoint.  Keeping the palette curated (and
+ * smaller than DiceBear's full menu) means the picker stays
+ * readable on a TV without paging.
+ */
+export const AVATAR_BUILDER_OPTIONS = {
+    top: [
+        'shortFlat', 'shortWaved', 'shortRound', 'shortCurly',
+        'frizzle', 'shaggy', 'shaggyMullet', 'shavedSides',
+        'theCaesar', 'theCaesarAndSidePart', 'sides',
+        'bigHair', 'curly', 'curvy', 'straight01', 'straight02',
+        'straightAndStrand', 'bob', 'bun', 'longButNotTooLong',
+        'miaWallace', 'fro', 'froBand', 'dreads', 'dreads01', 'dreads02',
+        'hat', 'hijab', 'turban', 'winterHat02', 'winterHat03', 'winterHat04',
+    ],
+    hairColor: [
+        '2c1b18', '4a312c', '724133', 'a55728', 'b58143',
+        'd6b370', 'ecdcbf', 'f59797', 'c93305', '0e0e0e',
+    ],
+    eyes: [
+        'default', 'happy', 'side', 'wink', 'winkWacky',
+        'squint', 'surprised', 'hearts', 'cry', 'closed', 'eyeRoll',
+    ],
+    eyebrows: [
+        'default', 'defaultNatural', 'raisedExcited', 'raisedExcitedNatural',
+        'unibrowNatural', 'upDown', 'upDownNatural', 'angryNatural',
+        'flatNatural', 'sadConcerned', 'sadConcernedNatural',
+    ],
+    mouth: [
+        'default', 'smile', 'twinkle', 'tongue', 'serious',
+        'sad', 'screamOpen', 'eating', 'concerned', 'disbelief', 'grimace',
+    ],
+    facialHair: [
+        'blank', 'beardLight', 'beardMajestic', 'beardMedium',
+        'moustacheFancy', 'moustacheMagnum',
+    ],
+    accessories: [
+        'blank', 'kurt', 'prescription01', 'prescription02',
+        'round', 'sunglasses', 'wayfarers', 'eyepatch',
+    ],
+    skinColor: [
+        'edb98a', 'ffdbb4', 'fd9841', 'd08b5b', 'ae5d29', '614335',
+    ],
+    backgroundColor: [
+        '4f46e5', '7c3aed', 'ec4899', 'f59e0b', '10b981', '06b6d4',
+        '1e293b', '000000',
+    ],
+};
+
+/**
+ * Build the avataaars PNG URL for a set of builder choices.  Any
+ * undefined option falls back to a sensible default so the avatar
+ * never returns a 400.
+ */
+export function buildCustomDiceBearUrl(opts = {}) {
+    const params = new URLSearchParams({
+        seed: opts.seed || `custom-${Date.now()}`,
+        size: '160',
+        radius: '50',
+        backgroundType: 'solid',
+    });
+    if (opts.top)              params.set('top', opts.top);
+    if (opts.hairColor)        params.set('hairColor', opts.hairColor);
+    if (opts.eyes)             params.set('eyes', opts.eyes);
+    if (opts.eyebrows)         params.set('eyebrows', opts.eyebrows);
+    if (opts.mouth)            params.set('mouth', opts.mouth);
+    if (opts.facialHair && opts.facialHair !== 'blank') {
+        params.set('facialHair', opts.facialHair);
+    } else {
+        params.set('facialHairProbability', '0');
+    }
+    if (opts.accessories && opts.accessories !== 'blank') {
+        params.set('accessories', opts.accessories);
+        params.set('accessoriesProbability', '100');
+    } else {
+        params.set('accessoriesProbability', '0');
+    }
+    if (opts.skinColor)        params.set('skinColor', opts.skinColor);
+    if (opts.backgroundColor)  params.set('backgroundColor', opts.backgroundColor);
+    return `${DICEBEAR}/avataaars/png?${params.toString()}`;
+}
+
+/** Read every locally-saved custom avatar from storage. */
+export function loadCustomAvatars() {
+    try {
+        const raw = localStorage.getItem(CUSTOM_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Persist a new custom avatar.  Returns the stored record so the
+ * caller can immediately reference it on the new profile.
+ */
+export function saveCustomAvatar(opts) {
+    const id = `custom-${Math.random().toString(36).slice(2, 10)}`;
+    const src = buildCustomDiceBearUrl({ ...opts, seed: id });
+    const record = {
+        id,
+        src,
+        glow: '#' + (opts.backgroundColor || '06b6d4'),
+        options: opts,
+        createdAt: Date.now(),
+    };
+    try {
+        const existing = loadCustomAvatars();
+        existing.push(record);
+        localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing));
+    } catch { /* ignore quota */ }
+    return record;
+}
+
 export function getAvatar(id) {
-    return AVATARS.find((a) => a.id === id) || AVATARS[0];
+    return (
+        AVATARS.find((a) => a.id === id) ||
+        loadCustomAvatars().find((a) => a.id === id) ||
+        AVATARS[0]
+    );
 }
 
 /**

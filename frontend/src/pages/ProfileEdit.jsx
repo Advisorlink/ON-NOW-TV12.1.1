@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
-import { AVATARS, AVATAR_CATEGORIES, AvatarCircle } from '@/lib/avatars';
+import { AVATARS, AVATAR_CATEGORIES, AVATAR_BUILDER_OPTIONS, AvatarCircle, buildCustomDiceBearUrl, saveCustomAvatar, loadCustomAvatars } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
 import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
@@ -72,6 +72,9 @@ export default function ProfileEdit() {
     // saved" toast, and return to the picker.
     const [pinEntryOpen, setPinEntryOpen] = useState(false);
     const [pinSavedToast, setPinSavedToast] = useState(false);
+    // Build-Your-Own avatar sub-step overlay.  Lives on top of
+    // the avatar grid when open.  See <BuildAvatarOverlay/> below.
+    const [builderOpen, setBuilderOpen] = useState(false);
 
     /**
      * Persist every choice the user made during the wizard onto
@@ -266,6 +269,22 @@ export default function ProfileEdit() {
                     visibleAvatars={visibleAvatars}
                     avatarId={avatarId}
                     onPick={(id) => setPendingAvatar(id)}
+                    onOpenBuilder={() => setBuilderOpen(true)}
+                />
+            )}
+
+            {builderOpen && (
+                <BuildAvatarOverlay
+                    onCancel={() => setBuilderOpen(false)}
+                    onSave={(record) => {
+                        // The new custom avatar is now in
+                        // localStorage; jump straight into the
+                        // SaveAvatarConfirm flow so the user sees
+                        // the same "Save this as your icon?" prompt
+                        // they get for every other avatar pick.
+                        setBuilderOpen(false);
+                        setTimeout(() => setPendingAvatar(record.id), 80);
+                    }}
                 />
             )}
 
@@ -1267,7 +1286,14 @@ function GenreSection({ label, genres, media, loading, selected, activeId, onOpe
 
 
 
-function AvatarStep({ visibleAvatars, avatarId, onPick }) {
+function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
+    // User-built custom avatars from localStorage.  Refreshed on
+    // mount so a newly-built one shows up the next time the user
+    // visits step 2.
+    const customAvatars = React.useMemo(
+        () => (typeof window !== 'undefined' ? loadCustomAvatars() : []),
+        []
+    );
     return (
         <div data-testid="profile-step-avatar" style={{ width: '100%' }}>
             <h2
@@ -1282,12 +1308,120 @@ function AvatarStep({ visibleAvatars, avatarId, onPick }) {
                 CHOOSE AN AVATAR · {visibleAvatars.length} · {AVATAR_CATEGORIES.length} CATEGORIES
             </h2>
 
-            {/* Categorised horizontal rows.  D-pad Down walks one
-                row to the next (Animals → Wildlife → Fantasy …);
-                Left/Right picks a specific avatar within the row.
-                Each row is independently horizontally scrollable
-                so users can keep walking right to find more icons
-                in that category. */}
+            {/* Build-Your-Own + custom row -----------------------*/}
+            <section
+                data-testid="avatar-row-custom"
+                style={{ paddingTop: 4, paddingBottom: 6 }}
+            >
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 10,
+                        letterSpacing: '0.28em',
+                        color: 'var(--vesper-blue-bright)',
+                        textTransform: 'uppercase',
+                        marginBottom: 8,
+                        marginLeft: 4,
+                    }}
+                >
+                    Make Your Own
+                </div>
+                <div
+                    className="vesper-shelf flex"
+                    style={{
+                        gap: 14,
+                        overflowX: 'auto',
+                        paddingLeft: 4,
+                        paddingRight: 16,
+                        paddingTop: 6,
+                        paddingBottom: 8,
+                    }}
+                >
+                    <button
+                        data-testid="avatar-build-your-own"
+                        data-focusable="true"
+                        data-focus-style="tile"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={onOpenBuilder}
+                        className="rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                            width: 120,
+                            height: 120,
+                            border: '2px dashed rgba(var(--vesper-blue-rgb), 0.6)',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(var(--vesper-blue-rgb), 0.18), rgba(6,8,15,0.6))',
+                            color: 'var(--vesper-blue-bright)',
+                            cursor: 'pointer',
+                            padding: 0,
+                            position: 'relative',
+                        }}
+                    >
+                        <div className="flex flex-col items-center" style={{ gap: 6 }}>
+                            <UserCircle size={32} strokeWidth={1.6} />
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--vesper-blue-bright)',
+                                }}
+                            >
+                                Build
+                            </div>
+                        </div>
+                    </button>
+
+                    {customAvatars.map((a) => {
+                        const active = a.id === avatarId;
+                        return (
+                            <button
+                                key={a.id}
+                                data-testid={`avatar-pick-${a.id}`}
+                                data-focusable="true"
+                                data-focus-style="tile"
+                                tabIndex={0}
+                                onClick={() => onPick(a.id)}
+                                className="rounded-full flex items-center justify-center shrink-0"
+                                style={{
+                                    width: 120,
+                                    height: 120,
+                                    border: 'none',
+                                    padding: 0,
+                                    background: 'transparent',
+                                    position: 'relative',
+                                }}
+                            >
+                                <AvatarCircle avatarId={a.id} size={120} ring={active} />
+                                {active && (
+                                    <span
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: -2,
+                                            right: -2,
+                                            width: 28,
+                                            height: 28,
+                                            borderRadius: '50%',
+                                            background: 'var(--vesper-blue)',
+                                            color: 'var(--vesper-bg-0)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow:
+                                                '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
+                                        }}
+                                    >
+                                        <Check size={16} strokeWidth={3} />
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+
+            {/* Categorised horizontal rows. */}
             <div
                 className="flex flex-col"
                 style={{ gap: 6, paddingRight: 8 }}
@@ -1298,7 +1432,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick }) {
                         category={cat}
                         avatarId={avatarId}
                         onPick={onPick}
-                        rowIdx={rowIdx}
+                        rowIdx={rowIdx + 1}
                     />
                 ))}
             </div>
@@ -1338,7 +1472,11 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
             >
                 {category.items.map((a, i) => {
                     const active = a.id === avatarId;
-                    const isInitial = rowIdx === 0 && i === 0;
+                    // initial focus only when we're on the very
+                    // first AvatarRow AND no Build-Your-Own row
+                    // was rendered above (rowIdx===0 == build row
+                    // exists, so AvatarRow always gets rowIdx≥1).
+                    const isInitial = false;
                     return (
                         <button
                             key={a.id}
@@ -1387,6 +1525,249 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
         </section>
     );
 }
+
+/**
+ * Full-screen "Build Your Own" avatar overlay.  Renders a big
+ * preview circle on top and chip rows below for hair / eyes /
+ * mouth / accessories etc.  Each chip choice rebuilds the
+ * DiceBear URL on the fly so the preview updates instantly.
+ *
+ * Save → persist the avatar to localStorage via saveCustomAvatar
+ * and hand the record back to the parent so it can drop into
+ * the same SaveAvatarConfirm flow used for every other avatar.
+ */
+function BuildAvatarOverlay({ onCancel, onSave }) {
+    const [opts, setOpts] = React.useState({
+        top: 'shortFlat',
+        hairColor: '4a312c',
+        eyes: 'happy',
+        eyebrows: 'default',
+        mouth: 'smile',
+        facialHair: 'blank',
+        accessories: 'blank',
+        skinColor: 'edb98a',
+        backgroundColor: '4f46e5',
+    });
+    const previewUrl = React.useMemo(
+        () => buildCustomDiceBearUrl({ ...opts, seed: 'preview' }),
+        [opts]
+    );
+    const set = (k) => (v) => setOpts((p) => ({ ...p, [k]: v }));
+    return (
+        <div
+            data-testid="build-avatar-overlay"
+            className="fixed inset-0 z-50 flex flex-col"
+            style={{
+                background:
+                    'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.25), transparent), var(--vesper-bg-0)',
+                padding: 'clamp(28px, 3vw, 48px)',
+                overflowY: 'auto',
+            }}
+        >
+            <div className="flex items-center" style={{ gap: 16, marginBottom: 22 }}>
+                <button
+                    data-testid="build-avatar-back"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 48,
+                        height: 48,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: 'var(--vesper-text-2)',
+                    }}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.32em',
+                            color: 'var(--vesper-blue-bright)',
+                        }}
+                    >
+                        BUILD YOUR OWN AVATAR
+                    </div>
+                    <h1
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(28px, 3vw, 44px)',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.05,
+                            marginTop: 4,
+                        }}
+                    >
+                        Make it <span style={{ color: 'var(--vesper-blue-bright)' }}>yours</span>
+                    </h1>
+                </div>
+            </div>
+
+            {/* Live preview */}
+            <div className="flex items-center" style={{ gap: 'clamp(24px, 3vw, 40px)', marginBottom: 24 }}>
+                <div
+                    data-testid="build-avatar-preview"
+                    className="shrink-0"
+                    style={{
+                        width: 220,
+                        height: 220,
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        background: `#${opts.backgroundColor}`,
+                        border: '3px solid var(--vesper-blue-bright)',
+                        boxShadow: `0 0 0 6px rgba(var(--vesper-blue-rgb),0.18), 0 30px 60px -20px rgba(var(--vesper-blue-rgb),0.6)`,
+                    }}
+                >
+                    <img
+                        src={previewUrl}
+                        alt="preview"
+                        loading="eager"
+                        decoding="async"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                </div>
+                <div style={{ flex: 1, color: 'var(--vesper-text-2)', fontSize: 14, maxWidth: '60ch' }}>
+                    Tap any option below to instantly remix your avatar — hair,
+                    eyes, mouth, glasses, the works.  When you&apos;re happy, hit
+                    <strong style={{ color: 'var(--vesper-blue-bright)' }}> Save</strong> and we&apos;ll add it
+                    to your custom row.
+                </div>
+            </div>
+
+            {/* Option chip groups */}
+            <div className="flex flex-col" style={{ gap: 14, marginBottom: 28 }}>
+                <ChipRow label="Hair" group="top" value={opts.top} onSet={set('top')} />
+                <ChipRow label="Hair color" group="hairColor" value={opts.hairColor} onSet={set('hairColor')} swatches />
+                <ChipRow label="Skin" group="skinColor" value={opts.skinColor} onSet={set('skinColor')} swatches />
+                <ChipRow label="Eyes" group="eyes" value={opts.eyes} onSet={set('eyes')} />
+                <ChipRow label="Eyebrows" group="eyebrows" value={opts.eyebrows} onSet={set('eyebrows')} />
+                <ChipRow label="Mouth" group="mouth" value={opts.mouth} onSet={set('mouth')} />
+                <ChipRow label="Facial hair" group="facialHair" value={opts.facialHair} onSet={set('facialHair')} />
+                <ChipRow label="Glasses" group="accessories" value={opts.accessories} onSet={set('accessories')} />
+                <ChipRow label="Background" group="backgroundColor" value={opts.backgroundColor} onSet={set('backgroundColor')} swatches />
+            </div>
+
+            <div className="flex" style={{ gap: 12 }}>
+                <button
+                    data-testid="build-avatar-cancel"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    className="rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 28px',
+                        fontSize: 15,
+                        background: 'rgba(255,255,255,0.08)',
+                        color: 'var(--vesper-text)',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                    }}
+                >
+                    Cancel
+                </button>
+                <button
+                    data-testid="build-avatar-save"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => {
+                        const record = saveCustomAvatar(opts);
+                        onSave(record);
+                    }}
+                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 30px',
+                        fontSize: 15,
+                        background: 'var(--vesper-blue)',
+                        color: 'var(--vesper-bg-0)',
+                        border: 'none',
+                        boxShadow: '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                    }}
+                >
+                    Save & use this avatar
+                    <ArrowRight size={16} strokeWidth={2.5} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ChipRow({ label, group, value, onSet, swatches }) {
+    const options = AVATAR_BUILDER_OPTIONS[group] || [];
+    return (
+        <div>
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.28em',
+                    color: 'var(--vesper-text-3)',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                    marginLeft: 4,
+                }}
+            >
+                {label}
+            </div>
+            <div
+                className="vesper-shelf flex"
+                style={{
+                    gap: 10,
+                    overflowX: 'auto',
+                    paddingLeft: 4,
+                    paddingRight: 16,
+                    paddingTop: 4,
+                    paddingBottom: 8,
+                }}
+            >
+                {options.map((opt) => {
+                    const active = opt === value;
+                    return (
+                        <button
+                            key={opt}
+                            data-testid={`build-chip-${group}-${opt}`}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => onSet(opt)}
+                            className="shrink-0 rounded-full"
+                            style={{
+                                height: swatches ? 44 : 36,
+                                minWidth: swatches ? 44 : undefined,
+                                padding: swatches ? 0 : '0 14px',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: active
+                                    ? 'var(--vesper-bg-0)'
+                                    : 'var(--vesper-text)',
+                                background: swatches
+                                    ? `#${opt}`
+                                    : active
+                                    ? 'var(--vesper-blue)'
+                                    : 'rgba(255,255,255,0.06)',
+                                border: active
+                                    ? `2px solid var(--vesper-blue-bright)`
+                                    : '1px solid rgba(255,255,255,0.12)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {swatches ? '' : opt}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+
 
 function ProfilePinField({ pin, onChange }) {
     const [enabled, setEnabled] = useState(pin.length === 4);

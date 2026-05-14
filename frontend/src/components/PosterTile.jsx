@@ -65,6 +65,15 @@ export default function PosterTile({ item, onSelect }) {
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
+                // Buffer above/below the tile when D-pad nav
+                // scrollIntoView()s onto it — without this the
+                // focus-scale transform on the first-shelf row
+                // sometimes lands at the very bottom of the
+                // scroll viewport and clips the tile's bottom
+                // edge.  20 px matches the focus ring + scale
+                // overflow.
+                scrollMarginTop: 24,
+                scrollMarginBottom: 24,
             }}
         >
             {item.poster ? (
