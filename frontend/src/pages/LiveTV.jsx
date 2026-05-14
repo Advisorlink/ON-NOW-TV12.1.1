@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, LogOut, Star, Clock } from 'lucide-react';
+import { Play, LogOut, Star, Clock, Search, X } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -108,6 +108,11 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         () => getRecents(provider.id).map((v) => String(v)),
     );
     const REC_CAT_ID = '__recents__';
+
+    // Search query — filters the currently-visible channel list.
+    // Reset on every category change so navigating away clears the
+    // filter automatically (no stale state).
+    const [query, setQuery] = useState('');
 
     // Per-category channel cache; populated entirely during boot so
     // the grid never has to fetch on category-switch.
@@ -233,6 +238,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     const pickCategory = useCallback((catId) => {
         if (!catId) return;
         setActiveCat(catId);
+        setQuery('');  // reset filter on category change
         let list;
         if (catId === FAV_CAT_ID) list = favoriteChannels;
         else if (catId === REC_CAT_ID) list = recentChannels;
@@ -275,6 +281,32 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [onToggleFav]);
+
+    /* "/" key — jumps focus into the search bar from anywhere.
+     *  ESC inside the search input — clears the query (and the
+     *  global ESC→home handler is already gated on tagName so
+     *  pressing ESC in the input won't navigate away). */
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) {
+                e.preventDefault();
+                const el = document.querySelector('[data-testid="live-tv-search"]');
+                if (el) {
+                    el.focus();
+                    el.select?.();
+                }
+            } else if (e.key === 'Escape' &&
+                e.target?.getAttribute?.('data-testid') === 'live-tv-search') {
+                if (query) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setQuery('');
+                }
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [query]);
 
     const playChannel = useCallback(async (channel) => {
         if (!channel) return;
@@ -349,6 +381,37 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         [epgItems],
     );
 
+    /* Filtered channel list.  Case-insensitive substring match on
+     * channel name; if the query is all digits it also matches the
+     * channel number for quick "type 401 → BBC News" jumps. */
+    const filteredChannels = useMemo(() => {
+        const q = (query || '').trim().toLowerCase();
+        if (!q) return channels;
+        const isNumeric = /^\d+$/.test(q);
+        return channels.filter((c) => {
+            const name = (c.name || '').toLowerCase();
+            if (name.includes(q)) return true;
+            if (isNumeric && c.num != null && String(c.num).includes(q)) return true;
+            return false;
+        });
+    }, [channels, query]);
+
+    /* When the filter changes and the currently-focused channel
+     * falls out of the result set, jump focus to the first match
+     * so the hero + guide stay in sync with what's visible. */
+    useEffect(() => {
+        if (filteredChannels.length === 0) return;
+        if (!focusedChannel) {
+            setFocusedChannel(filteredChannels[0]);
+            return;
+        }
+        const stillThere = filteredChannels.some(
+            (c) => c.stream_id === focusedChannel.stream_id,
+        );
+        if (!stillThere) setFocusedChannel(filteredChannels[0]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredChannels]);
+
     if (!booted) {
         return <LiveTVBoot stages={stages} />;
     }
@@ -394,9 +457,12 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     onPick={pickCategory}
                 />
                 <ChannelsCol
-                    channels={channels}
+                    channels={filteredChannels}
+                    totalCount={channels.length}
                     focusedId={focusedChannel?.stream_id}
                     favorites={favorites}
+                    query={query}
+                    onQueryChange={setQuery}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
                 />
@@ -854,7 +920,7 @@ function FavCategoryRow({ isActive, count, onPick }) {
     );
 }
 
-function ChannelsCol({ channels, focusedId, favorites, onFocus, onPlay }) {
+function ChannelsCol({ channels, totalCount, focusedId, favorites, query, onQueryChange, onFocus, onPlay }) {
     // Windowed render — Chrome 52 (HK1) doesn't support
     // content-visibility, so we hand-virtualize.  Start with 50,
     // grow by 50 every time the sentinel intersects.
@@ -882,48 +948,152 @@ function ChannelsCol({ channels, focusedId, favorites, onFocus, onPlay }) {
 
     const visible = useMemo(() => channels.slice(0, visibleCount), [channels, visibleCount]);
 
+    const filterActive = !!(query && query.trim());
+
     return (
-        <div
-            data-testid="live-tv-channels"
-            ref={containerRef}
-            style={{
-                padding: '8px 6px',
-                background: 'rgba(255,255,255,0.018)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 14,
-                maxHeight: 'calc(100dvh - 250px)',
-                overflowY: 'auto',
-            }}
-        >
-            {channels.length === 0 ? (
-                <div style={{ padding: '24px 18px', color: 'var(--vesper-text-3)', fontSize: 13, lineHeight: 1.5 }}>
-                    No channels here yet.
-                    <div style={{
-                        marginTop: 6,
-                        fontSize: 11, color: 'var(--vesper-text-3)',
-                        letterSpacing: '0.04em',
+        <div data-testid="live-tv-channels-wrapper">
+            {/* Search bar — sits above the scroll container so it
+                stays in place while the channel list scrolls. */}
+            <ChannelSearchBar
+                query={query}
+                onChange={onQueryChange}
+                resultCount={channels.length}
+                totalCount={totalCount}
+            />
+            <div
+                data-testid="live-tv-channels"
+                ref={containerRef}
+                style={{
+                    padding: '8px 6px',
+                    background: 'rgba(255,255,255,0.018)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 14,
+                    maxHeight: 'calc(100dvh - 310px)',
+                    overflowY: 'auto',
+                }}
+            >
+                {channels.length === 0 ? (
+                    filterActive ? (
+                        <div style={{ padding: '24px 18px', color: 'var(--vesper-text-3)', fontSize: 13, lineHeight: 1.5 }}>
+                            No channels match <strong style={{ color: '#fff' }}>“{query}”</strong>.
+                        </div>
+                    ) : (
+                        <div style={{ padding: '24px 18px', color: 'var(--vesper-text-3)', fontSize: 13, lineHeight: 1.5 }}>
+                            No channels here yet.
+                            <div style={{
+                                marginTop: 6,
+                                fontSize: 11, color: 'var(--vesper-text-3)',
+                                letterSpacing: '0.04em',
+                            }}>
+                                Focus a channel and press <strong style={{ color: '#FFC850' }}>F</strong> (or tap the
+                                <Star size={11} strokeWidth={2} fill="#FFC850" color="#FFC850" style={{ display: 'inline', verticalAlign: 'middle', margin: '0 3px' }} />
+                                in the hero) to add it.
+                            </div>
+                        </div>
+                    )
+                ) : (
+                    <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                        {visible.map((c) => (
+                            <ChannelRowLean
+                                key={c.stream_id}
+                                channel={c}
+                                focused={c.stream_id === focusedId}
+                                isFav={favorites?.has(String(c.stream_id)) || false}
+                                onFocus={() => onFocus(c)}
+                                onPlay={() => { onFocus(c); onPlay(c); }}
+                            />
+                        ))}
+                        {visibleCount < channels.length && (
+                            <li ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
+                        )}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/* ============================ Search bar ============================ */
+function ChannelSearchBar({ query, onChange, resultCount, totalCount }) {
+    const inputRef = useRef(null);
+    const hasQuery = !!(query && query.trim());
+
+    return (
+        <div style={{
+            display: 'flex', alignItems: 'center',
+            gap: 10, marginBottom: 10,
+            padding: '8px 14px',
+            background: hasQuery
+                ? 'rgba(93,200,255,0.10)'
+                : 'rgba(255,255,255,0.04)',
+            border: hasQuery
+                ? '1px solid rgba(93,200,255,0.45)'
+                : '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 10,
+            minHeight: 44,
+        }}>
+            <Search
+                size={15}
+                strokeWidth={2}
+                color={hasQuery ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)'}
+                style={{ flexShrink: 0 }}
+            />
+            <input
+                ref={inputRef}
+                data-testid="live-tv-search"
+                data-focusable="true"
+                data-focus-style="quiet"
+                type="text"
+                value={query || ''}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="Search channels (name or number)…"
+                style={{
+                    flex: 1, minWidth: 0,
+                    background: 'transparent',
+                    border: 'none', outline: 'none',
+                    color: '#fff',
+                    fontSize: 13, fontWeight: 500,
+                    fontFamily: 'inherit',
+                }}
+            />
+            {hasQuery ? (
+                <>
+                    <span className="vesper-mono" style={{
+                        fontSize: 10, fontWeight: 700,
+                        color: 'var(--vesper-blue-bright)',
+                        letterSpacing: '0.06em',
+                        flexShrink: 0,
                     }}>
-                        Focus a channel and press <strong style={{ color: '#FFC850' }}>F</strong> (or tap the
-                        <Star size={11} strokeWidth={2} fill="#FFC850" color="#FFC850" style={{ display: 'inline', verticalAlign: 'middle', margin: '0 3px' }} />
-                        in the hero) to add it.
-                    </div>
-                </div>
+                        {resultCount} / {totalCount}
+                    </span>
+                    <button
+                        data-testid="live-tv-search-clear"
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onClick={() => { onChange(''); inputRef.current?.focus(); }}
+                        aria-label="Clear search"
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                            width: 24, height: 24,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text-2)',
+                            cursor: 'pointer', flexShrink: 0,
+                        }}
+                    >
+                        <X size={12} strokeWidth={2.5} />
+                    </button>
+                </>
             ) : (
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                    {visible.map((c) => (
-                        <ChannelRowLean
-                            key={c.stream_id}
-                            channel={c}
-                            focused={c.stream_id === focusedId}
-                            isFav={favorites?.has(String(c.stream_id)) || false}
-                            onFocus={() => onFocus(c)}
-                            onPlay={() => { onFocus(c); onPlay(c); }}
-                        />
-                    ))}
-                    {visibleCount < channels.length && (
-                        <li ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
-                    )}
-                </ul>
+                <span className="vesper-mono" style={{
+                    fontSize: 10, fontWeight: 700,
+                    color: 'var(--vesper-text-3)',
+                    letterSpacing: '0.06em',
+                    flexShrink: 0,
+                }}>
+                    {totalCount}
+                </span>
             )}
         </div>
     );
