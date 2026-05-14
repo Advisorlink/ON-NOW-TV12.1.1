@@ -244,25 +244,30 @@ function GenreChip({ label, active, onClick }) {
 }
 
 /**
- * Dim-the-screen-while-we-load overlay.  Sits on top of the grid
- * (which renders behind it as items stream in) so the user has a
- * clear signal "covers are still loading, hold on" and can't
- * accidentally trigger a tile until everything is settled.
+ * Dim-the-grid-while-we-load overlay.  Important: it's
+ * `position: absolute` (not fixed) and `pointer-events: none`,
+ * so the SideNav, search, and any other UI outside the grid
+ * remain clickable while catalogues are still loading.  Without
+ * these constraints a stuck `loading=true` state would silently
+ * block every click in the app, which is exactly what the user
+ * reported ("click TV Shows → nothing loads, click Library →
+ * nothing happens").
  */
 function LoadingOverlay({ type, testId, progress }) {
     const pct = Math.round(Math.max(0, Math.min(1, progress || 0)) * 100);
     return (
         <div
             data-testid={testId}
-            className="fixed inset-0 flex flex-col items-center justify-center"
+            className="absolute inset-0 flex flex-col items-center justify-center"
             style={{
                 background: 'rgba(6,8,15,0.72)',
                 backdropFilter: 'blur(4px)',
                 WebkitBackdropFilter: 'blur(4px)',
-                zIndex: 30,
+                zIndex: 5,
                 gap: 18,
                 color: 'var(--vesper-blue-bright)',
-                pointerEvents: 'auto',
+                pointerEvents: 'none',
+                minHeight: '50vh',
             }}
         >
             <Loader2 size={64} strokeWidth={2} className="vesper-spin" />
