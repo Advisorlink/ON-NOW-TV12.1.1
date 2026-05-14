@@ -30,6 +30,11 @@ export default function ProfileSelect() {
     // as the full profile object so the modal can show the name +
     // avatar in the prompt.
     const [removeTarget, setRemoveTarget] = useState(null);
+    // Profile awaiting PIN entry before delete confirmation can
+    // be shown.  Only used when the target has a PIN set.
+    const [deletePinTarget, setDeletePinTarget] = useState(null);
+    const [deletePinError, setDeletePinError] = useState('');
+    const [deletePinReset, setDeletePinReset] = useState(0);
 
     const activate = (id) => {
         setActiveProfile(id);
@@ -47,6 +52,31 @@ export default function ProfileSelect() {
             return;
         }
         activate(p.id);
+    };
+
+    const requestRemove = (p) => {
+        // Gate delete behind the profile's PIN.  Without this, a
+        // PIN-protected profile could be wiped (along with its
+        // library and watch-progress) just by pressing Remove on
+        // the manage-profiles screen.
+        if (profileHasPin(p)) {
+            setDeletePinError('');
+            setDeletePinTarget(p);
+            return;
+        }
+        setRemoveTarget(p);
+    };
+
+    const onDeletePinSubmit = (entered) => {
+        if (!deletePinTarget) return;
+        if (checkProfilePin(deletePinTarget, entered)) {
+            const target = deletePinTarget;
+            setDeletePinTarget(null);
+            setRemoveTarget(target);
+        } else {
+            setDeletePinError('Incorrect PIN. Try again.');
+            setDeletePinReset((x) => x + 1);
+        }
     };
 
     const onPinSubmit = (entered) => {
@@ -144,12 +174,12 @@ export default function ProfileSelect() {
                             profile={p}
                             editMode={editMode}
                             onPick={() => pick(p)}
-                            onRemove={() => setRemoveTarget(p)}
+                            onRemove={() => requestRemove(p)}
                         />
                     ))}
-                    {profiles.filter((p) => !p.kids).length < 4 && (
-                        <AddProfileTile onClick={() => navigate('/profiles/new')} />
-                    )}
+                    {/* No profile cap — user explicitly asked for
+                        unlimited.  AddProfileTile always renders. */}
+                    <AddProfileTile onClick={() => navigate('/profiles/new')} />
                 </div>
 
                 <button
@@ -185,6 +215,17 @@ export default function ProfileSelect() {
                         setRemoveTarget(null);
                         refresh();
                     }}
+                />
+            )}
+
+            {deletePinTarget && (
+                <PinGate
+                    title={`Enter ${deletePinTarget.name}'s PIN to delete`}
+                    subtitle="PIN required to remove this profile"
+                    onSuccess={onDeletePinSubmit}
+                    onCancel={() => setDeletePinTarget(null)}
+                    error={deletePinError}
+                    resetSignal={deletePinReset}
                 />
             )}
 

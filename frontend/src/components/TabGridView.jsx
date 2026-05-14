@@ -3,18 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import { useAddons } from '@/hooks/useAddons';
+import { useTabCatalog } from '@/hooks/useTabCatalog';
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
  *
- * Takes the live shelves payload (already type-filtered), flattens
- * every catalogue into one list, dedupes by IMDb id (the same movie
- * can appear under "Top Rated" and "Trending" simultaneously), then
- * sorts by `releaseInfo` / `year` descending so the freshest titles
- * sit at the top — exactly what the user asked for.
+ * Built on top of the new `useTabCatalog` hook that fetches every
+ * catalogue from every installed addon IN PARALLEL — much faster
+ * than the old serial walk through useLiveShelves.  Default view
+ * shows the top 100 newest releases.  Picking a genre chip swaps
+ * the grid to "every title in that genre" with no 100-cap.
  */
-export default function TabGridView({ shelves, loading, type }) {
+export default function TabGridView({ type }) {
     const navigate = useNavigate();
+    const { addons } = useAddons();
+    const { items: allItems, genres: genreList, loading, progress } =
+        useTabCatalog(addons, type);
 
     // Selected genre filter ('' = "All").  Resets when type swaps.
     const [genre, setGenre] = React.useState('');
@@ -22,37 +27,7 @@ export default function TabGridView({ shelves, loading, type }) {
         setGenre('');
     }, [type]);
 
-    const { items: allItems, genres: genreList } = React.useMemo(() => {
-        const seen = new Map();
-        const genreCount = new Map();
-        for (const shelf of Array.isArray(shelves) ? shelves : []) {
-            for (const it of shelf.items || []) {
-                const key = it.routePath || it.imdbId || it.id;
-                if (!key) continue;
-                if (!seen.has(key)) seen.set(key, it);
-                for (const g of it.genres || []) {
-                    if (!g) continue;
-                    genreCount.set(g, (genreCount.get(g) || 0) + 1);
-                }
-            }
-        }
-        const all = Array.from(seen.values());
-        const yearOf = (it) => {
-            const raw = (it.sub || '') + ' ' + (it.releaseInfo || '');
-            const m = raw.match(/(19|20)\d{2}/);
-            return m ? parseInt(m[0], 10) : 0;
-        };
-        all.sort((a, b) => yearOf(b) - yearOf(a));
-        // Top genres by item count, capped to 14 chips so the rail
-        // stays readable on a 1080p TV.
-        const genres = Array.from(genreCount.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 14)
-            .map(([name]) => name);
-        return { items: all, genres };
-    }, [shelves]);
-
-    // What we actually paint:
+    // Visible items derived directly from the fast hook:
     // - No genre selected → top 100 newest releases (capped for
     //   speed per user spec).
     // - A genre selected → ALL items in that genre (no cap).
@@ -184,6 +159,7 @@ export default function TabGridView({ shelves, loading, type }) {
                     {loading && (
                         <LoadingOverlay
                             type={type}
+                            progress={progress}
                             testId={`tab-grid-loading-${type}`}
                         />
                     )}
@@ -273,7 +249,8 @@ function GenreChip({ label, active, onClick }) {
  * clear signal "covers are still loading, hold on" and can't
  * accidentally trigger a tile until everything is settled.
  */
-function LoadingOverlay({ type, testId }) {
+function LoadingOverlay({ type, testId, progress }) {
+    const pct = Math.round(Math.max(0, Math.min(1, progress || 0)) * 100);
     return (
         <div
             data-testid={testId}
@@ -298,7 +275,8 @@ function LoadingOverlay({ type, testId }) {
                     color: 'var(--vesper-text-2)',
                 }}
             >
-                Loading {type === 'series' ? 'TV shows' : 'movies'}…
+                Loading {type === 'series' ? 'TV shows' : 'movies'}
+                {pct > 0 ? ` · ${pct}%` : '…'}
             </div>
         </div>
     );

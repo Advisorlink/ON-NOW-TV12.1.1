@@ -21,7 +21,7 @@ const PREFIX = 'onnowtv:cache:';
 // the backend preview environment is paused or unreachable on a
 // cold boot).  Anything starting with these prefixes is mirrored
 // to localStorage in addition to sessionStorage.
-const PERSIST_PREFIXES = ['addons', 'shelves:', 'heroes:', 'networks:'];
+const PERSIST_PREFIXES = ['addons', 'shelves:', 'heroes:', 'networks:', 'tab:'];
 
 function isPersistKey(key) {
     return PERSIST_PREFIXES.some(

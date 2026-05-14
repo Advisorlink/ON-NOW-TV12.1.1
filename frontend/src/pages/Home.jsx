@@ -12,6 +12,7 @@ import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
+import { useTabCatalog } from '@/hooks/useTabCatalog';
 import Lazy from '@/components/Lazy';
 
 export default function Home() {
@@ -25,41 +26,36 @@ export default function Home() {
     useHomeBackHandler(isFilterView ? 'home-filter' : 'home-root');
 
     const itemsPerCatalog = isFilterView ? 60 : 18;
-    const shelfFilter = isFilterView ? filter : null;
+    // On the filter views (Movies / TV Shows tabs) we DON'T pull
+    // live shelves any more — those views now use their own
+    // dedicated, parallel-fetch hook (useTabCatalog) inside
+    // TabGridView.  Skipping this hook here removes a heavy
+    // duplicate fetch that was making the box load slowly.
+    const shelfFilter = isFilterView ? null : null;
     const heroType = filter === 'movie' ? 'movie' : 'series';
 
     const { shelves: liveShelves, loading: liveLoading } = useLiveShelves(
-        addons,
+        isFilterView ? [] : addons,
         shelfFilter,
         itemsPerCatalog
     );
-    const { heroes: liveHeroes } = useLiveHeroes(addons, heroType);
+    const { heroes: liveHeroes } = useLiveHeroes(
+        isFilterView ? [] : addons,
+        heroType
+    );
 
-    // Background prefetch — warm the cache for the two filter
-    // views the user hasn't navigated to yet, so clicking "TV
-    // Shows" / "Movies" in the side nav lands instantly with data
-    // already painted instead of a 2–3 s catalogue spin.  Hooks
-    // are unconditional; values are intentionally discarded.  We
-    // delay prefetch until the active view has finished its first
-    // load so on a slow TV box the prefetch doesn't compete for
-    // network / CPU with the user-visible render.
+    // Background prefetch — warm the cache for the home view when
+    // we're on a filter view, and pre-fetch BOTH tab catalogues
+    // (movies + series) for instant tab swaps.  Done via the new
+    // useTabCatalog hook directly.
     const [prefetchReady, setPrefetchReady] = React.useState(false);
     React.useEffect(() => {
-        if (liveLoading) return undefined;
-        const t = setTimeout(() => setPrefetchReady(true), 200);
+        const t = setTimeout(() => setPrefetchReady(true), 600);
         return () => clearTimeout(t);
-    }, [liveLoading]);
+    }, []);
     const prefetchAddons = prefetchReady ? addons : [];
-    useLiveShelves(
-        prefetchAddons,
-        shelfFilter === 'series' ? 'movie' : 'series',
-        60
-    );
-    useLiveShelves(
-        prefetchAddons,
-        shelfFilter ? null : 'movie',
-        60
-    );
+    useTabCatalog(prefetchAddons, 'movie');
+    useTabCatalog(prefetchAddons, 'series');
 
     const shelves = useMemo(
         () => (Array.isArray(liveShelves) ? liveShelves : []),
@@ -143,11 +139,7 @@ export default function Home() {
                     className="absolute inset-0 overflow-y-auto"
                     style={{ scrollBehavior: 'auto' }}
                 >
-                    <TabGridView
-                        shelves={shelves}
-                        loading={liveLoading}
-                        type={filter}
-                    />
+                    <TabGridView type={filter} />
                 </main>
             ) : (
                 /* Split layout — hero stays LOCKED at the top, only
