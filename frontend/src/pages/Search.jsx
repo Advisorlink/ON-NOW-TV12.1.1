@@ -4,6 +4,7 @@ import SideNav from '@/components/SideNav';
 import KidsSideNav from '@/components/KidsSideNav';
 import FullscreenButton from '@/components/FullscreenButton';
 import PosterTile from '@/components/PosterTile';
+import TVKeyboard from '@/components/TVKeyboard';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAddons } from '@/hooks/useAddons';
 import KidsBlockedMessage from '@/components/KidsBlockedMessage';
@@ -202,37 +203,20 @@ export default function Search() {
                 </h1>
 
                 <div
-                    className="flex items-center gap-3 mb-12"
+                    className="flex items-center gap-3 mb-8"
                     style={{ maxWidth: 760 }}
                 >
                     <div
                         data-testid="search-input-wrap"
-                        data-focusable="true"
-                        data-focus-style="bare"
-                        data-initial-focus="true"
-                        tabIndex={0}
-                        onClick={() => inputRef.current?.focus()}
-                        onKeyDown={(e) => {
-                            // The wrap itself receives D-pad focus.  On
-                            // OK / Enter we hand focus to the real
-                            // <input> which makes Android pop the system
-                            // keyboard.  This avoids slapping a ring on
-                            // the input itself — the wrap stays visually
-                            // calm and just changes its border tone.
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                inputRef.current?.focus();
-                            }
-                        }}
                         className="flex items-center gap-3 flex-1"
                         style={{
                             height: 64,
                             padding: '0 22px',
                             borderRadius: 999,
                             background: 'rgba(255,255,255,0.06)',
-                            border: '1px solid rgba(255,255,255,0.14)',
-                            transition:
-                                'border-color 160ms ease, background 160ms ease',
+                            border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                            boxShadow:
+                                '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
                         }}
                     >
                         <SearchIcon
@@ -240,38 +224,46 @@ export default function Search() {
                             strokeWidth={2}
                             color="var(--vesper-text-3)"
                         />
-                        <input
-                            ref={inputRef}
+                        {/* Display-only query preview.  Typing
+                            routes through the TVKeyboard below so
+                            the Android IME never has to surface. */}
+                        <div
                             data-testid="search-input"
-                            type="text"
-                            value={q}
-                            onChange={(e) => {
-                                setQ(e.target.value);
-                                if (searched) setSearched(false);
-                            }}
-                            onKeyDown={onInputKeyDown}
-                            placeholder={
-                                listening
-                                    ? 'Listening…'
-                                    : kids
-                                    ? 'Try "Bluey" or "Mario"…'
-                                    : 'Title, actor, keyword…'
-                            }
+                            ref={inputRef}
                             className="vesper-display"
                             style={{
                                 flex: 1,
-                                background: 'transparent',
-                                border: 'none',
-                                outline: 'none',
                                 fontSize: 20,
                                 fontWeight: 500,
                                 letterSpacing: '-0.01em',
-                                color: 'var(--vesper-text)',
-                                boxShadow: 'none',
-                                appearance: 'none',
-                                WebkitAppearance: 'none',
+                                color: q
+                                    ? 'var(--vesper-text)'
+                                    : 'var(--vesper-text-3)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
                             }}
-                        />
+                        >
+                            {q ||
+                                (listening
+                                    ? 'Listening…'
+                                    : kids
+                                    ? 'Try "Bluey" or "Mario"…'
+                                    : 'Title, actor, keyword…')}
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    display: 'inline-block',
+                                    width: 2,
+                                    height: 18,
+                                    marginLeft: 4,
+                                    verticalAlign: 'middle',
+                                    background: 'var(--vesper-blue-bright)',
+                                    animation: 'vesperPulse 1100ms infinite',
+                                    borderRadius: 1,
+                                }}
+                            />
+                        </div>
                         {voiceAvailable && (
                             <button
                                 data-testid="search-mic"
@@ -352,6 +344,26 @@ export default function Search() {
                         Search
                     </button>
                 </div>
+
+                {/* Themed on-screen keyboard — same component used
+                    on the profile name step.  Routes setQ() and
+                    submits on the Enter key.  No Android IME. */}
+                {!results.length && !busy && (
+                    <div style={{ maxWidth: 720, marginBottom: 24 }}>
+                        <TVKeyboard
+                            value={q}
+                            onChange={(v) => {
+                                setQ(v);
+                                if (searched) setSearched(false);
+                            }}
+                            onSubmit={() => {
+                                if (q.trim().length >= 2) doSearch();
+                            }}
+                            maxLength={60}
+                            variant="name"
+                        />
+                    </div>
+                )}
 
                 {(listening || voiceError) && (
                     <div

@@ -171,12 +171,10 @@ function Key({ label, onPress, wide, flex, primary, active, testId }) {
             data-focus-style="tile"
             tabIndex={0}
             onClick={onPress}
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onPress();
-                }
-            }}
+            // NOTE: do NOT handle onKeyDown here.  Browsers already
+            // fire a synthetic `click` when Enter / Space is pressed
+            // on a focused <button>, so re-triggering onPress from
+            // keydown produces a duplicate letter on every press.
             className="flex items-center justify-center font-sans"
             style={{
                 height: 48,
