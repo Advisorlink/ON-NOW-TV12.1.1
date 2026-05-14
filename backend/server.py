@@ -1262,6 +1262,31 @@ async def tmdb_for_you(
     return {"cached": False, "data": mixed}
 
 
+@api.get("/tmdb/search")
+async def tmdb_search(q: str = Query("", min_length=1)):
+    """Plain multi-search wrapper used by Watch Together's movie
+    picker — returns shaped movie + tv items, no kids filtering."""
+    if not q.strip():
+        return {"data": []}
+    cache_key = f"tmdb_search:{q.lower()}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+    data = await _tmdb_get(
+        "/search/multi", {"query": q, "include_adult": "false", "page": "1"}
+    )
+    out: List[Dict[str, Any]] = []
+    for it in data.get("results") or []:
+        mt = it.get("media_type")
+        if mt not in ("movie", "tv"):
+            continue
+        shaped = _shape_tmdb_item(it, mt)
+        if shaped:
+            out.append(shaped)
+    await cache.set(cache_key, out, 60 * 60)
+    return {"cached": False, "data": out}
+
+
 @api.get("/tmdb/similar-to-picks")
 async def tmdb_similar_to_picks(
     picks: str = Query("", description="Comma-separated 'type:tmdb_id' pairs"),
@@ -1363,6 +1388,9 @@ app.include_router(api)
 # Xtream Codes IPTV proxy (auth, categories, streams, EPG)
 from xtream import router as xtream_router  # noqa: E402
 app.include_router(xtream_router)
+
+from watch_party import router as watch_party_router  # noqa: E402
+app.include_router(watch_party_router)
 
 app.add_middleware(
     CORSMiddleware,

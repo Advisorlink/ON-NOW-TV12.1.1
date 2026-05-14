@@ -8,6 +8,7 @@ import {
     Tv,
     Film,
     Zap,
+    Users,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
@@ -18,6 +19,7 @@ const NAV = [
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
+    { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
     { id: 'sources', label: 'Sources', icon: Plug, path: '/sources' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];

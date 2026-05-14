@@ -14,6 +14,7 @@ import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
+import WatchTogether from '@/pages/WatchTogether';
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
@@ -141,6 +142,7 @@ function App() {
                             <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
                             <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />
                             <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
+                            <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
                         </Routes>
                     </Router>
                 </ThemeProvider>
