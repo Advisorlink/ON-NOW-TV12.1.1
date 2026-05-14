@@ -34,6 +34,24 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 65 — Feb 14, 2026)
+### Live TV — perf hardening for the HK1 + cinematic hero
+- **🐛 User reported**: "Works perfectly on the computer, but it's not working good on the actual device itself. Get rid of the logo in the top-right corner of the hero. Show what's playing on the channel as a big hero image from TMDB. Shrink down all images."
+- **🖼 Backend image proxy** — new `/api/img-proxy?url=X&w=N&q=Q` endpoint (`backend/server.py`):
+  - Fetches the source image via httpx, opens in Pillow, resizes with LANCZOS to `w` px wide (height preserves aspect), re-encodes as WebP quality 70.
+  - In-memory LRU cache (512 entries) keyed by (url, w, q). Returns same WebP bytes on cache hit — instant.
+  - Sets `Cache-Control: public, max-age=86400` so the WebView caches client-side too.
+  - **Result**: a 200 KB PNG becomes a ~600 B WebP. HK1 image-decode work drops by **~99%** per channel row.
+- **🎬 TMDB hero backdrop** — new `/api/tmdb/livetv-backdrop?q=TITLE` endpoint:
+  - Searches TMDB multi for the EPG title, returns first movie/tv hit's `backdrop_path + poster_path + title`.
+  - Cached 15 min in the existing TTLCache.
+  - Frontend `LiveHero` debounces lookup 240 ms when the focused channel changes, in-memory caches per title, sets `<div>` background to `https://image.tmdb.org/t/p/w780{backdrop}`.
+  - **Result**: when you focus a channel airing a known show ("Top Gun: Maverick", "Bluey", "Game of Thrones"), the hero shows a big cinematic backdrop of the actual show — not a low-res IPTV channel logo.
+- **🚫 Removed the top-right channel logo** from the hero (was a 200×110 0.65-opacity full-PNG decode that the user explicitly called out).
+- **🚀 Channel-row logos route through proxy**: new `proxiedLogo(url, w=64)` helper builds `{REACT_APP_BACKEND_URL}/api/img-proxy?url=...&w=64&q=70`.  Combined with explicit `width=48 height=32` attrs on the `<img>` so the browser allocates layout slots without waiting for the image header.
+- **⚡ Other tightenings**: channel logo box reduced from 56×38 to 48×32 (less surface to paint), added `imageRendering: 'auto'` hint, kept the existing `loading="lazy" decoding="async"` for off-screen rows.
+
+
 ## Implemented (Iteration 64 — Feb 14, 2026)
 ### Live TV — TV Mate-style boot + no mega-fetch
 - **🎯 User asked**: "Don't load all channels, just categories first, like TV Mate does. Add a loading screen telling what's being loaded. Shrink logos so it runs fast. No glow / drop shadow anywhere."

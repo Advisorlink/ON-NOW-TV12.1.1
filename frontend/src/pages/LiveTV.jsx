@@ -412,13 +412,69 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
         return Math.round(((t - start) / (end - start)) * 100);
     }, [now]);
 
+    // TMDB backdrop lookup — when the focused channel's current
+    // programme has a recognisable title (e.g. "Top Gun: Maverick",
+    // "Bluey", "Game of Thrones") we pull the matching backdrop and
+    // use it as a big cinematic hero background.  Replaces the
+    // channel-logo top-right card the user said felt cluttered on
+    // the actual box.
+    const [backdrop, setBackdrop] = useState(null);
+    const backdropCache = useRef(new Map());
+    useEffect(() => {
+        const title = (now?.title || '').trim();
+        if (!title || title.length < 3) { setBackdrop(null); return; }
+        if (backdropCache.current.has(title)) {
+            setBackdrop(backdropCache.current.get(title));
+            return;
+        }
+        const ctl = new AbortController();
+        const t = setTimeout(async () => {
+            try {
+                const r = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/livetv-backdrop?q=${encodeURIComponent(title)}`,
+                    { signal: ctl.signal },
+                );
+                if (!r.ok) return;
+                const data = await r.json();
+                if (ctl.signal.aborted) return;
+                const url = data?.backdrop
+                    ? `https://image.tmdb.org/t/p/w780${data.backdrop}`
+                    : null;
+                backdropCache.current.set(title, url);
+                setBackdrop(url);
+            } catch { /* ignore */ }
+        }, 240);  // debounce so D-pad zapping doesn't queue lookups
+        return () => { clearTimeout(t); ctl.abort?.(); };
+    }, [now?.title]);
+
     return (
         <section data-testid="live-tv-hero" className="relative" style={{
-            padding: '36px 40px 24px 40px',
-            background: 'linear-gradient(180deg, rgba(11,19,34,0.0) 0%, rgba(11,19,34,0.5) 70%, rgba(11,19,34,1) 100%)',
-            minHeight: 260,
+            padding: '36px 40px 28px 40px',
+            minHeight: 280,
             overflow: 'hidden',
+            isolation: 'isolate',
         }}>
+            {/* Cinematic backdrop — TMDB image of the now-playing
+                programme.  Pure CSS — no React Image overhead. */}
+            <div style={{
+                position: 'absolute', inset: 0, zIndex: -2,
+                background: backdrop
+                    ? `#0B1322 center/cover no-repeat url(${backdrop})`
+                    : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb), 0.18), rgba(11,19,34,0.95))',
+                filter: backdrop ? 'saturate(1.05)' : 'none',
+            }} />
+            {/* Legibility gradients — left to right for the text
+                column, top to bottom to bleed into the grid. */}
+            <div style={{
+                position: 'absolute', inset: 0, zIndex: -1,
+                background:
+                    'linear-gradient(90deg, rgba(6,8,15,0.96) 0%, rgba(6,8,15,0.78) 40%, rgba(6,8,15,0.35) 70%, rgba(6,8,15,0.55) 100%)',
+            }} />
+            <div style={{
+                position: 'absolute', inset: 0, zIndex: -1,
+                background: 'linear-gradient(180deg, rgba(6,8,15,0.55) 0%, transparent 35%, rgba(6,8,15,0.92) 100%)',
+            }} />
+
             <div className="flex items-start justify-between" style={{ gap: 32 }}>
                 <div className="flex flex-col" style={{ gap: 10, flex: 1, minWidth: 0 }}>
                     <div className="vesper-mono flex items-center gap-3" style={{
@@ -440,7 +496,7 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                     <div className="flex items-center gap-3" style={{ marginTop: 6 }}>
                         <span className="vesper-mono" style={{
                             padding: '3px 9px', borderRadius: 4,
-                            background: 'rgba(255,68,68,0.18)',
+                            background: 'rgba(255,68,68,0.20)',
                             border: '1px solid rgba(255,68,68,0.6)',
                             color: '#FF6B6B', fontSize: 10, letterSpacing: '0.22em',
                             fontWeight: 800,
@@ -451,7 +507,7 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                             · {formatTime(now?.start)}
                         </span>
                         <span style={{
-                            fontSize: 16, color: 'var(--vesper-text)',
+                            fontSize: 16, color: '#fff',
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             maxWidth: '54vw',
                         }}>
@@ -461,7 +517,7 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                     {/* Progress bar */}
                     <div style={{
                         width: 'min(640px, 60vw)', height: 3, borderRadius: 99,
-                        background: 'rgba(255,255,255,0.08)', overflow: 'hidden',
+                        background: 'rgba(255,255,255,0.12)', overflow: 'hidden',
                         marginTop: 2,
                     }}>
                         <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--vesper-blue-bright)' }} />
@@ -469,13 +525,13 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                     {/* UP NEXT row */}
                     {next && (
                         <div className="vesper-mono flex items-center gap-2" style={{
-                            fontSize: 11, color: 'var(--vesper-text-3)',
+                            fontSize: 11, color: 'rgba(255,255,255,0.55)',
                             letterSpacing: '0.16em', textTransform: 'uppercase',
                             marginTop: 6,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             maxWidth: 'min(640px, 60vw)',
                         }}>
-                            UP NEXT · {formatTime(next.start)} · <span style={{ color: 'var(--vesper-text-2)', textTransform: 'none', letterSpacing: 0 }}>{next.title || '—'}</span>
+                            UP NEXT · {formatTime(next.start)} · <span style={{ color: 'rgba(255,255,255,0.75)', textTransform: 'none', letterSpacing: 0 }}>{next.title || '—'}</span>
                         </div>
                     )}
                     {/* Watch full-screen */}
@@ -502,7 +558,10 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                     </button>
                 </div>
 
-                {/* Right side — top action circles + channel logo */}
+                {/* Right side — top action circles ONLY (no channel logo
+                    — it was a perf hog on the HK1 because it was a
+                    full-size 500×500 PNG decoded just to show at 0.65
+                    opacity). */}
                 <div className="flex flex-col items-end" style={{ gap: 24, flexShrink: 0 }}>
                     <div className="flex items-center gap-3">
                         <HeroActionCircle
@@ -525,13 +584,6 @@ function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing,
                             onClick={onExit}
                         />
                     </div>
-                    {channel?.stream_icon && (
-                        <div style={{
-                            width: 200, height: 110,
-                            background: `center/contain no-repeat url(${channel.stream_icon})`,
-                            opacity: 0.65, marginRight: 8,
-                        }} />
-                    )}
                 </div>
             </div>
         </section>
@@ -731,7 +783,7 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                     </div>
                 )}
                 <div style={{
-                    width: 56, height: 38, flexShrink: 0, borderRadius: 6,
+                    width: 48, height: 32, flexShrink: 0, borderRadius: 5,
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.06)',
                     overflow: 'hidden',
@@ -739,8 +791,10 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                 }}>
                     {channel.stream_icon && (
                         <img
-                            src={channel.stream_icon}
+                            src={proxiedLogo(channel.stream_icon, 64)}
                             alt=""
+                            width={48}
+                            height={32}
                             loading="lazy"
                             decoding="async"
                             referrerPolicy="no-referrer"
@@ -749,6 +803,7 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                                 position: 'absolute', inset: 0,
                                 width: '100%', height: '100%',
                                 objectFit: 'contain',
+                                imageRendering: 'auto',
                             }}
                         />
                     )}
@@ -965,6 +1020,25 @@ function GuideRow({ item, channel, providerId }) {
 }
 
 /* ============================ Helpers ============================ */
+
+/**
+ * Route a remote image URL through our backend proxy that resizes
+ * it to a tiny WebP.  The HK1's WebView spends most of its image
+ * budget DECODING — even a 56-px-wide logo slot decodes a full
+ * 500×500 PNG when the source URL points to one.  Routing through
+ * /api/img-proxy?w=64 means the WebView only ever decodes a ~3 KB
+ * WebP, which is dramatically faster on a Mali T-820 GPU.
+ *
+ * Returns the original URL when the proxy is unavailable (e.g.
+ * REACT_APP_BACKEND_URL is missing) so we never end up with
+ * broken images.
+ */
+function proxiedLogo(url, width = 64) {
+    if (!url) return '';
+    const base = process.env.REACT_APP_BACKEND_URL;
+    if (!base) return url;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=70`;
+}
 
 function formatTime(s) {
     if (!s) return '';

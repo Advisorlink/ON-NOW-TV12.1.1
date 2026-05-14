@@ -16,6 +16,7 @@ import os
 import logging
 import time
 import uuid
+import io
 import asyncio
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -25,6 +26,8 @@ from urllib.parse import quote
 import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Query
+from fastapi.responses import Response
+from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -1403,6 +1406,114 @@ async def tmdb_search(q: str = Query("", min_length=1)):
             out.append(shaped)
     await cache.set(cache_key, out, 60 * 60)
     return {"cached": False, "data": out}
+
+
+# ----- Image proxy ------------------------------------------------------------
+
+_IMG_PROXY_CACHE: Dict[str, bytes] = {}
+_IMG_PROXY_CACHE_KEYS: List[str] = []
+_IMG_PROXY_MAX = 512  # LRU cap
+
+
+@api.get("/img-proxy")
+async def img_proxy(
+    url: str = Query(..., description="Source image URL"),
+    w: int = Query(64, ge=16, le=512),
+    q: int = Query(70, ge=20, le=95),
+):
+    """Down-sample and re-encode an image so the Android WebView only
+    has to decode a tiny WebP instead of a multi-MB PNG.
+
+    Used by the Live TV channel-row logos and any other high-density
+    grid where the source image is much larger than the display slot.
+    `w` is the target width in CSS pixels; height is computed to
+    preserve aspect ratio.  Output is WebP for ~70% size reduction
+    vs PNG at the same quality.
+
+    Cached in-memory per (url, w, q) with an LRU eviction cap so a
+    typical 200-channel list keeps every logo in RAM after the first
+    pass.  No persistence needed — restart wipes the cache and the
+    next view rebuilds it within a few seconds.
+    """
+    key = f"{url}|{w}|{q}"
+    cached = _IMG_PROXY_CACHE.get(key)
+    if cached is not None:
+        return Response(
+            cached,
+            media_type="image/webp",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url, headers={"User-Agent": "VesperTV/1.0"})
+            r.raise_for_status()
+            src = r.content
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not fetch source image: {e}")
+    try:
+        with Image.open(io.BytesIO(src)) as im:
+            im = im.convert("RGBA") if im.mode in ("P", "RGBA", "LA") else im.convert("RGB")
+            scale = w / max(im.width, 1)
+            target_h = max(8, int(round(im.height * scale)))
+            im = im.resize((w, target_h), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="WEBP", quality=q, method=4)
+            data = buf.getvalue()
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=415, detail="Unsupported image format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Resize failed: {e}")
+    # LRU insert
+    _IMG_PROXY_CACHE[key] = data
+    _IMG_PROXY_CACHE_KEYS.append(key)
+    while len(_IMG_PROXY_CACHE_KEYS) > _IMG_PROXY_MAX:
+        old = _IMG_PROXY_CACHE_KEYS.pop(0)
+        _IMG_PROXY_CACHE.pop(old, None)
+    return Response(
+        data,
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+# ----- Live TV — TMDB backdrop lookup for hero --------------------------------
+
+@api.get("/tmdb/livetv-backdrop")
+async def tmdb_livetv_backdrop(q: str = Query("", min_length=1)):
+    """Look up a TMDB backdrop for the currently-airing programme on
+    a live channel.  We hit /search/multi with the EPG title and
+    return the first movie/tv hit's backdrop_path + poster_path.
+    Cached aggressively (15 min) since EPG titles only change every
+    ~30 min and identical titles air on many channels.
+    """
+    if not q.strip():
+        return {"backdrop": None, "poster": None, "title": None}
+    cache_key = f"livetv_backdrop:{q.strip().lower()}"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        data = await _tmdb_get(
+            "/search/multi", {"query": q, "include_adult": "false", "page": "1"}
+        )
+    except Exception:
+        return {"backdrop": None, "poster": None, "title": None}
+    backdrop = None
+    poster = None
+    title = None
+    for it in data.get("results") or []:
+        mt = it.get("media_type")
+        if mt not in ("movie", "tv"):
+            continue
+        backdrop = it.get("backdrop_path")
+        poster = it.get("poster_path")
+        title = it.get("title") or it.get("name")
+        if backdrop:
+            break
+    out = {"backdrop": backdrop, "poster": poster, "title": title}
+    await cache.set(cache_key, out, 15 * 60)
+    return out
+
 
 
 @api.get("/tmdb/similar-to-picks")
