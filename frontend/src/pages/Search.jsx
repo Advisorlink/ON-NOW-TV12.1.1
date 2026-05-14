@@ -197,7 +197,14 @@ export default function Search() {
                     when the user hasn't searched yet OR has no
                     results to display, so the page collapses into
                     the results grid once content arrives. */}
-                {(!searched || results.length === 0) && !busy && (
+                {/* Hide the search hero (keyboard + input + submit)
+                    in kids mode when the search came back empty —
+                    that's how we signal "not allowed".  The
+                    KidsBlockedMessage below is the only thing the
+                    child should see, so they can't just retype the
+                    blocked title.  For non-kids profiles the hero
+                    stays visible so users can refine and retry. */}
+                {((!searched) || (!kids && results.length === 0)) && !busy && (
                     <div
                         data-testid="search-card"
                         className="flex flex-col items-center"
