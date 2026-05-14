@@ -34,6 +34,18 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 48 — Feb 14, 2026)
+### Avatar pre-cache · For-You rail "Similar to what you love" · Home D-pad line-by-line
+- **⚡ DiceBear avatars preloaded on app boot** (`App.js` module-load + `NameStep` useEffect). All 48 character-portrait PNGs are warmed in the browser HTTP cache before the user reaches step 2. Testing confirmed `naturalWidth=256` within 0.1 ms of step-2 mount — effectively instant render, no loading flash.
+- **🎯 For-You rail logic** (`components/ForYouShelf.jsx` + `backend/server.py`):
+  - New backend endpoint `GET /api/tmdb/similar-to-picks?picks=<csv>` accepts `type:tmdb_id` pairs and returns TMDB `/recommendations` (with `/similar` fallback) for each, deduped, EXCLUDING the user's own picks. 24-hour cache so the rail refreshes daily.
+  - Rail now leads with "similar" recommendations, followed by genre-based tail. The user's hand-picked titles are NEVER shown back at them.
+  - Eyebrow updated to "SIMILAR TO WHAT YOU LOVE".
+  - `/api/tmdb/for-you` cache TTL bumped 3h → 24h (daily refresh).
+- **🎮 Home D-pad Up/Down walks rails line-by-line** (`pages/Home.jsx`). New capture-phase keydown handler builds an ordered list of rows (Hero billboard + each shelf section) and on Up/Down moves to the next/prev row while preserving the user's horizontal column. From any rail, pressing Up walks straight to the rail above — never jumps back to the hero "More info" button. Column preservation verified: 3rd tile in one rail → ArrowDown lands on the closest-X tile in the next rail.
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_11.json) — 13/13 scenarios PASS (6 backend + 7 frontend) at 100%.
+
+
 ## Implemented (Iteration 47 — Feb 14, 2026)
 ### Avatar library reverted to 106-emoji baseline + 4 DiceBear bonus rows
 - **🔁 Reverted** the avatar library back to the original 106 emoji-on-gradient avatars (`a1`–`a100` + `m1`–`m6`).
