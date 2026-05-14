@@ -23,6 +23,15 @@ export default function TVKeyboard({
     variant = 'name',
 }) {
     const [shift, setShift] = React.useState(false);
+    // Mirror the controlled `value` prop into a ref so that the
+    // click handlers ALWAYS read the freshest value — even if two
+    // clicks arrive in the same React batch before a re-render
+    // commits the new prop.  Without this, rapid taps would each
+    // see the same stale `value` and onChange would emit the SAME
+    // single-character string twice (visible to the parent as a
+    // "first character lost" bug).
+    const valueRef = React.useRef(value);
+    React.useEffect(() => { valueRef.current = value; }, [value]);
 
     const rows =
         variant === 'pin'
@@ -40,24 +49,34 @@ export default function TVKeyboard({
               ];
 
     const append = (ch) => {
-        if (value.length >= maxLength) return;
+        const cur = valueRef.current ?? '';
+        if (cur.length >= maxLength) return;
         // Letters honour the Shift toggle; everything else is
         // inserted as-is (digits, apostrophe, hyphen).
         const isLetter = /[A-Z]/.test(ch);
         const next =
-            value +
+            cur +
             (isLetter && !shift ? ch.toLowerCase() : ch);
+        valueRef.current = next;  // keep ref in lock-step so two
+                                  // rapid clicks don't both see the
+                                  // pre-update value.
         onChange(next);
         if (shift && isLetter) setShift(false);
     };
 
     const back = () => {
-        onChange(value.slice(0, -1));
+        const cur = valueRef.current ?? '';
+        const next = cur.slice(0, -1);
+        valueRef.current = next;
+        onChange(next);
     };
 
     const space = () => {
-        if (value.length >= maxLength) return;
-        onChange(value + ' ');
+        const cur = valueRef.current ?? '';
+        if (cur.length >= maxLength) return;
+        const next = cur + ' ';
+        valueRef.current = next;
+        onChange(next);
     };
 
     return (

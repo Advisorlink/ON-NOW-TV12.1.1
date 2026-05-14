@@ -1,0 +1,39 @@
+{
+  "summary": "RETEST after TVKeyboard valueRef fix — ALL 5 scenarios PASS. The first-keystroke drop bug from iter_18 is fully resolved. (1) Typing 6 chars 'ENGU9B' on JoinView produces preview 'ENGU9B' (was 'NGU9B·' before fix). (2) Full host+guest two-context flow works end-to-end: host created room with code VJ89UE, guest typed VJ89UE letter-by-letter, both contexts landed in Room view with matching codes. (3) Host typed 'shrek' (full 5 chars now, was 'hrek' before fix), search returned posters, picking first poster propagated to guest's [data-testid=watch-together-preview] showing 'Shrek 2001' within ~2s. (4) Host clicked Start → both contexts navigated via /resolve to /play?...&party=VJ89UE&at_ms=...&position_ms=0; player-party-badge text 'Party · VJ89UE HOST' on host and 'Party · VJ89UE GUEST' on guest. (5) Regression on name variant TVKeyboard: backspace correctly removes last char (ENGU9B → ENGU9), shift toggle followed by 'a' produces uppercase 'A', space inserts a space (typed 'A B'). All keys responsive on every click.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "frontend": {
+      "tvkeyboard_typing_6_chars_no_drop": "PASS — typed E,N,G,U,9,B → preview 'ENGU9B' (full 6 chars, no '·' remaining). Fix in TVKeyboard.jsx using valueRef.current synced in handler + useEffect works correctly.",
+      "host_guest_two_context_end_to_end": "PASS — host POST /watch-party/create → code 'VJ89UE'; guest typed VJ89UE on TVKeyboard → submit → both in Room with matching code. Members rail correctly shows both.",
+      "host_pick_propagates_to_guest": "PASS — host typed 'shrek' (TVKeyboard, all 5 chars), TMDB search returned results, clicked first poster, guest's watch-together-preview showed 'Shrek 2001' within ~2s. WebSocket pick→broadcast verified live.",
+      "start_party_navigates_both_to_play": "PASS — host clicked watch-together-start. Both URLs: /play?url=...&party=VJ89UE&at_ms=1778759095803&position_ms=0. Both showed player-party-badge: host='Party · VJ89UE HOST', guest='Party · VJ89UE GUEST'.",
+      "tvkeyboard_regression_backspace_space_shift": "PASS — Backspace: 'ENGU9B' → 'ENGU9'. Clear-all (6 backspaces): '······'. Shift+a: produced uppercase 'A'. Space: typed 'a' then space then 'b' → 'A B' visible in name-variant input (code field strips non-alphanum as designed, but space functionally inserted)."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TVKeyboard fix is clean and correct — valueRef.current is updated synchronously inside append/back/space BEFORE calling onChange, and re-synced via useEffect on every prop change. This eliminates the stale-closure race that dropped the first keystroke when two clicks landed in the same React batch.",
+    "Player navigation shows two benign console warnings: (a) CORS block on torrentio.strem.fun (third-party metadata fetch from browser, unrelated to party flow — playback still works), (b) 'WebSocket is closed before the connection is established' — this is the lobby socket being intentionally closed in WatchTogether.jsx connect() onmessage handler before Player reopens its own socket. Both are harmless, but the CORS noise could be silenced by moving torrentio calls server-side.",
+    "Code field in JoinView (data-testid=watch-together-code) strips non-alphanum on render, so the test for 'space' on this field shows 'A B' in input but only A and B in preview — this is by design (codes are A-Z0-9 only). Not a bug."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (skipped retest per instructions, was 9/9 in iter_18)",
+    "frontend": "100% (5/5 retest scenarios PASS)"
+  },
+  "test_credentials": "None required.",
+  "seed_data_creation": "Playwright add_init_script per-context: onnowtv-profiles-v1=[{id, name, avatarId:'a1', kids:false, pin:'', createdAt}], onnowtv-active-profile-v1=id. Separate contexts for host ('Tester'/p1) and guest ('Guest'/g1).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Watch Together feature is fully functional end-to-end. TVKeyboard first-keystroke drop is fixed via valueRef pattern. If future iterations touch TVKeyboard, regression-test by typing 6 rapid chars in JoinView — expected '······' → 'ABCDEF' (no chars dropped). Backend pytest suite at /app/backend/tests/test_watch_party.py was 9/9 in iter_18 and code is unchanged.",
+  "rca_of_the_issue": "Iter_18 bug RCA confirmed: TVKeyboard's append/back/space handlers captured the `value` prop via closure. Two rapid clicks within the same React batch both read the same stale `value`, so each onChange emitted the same 1-char string, causing the parent to register only one character. Fix in iter_19: introduced valueRef (React.useRef synced via useEffect AND updated synchronously inside the handler before calling onChange). Now consecutive clicks always see the freshest value. Verified by typing 6 keys with 120ms gaps — all 6 register correctly."
+}
