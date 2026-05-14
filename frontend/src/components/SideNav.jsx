@@ -24,11 +24,42 @@ const NAV = [
 
 export default function SideNav() {
     const [expanded, setExpanded] = useState(false);
+    // When the user clicks a nav item we briefly force the rail
+    // to collapsed regardless of focus state.  Without this the
+    // SideNav lingers expanded on slow TV boxes for the 80–300 ms
+    // between the click and the focus actually moving into the
+    // new page — making tab swaps feel sluggish.  Cleared once
+    // the new route mounts (location pathname change).
+    const [navigatingAway, setNavigatingAway] = useState(false);
     const [autoplay, setAutoplay] = useState(getAutoplay1080p());
     const location = useLocation();
     const navigate = useNavigate();
     const currentFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
+
+    // Reset the force-collapse flag whenever the route actually
+    // changes — by then Home's focus-retry effect has begun to
+    // move focus into the grid so natural onBlur collapse takes
+    // over.
+    React.useEffect(() => {
+        if (!navigatingAway) return undefined;
+        const t = setTimeout(() => setNavigatingAway(false), 350);
+        return () => clearTimeout(t);
+    }, [location.pathname, location.search, navigatingAway]);
+
+    const handleNavClick = (path) => {
+        setExpanded(false);
+        setNavigatingAway(true);
+        // Drop focus off the SideNav button so onFocus doesn't
+        // immediately re-expand the rail on the next paint.
+        if (
+            document.activeElement &&
+            typeof document.activeElement.blur === 'function'
+        ) {
+            document.activeElement.blur();
+        }
+        navigate(path);
+    };
 
     const toggleAutoplay = () => {
         const next = !autoplay;
@@ -36,21 +67,25 @@ export default function SideNav() {
         setAutoplay(next);
     };
 
+    const isExpanded = expanded && !navigatingAway;
+
     return (
         <nav
             data-testid="side-nav"
-            onFocus={() => setExpanded(true)}
+            onFocus={() => {
+                if (!navigatingAway) setExpanded(true);
+            }}
             onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget))
                     setExpanded(false);
             }}
             className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-300"
             style={{
-                width: expanded ? '240px' : '76px',
-                background: expanded
+                width: isExpanded ? '240px' : '76px',
+                background: isExpanded
                     ? 'linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.82) 60%, rgba(10,14,26,0) 100%)'
                     : 'transparent',
-                backdropFilter: expanded ? 'blur(14px)' : 'none',
+                backdropFilter: isExpanded ? 'blur(14px)' : 'none',
             }}
         >
             {/* Brand mark — single "ON NOW TV2" wordmark where the
@@ -63,9 +98,9 @@ export default function SideNav() {
                     className="vesper-display whitespace-nowrap overflow-hidden"
                     style={{
                         flex: '0 1 auto',
-                        marginRight: expanded ? 2 : 0,
-                        opacity: expanded ? 1 : 0,
-                        maxWidth: expanded ? 200 : 0,
+                        marginRight: isExpanded ? 2 : 0,
+                        opacity: isExpanded ? 1 : 0,
+                        maxWidth: isExpanded ? 200 : 0,
                         // Snap-in after the rail finishes expanding so
                         // the prefix doesn't crowd the V2 emblem mid-
                         // animation.
@@ -131,7 +166,7 @@ export default function SideNav() {
                             data-focusable="true"
                             data-focus-style="nav"
                             tabIndex={0}
-                            onClick={() => navigate(item.path)}
+                            onClick={() => handleNavClick(item.path)}
                             className={`relative flex items-center gap-4 h-11 px-2 rounded-lg text-left ${
                                 isActive
                                     ? 'text-vesper-text'
@@ -151,7 +186,7 @@ export default function SideNav() {
                             </span>
                             <span
                                 className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
-                                style={{ opacity: expanded ? 1 : 0 }}
+                                style={{ opacity: isExpanded ? 1 : 0 }}
                             >
                                 {item.label}
                             </span>
@@ -189,7 +224,7 @@ export default function SideNav() {
                     </span>
                     <span
                         className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300 flex items-center gap-2"
-                        style={{ opacity: expanded ? 1 : 0 }}
+                        style={{ opacity: isExpanded ? 1 : 0 }}
                     >
                         Autoplay
                         <span

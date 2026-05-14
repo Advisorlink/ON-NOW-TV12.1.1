@@ -2,6 +2,18 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import Lazy from '@/components/Lazy';
+
+// Render the grid in chunks so a 340-item catalogue doesn't paint
+// 340 <img> tags on the very first frame.  At 1080p the layout
+// shakes out to ~7 tiles per row — 14 per chunk = 2 rows.  First
+// 2 chunks (~4 rows = 28 tiles) mount eagerly per user request;
+// later chunks lazy-mount when they enter the viewport.  This is
+// the change that makes the TV-box version feel snappy: the user
+// sees the heading + the first 3–4 rows of real posters right
+// away, with the remaining 300+ tiles streaming in as they scroll.
+const TILES_PER_CHUNK = 14;
+const EAGER_CHUNKS = 2;
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
@@ -112,27 +124,75 @@ export default function TabGridView({ shelves, loading, type }) {
                 // and we key by INDEX so the focused DOM node
                 // stays mounted (and stays focused) when its
                 // content swaps from skeleton to a real movie.
-                <div
-                    data-testid={`tab-grid-list-${type}`}
-                    className="grid"
-                    style={{
-                        gridTemplateColumns:
-                            'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
-                        gap: 'clamp(18px, 1.6vw, 28px)',
-                    }}
-                >
-                    {Array.from({
-                        length: Math.max(items.length, 12),
-                    }).map((_, i) => (
-                        <MorphTile
-                            key={i}
-                            item={items[i] || null}
-                            navigate={navigate}
-                        />
-                    ))}
-                </div>
+                // The total list is split into CHUNK-sized
+                // sub-grids and wrapped in <Lazy> so the box only
+                // paints 4 rows up front — the rest mount as they
+                // approach the viewport.
+                <ChunkedGrid
+                    items={items}
+                    type={type}
+                    navigate={navigate}
+                />
             )}
         </section>
+    );
+}
+
+function ChunkedGrid({ items, type, navigate }) {
+    // Reserve at least 1 chunk of placeholder slots so the grid
+    // is navigable immediately on cold load.
+    const total = Math.max(items.length, TILES_PER_CHUNK);
+    const chunkCount = Math.ceil(total / TILES_PER_CHUNK);
+    const chunks = [];
+    for (let c = 0; c < chunkCount; c++) {
+        const start = c * TILES_PER_CHUNK;
+        const end = Math.min(start + TILES_PER_CHUNK, total);
+        chunks.push({ start, end });
+    }
+    return (
+        <div data-testid={`tab-grid-list-${type}`}>
+            {chunks.map((ch, idx) => (
+                <Lazy
+                    key={idx}
+                    // Reserve approximate row height (2 rows × ~280
+                    // px tile + 24 px gap × 1.5 poster aspect ≈ 600)
+                    // so the un-mounted chunks don't shrink layout.
+                    minHeight={620}
+                    // Tighter than the shelf default — keeps deep
+                    // chunks unmounted until they're 1 viewport
+                    // away.  Cuts the painted-tile count from ~340
+                    // → ~28 at rest on the TV box.
+                    rootMargin="600px 0px"
+                    eager={idx < EAGER_CHUNKS}
+                >
+                    <div
+                        className="grid"
+                        style={{
+                            gridTemplateColumns:
+                                'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
+                            gap: 'clamp(18px, 1.6vw, 28px)',
+                            // Vertical gap between chunks — keeps the
+                            // overall rhythm continuous so chunks
+                            // don't look like separate sections.
+                            marginBottom: 'clamp(18px, 1.6vw, 28px)',
+                        }}
+                    >
+                        {Array.from({ length: ch.end - ch.start }).map(
+                            (_, j) => {
+                                const i = ch.start + j;
+                                return (
+                                    <MorphTile
+                                        key={i}
+                                        item={items[i] || null}
+                                        navigate={navigate}
+                                    />
+                                );
+                            }
+                        )}
+                    </div>
+                </Lazy>
+            ))}
+        </div>
     );
 }
 
@@ -146,7 +206,7 @@ export default function TabGridView({ shelves, loading, type }) {
  * `item` is null while the catalogue is still loading, and gets
  * filled in once results stream in from useLiveShelves.
  */
-function MorphTile({ item, navigate }) {
+function MorphTileImpl({ item, navigate }) {
     const onTap = () => {
         if (!item) return;
         if (item.routePath) navigate(item.routePath);
@@ -270,3 +330,9 @@ function MorphTile({ item, navigate }) {
         </button>
     );
 }
+
+// Memoize so identical props skip re-renders — important when
+// the parent ChunkedGrid passes through hundreds of MorphTiles
+// on every shelves update.  Tile renders only when its specific
+// `item` reference actually changes.
+const MorphTile = React.memo(MorphTileImpl);

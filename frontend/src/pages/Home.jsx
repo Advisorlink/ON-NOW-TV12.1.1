@@ -40,16 +40,23 @@ export default function Home() {
     // Shows" / "Movies" in the side nav lands instantly with data
     // already painted instead of a 2–3 s catalogue spin.  Hooks
     // are unconditional; values are intentionally discarded.  We
-    // start prefetching as soon as addons arrive — running in
-    // parallel with the active view is fine because the cache
-    // dedupes by key.
+    // delay prefetch until the active view has finished its first
+    // load so on a slow TV box the prefetch doesn't compete for
+    // network / CPU with the user-visible render.
+    const [prefetchReady, setPrefetchReady] = React.useState(false);
+    React.useEffect(() => {
+        if (liveLoading) return undefined;
+        const t = setTimeout(() => setPrefetchReady(true), 200);
+        return () => clearTimeout(t);
+    }, [liveLoading]);
+    const prefetchAddons = prefetchReady ? addons : [];
     useLiveShelves(
-        addons,
+        prefetchAddons,
         shelfFilter === 'series' ? 'movie' : 'series',
         60
     );
     useLiveShelves(
-        addons,
+        prefetchAddons,
         shelfFilter ? null : 'movie',
         60
     );
