@@ -5,6 +5,7 @@ import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
+import ForYouShelf from '@/components/ForYouShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -174,6 +175,7 @@ export default function Home() {
                         }}
                     >
                         <ContinueWatchingShelf />
+                        <ForYouShelf />
                         <NetworksShelf />
                         {addons.length === 0 && <EmptyAddonsBanner />}
                         {shelves.map((shelf, i) => (

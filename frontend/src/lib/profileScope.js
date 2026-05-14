@@ -33,18 +33,36 @@ export function scoped(baseKey) {
 }
 
 /**
- * Read a scoped value falling back to the legacy unscoped key.
- * Used for one-shot migration: existing installs with data at the
- * unscoped key get to keep their data on the FIRST profile they
- * use; subsequent profiles start fresh.
+ * Read a scoped value.  No fallback to the legacy unscoped key —
+ * each profile owns its own namespace and a fresh profile starts
+ * completely empty.  The unscoped fallback that used to live here
+ * caused new profiles to inherit the previous profile's library,
+ * watch-later list, continue-watching state, etc.
+ *
+ * If an install still has data at the legacy unscoped key, we
+ * promote it ONCE to the currently active profile's scoped key
+ * (so the very first profile a user creates inherits their
+ * pre-profile data) and then remove the legacy key.  Subsequent
+ * profiles see an empty scope.
  */
 export function readScopedString(baseKey) {
     try {
-        const s = localStorage.getItem(scoped(baseKey));
+        const scopedKey = scoped(baseKey);
+        const s = localStorage.getItem(scopedKey);
         if (s !== null) return s;
-        // Legacy fallback.  Read but DON'T migrate — that way
-        // multiple profiles don't all inherit the same legacy data.
-        return localStorage.getItem(baseKey);
+        // One-shot legacy promotion: only fires if the legacy
+        // unscoped key still exists.  Move it into the current
+        // scope, then nuke the legacy key so no other profile
+        // ever inherits it again.
+        const legacy = localStorage.getItem(baseKey);
+        if (legacy !== null) {
+            try {
+                localStorage.setItem(scopedKey, legacy);
+                localStorage.removeItem(baseKey);
+            } catch { /* ignore */ }
+            return legacy;
+        }
+        return null;
     } catch {
         return null;
     }

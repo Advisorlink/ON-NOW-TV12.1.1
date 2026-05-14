@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 7 verification PASS across all 10 review scenarios. Backend pytest 9/9 passes for the three new TMDB endpoints (/api/tmdb/genres/{media}, /api/tmdb/by-genre/{media}/{genre_id}, /api/tmdb/for-you). Frontend Playwright validates: 6-step wizard counter (eyebrow text on steps 1-4), happy path persists scoped viewing-style + autoplay='1' + theme='vesper', skip path persists empty viewing-style + autoplay='0', back-button regression, profile isolation (new profile library is empty), For You shelf renders above networks shelf with 21 tiles and hides when active profile has no preferences.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "backend_tmdb_genres_movie_tv": "PASS - returns {cached, data:[{id,name},...]}, invalid media → 400",
+    "backend_tmdb_by_genre_movie_28_limit_5": "PASS - 5 items, type='movie', fields {tmdb_id,title,poster,year}",
+    "backend_tmdb_by_genre_tv_18_limit_5": "PASS - 5 items, type='series'",
+    "backend_tmdb_for_you_mixed": "PASS - movie+tv interleaved, <=10 items",
+    "backend_tmdb_for_you_empty_params": "PASS - returns data:[]",
+    "backend_tmdb_for_you_only_movies": "PASS - all items type='movie'",
+    "wizard_step1_eyebrow": "PASS - 'Step 1 of 6 · pick a name' in name step",
+    "wizard_step2_3_4_eyebrows": "PASS - header eyebrow shows 'NEW PROFILE · STEP 2/3/4 OF 6' on avatar/theme/viewing-style",
+    "wizard_happy_path_with_vs_and_autoplay_yes": "PASS - selected genre Action(28), 10 by-genre tiles loaded, picked 2 items, autoplay-prompt → yes, add-password-prompt → no. localStorage: onnowtv-viewing-style-v1:<id> contains movieGenres:[28] and 2 items; onnowtv-autoplay-1080p:<id>='1'; onnowtv-theme:<id>='vesper'",
+    "wizard_skip_path": "PASS - viewing-style-skip → autoplay-prompt-no → add-password-prompt-no. localStorage shows onnowtv-viewing-style-v1:<id>={movieGenres:[],tvGenres:[],items:[]}, onnowtv-autoplay-1080p:<id>='0'",
+    "back_button_regression": "PASS - viewing-style → theme → avatar → name → /profiles",
+    "profile_isolation": "PASS - newly created profile's vesper-library:<id> is empty defaults {\"favorites\":{},\"watchLater\":[],\"dismissed\":{}}; no leakage from pre-existing scoped library of prior profile",
+    "for_you_visible_with_prefs": "PASS - [data-testid=for-you-shelf] rendered above [data-testid=networks-shelf]; 21 tiles in rail; eyebrow 'PICKED FOR YOUR VIEWING STYLE'",
+    "for_you_hidden_no_prefs": "PASS - for-you-shelf element absent when active profile has empty viewing-style record"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_tmdb_for_you.py",
+    "/app/test_reports/pytest/iter7_tmdb.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TV keyboard typing speed: at 100 ms/keypress the name display sometimes drops letters for long strings (typed 'IsolationTest' surfaced as 'iontest' on a clean session). Likely a debounce or focus race on the spatial-nav handler in TVKeyboard.jsx. Not a blocker but worth a manual smoke after any name-input refactor.",
+    "Legacy `vesper-library` (unscoped) is only promoted to the active profile's scope when `readScopedString` is invoked. If a user creates a brand-new profile and activates it WITHOUT ever using the previous profile's reader path, the legacy key can linger in localStorage. Harmless because the new profile is correctly isolated, but consider a one-time GC of `vesper-library` (legacy) on wizard save to keep storage tidy.",
+    "ProfileEdit.jsx is now ~1920 lines (was 1340 last iteration). Splitting ViewingStyleStep, AutoplayPrompt, AvatarStep, NameStep, ThemeStep, and the prompt/modal components into /app/frontend/src/pages/profile-edit/ would improve maintainability — still exceeds the 700-line guideline.",
+    "Theme/autoplay/viewing-style persistence is duplicated in both persistAndExit (skip-PIN) and EnterPinModal.onSave (set-PIN). Extract `persistProfilePreferences({pin})` to keep them in lock-step."
+  ],
+  "updated_files": ["/app/backend/tests/test_tmdb_for_you.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (10/10 scenarios)"},
+  "test_credentials": "None required.",
+  "seed_data_creation": "Used Playwright addInitScript to clear `onnowtv-*` and `vesper-*` localStorage keys before each scenario. For profile-isolation, seeded a fake prior profile 'old-prof' with scoped library + a legacy unscoped vesper-library before creating the IsolationTest profile.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend TMDB endpoints live in /app/backend/server.py around lines 1143-1258 and are cached (genres 7d, by-genre 6h, for-you 3h). Frontend wizard 6 steps: name(1) → avatar(2) → theme(3) → viewing-style(4) → autoplay-prompt(5) → add-password-prompt(6→optional enter-pin-modal). Scoped storage keys: onnowtv-viewing-style-v1:<id>, onnowtv-autoplay-1080p:<id>, onnowtv-theme:<id>. ForYouShelf hides when viewing style has both no genres AND no manual items. TV keyboard at high typing-rate can drop chars — slow to 150 ms+ if you need precise name strings."
+}

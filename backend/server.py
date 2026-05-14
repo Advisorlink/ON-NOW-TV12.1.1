@@ -1140,6 +1140,124 @@ async def tmdb_trending(
     return {"cached": False, "data": out}
 
 
+@api.get("/tmdb/genres/{media}")
+async def tmdb_genres(media: str):
+    """Return the TMDB master genre list for movies or TV.
+
+    The Profile-creation 'Viewing Style' step calls this once to
+    render the genre picker grid; the response is cached for 7
+    days because TMDB rarely changes its genre list.
+    """
+    if media not in ("movie", "tv"):
+        raise HTTPException(400, "media must be 'movie' or 'tv'")
+    cache_key = f"tmdb_genres:{media}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+    data = await _tmdb_get(f"/genre/{media}/list")
+    items = [
+        {"id": g.get("id"), "name": g.get("name")}
+        for g in (data.get("genres") or [])
+        if g.get("id") and g.get("name")
+    ]
+    await cache.set(cache_key, items, 60 * 60 * 24 * 7)
+    return {"cached": False, "data": items}
+
+
+@api.get("/tmdb/by-genre/{media}/{genre_id}")
+async def tmdb_by_genre(
+    media: str,
+    genre_id: int,
+    limit: int = Query(10, ge=1, le=40),
+):
+    """Top popular titles in a genre — used by the viewing-style
+    picker to show the top N movies / TV shows once the user picks
+    a genre tile."""
+    if media not in ("movie", "tv"):
+        raise HTTPException(400, "media must be 'movie' or 'tv'")
+    cache_key = f"tmdb_by_genre:{media}:{genre_id}:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+    data = await _tmdb_get(
+        f"/discover/{media}",
+        {
+            "with_genres": str(genre_id),
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "vote_count.gte": "200",
+            "page": "1",
+        },
+    )
+    out: List[Dict[str, Any]] = []
+    for item in (data.get("results") or []):
+        shaped = _shape_tmdb_item(item, media)
+        if shaped:
+            out.append(shaped)
+        if len(out) >= limit:
+            break
+    await cache.set(cache_key, out, 60 * 60 * 6)  # 6 h
+    return {"cached": False, "data": out}
+
+
+@api.get("/tmdb/for-you")
+async def tmdb_for_you(
+    movie_genres: str = Query("", description="Comma-separated TMDB movie genre IDs"),
+    tv_genres: str = Query("", description="Comma-separated TMDB TV genre IDs"),
+    limit: int = Query(20, ge=1, le=60),
+):
+    """For-You feed — newest popular titles matching the user's
+    liked genres.  Movies and TV are pulled in parallel, mixed
+    with movies first, and deduped by (type, tmdb_id).  Empty
+    genre params return an empty list so the Home shelf can hide
+    itself cleanly."""
+    m_ids = [g.strip() for g in (movie_genres or "").split(",") if g.strip().isdigit()]
+    t_ids = [g.strip() for g in (tv_genres or "").split(",") if g.strip().isdigit()]
+    if not m_ids and not t_ids:
+        return {"cached": False, "data": []}
+
+    cache_key = f"tmdb_for_you:m={','.join(sorted(m_ids))}:t={','.join(sorted(t_ids))}:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    async def _pull(media: str, ids: List[str]) -> List[Dict[str, Any]]:
+        if not ids:
+            return []
+        params = {
+            "with_genres": "|".join(ids),
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "vote_count.gte": "100",
+            "page": "1",
+        }
+        try:
+            data = await _tmdb_get(f"/discover/{media}", params)
+        except Exception:
+            return []
+        out: List[Dict[str, Any]] = []
+        for item in (data.get("results") or []):
+            shaped = _shape_tmdb_item(item, media)
+            if shaped:
+                out.append(shaped)
+        return out
+
+    movies, tv = await asyncio.gather(_pull("movie", m_ids), _pull("tv", t_ids))
+
+    # Interleave so the rail isn't all-movie or all-TV.
+    mixed: List[Dict[str, Any]] = []
+    i = 0
+    while (i < len(movies) or i < len(tv)) and len(mixed) < limit:
+        if i < len(movies):
+            mixed.append(movies[i])
+        if i < len(tv) and len(mixed) < limit:
+            mixed.append(tv[i])
+        i += 1
+
+    await cache.set(cache_key, mixed, 60 * 60 * 3)  # 3 h
+    return {"cached": False, "data": mixed}
+
+
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
 

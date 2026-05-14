@@ -1,11 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AvatarCircle } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
+import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
+import { API } from '@/lib/api';
 
 /**
  * Profile create / edit page.
@@ -48,8 +50,21 @@ export default function ProfileEdit() {
     // as your icon?" Yes/No confirm.  Eliminates accidental
     // commits when scrolling the grid with a TV remote.
     const [pendingAvatar, setPendingAvatar] = useState(null);
+    // Viewing-style draft — genre tmdb ids and chosen items.  Step
+    // 4 of the wizard lets the user fill these in, but they can
+    // also just press Skip and we persist an empty draft.
+    const [viewingStyle, setViewingStyle] = useState({
+        movieGenres: [],
+        tvGenres: [],
+        items: [],
+    });
+    // Autoplay 1080p toggle chosen during step 5.  Default off; if
+    // the user taps Yes on the Autoplay prompt it flips to true.
+    const [autoplayChoice, setAutoplayChoice] = useState(false);
+    // Autoplay yes/skip modal (step 5).
+    const [autoplayPromptOpen, setAutoplayPromptOpen] = useState(false);
     // "Would you like to add a password to this account?" Yes/Skip
-    // prompt that fires after the theme is confirmed.
+    // prompt that fires after the autoplay step.
     const [pinPromptOpen, setPinPromptOpen] = useState(false);
     // When the user clicks "Yes, add a PIN" on the prompt, this
     // opens a dedicated 4-digit entry modal.  When they hit OK,
@@ -59,9 +74,11 @@ export default function ProfileEdit() {
     const [pinSavedToast, setPinSavedToast] = useState(false);
 
     /**
-     * Persist the profile + write the chosen theme into the
-     * per-profile scoped storage so ThemeProvider applies it the
-     * moment this profile becomes active.
+     * Persist every choice the user made during the wizard onto
+     * the new (or edited) profile: theme, viewing-style, autoplay
+     * preference, and finally the optional PIN.  All scoped keys
+     * are written using the saved profile's id so they live in
+     * the new profile's namespace from the moment it activates.
      */
     const persistAndExit = (pinOverride) => {
         const trimmed = name.trim() || 'Profile';
@@ -79,6 +96,13 @@ export default function ProfileEdit() {
         try {
             localStorage.setItem(`onnowtv-theme:${saved.id}`, chosenTheme);
         } catch { /* ignore */ }
+        try {
+            localStorage.setItem(
+                `onnowtv-autoplay-1080p:${saved.id}`,
+                autoplayChoice ? '1' : '0'
+            );
+        } catch { /* ignore */ }
+        writeViewingStyleForProfile(saved.id, viewingStyle);
         navigate('/profiles');
     };
 
@@ -117,11 +141,12 @@ export default function ProfileEdit() {
                     data-focus-style="quiet"
                     tabIndex={0}
                     onClick={() => {
-                        // Back inside the wizard: walk one step
-                        // back through name → avatar → theme; from
-                        // the name step (or when editing) exit to
-                        // the profile picker.
-                        if (step === 'theme') {
+                        // Back walks the wizard chain one step at
+                        // a time: viewing-style → theme → avatar →
+                        // name → /profiles.  Editing skips name.
+                        if (step === 'viewing-style') {
+                            setStep('theme');
+                        } else if (step === 'theme') {
                             setStep('avatar');
                         } else if (step === 'avatar' && !existing) {
                             setStep('name');
@@ -152,9 +177,11 @@ export default function ProfileEdit() {
                         >
                             {existing
                                 ? 'EDIT PROFILE'
+                                : step === 'viewing-style'
+                                ? 'NEW PROFILE · STEP 4 OF 6'
                                 : step === 'theme'
-                                ? 'NEW PROFILE · STEP 3 OF 4'
-                                : 'NEW PROFILE · STEP 2 OF 4'}
+                                ? 'NEW PROFILE · STEP 3 OF 6'
+                                : 'NEW PROFILE · STEP 2 OF 6'}
                         </div>
                         <h1
                             className="vesper-display"
@@ -191,6 +218,18 @@ export default function ProfileEdit() {
                                 change it any time from Settings.
                             </div>
                         )}
+                        {step === 'viewing-style' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Tell us what you love watching — we&apos;ll fill
+                                your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail with fresh picks.
+                            </div>
+                        )}
                     </div>
                 )}
             </header>
@@ -206,7 +245,21 @@ export default function ProfileEdit() {
                 <ThemeStep
                     chosenTheme={chosenTheme}
                     onPick={setChosenTheme}
-                    onNext={() => setPinPromptOpen(true)}
+                    onNext={() => setStep('viewing-style')}
+                />
+            ) : step === 'viewing-style' ? (
+                <ViewingStyleStep
+                    value={viewingStyle}
+                    onChange={setViewingStyle}
+                    onNext={() => setAutoplayPromptOpen(true)}
+                    onSkip={() => {
+                        setViewingStyle({
+                            movieGenres: [],
+                            tvGenres: [],
+                            items: [],
+                        });
+                        setAutoplayPromptOpen(true);
+                    }}
                 />
             ) : (
                 <AvatarStep
@@ -248,6 +301,21 @@ export default function ProfileEdit() {
                 />
             )}
 
+            {autoplayPromptOpen && (
+                <AutoplayPrompt
+                    onYes={() => {
+                        setAutoplayChoice(true);
+                        setAutoplayPromptOpen(false);
+                        setPinPromptOpen(true);
+                    }}
+                    onNo={() => {
+                        setAutoplayChoice(false);
+                        setAutoplayPromptOpen(false);
+                        setPinPromptOpen(true);
+                    }}
+                />
+            )}
+
             {pinEntryOpen && (
                 <EnterPinModal
                     onCancel={() => {
@@ -271,7 +339,12 @@ export default function ProfileEdit() {
                                 `onnowtv-theme:${saved.id}`,
                                 chosenTheme
                             );
+                            localStorage.setItem(
+                                `onnowtv-autoplay-1080p:${saved.id}`,
+                                autoplayChoice ? '1' : '0'
+                            );
                         } catch { /* ignore */ }
+                        writeViewingStyleForProfile(saved.id, viewingStyle);
                         setPin(newPin);
                         setPinEntryOpen(false);
                         setPinSavedToast(true);
@@ -338,7 +411,7 @@ function NameStep({ name, setName, onNext, avatarId }) {
                         textTransform: 'uppercase',
                     }}
                 >
-                    Step 1 of 4 · pick a name
+                    Step 1 of 6 · pick a name
                 </div>
 
                 <h2
@@ -654,6 +727,479 @@ function ProfileThemeCard({ theme, active, initialFocus, onPick }) {
         </button>
     );
 }
+
+/* --------------------------- Viewing Style --------------------------- */
+
+/**
+ * Step 4 of 6 — "Choose your viewing style".
+ *
+ * Two-pane layout:
+ *   LEFT  — TMDB genre tiles (movie + tv combined, tagged by type)
+ *           with a tap-to-toggle add interaction.
+ *   RIGHT — when a genre tile is "open", the top 10 popular titles
+ *           in that genre appear with poster + title.  Each title
+ *           can be added to the user's draft viewing-style list.
+ *
+ * The user can also just press Skip — we then persist an empty
+ * viewing-style record and the Home "For You" rail hides itself.
+ */
+function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
+    const [movieGenres, setMovieGenres] = React.useState([]);
+    const [tvGenres, setTvGenres] = React.useState([]);
+    const [loadingGenres, setLoadingGenres] = React.useState(true);
+    const [activeGenre, setActiveGenre] = React.useState(null); // {id, name, media}
+    const [genreItems, setGenreItems] = React.useState({}); // keyed by `${media}:${id}`
+    const [loadingItems, setLoadingItems] = React.useState(false);
+
+    React.useEffect(() => {
+        let cancel = false;
+        (async () => {
+            setLoadingGenres(true);
+            try {
+                const [m, t] = await Promise.all([
+                    fetch(`${API}/tmdb/genres/movie`).then((r) => r.json()),
+                    fetch(`${API}/tmdb/genres/tv`).then((r) => r.json()),
+                ]);
+                if (cancel) return;
+                setMovieGenres(m?.data || []);
+                setTvGenres(t?.data || []);
+            } catch { /* ignore */ } finally {
+                if (!cancel) setLoadingGenres(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, []);
+
+    const openGenre = async (g, media) => {
+        setActiveGenre({ ...g, media });
+        const key = `${media}:${g.id}`;
+        if (genreItems[key]) return;
+        setLoadingItems(true);
+        try {
+            const r = await fetch(
+                `${API}/tmdb/by-genre/${media}/${g.id}?limit=10`
+            );
+            const j = await r.json();
+            setGenreItems((prev) => ({ ...prev, [key]: j?.data || [] }));
+        } catch { /* ignore */ } finally {
+            setLoadingItems(false);
+        }
+    };
+
+    const toggleGenre = (g, media) => {
+        const arr = media === 'movie' ? value.movieGenres : value.tvGenres;
+        const has = arr.includes(g.id);
+        const nextArr = has ? arr.filter((x) => x !== g.id) : [...arr, g.id];
+        onChange({
+            ...value,
+            ...(media === 'movie'
+                ? { movieGenres: nextArr }
+                : { tvGenres: nextArr }),
+        });
+    };
+
+    const toggleItem = (it, media) => {
+        const has = value.items.some(
+            (x) => x.tmdb_id === it.tmdb_id && x.type === (media === 'movie' ? 'movie' : 'series')
+        );
+        const nextItems = has
+            ? value.items.filter(
+                  (x) => !(x.tmdb_id === it.tmdb_id && x.type === (media === 'movie' ? 'movie' : 'series'))
+              )
+            : [
+                  ...value.items,
+                  {
+                      tmdb_id: it.tmdb_id,
+                      type: media === 'movie' ? 'movie' : 'series',
+                      title: it.title,
+                      poster: it.poster,
+                      year: it.year,
+                  },
+              ];
+        onChange({ ...value, items: nextItems });
+    };
+
+    const activeKey = activeGenre ? `${activeGenre.media}:${activeGenre.id}` : null;
+    const activeList = activeKey ? genreItems[activeKey] || [] : [];
+
+    const totalPicks =
+        value.movieGenres.length + value.tvGenres.length + value.items.length;
+
+    return (
+        <div
+            data-testid="profile-step-viewing-style"
+            className="flex flex-col"
+            style={{ width: '100%', maxWidth: 1280 }}
+        >
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                }}
+            >
+                <Sparkles size={14} strokeWidth={1.8} />
+                CHOOSE YOUR VIEWING STYLE · {totalPicks} picks
+            </div>
+
+            {/* Genre grid + side panel */}
+            <div
+                className="grid"
+                style={{
+                    gridTemplateColumns:
+                        'minmax(280px, 1fr) minmax(380px, 1.4fr)',
+                    gap: 'clamp(20px, 1.6vw, 36px)',
+                    alignItems: 'start',
+                    marginBottom: 28,
+                }}
+            >
+                {/* LEFT — Genre tiles */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 18,
+                    }}
+                >
+                    <GenreSection
+                        label="Movies"
+                        genres={movieGenres}
+                        media="movie"
+                        loading={loadingGenres}
+                        selected={value.movieGenres}
+                        activeId={
+                            activeGenre?.media === 'movie' ? activeGenre.id : null
+                        }
+                        onOpen={(g) => openGenre(g, 'movie')}
+                        onToggle={(g) => toggleGenre(g, 'movie')}
+                    />
+                    <GenreSection
+                        label="TV Shows"
+                        genres={tvGenres}
+                        media="tv"
+                        loading={loadingGenres}
+                        selected={value.tvGenres}
+                        activeId={
+                            activeGenre?.media === 'tv' ? activeGenre.id : null
+                        }
+                        onOpen={(g) => openGenre(g, 'tv')}
+                        onToggle={(g) => toggleGenre(g, 'tv')}
+                    />
+                </div>
+
+                {/* RIGHT — Top 10 in the selected genre */}
+                <div
+                    data-testid="viewing-style-titles"
+                    style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 18,
+                        padding: '18px 20px 22px',
+                        minHeight: 460,
+                    }}
+                >
+                    {!activeGenre ? (
+                        <div
+                            className="flex flex-col items-center justify-center text-center"
+                            style={{
+                                minHeight: 420,
+                                color: 'var(--vesper-text-3)',
+                                gap: 10,
+                            }}
+                        >
+                            <Sparkles size={26} strokeWidth={1.6} />
+                            <div style={{ fontSize: 15, maxWidth: 280 }}>
+                                Pick a genre on the left to see the top 10
+                                most-watched titles in it — tap any to add it to
+                                your For You rail.
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div
+                                style={{
+                                    fontSize: 18,
+                                    fontWeight: 700,
+                                    letterSpacing: '-0.01em',
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Top 10 in {activeGenre.name}
+                            </div>
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    color: 'var(--vesper-text-3)',
+                                    marginBottom: 16,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {activeGenre.media === 'movie' ? 'Movies' : 'TV Shows'}
+                            </div>
+                            {loadingItems ? (
+                                <div
+                                    className="flex items-center gap-2"
+                                    style={{
+                                        color: 'var(--vesper-text-2)',
+                                        fontSize: 14,
+                                    }}
+                                >
+                                    <Loader2 className="vesper-spin" size={16} />
+                                    Loading…
+                                </div>
+                            ) : (
+                                <div
+                                    className="grid"
+                                    style={{
+                                        gridTemplateColumns:
+                                            'repeat(auto-fill, minmax(96px, 1fr))',
+                                        gap: 12,
+                                    }}
+                                >
+                                    {activeList.map((it) => {
+                                        const added = value.items.some(
+                                            (x) =>
+                                                x.tmdb_id === it.tmdb_id &&
+                                                x.type ===
+                                                    (activeGenre.media === 'movie'
+                                                        ? 'movie'
+                                                        : 'series')
+                                        );
+                                        return (
+                                            <button
+                                                key={`${activeGenre.media}-${it.tmdb_id}`}
+                                                data-testid={`viewing-style-item-${it.tmdb_id}`}
+                                                data-focusable="true"
+                                                data-focus-style="tile"
+                                                tabIndex={0}
+                                                onClick={() =>
+                                                    toggleItem(it, activeGenre.media)
+                                                }
+                                                className="relative overflow-hidden text-left"
+                                                style={{
+                                                    aspectRatio: '2 / 3',
+                                                    borderRadius: 10,
+                                                    background:
+                                                        'rgba(255,255,255,0.04)',
+                                                    border: added
+                                                        ? '2px solid var(--vesper-blue)'
+                                                        : '1px solid rgba(255,255,255,0.08)',
+                                                    boxShadow: added
+                                                        ? '0 0 0 3px rgba(var(--vesper-blue-rgb),0.18)'
+                                                        : 'none',
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                {it.poster ? (
+                                                    <img
+                                                        src={it.poster}
+                                                        alt={it.title}
+                                                        loading="lazy"
+                                                        className="absolute inset-0 w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="absolute inset-0 flex items-center justify-center"
+                                                        style={{
+                                                            color: 'var(--vesper-text-3)',
+                                                            fontSize: 12,
+                                                            padding: 4,
+                                                            textAlign: 'center',
+                                                        }}
+                                                    >
+                                                        {it.title}
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className="absolute"
+                                                    style={{
+                                                        top: 6,
+                                                        right: 6,
+                                                        width: 24,
+                                                        height: 24,
+                                                        borderRadius: '50%',
+                                                        background: added
+                                                            ? 'var(--vesper-blue)'
+                                                            : 'rgba(6,8,15,0.7)',
+                                                        color: added
+                                                            ? 'var(--vesper-bg-0)'
+                                                            : '#fff',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        border: '1px solid rgba(255,255,255,0.18)',
+                                                    }}
+                                                >
+                                                    {added ? (
+                                                        <Check
+                                                            size={12}
+                                                            strokeWidth={3}
+                                                        />
+                                                    ) : (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 14,
+                                                                lineHeight: 1,
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            +
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div
+                                                    className="absolute bottom-0 left-0 right-0"
+                                                    style={{
+                                                        background:
+                                                            'linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
+                                                        padding: '20px 8px 8px',
+                                                        fontSize: 11,
+                                                        color: '#fff',
+                                                        fontWeight: 600,
+                                                        lineHeight: 1.2,
+                                                    }}
+                                                >
+                                                    {it.title}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Action row */}
+            <div className="flex items-center" style={{ gap: 12 }}>
+                <button
+                    data-testid="viewing-style-skip"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onSkip}
+                    className="rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 26px',
+                        fontSize: 15,
+                        background: 'rgba(255,255,255,0.08)',
+                        color: 'var(--vesper-text)',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                    }}
+                >
+                    Skip
+                </button>
+                <button
+                    data-testid="viewing-style-next"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onNext}
+                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 30px',
+                        fontSize: 15,
+                        background: 'var(--vesper-blue)',
+                        color: 'var(--vesper-bg-0)',
+                        border: 'none',
+                        boxShadow:
+                            '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                    }}
+                >
+                    Save & continue
+                    <ArrowRight size={16} strokeWidth={2.5} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function GenreSection({ label, genres, media, loading, selected, activeId, onOpen, onToggle }) {
+    return (
+        <div>
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 10,
+                    textTransform: 'uppercase',
+                }}
+            >
+                {label}
+            </div>
+            {loading ? (
+                <div
+                    className="flex items-center gap-2"
+                    style={{ color: 'var(--vesper-text-2)', fontSize: 13 }}
+                >
+                    <Loader2 className="vesper-spin" size={14} />
+                    Loading genres…
+                </div>
+            ) : (
+                <div
+                    className="flex flex-wrap"
+                    style={{ gap: 8 }}
+                >
+                    {genres.map((g) => {
+                        const isSelected = selected.includes(g.id);
+                        const isOpen = activeId === g.id;
+                        return (
+                            <button
+                                key={g.id}
+                                data-testid={`viewing-style-genre-${media}-${g.id}`}
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => {
+                                    onOpen(g);
+                                    onToggle(g);
+                                }}
+                                className="rounded-full font-sans"
+                                style={{
+                                    height: 36,
+                                    padding: '0 14px',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    background: isSelected
+                                        ? 'var(--vesper-blue)'
+                                        : isOpen
+                                        ? 'rgba(var(--vesper-blue-rgb),0.18)'
+                                        : 'rgba(255,255,255,0.06)',
+                                    color: isSelected
+                                        ? 'var(--vesper-bg-0)'
+                                        : 'var(--vesper-text)',
+                                    border: isSelected
+                                        ? 'none'
+                                        : isOpen
+                                        ? '1px solid rgba(var(--vesper-blue-rgb),0.55)'
+                                        : '1px solid rgba(255,255,255,0.12)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {g.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 
 function AvatarStep({ visibleAvatars, avatarId, onPick }) {
     return (
@@ -1107,6 +1653,40 @@ function AddPasswordPrompt({ onYes, onNo }) {
         </ConfirmModal>
     );
 }
+
+function AutoplayPrompt({ onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="autoplay-prompt"
+            eyebrow="Playback · Step 5 of 6"
+            title="Autoplay 1080p streams?"
+            body="When you tap Play, we'll skip the source list and instantly start the first 1080p stream we find.  You can change this any time in Settings."
+            yesLabel="Yes, autoplay 1080p"
+            noLabel="Skip"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 999,
+                    background: 'rgba(var(--vesper-blue-rgb), 0.16)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.5)',
+                    color: 'var(--vesper-blue-bright)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                }}
+            >
+                <Play size={28} strokeWidth={2} fill="currentColor" />
+            </div>
+        </ConfirmModal>
+    );
+}
+
+
 
 /**
  * Focused 4-digit PIN entry modal that appears when the user

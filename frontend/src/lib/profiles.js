@@ -78,6 +78,7 @@ export function listProfiles() {
 export function saveProfile(partial) {
     const list = readJSON(KEY_PROFILES, []).filter((p) => p.id !== 'kids');
     const id = partial.id || uuid();
+    const isNew = !partial.id;
     const next = {
         id,
         name: partial.name || 'Profile',
@@ -90,7 +91,50 @@ export function saveProfile(partial) {
     if (i >= 0) list[i] = next;
     else list.unshift(next);
     writeJSON(KEY_PROFILES, list);
+    if (isNew) seedNewProfileStorage(id);
     return next;
+}
+
+/**
+ * Initialise a brand-new profile's scoped localStorage namespace
+ * with empty/default values so the fresh profile can never
+ * accidentally inherit another profile's library, continue-watching
+ * list, viewing-style or autoplay setting via the
+ * `readScopedString` legacy fallback (which has been removed but
+ * we double-belt-and-brace here regardless).
+ */
+function seedNewProfileStorage(id) {
+    const tag = (k) => `${k}:${id}`;
+    const seeds = {
+        // Library (favourites + watch-later + dismissed)
+        'vesper-library': JSON.stringify({
+            favorites: {},
+            watchLater: [],
+            dismissed: {},
+        }),
+        // Continue watching + watched flags
+        'onnowtv-continue-watching-v1': '[]',
+        'onnowtv-watched-v1': '[]',
+        // Viewing-style preferences (genres + manually-added items)
+        'onnowtv-viewing-style-v1': JSON.stringify({
+            movieGenres: [],
+            tvGenres: [],
+            items: [],
+        }),
+        // Autoplay 1080p toggle — default OFF; the wizard sets '1'
+        // if the user opts in.
+        'onnowtv-autoplay-1080p': '0',
+    };
+    try {
+        for (const [base, value] of Object.entries(seeds)) {
+            const key = tag(base);
+            if (localStorage.getItem(key) === null) {
+                localStorage.setItem(key, value);
+            }
+        }
+    } catch {
+        /* quota / disabled — non-blocking */
+    }
 }
 
 export function removeProfile(id) {
