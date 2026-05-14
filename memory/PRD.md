@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 51 — Feb 14, 2026)
+### Shelf re-order · PosterTile scroll-margin · Build-Your-Own avatar
+- **🔄 Home shelf order swapped** (`pages/Home.jsx`). Now in order: **New movies → New series → Popular movies → Popular series**.
+- **📐 PosterTile scroll-margin fix** (`components/PosterTile.jsx`). Added `scrollMarginTop:24px` + `scrollMarginBottom:24px` so D-pad `scrollIntoView()` never lands the focused tile flush against the viewport edge — bottom-clipped tiles when scrolling from Networks → first shelf are gone.
+- **🎨 Build-Your-Own avatar builder** (`pages/ProfileEdit.jsx` + `lib/avatars.jsx`). New "Build" tile at the top of step 2 opens a full-screen overlay with live preview circle + chip rows for: Hair (32 styles), Hair color (10), Skin (6), Eyes (11), Eyebrows (11), Mouth (11), Facial hair (6 including blank), Glasses (8 including blank), Background (8 swatches). Live preview updates instantly on every chip click via DiceBear avataaars URL builder. Save persists to `localStorage` key `onnowtv-custom-avatars-v1` (JSON array of `{id, src, glow, options, createdAt}`) and short-circuits into the standard SaveAvatarConfirm flow. Saved custom avatars persist into a `data-testid="avatar-row-custom"` row at the top of step 2 across sessions.
+- **🛡️ DiceBear schema validation done** — all enum values verified against the official `/9.x/avataaars/schema.json` so the builder never 400s.
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_14.json) — 9/9 scenarios PASS at 100% including DiceBear 200-OK fetch, localStorage persistence, cancel/back no-persistence, and zero console errors.
+
+
 ## Implemented (Iterations 49 + 50 — Feb 14, 2026)
 ### Home rail locked to 4 shelves · Fun Faces removed · DiceBear shrunk to 160 · SideNav D-pad fix
 - **🏠 Home page rail locked to exactly 4 addon shelves** (`pages/Home.jsx`). Below Continue Watching / For You / Networks, the Home page now renders only: **Popular movies · Popular series · New movies · New series** (Cinemeta `-movie-top` / `-series-top` / `-movie-year` / `-series-year`). Every other addon-driven shelf (Trending / Anime / Channels / etc.) is filtered out for faster HK1 render. Filter views (Movies / TV tabs) remain unaffected. Iter 12 verified 6/6 PASS.
