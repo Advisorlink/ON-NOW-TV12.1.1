@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, LogOut, Star, Clock, Search, X } from 'lucide-react';
+import { Play, LogOut, Star, Clock, Search, X, Bell } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -21,6 +21,13 @@ import {
     getRecents,
     pushRecent,
 } from '@/lib/liveRecents';
+import {
+    getReminders,
+    hasReminder,
+    toggleReminder,
+    pruneStale,
+} from '@/lib/liveReminders';
+import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
 /* ====================================================================
@@ -119,6 +126,17 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     // Reset on every category change so navigating away clears the
     // filter automatically (no stale state).
     const [query, setQuery] = useState('');
+
+    // Reminders — keyed by provider id, persisted to localStorage.
+    // Pruned of past programmes once on mount.  Stored as state so
+    // toggling re-renders the bell icon in the guide column.
+    const [reminders, setReminders] = useState(
+        () => pruneStale(provider.id),
+    );
+    const reminderKeys = useMemo(
+        () => new Set(reminders.map((r) => r.id)),
+        [reminders],
+    );
 
     // Per-category channel cache; populated entirely during boot so
     // the grid never has to fetch on category-switch.
@@ -273,6 +291,20 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         if (!ch) return;
         toggleFavorite(provider.id, ch.stream_id);
         setFavorites(new Set(getFavList(provider.id).map((v) => String(v))));
+    }, [focusedChannel, provider]);
+
+    /* Reminder toggle for a specific programme on the focused
+     * channel.  Fired by clicking / Enter-ing a guide row. */
+    const onToggleReminder = useCallback((item) => {
+        const ch = focusedChannel;
+        if (!ch || !item) return;
+        toggleReminder(provider.id, ch.stream_id, {
+            channelName: ch.name,
+            title: item.title,
+            startTs: item.startTimestamp,
+            stopTs: item.stopTimestamp,
+        });
+        setReminders(getReminders(provider.id));
     }, [focusedChannel, provider]);
 
     /* "F" key shortcut — toggles favourite on the focused channel. */
@@ -476,6 +508,8 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 <GuideCol
                     channel={focusedChannel}
                     items={epgItems}
+                    reminderKeys={reminderKeys}
+                    onToggleReminder={onToggleReminder}
                 />
             </div>
         </div>
@@ -495,6 +529,12 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
     const next = nowNext?.next || null;
     const progressPct = computeProgress(now);
 
+    // TMDB programme backdrop for the currently-airing show.
+    // Cached + debounced inside the hook so D-pad scrubbing through
+    // 100 channels fires exactly zero unnecessary requests.
+    const tmdb = useProgrammeBackdrop(now?.title || '');
+    const tmdbBackdrop = tmdb?.backdrop || '';
+
     // Lightweight real-time clock — refreshes once a minute, no
     // animation, no transition.  Cheap enough for Chrome 52.
     const clock = useNowClock();
@@ -507,6 +547,35 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
             position: 'relative',
             overflow: 'hidden',
         }}>
+            {/* TMDB programme backdrop — only renders when we found a
+                hit for the current "NOW" programme.  Heavy left-side
+                fade so the hero text reads cleanly.  No CSS blur,
+                we lean on a low opacity + gradient mask. */}
+            {tmdbBackdrop && (
+                <div
+                    aria-hidden="true"
+                    data-testid="live-tv-hero-tmdb-bg"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        pointerEvents: 'none',
+                        zIndex: 0,
+                        backgroundImage: `url(${tmdbBackdrop})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center right',
+                        opacity: 0.32,
+                        // Horizontal + vertical gradient mask so the
+                        // backdrop fades into the page without a
+                        // visible edge.  No filter:blur (kills the
+                        // HK1 GPU); the mask is enough.
+                        maskImage: 'linear-gradient(90deg, transparent 0%, #000 60%, #000 100%), linear-gradient(180deg, #000 0%, #000 60%, transparent 100%)',
+                        maskComposite: 'intersect',
+                        WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 60%, #000 100%), linear-gradient(180deg, #000 0%, #000 60%, transparent 100%)',
+                        WebkitMaskComposite: 'source-in',
+                    }}
+                />
+            )}
+
             {/* Giant dim channel-logo backdrop.  No CSS blur (kills
                 Chrome 52 GPU) — we lean on heavy opacity + a fade
                 gradient mask instead.  One <img>, ~600 px wide,
@@ -1257,7 +1326,7 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
 
 /* ============================ Guide Column (right) ============================ */
 
-function GuideCol({ channel, items }) {
+function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
     const nowSec = Math.floor(Date.now() / 1000);
 
     return (
@@ -1307,11 +1376,18 @@ function GuideCol({ channel, items }) {
                         const start = Number(it.startTimestamp) || 0;
                         const stop = Number(it.stopTimestamp) || 0;
                         const isLive = nowSec >= start && nowSec < stop;
+                        const isPast = stop > 0 && stop <= nowSec;
+                        const remId = channel ? `${channel.stream_id}:${start}` : '';
+                        const isReminded = !isLive && !isPast && reminderKeys?.has(remId);
                         return (
                             <GuideRow
                                 key={`${start}-${idx}`}
                                 item={it}
                                 isLive={isLive}
+                                isPast={isPast}
+                                isReminded={isReminded}
+                                disabled={!channel || isPast || isLive}
+                                onToggleReminder={() => onToggleReminder && onToggleReminder(it)}
                             />
                         );
                     })}
@@ -1321,71 +1397,112 @@ function GuideCol({ channel, items }) {
     );
 }
 
-function GuideRow({ item, isLive }) {
+function GuideRow({ item, isLive, isPast, isReminded, disabled, onToggleReminder }) {
+    const accent = isLive
+        ? 'var(--vesper-blue-bright)'
+        : isReminded
+            ? '#FFC850'
+            : 'transparent';
+
     return (
-        <li style={{
-            position: 'relative',
-            padding: '10px 16px',
-            borderLeft: isLive
-                ? '3px solid var(--vesper-blue-bright)'
-                : '3px solid transparent',
-            background: isLive ? 'rgba(93,200,255,0.06)' : 'transparent',
-        }}>
-            <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                marginBottom: 3,
-            }}>
-                <span className="vesper-mono" style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: isLive ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)',
-                    letterSpacing: '0.04em',
-                }}>
-                    {formatTime(item.startTimestamp)}
-                </span>
-                {isLive && (
-                    <span className="vesper-mono" style={{
-                        fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
-                        color: 'var(--vesper-blue-bright)',
-                        padding: '2px 6px',
-                        background: 'rgba(93,200,255,0.14)',
-                        borderRadius: 3,
-                    }}>
-                        LIVE
-                    </span>
-                )}
-            </div>
-            <div style={{
-                fontSize: 13, fontWeight: isLive ? 700 : 600,
-                color: isLive ? '#fff' : 'var(--vesper-text)',
-                lineHeight: 1.3,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                whiteSpace: 'normal',
-            }}>
-                {item.title || 'Untitled programme'}
-            </div>
-            {/* Description only on the currently-airing entry — keeps
-                the rest of the list compact and avoids fetching
-                anything extra (description already came with the EPG). */}
-            {isLive && item.description && (
+        <li>
+            <button
+                data-testid={`live-guide-row-${item.startTimestamp || ''}`}
+                data-focusable={disabled ? undefined : 'true'}
+                data-focus-style="quiet"
+                tabIndex={disabled ? -1 : 0}
+                onClick={disabled ? undefined : onToggleReminder}
+                disabled={disabled}
+                className="text-left w-full"
+                style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 16px',
+                    background: isLive
+                        ? 'rgba(93,200,255,0.06)'
+                        : isReminded
+                            ? 'rgba(255,200,80,0.08)'
+                            : 'transparent',
+                    borderLeft: `3px solid ${accent}`,
+                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                    color: isPast ? 'var(--vesper-text-3)' : 'var(--vesper-text)',
+                    opacity: isPast ? 0.55 : 1,
+                    cursor: disabled ? 'default' : 'pointer',
+                }}
+            >
                 <div style={{
-                    marginTop: 6,
-                    fontSize: 11,
-                    color: 'var(--vesper-text-2)',
-                    lineHeight: 1.4,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    marginBottom: 3,
+                }}>
+                    <span className="vesper-mono" style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: isLive
+                            ? 'var(--vesper-blue-bright)'
+                            : isReminded
+                                ? '#FFC850'
+                                : 'var(--vesper-text-3)',
+                        letterSpacing: '0.04em',
+                    }}>
+                        {formatTime(item.startTimestamp)}
+                    </span>
+                    {isLive && (
+                        <span className="vesper-mono" style={{
+                            fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
+                            color: 'var(--vesper-blue-bright)',
+                            padding: '2px 6px',
+                            background: 'rgba(93,200,255,0.14)',
+                            borderRadius: 3,
+                        }}>
+                            LIVE
+                        </span>
+                    )}
+                    {isReminded && (
+                        <span className="vesper-mono flex items-center" style={{
+                            fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
+                            color: '#FFC850',
+                            padding: '2px 6px',
+                            background: 'rgba(255,200,80,0.16)',
+                            borderRadius: 3,
+                            gap: 4,
+                        }}>
+                            <Bell size={9} strokeWidth={2.5} fill="#FFC850" />
+                            REMINDER
+                        </span>
+                    )}
+                </div>
+                <div style={{
+                    fontSize: 13, fontWeight: isLive || isReminded ? 700 : 600,
+                    color: isLive || isReminded ? '#fff' : (isPast ? 'var(--vesper-text-3)' : 'var(--vesper-text)'),
+                    lineHeight: 1.3,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: '-webkit-box',
-                    WebkitLineClamp: 3,
+                    WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
                     whiteSpace: 'normal',
                 }}>
-                    {item.description}
+                    {item.title || 'Untitled programme'}
                 </div>
-            )}
+                {/* Description only on the currently-airing entry — keeps
+                    the rest of the list compact and avoids fetching
+                    anything extra (description already came with the EPG). */}
+                {isLive && item.description && (
+                    <div style={{
+                        marginTop: 6,
+                        fontSize: 11,
+                        color: 'var(--vesper-text-2)',
+                        lineHeight: 1.4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        whiteSpace: 'normal',
+                    }}>
+                        {item.description}
+                    </div>
+                )}
+            </button>
         </li>
     );
 }

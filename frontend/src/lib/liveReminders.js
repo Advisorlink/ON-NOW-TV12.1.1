@@ -1,0 +1,89 @@
+/**
+ * Live TV programme reminders — keyed by provider id.
+ *
+ *   shape: { [providerId]: Reminder[] }
+ *   Reminder: { id, streamId, channelName, title, startTs, stopTs }
+ *
+ * `id` is a deterministic hash of (streamId + startTs) so re-setting
+ * a reminder on the same programme just no-ops instead of creating
+ * duplicates.  No timestamps stored beyond the EPG times — we don't
+ * need creation/updated metadata for this scope.
+ *
+ * Persisted to localStorage so reminders survive APK reinstalls.
+ */
+
+const KEY = 'onnowtv-live-reminders-v1';
+
+let cache = null;
+
+function load() {
+    if (cache) return cache;
+    try {
+        const raw = localStorage.getItem(KEY);
+        cache = raw ? JSON.parse(raw) : {};
+        if (typeof cache !== 'object' || cache === null) cache = {};
+    } catch {
+        cache = {};
+    }
+    return cache;
+}
+
+function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch { /* ignore */ }
+}
+
+function makeId(streamId, startTs) {
+    return `${streamId}:${startTs}`;
+}
+
+export function getReminders(providerId) {
+    const c = load();
+    return Array.isArray(c[providerId]) ? c[providerId] : [];
+}
+
+export function hasReminder(providerId, streamId, startTs) {
+    if (providerId == null || streamId == null || startTs == null) return false;
+    const id = makeId(streamId, startTs);
+    return getReminders(providerId).some((r) => r.id === id);
+}
+
+export function toggleReminder(providerId, streamId, info) {
+    if (providerId == null || streamId == null || !info?.startTs) return false;
+    const c = load();
+    const list = Array.isArray(c[providerId]) ? c[providerId].slice() : [];
+    const id = makeId(streamId, info.startTs);
+    const idx = list.findIndex((r) => r.id === id);
+    let nowOn;
+    if (idx >= 0) {
+        list.splice(idx, 1);
+        nowOn = false;
+    } else {
+        list.unshift({
+            id,
+            streamId: Number(streamId) || streamId,
+            channelName: info.channelName || '',
+            title: info.title || '',
+            startTs: info.startTs,
+            stopTs: info.stopTs || 0,
+        });
+        nowOn = true;
+    }
+    c[providerId] = list;
+    persist();
+    return nowOn;
+}
+
+/** Drop reminders for programmes that have already ended.  Called
+ *  opportunistically (no setInterval) — once on mount, that's enough. */
+export function pruneStale(providerId) {
+    const c = load();
+    const list = Array.isArray(c[providerId]) ? c[providerId] : [];
+    if (list.length === 0) return [];
+    const nowSec = Math.floor(Date.now() / 1000);
+    const next = list.filter((r) => Number(r.stopTs || 0) >= nowSec);
+    if (next.length !== list.length) {
+        c[providerId] = next;
+        persist();
+    }
+    return next;
+}
