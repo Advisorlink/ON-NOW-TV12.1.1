@@ -93,41 +93,7 @@ export default function TabGridView({ shelves, loading, type }) {
                 </div>
             </header>
 
-            {loading ? (
-                // Page chrome is already on screen above; here we
-                // show ONE big centered spinner until every catalogue
-                // has finished streaming in.  This is the user's
-                // explicit request: click TV Shows → page appears
-                // immediately with a spinner → grid renders fully
-                // when ready.  No partial / chunked render that
-                // produces visible gaps on the TV box.
-                <div
-                    data-testid={`tab-grid-loading-${type}`}
-                    className="flex flex-col items-center justify-center"
-                    style={{
-                        minHeight: '52vh',
-                        gap: 18,
-                        color: 'var(--vesper-blue-bright)',
-                    }}
-                >
-                    <Loader2
-                        size={56}
-                        strokeWidth={2}
-                        className="vesper-spin"
-                    />
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            fontSize: 12,
-                            letterSpacing: '0.32em',
-                            textTransform: 'uppercase',
-                            color: 'var(--vesper-text-3)',
-                        }}
-                    >
-                        Loading {type === 'series' ? 'TV shows' : 'movies'}…
-                    </div>
-                </div>
-            ) : items.length === 0 ? (
+            {items.length === 0 && !loading ? (
                 <div
                     className="vesper-glass rounded-2xl"
                     style={{
@@ -140,34 +106,88 @@ export default function TabGridView({ shelves, loading, type }) {
                     Open Sources to add one.
                 </div>
             ) : (
-                // Full grid — every tile in one paint, no chunking
-                // or lazy mounting.  The user accepted the spinner
-                // wait time in exchange for content that doesn't
-                // have gaps or missing rows.  Per-tile React.memo
-                // (see MorphTile) keeps re-renders cheap on the box.
-                // The key includes `type` so flipping Movies ↔ TV
-                // Shows fully unmounts the previous posters instead
-                // of leaving the old <img> src on screen while the
-                // new image streams in.
-                <div
-                    data-testid={`tab-grid-list-${type}`}
-                    className="grid"
-                    style={{
-                        gridTemplateColumns:
-                            'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
-                        gap: 'clamp(18px, 1.6vw, 28px)',
-                    }}
-                >
-                    {items.map((it, i) => (
-                        <MorphTile
-                            key={`${type}-${it.imdbId || it.id || i}`}
-                            item={it}
-                            navigate={navigate}
+                // Full grid — every tile in one paint, streaming in
+                // as `items` grows.  Index-based keys mean the
+                // focused DOM node stays mounted between shelves.
+                // While `loading` is still true we drape a dim
+                // overlay + spinner over the grid so the user
+                // gets a clear "something's happening" cue and
+                // doesn't try to navigate until the data is fully
+                // settled.  Once loading flips to false the
+                // overlay fades out and the grid is interactive.
+                <div style={{ position: 'relative' }}>
+                    <div
+                        data-testid={`tab-grid-list-${type}`}
+                        className="grid"
+                        style={{
+                            gridTemplateColumns:
+                                'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
+                            gap: 'clamp(18px, 1.6vw, 28px)',
+                        }}
+                    >
+                        {Array.from({
+                            length: Math.max(items.length, 14),
+                        }).map((_, i) => (
+                            <MorphTile
+                                // Key by type+index so flipping
+                                // Movies ↔ TV Shows unmounts every
+                                // previous-tab tile (no poster
+                                // bleed-through), while index keeps
+                                // focus stable as items stream in
+                                // within the same tab.
+                                key={`${type}-${i}`}
+                                item={items[i] || null}
+                                navigate={navigate}
+                            />
+                        ))}
+                    </div>
+
+                    {loading && (
+                        <LoadingOverlay
+                            type={type}
+                            testId={`tab-grid-loading-${type}`}
                         />
-                    ))}
+                    )}
                 </div>
             )}
         </section>
+    );
+}
+
+/**
+ * Dim-the-screen-while-we-load overlay.  Sits on top of the grid
+ * (which renders behind it as items stream in) so the user has a
+ * clear signal "covers are still loading, hold on" and can't
+ * accidentally trigger a tile until everything is settled.
+ */
+function LoadingOverlay({ type, testId }) {
+    return (
+        <div
+            data-testid={testId}
+            className="fixed inset-0 flex flex-col items-center justify-center"
+            style={{
+                background: 'rgba(6,8,15,0.72)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                zIndex: 30,
+                gap: 18,
+                color: 'var(--vesper-blue-bright)',
+                pointerEvents: 'auto',
+            }}
+        >
+            <Loader2 size={64} strokeWidth={2} className="vesper-spin" />
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 12,
+                    letterSpacing: '0.32em',
+                    textTransform: 'uppercase',
+                    color: 'var(--vesper-text-2)',
+                }}
+            >
+                Loading {type === 'series' ? 'TV shows' : 'movies'}…
+            </div>
+        </div>
     );
 }
 
