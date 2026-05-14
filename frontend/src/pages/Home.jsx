@@ -44,16 +44,19 @@ export default function Home() {
         heroType
     );
 
-    // Background prefetch — warm the cache for the home view when
-    // we're on a filter view, and pre-fetch BOTH tab catalogues
-    // (movies + series) for instant tab swaps.  Done via the new
-    // useTabCatalog hook directly.
+    // Background prefetch — warm the tab-catalog cache so a tab
+    // swap lands instantly.  We only fire this on the home root
+    // (not on filter views, where the user is already inside the
+    // grid).  Memoising the empty array keeps the prefetch from
+    // firing repeatedly while waiting for `addons` to populate.
     const [prefetchReady, setPrefetchReady] = React.useState(false);
     React.useEffect(() => {
-        const t = setTimeout(() => setPrefetchReady(true), 600);
+        const t = setTimeout(() => setPrefetchReady(true), 800);
         return () => clearTimeout(t);
     }, []);
-    const prefetchAddons = prefetchReady ? addons : [];
+    const EMPTY = React.useMemo(() => [], []);
+    const prefetchAddons =
+        prefetchReady && !isFilterView ? addons : EMPTY;
     useTabCatalog(prefetchAddons, 'movie');
     useTabCatalog(prefetchAddons, 'series');
 

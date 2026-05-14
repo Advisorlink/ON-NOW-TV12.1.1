@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Vesper } from '@/lib/api';
 import * as cache from '@/lib/cache';
 
@@ -62,7 +62,23 @@ function mapMeta(addon, cat, m) {
 }
 
 export function useTabCatalog(addons, type) {
-    const key = buildKey(type, addons);
+    // Build the cache key once per addon-set change.  Without
+    // useMemo the key string is recomputed every render and the
+    // useEffect below would never be entirely stable.  The dep
+    // array reads `addons` length + the joined sorted-id string
+    // which is referentially stable as long as the addon set
+    // doesn't actually change.
+    const addonIds = (addons || []).map((a) => a.id).sort().join(',');
+    const key = useMemo(
+        () => `tab:${type}:${addonIds}`,
+        [type, addonIds]
+    );
+    // Stash the latest addons in a ref so we can read it from inside
+    // the effect without making it a dep (which would loop because
+    // `addons` is a fresh array reference on every render).
+    const addonsRef = useRef(addons);
+    addonsRef.current = addons;
+
     const cached = cache.get(key);
     const cachedValue = cached?.value;
     const [data, setData] = useState(
@@ -75,7 +91,8 @@ export function useTabCatalog(addons, type) {
     const runIdRef = useRef(0);
 
     useEffect(() => {
-        if (!addons || addons.length === 0) {
+        const list = addonsRef.current || [];
+        if (list.length === 0) {
             setData({ items: [], genres: [] });
             setLoading(false);
             setProgress(1);
@@ -100,7 +117,7 @@ export function useTabCatalog(addons, type) {
 
         // Build the full list of (addon, catalog) pairs to fetch.
         const jobs = [];
-        for (const addon of addons) {
+        for (const addon of list) {
             const catalogs = (addon.catalogs || [])
                 .filter((c) => c.type === type)
                 .slice(0, MAX_CATALOGS_PER_ADDON);
@@ -180,7 +197,9 @@ export function useTabCatalog(addons, type) {
                 setLoading(false);
                 setProgress(1);
             });
-    }, [key, addons, type]);
+    }, [key]);   // `addons` and `type` are both encoded in `key`,
+    //  so depending on `key` alone keeps this effect from
+    //  re-firing on every parent render.
 
     return { ...data, loading, progress };
 }
