@@ -34,6 +34,13 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 54 — Feb 14, 2026)
+### AvatarStep sticky preview truly pinned · BuildAvatarOverlay focus never escapes
+- **📌 AvatarStep is now its own scroll container** (`pages/ProfileEdit.jsx`). Outer `[data-testid="profile-edit"]` is `overflow-y: hidden` on the avatar step; the inner `[data-testid="profile-step-avatar"]` carries `flex: 1; min-height: 0; overflow-y: auto`. `position: sticky; top: 0` on the preview header is now relative to the AvatarStep's own scroll viewport — verified 0 px drift across 8 consecutive ArrowDown presses.
+- **🛡️ BuildAvatarOverlay focus trap hardened**. Scoped capture-phase keydown handler now ALWAYS calls `preventDefault()` + `stopPropagation()` when active focus is inside the overlay — even when target is `null` at a row edge. Previously the global spatial-focus engine would steal the keystroke and focus an AvatarStep tile behind the modal ("focus disappears"). Verified 30 rapid ArrowDown presses → 0 escapes; 5 ArrowRight at Save → 0 escapes; 5 ArrowUp at top chip → 0 escapes.
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_17.json) — 8/8 scenarios PASS at 100%. Sticky preview drift 0.00 px; preview avatar-id updates live across 9 distinct tiles; cancel click cleanly closes overlay; zero console errors.
+
+
 ## Implemented (Iteration 53 — Feb 14, 2026)
 ### Build-Your-Own avatar overlay — D-pad + sticky preview
 - **🎮 D-pad now works inside the builder** (`pages/ProfileEdit.jsx` → `BuildAvatarOverlay`). Added a scoped capture-phase keydown handler mirroring `AvatarStep`: walks `[data-builder-row="true"]` containers row-by-row in DOM order, preserves the active button's screen-X column on row changes, wraps Left/Right at row edges. Every focus move triggers `scrollIntoView({behavior:'smooth', block:'center', inline:'center'})` so the focused chip is always visible.
