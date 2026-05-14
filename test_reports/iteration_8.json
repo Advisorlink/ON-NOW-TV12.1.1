@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 8 polish verification PASS across all 4 targeted changes. Backend pytest 2/2 confirms (a) /api/networks/logos now returns /t/p/w300/ for every entry that has a logo (zero /t/p/original/ remain) and (b) /api/tmdb/by-genre/movie/28?limit=20 returns 20 shaped items with tmdb_id/title/poster. Frontend Playwright walked the /profiles/new wizard end-to-end: name (TV keyboard) → avatar (all 12 categorised rows present with correct tile counts 15/15/10/8/7/5/5/10/8/7/10/6 and the eyebrow shows 'CHOOSE AN AVATAR · 106 · 12 CATEGORIES') → theme → viewing-style. On the viewing-style step the [data-testid=viewing-style-helper] banner renders above the genre tiles with the literal copy 'How this works · Tap any genre on the left to see its top 20 most-watched titles…'. Clicking the Action movie genre pill triggers a /api/tmdb/by-genre/movie/28?limit=20 fetch; the right-pane [data-testid=viewing-style-titles] header reads 'Top 20 in Action' and exactly 20 [data-testid^=viewing-style-item-] tiles render. Zero console errors on /, /profiles/new, or any wizard step. Code-review smoke of /app/frontend/src/components/SeriesEpisodes.jsx confirms `is1080p` is imported from '@/lib/streamMeta' on line 15 and pickAutoplayCandidate uses `is1080p(s)` (lines 173 + 175); the old `qualityBadge(s)?.label === '1080p'` strict match is no longer used inside pickAutoplayCandidate.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tests_executed": {
+    "backend_networks_logos_w300": "PASS — every entry with a logo uses /t/p/w300/; no /t/p/original/ left. Response shape is {data: {slug: {logo, name}, ...}}.",
+    "backend_by_genre_movie_28_limit_20": "PASS — returns 20 items, each with tmdb_id (int), title (str), poster.",
+    "wizard_step2_avatar_rows": "PASS — all 12 testids present (avatar-row-animals/wild/fantasy/sports/music/faces/symbols/food/nature/vehicles/hobbies/magic). Tile counts: 15/15/10/8/7/5/5/10/8/7/10/6 = 106 total (matches AVATARS minus hidden kids-default).",
+    "wizard_step2_eyebrow": "PASS — 'CHOOSE AN AVATAR · 106 · 12 CATEGORIES' rendered.",
+    "wizard_step4_helper_banner": "PASS — [data-testid=viewing-style-helper] renders above the genre tiles, contains 'How this works' and 'top 20'.",
+    "wizard_step4_top20_header": "PASS — right pane reads 'Top 20 in Action' after clicking the Action movie genre pill.",
+    "wizard_step4_20_tiles": "PASS — 20 [data-testid^=viewing-style-item-] tiles rendered (matches new ?limit=20 fetch).",
+    "code_review_series_episodes_is1080p": "PASS — import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta' on line 15; pickAutoplayCandidate uses is1080p(s) on lines 173 and 175.",
+    "console_errors": "PASS — 0 errors on /, /profiles/new, and at each wizard step (name/avatar/theme/viewing-style)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_polish.py",
+    "/app/test_reports/pytest/iter8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProfileEdit.jsx continues to grow (now ~1960 lines after adding the helper banner and the row-stacked AvatarStep). Still well above the 700-line guideline. Splitting AvatarStep + ViewingStyleStep + the modal/prompt components into /app/frontend/src/pages/profile-edit/ would materially improve readability — flagged in iter-7 too, still outstanding.",
+    "The avatar 'Save this as your icon?' confirm modal fires both in the wizard (post-step-2 pick) and in the edit-profile flow. In the wizard it is essentially redundant friction — the user is already mid-flow committing to a new profile. Consider suppressing the modal when isNew==true so step 2 advances directly to step 3.",
+    "/api/networks/logos response shape is `{data: {slug: {logo, name}}}` (dict). The review-request copy implies a list of entries with a `slug` key. Not a bug, just a doc/comment-style mismatch worth aligning so future test agents don't write list-shaped assertions and have to adjust.",
+    "Viewing-style helper banner copy ends with '… we'll add them to your For You rail. Skip if you'd rather decide later.' — but the on-screen Skip control is a small text link low on the screen; on the HK1 box that's only reachable by D-pad. A clearly focusable [data-testid=viewing-style-skip] button parked next to the helper banner would improve TV-remote ergonomics."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_polish.py"],
+  "success_rate": {"backend": "100% (2/2)", "frontend": "100% (9/9 wizard + smoke assertions)"},
+  "test_credentials": "None required.",
+  "seed_data_creation": "Wizard tested with a freshly-generated unique profile name (qx<epoch-tail>) to avoid colliding with previously-seeded test profiles.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Wizard is 6-step: name→avatar→theme→viewing-style→autoplay-prompt→add-password-prompt. Name input is an on-screen TV keyboard — type by clicking single-character buttons via locator('button:has-text(\"<ch>\")'). After picking an avatar on step 2 a 'Save this as your icon?' confirm modal appears — click 'Yes, save' to proceed. Networks logo endpoint /api/networks/logos returns shape {data: {slug: {logo, name}}}. All logos now /t/p/w300/. Viewing-style genres are paged from /api/tmdb/by-genre/{movie|tv}/{genre_id}?limit=20.",
+  "rca_of_the_issue": "N/A — no bugs found."
+}

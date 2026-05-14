@@ -150,6 +150,33 @@ export function getAvatar(id) {
 }
 
 /**
+ * Avatars grouped by category for the profile-creation wizard.
+ * Each entry: { id, label, items: Avatar[] }.  Hidden avatars
+ * (Kids default) are excluded.  Ordering controls how the rows
+ * stack vertically — first row = "Animals" so D-pad down lands
+ * on the next category exactly as the user requested.
+ */
+export const AVATAR_CATEGORIES = [
+    { id: 'animals',  label: 'Animals',        slice: [0, 15] },
+    { id: 'wild',     label: 'Wildlife',       slice: [50, 65] },
+    { id: 'fantasy',  label: 'Fantasy & Cool', slice: [15, 25] },
+    { id: 'sports',   label: 'Sports',         slice: [25, 33] },
+    { id: 'music',    label: 'Music & Gaming', slice: [33, 40] },
+    { id: 'faces',    label: 'Funny Faces',    slice: [40, 45] },
+    { id: 'symbols',  label: 'Vibes & Symbols',slice: [45, 50] },
+    { id: 'food',     label: 'Food & Drink',   slice: [65, 75] },
+    { id: 'nature',   label: 'Nature',         slice: [75, 83] },
+    { id: 'vehicles', label: 'Vehicles',       slice: [83, 90] },
+    { id: 'hobbies',  label: 'Hobbies & Gear', slice: [90, 100] },
+    { id: 'magic',    label: 'Magic & Cards',  slice: [100, 106] },
+].map((c) => ({
+    ...c,
+    items: AVATARS
+        .filter((a) => !a.hidden)
+        .slice(c.slice[0], c.slice[1]),
+}));
+
+/**
  * Reusable avatar circle renderer.  `size` in px.
  */
 export function AvatarCircle({ avatarId, size = 96, ring = false }) {

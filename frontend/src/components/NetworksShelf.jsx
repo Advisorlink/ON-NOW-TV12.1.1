@@ -20,12 +20,12 @@ const LOGOS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export default function NetworksShelf() {
     const navigate = useNavigate();
     const [logos, setLogos] = useState(() => {
-        const c = cache.get('networks:logos');
+        const c = cache.get('networks:logos:v2');
         return c?.value || {};
     });
 
     useEffect(() => {
-        const c = cache.get('networks:logos');
+        const c = cache.get('networks:logos:v2');
         if (c && !cache.isStale(c, LOGOS_TTL_MS)) return;
         (async () => {
             try {
@@ -33,7 +33,7 @@ export default function NetworksShelf() {
                 if (!r.ok) return;
                 const json = await r.json();
                 const data = json?.data || {};
-                cache.set('networks:logos', data);
+                cache.set('networks:logos:v2', data);
                 setLogos(data);
             } catch {
                 /* keep cached or empty */

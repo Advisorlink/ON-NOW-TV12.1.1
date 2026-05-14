@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
-import { AVATARS, AvatarCircle } from '@/lib/avatars';
+import { AVATARS, AVATAR_CATEGORIES, AvatarCircle } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
 import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
@@ -777,7 +777,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
         setLoadingItems(true);
         try {
             const r = await fetch(
-                `${API}/tmdb/by-genre/${media}/${g.id}?limit=10`
+                `${API}/tmdb/by-genre/${media}/${g.id}?limit=20`
             );
             const j = await r.json();
             setGenreItems((prev) => ({ ...prev, [key]: j?.data || [] }));
@@ -847,6 +847,57 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                 CHOOSE YOUR VIEWING STYLE · {totalPicks} picks
             </div>
 
+            {/* Helper banner — explicitly tells the user how the
+                step works.  Stays visible the entire time so they
+                can refer back to it after picking a few items. */}
+            <div
+                data-testid="viewing-style-helper"
+                className="flex items-start"
+                style={{
+                    gap: 14,
+                    padding: '14px 18px',
+                    marginBottom: 18,
+                    borderRadius: 14,
+                    background:
+                        'linear-gradient(90deg, rgba(var(--vesper-blue-rgb),0.12) 0%, rgba(var(--vesper-blue-rgb),0.02) 100%)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb),0.32)',
+                }}
+            >
+                <div
+                    className="shrink-0 flex items-center justify-center rounded-full"
+                    style={{
+                        width: 36,
+                        height: 36,
+                        background: 'rgba(var(--vesper-blue-rgb),0.18)',
+                        color: 'var(--vesper-blue-bright)',
+                    }}
+                >
+                    <Sparkles size={16} strokeWidth={2} />
+                </div>
+                <div style={{ lineHeight: 1.45 }}>
+                    <div
+                        style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: 'var(--vesper-text)',
+                            marginBottom: 2,
+                            letterSpacing: '-0.005em',
+                        }}
+                    >
+                        How this works
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: 'var(--vesper-text-2)',
+                            maxWidth: '70ch',
+                        }}
+                    >
+                        Tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genre</strong> on the left to see its top 20 most-watched titles, then tap the <strong style={{ color: 'var(--vesper-blue-bright)' }}>movies</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV shows</strong> you love — we&apos;ll add them to your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Skip if you&apos;d rather decide later.
+                    </div>
+                </div>
+            </div>
+
             {/* Genre grid + side panel */}
             <div
                 className="grid"
@@ -914,7 +965,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         >
                             <Sparkles size={26} strokeWidth={1.6} />
                             <div style={{ fontSize: 15, maxWidth: 280 }}>
-                                Pick a genre on the left to see the top 10
+                                Pick a genre on the left to see the top 20
                                 most-watched titles in it — tap any to add it to
                                 your For You rail.
                             </div>
@@ -929,7 +980,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                     marginBottom: 4,
                                 }}
                             >
-                                Top 10 in {activeGenre.name}
+                                Top 20 in {activeGenre.name}
                             </div>
                             <div
                                 className="vesper-mono"
@@ -1203,58 +1254,104 @@ function GenreSection({ label, genres, media, loading, selected, activeId, onOpe
 
 function AvatarStep({ visibleAvatars, avatarId, onPick }) {
     return (
-        <div data-testid="profile-step-avatar">
+        <div data-testid="profile-step-avatar" style={{ width: '100%' }}>
             <h2
                 className="vesper-mono"
                 style={{
                     fontSize: 11,
                     letterSpacing: '0.32em',
                     color: 'var(--vesper-text-3)',
-                    marginBottom: 16,
+                    marginBottom: 12,
                 }}
             >
-                CHOOSE AN AVATAR · {visibleAvatars.length}
+                CHOOSE AN AVATAR · {visibleAvatars.length} · {AVATAR_CATEGORIES.length} CATEGORIES
             </h2>
 
+            {/* Categorised horizontal rows.  D-pad Down walks one
+                row to the next (Animals → Wildlife → Fantasy …);
+                Left/Right picks a specific avatar within the row.
+                Each row is independently horizontally scrollable
+                so users can keep walking right to find more icons
+                in that category. */}
             <div
-                className="grid"
+                className="flex flex-col"
+                style={{ gap: 6, paddingRight: 8 }}
+            >
+                {AVATAR_CATEGORIES.map((cat, rowIdx) => (
+                    <AvatarRow
+                        key={cat.id}
+                        category={cat}
+                        avatarId={avatarId}
+                        onPick={onPick}
+                        rowIdx={rowIdx}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function AvatarRow({ category, avatarId, onPick, rowIdx }) {
+    return (
+        <section
+            data-testid={`avatar-row-${category.id}`}
+            style={{ paddingTop: 4, paddingBottom: 6 }}
+        >
+            <div
+                className="vesper-mono"
                 style={{
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
-                    gap: 16,
+                    fontSize: 10,
+                    letterSpacing: '0.28em',
+                    color: 'var(--vesper-text-3)',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                    marginLeft: 4,
                 }}
             >
-                {visibleAvatars.map((a) => {
+                {category.label}
+            </div>
+            <div
+                className="vesper-shelf flex"
+                style={{
+                    gap: 14,
+                    overflowX: 'auto',
+                    paddingLeft: 4,
+                    paddingRight: 16,
+                    paddingTop: 6,
+                    paddingBottom: 8,
+                }}
+            >
+                {category.items.map((a, i) => {
                     const active = a.id === avatarId;
+                    const isInitial = rowIdx === 0 && i === 0;
                     return (
                         <button
                             key={a.id}
                             data-testid={`avatar-pick-${a.id}`}
                             data-focusable="true"
                             data-focus-style="tile"
-                            data-initial-focus={
-                                a.id === visibleAvatars[0].id ? 'true' : undefined
-                            }
+                            data-initial-focus={isInitial ? 'true' : undefined}
                             tabIndex={0}
                             onClick={() => onPick(a.id)}
-                            className="rounded-full flex items-center justify-center"
+                            className="rounded-full flex items-center justify-center shrink-0"
                             style={{
-                                width: 96,
-                                height: 96,
+                                width: 80,
+                                height: 80,
                                 border: 'none',
                                 padding: 0,
                                 background: 'transparent',
                                 position: 'relative',
                             }}
                         >
-                            <AvatarCircle avatarId={a.id} size={96} ring={active} />
+                            <AvatarCircle avatarId={a.id} size={80} ring={active} />
                             {active && (
                                 <span
                                     style={{
                                         position: 'absolute',
                                         bottom: -4,
                                         right: -4,
-                                        width: 28,
-                                        height: 28,
+                                        width: 24,
+                                        height: 24,
                                         borderRadius: '50%',
                                         background: 'var(--vesper-blue)',
                                         color: 'var(--vesper-bg-0)',
@@ -1265,14 +1362,14 @@ function AvatarStep({ visibleAvatars, avatarId, onPick }) {
                                             '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
                                     }}
                                 >
-                                    <Check size={16} strokeWidth={3} />
+                                    <Check size={14} strokeWidth={3} />
                                 </span>
                             )}
                         </button>
                     );
                 })}
             </div>
-        </div>
+        </section>
     );
 }
 

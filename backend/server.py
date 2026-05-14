@@ -580,7 +580,7 @@ async def network_logos():
     """Return TMDB-hosted logo URLs + brand colors for every network
     we expose under /networks/:slug.  Cached aggressively (24 h) since
     TMDB watch-provider logo paths are extremely stable."""
-    cache_key = "networks:logos:v1"
+    cache_key = "networks:logos:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -601,7 +601,11 @@ async def network_logos():
         lp = by_id.get(cfg["id"])
         out[slug] = {
             "name": cfg["label"],
-            "logo": f"{TMDB_IMG}/original{lp}" if lp else None,
+            # Use w300 instead of `original` — TMDB wordmark logos
+            # are sharp at this size and roughly 6-10x smaller than
+            # the originals, which makes the Browse-by-Network rail
+            # render noticeably faster on low-power Android boxes.
+            "logo": f"{TMDB_IMG}/w300{lp}" if lp else None,
         }
 
     await cache.set(cache_key, out, 24 * 3600)

@@ -12,7 +12,7 @@ import {
 import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
-import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
@@ -165,13 +165,14 @@ export default function SeriesEpisodes({ meta, parentId }) {
 
     const pickAutoplayCandidate = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
+        // User spec: any stream that even mentions "1080" anywhere
+        // in the title/name/description counts as 1080p autoplay.
+        // Prefer direct-mode streams, then fall back to any 1080.
         return (
             streamsArr.find(
-                (s) =>
-                    streamMode(s) === 'direct' &&
-                    qualityBadge(s)?.label === '1080p'
+                (s) => streamMode(s) === 'direct' && is1080p(s)
             ) ||
-            streamsArr.find((s) => qualityBadge(s)?.label === '1080p') ||
+            streamsArr.find((s) => is1080p(s)) ||
             null
         );
     };
