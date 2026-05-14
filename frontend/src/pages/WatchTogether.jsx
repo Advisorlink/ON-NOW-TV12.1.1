@@ -73,7 +73,7 @@ export default function WatchTogether() {
                 } catch { /* private mode */ }
             } else if (payload.type === 'state') {
                 setPartyState(payload);
-                if (!navigated && (payload.status === 'countdown' || payload.status === 'playing') && payload.movie) {
+                if (!navigated && (payload.status === 'loading' || payload.status === 'countdown' || payload.status === 'playing') && payload.movie) {
                     navigated = true;
                     const target = payload.movie;
                     // Close the lobby socket — Player will reopen it

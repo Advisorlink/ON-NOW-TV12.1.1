@@ -149,6 +149,13 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var partyWs: WebSocket? = null
     private var partyOkHttp: OkHttpClient? = null
     private var partyArmed: Boolean = false  // suppresses initial play echo
+    // Two-stage party sync: we open libVLC, wait for first Playing,
+    // then immediately pause + seek + send 'ready'.  Only when EVERY
+    // party member is ready does the server fire the countdown — so
+    // when the countdown elapses, every device fires mediaPlayer.play()
+    // at the same wallclock with already-buffered streams.  Without
+    // this, the slowest-loading device lags several seconds behind.
+    private var partyPreparing: Boolean = false
     private val partyHandler = Handler(Looper.getMainLooper())
     private val partyHeartbeat = object : Runnable {
         override fun run() {
@@ -267,7 +274,26 @@ class VlcPlayerActivity : AppCompatActivity() {
 
         backBtn.setOnClickListener { finish() }
         playBtn.setOnClickListener {
+            val wasPlaying = mediaPlayer.isPlaying
             togglePlayPause()
+            // Explicit user-driven play/pause — emit to party so
+            // every member mirrors the action.  We emit from the
+            // click handler (not the libVLC event listener) so the
+            // programmatic countdown play() never echoes back.
+            if (partyRole == "host" && partyWs != null) {
+                if (wasPlaying) {
+                    partySend(JSONObject().apply {
+                        put("type", "pause")
+                        put("position_ms", mediaPlayer.time)
+                    })
+                } else {
+                    partySend(JSONObject().apply {
+                        put("type", "resume")
+                        put("position_ms", mediaPlayer.time)
+                        put("lead_ms", 800)
+                    })
+                }
+            }
             scheduleHide()
         }
         skipBackBtn.setOnClickListener {
@@ -291,7 +317,22 @@ class VlcPlayerActivity : AppCompatActivity() {
 
         videoLayout.setOnClickListener {
             if (controlsVisible) {
+                val wasPlaying = mediaPlayer.isPlaying
                 togglePlayPause()
+                if (partyRole == "host" && partyWs != null) {
+                    if (wasPlaying) {
+                        partySend(JSONObject().apply {
+                            put("type", "pause")
+                            put("position_ms", mediaPlayer.time)
+                        })
+                    } else {
+                        partySend(JSONObject().apply {
+                            put("type", "resume")
+                            put("position_ms", mediaPlayer.time)
+                            put("lead_ms", 800)
+                        })
+                    }
+                }
             }
             showControls()
             scheduleHide()
@@ -334,6 +375,7 @@ class VlcPlayerActivity : AppCompatActivity() {
 
         // Watch Together — kick off the party socket if applicable.
         if (!partyCode.isNullOrBlank() && !partyWsUrl.isNullOrBlank()) {
+            partyPreparing = true   // arm the pre-buffer handshake
             initPartyBadge()
             connectPartySocket()
             partyHandler.postDelayed(partyHeartbeat, 2_000L)
@@ -470,9 +512,11 @@ class VlcPlayerActivity : AppCompatActivity() {
                         mediaPlayer.time = positionMs
                     }
                     val remaining = atMs - System.currentTimeMillis()
+                    partyBadge?.text = "PARTY · ${partyCode} · STARTING"
                     val fire = Runnable {
                         partyArmed = false
                         try { mediaPlayer.play() } catch (_: Exception) {}
+                        partyBadge?.text = "PARTY · ${partyCode} · ${partyRole.uppercase()}"
                     }
                     if (remaining <= 0) fire.run()
                     else partyHandler.postDelayed(fire, remaining)
@@ -636,21 +680,44 @@ class VlcPlayerActivity : AppCompatActivity() {
                 MediaPlayer.Event.Playing -> {
                     loadingView.visibility = View.GONE
                     playBtn.setImageResource(R.drawable.ic_pause)
-                    // Resume from saved position if requested
-                    if (!hasSeekedToStart && startAtMs > 5_000L) {
+                    if (partyPreparing) {
+                        // Stage-1 party sync: libVLC has buffered to
+                        // frame 0.  Pause IMMEDIATELY so we don't
+                        // drift while waiting for slower party
+                        // members.  Then signal the server we're
+                        // ready; once every member is ready the
+                        // server fires the synchronized countdown.
+                        partyPreparing = false
+                        try { mediaPlayer.pause() } catch (_: Exception) {}
+                        // Seek to the agreed party anchor position.
+                        val target = if (startAtMs > 5_000L) startAtMs else 0L
+                        if (target > 0L) {
+                            try { mediaPlayer.time = target } catch (_: Exception) {}
+                        }
                         hasSeekedToStart = true
-                        mediaPlayer.time = startAtMs
+                        mainHandler.post {
+                            partyBadge?.text = "PARTY · ${partyCode} · WAITING"
+                        }
+                        partySend(JSONObject().apply { put("type", "ready") })
+                        // Arm the echo-suppress so the very next
+                        // 'play' (when the countdown fires) doesn't
+                        // get re-broadcast as a 'resume'.
+                        partyArmed = false
                     } else {
-                        hasSeekedToStart = true
+                        // Resume from saved position if requested
+                        if (!hasSeekedToStart && startAtMs > 5_000L) {
+                            hasSeekedToStart = true
+                            mediaPlayer.time = startAtMs
+                        } else {
+                            hasSeekedToStart = true
+                        }
                     }
                     // Keep preview visible for a beat so the user
                     // gets to read the synopsis even on fast streams.
                     mainHandler.postDelayed({ dismissPreview() }, 1200)
-                    partyOnPlay()
                 }
                 MediaPlayer.Event.Paused -> {
                     playBtn.setImageResource(R.drawable.ic_play)
-                    partyOnPause()
                 }
                 MediaPlayer.Event.Buffering -> {
                     if (!previewDismissed) {

@@ -67,8 +67,9 @@ class Party:
     members: Dict[str, Member] = field(default_factory=dict)
     # Current selection — None until the host picks a movie/show.
     movie: Optional[Dict] = None
-    # State machine: 'lobby' (still picking / waiting) → 'countdown'
-    # (3-2-1) → 'playing' / 'paused'.
+    # State machine: 'lobby' (still picking / waiting) → 'loading'
+    # (every member is pre-buffering — we wait here until each
+    # reports `ready`) → 'countdown' (3-2-1) → 'playing' / 'paused'.
     status: str = "lobby"
     # Wallclock (ms since epoch) when playback should resume.  Used
     # by the countdown logic — clients compute "T-minus" relative to
@@ -77,6 +78,11 @@ class Party:
     # Last known position in the movie (ms).  Authoritative source
     # for late-joiners and for resume after pause.
     position_ms: int = 0
+    # When the host hits "play" we stash the requested lead time
+    # here.  It only becomes the actual `at_ms` once every member
+    # has buffered enough to fire `ready`.
+    pending_lead_ms: int = 3000
+    loading_started_at: float = 0.0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def public_state(self) -> Dict:
@@ -239,17 +245,42 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
             elif mtype == "ready":
                 async with party.lock:
                     member.ready = True
+                    # If we're in the pre-play "loading" stage and
+                    # every connected member has now buffered to
+                    # frame 0, kick off the synchronized countdown.
+                    # This is the key invariant that guarantees
+                    # everyone fires play() at the exact same
+                    # wallclock instant — no member is still mid-
+                    # buffer when the timer expires.
+                    if party.status == "loading":
+                        all_ready = len(party.members) > 0 and all(
+                            m.ready for m in party.members.values()
+                        )
+                        if all_ready:
+                            party.at_ms = int(time.time() * 1000) + party.pending_lead_ms
+                            party.status = "countdown"
                 await hub.broadcast(party, party.public_state())
 
             elif mtype == "play" and member.is_host:
-                # Schedule playback ~3 s in the future so all clients
-                # have time to fire their countdown.
+                # Stage 1 — tell every member to load the stream.
+                # We DON'T fire the countdown yet; instead we wait
+                # for each member to send `ready` (i.e. their
+                # libVLC has buffered enough to render frame 0).
+                # Only once everyone is loaded does the server flip
+                # status='countdown' (handled in the 'ready' branch
+                # above).  Without this two-stage handshake the
+                # member with the slowest network always lags
+                # several seconds behind the host.
                 lead_ms = int(msg.get("lead_ms", 3000))
                 position_ms = int(msg.get("position_ms", party.position_ms or 0))
                 async with party.lock:
-                    party.at_ms = int(time.time() * 1000) + lead_ms
                     party.position_ms = position_ms
-                    party.status = "countdown"
+                    party.pending_lead_ms = lead_ms
+                    party.status = "loading"
+                    party.at_ms = 0
+                    party.loading_started_at = time.time()
+                    for m in party.members.values():
+                        m.ready = False
                 await hub.broadcast(party, party.public_state())
 
             elif mtype == "pause":
@@ -276,11 +307,14 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
             elif mtype == "playing_now":
                 # Host emits this each second once playback has
                 # actually started so we keep position_ms fresh
-                # for late-joiners.
+                # for late-joiners.  We also re-broadcast the
+                # state so guests can detect drift and re-sync
+                # if they fall more than the tolerance behind.
                 if member.is_host:
                     async with party.lock:
                         party.position_ms = int(msg.get("position_ms", 0))
                         party.status = "playing"
+                    await hub.broadcast(party, party.public_state())
 
             elif mtype == "chat":
                 text = (msg.get("text") or "").strip()[:280]

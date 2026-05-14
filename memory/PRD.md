@@ -34,6 +34,30 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 59 — Feb 14, 2026)
+### Watch Together — synchronized stream pre-buffering (two-stage handshake)
+- **🐛 Bug**: User confirmed end-to-end party flow works but host's stream buffered faster than guest's → host started playing instantly while guest was still buffering → never re-synced (host was several seconds ahead).
+- **🔍 Root cause**: After the 3-2-1 countdown, both clients called `mediaPlayer.play()` at the same wallclock — but host had already pre-buffered during the countdown, while guest hadn't. Host played from frame 0 instantly; guest's libVLC continued buffering and only started playing several seconds later from position 0, missing the sync window. Drift correction wasn't kicking in because the host wasn't broadcasting position updates via `playing_now`.
+- **🔧 Fix** — **two-stage party play handshake**:
+  1. **`loading` stage** (NEW): When host hits "Start the party", backend sets `status='loading'`, resets every member's `ready` flag, broadcasts. Every client navigates to the player but **does not start watching yet**.
+  2. Each player opens libVLC, fires the stream URL, waits for first `MediaPlayer.Event.Playing` event (= libVLC has buffered + decoded frame 0).
+  3. On that first Playing event, player **immediately pauses** + seeks to anchor position + sends `ready` to the server.
+  4. **`countdown` stage**: server tracks `member.ready` flags. When **every** connected member is ready, server flips `status='countdown'` with `at_ms = now + 3 s`, broadcasts.
+  5. Each client schedules `mediaPlayer.play()` for exact wallclock `at_ms`. Now everyone fires play with their stream already pre-buffered → frame-accurate sync.
+- **🔁 Drift correction** improved: backend now re-broadcasts `state` on every `playing_now` heartbeat from the host (was: only updated server-side position, never broadcast). Guests' 1.5 s drift tolerance now actually fires every 2 s.
+- **📦 Backend changes** (`watch_party.py`):
+  - `Party` dataclass: added `pending_lead_ms`, `loading_started_at` fields.
+  - `play` message handler: sets `status='loading'` instead of `'countdown'`, stores `pending_lead_ms`, resets every member's `ready` flag.
+  - `ready` message handler: when `status='loading'` and ALL members are ready, flips to `countdown` with `at_ms = now + pending_lead_ms`.
+  - `playing_now` handler: now broadcasts state so guests can drift-correct.
+- **📺 Frontend changes** (`WatchTogether.jsx`): lobby navigation trigger now includes `loading` status (was: only `countdown`/`playing`).
+- **🎮 Kotlin changes** (`VlcPlayerActivity.kt`):
+  - New `partyPreparing` flag — `true` from onCreate until first Playing event.
+  - First Playing event in party mode: pause, seek to anchor, send `ready`, badge shows `WAITING`.
+  - Moved party play/pause broadcast from `mediaPlayer.setEventListener` to the user-action handlers (playBtn click, video tap) — clean separation between "user clicked" vs "countdown fired play()".
+  - Countdown handler flips badge `STARTING → HOST/GUEST` after firing play.
+
+
 ## Implemented (Iteration 58 — Feb 14, 2026)
 ### Torrent streams now play through libVLC (not external Android chooser)
 - **🐛 Bug report**: User reported that clicking a torrent stream (e.g. NCIS S01-S18 1080p BluRay, 12 seeders, BestTorrents) now opens the Android "Open with" chooser (`On Now VIP / Nova Video Player`) instead of libVLC. User confirmed this used to play in libVLC before.
