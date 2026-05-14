@@ -132,8 +132,8 @@ export default function WatchTogether() {
                 style={{
                     paddingLeft: 'clamp(140px, 10vw, 200px)',
                     paddingRight: 'clamp(40px, 5vw, 80px)',
-                    paddingTop: 'clamp(32px, 4vw, 64px)',
-                    paddingBottom: 64,
+                    paddingTop: view === 'room' ? 'clamp(16px, 2vw, 28px)' : 'clamp(32px, 4vw, 64px)',
+                    paddingBottom: 32,
                 }}
             >
                 {view === 'landing' && (
@@ -203,6 +203,7 @@ function Landing({ onHost, onJoin }) {
                     icon={<Plus size={26} strokeWidth={1.7} />}
                     onClick={onHost}
                     primary
+                    initialFocus
                 />
                 <ChoiceCard
                     testid="watch-together-join"
@@ -216,12 +217,13 @@ function Landing({ onHost, onJoin }) {
     );
 }
 
-function ChoiceCard({ testid, title, subtitle, icon, onClick, primary }) {
+function ChoiceCard({ testid, title, subtitle, icon, onClick, primary, initialFocus }) {
     return (
         <button
             data-testid={testid}
             data-focusable="true"
             data-focus-style="tile"
+            data-initial-focus={initialFocus ? 'true' : undefined}
             tabIndex={0}
             onClick={onClick}
             className="text-left rounded-2xl flex flex-col"
@@ -392,7 +394,7 @@ function Room({ code, state, myMemberId, onPickMovie, onStart, onBack }) {
     const status = state?.status || 'lobby';
 
     return (
-        <div data-testid="watch-together-room" className="flex flex-col" style={{ gap: 24, maxWidth: 1240 }}>
+        <div data-testid="watch-together-room" className="flex flex-col" style={{ gap: 14, maxWidth: 1240 }}>
             <div className="flex items-center" style={{ gap: 14 }}>
                 <button
                     data-testid="watch-together-room-back"
@@ -400,18 +402,18 @@ function Room({ code, state, myMemberId, onPickMovie, onStart, onBack }) {
                     tabIndex={0}
                     onClick={onBack}
                     className="flex items-center justify-center rounded-full"
-                    style={{ width: 48, height: 48, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--vesper-text-2)' }}
+                    style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--vesper-text-2)' }}
                 >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={18} />
                 </button>
                 <div>
-                    <div className="vesper-mono" style={{ fontSize: 11, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)' }}>
+                    <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)' }}>
                         PARTY CODE
                     </div>
-                    <div className="flex items-center" style={{ gap: 14 }}>
+                    <div className="flex items-center" style={{ gap: 12 }}>
                         <span
                             data-testid="watch-together-room-code"
-                            style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 'clamp(36px, 4.4vw, 64px)', letterSpacing: 'clamp(4px, 0.6vw, 10px)', fontWeight: 800, color: 'var(--vesper-text)' }}
+                            style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 'clamp(22px, 2.4vw, 34px)', letterSpacing: 'clamp(3px, 0.4vw, 6px)', fontWeight: 800, color: 'var(--vesper-text)' }}
                         >
                             {code}
                         </span>
@@ -425,9 +427,9 @@ function Room({ code, state, myMemberId, onPickMovie, onStart, onBack }) {
                                 setTimeout(() => setCopied(false), 1400);
                             }}
                             className="rounded-full flex items-center gap-2"
-                            style={{ height: 38, padding: '0 14px', fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--vesper-text)' }}
+                            style={{ height: 30, padding: '0 12px', fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--vesper-text)' }}
                         >
-                            {copied ? <Check size={14} /> : <Copy size={14} />}
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
                             {copied ? 'Copied' : 'Copy'}
                         </button>
                     </div>
@@ -508,7 +510,6 @@ function MoviePicker({ onPick }) {
             setSearched(true);
         } catch { setResults([]); } finally { setBusy(false); }
     };
-    const canSearch = q.trim().length >= 2 && !busy;
     return (
         <div className="flex flex-col" style={{ gap: 24, width: '100%' }}>
             {/* Search card — mirrors the Search page's centered card */}
@@ -523,27 +524,27 @@ function MoviePicker({ onPick }) {
                         style={{
                             position: 'absolute',
                             inset: '0 18% auto 18%',
-                            height: '32vh',
+                            height: '24vh',
                             background: 'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 70%)',
                             pointerEvents: 'none',
                             filter: 'blur(20px)',
                         }}
                     />
-                    <div className="flex flex-col items-center" style={{ maxWidth: 760, width: '100%', position: 'relative', zIndex: 1, gap: 10 }}>
+                    <div className="flex flex-col items-center" style={{ maxWidth: 760, width: '100%', position: 'relative', zIndex: 1, gap: 6 }}>
                         <div style={{
-                            width: 84, height: 84, borderRadius: 999,
+                            width: 56, height: 56, borderRadius: 999,
                             background: 'radial-gradient(circle at 30% 30%, rgba(var(--vesper-blue-rgb),0.35) 0%, rgba(var(--vesper-blue-rgb),0.12) 70%)',
                             border: '2px solid rgba(var(--vesper-blue-rgb),0.55)',
                             boxShadow: '0 12px 36px rgba(var(--vesper-blue-rgb),0.35)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: 'var(--vesper-blue-bright)',
                         }}>
-                            <SearchIcon size={36} strokeWidth={1.8} />
+                            <SearchIcon size={26} strokeWidth={1.8} />
                         </div>
-                        <div className="vesper-mono" style={{ fontSize: 11, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)', textTransform: 'uppercase' }}>
+                        <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)', textTransform: 'uppercase' }}>
                             Host a party · Pick a title
                         </div>
-                        <h2 className="vesper-display" style={{ fontSize: 'clamp(26px, 3vw, 44px)', letterSpacing: '-0.02em', lineHeight: 1.05, textAlign: 'center' }}>
+                        <h2 className="vesper-display" style={{ fontSize: 'clamp(20px, 2.2vw, 30px)', letterSpacing: '-0.02em', lineHeight: 1.05, textAlign: 'center' }}>
                             What do you want to{' '}
                             <span style={{ color: 'var(--vesper-blue-bright)', textShadow: '0 0 14px rgba(var(--vesper-blue-rgb),0.55)' }}>
                                 watch
@@ -554,59 +555,38 @@ function MoviePicker({ onPick }) {
                             data-testid="party-search-input-wrap"
                             className="flex items-center gap-3"
                             style={{
-                                width: '100%', maxWidth: 560, height: 64, padding: '0 24px',
+                                width: '100%', maxWidth: 560, height: 52, padding: '0 20px',
                                 borderRadius: 999,
                                 background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
                                 border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
                                 boxShadow: '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
-                                marginTop: 4,
+                                marginTop: 2,
                             }}
                         >
-                            <SearchIcon size={20} strokeWidth={2} color="var(--vesper-blue-bright)" />
+                            <SearchIcon size={18} strokeWidth={2} color="var(--vesper-blue-bright)" />
                             <div
                                 data-testid="party-search-input"
                                 className="vesper-display"
                                 style={{
-                                    flex: 1, fontSize: 22, fontWeight: 500, letterSpacing: '-0.01em',
+                                    flex: 1, fontSize: 18, fontWeight: 500, letterSpacing: '-0.01em',
                                     color: q ? 'var(--vesper-text)' : 'var(--vesper-text-3)',
                                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                                 }}
                             >
                                 {q || 'Title, actor, keyword…'}
                                 <span aria-hidden="true" style={{
-                                    display: 'inline-block', width: 2, height: 22, marginLeft: 4,
+                                    display: 'inline-block', width: 2, height: 18, marginLeft: 4,
                                     verticalAlign: 'middle', background: 'var(--vesper-blue-bright)',
                                     animation: 'vesperPulse 1100ms infinite', borderRadius: 1,
                                 }} />
                             </div>
-                            <span className="vesper-mono" style={{ fontSize: 11, letterSpacing: '0.22em', color: 'var(--vesper-text-3)', textTransform: 'uppercase' }}>
+                            <span className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: 'var(--vesper-text-3)', textTransform: 'uppercase' }}>
                                 {q.length}/60
                             </span>
                         </div>
-                        <div style={{ marginTop: 4, width: '100%', maxWidth: 720 }}>
+                        <div style={{ marginTop: 2, width: '100%', maxWidth: 720 }}>
                             <TVKeyboard value={q} onChange={(v) => { setQ(v); if (searched) setSearched(false); }} onSubmit={submit} maxLength={60} variant="name" />
                         </div>
-                        <button
-                            data-testid="party-search-submit"
-                            data-focusable="true"
-                            tabIndex={0}
-                            onClick={submit}
-                            disabled={!canSearch}
-                            className="flex items-center gap-2 rounded-full font-sans font-semibold"
-                            style={{
-                                marginTop: 4,
-                                height: 50, padding: '0 30px', fontSize: 15,
-                                background: canSearch ? 'var(--vesper-blue)' : 'rgba(var(--vesper-blue-rgb),0.25)',
-                                color: 'var(--vesper-bg-0)', border: 'none',
-                                opacity: canSearch ? 1 : 0.6,
-                                cursor: canSearch ? 'pointer' : 'not-allowed',
-                                boxShadow: canSearch ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)' : 'none',
-                            }}
-                        >
-                            {busy ? <Loader2 className="vesper-spin" size={16} strokeWidth={2.5} /> : <SearchIcon size={16} strokeWidth={2.5} />}
-                            Search
-                            {!busy && <ArrowRight size={16} strokeWidth={2.5} />}
-                        </button>
                     </div>
                 </div>
             )}
