@@ -153,7 +153,11 @@ const DICEBEAR = 'https://api.dicebear.com/9.x';
 const dbear = (style, seed, opts = {}) => {
     const qs = new URLSearchParams({
         seed: String(seed),
-        size: '256',
+        // 160 px — the picker tile renders at 120 px, so 160 keeps
+        // a hair of retina headroom while shaving ~60% off each
+        // PNG payload vs the previous 256-px size.  Faster load on
+        // slow HK1 boxes, still crisp on screen.
+        size: '160',
         radius: '50',
         backgroundType: 'gradientLinear',
         ...opts,
@@ -186,14 +190,9 @@ const DICEBEAR_CATS = [
         seeds: ['Mario', 'Link', 'Sonic', 'PacMan', 'Kirby', 'Cloud',
                 'Tifa', 'Crash', 'Spyro', 'Megaman', 'Lara', 'Cid'],
     },
-    {
-        id: 'fun',
-        label: 'Fun Faces',
-        style: 'fun-emoji',
-        glow: '#FBBF24',
-        seeds: ['Wow', 'Yay', 'Ha', 'Hi', 'Bye', 'Yum',
-                'Cool', 'Boom', 'Wink', 'Smirk', 'Cute', 'Wild'],
-    },
+    // 'Fun Faces' row removed — user explicitly asked to drop it
+    // so step 2 fetches 36 DiceBear PNGs instead of 48, helping
+    // the wizard feel snappier on the HK1 box.
 ];
 
 const DICEBEAR_AVATARS = DICEBEAR_CATS.flatMap((c) =>

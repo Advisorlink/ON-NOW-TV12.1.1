@@ -174,6 +174,15 @@ export default function Home() {
             const active = document.activeElement;
             if (!active || !homeRoot.contains(active)) return;
 
+            // Bail when focus is inside the SideNav.  The SideNav
+            // is its OWN navigation universe — Up/Down should walk
+            // its menu items (handled by the global spatial focus
+            // engine), not jump out of the menu into the home
+            // rails.  Once the user navigates AWAY from the menu
+            // (clicks an item or presses Right) the menu collapses
+            // and this row-walker takes over again.
+            if (active.closest('[data-testid="side-nav"]')) return;
+
             // Build the ordered list of "rows" in DOM order.  Hero
             // is row 0 when it has any focusable; every shelf
             // section under shelves-region becomes a row when it
