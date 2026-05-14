@@ -1335,23 +1335,23 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                             onClick={() => onPick(a.id)}
                             className="rounded-full flex items-center justify-center shrink-0"
                             style={{
-                                width: 80,
-                                height: 80,
+                                width: 120,
+                                height: 120,
                                 border: 'none',
                                 padding: 0,
                                 background: 'transparent',
                                 position: 'relative',
                             }}
                         >
-                            <AvatarCircle avatarId={a.id} size={80} ring={active} />
+                            <AvatarCircle avatarId={a.id} size={120} ring={active} />
                             {active && (
                                 <span
                                     style={{
                                         position: 'absolute',
-                                        bottom: -4,
-                                        right: -4,
-                                        width: 24,
-                                        height: 24,
+                                        bottom: -2,
+                                        right: -2,
+                                        width: 28,
+                                        height: 28,
                                         borderRadius: '50%',
                                         background: 'var(--vesper-blue)',
                                         color: 'var(--vesper-bg-0)',
@@ -1362,7 +1362,7 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                                             '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
                                     }}
                                 >
-                                    <Check size={14} strokeWidth={3} />
+                                    <Check size={16} strokeWidth={3} />
                                 </span>
                             )}
                         </button>
