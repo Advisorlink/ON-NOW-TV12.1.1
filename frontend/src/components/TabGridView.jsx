@@ -1,19 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
-import Lazy from '@/components/Lazy';
-
-// Render the grid in chunks so a 340-item catalogue doesn't paint
-// 340 <img> tags on the very first frame.  At 1080p the layout
-// shakes out to ~7 tiles per row — 14 per chunk = 2 rows.  First
-// 2 chunks (~4 rows = 28 tiles) mount eagerly per user request;
-// later chunks lazy-mount when they enter the viewport.  This is
-// the change that makes the TV-box version feel snappy: the user
-// sees the heading + the first 3–4 rows of real posters right
-// away, with the remaining 300+ tiles streaming in as they scroll.
-const TILES_PER_CHUNK = 14;
-const EAGER_CHUNKS = 2;
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
@@ -104,7 +93,41 @@ export default function TabGridView({ shelves, loading, type }) {
                 </div>
             </header>
 
-            {items.length === 0 && !loading ? (
+            {loading ? (
+                // Page chrome is already on screen above; here we
+                // show ONE big centered spinner until every catalogue
+                // has finished streaming in.  This is the user's
+                // explicit request: click TV Shows → page appears
+                // immediately with a spinner → grid renders fully
+                // when ready.  No partial / chunked render that
+                // produces visible gaps on the TV box.
+                <div
+                    data-testid={`tab-grid-loading-${type}`}
+                    className="flex flex-col items-center justify-center"
+                    style={{
+                        minHeight: '52vh',
+                        gap: 18,
+                        color: 'var(--vesper-blue-bright)',
+                    }}
+                >
+                    <Loader2
+                        size={56}
+                        strokeWidth={2}
+                        className="vesper-spin"
+                    />
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 12,
+                            letterSpacing: '0.32em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-3)',
+                        }}
+                    >
+                        Loading {type === 'series' ? 'TV shows' : 'movies'}…
+                    </div>
+                </div>
+            ) : items.length === 0 ? (
                 <div
                     className="vesper-glass rounded-2xl"
                     style={{
@@ -117,82 +140,34 @@ export default function TabGridView({ shelves, loading, type }) {
                     Open Sources to add one.
                 </div>
             ) : (
-                // Single grid that morphs from skeleton → real tiles
-                // as catalogue results stream in.  We render at
-                // least 12 placeholder slots so the page is fully
-                // navigable the instant the user clicks the tab,
-                // and we key by INDEX so the focused DOM node
-                // stays mounted (and stays focused) when its
-                // content swaps from skeleton to a real movie.
-                // The total list is split into CHUNK-sized
-                // sub-grids and wrapped in <Lazy> so the box only
-                // paints 4 rows up front — the rest mount as they
-                // approach the viewport.
-                <ChunkedGrid
-                    items={items}
-                    type={type}
-                    navigate={navigate}
-                />
+                // Full grid — every tile in one paint, no chunking
+                // or lazy mounting.  The user accepted the spinner
+                // wait time in exchange for content that doesn't
+                // have gaps or missing rows.  Per-tile React.memo
+                // (see MorphTile) keeps re-renders cheap on the box.
+                // The key includes `type` so flipping Movies ↔ TV
+                // Shows fully unmounts the previous posters instead
+                // of leaving the old <img> src on screen while the
+                // new image streams in.
+                <div
+                    data-testid={`tab-grid-list-${type}`}
+                    className="grid"
+                    style={{
+                        gridTemplateColumns:
+                            'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
+                        gap: 'clamp(18px, 1.6vw, 28px)',
+                    }}
+                >
+                    {items.map((it, i) => (
+                        <MorphTile
+                            key={`${type}-${it.imdbId || it.id || i}`}
+                            item={it}
+                            navigate={navigate}
+                        />
+                    ))}
+                </div>
             )}
         </section>
-    );
-}
-
-function ChunkedGrid({ items, type, navigate }) {
-    // Reserve at least 1 chunk of placeholder slots so the grid
-    // is navigable immediately on cold load.
-    const total = Math.max(items.length, TILES_PER_CHUNK);
-    const chunkCount = Math.ceil(total / TILES_PER_CHUNK);
-    const chunks = [];
-    for (let c = 0; c < chunkCount; c++) {
-        const start = c * TILES_PER_CHUNK;
-        const end = Math.min(start + TILES_PER_CHUNK, total);
-        chunks.push({ start, end });
-    }
-    return (
-        <div data-testid={`tab-grid-list-${type}`}>
-            {chunks.map((ch, idx) => (
-                <Lazy
-                    key={idx}
-                    // Reserve approximate row height (2 rows × ~280
-                    // px tile + 24 px gap × 1.5 poster aspect ≈ 600)
-                    // so the un-mounted chunks don't shrink layout.
-                    minHeight={620}
-                    // Tighter than the shelf default — keeps deep
-                    // chunks unmounted until they're 1 viewport
-                    // away.  Cuts the painted-tile count from ~340
-                    // → ~28 at rest on the TV box.
-                    rootMargin="600px 0px"
-                    eager={idx < EAGER_CHUNKS}
-                >
-                    <div
-                        className="grid"
-                        style={{
-                            gridTemplateColumns:
-                                'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
-                            gap: 'clamp(18px, 1.6vw, 28px)',
-                            // Vertical gap between chunks — keeps the
-                            // overall rhythm continuous so chunks
-                            // don't look like separate sections.
-                            marginBottom: 'clamp(18px, 1.6vw, 28px)',
-                        }}
-                    >
-                        {Array.from({ length: ch.end - ch.start }).map(
-                            (_, j) => {
-                                const i = ch.start + j;
-                                return (
-                                    <MorphTile
-                                        key={i}
-                                        item={items[i] || null}
-                                        navigate={navigate}
-                                    />
-                                );
-                            }
-                        )}
-                    </div>
-                </Lazy>
-            ))}
-        </div>
     );
 }
 

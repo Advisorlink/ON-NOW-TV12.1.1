@@ -112,7 +112,7 @@ export default function Home() {
             first.setAttribute('data-focused', 'true');
             return true;
         };
-        const timers = [80, 250, 600, 1100, 1800].map((ms) =>
+        const timers = [80, 250, 600, 1200, 2200, 3500, 5000, 7500].map((ms) =>
             setTimeout(() => {
                 if (trySetFocus()) {
                     // Cancel remaining retries once we've succeeded.
