@@ -1294,23 +1294,220 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
         () => (typeof window !== 'undefined' ? loadCustomAvatars() : []),
         []
     );
+
+    // ID of the avatar the user is currently hovering with the
+    // D-pad.  Drives the sticky preview circle pinned at the top
+    // of the step so the user always sees what they're picking
+    // even as they scroll several rows down.
+    const [focusedId, setFocusedId] = React.useState(avatarId);
+
+    // Scoped D-pad navigation for the entire avatar step.  This
+    // sidesteps the global spatial-focus engine getting stuck
+    // when a row scrolls horizontally and its bounding boxes go
+    // off-screen.  We walk focusable buttons in pure DOM order:
+    //   ArrowRight / Left → previous / next button in the SAME row.
+    //   ArrowDown / Up    → previous / next ROW, preserving the
+    //                       current X column when possible.
+    // Each move also horizontally + vertically `scrollIntoView()`s
+    // the target so it's always visible.
+    const containerRef = React.useRef(null);
+    React.useEffect(() => {
+        const root = containerRef.current;
+        if (!root) return undefined;
+
+        const getRows = () => {
+            const rows = Array.from(
+                root.querySelectorAll('[data-avatar-row="true"]')
+            );
+            return rows
+                .map((r) =>
+                    Array.from(
+                        r.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'))
+                )
+                .filter((list) => list.length > 0);
+        };
+
+        const focusTarget = (target) => {
+            try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            // Keep the focused tile in view both horizontally
+            // (so the user can always see what they're on) and
+            // vertically (slide the row up under the sticky
+            // preview).  block:'center' lets the page scroll so
+            // each new row crystallises directly below the
+            // preview.
+            try {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'center',
+                });
+            } catch { /* ignore */ }
+            const tid = target.getAttribute('data-avatar-id');
+            if (tid) setFocusedId(tid);
+        };
+
+        const onKey = (e) => {
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                return;
+            }
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+            const rows = getRows();
+            if (rows.length === 0) return;
+
+            // Locate current row + column.
+            let rowIdx = -1;
+            let colIdx = -1;
+            for (let r = 0; r < rows.length; r++) {
+                const c = rows[r].indexOf(active);
+                if (c !== -1) {
+                    rowIdx = r;
+                    colIdx = c;
+                    break;
+                }
+            }
+            if (rowIdx === -1) return;
+
+            let target = null;
+            if (e.key === 'ArrowRight') {
+                if (colIdx + 1 < rows[rowIdx].length) {
+                    target = rows[rowIdx][colIdx + 1];
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (colIdx - 1 >= 0) {
+                    target = rows[rowIdx][colIdx - 1];
+                }
+            } else {
+                const dir = e.key === 'ArrowDown' ? 1 : -1;
+                const nextRowIdx = rowIdx + dir;
+                if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
+                    // Preserve X column.  Use the active's screen
+                    // X center to pick the closest item on the
+                    // next row.
+                    const cx =
+                        active.getBoundingClientRect().left +
+                        active.getBoundingClientRect().width / 2;
+                    target = rows[nextRowIdx].reduce((best, el) => {
+                        const r = el.getBoundingClientRect();
+                        const dx = Math.abs(r.left + r.width / 2 - cx);
+                        if (!best || dx < best.dx) return { el, dx };
+                        return best;
+                    }, null)?.el || rows[nextRowIdx][0];
+                }
+            }
+            if (!target) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            focusTarget(target);
+        };
+
+        // Mirror focus changes from any other source (clicks,
+        // initial mount) into focusedId so the sticky preview
+        // stays in sync.
+        const onFocusIn = (e) => {
+            const tid = e.target?.getAttribute?.('data-avatar-id');
+            if (tid) setFocusedId(tid);
+        };
+
+        window.addEventListener('keydown', onKey, true);
+        root.addEventListener('focusin', onFocusIn);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            root.removeEventListener('focusin', onFocusIn);
+        };
+    }, []);
+
+    // Compute label of the focused avatar (custom · category) so
+    // the sticky preview reads as more than just an icon.
+    const focusedMeta = React.useMemo(() => {
+        if (!focusedId) return { label: 'PICK ANY AVATAR' };
+        if (focusedId === 'build-new') return { label: 'BUILD YOUR OWN' };
+        if (focusedId.startsWith('custom-')) return { label: 'CUSTOM · MADE BY YOU' };
+        for (const cat of AVATAR_CATEGORIES) {
+            if (cat.items.some((a) => a.id === focusedId)) {
+                return { label: cat.label.toUpperCase() };
+            }
+        }
+        return { label: 'YOUR AVATAR' };
+    }, [focusedId]);
+
     return (
-        <div data-testid="profile-step-avatar" style={{ width: '100%' }}>
-            <h2
-                className="vesper-mono"
+        <div
+            ref={containerRef}
+            data-testid="profile-step-avatar"
+            style={{ width: '100%', position: 'relative' }}
+        >
+            {/* Sticky preview header — pinned to the top of the
+                step's scroll viewport so it remains visible as
+                the rows slide up underneath when the user D-pads
+                down.  Reads the currently-FOCUSED avatar (not the
+                last-saved one), so the user always sees exactly
+                what they're about to confirm. */}
+            <div
+                data-testid="avatar-sticky-preview"
+                className="flex items-center"
                 style={{
-                    fontSize: 11,
-                    letterSpacing: '0.32em',
-                    color: 'var(--vesper-text-3)',
-                    marginBottom: 12,
+                    position: 'sticky',
+                    top: -6,
+                    zIndex: 30,
+                    padding: '14px 16px',
+                    marginBottom: 14,
+                    gap: 18,
+                    background:
+                        'linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-0) 85%, rgba(6,8,15,0) 100%)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(12px)',
                 }}
             >
-                CHOOSE AN AVATAR · {visibleAvatars.length} · {AVATAR_CATEGORIES.length} CATEGORIES
-            </h2>
+                <div style={{ flexShrink: 0 }}>
+                    <AvatarCircle avatarId={focusedId || avatarId} size={92} ring />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.32em',
+                            color: 'var(--vesper-blue-bright)',
+                        }}
+                    >
+                        {focusedMeta.label}
+                    </div>
+                    <h2
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(20px, 2vw, 30px)',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.05,
+                            marginTop: 4,
+                        }}
+                    >
+                        Pick your avatar
+                    </h2>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: 'var(--vesper-text-2)',
+                            marginTop: 4,
+                        }}
+                    >
+                        {visibleAvatars.length} avatars · {AVATAR_CATEGORIES.length} categories
+                    </div>
+                </div>
+            </div>
 
             {/* Build-Your-Own + custom row -----------------------*/}
             <section
                 data-testid="avatar-row-custom"
+                data-avatar-row="true"
                 style={{ paddingTop: 4, paddingBottom: 6 }}
             >
                 <div
@@ -1342,6 +1539,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                         data-focusable="true"
                         data-focus-style="tile"
                         data-initial-focus="true"
+                        data-avatar-id="build-new"
                         tabIndex={0}
                         onClick={onOpenBuilder}
                         className="rounded-full flex items-center justify-center shrink-0"
@@ -1355,6 +1553,8 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                             cursor: 'pointer',
                             padding: 0,
                             position: 'relative',
+                            scrollMarginLeft: 200,
+                            scrollMarginRight: 60,
                         }}
                     >
                         <div className="flex flex-col items-center" style={{ gap: 6 }}>
@@ -1381,6 +1581,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                                 data-testid={`avatar-pick-${a.id}`}
                                 data-focusable="true"
                                 data-focus-style="tile"
+                                data-avatar-id={a.id}
                                 tabIndex={0}
                                 onClick={() => onPick(a.id)}
                                 className="rounded-full flex items-center justify-center shrink-0"
@@ -1391,6 +1592,8 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                                     padding: 0,
                                     background: 'transparent',
                                     position: 'relative',
+                                    scrollMarginLeft: 200,
+                                    scrollMarginRight: 60,
                                 }}
                             >
                                 <AvatarCircle avatarId={a.id} size={120} ring={active} />
@@ -1444,7 +1647,8 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
     return (
         <section
             data-testid={`avatar-row-${category.id}`}
-            style={{ paddingTop: 4, paddingBottom: 6 }}
+            data-avatar-row="true"
+            style={{ paddingTop: 4, paddingBottom: 6, scrollMarginTop: 130 }}
         >
             <div
                 className="vesper-mono"
@@ -1483,6 +1687,7 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                             data-testid={`avatar-pick-${a.id}`}
                             data-focusable="true"
                             data-focus-style="tile"
+                            data-avatar-id={a.id}
                             data-initial-focus={isInitial ? 'true' : undefined}
                             tabIndex={0}
                             onClick={() => onPick(a.id)}
@@ -1494,6 +1699,19 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                                 padding: 0,
                                 background: 'transparent',
                                 position: 'relative',
+                                // Keeps the horizontally-focused
+                                // tile a comfortable distance from
+                                // the row edge so the user can see
+                                // it next to its neighbours.
+                                scrollMarginLeft: 200,
+                                scrollMarginRight: 60,
+                                // Sticky preview is ~140 px tall —
+                                // scroll the next row up under it
+                                // when D-pad walks down so the
+                                // focused tile sits well below the
+                                // preview, not under it.
+                                scrollMarginTop: 160,
+                                scrollMarginBottom: 60,
                             }}
                         >
                             <AvatarCircle avatarId={a.id} size={120} ring={active} />
