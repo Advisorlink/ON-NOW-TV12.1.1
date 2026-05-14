@@ -8,6 +8,7 @@ import {
     Sparkles,
     Maximize2,
     X,
+    CalendarDays,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useLongPress from '@/hooks/useLongPress';
@@ -16,6 +17,7 @@ import {
     listWatchLater,
     removeFromWatchLater,
 } from '@/lib/library';
+import LibraryCalendar from '@/components/LibraryCalendar';
 
 /**
  * /library — My Library.
@@ -36,6 +38,7 @@ export default function Library() {
     const [tv, setTv] = useState(listFavouritesByType('series'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
     const [expanded, setExpanded] = useState(false);
+    const [calendarOpen, setCalendarOpen] = useState(false);
 
     useEffect(() => {
         const sync = () => {
@@ -95,6 +98,33 @@ export default function Library() {
                 icon={Tv}
                 eyebrow="My library · Series"
                 title="TV Shows"
+                action={
+                    tv.length > 0 ? (
+                        <button
+                            data-testid="open-library-calendar"
+                            data-focusable="true"
+                            data-focus-style="quiet"
+                            tabIndex={0}
+                            onClick={() => setCalendarOpen(true)}
+                            aria-label="Open release calendar"
+                            className="flex items-center gap-2 rounded-full vesper-mono"
+                            style={{
+                                height: 36,
+                                padding: '0 16px',
+                                background: 'rgba(var(--vesper-blue-rgb), 0.14)',
+                                color: 'var(--vesper-blue-bright)',
+                                border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
+                                fontSize: 11,
+                                letterSpacing: '0.22em',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                            }}
+                        >
+                            <CalendarDays size={13} strokeWidth={2.2} />
+                            Calendar
+                        </button>
+                    ) : null
+                }
             >
                 {tv.length === 0 ? (
                     <TvEmptyState />
@@ -126,6 +156,13 @@ export default function Library() {
                             number: w.episode?.number,
                         })
                     }
+                />
+            )}
+
+            {calendarOpen && (
+                <LibraryCalendar
+                    tvFavourites={tv}
+                    onClose={() => setCalendarOpen(false)}
                 />
             )}
         </div>
@@ -184,7 +221,7 @@ function Header({ onBack }) {
 
 /* ----------------------------- Section ----------------------------- */
 
-function Section({ icon: Icon, eyebrow, title, style, children }) {
+function Section({ icon: Icon, eyebrow, title, style, action, children }) {
     return (
         <section style={style}>
             <div
@@ -199,18 +236,20 @@ function Section({ icon: Icon, eyebrow, title, style, children }) {
             >
                 {eyebrow}
             </div>
-            <h2
-                className="vesper-display flex items-center gap-3"
-                style={{
-                    fontSize: 'clamp(28px, 3vw, 44px)',
-                    letterSpacing: '-0.025em',
-                    lineHeight: 1,
-                    marginBottom: 22,
-                }}
-            >
-                <Icon size={24} strokeWidth={1.8} style={{ color: 'var(--vesper-blue)' }} />
-                {title}
-            </h2>
+            <div className="flex items-end justify-between" style={{ gap: 24, marginBottom: 22 }}>
+                <h2
+                    className="vesper-display flex items-center gap-3"
+                    style={{
+                        fontSize: 'clamp(28px, 3vw, 44px)',
+                        letterSpacing: '-0.025em',
+                        lineHeight: 1,
+                    }}
+                >
+                    <Icon size={24} strokeWidth={1.8} style={{ color: 'var(--vesper-blue)' }} />
+                    {title}
+                </h2>
+                {action}
+            </div>
             {children}
         </section>
     );

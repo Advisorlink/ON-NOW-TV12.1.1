@@ -34,6 +34,26 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 60 — Feb 14, 2026)
+### My Library — beautiful release calendar
+- **🎁 User request**: "Build a calendar into My Library — when you click on the calendar, any TV show in the watch list shows a visual calendar of when the next episodes are coming out."
+- **📡 Backend** — new `POST /api/tmdb/upcoming-episodes`:
+  - Body: `{ "imdb_ids": ["tt1234567", ...] }` (capped at 60 ids per call).
+  - For each show: resolves imdb→tmdb via `/find/{imdb_id}?external_source=imdb_id` (cached 7 days), pulls `/tv/{tmdb_id}` for `next_episode_to_air`, then fetches the full season that contains it so we surface the entire run (Star Wars-style 8-12 week schedules etc.) — not just the single next episode.
+  - Episodes are filtered to the next 120-day horizon and stripped of past dates. Returns show metadata (poster, backdrop, primary network, status) + episode list (season, episode, name, air_date, overview, still_path).
+  - Shows with no upcoming episodes are omitted entirely so the calendar isn't padded with dead entries.
+- **🎨 Frontend** — new `LibraryCalendar.jsx` full-screen overlay:
+  - **Header**: Back/close, "COMING UP · N episodes" eyebrow, "Your calendar" title, prev/next month nav with the current month label.
+  - **Big 7-col Monday-first month grid** (`<MonthGrid>`): each day cell is D-pad focusable (`data-focusable="true"`, tile focus). Today gets a blue ring + "TODAY" mono label. Selected day gets a stronger blue glow + box-shadow. Day cells show up to 2 episode chips with a `+N MORE` overflow indicator. Each chip is colour-coded by show (stable 8-colour palette) so users can spot patterns at a glance.
+  - **Detail panel** on the right shows everything airing on the selected day: episode card with TMDB still image, network · S · E mono ribbon, show name, episode title, 2-line synopsis. Coloured left-border + tinted border match the show's grid chip colour.
+  - **"This week" rail** below the grid: horizontally-scrolling 280px tiles with TMDB stills, glowing show-colour dot, pretty date + S/E ribbon, snap scrolling. D-pad focusable so the user can jump from the grid down to the rail in one press.
+  - **Smart month cursor**: on load, if all upcoming episodes are in a future month, auto-jumps the cursor there so the user lands on populated grid (not an empty current month).
+  - **Empty state** explains why a library might have no upcoming episodes (between seasons, finished, no TMDB schedule yet).
+  - **Loading state** with spinner; **error state** for API failures.
+- **🔘 Entry point**: new "Calendar" pill button next to the TV Shows section title in `/library`. Only appears when the user has ≥1 TV favourite. Pill style matches the existing "Expand" button on Watch Later (mono cap text, 36 px height, blue tint).
+- **🏗 `<Section>` component** extended with an `action` prop so any future section can drop a header button without restructuring (used by the new Calendar button).
+
+
 ## Implemented (Iteration 59 — Feb 14, 2026)
 ### Watch Together — synchronized stream pre-buffering (two-stage handshake)
 - **🐛 Bug**: User confirmed end-to-end party flow works but host's stream buffered faster than guest's → host started playing instantly while guest was still buffering → never re-synced (host was several seconds ahead).

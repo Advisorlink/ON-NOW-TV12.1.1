@@ -17,14 +17,14 @@ import logging
 import time
 import uuid
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Body, FastAPI, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -698,6 +698,124 @@ async def tmdb_to_imdb(type_: str, tmdb_id: int):
     if imdb:
         await cache.set(cache_key, imdb, CACHE_TTL_TMDB_IMDB)
     return {"cached": False, "imdb_id": imdb}
+
+
+# ----- Library calendar (upcoming TV episodes) --------------------------------
+
+@api.post("/tmdb/upcoming-episodes")
+async def upcoming_episodes(body: Dict[str, Any] = Body(...)):
+    """Given a list of IMDB ids of TV shows the user has added to
+    their library, return upcoming episodes for each — up to 120 days
+    ahead.  Used by the Library calendar view.
+
+    Body: { "imdb_ids": ["tt1234567", "tt2345678", ...] }
+    Response:
+      {
+        "shows": [
+          {
+            "imdb_id": "tt1234567",
+            "tmdb_id": 1234,
+            "name": "Bluey",
+            "poster_path": "/abc.jpg",
+            "backdrop_path": "/def.jpg",
+            "network": "Disney+",
+            "status": "Returning Series",
+            "episodes": [
+              {"season": 4, "episode": 1, "name": "...",
+               "air_date": "2026-03-12", "overview": "...",
+               "still_path": "/xyz.jpg"}
+            ]
+          }
+        ]
+      }
+    Each show is omitted entirely if no upcoming episodes were found
+    (cancelled / between seasons / no calendar data on TMDB).
+    """
+    imdb_ids = body.get("imdb_ids") or []
+    if not isinstance(imdb_ids, list):
+        return {"shows": []}
+
+    now = datetime.now(timezone.utc)
+    today_iso = now.date().isoformat()
+    horizon_iso = (now + timedelta(days=120)).date().isoformat()
+
+    async def fetch_one(imdb_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            # Step 1: resolve imdb -> tmdb via /find (cached).
+            cache_key = f"upcoming_imdb_to_tmdb:{imdb_id}"
+            tmdb_id = await cache.get(cache_key)
+            if not tmdb_id:
+                find = await _tmdb_get(
+                    f"/find/{imdb_id}", {"external_source": "imdb_id"}
+                )
+                hits = find.get("tv_results") or []
+                if not hits:
+                    return None
+                tmdb_id = hits[0]["id"]
+                await cache.set(cache_key, tmdb_id, CACHE_TTL_TMDB_IMDB)
+
+            # Step 2: fetch the show shell — gives us next_episode_to_air.
+            show = await _tmdb_get(f"/tv/{tmdb_id}")
+            next_ep = show.get("next_episode_to_air") or {}
+
+            # Step 3: pull the season containing the next episode so
+            # we surface ALL upcoming episodes, not just the next one
+            # (some shows have weekly drops scheduled out 8-12 weeks).
+            episodes: List[Dict[str, Any]] = []
+            if next_ep and next_ep.get("air_date"):
+                season_num = next_ep.get("season_number")
+                try:
+                    season = await _tmdb_get(
+                        f"/tv/{tmdb_id}/season/{season_num}"
+                    )
+                    for ep in season.get("episodes") or []:
+                        ad = ep.get("air_date") or ""
+                        if not ad or ad < today_iso or ad > horizon_iso:
+                            continue
+                        episodes.append({
+                            "season": ep.get("season_number"),
+                            "episode": ep.get("episode_number"),
+                            "name": ep.get("name"),
+                            "air_date": ad,
+                            "overview": ep.get("overview") or "",
+                            "still_path": ep.get("still_path"),
+                        })
+                except Exception:
+                    # Fall back to just the next_episode_to_air payload.
+                    if next_ep.get("air_date") >= today_iso:
+                        episodes.append({
+                            "season": next_ep.get("season_number"),
+                            "episode": next_ep.get("episode_number"),
+                            "name": next_ep.get("name"),
+                            "air_date": next_ep.get("air_date"),
+                            "overview": next_ep.get("overview") or "",
+                            "still_path": next_ep.get("still_path"),
+                        })
+
+            if not episodes:
+                return None
+
+            networks = show.get("networks") or []
+            return {
+                "imdb_id": imdb_id,
+                "tmdb_id": tmdb_id,
+                "name": show.get("name"),
+                "poster_path": show.get("poster_path"),
+                "backdrop_path": show.get("backdrop_path"),
+                "network": networks[0].get("name") if networks else None,
+                "status": show.get("status"),
+                "episodes": episodes,
+            }
+        except Exception:
+            return None
+
+    # Throttle to 60 shows so the calendar request never times out for
+    # users with huge libraries.
+    capped = imdb_ids[:60]
+    results = await asyncio.gather(*[fetch_one(i) for i in capped])
+    shows = [r for r in results if r]
+    return {"shows": shows}
+
 
 
 # ----- Kid-safe TMDB curation -------------------------------------------------
