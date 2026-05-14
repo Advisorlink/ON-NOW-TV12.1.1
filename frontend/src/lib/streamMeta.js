@@ -5,15 +5,30 @@
  */
 
 const QUALITY_PATTERNS = [
-    { test: /\b(2160p|4k|uhd)\b/i, label: '4K', tone: 'gold' },
-    { test: /\b1440p\b/i, label: '1440p', tone: 'blue' },
-    { test: /\b1080p\b/i, label: '1080p', tone: 'blue' },
-    { test: /\b720p\b/i, label: '720p', tone: 'neutral' },
-    { test: /\b480p\b/i, label: '480p', tone: 'muted' },
-    { test: /\b360p\b/i, label: '360p', tone: 'muted' },
+    { test: /\b(2160p?|4k|uhd|2160)\b/i, label: '4K', tone: 'gold' },
+    { test: /\b1440p?\b/i, label: '1440p', tone: 'blue' },
+    // User spec: anything that even mentions "1080" should count
+    // as a 1080p product, whether or not the literal "p" is in
+    // the title.  Covers cases like "BluRay 1080" or "1080.x264".
+    { test: /\b1080p?\b|\b1080(?:[._-]|$)/i, label: '1080p', tone: 'blue' },
+    { test: /\b720p?\b/i, label: '720p', tone: 'neutral' },
+    { test: /\b480p?\b/i, label: '480p', tone: 'muted' },
+    { test: /\b360p?\b/i, label: '360p', tone: 'muted' },
     { test: /\bhdcam\b/i, label: 'CAM', tone: 'red' },
     { test: /\b(ts|hdts|telesync)\b/i, label: 'TS', tone: 'red' },
 ];
+
+/**
+ * Loose "is this a 1080p stream?" check — used by the autoplay
+ * picker.  Matches any token containing "1080" anywhere in the
+ * stream's title/name/description, per user request.
+ */
+export function is1080p(stream) {
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
+    return /1080/i.test(haystack);
+}
 
 /**
  * Returns the first matching quality badge for a stream, or null.

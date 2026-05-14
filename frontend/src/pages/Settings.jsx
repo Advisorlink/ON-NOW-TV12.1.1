@@ -23,6 +23,52 @@ export default function Settings() {
     const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
     const [savedFlash, setSavedFlash] = React.useState(0);
 
+    // DOM-order vertical navigation override for Settings.
+    //
+    // The shared spatial-focus engine picks the next focusable by
+    // geometry, which means D-pad Down from a right-aligned toggle
+    // sometimes misses the next section because nothing is directly
+    // beneath it on screen.  The user's spec for Settings is
+    // simple: Down → next item in DOM order regardless of column;
+    // Up → previous in DOM order.  Capture-phase listener so we
+    // beat useSpatialFocus's own handler on this page only.
+    React.useEffect(() => {
+        const root = document.querySelector('[data-testid="settings-scroll"]');
+        if (!root) return undefined;
+        const onKey = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+            const list = Array.from(
+                root.querySelectorAll('[data-focusable="true"]')
+            ).filter((el) => !el.hasAttribute('disabled'));
+            const idx = list.indexOf(active);
+            if (idx === -1) return;
+            const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+            if (nextIdx < 0 || nextIdx >= list.length) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const next = list[nextIdx];
+            try { next.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
+            next.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== next) el.removeAttribute('data-focused');
+                });
+            // Smooth-scroll the target into view so the page
+            // follows the focus down/up the scroll wrapper.
+            try {
+                next.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            } catch (err) { /* ignore */ }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
+
     const toggleAutoplay = () => {
         const next = !autoplay;
         setAutoplay1080p(next);

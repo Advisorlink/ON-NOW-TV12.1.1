@@ -22,11 +22,44 @@ export default function TabGridView({ type }) {
     const { items: allItems, genres: genreList, loading, progress } =
         useTabCatalog(addons, type);
 
-    // Selected genre filter ('' = "All").  Resets when type swaps.
-    const [genre, setGenre] = React.useState('');
+    // Selected genre filter ('' = "All").
+    //
+    // We persist BOTH the genre and the scroll position in
+    // sessionStorage scoped by `type`, so navigating into a movie
+    // and pressing Back returns to the exact same chip + scroll
+    // offset — per user request.  The keys live under
+    // `tab-state:${type}` so movie state and series state don't
+    // step on each other.
+    const stateKey = `tab-state:${type}`;
+    const initialState = React.useMemo(() => {
+        try {
+            const raw = sessionStorage.getItem(stateKey);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }, [stateKey]);
+    const [genre, setGenre] = React.useState(initialState.genre || '');
+
+    // When the user swaps Movies ↔ TV Shows we want a fresh state;
+    // restoring within the same type happens above via initialState.
+    const prevTypeRef = React.useRef(type);
     React.useEffect(() => {
-        setGenre('');
+        if (prevTypeRef.current !== type) {
+            prevTypeRef.current = type;
+            setGenre('');
+        }
     }, [type]);
+
+    // Persist genre changes.
+    React.useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(stateKey);
+            const cur = raw ? JSON.parse(raw) : {};
+            cur.genre = genre;
+            sessionStorage.setItem(stateKey, JSON.stringify(cur));
+        } catch (e) { /* ignore */ }
+    }, [genre, stateKey]);
 
     // When a genre is selected, fire a deep-page fetch that pulls
     // EVERY title in that genre from every addon that advertises
@@ -50,6 +83,62 @@ export default function TabGridView({ type }) {
 
     const showLoading = genre ? genreLoading : loading;
     const showProgress = genre ? genreProgress : progress;
+
+    // Save the click target so we can re-focus it when the user
+    // returns from Detail.  Stored as the title's IMDb id; the
+    // restore effect below finds the tile with the matching
+    // data-testid once items render.
+    const recordClickedItem = React.useCallback(
+        (it) => {
+            try {
+                const raw = sessionStorage.getItem(stateKey);
+                const cur = raw ? JSON.parse(raw) : {};
+                cur.focusId = it.imdbId || it.id;
+                cur.scrollY = window.scrollY;
+                sessionStorage.setItem(stateKey, JSON.stringify(cur));
+            } catch (e) { /* ignore */ }
+        },
+        [stateKey]
+    );
+
+    // Restore focus + scroll once items are painted.  We use the
+    // initialState captured at mount so we don't fight against
+    // genre persistence in the effect chain.
+    const restoredRef = React.useRef(false);
+    React.useEffect(() => {
+        if (restoredRef.current) return;
+        if (showLoading || items.length === 0) return;
+        const target = initialState.focusId;
+        const scrollY = initialState.scrollY;
+        if (!target) {
+            restoredRef.current = true;
+            return;
+        }
+        // Wait a frame so the grid finishes layout.
+        const t = setTimeout(() => {
+            const tile = document.querySelector(`[data-testid="grid-${target}"]`);
+            if (tile) {
+                try {
+                    tile.focus({ preventScroll: true });
+                } catch (e) { /* ignore */ }
+                tile.setAttribute('data-focused', 'true');
+                document
+                    .querySelectorAll('[data-focused="true"]')
+                    .forEach((el) => {
+                        if (el !== tile) el.removeAttribute('data-focused');
+                    });
+            }
+            if (typeof scrollY === 'number') {
+                try {
+                    window.scrollTo({ top: scrollY, behavior: 'auto' });
+                } catch (e) {
+                    try { window.scrollTo(0, scrollY); } catch (e2) { /* ignore */ }
+                }
+            }
+            restoredRef.current = true;
+        }, 60);
+        return () => clearTimeout(t);
+    }, [showLoading, items.length, initialState]);
 
     const heading = type === 'series' ? 'TV Shows' : 'Movies';
     const eyebrow = genre
@@ -159,15 +248,10 @@ export default function TabGridView({ type }) {
                             length: Math.max(items.length, 14),
                         }).map((_, i) => (
                             <MorphTile
-                                // Key by type+index so flipping
-                                // Movies ↔ TV Shows unmounts every
-                                // previous-tab tile (no poster
-                                // bleed-through), while index keeps
-                                // focus stable as items stream in
-                                // within the same tab.
                                 key={`${type}-${i}`}
                                 item={items[i] || null}
                                 navigate={navigate}
+                                onTapRecord={recordClickedItem}
                             />
                         ))}
                     </div>
@@ -313,9 +397,10 @@ function LoadingOverlay({ type, testId, progress }) {
  * `item` is null while the catalogue is still loading, and gets
  * filled in once results stream in from useLiveShelves.
  */
-function MorphTileImpl({ item, navigate }) {
+function MorphTileImpl({ item, navigate, onTapRecord }) {
     const onTap = () => {
         if (!item) return;
+        if (onTapRecord) onTapRecord(item);
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);

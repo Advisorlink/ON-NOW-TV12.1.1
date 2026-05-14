@@ -15,7 +15,7 @@ import SeriesEpisodes from '@/components/SeriesEpisodes';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
-import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive } from '@/lib/profiles';
 import * as cw from '@/lib/continueWatching';
@@ -116,6 +116,34 @@ export default function Detail() {
         };
     }, [type, id]);
 
+    // When streams arrive, land focus on the first stream so that
+    // pressing Down on the D-pad selects the next stream (not the
+    // recommendations rail below).  Only run if focus is still on
+    // something above the stream list (the hero / Play button) so
+    // we don't yank focus away if the user has already manually
+    // moved to a different stream.
+    useEffect(() => {
+        if (type !== 'movie') return;
+        if (streamLoading || streams.length === 0) return;
+        const t = setTimeout(() => {
+            const first = document.querySelector('[data-testid="stream-0"]');
+            if (!first) return;
+            // Bail if the user has already moved into the stream
+            // list or the stream picker is no longer visible.
+            const active = document.activeElement;
+            const list = document.querySelector('[data-testid="stream-list"]');
+            if (list && list.contains(active)) return;
+            try { first.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+            first.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== first) el.removeAttribute('data-focused');
+                });
+        }, 220);
+        return () => clearTimeout(t);
+    }, [streamLoading, streams.length, type]);
+
     // ---------- AUTOPLAY 1080p — derived state ----------
     // `autoplayEnabled` reflects the live preference.  We read it
     // through state so a toggle from the side-nav re-renders Detail
@@ -138,18 +166,17 @@ export default function Detail() {
     }, []);
 
     // Pick the best 1080p candidate from the resolved streams list.
-    // Prefer direct mode; fall back to any 1080p stream.  Null means
-    // "no 1080p available → fall back to manual picker".
+    // Per user spec: anything that even mentions "1080" anywhere in
+    // the title / name / description counts as a 1080p stream.  We
+    // prefer direct mode, but will fall back to any 1080p stream.
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
         if (!streams || streams.length === 0) return null;
         return (
             streams.find(
-                (s) =>
-                    streamMode(s) === 'direct' &&
-                    qualityBadge(s)?.label === '1080p'
+                (s) => streamMode(s) === 'direct' && is1080p(s)
             ) ||
-            streams.find((s) => qualityBadge(s)?.label === '1080p') ||
+            streams.find((s) => is1080p(s)) ||
             null
         );
     }, [streams, type]);
