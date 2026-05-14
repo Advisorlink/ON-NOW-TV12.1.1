@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, LogOut } from 'lucide-react';
+import { Play, LogOut, Star } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -13,6 +13,11 @@ import {
     getStreamUrl,
     getFullEpg,
 } from '@/lib/xtream';
+import {
+    getFavorites as getFavList,
+    isFavorite,
+    toggleFavorite,
+} from '@/lib/liveFavorites';
 import Host from '@/lib/host';
 
 /* ====================================================================
@@ -85,6 +90,14 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         { id: 'cats', label: 'Fetching channel categories', status: 'pending' },
         { id: 'cache', label: 'Caching every channel list', status: 'pending' },
     ]);
+
+    // Favorites — keyed by provider.id, persisted to localStorage.
+    // Tracked in state so toggling re-renders the star / sidebar
+    // count / channel list when the user picks "★ Favourites".
+    const [favorites, setFavorites] = useState(
+        () => new Set(getFavList(provider.id).map((v) => String(v))),
+    );
+    const FAV_CAT_ID = '__favorites__';
 
     // Per-category channel cache; populated entirely during boot so
     // the grid never has to fetch on category-switch.
@@ -166,14 +179,73 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider]);
 
-    /* Category switch — pure cache lookup, no fetch */
+    /* Build the favourites list — flattens every cached category and
+     * keeps only channels whose stream_id is in the favorites set.
+     * Cheap to recompute (Map iteration), but we memoize on
+     * favorites + booted so we only recalc when something changed. */
+    const favoriteChannels = useMemo(() => {
+        if (!booted || favorites.size === 0) return [];
+        const seen = new Set();
+        const out = [];
+        for (const list of channelsCache.current.values()) {
+            for (const ch of list) {
+                const key = String(ch.stream_id);
+                if (favorites.has(key) && !seen.has(key)) {
+                    seen.add(key);
+                    out.push(ch);
+                }
+            }
+        }
+        return out;
+    }, [favorites, booted]);
+
+    /* Category switch — handles both real categories and the virtual
+     * "★ Favourites" pseudo-category.  Pure cache lookup, no fetch. */
     const pickCategory = useCallback((catId) => {
         if (!catId) return;
         setActiveCat(catId);
-        const list = channelsCache.current.get(catId) || [];
+        const list = catId === FAV_CAT_ID
+            ? favoriteChannels
+            : (channelsCache.current.get(catId) || []);
         setChannels(list);
         setFocusedChannel(list[0] || null);
-    }, []);
+    }, [favoriteChannels]);
+
+    /* When the favorites list changes while we're sitting on the
+     * "★ Favourites" virtual category, keep the channel list in sync
+     * so unstarring removes the row immediately. */
+    useEffect(() => {
+        if (activeCat === FAV_CAT_ID) {
+            setChannels(favoriteChannels);
+            // If we just unstarred the currently-focused channel, fall
+            // back to the first remaining favorite (or null).
+            if (focusedChannel && !favorites.has(String(focusedChannel.stream_id))) {
+                setFocusedChannel(favoriteChannels[0] || null);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [favoriteChannels]);
+
+    /* Star toggle — fired from the hero button + key "F" shortcut. */
+    const onToggleFav = useCallback(() => {
+        const ch = focusedChannel;
+        if (!ch) return;
+        toggleFavorite(provider.id, ch.stream_id);
+        setFavorites(new Set(getFavList(provider.id).map((v) => String(v))));
+    }, [focusedChannel, provider]);
+
+    /* "F" key shortcut — toggles favourite on the focused channel. */
+    useEffect(() => {
+        const onKey = (e) => {
+            if ((e.key === 'f' || e.key === 'F') &&
+                !['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) {
+                e.preventDefault();
+                onToggleFav();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onToggleFav]);
 
     const playChannel = useCallback(async (channel) => {
         if (!channel) return;
@@ -253,6 +325,9 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     for (const c of cats) {
         catCounts[c.category_id] = channelsCache.current.get(c.category_id)?.length || 0;
     }
+    catCounts[FAV_CAT_ID] = favoriteChannels.length;
+
+    const isFocusedFav = !!focusedChannel && favorites.has(String(focusedChannel.stream_id));
 
     return (
         <div>
@@ -260,6 +335,8 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 channel={focusedChannel}
                 categoryName={activeCategoryName}
                 nowNext={nowNext}
+                isFavorite={isFocusedFav}
+                onToggleFav={onToggleFav}
                 onPlay={() => playChannel(focusedChannel)}
                 onExit={onChangeProvider}
             />
@@ -274,11 +351,14 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     counts={catCounts}
                     error={catsError}
                     activeId={activeCat}
+                    favCatId={FAV_CAT_ID}
+                    favCount={favoriteChannels.length}
                     onPick={pickCategory}
                 />
                 <ChannelsCol
                     channels={channels}
                     focusedId={focusedChannel?.stream_id}
+                    favorites={favorites}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
                 />
@@ -293,7 +373,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 /* ============================ Hero (lean) ============================ */
 
-function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
+function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onToggleFav, onPlay, onExit }) {
     const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
@@ -427,27 +507,54 @@ function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
                         </div>
                     )}
 
-                    <button
-                        data-testid="live-tv-hero-play"
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        data-initial-focus="true"
-                        tabIndex={0}
-                        onClick={onPlay}
-                        disabled={!channel}
-                        className="flex items-center gap-2 rounded-full font-sans"
-                        style={{
-                            marginTop: 10, height: 48, padding: '0 24px',
-                            fontSize: 14, fontWeight: 700,
-                            background: '#fff', color: '#0B1322', border: 'none',
-                            alignSelf: 'flex-start',
-                            opacity: channel ? 1 : 0.5,
-                            cursor: channel ? 'pointer' : 'not-allowed',
-                        }}
-                    >
-                        <Play size={15} strokeWidth={2.5} fill="#0B1322" />
-                        Watch full-screen
-                    </button>
+                    <div className="flex items-center" style={{ marginTop: 10, gap: 10 }}>
+                        <button
+                            data-testid="live-tv-hero-play"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            data-initial-focus="true"
+                            tabIndex={0}
+                            onClick={onPlay}
+                            disabled={!channel}
+                            className="flex items-center gap-2 rounded-full font-sans"
+                            style={{
+                                height: 48, padding: '0 24px',
+                                fontSize: 14, fontWeight: 700,
+                                background: '#fff', color: '#0B1322', border: 'none',
+                                opacity: channel ? 1 : 0.5,
+                                cursor: channel ? 'pointer' : 'not-allowed',
+                            }}
+                        >
+                            <Play size={15} strokeWidth={2.5} fill="#0B1322" />
+                            Watch full-screen
+                        </button>
+                        <button
+                            data-testid="live-tv-hero-fav"
+                            data-focusable="true"
+                            data-focus-style="quiet"
+                            tabIndex={0}
+                            onClick={onToggleFav}
+                            disabled={!channel}
+                            aria-label={favOn ? 'Remove from favourites' : 'Add to favourites'}
+                            className="flex items-center justify-center rounded-full"
+                            style={{
+                                height: 48, width: 48,
+                                background: favOn ? 'rgba(255,200,80,0.18)' : 'rgba(255,255,255,0.06)',
+                                border: favOn
+                                    ? '1px solid rgba(255,200,80,0.55)'
+                                    : '1px solid rgba(255,255,255,0.14)',
+                                color: favOn ? '#FFC850' : 'var(--vesper-text)',
+                                cursor: channel ? 'pointer' : 'not-allowed',
+                                opacity: channel ? 1 : 0.5,
+                            }}
+                        >
+                            <Star
+                                size={18}
+                                strokeWidth={2}
+                                fill={favOn ? '#FFC850' : 'none'}
+                            />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex flex-col items-end" style={{ gap: 10 }}>
@@ -495,7 +602,7 @@ function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
 
 /* ============================ Columns ============================ */
 
-function CategoriesCol({ cats, counts = {}, error, activeId, onPick }) {
+function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount, onPick }) {
     return (
         <div data-testid="live-tv-categories" style={{
             padding: '12px 0',
@@ -505,6 +612,16 @@ function CategoriesCol({ cats, counts = {}, error, activeId, onPick }) {
             maxHeight: 'calc(100dvh - 250px)',
             overflowY: 'auto',
         }}>
+            {/* Favourites pseudo-category — pinned at the top of the
+                sidebar.  Always visible, even when the user hasn't
+                starred anything yet, so it advertises the feature. */}
+            {favCatId && (
+                <FavCategoryRow
+                    isActive={activeId === favCatId}
+                    count={favCount || 0}
+                    onPick={() => onPick(favCatId)}
+                />
+            )}
             {error ? (
                 <div style={{ padding: '10px 16px' }}>
                     <div style={{ fontSize: 11, color: '#FF6B6B', fontWeight: 700, marginBottom: 4 }}>
@@ -569,7 +686,68 @@ function CategoriesCol({ cats, counts = {}, error, activeId, onPick }) {
     );
 }
 
-function ChannelsCol({ channels, focusedId, onFocus, onPlay }) {
+/* Favourites pseudo-category — pinned to the top of the sidebar.
+ * Visually identical to a real category row but with a gold star
+ * marker instead of the neon dot, and a thin divider underneath
+ * to separate it from the provider-supplied categories. */
+function FavCategoryRow({ isActive, count, onPick }) {
+    return (
+        <div style={{
+            paddingBottom: 6,
+            marginBottom: 6,
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+            <button
+                data-testid="live-cat-favorites"
+                data-focusable="true"
+                data-focus-style="quiet"
+                tabIndex={0}
+                onFocus={onPick}
+                onClick={onPick}
+                className="text-left flex items-center"
+                style={{
+                    width: 'calc(100% - 10px)', margin: '0 5px',
+                    padding: '9px 12px',
+                    gap: 10,
+                    background: isActive ? 'rgba(255,200,80,0.12)' : 'transparent',
+                    borderLeft: isActive ? '3px solid #FFC850' : '3px solid transparent',
+                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                    borderRadius: 6,
+                    color: isActive ? '#fff' : 'var(--vesper-text-2)',
+                    fontSize: 13, fontWeight: isActive ? 700 : 600,
+                    cursor: 'pointer',
+                }}
+            >
+                <Star
+                    size={13}
+                    strokeWidth={2}
+                    fill={isActive ? '#FFC850' : 'none'}
+                    color={isActive ? '#FFC850' : 'rgba(255,200,80,0.7)'}
+                    style={{ flexShrink: 0 }}
+                />
+                <span style={{
+                    flex: 1, minWidth: 0,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    letterSpacing: '0.04em',
+                }}>
+                    Favourites
+                </span>
+                {count > 0 && (
+                    <span className="vesper-mono" style={{
+                        fontSize: 10, fontWeight: 700,
+                        color: isActive ? '#FFC850' : 'var(--vesper-text-3)',
+                        letterSpacing: '0.04em',
+                        flexShrink: 0,
+                    }}>
+                        {count}
+                    </span>
+                )}
+            </button>
+        </div>
+    );
+}
+
+function ChannelsCol({ channels, focusedId, favorites, onFocus, onPlay }) {
     // Windowed render — Chrome 52 (HK1) doesn't support
     // content-visibility, so we hand-virtualize.  Start with 50,
     // grow by 50 every time the sentinel intersects.
@@ -611,8 +789,17 @@ function ChannelsCol({ channels, focusedId, onFocus, onPlay }) {
             }}
         >
             {channels.length === 0 ? (
-                <div style={{ padding: '20px 12px', color: 'var(--vesper-text-3)', fontSize: 13 }}>
-                    No channels.
+                <div style={{ padding: '24px 18px', color: 'var(--vesper-text-3)', fontSize: 13, lineHeight: 1.5 }}>
+                    No channels here yet.
+                    <div style={{
+                        marginTop: 6,
+                        fontSize: 11, color: 'var(--vesper-text-3)',
+                        letterSpacing: '0.04em',
+                    }}>
+                        Focus a channel and press <strong style={{ color: '#FFC850' }}>F</strong> (or tap the
+                        <Star size={11} strokeWidth={2} fill="#FFC850" color="#FFC850" style={{ display: 'inline', verticalAlign: 'middle', margin: '0 3px' }} />
+                        in the hero) to add it.
+                    </div>
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -621,6 +808,7 @@ function ChannelsCol({ channels, focusedId, onFocus, onPlay }) {
                             key={c.stream_id}
                             channel={c}
                             focused={c.stream_id === focusedId}
+                            isFav={favorites?.has(String(c.stream_id)) || false}
                             onFocus={() => onFocus(c)}
                             onPlay={() => { onFocus(c); onPlay(c); }}
                         />
@@ -635,7 +823,7 @@ function ChannelsCol({ channels, focusedId, onFocus, onPlay }) {
 }
 
 /* ============================ Channel Row (lean) ============================ */
-function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
+function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
     return (
         <li>
             <button
@@ -707,6 +895,15 @@ function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
                 }}>
                     {channel.name}
                 </span>
+                {isFav && (
+                    <Star
+                        size={13}
+                        strokeWidth={2}
+                        fill="#FFC850"
+                        color="#FFC850"
+                        style={{ flexShrink: 0 }}
+                    />
+                )}
             </button>
         </li>
     );
