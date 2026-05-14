@@ -34,6 +34,37 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 56 — Feb 14, 2026)
+### Watch Together (Watch Party) — full end-to-end host-authoritative sync
+- **🎉 Backend WebSocket coordinator** (`backend/watch_party.py`, already wired to `/api/watch-party/*`). 9/9 pytest scenarios PASS in iter_18: code creation (6 chars, no look-alikes), state lookup + not_found, host/guest hello→state broadcast, host pick, host play→countdown with future at_ms, host pause updates position+status, chat broadcast, disconnect rebroadcast. Includes a reaper that evicts dead parties after 5 min idle / 6 h max age.
+- **📺 Lobby UX** (`pages/WatchTogether.jsx`):
+  - Landing copy updated to user's spec: "Pick a Movie/Show. Share a code. And we will push play for you…" with the new line-fitting heading (clamp 28-48px, was 36-72px) so the page no longer overflows on the HK1.
+  - ChoiceCard tiles shrunk (padding clamp 18-26 vs 24-36, minHeight 156 vs 200, icon 46/26 vs 56/32) so both Host/Join cards sit comfortably above the fold.
+  - Two views: Host (clicks "Host a party" → POST /api/watch-party/create → room view with neon code) and Join (TVKeyboard digit/letter entry → state lookup → room).
+  - Room renders members rail (with HOST badge), MoviePicker (host) or "Waiting for the host" (guest), MoviePreview with Start button (host).
+  - On host Start, the WebSocket emits 'play' with lead_ms=3000; every member receives status='countdown' and navigates to `/resolve/{media_type}/{tmdb_id}?party=CODE&autoplay=1&at_ms=...&position_ms=...`. The lobby socket is closed before navigation (Player reopens its own).
+  - role + member_id are stashed in sessionStorage so the Player can rejoin the same socket as the same member.
+- **🔁 Resolve preserves query params** (`pages/Resolve.jsx`). The tmdb→imdb redirect now appends `window.location.search` so the party / autoplay / at_ms / position_ms params survive the hop to `/title/{appType}/{imdb_id}`.
+- **🎯 Detail page party-aware autoplay** (`pages/Detail.jsx`):
+  - Reads ?party=CODE&at_ms=X&position_ms=Y from URL.
+  - Autoplay effect fires when partyCode is set regardless of the user's Autoplay 1080p setting (party always auto-picks the best 1080p stream).
+  - playStream() SKIPS the native libVLC bridge (Host.playVideo) when partyCode is present — sync only works through the JS HTML5 player.
+  - Propagates `&party=CODE&at_ms=...&position_ms=...` into the `/play?...` URL so the Player picks up the party context.
+- **🎬 Player live sync** (`pages/Player.jsx`):
+  - When ?party=CODE is in the URL, a new effect opens a WebSocket to `/api/watch-party/ws/{code}` and sends 'hello' with role+member_id pulled from sessionStorage.
+  - **Host** broadcasts `pause`/`resume`/`seek` on every video event AND a `playing_now` heartbeat every 2 s so late-joiners pick up the right position.
+  - **Guests** apply server-broadcast state to the local <video>: status='paused' → pause + seek to position_ms; status='playing' → ensure playing with 1.5 s drift correction; status='countdown' → seek to anchor then play() at wallclock at_ms.
+  - The first 'play' event the Player itself triggers from the countdown is intentionally NOT echoed back as a 'resume' (armed-flag pattern).
+  - "Open in VLC" button is hidden when partyCode is set (native player can't pipe events into the socket).
+  - Top bar shows a 'Party · CODE HOST/GUEST' pill ([data-testid='player-party-badge']) with a green/yellow status dot.
+  - Countdown overlay ([data-testid='player-party-countdown']) renders a giant 3-2-1 ticker in the active theme accent during the lead-in.
+- **🔧 TVKeyboard first-keystroke drop FIXED** (`components/TVKeyboard.jsx`).  Root cause: append/back/space handlers captured the `value` prop via closure — two rapid clicks in the same React batch both read the same stale `value`, so each onChange emitted the same 1-char string, causing the parent to register only one character. Fix: introduced `valueRef` (React.useRef synced via useEffect on every prop change AND updated synchronously inside the handler before calling onChange). This single fix unblocked the guest join flow AND fixes a wide-blast-radius bug that affected every TVKeyboard-using screen (Search, Profile name, Join code, Movie picker, PIN).
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_18.json + iteration_19.json):
+  - Backend: 9/9 pytest scenarios PASS (multi-client WS sync, host commands, disconnect rebroadcast).
+  - Frontend iter_18: 80% (blocked on TVKeyboard bug).
+  - Frontend iter_19 retest after TVKeyboard fix: 5/5 PASS — full host+guest end-to-end with two Playwright contexts: host created room, guest typed code, picker propagated, Start landed both clients on /play with party-aware badges.
+
+
 ## Implemented (Iteration 55 — Feb 14, 2026)
 ### "Pick your avatar" header reverted to scroll-with-page (not sticky)
 - **🔄 Removed `position: sticky` from `[data-testid="avatar-sticky-preview"]`** (`pages/ProfileEdit.jsx`). The header is now a regular static element inside the page flow — it scrolls up off the screen along with the rest of the page when the user D-pads down, exactly as it did before sticky was introduced.
