@@ -241,6 +241,35 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
     with the in-flight long-press release can't leave a
     background tile looking active.
 
+## Implemented (Iteration 40 — Feb 14, 2026)
+### Logo unification + initial-focus + page scrolling + layout polish
+- **Logo now reads "ON NOW TV2"** (single V, no duplicate).  The
+  "ON NOW T" prefix is white, the "V2" trailing pair glows in
+  the active theme accent with dual halo.  Applied to both
+  ProfileSelect (centred) and SideNav (expanded wordmark).
+  When SideNav is collapsed, only the glowing "V2" emblem shows.
+- **ProfileSelect layout**: logo anchored near the top of the
+  page (no longer vertically centred with everything else);
+  "Who's ready to watch?" + profile tiles + Manage Profiles
+  button live in a `flex-1 justify-center` wrapper that occupies
+  the rest of the page — so the user's focal point lands at the
+  vertical centre of the TV.
+- **Settings initial focus**: first theme card (`theme-vesper`)
+  now carries `data-initial-focus="true"` (previously on the
+  Back button).  Verified: `document.activeElement` on Settings
+  mount is `BUTTON[data-testid="theme-vesper"]`.
+- **Page-level scrolling fix**: `ProfileEdit` and `Library`
+  pages were unscrollable because the global `#root` / `.App`
+  wrappers carry `overflow: hidden` (to keep Home's horizontal
+  shelves from scrolling the whole document).  Each page now
+  carries its own `height: 100dvh + overflow-y: auto` so the
+  spatial-focus hook's `verticalScroller()` walker finds them
+  and scrolls correctly.  Effect: avatars below the viewport
+  on `/profiles/new`, and the Watch Later block on `/library`,
+  are now reachable via D-pad Down.  Verified end-to-end —
+  pressing Down from a TV-show card in the library lands on a
+  Watch Later tile (`watch-later-remove-movie-tt15239678`).
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

@@ -70,7 +70,6 @@ export default function Settings() {
             <button
                 data-focusable="true"
                 data-focus-style="pill"
-                data-initial-focus="true"
                 tabIndex={0}
                 onClick={() => navigate('/')}
                 className="inline-flex items-center gap-2"
@@ -137,11 +136,12 @@ export default function Settings() {
                     gap: 'clamp(12px, 1.1vw, 18px)',
                 }}
             >
-                {THEMES.map((t) => (
+                {THEMES.map((t, i) => (
                     <ThemeCard
                         key={t.id}
                         theme={t}
                         active={themeId === t.id}
+                        initialFocus={i === 0}
                         onPick={() => setThemeId(t.id)}
                     />
                 ))}
@@ -850,13 +850,14 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
     );
 }
 
-function ThemeCard({ theme, active, onPick }) {
+function ThemeCard({ theme, active, initialFocus, onPick }) {
     const p = theme.preview;
     return (
         <button
             data-testid={`theme-${theme.id}`}
             data-focusable="true"
             data-focus-style="tile"
+            {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             onClick={onPick}
             className="relative text-left overflow-hidden"

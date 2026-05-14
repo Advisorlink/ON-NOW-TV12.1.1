@@ -54,7 +54,9 @@ export default function Library() {
             data-testid="library-page"
             className="relative w-screen"
             style={{
-                minHeight: '100dvh',
+                height: '100dvh',
+                overflowY: 'auto',
+                overflowX: 'hidden',
                 background: 'var(--vesper-bg-0)',
                 paddingLeft: 100,
                 paddingRight: 60,

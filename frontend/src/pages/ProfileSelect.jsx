@@ -66,13 +66,13 @@ export default function ProfileSelect() {
             style={{
                 background:
                     'radial-gradient(circle at 50% 30%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 60%), var(--vesper-bg-0)',
-                paddingTop: 'clamp(60px, 8vh, 120px)',
             }}
         >
+            {/* Logo stays anchored near the top. */}
             <div
-                className="vesper-display flex items-baseline justify-center gap-2.5 select-none"
+                className="vesper-display flex items-baseline justify-center select-none"
                 style={{
-                    marginBottom: 14,
+                    paddingTop: 'clamp(48px, 6vh, 88px)',
                     letterSpacing: '-0.03em',
                     lineHeight: 1,
                 }}
@@ -84,7 +84,7 @@ export default function ProfileSelect() {
                         color: 'var(--vesper-text)',
                     }}
                 >
-                    ON NOW TV
+                    ON NOW T
                 </span>
                 <span
                     style={{
@@ -93,75 +93,87 @@ export default function ProfileSelect() {
                         color: 'var(--vesper-blue-bright)',
                         textShadow:
                             '0 0 10px rgba(var(--vesper-blue-rgb), 0.7), 0 0 24px rgba(var(--vesper-blue-rgb), 0.45)',
+                        letterSpacing: '-0.04em',
+                        marginLeft: 1,
                     }}
                 >
                     V2
                 </span>
             </div>
-            <h1
-                className="vesper-display"
-                style={{
-                    fontSize: 'clamp(40px, 5vw, 72px)',
-                    letterSpacing: '-0.03em',
-                    lineHeight: 1,
-                    marginBottom: 8,
-                }}
-            >
-                Who&apos;s ready to watch?
-            </h1>
-            <p
-                style={{
-                    color: 'var(--vesper-text-2)',
-                    fontSize: 16,
-                    marginBottom: 48,
-                }}
-            >
-                Choose a profile to continue
-            </p>
 
+            {/* Headline + profiles centred in the remaining space so
+                the user's focal point lands roughly on the middle
+                of the TV screen — much more relaxed than crowding
+                everything near the top. */}
             <div
-                className="flex items-start justify-center flex-wrap"
-                style={{ gap: 'clamp(24px, 3vw, 56px)', maxWidth: 1200 }}
+                className="flex-1 flex flex-col items-center justify-center w-full"
+                style={{ paddingBottom: 'clamp(40px, 6vh, 80px)' }}
             >
-                {profiles.map((p) => (
-                    <ProfileTile
-                        key={p.id}
-                        profile={p}
-                        editMode={editMode}
-                        onPick={() => pick(p)}
-                        onRemove={() => {
-                            removeProfile(p.id);
-                            refresh();
-                        }}
-                    />
-                ))}
-                {profiles.filter((p) => !p.kids).length < 4 && (
-                    <AddProfileTile onClick={() => navigate('/profiles/new')} />
-                )}
-            </div>
+                <h1
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(40px, 5vw, 72px)',
+                        letterSpacing: '-0.03em',
+                        lineHeight: 1,
+                        marginBottom: 8,
+                    }}
+                >
+                    Who&apos;s ready to watch?
+                </h1>
+                <p
+                    style={{
+                        color: 'var(--vesper-text-2)',
+                        fontSize: 16,
+                        marginBottom: 48,
+                    }}
+                >
+                    Choose a profile to continue
+                </p>
 
-            <button
-                data-testid="manage-profiles"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={() => setEditMode((v) => !v)}
-                className="flex items-center gap-2 mt-12 rounded-full"
-                style={{
-                    height: 44,
-                    padding: '0 22px',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    background: editMode
-                        ? 'var(--vesper-blue)'
-                        : 'rgba(255,255,255,0.08)',
-                    color: editMode ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                }}
-            >
-                <Pencil size={14} strokeWidth={2} />
-                {editMode ? 'Done' : 'Manage profiles'}
-            </button>
+                <div
+                    className="flex items-start justify-center flex-wrap"
+                    style={{ gap: 'clamp(24px, 3vw, 56px)', maxWidth: 1200 }}
+                >
+                    {profiles.map((p) => (
+                        <ProfileTile
+                            key={p.id}
+                            profile={p}
+                            editMode={editMode}
+                            onPick={() => pick(p)}
+                            onRemove={() => {
+                                removeProfile(p.id);
+                                refresh();
+                            }}
+                        />
+                    ))}
+                    {profiles.filter((p) => !p.kids).length < 4 && (
+                        <AddProfileTile onClick={() => navigate('/profiles/new')} />
+                    )}
+                </div>
+
+                <button
+                    data-testid="manage-profiles"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => setEditMode((v) => !v)}
+                    className="flex items-center gap-2 mt-12 rounded-full"
+                    style={{
+                        height: 44,
+                        padding: '0 22px',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: editMode
+                            ? 'var(--vesper-blue)'
+                            : 'rgba(255,255,255,0.08)',
+                        color: editMode ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
+                        border: '1px solid rgba(255,255,255,0.16)',
+                    }}
+                >
+                    <Pencil size={14} strokeWidth={2} />
+                    {editMode ? 'Done' : 'Manage profiles'}
+                </button>
+            </div>
 
             {pinTarget && (
                 <PinGate

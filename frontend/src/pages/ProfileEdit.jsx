@@ -45,10 +45,19 @@ export default function ProfileEdit() {
     return (
         <div
             data-testid="profile-edit"
-            className="relative w-screen min-h-[100dvh] flex flex-col"
+            className="relative w-screen flex flex-col"
             style={{
                 background: 'var(--vesper-bg-0)',
                 padding: 'clamp(40px, 5vw, 80px)',
+                // ProfileEdit needs to scroll on its own because
+                // both #root and .App wrappers are `overflow: hidden`
+                // (to keep Home's horizontal shelves from scrolling
+                // the whole document).  Without a local scroller,
+                // avatars below the viewport are unreachable by
+                // D-pad even though focus moves to them.
+                height: '100dvh',
+                overflowY: 'auto',
+                overflowX: 'hidden',
             }}
         >
             <header className="flex items-center gap-4 mb-10">

@@ -53,18 +53,41 @@ export default function SideNav() {
                 backdropFilter: expanded ? 'blur(14px)' : 'none',
             }}
         >
-            {/* Brand mark — glowing "V2" letterform.
-                When collapsed: just the V2 sits centred in the rail.
-                When expanded: full "ON NOW TV V2" wordmark renders
-                to the right of the V2, aligned and bigger.  Pure
-                text + CSS — no PNG, so the accent recolours with
-                the active theme automatically. */}
-            <div className="flex items-center pl-3 pr-3 mb-10 select-none" style={{ height: 56 }}>
+            {/* Brand mark — single "ON NOW TV2" wordmark where the
+                V and the 2 glow in the active theme accent.  The
+                white "ON NOW T" prefix only renders when the rail
+                is expanded; when collapsed only the glowing "V2"
+                emblem is visible. */}
+            <div className="flex items-baseline pl-3 pr-3 mb-10 select-none" style={{ height: 56 }}>
                 <div
-                    className="vesper-display shrink-0 flex items-center justify-center"
+                    className="vesper-display whitespace-nowrap overflow-hidden"
                     style={{
-                        width: 50,
-                        fontSize: 38,
+                        flex: '0 1 auto',
+                        marginRight: expanded ? 2 : 0,
+                        opacity: expanded ? 1 : 0,
+                        maxWidth: expanded ? 200 : 0,
+                        // Snap-in after the rail finishes expanding so
+                        // the prefix doesn't crowd the V2 emblem mid-
+                        // animation.
+                        transition:
+                            'opacity 200ms ease 80ms, max-width 240ms ease, margin-right 240ms ease',
+                        fontSize: 22,
+                        lineHeight: 1,
+                        letterSpacing: '-0.025em',
+                        fontWeight: 700,
+                        color: 'var(--vesper-text)',
+                    }}
+                >
+                    ON NOW&nbsp;T
+                </div>
+                <div
+                    className="vesper-display shrink-0"
+                    style={{
+                        // The glowing V2 emblem.  Same letterform on
+                        // both collapsed and expanded — sits as the
+                        // trailing pair of "ON NOW TV2" when expanded,
+                        // and as the standalone icon when collapsed.
+                        fontSize: 32,
                         lineHeight: 1,
                         fontWeight: 800,
                         letterSpacing: '-0.04em',
@@ -74,30 +97,6 @@ export default function SideNav() {
                     }}
                 >
                     V2
-                </div>
-                <div
-                    className="overflow-hidden whitespace-nowrap"
-                    style={{
-                        opacity: expanded ? 1 : 0,
-                        // Snap-in once the rail finishes expanding so
-                        // the wordmark doesn't drag during the width
-                        // animation.
-                        transition: 'opacity 220ms ease',
-                        marginLeft: 14,
-                    }}
-                >
-                    <div
-                        className="vesper-display"
-                        style={{
-                            fontSize: 22,
-                            lineHeight: 1,
-                            letterSpacing: '-0.025em',
-                            fontWeight: 700,
-                            color: 'var(--vesper-text)',
-                        }}
-                    >
-                        ON NOW TV
-                    </div>
                 </div>
             </div>
 
