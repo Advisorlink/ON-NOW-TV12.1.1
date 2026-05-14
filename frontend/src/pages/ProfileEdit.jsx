@@ -466,6 +466,7 @@ function ConfirmModal({
     accent = 'var(--vesper-blue-bright)',
     children,
 }) {
+    const noBtnRef = React.useRef(null);
     // Close on Escape / Backspace (mapped to TV remote Back).
     React.useEffect(() => {
         const onKey = (e) => {
@@ -478,6 +479,43 @@ function ConfirmModal({
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onNo]);
+
+    // Imperatively focus the No / Cancel button on mount.  The
+    // global `data-initial-focus` retry only runs at app boot, so
+    // without this the modal opens with focus lingering on whatever
+    // tile was last focused behind it — exactly the "currently it's
+    // not focusing on anything" the user reported.  We call several
+    // times (sync + rAF + 50/150 ms) to defeat the in-flight Enter
+    // release from the long-press / click that opened the modal.
+    React.useEffect(() => {
+        const grab = () => {
+            const btn = noBtnRef.current;
+            if (!btn) return;
+            // Clear data-focused from everything outside the modal.
+            const modal = document.querySelector(`[data-testid="${testId}"]`);
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el))
+                        el.removeAttribute('data-focused');
+                });
+            try {
+                btn.focus({ preventScroll: true });
+            } catch {
+                /* ignore */
+            }
+            btn.setAttribute('data-focused', 'true');
+        };
+        grab();
+        const r = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(r);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, [testId]);
 
     return (
         <div
@@ -547,9 +585,11 @@ function ConfirmModal({
                 )}
                 <div className="flex" style={{ gap: 12 }}>
                     <button
+                        ref={noBtnRef}
                         data-testid={`${testId}-no`}
                         data-focusable="true"
                         data-focus-style="pill"
+                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onNo}
                         className="rounded-full font-sans font-semibold"
@@ -568,7 +608,6 @@ function ConfirmModal({
                         data-testid={`${testId}-yes`}
                         data-focusable="true"
                         data-focus-style="pill"
-                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onYes}
                         className="rounded-full font-sans font-semibold"

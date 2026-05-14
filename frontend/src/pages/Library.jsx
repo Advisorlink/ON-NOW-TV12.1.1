@@ -888,6 +888,7 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
     // should DISMISS the confirm, not navigate away from Library.
     // We capture-phase the listener so it fires before Library's
     // page-level Back handler.
+    const cancelConfirmRef = useRef(null);
     useEffect(() => {
         if (!confirmRemove) return undefined;
         const onKey = (e) => {
@@ -898,7 +899,29 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
             }
         };
         window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
+        // Imperatively focus Cancel when the confirm appears so
+        // the safe action is highlighted by default.
+        const grab = () => {
+            const btn = cancelConfirmRef.current;
+            if (!btn) return;
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== btn) el.removeAttribute('data-focused');
+                });
+            try { btn.focus({ preventScroll: true }); } catch { /* ignore */ }
+            btn.setAttribute('data-focused', 'true');
+        };
+        grab();
+        const r = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 60);
+        const t2 = setTimeout(grab, 160);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            cancelAnimationFrame(r);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
     }, [confirmRemove]);
 
     const tileSize = big
@@ -956,6 +979,25 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
                 </div>
                 <div className="flex gap-2">
                     <button
+                        ref={cancelConfirmRef}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={() => setConfirmRemove(false)}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 12,
+                            border: 'none',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
                         data-testid={`watch-later-remove-confirm-${item.type}-${item.id}`}
                         data-focusable="true"
                         data-focus-style="pill"
@@ -975,24 +1017,6 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
                         }}
                     >
                         Remove
-                    </button>
-                    <button
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        data-initial-focus="true"
-                        tabIndex={0}
-                        onClick={() => setConfirmRemove(false)}
-                        style={{
-                            padding: '7px 14px',
-                            borderRadius: 999,
-                            background: 'rgba(255,255,255,0.10)',
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 12,
-                            border: 'none',
-                        }}
-                    >
-                        Cancel
                     </button>
                 </div>
             </div>

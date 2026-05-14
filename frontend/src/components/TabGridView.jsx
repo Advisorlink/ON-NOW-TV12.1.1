@@ -92,40 +92,26 @@ export default function TabGridView({ shelves, loading, type }) {
                 </div>
             </header>
 
-            {items.length === 0 ? (
-                loading ? (
-                    // Skeleton placeholder tiles so the page feels
-                    // instant — the user can D-pad into them right
-                    // away while real items stream in.  They share
-                    // the same data-focusable hook the real tiles
-                    // do, so spatial navigation finds them.
-                    <div
-                        data-testid={`tab-grid-list-${type}`}
-                        className="grid"
-                        style={{
-                            gridTemplateColumns:
-                                'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
-                            gap: 'clamp(18px, 1.6vw, 28px)',
-                        }}
-                    >
-                        {Array.from({ length: 12 }).map((_, i) => (
-                            <SkeletonTile key={i} />
-                        ))}
-                    </div>
-                ) : (
-                    <div
-                        className="vesper-glass rounded-2xl"
-                        style={{
-                            padding: '28px 32px',
-                            color: 'var(--vesper-text-2)',
-                            fontSize: 16,
-                        }}
-                    >
-                        No catalogues available from your installed
-                        addons. Open Sources to add one.
-                    </div>
-                )
+            {items.length === 0 && !loading ? (
+                <div
+                    className="vesper-glass rounded-2xl"
+                    style={{
+                        padding: '28px 32px',
+                        color: 'var(--vesper-text-2)',
+                        fontSize: 16,
+                    }}
+                >
+                    No catalogues available from your installed addons.
+                    Open Sources to add one.
+                </div>
             ) : (
+                // Single grid that morphs from skeleton → real tiles
+                // as catalogue results stream in.  We render at
+                // least 12 placeholder slots so the page is fully
+                // navigable the instant the user clicks the tab,
+                // and we key by INDEX so the focused DOM node
+                // stays mounted (and stays focused) when its
+                // content swaps from skeleton to a real movie.
                 <div
                     data-testid={`tab-grid-list-${type}`}
                     className="grid"
@@ -135,8 +121,14 @@ export default function TabGridView({ shelves, loading, type }) {
                         gap: 'clamp(18px, 1.6vw, 28px)',
                     }}
                 >
-                    {items.map((it) => (
-                        <GridTile key={it.imdbId || it.id} item={it} navigate={navigate} />
+                    {Array.from({
+                        length: Math.max(items.length, 12),
+                    }).map((_, i) => (
+                        <MorphTile
+                            key={i}
+                            item={items[i] || null}
+                            navigate={navigate}
+                        />
                     ))}
                 </div>
             )}
@@ -144,14 +136,26 @@ export default function TabGridView({ shelves, loading, type }) {
     );
 }
 
-function GridTile({ item, navigate }) {
+/**
+ * Unified tile that morphs between a skeleton placeholder and a
+ * real movie poster *within the same DOM node*.  Critical for
+ * focus stability: React reuses the `<button>` element when the
+ * component type stays the same, so the focused tile keeps the
+ * focus ring even as its content swaps from gradient → poster.
+ *
+ * `item` is null while the catalogue is still loading, and gets
+ * filled in once results stream in from useLiveShelves.
+ */
+function MorphTile({ item, navigate }) {
     const onTap = () => {
+        if (!item) return;
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
         else navigate(`/title/${item.id}`);
     };
     const onLongPress = () => {
+        if (!item) return;
         const id = item.imdbId || item.id;
         if (!id || !id.toString().startsWith('tt')) return;
         window.dispatchEvent(
@@ -171,11 +175,16 @@ function GridTile({ item, navigate }) {
             })
         );
     };
+    // useLongPress is unconditional so the hook order stays stable
+    // between skeleton and real renders; its handlers no-op when
+    // item is null.
     const press = useLongPress(onLongPress, onTap);
 
+    const isReady = !!item;
     return (
         <button
-            data-testid={`grid-${item.imdbId || item.id}`}
+            data-testid={isReady ? `grid-${item.imdbId || item.id}` : undefined}
+            aria-label={isReady ? item.title : 'Loading'}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -184,11 +193,14 @@ function GridTile({ item, navigate }) {
             style={{
                 width: '100%',
                 aspectRatio: '2 / 3',
-                background: 'var(--vesper-bg-2)',
+                padding: 0,
+                background: isReady
+                    ? 'var(--vesper-bg-2)'
+                    : 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.06) 100%)',
                 border: '1px solid rgba(255,255,255,0.05)',
             }}
         >
-            {item.poster ? (
+            {isReady && item.poster ? (
                 <img
                     src={img.poster(item.poster)}
                     alt={item.title}
@@ -196,7 +208,7 @@ function GridTile({ item, navigate }) {
                     decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
                 />
-            ) : (
+            ) : isReady ? (
                 <div
                     className="absolute inset-0 flex items-center justify-center"
                     style={{
@@ -206,12 +218,15 @@ function GridTile({ item, navigate }) {
                 >
                     <span
                         className="vesper-display"
-                        style={{ fontSize: 64, color: 'rgba(var(--vesper-blue-rgb),0.18)' }}
+                        style={{
+                            fontSize: 64,
+                            color: 'rgba(var(--vesper-blue-rgb),0.18)',
+                        }}
                     >
                         {(item.title || '?')[0]}
                     </span>
                 </div>
-            )}
+            ) : null}
             <div
                 className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
                 style={{
@@ -219,67 +234,39 @@ function GridTile({ item, navigate }) {
                         'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.93) 78%, var(--vesper-bg-0) 100%)',
                 }}
             />
-            <div className="absolute inset-x-0 bottom-0 p-3">
-                <div
-                    className="font-sans"
-                    style={{
-                        fontSize: 'clamp(13px, 1vw, 17px)',
-                        fontWeight: 600,
-                        letterSpacing: '-0.015em',
-                        lineHeight: 1.15,
-                        color: 'var(--vesper-text)',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                    }}
-                >
-                    {item.title}
-                </div>
-                {item.sub && (
+            {isReady && (
+                <div className="absolute inset-x-0 bottom-0 p-3">
                     <div
-                        className="vesper-mono mt-1"
+                        className="font-sans"
                         style={{
-                            fontSize: 'clamp(9px, 0.62vw, 11px)',
-                            letterSpacing: '0.18em',
-                            textTransform: 'uppercase',
-                            color: 'var(--vesper-text-2)',
+                            fontSize: 'clamp(13px, 1vw, 17px)',
+                            fontWeight: 600,
+                            letterSpacing: '-0.015em',
+                            lineHeight: 1.15,
+                            color: 'var(--vesper-text)',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
                         }}
                     >
-                        {item.sub}
+                        {item.title}
                     </div>
-                )}
-            </div>
-        </button>
-    );
-}
-
-
-function SkeletonTile() {
-    return (
-        <button
-            data-focusable="true"
-            data-focus-style="tile"
-            tabIndex={0}
-            aria-label="Loading"
-            className="relative overflow-hidden rounded-xl"
-            style={{
-                width: '100%',
-                aspectRatio: '2 / 3',
-                border: '1px solid rgba(255,255,255,0.04)',
-                padding: 0,
-                background:
-                    'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.06) 100%)',
-            }}
-        >
-            <span
-                aria-hidden="true"
-                className="absolute inset-0"
-                style={{
-                    background:
-                        'linear-gradient(180deg, rgba(6,8,15,0) 50%, rgba(6,8,15,0.6) 100%)',
-                }}
-            />
+                    {item.sub && (
+                        <div
+                            className="vesper-mono mt-1"
+                            style={{
+                                fontSize: 'clamp(9px, 0.62vw, 11px)',
+                                letterSpacing: '0.18em',
+                                textTransform: 'uppercase',
+                                color: 'var(--vesper-text-2)',
+                            }}
+                        >
+                            {item.sub}
+                        </div>
+                    )}
+                </div>
+            )}
         </button>
     );
 }

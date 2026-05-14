@@ -333,6 +333,52 @@ function AddProfileTile({ onClick }) {
 
 
 function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
+    const cancelRef = React.useRef(null);
+
+    // Imperatively focus the Cancel button on mount so the modal
+    // opens with focus *on* the safe action (Cancel) — not on the
+    // tile behind it.  Several retries defeat the in-flight Enter
+    // release from the Remove click that opened the modal.
+    React.useEffect(() => {
+        const grab = () => {
+            const btn = cancelRef.current;
+            if (!btn) return;
+            const modal = document.querySelector(
+                '[data-testid="delete-profile-confirm"]'
+            );
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el))
+                        el.removeAttribute('data-focused');
+                });
+            try { btn.focus({ preventScroll: true }); } catch { /* ignore */ }
+            btn.setAttribute('data-focused', 'true');
+        };
+        grab();
+        const r = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(r);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, []);
+
+    // Escape/Backspace cancels.
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onCancel]);
+
     return (
         <div
             data-testid="delete-profile-confirm"
@@ -403,6 +449,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                 </p>
                 <div className="flex" style={{ gap: 12 }}>
                     <button
+                        ref={cancelRef}
                         data-testid="delete-profile-cancel"
                         data-focusable="true"
                         data-focus-style="pill"
