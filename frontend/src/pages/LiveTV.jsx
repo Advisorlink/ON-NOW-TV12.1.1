@@ -11,7 +11,7 @@ import {
     getCategories,
     getStreams,
     getStreamUrl,
-    getNowNext,
+    getFullEpg,
 } from '@/lib/xtream';
 import Host from '@/lib/host';
 
@@ -195,43 +195,52 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     );
 
     // -------------------------------------------------------------------
-    //  EPG (Now/Next) — fetched only for the *focused* channel.  Cached
-    //  in-memory for 5 min so D-pad up/down on the same channel doesn't
-    //  re-hit the IPTV server.  Debounced 250 ms so fast scrubbing
-    //  through 100 channels only fires one request at the end.
+    //  EPG — fetched ONLY for the focused channel.  One fetch returns
+    //  the full upcoming guide (limit 12); the hero uses [0]+[1] for
+    //  Now/Next, the right-hand GUIDE column shows the rest.
+    //
+    //  Guardrails for low-end boxes:
+    //    • 250 ms debounce — fast D-pad scrubbing fires one request.
+    //    • 5-min in-memory cache per stream_id — re-focusing is free.
+    //    • Stale-request guard so out-of-order responses can't flicker.
     // -------------------------------------------------------------------
-    const [nowNext, setNowNext] = useState(null); // { now, next } | null
+    const [epgItems, setEpgItems] = useState([]); // full upcoming list
     const epgCache = useRef(new Map()); // stream_id -> { at, items }
     const epgReqId = useRef(0);
 
     useEffect(() => {
         const ch = focusedChannel;
-        if (!ch) { setNowNext(null); return undefined; }
+        if (!ch) { setEpgItems([]); return undefined; }
         const sid = ch.stream_id;
 
         // Cache hit (≤ 5 min) — show immediately, skip fetch.
         const cached = epgCache.current.get(sid);
         if (cached && Date.now() - cached.at < 5 * 60_000) {
-            setNowNext({ now: cached.items[0] || null, next: cached.items[1] || null });
+            setEpgItems(cached.items);
             return undefined;
         }
 
         // Otherwise blank current EPG while we wait, debounce 250 ms.
-        setNowNext(null);
+        setEpgItems([]);
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
-                const items = await getNowNext(provider, sid);
-                if (epgReqId.current !== myReq) return; // stale (user moved on)
+                const items = await getFullEpg(provider, sid, 12);
+                if (epgReqId.current !== myReq) return; // stale
                 epgCache.current.set(sid, { at: Date.now(), items });
-                setNowNext({ now: items[0] || null, next: items[1] || null });
+                setEpgItems(items);
             } catch {
                 if (epgReqId.current !== myReq) return;
-                setNowNext(null);
+                setEpgItems([]);
             }
         }, 250);
         return () => clearTimeout(t);
     }, [focusedChannel, provider]);
+
+    const nowNext = useMemo(
+        () => ({ now: epgItems[0] || null, next: epgItems[1] || null }),
+        [epgItems],
+    );
 
     if (!booted) {
         return <LiveTVBoot stages={stages} />;
@@ -247,7 +256,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 onExit={onChangeProvider}
             />
             <div className="grid" style={{
-                gridTemplateColumns: 'minmax(220px, 260px) minmax(0, 1fr)',
+                gridTemplateColumns: 'minmax(200px, 240px) minmax(0, 1fr) minmax(280px, 360px)',
                 gap: 16,
                 padding: '14px 32px 0 32px',
                 alignItems: 'start',
@@ -263,6 +272,10 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     focusedId={focusedChannel?.stream_id}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
+                />
+                <GuideCol
+                    channel={focusedChannel}
+                    items={epgItems}
                 />
             </div>
         </div>
@@ -575,7 +588,6 @@ function ChannelsCol({ channels, focusedId, onFocus, onPlay }) {
 }
 
 /* ============================ Channel Row (lean) ============================ */
-
 function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
     return (
         <li>
@@ -649,6 +661,122 @@ function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
                     {channel.name}
                 </span>
             </button>
+        </li>
+    );
+}
+
+/* ============================ Guide Column (right) ============================ */
+
+function GuideCol({ channel, items }) {
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    return (
+        <div
+            data-testid="live-tv-guide"
+            style={{
+                padding: '14px 0 6px 0',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 14,
+                maxHeight: 'calc(100dvh - 250px)',
+                overflowY: 'auto',
+            }}
+        >
+            {/* Header */}
+            <div style={{
+                padding: '0 16px 12px 16px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                marginBottom: 8,
+            }}>
+                <div className="vesper-mono" style={{
+                    fontSize: 10, letterSpacing: '0.32em',
+                    color: 'var(--vesper-blue-bright)',
+                    marginBottom: 4,
+                }}>
+                    PROGRAMME GUIDE
+                </div>
+                <div style={{
+                    fontSize: 13, color: 'var(--vesper-text-2)', fontWeight: 600,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                    {channel?.name || '—'}
+                </div>
+            </div>
+
+            {/* Body */}
+            {items.length === 0 ? (
+                <div style={{
+                    padding: '14px 16px', color: 'var(--vesper-text-3)',
+                    fontSize: 12, lineHeight: 1.5,
+                }}>
+                    No guide data for this channel.
+                </div>
+            ) : (
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                    {items.slice(0, 12).map((it, idx) => {
+                        const start = Number(it.startTimestamp) || 0;
+                        const stop = Number(it.stopTimestamp) || 0;
+                        const isLive = nowSec >= start && nowSec < stop;
+                        return (
+                            <GuideRow
+                                key={`${start}-${idx}`}
+                                item={it}
+                                isLive={isLive}
+                            />
+                        );
+                    })}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+function GuideRow({ item, isLive }) {
+    return (
+        <li style={{
+            position: 'relative',
+            padding: '10px 16px',
+            borderLeft: isLive
+                ? '3px solid var(--vesper-blue-bright)'
+                : '3px solid transparent',
+            background: isLive ? 'rgba(93,200,255,0.06)' : 'transparent',
+        }}>
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                marginBottom: 3,
+            }}>
+                <span className="vesper-mono" style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: isLive ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)',
+                    letterSpacing: '0.04em',
+                }}>
+                    {formatTime(item.startTimestamp)}
+                </span>
+                {isLive && (
+                    <span className="vesper-mono" style={{
+                        fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
+                        color: 'var(--vesper-blue-bright)',
+                        padding: '2px 6px',
+                        background: 'rgba(93,200,255,0.14)',
+                        borderRadius: 3,
+                    }}>
+                        LIVE
+                    </span>
+                )}
+            </div>
+            <div style={{
+                fontSize: 13, fontWeight: isLive ? 700 : 600,
+                color: isLive ? '#fff' : 'var(--vesper-text)',
+                lineHeight: 1.3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                whiteSpace: 'normal',
+            }}>
+                {item.title || 'Untitled programme'}
+            </div>
         </li>
     );
 }
