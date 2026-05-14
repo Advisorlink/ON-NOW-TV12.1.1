@@ -62,10 +62,36 @@ export default function Home() {
     // round-trip is instant from the cache layer (sessionStorage
     // hit).
 
-    const shelves = useMemo(
-        () => (Array.isArray(liveShelves) ? liveShelves : []),
-        [liveShelves]
-    );
+    const shelves = useMemo(() => {
+        const all = Array.isArray(liveShelves) ? liveShelves : [];
+        // User explicitly wants the home rails locked to exactly 4
+        // shelves below Networks: Movies Popular · Series Popular ·
+        // Movies New · Series New.  Every other addon-driven shelf
+        // (Trending / Anime / Channels / etc.) is stripped so the
+        // page renders quickly on the HK1 box and stays focused on
+        // the "essential 4".  Catalog ids `-top` and `-year` are
+        // the Cinemeta-style conventions; we match by suffix so
+        // any swappable addon that ships those catalogues still
+        // surfaces them.
+        const wanted = [
+            { suffix: '-movie-top',   eyebrow: 'MOVIES',   title: 'Popular movies' },
+            { suffix: '-series-top',  eyebrow: 'SERIES',   title: 'Popular series' },
+            { suffix: '-movie-year',  eyebrow: 'MOVIES',   title: 'New movies' },
+            { suffix: '-series-year', eyebrow: 'SERIES',   title: 'New series' },
+        ];
+        const out = [];
+        for (const w of wanted) {
+            const match = all.find((s) => s.id && s.id.endsWith(w.suffix));
+            if (match) {
+                out.push({
+                    ...match,
+                    title: w.title,
+                    eyebrow: w.eyebrow,
+                });
+            }
+        }
+        return out;
+    }, [liveShelves]);
 
     // Reset the scrollable shelves region to the top whenever the
     // filter changes (so a new heading sits flush at the top of the
