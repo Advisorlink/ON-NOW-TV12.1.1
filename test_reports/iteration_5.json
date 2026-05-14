@@ -1,0 +1,54 @@
+{
+  "summary": "Frontend-only verification of ON NOW TV V2 changes: (1) Search page redesign mirroring Profile NameStep, (2) Settings page row-aware Up/Down D-pad navigation. All 6 review-requested scenarios PASS across non-kids and kids modes with no console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "search_non_kids_layout": {
+      "result": "PASS",
+      "details": "[data-testid=search-card] is a centered column (flex-direction: column). Circular search-icon medallion at top, mono eyebrow 'Search', big display h1 'What are you looking for?' with 'looking' highlighted in blue (text-align: center). Pill-shaped [data-testid=search-input-wrap] contains SearchIcon + [data-testid=search-input] placeholder/cursor + 0/60 counter + mic button. TVKeyboard rendered inside the card (44 focusable elements). Single primary [data-testid=search-submit] button labelled 'Search' with right-arrow icon at bottom. No side-by-side layout."
+    },
+    "search_kids_layout": {
+      "result": "PASS",
+      "details": "With localStorage 'onnowtv-active-profile-v1'='kids': eyebrow becomes 'Kid-safe search', h1 becomes 'What do you want to watch?' with 'want' highlighted, data-kids-theme='1' on search-page root, KidsSideNav renders on the left, submit button text becomes 'Find something to watch'."
+    },
+    "settings_dpad_down_skips_pill_row": {
+      "result": "PASS",
+      "details": "ArrowDown from [data-testid=kids-movie-rating-G] lands on kids-series-rating-TV-G (NEXT row first focusable), skipping PG/PG-13/M15 on the same row. ArrowDown from kids-content-both lands on kids-movie-rating-G (skipping movies/series pills)."
+    },
+    "settings_dpad_up_skips_pill_row": {
+      "result": "PASS",
+      "details": "ArrowUp from kids-movie-rating-PG-13 lands on kids-content-series (previous row), not on a same-row sibling pill (G/PG/M15)."
+    },
+    "settings_left_right_within_row_regression": {
+      "result": "PASS",
+      "details": "ArrowRight from [data-testid=kids-movie-rating-G] correctly moves focus to [data-testid=kids-movie-rating-PG] via global useSpatialFocus engine."
+    },
+    "settings_back_button_reachable_and_walk_to_bottom": {
+      "result": "PASS",
+      "details": "ArrowUp from first theme card lands on Back button. dev-load-preview, dev-fire-test-toast, and toggle-autoplay-1080p all present in DOM. ArrowDown from theme-vesper jumped to toggle-autoplay-1080p (rect top 387 → 673, moved to new row)."
+    },
+    "console_errors_smoke": {
+      "result": "PASS",
+      "details": "0 console.error events captured during /search (non-kids + kids) and /settings loads."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.jsx row-aware override (lines 36-105) is a sensible capture-phase patch. The ROW_TOL=6px heuristic + score = max(0, dy)*4 + dx correctly preserves column when possible and prevents same-row siblings from winning. Listener is properly removed on unmount.",
+    "Search.jsx is now ~580 lines and aligns visually with the ProfileEdit NameStep. The query preview pill is a non-input div (correct — keeps Android IME buried). The TVKeyboard is the typing surface. No regressions in results grid / KidsBlockedMessage rendering below the card.",
+    "Minor: Search.jsx hides the card entirely once results.length > 0, which is a UX trade-off (user must clear/re-type via TVKeyboard which is no longer visible). Not a bug per the spec — flagging only as future consideration.",
+    "useSpatialFocus.js was NOT modified (per lock). Confirmed by behavior: Left/Right within the same row still flows through it correctly."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100%"},
+  "test_credentials": "No backend auth. Client-side profiles via localStorage keys 'onnowtv-profiles-v1' and 'onnowtv-active-profile-v1'. Synthetic 'kids' profile is auto-added.",
+  "seed_data_creation": "Used page.add_init_script to seed onnowtv-active-profile-v1 ('test-user' for non-kids, 'kids' for kids) and onnowtv-profiles-v1 array before goto.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both fixes verified working. If retesting, remember addInitScript is sticky across goto — set the LS value to match the mode you want BEFORE each goto, or use separate browser contexts. Don't rely on page.evaluate after page load since RequireProfile reads LS at mount only."
+}

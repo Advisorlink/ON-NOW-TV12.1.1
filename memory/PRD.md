@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 42 — Feb 14, 2026)
+### Search redesigned to match Profile NameStep, Settings + Stream lists go line-by-line on D-pad
+- **/search redesigned** (`pages/Search.jsx`) for both main app and Kids. Centered card now mirrors the Profile creation NameStep: large circular search-icon medallion → mono eyebrow ("Search" / "Kid-safe search") → big display heading ("What are you **looking** for?" / "What do you **want** to watch?" with one word highlighted in blue) → pill-shaped query preview row (SearchIcon, animated cursor, char-count, optional mic) → on-screen TVKeyboard → single primary Search button with right-arrow icon. Removed the old left-aligned hero + side-by-side search bar layout. Results grid + KidsBlockedMessage still render below when present.
+- **Settings Up/Down skips pill rows** (`pages/Settings.jsx`). New geometry-aware capture-phase keydown override scoped to `[data-testid="settings-scroll"]`. Pressing Down from any pill (e.g. `kids-movie-rating-G`) now lands on the first focusable of the next *visual row*, never on the sibling pill to its right. Up mirrors the logic. Left/Right unchanged — handled by the locked global `useSpatialFocus`.
+- **Detail page streams list — list-scoped Up/Down** (`pages/Detail.jsx`). Capture-phase keydown handler restricts Up/Down inside `[data-testid="stream-list"]` to in-list navigation; at the top/bottom edge the handler bails so global spatial focus takes over. Prevents "skipping" away from the stream list onto unrelated UI.
+- **Series episode streams — same list-scoped behaviour** (`components/SeriesEpisodes.jsx`). Each expanded episode's stream `<ul>` is marked `data-stream-list="true"`; the new handler keeps Up/Down inside the current episode's stream list and only falls through to the global engine at the top/bottom edge.
+- Tested by `testing_agent_v3_fork` (iteration_5.json) — Search redesign + Settings row-aware nav both pass 100%; stream-list fix is logic-only and follows the same pattern, ready for device verification.
+
+
 ## Implemented (Iteration 41 — Feb 14, 2026)
 ### Watch Later tiles unified with Continue Watching, snappier filter swaps, magic avatars, delete-profile confirm
 - **Watch Later tile → CW-style** (`pages/Library.jsx`).  Removed the

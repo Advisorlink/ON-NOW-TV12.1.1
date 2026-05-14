@@ -144,6 +144,59 @@ export default function Detail() {
         return () => clearTimeout(t);
     }, [streamLoading, streams.length, type]);
 
+    // List-scoped D-pad override.  When focus is INSIDE the stream
+    // list, pressing Up/Down walks to the previous/next stream
+    // button in DOM order — never escapes to whatever happens to be
+    // geometrically nearby (Back button, library pill, etc.).  At
+    // the top/bottom edge the handler bails so the global spatial
+    // focus picks up.  Capture phase so it beats useSpatialFocus.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const list = document.querySelector('[data-testid="stream-list"]');
+            if (!list) return;
+            const active = document.activeElement;
+            if (!active || !list.contains(active)) return;
+            // Only the main "play this stream" buttons are part of
+            // the row sequence; the small inline copy-magnet button
+            // sits beside its parent and is handled by Left/Right.
+            const items = Array.from(
+                list.querySelectorAll('button[data-testid^="stream-"]')
+            ).filter((el) => !el.hasAttribute('disabled'));
+            if (items.length === 0) return;
+            // If the user is on a copy-magnet, treat it as living
+            // on the same row as its sibling stream button.
+            let idx = items.indexOf(active);
+            if (idx === -1) {
+                const parentLi = active.closest('li');
+                if (!parentLi) return;
+                const sibling = parentLi.querySelector(
+                    'button[data-testid^="stream-"]'
+                );
+                if (!sibling) return;
+                idx = items.indexOf(sibling);
+                if (idx === -1) return;
+            }
+            const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+            if (nextIdx < 0 || nextIdx >= items.length) return; // edge — fall through
+            e.preventDefault();
+            e.stopPropagation();
+            const next = items[nextIdx];
+            try { next.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
+            next.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== next) el.removeAttribute('data-focused');
+                });
+            try {
+                next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (err) { /* ignore */ }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
+
     // ---------- AUTOPLAY 1080p — derived state ----------
     // `autoplayEnabled` reflects the live preference.  We read it
     // through state so a toggle from the side-nav re-renders Detail

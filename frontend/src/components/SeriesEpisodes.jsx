@@ -115,6 +115,54 @@ export default function SeriesEpisodes({ meta, parentId }) {
     const [loadingEpisodeId, setLoadingEpisodeId] = useState(null);
     const [copied, setCopied] = useState(null);
 
+    // Episode-stream-list-scoped D-pad override.  When focus is
+    // inside ANY expanded episode's stream list, ArrowUp/Down walks
+    // sibling streams in DOM order so the user never accidentally
+    // jumps to the next episode card mid-scroll.  At the top/bottom
+    // edge of a stream list the handler bails so the global
+    // spatial focus picks up and walks onto the next episode.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const active = document.activeElement;
+            if (!active) return;
+            const list = active.closest('[data-stream-list="true"]');
+            if (!list) return;
+            const items = Array.from(
+                list.querySelectorAll('button[data-focusable="true"]')
+            ).filter((el) => !el.hasAttribute('disabled') && /-stream-\d+$/.test(el.getAttribute('data-testid') || ''));
+            if (items.length === 0) return;
+            let idx = items.indexOf(active);
+            if (idx === -1) {
+                const parentLi = active.closest('li');
+                if (!parentLi) return;
+                const sibling = parentLi.querySelector(
+                    'button[data-focusable="true"]'
+                );
+                if (!sibling) return;
+                idx = items.indexOf(sibling);
+                if (idx === -1) return;
+            }
+            const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+            if (nextIdx < 0 || nextIdx >= items.length) return; // edge — fall through
+            e.preventDefault();
+            e.stopPropagation();
+            const next = items[nextIdx];
+            try { next.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
+            next.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== next) el.removeAttribute('data-focused');
+                });
+            try {
+                next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (err) { /* ignore */ }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
+
     const pickAutoplayCandidate = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
         return (
@@ -677,7 +725,11 @@ function EpisodeCard({
                             installed addons.
                         </div>
                     ) : (
-                        <ul className="flex flex-col" style={{ gap: 12 }}>
+                        <ul
+                            className="flex flex-col"
+                            style={{ gap: 12 }}
+                            data-stream-list="true"
+                        >
                             {data.streams.slice(0, 30).map((s, i) => {
                                 const mode = streamMode(s);
                                 const ModeIcon =

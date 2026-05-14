@@ -23,46 +23,81 @@ export default function Settings() {
     const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
     const [savedFlash, setSavedFlash] = React.useState(0);
 
-    // DOM-order vertical navigation override for Settings.
+    // ROW-aware vertical navigation override for Settings.
     //
-    // The shared spatial-focus engine picks the next focusable by
-    // geometry, which means D-pad Down from a right-aligned toggle
-    // sometimes misses the next section because nothing is directly
-    // beneath it on screen.  The user's spec for Settings is
-    // simple: Down → next item in DOM order regardless of column;
-    // Up → previous in DOM order.  Capture-phase listener so we
-    // beat useSpatialFocus's own handler on this page only.
+    // The user's spec is dead simple: Down/Up must jump to the
+    // next VISUAL LINE — never sideways.  A choice row contains
+    // several pills (G / PG / PG-13 / M15) on the same horizontal
+    // line; pressing Down from one of those pills must skip past
+    // every sibling on the same line and land on the first
+    // focusable of the next row down.  Same logic in reverse for
+    // Up.  Capture-phase listener so we beat useSpatialFocus on
+    // this page only.
     React.useEffect(() => {
         const root = document.querySelector('[data-testid="settings-scroll"]');
         if (!root) return undefined;
+
         const onKey = (e) => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const active = document.activeElement;
             if (!active || !root.contains(active)) return;
+
             const list = Array.from(
                 root.querySelectorAll('[data-focusable="true"]')
-            ).filter((el) => !el.hasAttribute('disabled'));
-            const idx = list.indexOf(active);
-            if (idx === -1) return;
-            const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
-            if (nextIdx < 0 || nextIdx >= list.length) return;
+            ).filter((el) => {
+                if (el.hasAttribute('disabled')) return false;
+                const r = el.getBoundingClientRect();
+                return r.width > 0 && r.height > 0;
+            });
+            if (list.length === 0) return;
+
+            const curRect = active.getBoundingClientRect();
+            const curCenterX = curRect.left + curRect.width / 2;
+            const ROW_TOL = 6; // px — items within this Y tolerance count as "same row"
+
+            // Score every candidate and keep the geometrically
+            // closest one that sits on a DIFFERENT row in the
+            // requested direction.
+            let best = null;
+            let bestScore = Infinity;
+            for (const el of list) {
+                if (el === active) continue;
+                const r = el.getBoundingClientRect();
+                if (e.key === 'ArrowDown') {
+                    // Must start strictly BELOW the current row.
+                    if (r.top < curRect.bottom - ROW_TOL) continue;
+                } else {
+                    // ArrowUp — must end strictly ABOVE current row.
+                    if (r.bottom > curRect.top + ROW_TOL) continue;
+                }
+                const elCenterX = r.left + r.width / 2;
+                const dy =
+                    e.key === 'ArrowDown'
+                        ? r.top - curRect.bottom
+                        : curRect.top - r.bottom;
+                const dx = Math.abs(elCenterX - curCenterX);
+                // Strongly prefer vertical proximity; use horizontal
+                // distance as tiebreaker so the column the user is
+                // in is preserved when possible.
+                const score = Math.max(0, dy) * 4 + dx;
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = el;
+                }
+            }
+            if (!best) return;
+
             e.preventDefault();
             e.stopPropagation();
-            const next = list[nextIdx];
-            try { next.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
-            next.setAttribute('data-focused', 'true');
+            try { best.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
+            best.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
                 .forEach((el) => {
-                    if (el !== next) el.removeAttribute('data-focused');
+                    if (el !== best) el.removeAttribute('data-focused');
                 });
-            // Smooth-scroll the target into view so the page
-            // follows the focus down/up the scroll wrapper.
             try {
-                next.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest',
-                });
+                best.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (err) { /* ignore */ }
         };
         window.addEventListener('keydown', onKey, true);
