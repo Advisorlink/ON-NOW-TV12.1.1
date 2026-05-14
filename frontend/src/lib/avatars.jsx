@@ -131,6 +131,16 @@ export const AVATARS = [
     { id: 'a99', e: '🛼', from: '#EC4899', to: '#A78BFA', glow: '#EC4899' },
     { id: 'a100', e: '🪩', from: '#A21CAF', to: '#22D3EE', glow: '#A21CAF' },
 
+    // ---- Magic / Magician / Cards (6) ----
+    // Added per user request: a "magic icon or playing cards or
+    // magician" set so profile picks can be a magic-themed avatar.
+    { id: 'm1', e: '🎩', from: '#1F0036', to: '#9333EA', glow: '#9333EA' },
+    { id: 'm2', e: '🪄', from: '#312E81', to: '#FACC15', glow: '#FACC15' },
+    { id: 'm3', e: '🃏', from: '#7F1D1D', to: '#FACC15', glow: '#DC2626' },
+    { id: 'm4', e: '🔮', from: '#581C87', to: '#22D3EE', glow: '#A78BFA' },
+    { id: 'm5', e: '♠️', from: '#0F172A', to: '#94A3B8', glow: '#F1F5F9' },
+    { id: 'm6', e: '✨', from: '#7C3AED', to: '#FBBF24', glow: '#FBBF24' },
+
     // ---- Kids permanent profile avatar (hidden from picker) ----
     { id: 'kids-default', e: '🧸', from: '#FFC857', to: '#FF6B9D', glow: '#FFC857', hidden: true },
 ];

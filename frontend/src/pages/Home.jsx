@@ -35,6 +35,32 @@ export default function Home() {
     );
     const { heroes: liveHeroes } = useLiveHeroes(addons, heroType);
 
+    // Background prefetch — warm the cache for the two filter
+    // views the user hasn't navigated to yet, so clicking "TV
+    // Shows" / "Movies" in the side nav lands instantly with data
+    // already painted instead of a 2–3 s catalogue spin.  Hooks
+    // are unconditional; values are intentionally discarded.
+    // We only prefetch the OTHER filters (never re-prefetch the
+    // active one) and only after the active view has had a head
+    // start by passing an empty addon list until ready.
+    const [prefetchReady, setPrefetchReady] = React.useState(false);
+    React.useEffect(() => {
+        if (liveLoading) return;
+        const t = setTimeout(() => setPrefetchReady(true), 400);
+        return () => clearTimeout(t);
+    }, [liveLoading]);
+    const prefetchAddons = prefetchReady ? addons : [];
+    useLiveShelves(
+        prefetchAddons,
+        shelfFilter === 'series' ? 'movie' : 'series',
+        60
+    );
+    useLiveShelves(
+        prefetchAddons,
+        shelfFilter ? null : 'movie',
+        60
+    );
+
     const shelves = useMemo(
         () => (Array.isArray(liveShelves) ? liveShelves : []),
         [liveShelves]
@@ -54,18 +80,22 @@ export default function Home() {
 
     // Initial focus on the FIRST tile of the FIRST shelf — not the
     // hero Play button, not the side nav.  Shelves render async as
-    // addons resolve, so we retry over ~2 s before giving up.  The
-    // first qualifying focusable is whichever shelf populates first
-    // (Continue Watching → Networks → first catalog shelf).
+    // addons resolve, so we retry over ~2 s before giving up.  In
+    // the filtered "TV Shows" / "Movies" tab view we target the
+    // tab grid list instead so focus snaps into the grid as soon
+    // as the first batch of items lands (= the page feels snappy
+    // even while remaining catalogues stream in).
     React.useEffect(() => {
         let cancelled = false;
         const trySetFocus = () => {
             if (cancelled) return false;
-            const region = document.querySelector(
-                '[data-testid="shelves-region"]'
-            );
-            if (!region) return false;
-            const first = region.querySelector('[data-focusable="true"]');
+            const target =
+                document.querySelector(
+                    `[data-testid="tab-grid-list-${filter}"]`
+                ) ||
+                document.querySelector('[data-testid="shelves-region"]');
+            if (!target) return false;
+            const first = target.querySelector('[data-focusable="true"]');
             if (!first) return false;
             try {
                 first.focus({ preventScroll: true });

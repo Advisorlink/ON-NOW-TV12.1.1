@@ -34,6 +34,38 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 41 — Feb 14, 2026)
+### Watch Later tiles unified with Continue Watching, snappier filter swaps, magic avatars, delete-profile confirm
+- **Watch Later tile → CW-style** (`pages/Library.jsx`).  Removed the
+  trash button + dual padded card.  Tile is now a single 16:9 button
+  with the backdrop filling edge-to-edge, the play badge bottom-left,
+  title and small mono subtitle (year for movies, S/E for episodes)
+  on the bottom-right gradient.  Long-press OK (or 700 ms mouse-down)
+  flips the tile into a "Remove from Watch Later?" confirm card with
+  Remove / Cancel buttons — exactly mirrors `ContinueWatchingShelf`.
+  Header now also shows "Hold OK to remove" hint when items exist.
+- **Snappier Home filter swaps** (`pages/Home.jsx`).  Two new
+  background-prefetch `useLiveShelves` hooks warm the cache for the
+  inactive filter views (series + movie + all minus the active one)
+  400 ms after the active view finishes loading.  Clicking "TV
+  Shows" / "Movies" in the SideNav now lands on cached data
+  instantly instead of a 2–3 s catalogue spin.  Initial-focus retry
+  now also targets `[data-testid="tab-grid-list-*"]` so focus snaps
+  into the tab grid as soon as items render (previously it only
+  found `[data-testid="shelves-region"]` which doesn't exist in
+  filter view).
+- **Magic / playing-cards / magician avatars** (`lib/avatars.jsx`).
+  Added 6 new avatars to the existing 100 (now 106 total):
+  🎩 top-hat, 🪄 magic wand, 🃏 joker card, 🔮 crystal ball,
+  ♠️ spade, ✨ sparkles.  Profile edit grid header auto-updates the
+  count (`CHOOSE AN AVATAR · 106`).
+- **Delete profile confirmation modal** (`pages/ProfileSelect.jsx`).
+  Manage profiles → Remove now opens a fixed-position glass modal
+  showing the profile's avatar, name, "Are you sure you want to
+  delete '<name>'?", and Cancel / Yes,delete buttons.  Cancel
+  starts focused.  Backdrop click also cancels.
+
+
 ## Implemented (Iteration 34 — Feb 13, 2026)
 ### Full theme accent propagation + SideNav brand redesign
 - **`--vesper-blue-rgb` triplet added to every theme** (themes.js).

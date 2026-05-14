@@ -26,6 +26,10 @@ export default function ProfileSelect() {
     const [pinTarget, setPinTarget] = useState(null);   // profile awaiting PIN
     const [pinError, setPinError] = useState('');
     const [pinReset, setPinReset] = useState(0);
+    // Profile awaiting "are you sure?" delete confirmation.  Stored
+    // as the full profile object so the modal can show the name +
+    // avatar in the prompt.
+    const [removeTarget, setRemoveTarget] = useState(null);
 
     const activate = (id) => {
         setActiveProfile(id);
@@ -140,10 +144,7 @@ export default function ProfileSelect() {
                             profile={p}
                             editMode={editMode}
                             onPick={() => pick(p)}
-                            onRemove={() => {
-                                removeProfile(p.id);
-                                refresh();
-                            }}
+                            onRemove={() => setRemoveTarget(p)}
                         />
                     ))}
                     {profiles.filter((p) => !p.kids).length < 4 && (
@@ -174,6 +175,18 @@ export default function ProfileSelect() {
                     {editMode ? 'Done' : 'Manage profiles'}
                 </button>
             </div>
+
+            {removeTarget && (
+                <DeleteProfileConfirm
+                    profile={removeTarget}
+                    onCancel={() => setRemoveTarget(null)}
+                    onConfirm={() => {
+                        removeProfile(removeTarget.id);
+                        setRemoveTarget(null);
+                        refresh();
+                    }}
+                />
+            )}
 
             {pinTarget && (
                 <PinGate
@@ -313,6 +326,122 @@ function AddProfileTile({ onClick }) {
                 }}
             >
                 Add Profile
+            </div>
+        </div>
+    );
+}
+
+
+function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
+    return (
+        <div
+            data-testid="delete-profile-confirm"
+            className="fixed inset-0 z-[70] flex items-center justify-center"
+            style={{
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                padding: 24,
+            }}
+            onClick={(e) => {
+                // Backdrop click closes the modal.
+                if (e.target === e.currentTarget) onCancel();
+            }}
+        >
+            <div
+                className="flex flex-col items-center"
+                style={{
+                    background: 'rgba(11,19,34,0.96)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 24,
+                    padding: '40px 56px 36px',
+                    minWidth: 420,
+                    maxWidth: 540,
+                    boxShadow:
+                        '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
+                }}
+            >
+                <div style={{ marginBottom: 18 }}>
+                    <AvatarCircle avatarId={profile.avatarId} size={92} />
+                </div>
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: '#FCA5A5',
+                        textTransform: 'uppercase',
+                        marginBottom: 6,
+                    }}
+                >
+                    Delete profile
+                </div>
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(24px, 2.4vw, 32px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.1,
+                        textAlign: 'center',
+                        marginBottom: 10,
+                    }}
+                >
+                    Are you sure you want to delete &ldquo;{profile.name}&rdquo;?
+                </h2>
+                <p
+                    style={{
+                        color: 'var(--vesper-text-2)',
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        textAlign: 'center',
+                        marginBottom: 26,
+                        maxWidth: 380,
+                    }}
+                >
+                    All of this profile&apos;s library, watch later list, and
+                    progress will be gone for good. This can&apos;t be undone.
+                </p>
+                <div className="flex" style={{ gap: 12 }}>
+                    <button
+                        data-testid="delete-profile-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        data-testid="delete-profile-confirm-btn"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onConfirm}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: '#DC2626',
+                            color: '#fff',
+                            border: '1px solid rgba(239,68,68,0.5)',
+                            boxShadow:
+                                '0 8px 24px rgba(220,38,38,0.35)',
+                        }}
+                    >
+                        Yes, delete
+                    </button>
+                </div>
             </div>
         </div>
     );

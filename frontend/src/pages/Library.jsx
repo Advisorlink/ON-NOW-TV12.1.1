@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -6,7 +6,6 @@ import {
     Bookmark,
     Play,
     Sparkles,
-    Trash2,
     Maximize2,
     X,
 } from 'lucide-react';
@@ -582,32 +581,49 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
                         Watch Later
                     </h2>
                 </div>
-                {items.length > 0 && (
-                    <button
-                        data-testid="watch-later-expand"
-                        data-focusable="true"
-                        data-focus-style="quiet"
-                        tabIndex={0}
-                        onClick={onExpand}
-                        aria-label="Expand Watch Later"
-                        className="flex items-center gap-2 rounded-full vesper-mono"
-                        style={{
-                            height: 34,
-                            padding: '0 14px',
-                            background: 'rgba(var(--vesper-blue-rgb), 0.14)',
-                            color: 'var(--vesper-blue-bright)',
-                            border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
-                            fontSize: 11,
-                            letterSpacing: '0.22em',
-                            textTransform: 'uppercase',
-                            fontWeight: 600,
-                            flex: '0 0 auto',
-                        }}
-                    >
-                        <Maximize2 size={12} strokeWidth={2.4} />
-                        Expand
-                    </button>
-                )}
+                <div
+                    className="flex items-center"
+                    style={{ gap: 14, flex: '0 0 auto' }}
+                >
+                    {items.length > 0 && (
+                        <span
+                            className="vesper-mono"
+                            style={{
+                                color: 'var(--vesper-text-3)',
+                                fontSize: 11,
+                                letterSpacing: '0.22em',
+                                textTransform: 'uppercase',
+                            }}
+                        >
+                            Hold OK to remove
+                        </span>
+                    )}
+                    {items.length > 0 && (
+                        <button
+                            data-testid="watch-later-expand"
+                            data-focusable="true"
+                            data-focus-style="quiet"
+                            tabIndex={0}
+                            onClick={onExpand}
+                            aria-label="Expand Watch Later"
+                            className="flex items-center gap-2 rounded-full vesper-mono"
+                            style={{
+                                height: 34,
+                                padding: '0 14px',
+                                background: 'rgba(var(--vesper-blue-rgb), 0.14)',
+                                color: 'var(--vesper-blue-bright)',
+                                border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
+                                fontSize: 11,
+                                letterSpacing: '0.22em',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                            }}
+                        >
+                            <Maximize2 size={12} strokeWidth={2.4} />
+                            Expand
+                        </button>
+                    )}
+                </div>
             </div>
 
             {items.length === 0 ? (
@@ -795,8 +811,12 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
 
 
 function WatchLaterTile({ item, onPlay, onRemove, big }) {
-    // Unified rendering for both shapes.  We always render a 16:9
-    // landscape thumb so the rail has a consistent rhythm.
+    // CW-style landscape tile: 16:9 backdrop, bottom gradient,
+    // Play badge bottom-left, title + small mono subtitle.  No
+    // progress bar (these haven't been started) and no visible
+    // trash button.  Long-press OK (or mouse-down 700 ms) flips
+    // the tile into a "Remove from Watch Later?" confirm card,
+    // exactly like Continue Watching.
     let title;
     let subtitle;
     let thumb;
@@ -808,132 +828,237 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
     } else {
         const { showMeta, episode } = item;
         title = showMeta.name;
-        subtitle = `S${episode.season} · E${episode.number}${
-            episode.name && episode.name !== `S${episode.season} · E${episode.number}`
-                ? ` · ${episode.name}`
-                : ''
-        }`;
+        subtitle = `S${episode.season} · E${episode.number}`;
         thumb = episode.thumbnail || showMeta.background || showMeta.poster;
     }
 
+    const [confirmRemove, setConfirmRemove] = useState(false);
+    const pressTimer = useRef(null);
+    const startPress = useCallback(() => {
+        if (pressTimer.current) clearTimeout(pressTimer.current);
+        pressTimer.current = setTimeout(() => {
+            pressTimer.current = null;
+            setConfirmRemove(true);
+        }, 700);
+    }, []);
+    const cancelPress = useCallback(() => {
+        if (pressTimer.current) {
+            clearTimeout(pressTimer.current);
+            pressTimer.current = null;
+        }
+    }, []);
+    useEffect(() => () => cancelPress(), [cancelPress]);
+
+    const tileSize = big
+        ? { width: '100%', minWidth: 0 }
+        : { width: '100%', minWidth: 0 };
+
+    const handleClick = () => {
+        if (confirmRemove) return;
+        onPlay();
+    };
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
+            if (!e.repeat) startPress();
+        }
+    };
+    const handleKeyUp = (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
+            const wasShortPress = !!pressTimer.current;
+            cancelPress();
+            if (wasShortPress && !confirmRemove) {
+                e.preventDefault();
+                onPlay();
+            }
+        }
+    };
+
+    if (confirmRemove) {
+        return (
+            <div
+                className="relative overflow-hidden"
+                style={{
+                    ...tileSize,
+                    aspectRatio: '16 / 9',
+                    borderRadius: big ? 18 : 14,
+                    background: 'rgba(11,19,34,0.92)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: 14,
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: 'var(--vesper-text-2)',
+                        textAlign: 'center',
+                        lineHeight: 1.3,
+                        padding: '0 6px',
+                    }}
+                >
+                    Remove from Watch Later?
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        data-testid={`watch-later-remove-confirm-${item.type}-${item.id}`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => {
+                            setConfirmRemove(false);
+                            onRemove();
+                        }}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: 999,
+                            background: '#FF6B6B',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 12,
+                            border: 'none',
+                        }}
+                    >
+                        Remove
+                    </button>
+                    <button
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={() => setConfirmRemove(false)}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 12,
+                            border: 'none',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div
-            className="relative overflow-hidden"
+        <button
+            data-testid={`watch-later-${item.type}-${item.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={handleClick}
+            onKeyDown={handleKeyDown}
+            onKeyUp={handleKeyUp}
+            onMouseDown={startPress}
+            onMouseUp={cancelPress}
+            onMouseLeave={cancelPress}
+            className="relative overflow-hidden text-left block"
             style={{
-                borderRadius: big ? 16 : 12,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                flex: '0 0 auto',
+                ...tileSize,
+                aspectRatio: '16 / 9',
+                borderRadius: big ? 18 : 14,
+                background: '#0B1322',
+                border: '1px solid rgba(255,255,255,0.06)',
+                padding: 0,
             }}
         >
-            <button
-                data-testid={`watch-later-${item.type}-${item.id}`}
-                data-focusable="true"
-                data-focus-style="tile"
-                tabIndex={0}
-                onClick={onPlay}
-                className="w-full text-left block"
+            {thumb ? (
+                <img
+                    src={thumb}
+                    alt={title || ''}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                    }}
+                />
+            ) : null}
+
+            {/* Bottom gradient for legibility */}
+            <div
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
+                    background:
+                        'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.85) 100%)',
                 }}
-            >
-                <div
-                    className="relative w-full overflow-hidden"
-                    style={{
-                        aspectRatio: '16 / 9',
-                        background: thumb
-                            ? '#1a1f2e'
-                            : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.3), rgba(10,14,26,0.9))',
-                    }}
-                >
-                    {thumb && (
-                        <img
-                            src={thumb}
-                            alt=""
-                            className="absolute inset-0 w-full h-full object-cover"
-                            loading="lazy"
-                        />
-                    )}
-                    <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{
-                            background:
-                                'linear-gradient(180deg, rgba(6,8,15,0.05) 0%, rgba(6,8,15,0.55) 100%)',
-                        }}
-                    >
-                        <span
-                            className="flex items-center justify-center rounded-full"
-                            style={{
-                                width: big ? 56 : 42,
-                                height: big ? 56 : 42,
-                                background: 'rgba(6,8,15,0.78)',
-                                border:
-                                    '1px solid rgba(var(--vesper-blue-rgb), 0.55)',
-                                color: 'var(--vesper-blue-bright)',
-                            }}
-                        >
-                            <Play size={big ? 22 : 16} strokeWidth={2.4} />
-                        </span>
-                    </div>
-                </div>
-                <div
-                    style={{
-                        padding: big ? '12px 14px 14px' : '9px 11px 10px',
-                    }}
-                >
-                    <div
-                        style={{
-                            fontSize: big ? 15 : 12,
-                            fontWeight: 600,
-                            color: 'var(--vesper-text)',
-                            lineHeight: 1.25,
-                            // Single-line truncation; landscape tiles are
-                            // narrow so episode names easily overflow.
-                            display: '-webkit-box',
-                            WebkitLineClamp: 1,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        {title}
-                    </div>
-                    <div
-                        style={{
-                            fontSize: big ? 12 : 10,
-                            color: 'var(--vesper-text-2)',
-                            marginTop: 3,
-                            display: '-webkit-box',
-                            WebkitLineClamp: 1,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        {subtitle}
-                    </div>
-                </div>
-            </button>
-            <button
-                data-testid={`watch-later-remove-${item.type}-${item.id}`}
-                data-focusable="true"
-                data-focus-style="quiet"
-                tabIndex={0}
-                onClick={onRemove}
-                aria-label="Remove from Watch Later"
-                className="absolute flex items-center justify-center rounded-full"
+            />
+
+            {/* Play badge bottom-left */}
+            <div
+                className="absolute"
                 style={{
-                    top: 6,
-                    right: 6,
-                    width: 26,
-                    height: 26,
-                    background: 'rgba(6,8,15,0.85)',
+                    left: 14,
+                    bottom: big ? 26 : 22,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: big ? 40 : 36,
+                    height: big ? 40 : 36,
+                    borderRadius: 999,
+                    background: 'rgba(11,19,34,0.7)',
                     border: '1px solid rgba(255,255,255,0.18)',
-                    color: 'var(--vesper-text-2)',
+                    backdropFilter: 'blur(8px)',
                 }}
             >
-                <Trash2 size={12} strokeWidth={2} />
-            </button>
-        </div>
+                <Play
+                    size={big ? 16 : 14}
+                    fill="#fff"
+                    color="#fff"
+                    style={{ marginLeft: 2 }}
+                />
+            </div>
+
+            {/* Title + subtitle */}
+            <div
+                className="absolute"
+                style={{
+                    left: 14,
+                    right: 14,
+                    bottom: big ? 12 : 10,
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: 'clamp(13px, 1vw, 16px)',
+                        fontWeight: 700,
+                        color: '#fff',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        paddingLeft: big ? 50 : 46,
+                    }}
+                >
+                    {title}
+                </div>
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        color: 'var(--vesper-blue)',
+                        marginTop: 3,
+                        paddingLeft: big ? 50 : 46,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
+                    {subtitle}
+                </div>
+            </div>
+        </button>
     );
 }
