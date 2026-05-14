@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 43 — Feb 14, 2026)
+### Profile creation wizard becomes 4 steps (name → avatar → theme → PIN)
+- **New Theme step inserted between Avatar and PIN** in the Profile creation wizard (`pages/ProfileEdit.jsx`). After the user confirms an avatar, they now land on Step 3 of 4 — a 9-theme grid (Vesper Neon, Hot Magenta, Sunset, Amethyst, Emerald, Ember, Gold, Mint, etc.) with an active checkmark indicator and a "Next: profile PIN" button. The PIN yes/no prompt now fires from this new step (was previously triggered by the avatar confirm).
+- **Theme is persisted per-profile** at scoped `localStorage` key `onnowtv-theme:<newProfileId>`. ThemeProvider already reads this scoped key via `readScopedString` and re-applies whenever `vesper:profile-change` fires, so the new profile's chosen theme is live the moment it becomes active.
+- **Back button walks the wizard chain**: theme → avatar → name → exit to /profiles.
+- **Initial focus on the theme grid** lands on the currently active theme card (relevant when editing an existing profile).
+- Tested by `testing_agent_v3_fork` (iteration_6.json) — all 8 scenarios pass at 100% including PIN-yes/save, PIN-skip, back-button regression and scoped theme persistence verification.
+
+
 ## Implemented (Iteration 42 — Feb 14, 2026)
 ### Search redesigned to match Profile NameStep, Settings + Stream lists go line-by-line on D-pad
 - **/search redesigned** (`pages/Search.jsx`) for both main app and Kids. Centered card now mirrors the Profile creation NameStep: large circular search-icon medallion → mono eyebrow ("Search" / "Kid-safe search") → big display heading ("What are you **looking** for?" / "What do you **want** to watch?" with one word highlighted in blue) → pill-shaped query preview row (SearchIcon, animated cursor, char-count, optional mic) → on-screen TVKeyboard → single primary Search button with right-arrow icon. Removed the old left-aligned hero + side-by-side search bar layout. Results grid + KidsBlockedMessage still render below when present.

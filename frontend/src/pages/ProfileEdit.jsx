@@ -513,12 +513,12 @@ function ThemeStep({ chosenTheme, onPick, onNext }) {
                     marginBottom: 28,
                 }}
             >
-                {THEMES.map((t, i) => (
+                {THEMES.map((t) => (
                     <ProfileThemeCard
                         key={t.id}
                         theme={t}
                         active={chosenTheme === t.id}
-                        initialFocus={i === 0}
+                        initialFocus={chosenTheme === t.id}
                         onPick={() => onPick(t.id)}
                     />
                 ))}
