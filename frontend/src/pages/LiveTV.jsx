@@ -6,8 +6,10 @@ import {
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
+import LiveTVBoot from '@/components/LiveTVBoot';
 import {
     getActiveProvider,
+    authenticate,
     getCategories,
     getStreams,
     getNowNext,
@@ -15,7 +17,7 @@ import {
     getStreamUrl,
 } from '@/lib/xtream';
 import {
-    listFavouriteIds, toggleFavourite,
+    listFavourites, listFavouriteIds, toggleFavourite,
     hasReminder, toggleReminder, rehydrateReminders,
 } from '@/lib/xtreamPrefs';
 import Host from '@/lib/host';
@@ -96,9 +98,8 @@ export default function LiveTV() {
 
 function LiveTVGrid({ provider, onChangeProvider }) {
     const [cats, setCats] = useState([]);
-    const [catsLoading, setCatsLoading] = useState(true);
     const [catsError, setCatsError] = useState('');
-    const [activeCat, setActiveCat] = useState('__all__');
+    const [activeCat, setActiveCat] = useState(null); // null until cats arrive
     const [channels, setChannels] = useState([]);
     const [channelsLoading, setChannelsLoading] = useState(false);
     const [focusedChannel, setFocusedChannel] = useState(null);
@@ -106,12 +107,25 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     const [remVer, setRemVer] = useState(0);
     const [refreshing, setRefreshing] = useState(false);
 
-    // EPG caches
-    const nowNextCache = useRef(new Map());  // sid -> { now, next, fetchedAt }
-    const fullEpgCache = useRef(new Map());  // sid -> { items, fetchedAt }
+    // Boot sequence — TV Mate style.  Once `booted` is true the
+    // hero + 3-col body take over.  Until then we render the
+    // LiveTVBoot loading screen with per-stage progress.
+    const [booted, setBooted] = useState(false);
+    const [stages, setStages] = useState(() => [
+        { id: 'auth', label: 'Authenticating with provider', status: 'pending' },
+        { id: 'cats', label: 'Fetching channel categories', status: 'pending' },
+        { id: 'warm', label: 'Pre-warming the EPG guide', status: 'pending' },
+    ]);
+
+    // EPG caches (key: stream_id)
+    const nowNextCache = useRef(new Map());
+    const fullEpgCache = useRef(new Map());
     const [, setEpgTick] = useState(0);
     const nowAbort = useRef(null);
     const fullAbort = useRef(null);
+    // Track which categories' channel lists we've already fetched
+    // so a return-to-category is instant.
+    const channelsCache = useRef(new Map()); // category_id -> [channels]
 
     const navigate = useNavigate();
 
@@ -127,46 +141,124 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         };
     }, []);
 
-    /* Categories — one shot */
+    /* -------------------------------------------------------------------
+     *  BOOT SEQUENCE — runs once per LiveTVGrid mount.
+     *  Stages:
+     *    1. auth   — quick GET to confirm credentials still valid
+     *    2. cats   — fetch the categories list (small, fast)
+     *    3. warm   — fetch the FIRST category's channels in background
+     *                so the initial focused channel has EPG instantly
+     *  We never fetch "all channels" — that's a TV Mate-style killer
+     *  for big providers (1000+ channels).
+     * ----------------------------------------------------------------- */
     useEffect(() => {
         let cancel = false;
+        const setStage = (id, patch) => {
+            if (cancel) return;
+            setStages((arr) => arr.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+        };
         (async () => {
+            // ---------- stage 1: auth ----------
+            setStage('auth', { status: 'active' });
             try {
-                setCatsLoading(true); setCatsError('');
-                const list = await getCategories(provider, 'live');
+                const auth = await authenticate(provider);
+                if (cancel) return;
+                if (!auth?.ok && auth?.user_info?.auth !== 1 && auth?.user_info?.auth !== '1') {
+                    // We got a response but credentials were rejected.
+                    setStage('auth', { status: 'failed', detail: 'Credentials rejected.' });
+                    setCatsError('Provider rejected the saved credentials.');
+                    return;
+                }
+                setStage('auth', { status: 'done', detail: 'Connected.' });
+            } catch (e) {
+                if (cancel) return;
+                setStage('auth', { status: 'failed', detail: 'Server unreachable.' });
+                // Don't bail — categories might still come back from the
+                // backend proxy fallback.  We just won't have an "auth OK"
+                // indicator.
+            }
+
+            // ---------- stage 2: categories ----------
+            setStage('cats', { status: 'active' });
+            let list = [];
+            try {
+                list = await getCategories(provider, 'live');
                 if (cancel) return;
                 setCats(Array.isArray(list) ? list : []);
+                if (list?.length) {
+                    setActiveCat(list[0].category_id);
+                    setStage('cats', { status: 'done', detail: `${list.length} categories.` });
+                } else {
+                    setStage('cats', { status: 'failed', detail: 'No categories returned.' });
+                }
             } catch (e) {
-                if (!cancel) setCatsError(e?.message || 'Could not reach your IPTV server.');
-            } finally {
-                if (!cancel) setCatsLoading(false);
+                if (cancel) return;
+                setStage('cats', { status: 'failed', detail: e?.message || 'Could not load categories.' });
+                setCatsError(e?.message || 'Could not reach your IPTV server.');
+                // Even if cats failed, render the empty grid so the
+                // user can pick favourites / change provider.
+                setTimeout(() => !cancel && setBooted(true), 300);
+                return;
             }
+
+            // ---------- stage 3: pre-warm first category ----------
+            setStage('warm', { status: 'active', detail: list[0]?.category_name || '' });
+            try {
+                const first = list[0];
+                if (first) {
+                    const ch = await getStreams(provider, 'live', first.category_id);
+                    if (cancel) return;
+                    channelsCache.current.set(first.category_id, Array.isArray(ch) ? ch : []);
+                    setChannels(Array.isArray(ch) ? ch : []);
+                    if (ch?.length) setFocusedChannel(ch[0]);
+                    setStage('warm', {
+                        status: 'done',
+                        detail: ch?.length ? `${ch.length} channels ready.` : 'No channels in first category.',
+                    });
+                }
+            } catch (e) {
+                if (cancel) return;
+                setStage('warm', { status: 'failed', detail: e?.message || 'Could not warm cache.' });
+            }
+
+            // Let the user see the "ready" state for a beat so it doesn't
+            // feel like a flicker, then transition to the grid.
+            setTimeout(() => !cancel && setBooted(true), 600);
         })();
         return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider]);
 
-    /* Channels for selected category */
+    /* Channels for selected category — only fires after boot.  Uses
+       the in-memory cache so re-selecting a previously-loaded
+       category is instant. */
     useEffect(() => {
+        if (!booted) return undefined;
+        if (!activeCat) return undefined;
         let cancel = false;
         (async () => {
             try {
-                setChannelsLoading(true);
-                let list;
                 if (activeCat === '__fav__') {
-                    // For favourites we need ALL channels to filter against
-                    // saved IDs (since they could span any category).
-                    list = await getStreams(provider, 'live');
-                    const favs = listFavouriteIds(provider.id);
-                    list = (list || []).filter((c) => favs.has(String(c.stream_id)));
-                } else if (activeCat === '__all__') {
-                    list = await getStreams(provider, 'live');
-                } else {
-                    list = await getStreams(provider, 'live', activeCat);
+                    // Favourites render from localStorage only — no
+                    // round-trip needed.
+                    const favs = listFavourites(provider.id);
+                    setChannels(favs);
+                    setFocusedChannel(favs[0] || null);
+                    return;
                 }
+                const cached = channelsCache.current.get(activeCat);
+                if (cached) {
+                    setChannels(cached);
+                    setFocusedChannel(cached[0] || null);
+                    return;
+                }
+                setChannelsLoading(true);
+                const list = await getStreams(provider, 'live', activeCat);
                 if (cancel) return;
-                setChannels(Array.isArray(list) ? list : []);
-                if (list?.length) setFocusedChannel(list[0]);
-                else setFocusedChannel(null);
+                const arr = Array.isArray(list) ? list : [];
+                channelsCache.current.set(activeCat, arr);
+                setChannels(arr);
+                setFocusedChannel(arr[0] || null);
             } catch (e) {
                 if (!cancel) console.warn('streams', e);
             } finally {
@@ -174,7 +266,8 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             }
         })();
         return () => { cancel = true; };
-    }, [provider, activeCat, favVer]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [provider, activeCat, favVer, booted]);
 
     /* NOW/NEXT for focused channel — debounced, abortable */
     useEffect(() => {
@@ -221,10 +314,14 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     const refreshAll = useCallback(() => {
         nowNextCache.current.clear();
         fullEpgCache.current.clear();
+        channelsCache.current.clear();
         setRefreshing(true);
-        setEpgTick((v) => v + 1);
-        setTimeout(() => setRefreshing(false), 600);
-    }, []);
+        // Force re-fetch of the active category by toggling cat key.
+        const cur = activeCat;
+        setActiveCat(null);
+        setTimeout(() => setActiveCat(cur), 50);
+        setTimeout(() => setRefreshing(false), 800);
+    }, [activeCat]);
 
     const playChannel = useCallback(async (channel) => {
         if (!channel) return;
@@ -245,7 +342,12 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     const focusedNowNext = focusedChannel ? nowNextCache.current.get(focusedChannel.stream_id) : null;
     const focusedFullEpg = focusedChannel ? fullEpgCache.current.get(focusedChannel.stream_id) : null;
     const favCount = listFavouriteIds(provider.id).size;
-    void favVer; void remVer; // keep these in dep arrays even if not directly read
+    void favVer; void remVer;
+
+    // Boot screen — until cats arrive (or fail), show progress.
+    if (!booted) {
+        return <LiveTVBoot stages={stages} />;
+    }
 
     return (
         <div>
@@ -255,7 +357,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 channel={focusedChannel}
                 epg={focusedNowNext}
                 isFav={focusedChannel ? listFavouriteIds(provider.id).has(String(focusedChannel.stream_id)) : false}
-                onFav={() => focusedChannel && toggleFavourite(provider.id, focusedChannel.stream_id)}
+                onFav={() => focusedChannel && toggleFavourite(provider.id, focusedChannel)}
                 onRefresh={refreshAll}
                 refreshing={refreshing}
                 onExit={onChangeProvider}
@@ -272,7 +374,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 <CategoriesCol
                     cats={cats}
                     favCount={favCount}
-                    loading={catsLoading}
+                    loading={false}
                     error={catsError}
                     activeId={activeCat}
                     onPick={setActiveCat}
@@ -471,7 +573,7 @@ function CategoriesCol({ cats, favCount, loading, error, activeId, onPick }) {
             maxHeight: 'calc(100dvh - 290px)',
             overflowY: 'auto', contain: 'paint',
         }}>
-            {/* Favourites pill */}
+            {/* Favourites pill (renders from localStorage — no fetch). */}
             <CategoryRow
                 testid="live-cat-fav"
                 active={activeId === '__fav__'}
@@ -479,12 +581,6 @@ function CategoriesCol({ cats, favCount, loading, error, activeId, onPick }) {
                 heart
                 label="Favourites"
                 count={favCount}
-            />
-            <CategoryRow
-                testid="live-cat-all"
-                active={activeId === '__all__'}
-                onClick={() => onPick('__all__')}
-                label="All channels"
             />
             <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '10px 14px' }} />
             {loading ? (
@@ -636,11 +732,27 @@ function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
                 )}
                 <div style={{
                     width: 56, height: 38, flexShrink: 0, borderRadius: 6,
-                    background: channel.stream_icon
-                        ? `#0a0d18 center/contain no-repeat url(${channel.stream_icon})`
-                        : 'rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.06)',
-                }} />
+                    overflow: 'hidden',
+                    position: 'relative',
+                }}>
+                    {channel.stream_icon && (
+                        <img
+                            src={channel.stream_icon}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                            style={{
+                                position: 'absolute', inset: 0,
+                                width: '100%', height: '100%',
+                                objectFit: 'contain',
+                            }}
+                        />
+                    )}
+                </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{
                         fontSize: 15, fontWeight: 700, lineHeight: 1.2,

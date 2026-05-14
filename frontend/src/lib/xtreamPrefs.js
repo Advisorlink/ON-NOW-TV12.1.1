@@ -1,13 +1,16 @@
 /**
  * Live TV — Favourites + Reminders (per-provider, localStorage).
  *
- * Stored under:
- *   onnowtv-xtream-favs__{providerId}        → Set<string> of stream_ids
- *   onnowtv-xtream-reminders__{providerId}   → { [key]: { channelId, channelName, title, start, end } }
+ * Favourites store the FULL minimal channel object (stream_id, name,
+ * num, stream_icon, category_id) so the "Favourites" virtual
+ * category can render entirely from localStorage — no provider
+ * round-trip needed, no mega-fetch of every channel just to filter.
+ * This is the TV Mate pattern: each list view fetches the bare
+ * minimum it needs, never the entire catalog.
  *
- * Reminders fire a system Notification (web) or — in the native APK
- * — bubble up via `Host.notify(...)` if the bridge exposes it.
- * If neither is available we no-op silently.
+ * Stored under:
+ *   onnowtv-xtream-favs__{providerId}      → [{ stream_id, name, num, stream_icon, category_id }]
+ *   onnowtv-xtream-reminders__{providerId} → { [key]: { channelId, channelName, title, start, end } }
  */
 
 const FAV_KEY = (pid) => `onnowtv-xtream-favs__${pid}`;
@@ -15,29 +18,43 @@ const REM_KEY = (pid) => `onnowtv-xtream-reminders__${pid}`;
 
 /* --------------------------- favourites --------------------------- */
 
-export function listFavouriteIds(providerId) {
-    if (!providerId) return new Set();
+export function listFavourites(providerId) {
+    if (!providerId) return [];
     try {
         const raw = localStorage.getItem(FAV_KEY(providerId));
         const arr = raw ? JSON.parse(raw) : [];
-        return new Set(Array.isArray(arr) ? arr : []);
+        return Array.isArray(arr) ? arr : [];
     } catch {
-        return new Set();
+        return [];
     }
+}
+
+export function listFavouriteIds(providerId) {
+    return new Set(listFavourites(providerId).map((c) => String(c.stream_id)));
 }
 
 export function isFavourite(providerId, streamId) {
     return listFavouriteIds(providerId).has(String(streamId));
 }
 
-export function toggleFavourite(providerId, streamId) {
-    const s = listFavouriteIds(providerId);
-    const id = String(streamId);
-    if (s.has(id)) s.delete(id);
-    else s.add(id);
-    localStorage.setItem(FAV_KEY(providerId), JSON.stringify([...s]));
+export function toggleFavourite(providerId, channel) {
+    const list = listFavourites(providerId);
+    const id = String(channel.stream_id);
+    const idx = list.findIndex((c) => String(c.stream_id) === id);
+    if (idx >= 0) {
+        list.splice(idx, 1);
+    } else {
+        list.push({
+            stream_id: channel.stream_id,
+            name: channel.name,
+            num: channel.num,
+            stream_icon: channel.stream_icon,
+            category_id: channel.category_id,
+        });
+    }
+    localStorage.setItem(FAV_KEY(providerId), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('vesper:xtream-favs-change'));
-    return s.has(id);
+    return idx < 0;  // true if we just added
 }
 
 /* --------------------------- reminders --------------------------- */

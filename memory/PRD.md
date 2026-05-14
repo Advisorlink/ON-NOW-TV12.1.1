@@ -34,6 +34,24 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 64 — Feb 14, 2026)
+### Live TV — TV Mate-style boot + no mega-fetch
+- **🎯 User asked**: "Don't load all channels, just categories first, like TV Mate does. Add a loading screen telling what's being loaded. Shrink logos so it runs fast. No glow / drop shadow anywhere."
+- **🚀 New boot sequence** (`components/LiveTVBoot.jsx`): Renders a setup screen with a thin progress bar + three stages, each with `pending → active → done/failed` states:
+  1. **Authenticating with provider** — verifies credentials.
+  2. **Fetching channel categories** — pulls the category list.
+  3. **Pre-warming the EPG guide** — fetches ONLY the first category's channels so the initial focused channel has EPG instantly when the grid takes over.
+  Once all three stages are done (or fail) the screen fades to the hero+grid view.  Subtitle: "We're cataloguing your channels and pre-warming the guide so zapping stays buttery-fast. This only runs once each session."  Zero glow / drop shadow / scale animations — only the one spinner per active stage and the progress bar fill transition.
+- **🚫 Removed the "All channels" virtual category** — it was the killer.  On big providers (1000+ channels) it forced a mega-fetch every time the user switched to that pill OR to "Favourites" (which previously used the all-channels list to filter).  Both are gone.  Now:
+  - Categories pill only ever fetches the channels for ONE category at a time.
+  - In-memory per-category `channelsCache` Map → reselecting a category is instant.
+  - Favourites virtual pill renders entirely from localStorage — **zero round-trips**.
+- **❤️ Favourites store the full minimal channel object** (`stream_id, name, num, stream_icon, category_id`) so the Favourites view renders directly from `localStorage.onnowtv-xtream-favs__{providerId}`.  No mega-fetch needed to display the user's favourite channels.
+- **🖼 Logo lazy-loading**: channel logo `<img>` tags now use `loading="lazy" decoding="async" referrerPolicy="no-referrer"` and an `onError` handler that hides broken images.  Combined with `content-visibility: auto` on the row, off-screen logos are never even requested.  Massive bandwidth + perf win on lists with 200+ channels.
+- **♻️ Refresh action** now also clears the `channelsCache` and re-fetches the active category — so the user always has an escape hatch if EPG is stale.
+- **🎨 Zero glow / drop shadow / scale**: confirmed across the whole Live TV surface area.  Hero pill button is a flat white pill, channel rows use border tints only, EPG rows use a tinted background only.
+
+
 ## Implemented (Iteration 63 — Feb 14, 2026)
 ### Live TV — full redesign to match user's reference + reminders
 - **🎨 User sent the reference screenshot**. Re-skinned everything to match. Key differences vs iter 61/62:
