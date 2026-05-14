@@ -1825,6 +1825,14 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
         };
 
         const onKey = (e) => {
+            // Escape closes the overlay — keyboard parity with the
+            // back button.  Cheap quality-of-life win.
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+                return;
+            }
             if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
             const active = document.activeElement;
             if (!active || !root.contains(active)) return;

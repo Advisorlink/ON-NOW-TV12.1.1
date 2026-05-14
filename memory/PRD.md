@@ -34,6 +34,16 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 53 — Feb 14, 2026)
+### Build-Your-Own avatar overlay — D-pad + sticky preview
+- **🎮 D-pad now works inside the builder** (`pages/ProfileEdit.jsx` → `BuildAvatarOverlay`). Added a scoped capture-phase keydown handler mirroring `AvatarStep`: walks `[data-builder-row="true"]` containers row-by-row in DOM order, preserves the active button's screen-X column on row changes, wraps Left/Right at row edges. Every focus move triggers `scrollIntoView({behavior:'smooth', block:'center', inline:'center'})` so the focused chip is always visible.
+- **🎯 Auto-focus on open** — first chip of the Hair row receives focus 60 ms after the overlay mounts so the D-pad has somewhere to start.
+- **📌 Sticky preview header** — back-button, title and live preview circle are now wrapped in `[data-testid="build-avatar-sticky"]` with `position: sticky; top: 0`. Chip area scrolls underneath while the preview stays pinned. Preview circle resized 220 → 140 px to fit the sticky band neatly.
+- **⌨️ Escape key closes the overlay** (keyboard parity with the Back button).
+- **🎨 Step-2 sticky preview** moved from `top: -6` → `top: 0` so it no longer drifts.
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_16.json) — 10/10 scenarios PASS at 100%. D-pad reaches every chip + Cancel + Save; sticky preview stays pinned during scroll; click updates preview within ~200 ms; zero console errors.
+
+
 ## Implemented (Iteration 52 — Feb 14, 2026)
 ### Avatar step D-pad hardening + sticky preview header
 - **🔧 Scoped D-pad navigation** (`pages/ProfileEdit.jsx` → `AvatarStep`). Replaces the global spatial-focus dependency with a scoped capture-phase keydown handler that walks focusable tiles in pure DOM order:
