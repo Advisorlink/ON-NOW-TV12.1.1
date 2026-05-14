@@ -188,13 +188,23 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&type=live`);
     }, [provider, navigate]);
 
+    const activeCategoryName = useMemo(
+        () => cats.find((c) => c.category_id === activeCat)?.category_name || '',
+        [cats, activeCat],
+    );
+
     if (!booted) {
         return <LiveTVBoot stages={stages} />;
     }
 
     return (
         <div>
-            <LiveHeroLean channel={focusedChannel} onPlay={() => playChannel(focusedChannel)} onExit={onChangeProvider} />
+            <LiveHeroLean
+                channel={focusedChannel}
+                categoryName={activeCategoryName}
+                onPlay={() => playChannel(focusedChannel)}
+                onExit={onChangeProvider}
+            />
             <div className="grid" style={{
                 gridTemplateColumns: 'minmax(220px, 260px) minmax(0, 1fr)',
                 gap: 16,
@@ -220,27 +230,75 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 /* ============================ Hero (lean) ============================ */
 
-function LiveHeroLean({ channel, onPlay, onExit }) {
+function LiveHeroLean({ channel, categoryName, onPlay, onExit }) {
+    const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
+    const eyebrowParts = ['LIVE TV'];
+    if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
+    if (categoryName) eyebrowParts.push(categoryName.toUpperCase());
+
     return (
         <section data-testid="live-tv-hero" style={{
-            padding: '36px 40px 22px 40px',
+            padding: '32px 40px 18px 40px',
             background: 'transparent',
             minHeight: 200,
         }}>
-            <div className="flex items-start justify-between" style={{ gap: 32 }}>
-                <div className="flex flex-col" style={{ gap: 10, flex: 1, minWidth: 0 }}>
+            <div className="flex items-stretch justify-between" style={{ gap: 28 }}>
+                {/* Channel logo card — solid bg, thin border, no filter */}
+                <div
+                    data-testid="live-tv-hero-logo"
+                    style={{
+                        width: 168,
+                        height: 112,
+                        flexShrink: 0,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 16,
+                        position: 'relative',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {logoSrc ? (
+                        <img
+                            src={logoSrc}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                objectFit: 'contain',
+                            }}
+                        />
+                    ) : (
+                        <div className="vesper-mono" style={{
+                            fontSize: 12,
+                            letterSpacing: '0.3em',
+                            color: 'rgba(255,255,255,0.35)',
+                        }}>
+                            NO LOGO
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-col" style={{ gap: 8, flex: 1, minWidth: 0, justifyContent: 'center' }}>
                     <div className="vesper-mono" style={{
                         fontSize: 11, letterSpacing: '0.32em',
                         color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
-                        LIVE TV{channel?.num != null ? ` · CH ${channel.num}` : ''}
+                        {eyebrowParts.join(' · ')}
                     </div>
                     <h1 className="vesper-display" style={{
-                        fontSize: 'clamp(36px, 4vw, 56px)',
+                        fontSize: 'clamp(34px, 3.6vw, 52px)',
                         letterSpacing: '-0.025em',
-                        lineHeight: 1,
+                        lineHeight: 1.02,
                         color: '#fff',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        margin: 0,
                     }}>
                         {channel?.name || 'Live TV'}
                     </h1>
@@ -254,18 +312,19 @@ function LiveHeroLean({ channel, onPlay, onExit }) {
                         disabled={!channel}
                         className="flex items-center gap-2 rounded-full font-sans"
                         style={{
-                            marginTop: 16, height: 50, padding: '0 26px',
-                            fontSize: 15, fontWeight: 700,
+                            marginTop: 10, height: 48, padding: '0 24px',
+                            fontSize: 14, fontWeight: 700,
                             background: '#fff', color: '#0B1322', border: 'none',
                             alignSelf: 'flex-start',
                             opacity: channel ? 1 : 0.5,
                             cursor: channel ? 'pointer' : 'not-allowed',
                         }}
                     >
-                        <Play size={16} strokeWidth={2.5} fill="#0B1322" />
+                        <Play size={15} strokeWidth={2.5} fill="#0B1322" />
                         Watch full-screen
                     </button>
                 </div>
+
                 <button
                     data-testid="hero-exit"
                     data-focusable="true"
@@ -275,7 +334,7 @@ function LiveHeroLean({ channel, onPlay, onExit }) {
                     aria-label="Change provider"
                     className="flex items-center justify-center rounded-full"
                     style={{
-                        width: 44, height: 44,
+                        width: 44, height: 44, alignSelf: 'flex-start',
                         background: 'rgba(255,255,255,0.06)',
                         border: '1px solid rgba(255,255,255,0.14)',
                         color: 'var(--vesper-text)',
@@ -309,31 +368,44 @@ function CategoriesCol({ cats, error, activeId, onPick }) {
                         Normal in web preview. Works on sideloaded APK.
                     </div>
                 </div>
-            ) : cats.map((c) => (
-                <button
-                    key={c.category_id}
-                    data-testid={`live-cat-${c.category_id}`}
-                    data-focusable="true"
-                    data-focus-style="quiet"
-                    tabIndex={0}
-                    onFocus={() => onPick(c.category_id)}
-                    onClick={() => onPick(c.category_id)}
-                    className="text-left"
-                    style={{
-                        display: 'block', width: 'calc(100% - 10px)', margin: '0 5px',
-                        padding: '9px 12px',
-                        background: c.category_id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent',
-                        borderLeft: c.category_id === activeId ? '3px solid var(--vesper-blue-bright)' : '3px solid transparent',
-                        borderTop: 'none', borderRight: 'none', borderBottom: 'none',
-                        borderRadius: 6,
-                        color: c.category_id === activeId ? '#fff' : 'var(--vesper-text-2)',
-                        fontSize: 13, fontWeight: c.category_id === activeId ? 700 : 500,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}
-                >
-                    {c.category_name}
-                </button>
-            ))}
+            ) : cats.map((c) => {
+                const isActive = c.category_id === activeId;
+                return (
+                    <button
+                        key={c.category_id}
+                        data-testid={`live-cat-${c.category_id}`}
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onFocus={() => onPick(c.category_id)}
+                        onClick={() => onPick(c.category_id)}
+                        className="text-left flex items-center"
+                        style={{
+                            width: 'calc(100% - 10px)', margin: '0 5px',
+                            padding: '9px 12px',
+                            gap: 10,
+                            background: isActive ? 'rgba(93,200,255,0.12)' : 'transparent',
+                            borderLeft: isActive ? '3px solid var(--vesper-blue-bright)' : '3px solid transparent',
+                            borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                            borderRadius: 6,
+                            color: isActive ? '#fff' : 'var(--vesper-text-2)',
+                            fontSize: 13, fontWeight: isActive ? 700 : 500,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <span style={{
+                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                            background: isActive ? 'var(--vesper-blue-bright)' : 'rgba(255,255,255,0.18)',
+                        }} />
+                        <span style={{
+                            flex: 1, minWidth: 0,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                            {c.category_name}
+                        </span>
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -420,37 +492,42 @@ function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
                     width: 'calc(100% - 12px)',
                     margin: '2px 6px',
                     padding: '8px 12px',
-                    gap: 12,
-                    background: focused ? 'rgba(255,255,255,0.06)' : 'transparent',
-                    border: 'none',
+                    gap: 14,
+                    background: focused ? 'rgba(93,200,255,0.10)' : 'transparent',
+                    borderLeft: focused
+                        ? '3px solid var(--vesper-blue-bright)'
+                        : '3px solid transparent',
+                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
                     borderRadius: 8,
-                    color: 'var(--vesper-text)',
+                    color: focused ? '#fff' : 'var(--vesper-text)',
                     cursor: 'pointer',
-                    minHeight: 48,
+                    minHeight: 52,
                 }}
             >
                 {channel.num != null && (
                     <span style={{
                         fontFamily: 'monospace', fontSize: 12,
-                        color: 'var(--vesper-text-3)',
+                        color: focused ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)',
                         minWidth: 36, textAlign: 'right', fontWeight: 700,
+                        letterSpacing: '0.04em',
                     }}>
                         {channel.num}
                     </span>
                 )}
                 <span style={{
-                    width: 36, height: 24, flexShrink: 0,
+                    width: 44, height: 30, flexShrink: 0,
                     background: 'rgba(255,255,255,0.04)',
-                    borderRadius: 3,
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 4,
                     overflow: 'hidden',
                     position: 'relative',
                 }}>
                     {channel.stream_icon && (
                         <img
-                            src={proxiedLogo(channel.stream_icon, 36)}
+                            src={proxiedLogo(channel.stream_icon, 44)}
                             alt=""
-                            width={36}
-                            height={24}
+                            width={44}
+                            height={30}
                             loading="lazy"
                             decoding="async"
                             referrerPolicy="no-referrer"
@@ -459,13 +536,15 @@ function ChannelRowLean({ channel, focused, onFocus, onPlay }) {
                                 position: 'absolute', inset: 0,
                                 width: '100%', height: '100%',
                                 objectFit: 'contain',
+                                padding: 3,
                             }}
                         />
                     )}
                 </span>
                 <span style={{
                     flex: 1, minWidth: 0,
-                    fontSize: 14, fontWeight: 600,
+                    fontSize: 14,
+                    fontWeight: focused ? 700 : 600,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                     {channel.name}
