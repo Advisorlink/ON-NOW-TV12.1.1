@@ -48,6 +48,32 @@ export default function Library() {
 
     const navigate = useNavigate();
 
+    // Global Back-key handler — Android TV remote BACK maps to
+    // Escape inside the WebView (and Backspace inside a desktop
+    // browser).  Without this the user could land on a tile, press
+    // Back, and have nothing happen — the page felt "frozen".
+    // The WatchLater Expanded overlay has its own escape handler
+    // that runs first and stops propagation, so this only triggers
+    // when the user is on the main Library shell.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                // Don't hijack Backspace inside text inputs.
+                const tag = (e.target?.tagName || '').toLowerCase();
+                if (
+                    e.key === 'Backspace' &&
+                    (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable)
+                ) {
+                    return;
+                }
+                e.preventDefault();
+                navigate('/');
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [navigate]);
+
     return (
         <div
             data-testid="library-page"
@@ -652,7 +678,10 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
                 // Horizontal landscape tile row.  Snap-scrolls so a
                 // D-pad press always lands at the start of the next
                 // tile rather than mid-tile.  Tiles flex to ~280px so
-                // 4-5 fit comfortably across at 1080p.
+                // 4-5 fit comfortably across at 1080p.  Vertical
+                // padding leaves room for the focused-tile pop-out
+                // (scale 1.08 + translateY(-2px) + 3px ring) so the
+                // top and bottom of the focus glow aren't clipped.
                 <div
                     data-testid="watch-later-scroller"
                     className="flex"
@@ -661,7 +690,10 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
                         overflowX: 'auto',
                         overflowY: 'hidden',
                         scrollSnapType: 'x mandatory',
-                        paddingBottom: 4,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        marginTop: -8,
+                        marginBottom: -8,
                     }}
                 >
                     {items.map((w) => (
@@ -788,6 +820,9 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
                 style={{
                     gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                     gap: 22,
+                    rowGap: 28,
+                    paddingTop: 12,
+                    paddingBottom: 12,
                 }}
             >
                 {items.map((w) => (
@@ -848,6 +883,23 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
         }
     }, []);
     useEffect(() => () => cancelPress(), [cancelPress]);
+
+    // Pressing Back / Escape while the confirm card is showing
+    // should DISMISS the confirm, not navigate away from Library.
+    // We capture-phase the listener so it fires before Library's
+    // page-level Back handler.
+    useEffect(() => {
+        if (!confirmRemove) return undefined;
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmRemove(false);
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [confirmRemove]);
 
     const tileSize = big
         ? { width: '100%', minWidth: 0 }

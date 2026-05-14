@@ -93,18 +93,38 @@ export default function TabGridView({ shelves, loading, type }) {
             </header>
 
             {items.length === 0 ? (
-                <div
-                    className="vesper-glass rounded-2xl"
-                    style={{
-                        padding: '28px 32px',
-                        color: 'var(--vesper-text-2)',
-                        fontSize: 16,
-                    }}
-                >
-                    {loading
-                        ? 'Loading catalogues…'
-                        : 'No catalogues available from your installed addons. Open Sources to add one.'}
-                </div>
+                loading ? (
+                    // Skeleton placeholder tiles so the page feels
+                    // instant — the user can D-pad into them right
+                    // away while real items stream in.  They share
+                    // the same data-focusable hook the real tiles
+                    // do, so spatial navigation finds them.
+                    <div
+                        data-testid={`tab-grid-list-${type}`}
+                        className="grid"
+                        style={{
+                            gridTemplateColumns:
+                                'repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr))',
+                            gap: 'clamp(18px, 1.6vw, 28px)',
+                        }}
+                    >
+                        {Array.from({ length: 12 }).map((_, i) => (
+                            <SkeletonTile key={i} />
+                        ))}
+                    </div>
+                ) : (
+                    <div
+                        className="vesper-glass rounded-2xl"
+                        style={{
+                            padding: '28px 32px',
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 16,
+                        }}
+                    >
+                        No catalogues available from your installed
+                        addons. Open Sources to add one.
+                    </div>
+                )
             ) : (
                 <div
                     data-testid={`tab-grid-list-${type}`}
@@ -230,6 +250,36 @@ function GridTile({ item, navigate }) {
                     </div>
                 )}
             </div>
+        </button>
+    );
+}
+
+
+function SkeletonTile() {
+    return (
+        <button
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            aria-label="Loading"
+            className="relative overflow-hidden rounded-xl"
+            style={{
+                width: '100%',
+                aspectRatio: '2 / 3',
+                border: '1px solid rgba(255,255,255,0.04)',
+                padding: 0,
+                background:
+                    'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.06) 100%)',
+            }}
+        >
+            <span
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                    background:
+                        'linear-gradient(180deg, rgba(6,8,15,0) 50%, rgba(6,8,15,0.6) 100%)',
+                }}
+            />
         </button>
     );
 }

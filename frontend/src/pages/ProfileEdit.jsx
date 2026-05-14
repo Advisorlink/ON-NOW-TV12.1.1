@@ -25,8 +25,21 @@ export default function ProfileEdit() {
     const [name, setName] = useState(existing?.name || '');
     const [avatarId, setAvatarId] = useState(existing?.avatarId || AVATARS[0].id);
     const [pin, setPin] = useState(existing?.pin || '');
+    // Pending avatar pick — when the user clicks an avatar tile,
+    // we DON'T immediately apply it.  Instead we pop a "Save this
+    // as your icon?" Yes/No confirm.  Eliminates accidental
+    // commits when scrolling the grid with a TV remote.
+    const [pendingAvatar, setPendingAvatar] = useState(null);
+    // "Would you like to add a password to this account?" Yes/No
+    // prompt that fires when the user hits Save with no PIN set
+    // (and only the FIRST time on that save attempt).
+    const [pinPromptOpen, setPinPromptOpen] = useState(false);
+    // Once the user has answered the PIN prompt (either Yes or
+    // No), we skip the prompt on the next save click in the same
+    // session so they're not nagged.
+    const pinPromptAnsweredRef = useRef(false);
 
-    const onSave = () => {
+    const persistAndExit = () => {
         const trimmed = name.trim() || 'Profile';
         const cleanPin = (pin || '').replace(/\D/g, '');
         if (cleanPin && cleanPin.length !== 4) return; // ignore partial PIN
@@ -38,6 +51,18 @@ export default function ProfileEdit() {
             createdAt: existing?.createdAt,
         });
         navigate('/profiles');
+    };
+
+    const onSave = () => {
+        const cleanPin = (pin || '').replace(/\D/g, '');
+        // If no PIN is set and the user hasn't answered the
+        // "would you like a password?" prompt yet, intercept and
+        // ask.  Otherwise save straight through.
+        if (cleanPin.length === 0 && !pinPromptAnsweredRef.current) {
+            setPinPromptOpen(true);
+            return;
+        }
+        persistAndExit();
     };
 
     const visibleAvatars = AVATARS.filter((a) => !a.hidden);
@@ -174,7 +199,10 @@ export default function ProfileEdit() {
                             data-focusable="true"
                             data-focus-style="tile"
                             tabIndex={0}
-                            onClick={() => setAvatarId(a.id)}
+                            onClick={() => {
+                                if (a.id === avatarId) return; // already picked
+                                setPendingAvatar(a.id);
+                            }}
                             className="rounded-full flex items-center justify-center"
                             style={{
                                 width: 96,
@@ -211,6 +239,66 @@ export default function ProfileEdit() {
                     );
                 })}
             </div>
+
+            {pendingAvatar && (
+                <SaveAvatarConfirm
+                    avatarId={pendingAvatar}
+                    onYes={() => {
+                        setAvatarId(pendingAvatar);
+                        setPendingAvatar(null);
+                    }}
+                    onNo={() => setPendingAvatar(null)}
+                />
+            )}
+
+            {pinPromptOpen && (
+                <AddPasswordPrompt
+                    onYes={() => {
+                        pinPromptAnsweredRef.current = true;
+                        setPinPromptOpen(false);
+                        // Scroll to the PIN section so the user can
+                        // see / interact with it.  We also poke the
+                        // toggle so the digit boxes appear.
+                        setTimeout(() => {
+                            const toggle = document.querySelector(
+                                '[data-testid="profile-pin-toggle"]'
+                            );
+                            if (toggle) {
+                                toggle.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'center',
+                                });
+                                if (
+                                    !toggle
+                                        .getAttribute('class')
+                                        ?.includes('vesper-blue')
+                                ) {
+                                    // Click to enable PIN entry.
+                                    toggle.click();
+                                }
+                                setTimeout(() => {
+                                    const first = document.querySelector(
+                                        '[data-testid="profile-pin-0"]'
+                                    );
+                                    if (first) {
+                                        try {
+                                            first.focus({ preventScroll: true });
+                                        } catch {
+                                            /* ignore */
+                                        }
+                                    }
+                                }, 220);
+                            }
+                        }, 80);
+                    }}
+                    onNo={() => {
+                        pinPromptAnsweredRef.current = true;
+                        setPinPromptOpen(false);
+                        // Continue saving without a PIN.
+                        persistAndExit();
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -362,3 +450,194 @@ function ProfilePinField({ pin, onChange }) {
     );
 }
 
+
+
+/* ------------------------- Confirmation modals ------------------------- */
+
+function ConfirmModal({
+    testId,
+    eyebrow,
+    title,
+    body,
+    yesLabel,
+    noLabel,
+    onYes,
+    onNo,
+    accent = 'var(--vesper-blue-bright)',
+    children,
+}) {
+    // Close on Escape / Backspace (mapped to TV remote Back).
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                onNo();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onNo]);
+
+    return (
+        <div
+            data-testid={testId}
+            className="fixed inset-0 z-[70] flex items-center justify-center"
+            style={{
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                padding: 24,
+            }}
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onNo();
+            }}
+        >
+            <div
+                className="flex flex-col items-center"
+                style={{
+                    background: 'rgba(11,19,34,0.96)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 24,
+                    padding: '36px 52px 32px',
+                    minWidth: 420,
+                    maxWidth: 540,
+                    boxShadow:
+                        '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
+                }}
+            >
+                {children}
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: accent,
+                        textTransform: 'uppercase',
+                        marginBottom: 6,
+                    }}
+                >
+                    {eyebrow}
+                </div>
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(22px, 2.2vw, 30px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.15,
+                        textAlign: 'center',
+                        marginBottom: 10,
+                    }}
+                >
+                    {title}
+                </h2>
+                {body && (
+                    <p
+                        style={{
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            textAlign: 'center',
+                            marginBottom: 24,
+                            maxWidth: 360,
+                        }}
+                    >
+                        {body}
+                    </p>
+                )}
+                <div className="flex" style={{ gap: 12 }}>
+                    <button
+                        data-testid={`${testId}-no`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onNo}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        {noLabel}
+                    </button>
+                    <button
+                        data-testid={`${testId}-yes`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={onYes}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: 'var(--vesper-blue)',
+                            color: 'var(--vesper-bg-0)',
+                            border: 'none',
+                            boxShadow:
+                                '0 8px 24px rgba(var(--vesper-blue-rgb),0.35)',
+                        }}
+                    >
+                        {yesLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SaveAvatarConfirm({ avatarId, onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="save-avatar-confirm"
+            eyebrow="New avatar"
+            title="Save this as your icon?"
+            body="This will be the picture next to your name on the profile screen."
+            yesLabel="Yes, save"
+            noLabel="No"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div style={{ marginBottom: 18 }}>
+                <AvatarCircle avatarId={avatarId} size={92} />
+            </div>
+        </ConfirmModal>
+    );
+}
+
+function AddPasswordPrompt({ onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="add-password-prompt"
+            eyebrow="Profile lock"
+            title="Add a password to this account?"
+            body="A 4-digit PIN keeps this profile private. You can skip it and add one later from the profile screen."
+            yesLabel="Yes, add a PIN"
+            noLabel="No, skip"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 999,
+                    background: 'rgba(var(--vesper-blue-rgb), 0.16)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.5)',
+                    color: 'var(--vesper-blue-bright)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                }}
+            >
+                <Lock size={30} strokeWidth={2} />
+            </div>
+        </ConfirmModal>
+    );
+}
