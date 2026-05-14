@@ -246,6 +246,14 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         return <LiveTVBoot stages={stages} />;
     }
 
+    // Snapshot the per-category channel counts so the sidebar can
+    // show "(67)" badges.  Computed once after boot from the cache
+    // we already built — no extra fetches.
+    const catCounts = {};
+    for (const c of cats) {
+        catCounts[c.category_id] = channelsCache.current.get(c.category_id)?.length || 0;
+    }
+
     return (
         <div>
             <LiveHeroLean
@@ -263,6 +271,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             }}>
                 <CategoriesCol
                     cats={cats}
+                    counts={catCounts}
                     error={catsError}
                     activeId={activeCat}
                     onPick={pickCategory}
@@ -293,6 +302,10 @@ function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
     const now = nowNext?.now || null;
     const next = nowNext?.next || null;
     const progressPct = computeProgress(now);
+
+    // Lightweight real-time clock — refreshes once a minute, no
+    // animation, no transition.  Cheap enough for Chrome 52.
+    const clock = useNowClock();
 
     return (
         <section data-testid="live-tv-hero" style={{
@@ -437,23 +450,44 @@ function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
                     </button>
                 </div>
 
-                <button
-                    data-testid="hero-exit"
-                    data-focusable="true"
-                    data-focus-style="quiet"
-                    tabIndex={0}
-                    onClick={onExit}
-                    aria-label="Change provider"
-                    className="flex items-center justify-center rounded-full"
-                    style={{
-                        width: 44, height: 44, alignSelf: 'flex-start',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.14)',
-                        color: 'var(--vesper-text)',
-                    }}
-                >
-                    <LogOut size={18} strokeWidth={2} />
-                </button>
+                <div className="flex flex-col items-end" style={{ gap: 10 }}>
+                    {/* Real-time clock — refreshes once a minute */}
+                    <div data-testid="live-tv-hero-clock" className="flex flex-col items-end" style={{ gap: 2 }}>
+                        <div className="vesper-mono" style={{
+                            fontSize: 28, fontWeight: 700,
+                            color: '#fff',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1,
+                            fontVariantNumeric: 'tabular-nums',
+                        }}>
+                            {clock.hhmm}
+                        </div>
+                        <div className="vesper-mono" style={{
+                            fontSize: 10, letterSpacing: '0.22em',
+                            color: 'var(--vesper-text-3)',
+                            textTransform: 'uppercase',
+                        }}>
+                            {clock.day}
+                        </div>
+                    </div>
+                    <button
+                        data-testid="hero-exit"
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onClick={onExit}
+                        aria-label="Change provider"
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                            width: 44, height: 44,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            color: 'var(--vesper-text)',
+                        }}
+                    >
+                        <LogOut size={18} strokeWidth={2} />
+                    </button>
+                </div>
             </div>
         </section>
     );
@@ -461,7 +495,7 @@ function LiveHeroLean({ channel, categoryName, nowNext, onPlay, onExit }) {
 
 /* ============================ Columns ============================ */
 
-function CategoriesCol({ cats, error, activeId, onPick }) {
+function CategoriesCol({ cats, counts = {}, error, activeId, onPick }) {
     return (
         <div data-testid="live-tv-categories" style={{
             padding: '12px 0',
@@ -515,6 +549,19 @@ function CategoriesCol({ cats, error, activeId, onPick }) {
                         }}>
                             {c.category_name}
                         </span>
+                        {counts[c.category_id] > 0 && (
+                            <span className="vesper-mono" style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: isActive
+                                    ? 'var(--vesper-blue-bright)'
+                                    : 'var(--vesper-text-3)',
+                                letterSpacing: '0.04em',
+                                flexShrink: 0,
+                            }}>
+                                {counts[c.category_id]}
+                            </span>
+                        )}
                     </button>
                 );
             })}
@@ -777,11 +824,50 @@ function GuideRow({ item, isLive }) {
             }}>
                 {item.title || 'Untitled programme'}
             </div>
+            {/* Description only on the currently-airing entry — keeps
+                the rest of the list compact and avoids fetching
+                anything extra (description already came with the EPG). */}
+            {isLive && item.description && (
+                <div style={{
+                    marginTop: 6,
+                    fontSize: 11,
+                    color: 'var(--vesper-text-2)',
+                    lineHeight: 1.4,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    whiteSpace: 'normal',
+                }}>
+                    {item.description}
+                </div>
+            )}
         </li>
     );
 }
 
 /* ============================ Helpers ============================ */
+
+/** Real-time clock — returns { hhmm: "14:32", day: "TUE 14 MAY" }.
+ *  Refreshes itself every 30 s so the minute roll-over is never more
+ *  than 30 s late.  No setInterval-on-every-render; uses a single
+ *  state+useEffect pair so it costs ~nothing on the HK1 box. */
+function useNowClock() {
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 30_000);
+        return () => clearInterval(t);
+    }, []);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return {
+        hhmm: `${hh}:${mm}`,
+        day: `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`,
+    };
+}
 
 function proxiedLogo(url, width = 36) {
     if (!url) return '';
