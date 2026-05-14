@@ -1379,10 +1379,21 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
             if (e.key === 'ArrowRight') {
                 if (colIdx + 1 < rows[rowIdx].length) {
                     target = rows[rowIdx][colIdx + 1];
+                } else if (rowIdx + 1 < rows.length) {
+                    // Wrap past the right edge → first tile of
+                    // the next row.  Without this the user can
+                    // press Right repeatedly at a row edge and
+                    // the D-pad appears to "stop working".
+                    target = rows[rowIdx + 1][0];
                 }
             } else if (e.key === 'ArrowLeft') {
                 if (colIdx - 1 >= 0) {
                     target = rows[rowIdx][colIdx - 1];
+                } else if (rowIdx - 1 >= 0) {
+                    // Symmetric wrap past the left edge → last
+                    // tile of the previous row.
+                    const prev = rows[rowIdx - 1];
+                    target = prev[prev.length - 1];
                 }
             } else {
                 const dir = e.key === 'ArrowDown' ? 1 : -1;

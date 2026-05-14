@@ -34,6 +34,17 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 52 — Feb 14, 2026)
+### Avatar step D-pad hardening + sticky preview header
+- **🔧 Scoped D-pad navigation** (`pages/ProfileEdit.jsx` → `AvatarStep`). Replaces the global spatial-focus dependency with a scoped capture-phase keydown handler that walks focusable tiles in pure DOM order:
+  - ArrowLeft / Right → previous / next button within the same row; **wraps to next/previous row at edges** so the D-pad never appears to "stop working".
+  - ArrowDown / Up → previous / next row preserving the current X column.
+  - Every move `scrollIntoView({behavior:'smooth', block:'center', inline:'center'})` the new target.
+- **📌 Sticky preview header** (`[data-testid="avatar-sticky-preview"]`). Pinned to top of step 2 (`position: sticky; top: -6px`). Shows a large `AvatarCircle` of the currently-FOCUSED avatar + category label + "Pick your avatar" heading + `N avatars · M categories` counter. As the user D-pads down through rows, the rows slide up underneath while the preview stays visible — user always sees what they're choosing.
+- **🔗 Tracking attributes**: every focusable tile carries `data-avatar-id`; every row section carries `data-avatar-row="true"`. The scoped handler uses these to enumerate rows and pick the closest-X tile on row changes.
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_15.json) — 8/9 PASS, 1 ArrowRight-edge-wrap fix landed immediately after. All flows now exercise correctly: sticky preview pinned at top=74px while rows scroll, sticky updates live to focused tile, focused tile always on-screen, zero console errors.
+
+
 ## Implemented (Iteration 51 — Feb 14, 2026)
 ### Shelf re-order · PosterTile scroll-margin · Build-Your-Own avatar
 - **🔄 Home shelf order swapped** (`pages/Home.jsx`). Now in order: **New movies → New series → Popular movies → Popular series**.
