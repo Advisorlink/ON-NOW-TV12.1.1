@@ -34,6 +34,29 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 67 — Feb 14, 2026)
+### Live TV — full strip-down to TV Mate-lean
+- **🐛 User reported**: "Still super slow, channels in the middle aren't loading anymore."
+- **🔬 Critical bug identified**: I had set `contain: strict` on the channels scroll container in iter 66.  `contain: strict` is shorthand for `size layout style paint` — the `size` containment requires explicit `height`.  With only `maxHeight: calc(...)` and no explicit `height`, the container's size containment collapsed it to zero, hiding all channel rows.  THAT'S why channels stopped appearing.  Reverted to no `contain` rule.
+- **🪓 Strip-down per user request**: "Take away everything that could possibly be taking RAM, let me see it running fast, then we slowly add things."  Live TV is now LEAN MODE:
+  - **Removed TMDB hero backdrop fetch** (was firing per channel focus).
+  - **Removed per-row NOW EPG ticker** (60-1000 animated rows was a paint hog).
+  - **Removed the full GUIDE column** (`R column` was 40 EPG rows × 1 channel = heavy DOM).
+  - **Removed hero NOW · UP NEXT · progress bar inline display**.
+  - **Removed all focus highlights with border + boxShadow** — now just `background: rgba(255,255,255,0.06)` on focused row.
+  - **Removed Favourites + Reminders UI** (the localStorage layer in `xtreamPrefs.js` is kept for when we add them back).
+  - **Removed action circles** (Favourite ⭐, Refresh ↻) — only the Exit/change-provider circle stays.
+  - **Removed channel-row progress bar entirely** — even on the focused row.
+- **🧮 Boot screen flat-as-possible** (`components/LiveTVBoot.jsx`):
+  - No spinner — just a square status dot per stage (grey pending / blue active / green done / red failed).
+  - No CSS transitions, no gradients — pure flat solid fills.
+  - Static progress bar — fills instantly to current percent, no animation.
+  - Pure monospace eyebrow + display headline + minimal explainer text.
+- **📦 Boot continues pre-caching every category** (4-parallel batches) — TV Mate's pattern of "spend 90 s up front, then run instant".  User explicitly confirmed: "It takes about a minute and a half to actually load everything into TV Mate, then runs smooth — make sure that's happening."
+- **🖼 Channel logos even smaller**: now `w=36 q=50` (was `w=48 q=55`).  Logo box reduced to 36×24 px (was 48×32).
+- **✂ Layout simplified to 2 columns** (was 3): Categories + Channels.  GUIDE column was the heaviest part of the previous build and is gone for now.
+
+
 ## Implemented (Iteration 66 — Feb 14, 2026)
 ### Live TV — HK1 Chrome 52 perf rebuild
 - **🔬 Critical bug found**: HK1 box runs **Chrome 52** which does **NOT support `content-visibility: auto`** (that property is Chrome 85+). So the "perf optimization" from iter 64 was a no-op on the actual target hardware — we were rendering ALL 1000+ channel rows in the DOM every paint cycle. THAT was why the box felt slow.
