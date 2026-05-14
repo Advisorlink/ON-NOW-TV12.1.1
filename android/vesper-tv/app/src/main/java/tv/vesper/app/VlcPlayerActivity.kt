@@ -33,9 +33,17 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Native libVLC player with:
@@ -131,6 +139,32 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var isSeeking = false
     private var previewDismissed = false
 
+    // -----------------------------------------------------------------
+    //  Watch Together — party-sync state
+    // -----------------------------------------------------------------
+    private var partyCode: String? = null
+    private var partyRole: String = "guest"        // 'host' | 'guest'
+    private var partyMemberId: String? = null
+    private var partyWsUrl: String? = null
+    private var partyWs: WebSocket? = null
+    private var partyOkHttp: OkHttpClient? = null
+    private var partyArmed: Boolean = false  // suppresses initial play echo
+    private val partyHandler = Handler(Looper.getMainLooper())
+    private val partyHeartbeat = object : Runnable {
+        override fun run() {
+            if (partyRole == "host" && this@VlcPlayerActivity::mediaPlayer.isInitialized) {
+                if (mediaPlayer.isPlaying) {
+                    partySend(JSONObject().apply {
+                        put("type", "playing_now")
+                        put("position_ms", mediaPlayer.time)
+                    })
+                }
+            }
+            partyHandler.postDelayed(this, 2_000L)
+        }
+    }
+    private var partyBadge: TextView? = null
+
     private val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
     private var currentSpeed = 1.0f
     private val aspectOptions = listOf(
@@ -167,6 +201,10 @@ class VlcPlayerActivity : AppCompatActivity() {
         isSeries = contentType?.equals("series", ignoreCase = true) == true
         startAtMs = intent.getLongExtra(EXTRA_START_AT_MS, 0L)
         cwId = intent.getStringExtra(EXTRA_CW_ID)
+        partyCode = intent.getStringExtra(EXTRA_PARTY_CODE)
+        partyRole = intent.getStringExtra(EXTRA_PARTY_ROLE) ?: "guest"
+        partyMemberId = intent.getStringExtra(EXTRA_PARTY_MEMBER_ID)
+        partyWsUrl = intent.getStringExtra(EXTRA_PARTY_WS_URL)
 
         if (streamUrl.isNullOrBlank()) {
             finish()
@@ -266,7 +304,9 @@ class VlcPlayerActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(bar: SeekBar?) { isSeeking = true }
             override fun onStopTrackingTouch(bar: SeekBar?) {
                 isSeeking = false
-                mediaPlayer.time = bar?.progress?.toLong() ?: 0L
+                val target = bar?.progress?.toLong() ?: 0L
+                mediaPlayer.time = target
+                partyOnSeek(target)
                 scheduleHide()
             }
         })
@@ -291,6 +331,193 @@ class VlcPlayerActivity : AppCompatActivity() {
         rootControls.alpha = 0f
         controlsVisible = false
         tickHandler.post(tickRunnable)
+
+        // Watch Together — kick off the party socket if applicable.
+        if (!partyCode.isNullOrBlank() && !partyWsUrl.isNullOrBlank()) {
+            initPartyBadge()
+            connectPartySocket()
+            partyHandler.postDelayed(partyHeartbeat, 2_000L)
+        }
+    }
+
+    // -----------------------------------------------------------------
+    //  Watch Together — sync over OkHttp WebSocket
+    // -----------------------------------------------------------------
+
+    /**
+     * Add a tiny "PARTY · CODE · HOST/GUEST" pill to the top of the
+     * player so the user always knows they're in a synced session.
+     * Rendered as a programmatic TextView (no XML change needed —
+     * keeps the diff small and avoids re-laying out the existing
+     * activity_vlc_player.xml).
+     */
+    private fun initPartyBadge() {
+        val tv = TextView(this).apply {
+            text = "PARTY · ${partyCode} · ${partyRole.uppercase()}"
+            setTextColor(0xFF5DC8FF.toInt())
+            textSize = 12f
+            setPadding(28, 14, 28, 14)
+            letterSpacing = 0.18f
+            setBackgroundColor(0x335DC8FF)
+            elevation = 8f
+        }
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = android.view.Gravity.TOP or android.view.Gravity.END
+            topMargin = 24
+            rightMargin = 24
+        }
+        try {
+            (findViewById<View>(android.R.id.content) as? ViewGroup)?.addView(tv, lp)
+            partyBadge = tv
+        } catch (_: Exception) { /* badge is best-effort */ }
+    }
+
+    private fun connectPartySocket() {
+        val wsUrl = partyWsUrl ?: return
+        val code = partyCode ?: return
+        try {
+            val client = OkHttpClient.Builder()
+                .readTimeout(0, TimeUnit.MILLISECONDS) // never time out an active WS
+                .pingInterval(20, TimeUnit.SECONDS)
+                .build()
+            partyOkHttp = client
+            val req = Request.Builder().url(wsUrl).build()
+            partyWs = client.newWebSocket(req, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    mainHandler.post { partyBadge?.text = "PARTY · $code · ${partyRole.uppercase()}" }
+                    val hello = JSONObject().apply {
+                        put("type", "hello")
+                        put("role", partyRole)
+                        if (!partyMemberId.isNullOrBlank()) put("member_id", partyMemberId)
+                        put("name", partyRole.replaceFirstChar { it.titlecase() })
+                        put("avatar", "a1")
+                    }
+                    webSocket.send(hello.toString())
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    mainHandler.post { handlePartyMessage(text) }
+                }
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    onMessage(webSocket, bytes.utf8())
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    Log.w(TAG, "Party WS failure: ${t.message}")
+                    mainHandler.post { partyBadge?.text = "PARTY · $code · OFFLINE" }
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    mainHandler.post { partyBadge?.text = "PARTY · ${this@VlcPlayerActivity.partyCode} · OFFLINE" }
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not open party socket: ${e.message}")
+        }
+    }
+
+    private fun partySend(json: JSONObject) {
+        try { partyWs?.send(json.toString()) } catch (_: Exception) { /* ignore */ }
+    }
+
+    /**
+     * Apply an inbound 'state' broadcast to the local mediaPlayer.
+     *
+     * Host-authoritative: when the host pauses, every guest mirrors.
+     * 1.5-second drift tolerance so we don't fight HLS buffering
+     * jitter during normal playback.
+     */
+    private fun handlePartyMessage(raw: String) {
+        if (!this::mediaPlayer.isInitialized) return
+        val msg = try { JSONObject(raw) } catch (_: Exception) { return }
+        val ttype = msg.optString("type")
+        if (ttype == "joined") {
+            val mid = msg.optString("member_id", "")
+            if (mid.isNotBlank()) partyMemberId = mid
+            return
+        }
+        if (ttype != "state") return
+        val status = msg.optString("status", "lobby")
+        val positionMs = msg.optLong("position_ms", 0L)
+        val atMs = msg.optLong("at_ms", 0L)
+
+        if (partyRole == "guest") {
+            when (status) {
+                "paused" -> {
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
+                        mediaPlayer.time = positionMs
+                    }
+                    if (mediaPlayer.isPlaying) {
+                        partyArmed = false
+                        try { mediaPlayer.pause() } catch (_: Exception) {}
+                    }
+                }
+                "playing" -> {
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
+                        mediaPlayer.time = positionMs
+                    }
+                    if (!mediaPlayer.isPlaying) {
+                        partyArmed = false
+                        try { mediaPlayer.play() } catch (_: Exception) {}
+                    }
+                }
+                "countdown" -> {
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
+                        mediaPlayer.time = positionMs
+                    }
+                    val remaining = atMs - System.currentTimeMillis()
+                    val fire = Runnable {
+                        partyArmed = false
+                        try { mediaPlayer.play() } catch (_: Exception) {}
+                    }
+                    if (remaining <= 0) fire.run()
+                    else partyHandler.postDelayed(fire, remaining)
+                }
+            }
+        }
+    }
+
+    /**
+     * Called from the libVLC event listener — emits the user's
+     * action over the WebSocket so guests can mirror.  No-op for
+     * guests so we don't bounce events back.
+     */
+    private fun partyOnPlay() {
+        if (partyRole != "host" || partyWs == null) return
+        if (!partyArmed) { partyArmed = true; return }
+        partySend(JSONObject().apply {
+            put("type", "resume")
+            put("position_ms", mediaPlayer.time)
+            put("lead_ms", 800)
+        })
+    }
+    private fun partyOnPause() {
+        if (partyRole != "host" || partyWs == null) return
+        if (!partyArmed) { partyArmed = true; return }
+        partySend(JSONObject().apply {
+            put("type", "pause")
+            put("position_ms", mediaPlayer.time)
+        })
+    }
+    private fun partyOnSeek(targetMs: Long) {
+        if (partyRole != "host" || partyWs == null) return
+        if (!partyArmed) return
+        partySend(JSONObject().apply {
+            put("type", "seek")
+            put("position_ms", targetMs)
+        })
+    }
+
+    private fun partyShutdown() {
+        partyHandler.removeCallbacksAndMessages(null)
+        try { partyWs?.close(1000, "bye") } catch (_: Exception) {}
+        partyWs = null
+        try { partyOkHttp?.dispatcher?.executorService?.shutdown() } catch (_: Exception) {}
+        partyOkHttp = null
     }
 
     // -----------------------------------------------------------------
@@ -419,9 +646,11 @@ class VlcPlayerActivity : AppCompatActivity() {
                     // Keep preview visible for a beat so the user
                     // gets to read the synopsis even on fast streams.
                     mainHandler.postDelayed({ dismissPreview() }, 1200)
+                    partyOnPlay()
                 }
                 MediaPlayer.Event.Paused -> {
                     playBtn.setImageResource(R.drawable.ic_play)
+                    partyOnPause()
                 }
                 MediaPlayer.Event.Buffering -> {
                     if (!previewDismissed) {
@@ -756,6 +985,7 @@ class VlcPlayerActivity : AppCompatActivity() {
     private fun seekBy(deltaMs: Long) {
         val target = (mediaPlayer.time + deltaMs).coerceAtLeast(0L)
         mediaPlayer.time = target
+        partyOnSeek(target)
         updateTimeline()
         showControls()
         scheduleHide()
@@ -807,6 +1037,7 @@ class VlcPlayerActivity : AppCompatActivity() {
                 maybePersistProgress(mediaPlayer.time, mediaPlayer.length)
             }
         } catch (_: Exception) { }
+        partyShutdown()
         tickHandler.removeCallbacks(tickRunnable)
         hideHandler.removeCallbacks(hideRunnable)
         loadingDotsHandler.removeCallbacksAndMessages(null)
@@ -844,5 +1075,9 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_TYPE = "type"
         const val EXTRA_START_AT_MS = "startAtMs"
         const val EXTRA_CW_ID = "cwId"
+        const val EXTRA_PARTY_CODE = "partyCode"
+        const val EXTRA_PARTY_ROLE = "partyRole"
+        const val EXTRA_PARTY_MEMBER_ID = "partyMemberId"
+        const val EXTRA_PARTY_WS_URL = "partyWsUrl"
     }
 }

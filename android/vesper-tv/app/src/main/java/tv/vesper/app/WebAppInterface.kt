@@ -126,6 +126,66 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /**
+     * Watch-Together variant — same payload as playInternalRich but
+     * also passes the party code + role + member id + ws url so the
+     * VlcPlayerActivity can open a sync WebSocket and emit/apply
+     * play/pause/seek events.
+     */
+    @JavascriptInterface
+    fun playInternalParty(
+        url: String,
+        title: String?,
+        subtitleUrl: String?,
+        poster: String?,
+        backdrop: String?,
+        synopsis: String?,
+        year: String?,
+        rating: String?,
+        runtime: String?,
+        genres: String?,
+        type: String?,
+        startAtMs: Long,
+        cwId: String?,
+        partyCode: String,
+        partyRole: String,
+        partyMemberId: String?,
+        partyWsUrl: String
+    ) {
+        if (url.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
+                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
+                    putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
+                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
+                    putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
+                    putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
+                    putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
+                    putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
+                    putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
+                    putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
+                    putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_CODE, partyCode)
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_ROLE, partyRole)
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_MEMBER_ID, partyMemberId)
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL, partyWsUrl)
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(
+                    activity,
+                    "Could not start party player: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     @JavascriptInterface
     fun playExternal(url: String, title: String?, mime: String?) {
         // Opt-in path: hand to system video player (VLC stand-alone,

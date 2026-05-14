@@ -46,9 +46,45 @@ const Host = (() => {
         genres,
         startAtMs,
         cwId,
+        // Watch Together — only set when arriving via a party.
+        partyCode,
+        partyRole,
+        partyMemberId,
+        partyWsUrl,
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
+        // Prefer the party-aware bridge when we have party params.
+        if (
+            isAndroid &&
+            partyCode &&
+            typeof a.playInternalParty === 'function'
+        ) {
+            try {
+                a.playInternalParty(
+                    url,
+                    title || '',
+                    subtitleUrl || '',
+                    poster || '',
+                    backdrop || '',
+                    synopsis || '',
+                    year || '',
+                    rating == null ? '' : String(rating),
+                    runtime || '',
+                    Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
+                    type || '',
+                    typeof startAtMs === 'number' ? Math.floor(startAtMs) : 0,
+                    cwId || '',
+                    partyCode,
+                    partyRole || 'guest',
+                    partyMemberId || '',
+                    partyWsUrl || ''
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        }
         // Prefer the rich bridge (passes cinematic preview meta).
         if (isAndroid && typeof a.playInternalRich === 'function') {
             try {

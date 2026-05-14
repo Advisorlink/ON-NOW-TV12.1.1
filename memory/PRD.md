@@ -34,6 +34,27 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 57 — Feb 14, 2026)
+### Watch Together — NATIVE libVLC sync (codec coverage parity)
+- **🎯 Why:** The iter_56 Watch Together flow forced the JS HTML5 player when a party was active so the WebSocket could pipe play/pause/seek events. On the HK1 box this meant many streams (MKV/HEVC/AC3 etc.) wouldn't decode. User requirement: native libVLC must drive party playback.
+- **📦 OkHttp WebSocket dependency** added to `app/build.gradle.kts` (`com.squareup.okhttp3:okhttp:4.12.0` — ~600 KB, mature on Android 4.4+).
+- **🔌 New JS→Kotlin bridge** `WebAppInterface.playInternalParty(...)` accepts the same payload as `playInternalRich` plus `partyCode + partyRole + partyMemberId + partyWsUrl`.
+- **🎮 `VlcPlayerActivity` party controller** (`VlcPlayerActivity.kt`):
+  - Reads party Intent extras (EXTRA_PARTY_CODE / EXTRA_PARTY_ROLE / EXTRA_PARTY_MEMBER_ID / EXTRA_PARTY_WS_URL).
+  - Opens an OkHttp WebSocket with 20 s pingInterval + no-readTimeout, sends 'hello' with role+member_id+name+avatar.
+  - **Host**: hooks the existing `mediaPlayer.setEventListener` Playing/Paused branches to emit `resume`/`pause` over the socket. SeekBar's `onStopTrackingTouch` + `seekBy()` emit `seek`. A 2 s heartbeat coroutine emits `playing_now` while playing.
+  - **Guest**: listens for inbound `state` broadcasts and applies: paused → pause+seek to position_ms; playing → play+drift-correct (1.5 s tolerance); countdown → seek to anchor then schedule `mediaPlayer.play()` for wallclock `at_ms`.
+  - **Armed flag** suppresses the initial Playing event from being echoed back as a 'resume' (prevents infinite-loop broadcasts when guest receives a state and triggers its own play).
+  - **PARTY · CODE · HOST/GUEST pill** added programmatically as a `TextView` in the top-right of the player surface (no XML changes — keeps the diff small + works on every layout variant). Pill text flips to "OFFLINE" if the socket fails / closes.
+  - **Clean shutdown** in `onDestroy`: closes the WS, shuts down the OkHttp dispatcher, removes the heartbeat handler.
+- **🔁 JS fallback preserved**: `Host.playVideo` tries `playInternalParty` first; if the bridge isn't there (older APK, browser preview) it falls through to `playInternalRich` → the existing JS Player path with its own WebSocket sync. So a half-rolled-out APK never strands users.
+- **🪪 Frontend tightenings (live now)**:
+  - Watch Together landing **initial-focuses 'Host a party'** (`data-initial-focus="true"` on the primary ChoiceCard) so the D-pad lands on the right button immediately.
+  - MoviePicker hero shrunk (medallion 84→56, headline clamp 26-44→20-30 px, removed the redundant Search button — TVKeyboard's Enter key already submits) so the on-screen keyboard no longer hangs off the bottom of a 1080p screen.
+  - Room header tightened (back-btn 48→40, code font clamp 36-64→22-34, copy pill 38→30 px) to leave more vertical room for the picker.
+- **📲 APK version bumped to 1.9.6 / versionCode 30**.
+
+
 ## Implemented (Iteration 56 — Feb 14, 2026)
 ### Watch Together (Watch Party) — full end-to-end host-authoritative sync
 - **🎉 Backend WebSocket coordinator** (`backend/watch_party.py`, already wired to `/api/watch-party/*`). 9/9 pytest scenarios PASS in iter_18: code creation (6 chars, no look-alikes), state lookup + not_found, host/guest hello→state broadcast, host pick, host play→countdown with future at_ms, host pause updates position+status, chat broadcast, disconnect rebroadcast. Includes a reaper that evicts dead parties after 5 min idle / 6 h max age.

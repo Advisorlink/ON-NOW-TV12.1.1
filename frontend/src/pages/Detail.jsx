@@ -325,8 +325,19 @@ export default function Detail() {
                 durationMs: existing?.durationMs || 0,
                 route: `/title/${type}/${id}`,
             });
+            // Compute the WebSocket URL we want the native player
+            // to open for sync.  Falls back to window.location.origin
+            // so previews work too.
+            const partyWsUrl = partyCode
+                ? `${(process.env.REACT_APP_BACKEND_URL || window.location.origin).replace(/^http/, 'ws')}/api/watch-party/ws/${partyCode}`
+                : '';
+            const partyRole = partyCode
+                ? (sessionStorage.getItem('vesper-party-role') || 'guest')
+                : '';
+            const partyMemberId = partyCode
+                ? (sessionStorage.getItem('vesper-party-member-id') || '')
+                : '';
             if (
-                !partyCode &&
                 Host.playVideo({
                     url: stream.url,
                     title: meta?.name || '',
@@ -339,12 +350,20 @@ export default function Detail() {
                     rating: meta?.imdbRating || '',
                     runtime: meta?.runtime || '',
                     genres: meta?.genres || [],
-                    startAtMs: startAtMs,
+                    startAtMs: partyCode
+                        ? Number(partyPositionMs) || 0
+                        : startAtMs,
                     cwId: id,
+                    partyCode: partyCode || undefined,
+                    partyRole: partyRole || undefined,
+                    partyMemberId: partyMemberId || undefined,
+                    partyWsUrl: partyWsUrl || undefined,
                 })
             ) {
                 return;
             }
+            // WebView fallback (preview / non-Android) — keep the
+            // JS player path which already does its own party sync.
             const partyQuery = partyCode
                 ? `&party=${encodeURIComponent(partyCode)}&at_ms=${encodeURIComponent(partyAtMs)}&position_ms=${encodeURIComponent(partyPositionMs)}`
                 : '';

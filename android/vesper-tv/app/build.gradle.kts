@@ -17,8 +17,8 @@ android {
         // realistic floor.
         minSdk = 19
         targetSdk = 34
-        versionCode = 29
-        versionName = "1.9.5"
+        versionCode = 30
+        versionName = "1.9.6"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -85,4 +85,11 @@ dependencies {
     // Adds ~80 MB per architecture; we ship arm64 only since every
     // HK1/RK/S905 box is arm64-v8a.
     implementation("org.videolan.android:libvlc-all:3.6.0")
+
+    // OkHttp — minimal HTTP + WebSocket client (~600 KB).  Used by
+    // VlcPlayerActivity for the Watch Together party sync socket
+    // (host/guest play/pause/seek coordination).  No HTTP usage
+    // overlap with the rest of the app — the WebView's own fetch
+    // handles everything else.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
