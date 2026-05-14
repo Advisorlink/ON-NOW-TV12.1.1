@@ -1258,8 +1258,103 @@ async def tmdb_for_you(
             mixed.append(tv[i])
         i += 1
 
-    await cache.set(cache_key, mixed, 60 * 60 * 3)  # 3 h
+    await cache.set(cache_key, mixed, 60 * 60 * 24)  # 24h — refreshes daily
     return {"cached": False, "data": mixed}
+
+
+@api.get("/tmdb/similar-to-picks")
+async def tmdb_similar_to_picks(
+    picks: str = Query("", description="Comma-separated 'type:tmdb_id' pairs"),
+    limit: int = Query(30, ge=1, le=60),
+):
+    """For-You "similar to what you picked" rail.
+
+    Takes the user's hand-picked titles from the viewing-style step
+    and returns the top similar / recommended titles across all of
+    them, **excluding** the user's own picks (we don't want the
+    rail to surface things they've explicitly chosen — they already
+    know about those).  Cached for 24h so the rail refreshes daily.
+    """
+    raw = [p.strip() for p in (picks or "").split(",") if ":" in p]
+    parsed: List[Dict[str, Any]] = []
+    excluded: set[tuple[str, str]] = set()
+    for token in raw:
+        try:
+            t, id_str = token.split(":", 1)
+            t = t.strip().lower()
+            if t == "series":
+                t = "tv"
+            if t not in ("movie", "tv"):
+                continue
+            int(id_str)  # validate numeric
+            parsed.append({"type": t, "tmdb_id": id_str.strip()})
+            excluded.add((t, id_str.strip()))
+        except (ValueError, IndexError):
+            continue
+    if not parsed:
+        return {"cached": False, "data": []}
+
+    cache_key = "tmdb_similar:" + ",".join(
+        sorted(f"{p['type']}-{p['tmdb_id']}" for p in parsed)
+    ) + f":{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    async def _pull_recs(media: str, tmdb_id: str) -> List[Dict[str, Any]]:
+        # TMDB's "recommendations" mixes user-pattern similarity
+        # with collaborative signals — better than raw "similar" for
+        # a "For You" surface.  Falls back to /similar if the
+        # primary call yields nothing.
+        out: List[Dict[str, Any]] = []
+        for path in (f"/{media}/{tmdb_id}/recommendations", f"/{media}/{tmdb_id}/similar"):
+            try:
+                data = await _tmdb_get(path)
+            except Exception:
+                continue
+            for item in (data.get("results") or []):
+                shaped = _shape_tmdb_item(item, media)
+                if shaped:
+                    out.append(shaped)
+            if out:
+                break
+        return out
+
+    # Pull recommendations for every pick in parallel.
+    results = await asyncio.gather(
+        *[_pull_recs(p["type"], p["tmdb_id"]) for p in parsed],
+        return_exceptions=False,
+    )
+
+    # Round-robin merge so every pick contributes; drop excluded
+    # picks (the user's own choices) and dedupe by (type, tmdb_id).
+    seen: set[tuple[str, Any]] = set()
+    merged: List[Dict[str, Any]] = []
+    max_len = max((len(r) for r in results), default=0)
+    for col in range(max_len):
+        if len(merged) >= limit:
+            break
+        for r in results:
+            if col >= len(r):
+                continue
+            item = r[col]
+            key = (item.get("type") or "", item.get("tmdb_id"))
+            # map app-shape 'series' -> tmdb 'tv' for excluded check
+            excl_key = (
+                "tv" if key[0] == "series" else key[0],
+                str(key[1]),
+            )
+            if excl_key in excluded:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+            if len(merged) >= limit:
+                break
+
+    await cache.set(cache_key, merged, 60 * 60 * 24)  # 24h refresh
+    return {"cached": False, "data": merged}
 
 
 # ----- App wiring ----------------------------------------------------------

@@ -129,6 +129,118 @@ export default function Home() {
         // filtered view (movies-only or series-only) gets focus too.
     }, [filter]);
 
+    // Row-aware D-pad Up/Down for Home.
+    //
+    // Each shelf (Continue Watching / For You / Networks / live
+    // shelves) is one "row".  The hero billboard is the row above
+    // them all.  Pressing Down/Up MUST walk from one row to the
+    // next regardless of which horizontal column the user is on
+    // — never sideways, never jumping back to the hero's
+    // "More info" button just because nothing is geometrically
+    // directly above the focused tile.
+    React.useEffect(() => {
+        if (isFilterView) return undefined;
+
+        const onKey = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const homeRoot = document.querySelector('[data-testid="home-page"]');
+            if (!homeRoot) return;
+            const active = document.activeElement;
+            if (!active || !homeRoot.contains(active)) return;
+
+            // Build the ordered list of "rows" in DOM order.  Hero
+            // is row 0 when it has any focusable; every shelf
+            // section under shelves-region becomes a row when it
+            // contains at least one focusable element.
+            const heroFocusables = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="hero-billboard"] [data-focusable="true"]'
+                )
+            ).filter((el) => !el.hasAttribute('disabled'));
+
+            const shelfNodes = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="shelves-region"] > section, ' +
+                    '[data-testid="shelves-region"] > [data-testid="for-you-shelf"] section, ' +
+                    '[data-testid="shelves-region"] > div > a[data-focusable="true"]'
+                )
+            );
+
+            const rows = [];
+            if (heroFocusables.length) rows.push(heroFocusables);
+            for (const node of shelfNodes) {
+                const list = node.matches('[data-focusable="true"]')
+                    ? [node]
+                    : Array.from(
+                          node.querySelectorAll('[data-focusable="true"]')
+                      );
+                const list2 = list.filter((el) => !el.hasAttribute('disabled'));
+                if (list2.length) rows.push(list2);
+            }
+            if (rows.length === 0) return;
+
+            // Which row is the user currently on?
+            let curRowIdx = -1;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].includes(active)) {
+                    curRowIdx = i;
+                    break;
+                }
+            }
+            if (curRowIdx === -1) {
+                const activeY = active.getBoundingClientRect().top;
+                let best = 0;
+                let bestDy = Infinity;
+                for (let i = 0; i < rows.length; i++) {
+                    const dy = Math.abs(
+                        rows[i][0].getBoundingClientRect().top - activeY
+                    );
+                    if (dy < bestDy) {
+                        bestDy = dy;
+                        best = i;
+                    }
+                }
+                curRowIdx = best;
+            }
+
+            const targetIdx =
+                e.key === 'ArrowDown' ? curRowIdx + 1 : curRowIdx - 1;
+            if (targetIdx < 0 || targetIdx >= rows.length) return; // edge
+
+            // Pick the tile on the target row closest to the
+            // current X column so the user stays in the same
+            // visual column when scrolling rails up/down.
+            const curRect = active.getBoundingClientRect();
+            const curX = curRect.left + curRect.width / 2;
+            const target = rows[targetIdx].reduce((best, el) => {
+                const r = el.getBoundingClientRect();
+                const dx = Math.abs(r.left + r.width / 2 - curX);
+                if (!best || dx < best.dx) return { el, dx };
+                return best;
+            }, null);
+            if (!target) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            try { target.el.focus({ preventScroll: false }); } catch { /* ignore */ }
+            target.el.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target.el) el.removeAttribute('data-focused');
+                });
+            try {
+                target.el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            } catch { /* ignore */ }
+        };
+
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [isFilterView]);
+
     return (
         <div
             data-testid="home-page"

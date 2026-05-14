@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 11 — All 3 changes verified PASS end-to-end. Backend: 6/6 pytest cases pass against /api/tmdb/similar-to-picks (shape, exclusion of user picks, empty/malformed handling, series→tv alias, cache TTL) and the 24h cache on /api/tmdb/for-you. Frontend: DiceBear preload fires at app boot (48/48 PNGs observed in performance.getEntriesByType('resource') within 2.5s of navigating to /), and the cartoon-1 tile on /profiles/new step 2 shows <img naturalWidth=256> within 0.1ms of step-2 mount (effectively instant — cache hit). ForYouShelf renders 'SIMILAR TO WHAT YOU LOVE' eyebrow and >=5 similar-to-picks tiles with user's explicit picks (movie:603, movie:680) excluded. Home D-pad capture-phase handler walks 6 distinct shelves on ArrowDown (hero-billboard → shelf-for-you → networks-shelf → shelf-cinemeta-movie-top → shelf-cinemeta-series-top → shelf-cinemeta-movie-year) and walks back through the same 6 in reverse on ArrowUp, terminating at hero-play-button — at no point does focus jump from a middle shelf directly to hero. Column preservation works: starting 3rd for-you tile (x=623) and pressing ArrowDown lands network-apple-tv (x=539, dx=84px). 0 console errors across all flows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tests_executed": {
+    "backend_similar_to_picks_basic_movies_excluded": "PASS — picks=movie:603,movie:680 returns 30 items; 603/680 absent; every item has {tmdb_id,type,title,poster,year}.",
+    "backend_similar_to_picks_empty": "PASS — picks='' returns data:[].",
+    "backend_similar_to_picks_malformed_silently_ignored": "PASS — picks='cheese:abc,foo,movie:notnum' returns data:[].",
+    "backend_similar_to_picks_series_alias": "PASS — picks=series:1399 maps to /tv/1399/recommendations, returns 10 items, GoT itself excluded.",
+    "backend_similar_to_picks_cache_24h": "PASS — second hit on same picks returns cached:true with identical payload.",
+    "backend_for_you_cache_24h": "PASS — /api/tmdb/for-you 2nd identical call returns cached:true.",
+    "frontend_dicebear_preload_at_boot": "PASS — 48 https://api.dicebear.com/9.x/* image resource entries observed via performance.getEntriesByType('resource') 2.5s after navigating to /. Sample: avataaars/png?seed=Emma&size=256&radius=50&backgroundType=gradientLinear.",
+    "frontend_nameStep_useEffect_preload_fallback": "PASS — Direct nav to /profiles/new → type 'testuser' on TV keyboard → click profile-name-next → step 2 mounts → [data-testid=avatar-pick-cartoon-1] img has complete=true and naturalWidth=256 within 0.1ms (HTTP cache hit, no network wait).",
+    "frontend_for_you_shelf_eyebrow_and_exclusion": "PASS — Seeded profile with viewing-style items=[movie:603, movie:680] + movie genres [28,12] + tv genres [10759]. Home renders [data-testid=for-you-shelf]; text contains 'SIMILAR TO WHAT YOU LOVE'; rail has 50 focusable tiles (sample testids: poster-for-you-sim-movie-604, poster-for-you-sim-movie-157350) and NO tile carries href ending in /movie/603 or /movie/680 — picks excluded as required.",
+    "frontend_home_dpad_arrow_down_row_walk": "PASS — Focus hero-play-button. ArrowDown ×5 visits 6 distinct rows in DOM order: hero-billboard → shelf-for-you → networks-shelf → shelf-com.linvo.cinemeta-movie-top → shelf-com.linvo.cinemeta-series-top → shelf-com.linvo.cinemeta-movie-year. Each step lands in a NEW shelf section — no skipping, no double-row jumps.",
+    "frontend_home_dpad_arrow_up_row_walk_back": "PASS — From bottom-most row, ArrowUp ×6 walks back through shelf-com.linvo.cinemeta-series-year → movie-year → series-top → movie-top → networks-shelf → shelf-for-you and the final ArrowUp lands document.activeElement on [data-testid=hero-play-button]. At no point does focus jump from a middle shelf directly back to the hero — every intermediate shelf is visited once.",
+    "frontend_home_dpad_column_preservation": "PASS — Focused 3rd for-you tile at horizontal-center x=623, top=605. ArrowDown landed on network-apple-tv at x=539, top=922. dx=84 px (well under one-tile width), dy positive — column preserved into the next row instead of snapping to first tile.",
+    "frontend_no_console_errors": "PASS — 0 console.error / pageerror events recorded across all 5 frontend flows (boot, /profiles/new step 2, seeded home with for-you, D-pad walk-down, D-pad walk-up, column preservation)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_for_you_iter11.py",
+    "/app/test_reports/pytest/iter11_for_you.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ForYouShelf.jsx: when hasItems && hasGenres but both fetches return [], the rail correctly hides (tiles.length===0 → setShelf(null)). However if the user later adds genres the rail won't re-fetch until a 'vesper:viewing-style-change' event fires — direct localStorage edits outside the helpers won't trigger it. Current code is fine for the in-app flow; flagging for future profile-import features.",
+    "Home.jsx capture-phase keydown handler is added/removed on every isFilterView toggle. That re-registration churn is harmless (effect deps are stable) but the listener is global on `window`. If a second Home instance ever mounts (e.g. preview overlay) two handlers would fight over preventDefault. Consider scoping to the home-page element or guarding with a ref counter.",
+    "Home.jsx row builder selector chain is fragile: it relies on shelves-region children being either <section>, ForYouShelf wrapper, or <a> tiles. If a future shelf component is wrapped in an extra <div> the row will silently disappear from the walk. A `data-shelf-row` attribute on every shelf root would make the contract explicit.",
+    "App.js module-load preload spawns 48 simultaneous image requests on every cold load — works fine here because DiceBear is fast and the browser parallel-fetch cap is ~6 per origin so it self-throttles, but on very slow networks the preload could compete with the JS bundle parse. Consider deferring to `requestIdleCallback` or to the first user interaction.",
+    "ForYouShelf.jsx fetches /tmdb/similar-to-picks even when vs.items is empty? Actually no — guarded by `if (hasItems)`. Good. But it also unconditionally calls /tmdb/for-you when hasGenres regardless of whether similar-to-picks already filled the rail to limit=20 — minor over-fetch on warm caches; could short-circuit when similarTiles.length >= some-threshold.",
+    "ProfileEdit.jsx still 1960 lines — long-standing review comment from iter 7/8/9/10, still outstanding."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_for_you_iter11.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6 pytest)", "frontend": "100% (5/5 flows)"},
+  "test_credentials": "None required — TMDB endpoint is unauthenticated; frontend profile seeded via Playwright addInitScript into localStorage.",
+  "seed_data_creation": "Playwright addInitScript injected one transient active profile (id=test-iter11, name=Iter11, avatarId=a1) with viewing-style {movieGenres:[28,12], tvGenres:[10759], items:[{tmdb_id:603,type:movie,title:'The Matrix'},{tmdb_id:680,type:movie,title:'Pulp Fiction'}]} into the test browser context's localStorage. Did not touch production data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 11 shipped: (1) /api/tmdb/similar-to-picks endpoint at server.py:1265 — takes 'type:tmdb_id' csv ('series' alias maps to 'tv'), pulls /recommendations with /similar fallback per pick in parallel, round-robin merges, dedupes by (type,tmdb_id), EXCLUDES user's own picks, 24h cache. (2) /api/tmdb/for-you cache TTL bumped to 24h (was 6h previously). (3) ForYouShelf.jsx — eyebrow now 'SIMILAR TO WHAT YOU LOVE', no longer surfaces user's manually-chosen titles inside the rail, similar-to-picks tiles lead and genre-recs fill the tail, both deduped against vs.items routes. Tile testid pattern: poster-for-you-sim-{type}-{tmdb_id} and poster-for-you-rec-{type}-{tmdb_id}. (4) App.js module-load preload of all DiceBear avatar PNGs (48). (5) Home.jsx capture-phase ArrowDown/ArrowUp handler walks ordered row list = [hero-billboard focusables, then each shelves-region child <section> / for-you-shelf inner <section> / direct <a> tile], preserving horizontal column on transition. Selectors used in tests: [data-testid=for-you-shelf], [data-testid=hero-billboard], [data-testid=hero-play-button], [data-testid=shelves-region], [data-testid=shelf-*], [data-testid=networks-shelf], [data-testid=avatar-pick-cartoon-1].",
+  "rca_of_the_issue": "N/A — no bugs found. All 7 review requirements (3 backend, 4 frontend) verified PASS."
+}

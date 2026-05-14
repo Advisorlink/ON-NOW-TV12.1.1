@@ -19,7 +19,24 @@ import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
+import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
+
+/* Warm the DiceBear avatar HTTP cache on app boot.  Runs once at
+   module load — the 48 character-portrait PNGs (~11 KB each) are
+   fetched in the background so by the time the user opens the
+   Profile picker / wizard every tile is already cached. */
+if (typeof window !== 'undefined') {
+    try {
+        AVATARS
+            .filter((a) => a.src && !a.hidden)
+            .forEach((a) => {
+                const img = new Image();
+                img.decoding = 'async';
+                img.src = a.src;
+            });
+    } catch { /* ignore */ }
+}
 
 const Router =
     typeof window !== 'undefined' && window.location.protocol === 'file:'

@@ -35,20 +35,43 @@ export default function ForYouShelf() {
                 return;
             }
 
-            // Manual picks are added straight to the rail; we don't
-            // wait on the network for them.
-            const manualTiles = vs.items.map((it) => ({
-                id: `for-you-pick-${it.type}-${it.tmdb_id}`,
-                imdbId: null,
-                type: it.type,
-                title: it.title,
-                sub: it.year || '',
-                poster: it.poster,
-                background: null,
-                routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
-            }));
+            // Pull "similar to what you picked" recommendations
+            // (NOT the picks themselves — user explicitly asked we
+            // never surface their own selections back at them).
+            // Backend dedupes against the picks and caches for 24h
+            // so the rail refreshes daily.
+            let similarTiles = [];
+            if (hasItems) {
+                try {
+                    const picksParam = vs.items
+                        .map((it) => `${it.type === 'series' ? 'tv' : 'movie'}:${it.tmdb_id}`)
+                        .join(',');
+                    const r = await fetch(
+                        `${API}/tmdb/similar-to-picks?picks=${encodeURIComponent(picksParam)}&limit=30`
+                    );
+                    if (r.ok) {
+                        const json = await r.json();
+                        const list = Array.isArray(json?.data) ? json.data : [];
+                        similarTiles = list.map((it) => ({
+                            id: `for-you-sim-${it.type}-${it.tmdb_id}`,
+                            imdbId: null,
+                            type: it.type,
+                            title: it.title,
+                            sub: [
+                                it.year,
+                                it.rating ? `★ ${it.rating}` : null,
+                            ].filter(Boolean).join(' · '),
+                            poster: it.poster,
+                            background: it.backdrop,
+                            routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
+                        }));
+                    }
+                } catch { /* ignore */ }
+            }
 
-            // Fetch genre-based recommendations.
+            // Genre-based recommendations as the second half of the
+            // rail.  Skipped if the user only flagged individual
+            // titles and no genres.
             let recTiles = [];
             if (hasGenres) {
                 try {
@@ -75,14 +98,23 @@ export default function ForYouShelf() {
                             routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
                         }));
                     }
-                } catch { /* keep manualTiles only */ }
+                } catch { /* ignore */ }
             }
 
-            // Dedupe by routePath so a manual pick never duplicates
-            // its recommended counterpart.
+            // Build the rail: similar-to-picks first (leads with
+            // collaborative recs from the user's hand-picked
+            // titles), then genre-based fills the tail.  Dedupe by
+            // routePath AND drop anything the user explicitly
+            // chose — they shouldn't see their own picks here.
+            const excludedRoutes = new Set(
+                vs.items.map(
+                    (it) => `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`
+                )
+            );
             const seen = new Set();
             const tiles = [];
-            for (const t of [...manualTiles, ...recTiles]) {
+            for (const t of [...similarTiles, ...recTiles]) {
+                if (excludedRoutes.has(t.routePath)) continue;
                 if (seen.has(t.routePath)) continue;
                 seen.add(t.routePath);
                 tiles.push(t);
@@ -95,7 +127,7 @@ export default function ForYouShelf() {
             setShelf({
                 id: 'for-you',
                 title: 'For You',
-                eyebrow: 'PICKED FOR YOUR VIEWING STYLE',
+                eyebrow: 'SIMILAR TO WHAT YOU LOVE',
                 items: tiles,
             });
         };
