@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 17 — AvatarStep sticky preview no-drift + BuildAvatarOverlay focus-trap (always preventDefault). ALL 8 review requirements VERIFIED PASS on live preview URL. (1) Outer [data-testid=profile-edit] computed overflowY='hidden' on avatar step; inner [data-testid=profile-step-avatar] computed overflowY='auto' with minHeight=0 — confirms AvatarStep is now its own scroll container. (2) Sticky preview [data-testid=avatar-sticky-preview] top stayed at 227.69px across 8 consecutive ArrowDown presses (max_drift=0.00px, well within 5px tolerance). (3) Inner AvatarCircle data-testid updated from 'avatar-build-new' → 'avatar-a1' → 'avatar-a51' → 'avatar-a16' → 'avatar-a26' → 'avatar-a34' → 'avatar-a41' → 'avatar-a46' → 'avatar-a66' (9 distinct ids, no stuck-on-build-new). (4) Inside [data-testid=build-avatar-overlay], 30 rapid ArrowDown presses produced ZERO focus escapes; final focus = [data-testid=build-avatar-cancel] (last reachable row, matches expected Save|Cancel). (5) From Save focus, 5×ArrowRight produced ZERO escapes; focus remained on [data-testid=build-avatar-save] (last column behaviour). (6) From first [data-testid^=build-chip-top-] chip, 5×ArrowUp produced ZERO escapes; focus stayed on [data-testid=build-chip-top-shortFlat] (no escape to AvatarStep behind — also acceptable to land on build-avatar-back per spec). (7) Click [data-testid=build-avatar-cancel] unmounted overlay (overlay_gone=true) and [data-testid=profile-step-avatar] remained rendered. (8) ZERO console errors across the entire interaction sequence.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "test1_scroll_container_moved_into_avatarstep": "PASS — outer profile-edit overflowY='hidden', inner profile-step-avatar overflowY='auto', minHeight='0px', flex:1 confirms AvatarStep owns scroll viewport.",
+    "test2_sticky_preview_pinned_8_arrowdowns": "PASS — positions=[227.69×9] across initial + 8 ArrowDown presses; max_drift=0.00px ≤ 5px tolerance. Sticky preview visible (top within window, height > 0) at end.",
+    "test3_preview_avatar_id_updates": "PASS — preview innerId sequence: build-new→a1→a51→a16→a26→a34→a41→a46→a66 (9 distinct ids, first≠last). Reflects currently-focused tile correctly.",
+    "test4_overlay_30_arrowdowns_no_escape": "PASS — 30 rapid ArrowDown presses inside build-avatar-overlay: escapes_count=0, every keystroke kept activeElement inside [data-testid=build-avatar-overlay]. Final focus = build-avatar-cancel (BUTTON, in last reachable row alongside Save).",
+    "test5_arrowright_5x_at_save_no_escape": "PASS — From [data-testid=build-avatar-save], 5×ArrowRight: escapes=0; focus remained on build-avatar-save (last column behaviour, acceptable per spec).",
+    "test6_arrowup_5x_at_top_chip_no_escape": "PASS — From [data-testid=build-chip-top-shortFlat], 5×ArrowUp: escapes=0; focus stayed on build-chip-top-shortFlat (no escape to AvatarStep behind). build-avatar-back landing also acceptable per spec; either outcome is correct.",
+    "test7_cancel_click_closes_cleanly": "PASS — Click on build-avatar-cancel → overlay unmounted (overlay_gone=true), profile-step-avatar still rendered (step_still=true). No errors.",
+    "test8_zero_console_errors": "PASS — console.error count = 0 across full interaction sequence (load → OSK 'tester' → next → seed focus → 8 ArrowDowns → open builder → 30 ArrowDowns → focus Save → 5 ArrowRights → focus top-chip → 5 ArrowUps → click cancel)."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProfileEdit.jsx is now 2835 lines (was 2804 in iter 16, +31 lines for scroll-container restructure + always-preventDefault). The file-split refactor (extract AvatarStep, BuildAvatarOverlay, AvatarRow, ChipRow into /components/avatar/*) remains overdue and is a real maintenance risk at this size.",
+    "Two near-identical scoped capture-phase keydown handlers (AvatarStep + BuildAvatarOverlay) still duplicate the DOM-walk logic. Extract into a useScopedDpadNavigation(rootRef, rowSelector) hook for DRY.",
+    "Conditional overflowY on profile-edit ('hidden' for name/avatar, 'auto' for theme/viewing-style) is correct but slightly subtle — a code comment explaining 'name step has no overflow content; avatar step delegates scroll to inner container' is already present (line 131-135), good.",
+    "Escape key still does not close BuildAvatarOverlay (carried from iter 16, not in iter 17 scope). Minor keyboard-parity gap with back button [data-testid=build-avatar-back].",
+    "Optional polish: the AvatarStep root container could expose data-scroll-root=true so future tests/scripts can robustly identify which element is the scrollable. Not required."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only request)", "frontend": "100% (8 of 8 requirements PASS)"},
+  "test_credentials": "None required.",
+  "seed_data_creation": "Playwright addInitScript seeded localStorage: 'onnowtv-profiles-v1'=[{id:'test-i17',name:'TestI17',kids:false}], 'onnowtv-active-profile-v1'='test-i17', cleared 'onnowtv-custom-avatars-v1'. No production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 17 ships TWO fixes verified end-to-end: (1) profile-edit (outer) now has overflowY='hidden' when step is 'name' or 'avatar'; profile-step-avatar (inner) has overflowY='auto', flex:1, minHeight:0 — making it its own scroll container so position:sticky;top:0 on [data-testid=avatar-sticky-preview] truly pins. Verified 0.00px drift across 8 ArrowDowns. (2) BuildAvatarOverlay keydown handler now ALWAYS calls preventDefault+stopPropagation when active focus is inside the overlay (even at row edges with target=null), preventing the global useSpatialFocus engine from stealing keystrokes. Verified 0 escapes across 30 ArrowDowns + 5 ArrowRights at Save + 5 ArrowUps at top-chip. Selectors stable: [data-testid=profile-edit], [data-testid=profile-step-avatar], [data-testid=avatar-sticky-preview] (sticky, top:0, contains inner AvatarCircle [data-testid^=avatar-]), [data-testid=avatar-build-your-own], [data-testid=build-avatar-overlay], [data-testid=build-avatar-back/cancel/save], [data-testid=build-chip-{group}-{opt}]. Test pattern: seed localStorage, OSK-click 't','e','s','t','e','r' (role=button, exact=True), click 'Next: choose an avatar'. Escape-to-close still a minor gap (not in iter 17 scope).",
+  "rca_of_the_issue": "N/A — Iter 17 is a feature-completion verification. Both BUG 1 (sticky drift due to wrong scroll-container ancestor) and BUG 2 (focus escape at builder row edges due to missing preventDefault) are confirmed FIXED. No regressions detected."
+}

@@ -128,7 +128,13 @@ export default function ProfileEdit() {
                         ? 'clamp(20px, 2vw, 32px) clamp(28px, 4vw, 64px)'
                         : 'clamp(40px, 5vw, 80px)',
                 height: '100dvh',
-                overflowY: step === 'name' ? 'hidden' : 'auto',
+                // Avatar step owns its OWN scroll viewport so the
+                // sticky preview inside it actually sticks (sticky
+                // is relative to the nearest scrollable ancestor;
+                // when the OUTER container scrolls, the preview
+                // scrolls away with the header).
+                overflowY:
+                    step === 'name' || step === 'avatar' ? 'hidden' : 'auto',
                 overflowX: 'hidden',
             }}
         >
@@ -1454,7 +1460,19 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
         <div
             ref={containerRef}
             data-testid="profile-step-avatar"
-            style={{ width: '100%', position: 'relative' }}
+            style={{
+                width: '100%',
+                position: 'relative',
+                // AvatarStep is the scroll container for its own
+                // content so the sticky preview header below
+                // correctly sticks to the top of THIS scrollable
+                // — not the outer wizard page (which is now
+                // non-scrolling on this step).
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+            }}
         >
             {/* Sticky preview header — pinned to the top of the
                 step's scroll viewport so it remains visible as
@@ -1880,9 +1898,15 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
                     }, null)?.el || rows[nextRowIdx][0];
                 }
             }
-            if (!target) return;
+            // ALWAYS preventDefault + stopPropagation when we're
+            // inside the overlay — even if `target` is null at an
+            // edge.  Without this the global spatial-focus engine
+            // happily picks up the keystroke and focuses an avatar
+            // tile in the AvatarStep behind the modal, which is
+            // why the user sees focus "disappear".
             e.preventDefault();
             e.stopPropagation();
+            if (!target) return;
             focusTarget(target);
         };
 
