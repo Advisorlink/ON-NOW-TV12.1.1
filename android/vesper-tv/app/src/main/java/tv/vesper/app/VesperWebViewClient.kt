@@ -22,9 +22,10 @@ import java.util.concurrent.TimeUnit
  *   we call it directly from the WebView — but since the React app
  *   is served from `*.emergentagent.com`, any cross-origin fetch
  *   would be blocked by the WebView's CORS enforcement.  We solve
- *   this by intercepting requests to `*/player_api.php` and proxying
- *   them through an OkHttp client at the native layer, re-emitting
- *   the response with permissive `Access-Control-Allow-*` headers.
+ *   this by intercepting requests to the /player_api.php endpoint
+ *   and proxying them through an OkHttp client at the native layer,
+ *   re-emitting the response with permissive `Access-Control-Allow-*`
+ *   headers.
  * - On every page finish, injects a tiny JS snippet that nukes any
  *   "Made with Emergent" preview badge that may have been bundled in
  *   the build — belt-and-braces alongside the CSS rule.
