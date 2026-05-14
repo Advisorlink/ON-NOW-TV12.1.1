@@ -168,7 +168,6 @@ export default function HeroBillboard({ heroes }) {
                             data-testid="hero-play-button"
                             data-focusable="true"
                             data-focus-style="pill"
-                            data-initial-focus="true"
                             tabIndex={0}
                             onClick={() => goToDetail(true)}
                             className="flex items-center gap-2 rounded-full font-sans font-semibold"

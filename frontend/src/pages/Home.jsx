@@ -52,6 +52,52 @@ export default function Home() {
         if (main) main.scrollTop = 0;
     }, [filter]);
 
+    // Initial focus on the FIRST tile of the FIRST shelf — not the
+    // hero Play button, not the side nav.  Shelves render async as
+    // addons resolve, so we retry over ~2 s before giving up.  The
+    // first qualifying focusable is whichever shelf populates first
+    // (Continue Watching → Networks → first catalog shelf).
+    React.useEffect(() => {
+        let cancelled = false;
+        const trySetFocus = () => {
+            if (cancelled) return false;
+            const region = document.querySelector(
+                '[data-testid="shelves-region"]'
+            );
+            if (!region) return false;
+            const first = region.querySelector('[data-focusable="true"]');
+            if (!first) return false;
+            try {
+                first.focus({ preventScroll: true });
+            } catch {
+                /* ignore */
+            }
+            // Clear lingering data-focused on anything else (hero Play
+            // button may have picked it up from an earlier mount).
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== first) el.removeAttribute('data-focused');
+                });
+            first.setAttribute('data-focused', 'true');
+            return true;
+        };
+        const timers = [80, 250, 600, 1100, 1800].map((ms) =>
+            setTimeout(() => {
+                if (trySetFocus()) {
+                    // Cancel remaining retries once we've succeeded.
+                    timers.forEach((t) => clearTimeout(t));
+                }
+            }, ms)
+        );
+        return () => {
+            cancelled = true;
+            timers.forEach((t) => clearTimeout(t));
+        };
+        // Re-run when filter swaps so the first tile of the new
+        // filtered view (movies-only or series-only) gets focus too.
+    }, [filter]);
+
     return (
         <div
             data-testid="home-page"

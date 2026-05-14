@@ -270,6 +270,40 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   pressing Down from a TV-show card in the library lands on a
   Watch Later tile (`watch-later-remove-movie-tt15239678`).
 
+## Implemented (Iteration 41 — Feb 14, 2026)
+### 100 avatars + Home initial-focus on first shelf + Left-edge → Home
+- **`lib/avatars.jsx` expanded from 50 → 100 avatars**.  New 50
+  cover: more animals (15: turtle, octopus, whale, shark,
+  butterfly, bee, giraffe, zebra, elephant, kangaroo, rhino,
+  horse, deer, dolphin, peacock), food &amp; drink (10), nature
+  &amp; weather (8: cherry blossom, sunflower, cactus, wave,
+  rainbow, mushroom, palm tree, volcano), vehicles &amp; travel
+  (7), hobbies &amp; gear (10: camera, paint palette, books,
+  chess, dice, drums, violin, Saturn, roller skates, disco ball).
+  Avatar header label "CHOOSE AN AVATAR · 100".  All keep the
+  emoji-on-gradient + glow-ring pattern, no external images.
+- **Home page initial focus** moved from hero Play button to the
+  FIRST focusable inside the shelves region.  Removed
+  `data-initial-focus="true"` from `hero-play-button` and added
+  a useEffect in `Home.jsx` that retries focusing the first
+  `[data-focusable="true"]` inside `[data-testid="shelves-region"]`
+  at 80, 250, 600, 1100, 1800 ms (shelves render async).
+  Verified: `document.activeElement` on Home mount is
+  `network-netflix` (first network tile of the Networks shelf).
+  Also re-fires when the `?filter=` query param changes so the
+  movies-only / series-only view also focuses its first tile.
+- **Left edge → Home (not Autoplay)** — fixed in
+  `useSpatialFocus.js`'s `findNext`.  When using the DOM-sibling
+  fast path and the user is on the leftmost tile of a horizontal
+  rail, we now `return null` (instead of falling through to
+  geometry scoring).  The geometry path was previously picking
+  whichever side-nav item was vertically nearest — often
+  Autoplay at the bottom — but the user always wants Left from
+  a shelf to land on Home (top of nav).  `applyMove`'s edge
+  fallback already used `navItems[0]` (Home) — it just wasn't
+  being reached.  Verified: pressing Left from `network-netflix`
+  lands on `nav-home`.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS

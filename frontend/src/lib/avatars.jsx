@@ -1,10 +1,11 @@
 /**
- * 30 deterministic avatars — emoji on radial-gradient backgrounds.
+ * 100 deterministic avatars — emoji on radial-gradient backgrounds.
  * No external images, no API calls; works fully offline.
  *
- * Mix of: animals, fantasy, pro/sports, food, faces, weather, tech —
- * something for every taste.  Each avatar has a unique gradient and
- * a glow ring color tuned to match the artwork.
+ * Mix of: animals (30), fantasy/cool (10), sports (8), music + gear,
+ * faces, symbols, food, nature, vehicles, hobbies — something for
+ * every taste.  Each avatar has a unique gradient and a glow ring
+ * color tuned to match the artwork.
  */
 
 export const AVATARS = [
@@ -69,6 +70,66 @@ export const AVATARS = [
     { id: 'a48', e: '⚡', from: '#06B6D4', to: '#A78BFA', glow: '#06B6D4' },
     { id: 'a49', e: '🎬', from: '#1F2937', to: '#5DC8FF', glow: '#5DC8FF' },
     { id: 'a50', e: '💎', from: '#06B6D4', to: '#F472B6', glow: '#06B6D4' },
+
+    // ---- More animals (15) ----
+    { id: 'a51', e: '🐢', from: '#0F766E', to: '#84CC16', glow: '#84CC16' },
+    { id: 'a52', e: '🐙', from: '#A21CAF', to: '#F472B6', glow: '#A21CAF' },
+    { id: 'a53', e: '🐳', from: '#0EA5E9', to: '#A7F3D0', glow: '#0EA5E9' },
+    { id: 'a54', e: '🦈', from: '#1E3A8A', to: '#93C5FD', glow: '#1E3A8A' },
+    { id: 'a55', e: '🦋', from: '#7C3AED', to: '#22D3EE', glow: '#22D3EE' },
+    { id: 'a56', e: '🐝', from: '#FBBF24', to: '#1F2937', glow: '#FBBF24' },
+    { id: 'a57', e: '🦒', from: '#CA8A04', to: '#FDE68A', glow: '#CA8A04' },
+    { id: 'a58', e: '🦓', from: '#0F172A', to: '#F1F5F9', glow: '#F1F5F9' },
+    { id: 'a59', e: '🐘', from: '#64748B', to: '#CBD5E1', glow: '#94A3B8' },
+    { id: 'a60', e: '🦘', from: '#9A3412', to: '#FBA74C', glow: '#9A3412' },
+    { id: 'a61', e: '🦏', from: '#475569', to: '#94A3B8', glow: '#475569' },
+    { id: 'a62', e: '🐎', from: '#7C2D12', to: '#FDBA74', glow: '#7C2D12' },
+    { id: 'a63', e: '🦌', from: '#92400E', to: '#FDE68A', glow: '#92400E' },
+    { id: 'a64', e: '🐬', from: '#0EA5E9', to: '#E0F2FE', glow: '#0EA5E9' },
+    { id: 'a65', e: '🦚', from: '#1E40AF', to: '#10B981', glow: '#10B981' },
+
+    // ---- Food & drink (10) ----
+    { id: 'a66', e: '🍕', from: '#DC2626', to: '#FBBF24', glow: '#DC2626' },
+    { id: 'a67', e: '🍔', from: '#854D0E', to: '#FBBF24', glow: '#FBBF24' },
+    { id: 'a68', e: '🌮', from: '#F59E0B', to: '#FCD34D', glow: '#F59E0B' },
+    { id: 'a69', e: '🍣', from: '#FB923C', to: '#FED7AA', glow: '#FB923C' },
+    { id: 'a70', e: '🍩', from: '#EC4899', to: '#FDE68A', glow: '#EC4899' },
+    { id: 'a71', e: '🍓', from: '#DC2626', to: '#FDA4AF', glow: '#DC2626' },
+    { id: 'a72', e: '🥑', from: '#16A34A', to: '#FACC15', glow: '#16A34A' },
+    { id: 'a73', e: '🍉', from: '#DC2626', to: '#22C55E', glow: '#DC2626' },
+    { id: 'a74', e: '🧁', from: '#F472B6', to: '#FBCFE8', glow: '#F472B6' },
+    { id: 'a75', e: '☕', from: '#451A03', to: '#A87454', glow: '#A87454' },
+
+    // ---- Nature & weather (8) ----
+    { id: 'a76', e: '🌸', from: '#EC4899', to: '#FCE7F3', glow: '#EC4899' },
+    { id: 'a77', e: '🌻', from: '#FACC15', to: '#FDE047', glow: '#FACC15' },
+    { id: 'a78', e: '🌵', from: '#15803D', to: '#86EFAC', glow: '#15803D' },
+    { id: 'a79', e: '🌊', from: '#0EA5E9', to: '#67E8F9', glow: '#0EA5E9' },
+    { id: 'a80', e: '🌈', from: '#F472B6', to: '#22D3EE', glow: '#F472B6' },
+    { id: 'a81', e: '🍄', from: '#DC2626', to: '#FEF3C7', glow: '#DC2626' },
+    { id: 'a82', e: '🌴', from: '#15803D', to: '#FACC15', glow: '#15803D' },
+    { id: 'a83', e: '🌋', from: '#7F1D1D', to: '#F97316', glow: '#F97316' },
+
+    // ---- Vehicles & travel (7) ----
+    { id: 'a84', e: '🚗', from: '#DC2626', to: '#FECACA', glow: '#DC2626' },
+    { id: 'a85', e: '🏍️', from: '#1F2937', to: '#EF4444', glow: '#EF4444' },
+    { id: 'a86', e: '✈️', from: '#0EA5E9', to: '#E0F2FE', glow: '#0EA5E9' },
+    { id: 'a87', e: '🛸', from: '#7C3AED', to: '#22D3EE', glow: '#22D3EE' },
+    { id: 'a88', e: '🚂', from: '#7F1D1D', to: '#94A3B8', glow: '#7F1D1D' },
+    { id: 'a89', e: '🛹', from: '#7C3AED', to: '#FACC15', glow: '#7C3AED' },
+    { id: 'a90', e: '⛵', from: '#0EA5E9', to: '#F1F5F9', glow: '#0EA5E9' },
+
+    // ---- Hobbies & gear (10) ----
+    { id: 'a91', e: '📷', from: '#1F2937', to: '#A78BFA', glow: '#A78BFA' },
+    { id: 'a92', e: '🎨', from: '#9333EA', to: '#F472B6', glow: '#9333EA' },
+    { id: 'a93', e: '📚', from: '#92400E', to: '#FBBF24', glow: '#92400E' },
+    { id: 'a94', e: '♟️', from: '#0F172A', to: '#F1F5F9', glow: '#F1F5F9' },
+    { id: 'a95', e: '🎲', from: '#DC2626', to: '#FDE68A', glow: '#DC2626' },
+    { id: 'a96', e: '🥁', from: '#7F1D1D', to: '#F59E0B', glow: '#F59E0B' },
+    { id: 'a97', e: '🎻', from: '#7C2D12', to: '#FBBF24', glow: '#FBBF24' },
+    { id: 'a98', e: '🪐', from: '#1E1B4B', to: '#FACC15', glow: '#FACC15' },
+    { id: 'a99', e: '🛼', from: '#EC4899', to: '#A78BFA', glow: '#EC4899' },
+    { id: 'a100', e: '🪩', from: '#A21CAF', to: '#22D3EE', glow: '#A21CAF' },
 
     // ---- Kids permanent profile avatar (hidden from picker) ----
     { id: 'kids-default', e: '🧸', from: '#FFC857', to: '#FF6B9D', glow: '#FFC857', hidden: true },

@@ -95,9 +95,15 @@ export default function useSpatialFocus() {
                     if (nextIdx >= 0 && nextIdx < list.length) {
                         return list[nextIdx];
                     }
-                    // Edge of rail: fall through to geometry only for
-                    // Left so we can hop into the side-nav.
-                    if (dir === 'right') return null;
+                    // Edge of rail — return null in BOTH directions
+                    // so applyMove's edge fallback can take over.
+                    // For LEFT this is critical: the geometry path
+                    // would otherwise pick whichever nav item is
+                    // vertically nearest (often Autoplay at the
+                    // bottom), but the user expects Left from a
+                    // shelf to ALWAYS land on Home (top of nav).
+                    // applyMove handles that explicitly below.
+                    return null;
                 }
             }
 
