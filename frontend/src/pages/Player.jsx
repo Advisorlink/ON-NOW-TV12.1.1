@@ -16,6 +16,7 @@ import {
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
+import { getActiveProfile } from '@/lib/profiles';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
 function srtToVtt(srt) {
@@ -87,6 +88,9 @@ export default function Player() {
     const title = params.get('title') || 'Now Playing';
     const type = params.get('type');
     const imdbId = params.get('imdbId');
+    // Watch Together — only present when arrived via a party.
+    const partyCode = params.get('party') || '';
+    const partyStartPositionMs = parseInt(params.get('position_ms') || '0', 10) || 0;
 
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
@@ -416,6 +420,196 @@ export default function Player() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamReady, subs, autoSubApplied]);
 
+    // -----------------------------------------------------------------
+    // Watch Together — party sync.
+    //
+    // Architecture (host-authoritative):
+    //   • Host emits play / pause / seek over the same WebSocket so
+    //     every guest mirrors the action.
+    //   • Guests are passive listeners — they apply the broadcast
+    //     state to their <video> and otherwise do nothing.
+    //   • Host also broadcasts a `playing_now` heartbeat every 2s
+    //     so late-joiners pick up the right position when they
+    //     load the Player.
+    //   • Tolerance: a guest only seeks when its position drifts
+    //     more than 1.5 s from the host's so we don't fight
+    //     normal HLS buffering jitter.
+    // -----------------------------------------------------------------
+    const partyRoleRef = useRef('guest');
+    const partyMemberIdRef = useRef('');
+    const partyWsRef = useRef(null);
+    const partyArmedRef = useRef(false);   // ignore the first 'play' that we
+                                            // trigger on countdown so we don't
+                                            // echo it back as a 'resume'.
+    const [partyStatus, setPartyStatus] = useState('connecting');
+    const [partyCountdown, setPartyCountdown] = useState(0);
+
+    useEffect(() => {
+        if (!partyCode) return;
+        // Pull role + member id captured by the WatchTogether lobby.
+        let role = 'guest';
+        let memberId = '';
+        try {
+            role = sessionStorage.getItem('vesper-party-role') || 'guest';
+            memberId = sessionStorage.getItem('vesper-party-member-id') || '';
+        } catch { /* private mode */ }
+        partyRoleRef.current = role;
+        partyMemberIdRef.current = memberId;
+
+        const wsBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
+            .replace(/^http/, 'ws');
+        const ws = new WebSocket(`${wsBase}/api/watch-party/ws/${partyCode}`);
+        partyWsRef.current = ws;
+        const send = (m) => {
+            if (ws.readyState === 1) ws.send(JSON.stringify(m));
+        };
+
+        ws.onopen = () => {
+            const profile = getActiveProfile() || {};
+            send({
+                type: 'hello',
+                role,
+                member_id: memberId || undefined,
+                name: profile.name || 'Guest',
+                avatar: profile.avatarId || 'a1',
+            });
+            setPartyStatus('connected');
+        };
+
+        ws.onclose = () => {
+            if (partyWsRef.current === ws) partyWsRef.current = null;
+            setPartyStatus('disconnected');
+        };
+
+        ws.onmessage = (e) => {
+            let msg; try { msg = JSON.parse(e.data); } catch { return; }
+            if (msg.type === 'joined') {
+                partyMemberIdRef.current = msg.member_id;
+                try { sessionStorage.setItem('vesper-party-member-id', msg.member_id); }
+                catch { /* ignore */ }
+                return;
+            }
+            if (msg.type !== 'state') return;
+            const v = videoRef.current;
+            if (!v) return;
+
+            // Countdown handling — every client.  When `status` is
+            // 'countdown' we render an overlay that ticks down until
+            // `at_ms` wallclock, then we (the local video) play.
+            if (msg.status === 'countdown' && msg.at_ms) {
+                const remaining = Math.max(0, msg.at_ms - Date.now());
+                setPartyCountdown(Math.ceil(remaining / 1000));
+                if (role === 'guest') {
+                    // Guests seek to host's anchor point now so the
+                    // first frame after countdown is in sync.
+                    const targetSec = (msg.position_ms || 0) / 1000;
+                    if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
+                        try { v.currentTime = targetSec; } catch { /* ignore */ }
+                    }
+                    // Schedule the actual play call.
+                    const fire = () => {
+                        partyArmedRef.current = false;
+                        v.play().catch(() => {});
+                        setPartyCountdown(0);
+                    };
+                    if (remaining <= 0) fire();
+                    else setTimeout(fire, remaining);
+                }
+                return;
+            }
+
+            setPartyCountdown(0);
+
+            if (role === 'guest') {
+                if (msg.status === 'paused') {
+                    const targetSec = (msg.position_ms || 0) / 1000;
+                    if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
+                        try { v.currentTime = targetSec; } catch { /* ignore */ }
+                    }
+                    if (!v.paused) {
+                        partyArmedRef.current = false;
+                        try { v.pause(); } catch { /* ignore */ }
+                    }
+                } else if (msg.status === 'playing') {
+                    // Drift correction during playback.
+                    const targetSec = (msg.position_ms || 0) / 1000;
+                    if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
+                        try { v.currentTime = targetSec; } catch { /* ignore */ }
+                    }
+                    if (v.paused) {
+                        partyArmedRef.current = false;
+                        v.play().catch(() => {});
+                    }
+                }
+            }
+        };
+
+        // Host emits play/pause/seek as the user interacts.  We track
+        // a small "armed" flag to avoid echoing programmatic state
+        // changes (e.g. our own countdown-trigger play) back as a
+        // resume — that would cause an infinite re-broadcast loop.
+        const onPlay = () => {
+            if (role !== 'host') return;
+            if (!partyArmedRef.current) { partyArmedRef.current = true; return; }
+            const v = videoRef.current; if (!v) return;
+            send({ type: 'resume', position_ms: Math.floor((v.currentTime || 0) * 1000), lead_ms: 800 });
+        };
+        const onPause = () => {
+            if (role !== 'host') return;
+            if (!partyArmedRef.current) { partyArmedRef.current = true; return; }
+            const v = videoRef.current; if (!v) return;
+            // Ignore the 'ended' pause — we don't want to pause the
+            // entire party when the movie reaches its credits.
+            if (v.ended) return;
+            send({ type: 'pause', position_ms: Math.floor((v.currentTime || 0) * 1000) });
+        };
+        const onSeeked = () => {
+            if (role !== 'host') return;
+            if (!partyArmedRef.current) return;
+            const v = videoRef.current; if (!v) return;
+            send({ type: 'seek', position_ms: Math.floor((v.currentTime || 0) * 1000) });
+        };
+        const v = videoRef.current;
+        v?.addEventListener('play', onPlay);
+        v?.addEventListener('pause', onPause);
+        v?.addEventListener('seeked', onSeeked);
+
+        // Host heartbeat — keep server's position fresh.
+        let heartbeat = null;
+        if (role === 'host') {
+            heartbeat = setInterval(() => {
+                const vv = videoRef.current;
+                if (!vv || vv.paused) return;
+                send({ type: 'playing_now', position_ms: Math.floor((vv.currentTime || 0) * 1000) });
+            }, 2000);
+        }
+
+        return () => {
+            if (heartbeat) clearInterval(heartbeat);
+            v?.removeEventListener('play', onPlay);
+            v?.removeEventListener('pause', onPause);
+            v?.removeEventListener('seeked', onSeeked);
+            try { ws.close(); } catch { /* ignore */ }
+            partyWsRef.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partyCode]);
+
+    // Host-side: if the URL provided a position_ms (e.g. resume of a
+    // mid-party rejoin) we seek there once the stream is ready.
+    useEffect(() => {
+        if (!partyCode) return;
+        if (!streamReady) return;
+        if (!partyStartPositionMs) return;
+        const v = videoRef.current;
+        if (!v) return;
+        const targetSec = partyStartPositionMs / 1000;
+        if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
+            try { v.currentTime = targetSec; } catch { /* ignore */ }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streamReady, partyCode]);
+
     if (!url) {
         return (
             <CenterMsg>
@@ -494,7 +688,68 @@ export default function Player() {
                         {url}
                     </div>
                 </div>
+                {partyCode && (
+                    <div
+                        data-testid="player-party-badge"
+                        className="ml-auto flex items-center gap-2 rounded-full"
+                        style={{
+                            padding: '6px 14px',
+                            background: 'rgba(var(--vesper-blue-rgb),0.18)',
+                            border: '1px solid rgba(var(--vesper-blue-rgb),0.5)',
+                            color: 'var(--vesper-blue-bright)',
+                            fontSize: 12,
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                            fontWeight: 700,
+                        }}
+                    >
+                        <span style={{
+                            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                            background: partyStatus === 'connected' ? '#3ee07a' : '#f7c948',
+                            boxShadow: '0 0 8px currentColor',
+                        }} />
+                        Party · {partyCode}
+                        <span style={{ color: 'var(--vesper-text-2)', fontWeight: 500, letterSpacing: '0.12em', marginLeft: 4 }}>
+                            {partyRoleRef.current === 'host' ? 'HOST' : 'GUEST'}
+                        </span>
+                    </div>
+                )}
             </div>
+
+            {/* Watch-Together countdown overlay — every member sees
+                this in their browser when the host hits Start. */}
+            {partyCode && partyCountdown > 0 && (
+                <div
+                    data-testid="player-party-countdown"
+                    className="absolute inset-0 z-40 flex flex-col items-center justify-center"
+                    style={{
+                        background: 'radial-gradient(ellipse at center, rgba(6,8,15,0.55) 0%, rgba(6,8,15,0.92) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 12, letterSpacing: '0.32em', textTransform: 'uppercase',
+                            color: 'var(--vesper-blue-bright)', marginBottom: 18,
+                        }}
+                    >
+                        Starting the party
+                    </div>
+                    <div
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(120px, 16vw, 220px)',
+                            fontWeight: 800,
+                            color: 'var(--vesper-blue-bright)',
+                            textShadow: '0 0 60px rgba(var(--vesper-blue-rgb),0.7)',
+                            lineHeight: 1,
+                        }}
+                    >
+                        {partyCountdown}
+                    </div>
+                </div>
+            )}
 
             {/* Cinematic preview / loading screen */}
             {showPreview && (
@@ -843,7 +1098,7 @@ export default function Player() {
 
             {/* Bottom right action cluster */}
             <div className="absolute bottom-8 right-8 z-10 flex items-center gap-3">
-                {Host.isAndroid && url && (
+                {Host.isAndroid && url && !partyCode && (
                     <button
                         data-testid="player-external"
                         data-focusable="true"

@@ -59,6 +59,23 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('autoplay') === '1',
         [location.search]
     );
+    // Watch Together: when ?party=CODE is in the URL we are a party
+    // member.  We force the JS Player path (instead of the native
+    // libVLC Activity) so the Player can pipe play/pause/seek
+    // events through the party WebSocket, and we treat the title
+    // as autoplay regardless of the user's Autoplay 1080p setting.
+    const partyCode = useMemo(
+        () => new URLSearchParams(location.search).get('party') || '',
+        [location.search]
+    );
+    const partyAtMs = useMemo(
+        () => new URLSearchParams(location.search).get('at_ms') || '',
+        [location.search]
+    );
+    const partyPositionMs = useMemo(
+        () => new URLSearchParams(location.search).get('position_ms') || '',
+        [location.search]
+    );
 
     const [meta, setMeta] = useState(null);
     const [streams, setStreams] = useState([]);
@@ -249,13 +266,14 @@ export default function Detail() {
         if (!autoplayRequested) return;
         if (type === 'series') return; // series uses per-episode flow
         if (streamLoading) return;
-        if (!getAutoplay1080p()) return;
+        // Party flow auto-plays even when user's Autoplay setting is off.
+        if (!partyCode && !getAutoplay1080p()) return;
         if (!autoplayCandidate) return;
         autoplayFiredRef.current = true;
         const t = setTimeout(() => playStream(autoplayCandidate), 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);
@@ -308,6 +326,7 @@ export default function Detail() {
                 route: `/title/${type}/${id}`,
             });
             if (
+                !partyCode &&
                 Host.playVideo({
                     url: stream.url,
                     title: meta?.name || '',
@@ -326,12 +345,15 @@ export default function Detail() {
             ) {
                 return;
             }
+            const partyQuery = partyCode
+                ? `&party=${encodeURIComponent(partyCode)}&at_ms=${encodeURIComponent(partyAtMs)}&position_ms=${encodeURIComponent(partyPositionMs)}`
+                : '';
             navigate(
                 `/play?url=${encodeURIComponent(
                     stream.url
                 )}&title=${encodeURIComponent(meta?.name || '')}&type=${encodeURIComponent(
                     type
-                )}&imdbId=${encodeURIComponent(id)}`
+                )}&imdbId=${encodeURIComponent(id)}${partyQuery}`
             );
         } else if (mode === 'external') {
             try {

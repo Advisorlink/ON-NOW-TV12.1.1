@@ -49,6 +49,8 @@ export default function WatchTogether() {
     const connect = (code, role) => {
         const ws = new WebSocket(wsUrlFor(code));
         wsRef.current = ws;
+        // Track navigation so we only fire it once per countdown.
+        let navigated = false;
         ws.onopen = () => {
             ws.send(JSON.stringify({
                 type: 'hello',
@@ -62,23 +64,30 @@ export default function WatchTogether() {
             try { payload = JSON.parse(e.data); } catch { return; }
             if (payload.type === 'joined') {
                 myMemberIdRef.current = payload.member_id;
+                // Stash so the Player can rejoin the same party
+                // socket as the same member (host vs guest).
+                try {
+                    sessionStorage.setItem('vesper-party-code', code);
+                    sessionStorage.setItem('vesper-party-role', role);
+                    sessionStorage.setItem('vesper-party-member-id', payload.member_id);
+                } catch { /* private mode */ }
             } else if (payload.type === 'state') {
                 setPartyState(payload);
-                if (payload.status === 'countdown' || payload.status === 'playing') {
-                    if (payload.movie) {
-                        // When the host triggers play we route
-                        // every client through the Player with the
-                        // party code so the Player can rejoin the
-                        // socket and stay in sync.
-                        const target = payload.movie;
-                        const url = `/title/${target.media_type}/${target.tmdb_id}?party=${code}&at_ms=${payload.at_ms}&position_ms=${payload.position_ms}`;
-                        navigate(url);
-                    }
+                if (!navigated && (payload.status === 'countdown' || payload.status === 'playing') && payload.movie) {
+                    navigated = true;
+                    const target = payload.movie;
+                    // Close the lobby socket — Player will reopen it
+                    // (we can only have one socket per member at a
+                    // time, otherwise the server kicks us out).
+                    try { ws.close(); } catch { /* ignore */ }
+                    wsRef.current = null;
+                    const url = `/resolve/${target.media_type}/${target.tmdb_id}?party=${code}&autoplay=1&at_ms=${payload.at_ms}&position_ms=${payload.position_ms}`;
+                    navigate(url);
                 }
             }
         };
         ws.onclose = () => {
-            wsRef.current = null;
+            if (wsRef.current === ws) wsRef.current = null;
         };
     };
 
@@ -163,26 +172,35 @@ export default function WatchTogether() {
 
 function Landing({ onHost, onJoin }) {
     return (
-        <div data-testid="watch-together-landing" className="flex flex-col" style={{ gap: 24 }}>
+        <div data-testid="watch-together-landing" className="flex flex-col" style={{ gap: 18, maxWidth: 980 }}>
             <div className="vesper-mono" style={{ fontSize: 11, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)' }}>
                 <Users size={14} strokeWidth={1.8} style={{ display: 'inline', marginRight: 8, verticalAlign: 'middle' }} />
                 WATCH TOGETHER
             </div>
-            <h1 className="vesper-display" style={{ fontSize: 'clamp(36px, 5vw, 72px)', letterSpacing: '-0.025em', lineHeight: 1.02 }}>
-                Pick a movie. <span style={{ color: 'var(--vesper-blue-bright)' }}>Share a code.</span><br />
-                And we&apos;ll <em style={{ fontStyle: 'normal' }}>press play at the same time</em> for you.
+            <h1 className="vesper-display" style={{ fontSize: 'clamp(28px, 3.2vw, 48px)', letterSpacing: '-0.022em', lineHeight: 1.08 }}>
+                Pick a Movie<span style={{ color: 'var(--vesper-text-3)' }}>/</span>Show.{' '}
+                <span style={{ color: 'var(--vesper-blue-bright)' }}>Share a code.</span>{' '}
+                And we will <em style={{ fontStyle: 'normal' }}>push play</em> for you<span style={{ color: 'var(--vesper-blue-bright)' }}>…</span>
             </h1>
-            <p style={{ color: 'var(--vesper-text-2)', fontSize: 16, maxWidth: '60ch' }}>
+            <p style={{ color: 'var(--vesper-text-2)', fontSize: 14, maxWidth: '62ch', lineHeight: 1.5 }}>
                 Host a private party, send the 6-character code to friends, and the
                 movie starts on every screen the moment you hit play.  Pause, resume
                 and seek stay perfectly in sync.
             </p>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))', gap: 'clamp(16px, 1.8vw, 28px)', marginTop: 12, maxWidth: 920 }}>
+            <div
+                className="grid"
+                style={{
+                    gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))',
+                    gap: 'clamp(14px, 1.4vw, 22px)',
+                    marginTop: 8,
+                    maxWidth: 760,
+                }}
+            >
                 <ChoiceCard
                     testid="watch-together-host"
                     title="Host a party"
                     subtitle="Pick the movie and share a code"
-                    icon={<Plus size={32} strokeWidth={1.6} />}
+                    icon={<Plus size={26} strokeWidth={1.7} />}
                     onClick={onHost}
                     primary
                 />
@@ -190,7 +208,7 @@ function Landing({ onHost, onJoin }) {
                     testid="watch-together-join"
                     title="Join a party"
                     subtitle="Enter a friend's 6-character code"
-                    icon={<KeyRound size={32} strokeWidth={1.6} />}
+                    icon={<KeyRound size={26} strokeWidth={1.7} />}
                     onClick={onJoin}
                 />
             </div>
@@ -208,8 +226,8 @@ function ChoiceCard({ testid, title, subtitle, icon, onClick, primary }) {
             onClick={onClick}
             className="text-left rounded-2xl flex flex-col"
             style={{
-                padding: 'clamp(24px, 2.5vw, 36px)',
-                gap: 16,
+                padding: 'clamp(18px, 1.8vw, 26px)',
+                gap: 12,
                 background: primary
                     ? 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.55), rgba(var(--vesper-blue-rgb),0.18) 70%)'
                     : 'rgba(255,255,255,0.04)',
@@ -219,18 +237,18 @@ function ChoiceCard({ testid, title, subtitle, icon, onClick, primary }) {
                 cursor: 'pointer',
                 color: 'var(--vesper-text)',
                 boxShadow: primary ? '0 18px 50px -20px rgba(var(--vesper-blue-rgb),0.6)' : 'none',
-                minHeight: 200,
+                minHeight: 156,
             }}
         >
             <div style={{
-                width: 56, height: 56, borderRadius: '50%',
+                width: 46, height: 46, borderRadius: '50%',
                 background: primary ? 'var(--vesper-blue)' : 'rgba(var(--vesper-blue-rgb),0.18)',
                 color: primary ? 'var(--vesper-bg-0)' : 'var(--vesper-blue-bright)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{icon}</div>
             <div>
-                <div style={{ fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
-                <div style={{ color: 'var(--vesper-text-2)', fontSize: 14, marginTop: 4 }}>{subtitle}</div>
+                <div style={{ fontSize: 'clamp(18px, 1.5vw, 22px)', fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
+                <div style={{ color: 'var(--vesper-text-2)', fontSize: 13, marginTop: 3 }}>{subtitle}</div>
             </div>
         </button>
     );

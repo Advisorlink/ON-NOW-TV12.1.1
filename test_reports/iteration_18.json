@@ -1,0 +1,80 @@
+{
+  "summary": "Iter 18 — Watch Together (Vesper) end-to-end. Backend: 9/9 pytest tests PASS (REST + WebSocket: create code, state lookup, not_found error, host/guest hello state broadcast, host pick, host play->countdown with future at_ms, host pause updates position+status, chat broadcast with sender info, disconnect rebroadcast). Frontend: Landing copy verified ('Pick a Movie/Show. Share a code. And we will push play for you…'), font-size 48px (no longer 5vw giant), no horizontal overflow. ChoiceCards focusable+clickable. Host flow: POST /api/watch-party/create → Room with 6-char code in [data-testid=watch-together-room-code] PASS. TMDB search ('shrek') returned 15 posters, pick→MoviePreview with title 'Shrek' and 'Start the party' button PASS. After Start: host navigated via /resolve to /play?...&party=ENGU9B&at_ms=...&position_ms=... — party params preserved through Resolve and into Player URL PASS. sessionStorage set: vesper-party-code/role=host/member-id PASS. Player [data-testid=player-party-badge] visible showing 'PARTY · ENGU9B HOST' PASS. CRITICAL BUG FOUND: TVKeyboard drops the FIRST keystroke immediately after the view mounts — typing 6 chars yields only 5 in the input, which (a) blocks Join submit (canJoin requires 6 chars), so the invalid-code error path can't be reached, and (b) breaks the multi-client guest flow entirely (guest can't type the 6-char host code, so they never join, and host always sees only 1 member). All other backend/frontend wiring is correct.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "TVKeyboard (used in JoinView code entry and MoviePicker search)",
+        "issue": "FIRST keystroke after the TVKeyboard mounts is consistently dropped. Typing 6 z's yields 'ZZZZZ·' (5 chars). Typing host code 'ENGU9B' on guest yields 'NGU9B·' (missing E). Reproduced 3/3 attempts with 180ms inter-click delay (not a debounce timing issue). Likely the first click is consumed by the initial focus / keyboard mount handler instead of being treated as a key press.",
+        "selector": "[data-testid=watch-together-code] (preview) ; TVKeyboard role=button name=<letter>",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Watch Together Join → Room (guest)",
+        "issue": "Because the TVKeyboard drops the first character, the guest input ends up at 5/6 chars. canJoin gates on length===6, so the Join Party submit button is disabled and the guest can never reach the Room. End result: in the live host+guest test, GUEST saw 0 members and HOST stayed at 1 member; guest never received the host's pick/start. The backend WS path itself is fine (verified by pytest), this is purely a frontend TVKeyboard input bug.",
+        "affected_selectors": ["[data-testid=watch-together-join-submit]", "[data-testid=watch-together-code]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "backend": {
+      "create_returns_6char_code": "PASS — code matches [A-HJ-NP-Z2-9]{6}",
+      "state_returns_party_for_existing_code": "PASS — type=state, code, members=[], status='lobby', movie=None, position_ms=0",
+      "state_invalid_returns_not_found": "PASS — {error: 'not_found'}",
+      "ws_hello_host_guest_broadcast": "PASS — host gets is_host=true; guest registration broadcast adds 2nd member; host also receives the 2-member state",
+      "ws_host_pick_broadcasts_movie": "PASS — guest receives state with movie.title='Shrek', status='lobby'",
+      "ws_host_play_sets_countdown_future_at_ms": "PASS — status='countdown', at_ms > server_ms with ~lead_ms gap",
+      "ws_host_pause_updates_position_and_status": "PASS — position_ms=12345, status='paused', at_ms=0",
+      "ws_chat_message_broadcast_with_sender_info": "PASS — text/member.name/member.avatar/ts all present",
+      "ws_disconnect_broadcasts_fresh_state": "PASS — host receives state with 1 member after guest closes socket"
+    },
+    "frontend": {
+      "landing_copy_and_size": "PASS — H1 'Pick a Movie/Show. Share a code. And we will push play for you…' at 48px, no horizontal overflow",
+      "choice_cards_focusable": "PASS — both watch-together-host and watch-together-join have tabindex=0",
+      "host_create_room": "PASS — Host click → POST /api/watch-party/create → Room with code displayed",
+      "join_invalid_code_error": "BLOCKED — could not reach error because TVKeyboard drops 1st char, canJoin stays false. (Backend invalid-code path is verified by pytest.)",
+      "tmdb_search_in_picker": "PASS — typing 'shrek' on host (loses 1st char but 'hrek' still returns results) yields 15 poster cards [data-testid^=party-pick-]. Picking a card sets MoviePreview with title 'Shrek' and shows Start button.",
+      "host_pick_visible_to_guest": "BLOCKED — guest could not join due to TVKeyboard first-char bug. Backend pick→broadcast is verified by pytest.",
+      "host_start_navigation_and_url_params": "PASS — host URL: /play?url=...&party=ENGU9B&at_ms=1778758809681&position_ms=0 (party + at_ms + position_ms all preserved through /resolve)",
+      "session_storage_set_by_lobby": "PASS — vesper-party-code='ENGU9B', vesper-party-role='host', vesper-party-member-id='3EMAQU'",
+      "player_party_badge": "PASS — [data-testid=player-party-badge] text='PARTY · ENGU9B HOST'",
+      "autoplay_in_play_url": "INFO — /play URL did not contain autoplay=1 (only party, at_ms, position_ms). Per review spec only party/at_ms/position_ms are required in the /play URL; autoplay=1 was needed on the Detail page to fire playback, which it did (host reached /play with a real stream URL)."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/test_reports/pytest/iter18_watch_party.xml"
+  ],
+  "action_items": [
+    "FIX TVKeyboard first-keystroke drop. Repro: navigate to /watch-together, click 'Join a party', click any letter button — first click does NOT append to the value. Subsequent clicks all work. Same in MoviePicker (typing 'shrek' yields 'hrek' in the search field). Likely the first click is being absorbed by the focus/mount handler or a useEffect that resets value. Suggested check: TVKeyboard's onKey handler, or the parent's setQ/setCode initial state, or an autoFocus side-effect calling onChange('') on mount. Without this fix the entire guest join flow is unusable for any TVKeyboard-only TV remote experience.",
+    "(Optional) Consider whether the Player /play URL should also carry autoplay=1 for explicitness; current implementation propagates only party/at_ms/position_ms which is sufficient since autoplay decision is taken on Detail page."
+  ],
+  "critical_code_review_comments": [
+    "watch_party.py public_state(): server_ms emitted as int(time.time()*1000) — good. position_ms reused as the authoritative resume point. Reaper task is started on first /create — if backend restarts after parties exist (it can't, in-memory) the reaper is fine; but a single-pod assumption is documented in the module docstring.",
+    "watch_party.py 'pause' message has no host check — ANY member can pause the party. This may be intentional ('everyone needs to be able to bathroom-break') but is worth flagging; play/resume/seek/pick are all host-only.",
+    "watch_party.py 'chat' has no rate-limit and only truncates to 280 chars. A malicious client could spam at full socket speed. Low priority for an MVP but mentioning.",
+    "WatchTogether.jsx connect(): if WebSocket fails to open (e.g. wss handshake error), there's no UI feedback — the lobby just sits at 'Waiting for members…' forever. Add an onerror handler that surfaces a toast.",
+    "WatchTogether.jsx: window.location.search isn't reset when navigating back from Room to Landing, but since the page uses local 'view' state and not route segments this is fine. Just noting.",
+    "TVKeyboard is the single shared input control; the first-keystroke drop affects EVERY screen that uses it (search, profile name, join code, party movie search). This was not the focus of this iteration but worth investigating as it's a wide-blast-radius bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_watch_party.py (new)",
+    "/app/test_reports/pytest/iter18_watch_party.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 pytest)",
+    "frontend": "~80% — all wiring works; guest-join flow blocked by TVKeyboard first-char bug"
+  },
+  "test_credentials": "None — /app/memory/test_credentials.md not required for this flow.",
+  "seed_data_creation": "Playwright addInitScript seeded localStorage onnowtv-profiles-v1=[{id,name,avatarId:'a1',kids:false,pin:'',createdAt}] and onnowtv-active-profile-v1 for each browser context (host/guest contexts independent).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_watch_party.py (run with REACT_APP_BACKEND_URL=<frontend .env value> pytest <path> --asyncio-mode=auto). All 9 pass against the live backend. Frontend: the one thing blocking full e2e is the TVKeyboard first-keystroke drop — reproducible with 100% fidelity by clicking ANY letter in a fresh TVKeyboard mount; first click is lost. Once that is fixed, the full host+guest two-context Playwright flow in this report should pass: setup_ctx() for two contexts, host clicks watch-together-host, reads watch-together-room-code, guest clicks watch-together-join → types 6-char code → submit, both should reach watch-together-preview, host clicks watch-together-start, both should land on /play?party=...&at_ms=...&position_ms=... with player-party-badge text 'PARTY · <code> HOST/GUEST'. Multi-client Playwright pattern verified working except for the TVKeyboard bug.",
+  "rca_of_the_issue": "TVKeyboard first-keystroke drop: Hypothesis A — onChange handler on first click is being shadowed by a useEffect that sets value back to '' on mount; check for setValue('') in a useEffect with [] deps that fires AFTER the first click microtask. Hypothesis B — the first click lands while activeElement is still document.body and the TVKeyboard's key dispatcher requires the keyboard root to be focused first. Hypothesis C — useSpatialFocus engine intercepts the first key event for focus initialization. Mitigation suggestion: log inside TVKeyboard's onClick handler and confirm whether onClick fires for the first click. If it does, the bug is in the parent's setQ/setCode; if it doesn't, the bug is in the keyboard's own click delegation."
+}

@@ -26,8 +26,13 @@ export default function Resolve() {
                 if (cancel) return;
                 const imdbId = data?.imdb_id;
                 const appType = type === 'tv' ? 'series' : 'movie';
+                // Preserve any query params (party=, autoplay=,
+                // at_ms=, position_ms=, etc.) through the redirect
+                // so Watch Together / autoplay flows survive the
+                // tmdb→imdb hop.
+                const qs = window.location.search || '';
                 if (imdbId) {
-                    navigate(`/title/${appType}/${imdbId}`, { replace: true });
+                    navigate(`/title/${appType}/${imdbId}${qs}`, { replace: true });
                 } else {
                     navigate('/', { replace: true });
                 }
