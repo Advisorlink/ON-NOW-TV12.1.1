@@ -34,6 +34,13 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 55 — Feb 14, 2026)
+### "Pick your avatar" header reverted to scroll-with-page (not sticky)
+- **🔄 Removed `position: sticky` from `[data-testid="avatar-sticky-preview"]`** (`pages/ProfileEdit.jsx`). The header is now a regular static element inside the page flow — it scrolls up off the screen along with the rest of the page when the user D-pads down, exactly as it did before sticky was introduced.
+- **🔁 Reverted AvatarStep scroll-container ownership** — outer `[data-testid="profile-edit"]` is back to `overflow-y: auto` for the avatar step (not 'hidden'). AvatarStep root no longer has its own `flex: 1 / overflow-y: auto`.
+- Result: the whole screen moves up together when the user navigates down, with the preview header riding along — the original behaviour the user wanted.
+
+
 ## Implemented (Iteration 54 — Feb 14, 2026)
 ### AvatarStep sticky preview truly pinned · BuildAvatarOverlay focus never escapes
 - **📌 AvatarStep is now its own scroll container** (`pages/ProfileEdit.jsx`). Outer `[data-testid="profile-edit"]` is `overflow-y: hidden` on the avatar step; the inner `[data-testid="profile-step-avatar"]` carries `flex: 1; min-height: 0; overflow-y: auto`. `position: sticky; top: 0` on the preview header is now relative to the AvatarStep's own scroll viewport — verified 0 px drift across 8 consecutive ArrowDown presses.

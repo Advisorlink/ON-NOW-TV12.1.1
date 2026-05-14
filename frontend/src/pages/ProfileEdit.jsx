@@ -128,13 +128,8 @@ export default function ProfileEdit() {
                         ? 'clamp(20px, 2vw, 32px) clamp(28px, 4vw, 64px)'
                         : 'clamp(40px, 5vw, 80px)',
                 height: '100dvh',
-                // Avatar step owns its OWN scroll viewport so the
-                // sticky preview inside it actually sticks (sticky
-                // is relative to the nearest scrollable ancestor;
-                // when the OUTER container scrolls, the preview
-                // scrolls away with the header).
                 overflowY:
-                    step === 'name' || step === 'avatar' ? 'hidden' : 'auto',
+                    step === 'name' ? 'hidden' : 'auto',
                 overflowX: 'hidden',
             }}
         >
@@ -1460,19 +1455,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
         <div
             ref={containerRef}
             data-testid="profile-step-avatar"
-            style={{
-                width: '100%',
-                position: 'relative',
-                // AvatarStep is the scroll container for its own
-                // content so the sticky preview header below
-                // correctly sticks to the top of THIS scrollable
-                // — not the outer wizard page (which is now
-                // non-scrolling on this step).
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-            }}
+            style={{ width: '100%', position: 'relative' }}
         >
             {/* Sticky preview header — pinned to the top of the
                 step's scroll viewport so it remains visible as
@@ -1480,20 +1463,22 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                 down.  Reads the currently-FOCUSED avatar (not the
                 last-saved one), so the user always sees exactly
                 what they're about to confirm. */}
+            {/* Preview header for the avatar step.  No sticky —
+                the whole page scrolls together so the user sees
+                the header at the top, then the rows beneath it,
+                and when they D-pad down, everything scrolls up
+                together like a normal page. */}
             <div
                 data-testid="avatar-sticky-preview"
                 className="flex items-center"
                 style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 30,
+                    zIndex: 1,
                     padding: '14px 16px',
                     marginBottom: 14,
                     gap: 18,
                     background:
                         'linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-0) 85%, rgba(6,8,15,0) 100%)',
                     borderBottom: '1px solid rgba(255,255,255,0.06)',
-                    backdropFilter: 'blur(12px)',
                 }}
             >
                 <div style={{ flexShrink: 0 }}>
