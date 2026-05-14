@@ -13,6 +13,33 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api/xtream`;
 const KEY_PROVIDERS = 'onnowtv-xtream-providers-v1';
 const KEY_ACTIVE = 'onnowtv-xtream-active-id';
 
+/**
+ * Dev convenience — auto-seed the owner's provider once if the user
+ * hasn't configured anything yet.  Saves a trip through the login
+ * wizard on every fresh APK install / browser cache clear.  No
+ * effect once any provider exists.
+ */
+const DEFAULT_PROVIDER = {
+    id: 'default-njala',
+    name: 'On Now TV',
+    host: 'njala.ddns.me',
+    port: '8443',
+    scheme: 'https',
+    username: 'ONNOWTV2',
+    password: '5259375949',
+};
+
+function autoSeed() {
+    try {
+        const raw = localStorage.getItem(KEY_PROVIDERS);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(arr) && arr.length > 0) return;
+        localStorage.setItem(KEY_PROVIDERS, JSON.stringify([DEFAULT_PROVIDER]));
+        localStorage.setItem(KEY_ACTIVE, DEFAULT_PROVIDER.id);
+    } catch { /* ignore */ }
+}
+autoSeed();
+
 // ---------- providers (localStorage CRUD) ----------
 
 function uuid() {
