@@ -151,12 +151,12 @@ export default function Settings() {
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
-                    fontSize: 11,
+                    fontSize: 10,
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginTop: 64,
-                    marginBottom: 8,
+                    marginTop: 56,
+                    marginBottom: 6,
                 }}
             >
                 Settings · Playback
@@ -164,11 +164,11 @@ export default function Settings() {
             <h2
                 style={{
                     fontFamily: 'var(--theme-font-display, "Geist", sans-serif)',
-                    fontSize: 'clamp(28px, 3.2vw, 48px)',
+                    fontSize: 'clamp(20px, 1.8vw, 28px)',
                     fontWeight: 700,
-                    letterSpacing: '-0.025em',
-                    lineHeight: 0.95,
-                    marginBottom: 24,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                    marginBottom: 18,
                 }}
             >
                 Streams
@@ -201,20 +201,20 @@ export default function Settings() {
                 style={{
                     background: 'rgba(255,255,255,0.04)',
                     border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 16,
-                    padding: '18px 24px',
-                    marginBottom: 16,
+                    borderRadius: 14,
+                    padding: '14px 18px',
+                    marginBottom: 12,
                 }}
             >
                 <div>
-                    <div style={{ fontSize: 17, fontWeight: 600 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>
                         Switch profile
                     </div>
                     <div
                         style={{
-                            fontSize: 13,
+                            fontSize: 11.5,
                             color: 'var(--vesper-text-2)',
-                            marginTop: 4,
+                            marginTop: 3,
                         }}
                     >
                         Return to the profile picker
@@ -551,12 +551,12 @@ function SectionHeader({ eyebrow, title, icon: Icon }) {
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
-                    fontSize: 11,
+                    fontSize: 10,
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginTop: 56,
-                    marginBottom: 8,
+                    marginTop: 44,
+                    marginBottom: 6,
                 }}
             >
                 {eyebrow}
@@ -565,19 +565,19 @@ function SectionHeader({ eyebrow, title, icon: Icon }) {
                 style={{
                     fontFamily:
                         'var(--theme-font-display, "Geist", sans-serif)',
-                    fontSize: 'clamp(26px, 3vw, 44px)',
+                    fontSize: 'clamp(20px, 1.8vw, 28px)',
                     fontWeight: 700,
-                    letterSpacing: '-0.025em',
-                    lineHeight: 0.95,
-                    marginBottom: 24,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                    marginBottom: 18,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 14,
+                    gap: 10,
                 }}
             >
                 {Icon && (
                     <Icon
-                        size={28}
+                        size={20}
                         strokeWidth={1.8}
                         style={{ color: 'var(--vesper-blue)' }}
                     />
@@ -594,26 +594,26 @@ function ChoiceRow({ testid, title, description, value, options, onChange }) {
             style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 16,
-                padding: '18px 24px',
-                marginBottom: 12,
+                borderRadius: 14,
+                padding: '14px 18px',
+                marginBottom: 10,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 320px' }}>
-                    <div style={{ fontSize: 17, fontWeight: 600 }}>{title}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 260px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
                     <div
                         style={{
-                            marginTop: 4,
-                            fontSize: 12.5,
+                            marginTop: 3,
+                            fontSize: 11.5,
                             color: 'var(--vesper-text-2)',
-                            lineHeight: 1.45,
+                            lineHeight: 1.4,
                         }}
                     >
                         {description}
                     </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-1.5 flex-wrap">
                     {options.map((opt) => {
                         const active = opt.value === value;
                         return (
@@ -625,10 +625,10 @@ function ChoiceRow({ testid, title, description, value, options, onChange }) {
                                 tabIndex={0}
                                 onClick={() => onChange(opt.value)}
                                 style={{
-                                    height: 38,
-                                    padding: '0 16px',
+                                    height: 32,
+                                    padding: '0 13px',
                                     borderRadius: 999,
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontWeight: 600,
                                     background: active
                                         ? 'var(--vesper-blue)'
@@ -788,18 +788,18 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
             data-focus-style="tile"
             tabIndex={0}
             onClick={onToggle}
-            className="w-full flex items-center justify-between gap-6 text-left"
+            className="w-full flex items-center justify-between gap-5 text-left"
             style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 16,
-                padding: '20px 24px',
+                borderRadius: 14,
+                padding: '14px 18px',
             }}
         >
             <div className="flex-1 min-w-0">
                 <div
                     style={{
-                        fontSize: 18,
+                        fontSize: 14,
                         fontWeight: 600,
                         letterSpacing: '-0.01em',
                         color: 'var(--vesper-text)',
@@ -809,9 +809,9 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
                 </div>
                 <div
                     style={{
-                        marginTop: 6,
-                        fontSize: 13,
-                        lineHeight: 1.5,
+                        marginTop: 4,
+                        fontSize: 11.5,
+                        lineHeight: 1.45,
                         color: 'var(--vesper-text-2)',
                         maxWidth: '70ch',
                     }}
@@ -822,8 +822,8 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
             <span
                 style={{
                     flex: '0 0 auto',
-                    width: 56,
-                    height: 32,
+                    width: 44,
+                    height: 26,
                     borderRadius: 999,
                     background: value
                         ? 'var(--vesper-blue)'
@@ -836,9 +836,9 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
                     style={{
                         position: 'absolute',
                         top: 3,
-                        left: value ? 27 : 3,
-                        width: 26,
-                        height: 26,
+                        left: value ? 21 : 3,
+                        width: 20,
+                        height: 20,
                         borderRadius: '50%',
                         background: '#fff',
                         transition: 'left 220ms ease',

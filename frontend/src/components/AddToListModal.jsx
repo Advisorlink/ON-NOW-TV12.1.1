@@ -61,28 +61,47 @@ export default function AddToListModal() {
     // useSpatialFocus only runs once at app boot, not on modal
     // open — so without this, focus stays on whatever poster the
     // user just long-pressed and the home behind keeps responding
-    // to D-pad arrows.
+    // to D-pad arrows.  We also aggressively clear lingering
+    // `data-focused` on everything outside the modal so no tile in
+    // the background still looks active.
     useEffect(() => {
         if (!payload) return;
-        const id = requestAnimationFrame(() => {
-            if (confirmBtnRef.current) {
-                try {
-                    confirmBtnRef.current.focus({ preventScroll: true });
-                    confirmBtnRef.current.setAttribute('data-focused', 'true');
-                    // Clear lingering data-focused on whatever was focused
-                    // before so the underlying tile doesn't appear active.
-                    if (
-                        lastFocusedRef.current &&
-                        lastFocusedRef.current !== confirmBtnRef.current
-                    ) {
-                        lastFocusedRef.current.removeAttribute('data-focused');
+        const focusConfirm = () => {
+            // Strip data-focused from everything that is NOT inside
+            // our modal.  Some Android WebViews keep painting the
+            // pop-out scale until the attribute is removed.
+            const modal = document.querySelector(
+                '[data-testid="add-to-list-modal"]'
+            );
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el)) {
+                        el.removeAttribute('data-focused');
                     }
-                } catch {
-                    /* ignore */
-                }
+                });
+            const btn = confirmBtnRef.current;
+            if (!btn) return;
+            try {
+                btn.focus({ preventScroll: true });
+                btn.setAttribute('data-focused', 'true');
+            } catch {
+                /* ignore */
             }
-        });
-        return () => cancelAnimationFrame(id);
+        };
+        // Call several times — once synchronously, once next paint,
+        // once after 50ms — to defeat any race with the imperative
+        // focus calls the spatial-focus hook might still issue from
+        // the in-flight long-press release.
+        focusConfirm();
+        const id1 = requestAnimationFrame(focusConfirm);
+        const id2 = setTimeout(focusConfirm, 50);
+        const id3 = setTimeout(focusConfirm, 150);
+        return () => {
+            cancelAnimationFrame(id1);
+            clearTimeout(id2);
+            clearTimeout(id3);
+        };
     }, [payload]);
 
     // Capture-phase guards.  We MUST run before React's synthetic

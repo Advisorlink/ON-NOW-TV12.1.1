@@ -62,23 +62,24 @@ export default function ProfileSelect() {
     return (
         <div
             data-testid="profile-select"
-            className="relative w-screen h-[100dvh] flex flex-col items-center justify-center"
+            className="relative w-screen h-[100dvh] flex flex-col items-center"
             style={{
                 background:
                     'radial-gradient(circle at 50% 30%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 60%), var(--vesper-bg-0)',
+                paddingTop: 'clamp(60px, 8vh, 120px)',
             }}
         >
             <div
-                className="vesper-display flex items-baseline justify-center gap-3 select-none"
+                className="vesper-display flex items-baseline justify-center gap-2.5 select-none"
                 style={{
-                    marginBottom: 18,
+                    marginBottom: 14,
                     letterSpacing: '-0.03em',
                     lineHeight: 1,
                 }}
             >
                 <span
                     style={{
-                        fontSize: 'clamp(36px, 4vw, 56px)',
+                        fontSize: 'clamp(26px, 2.6vw, 38px)',
                         fontWeight: 700,
                         color: 'var(--vesper-text)',
                     }}
@@ -87,11 +88,11 @@ export default function ProfileSelect() {
                 </span>
                 <span
                     style={{
-                        fontSize: 'clamp(40px, 4.4vw, 62px)',
+                        fontSize: 'clamp(28px, 2.8vw, 42px)',
                         fontWeight: 800,
                         color: 'var(--vesper-blue-bright)',
                         textShadow:
-                            '0 0 14px rgba(var(--vesper-blue-rgb), 0.7), 0 0 32px rgba(var(--vesper-blue-rgb), 0.45)',
+                            '0 0 10px rgba(var(--vesper-blue-rgb), 0.7), 0 0 24px rgba(var(--vesper-blue-rgb), 0.45)',
                     }}
                 >
                     V2
@@ -106,7 +107,7 @@ export default function ProfileSelect() {
                     marginBottom: 8,
                 }}
             >
-                Who's watching?
+                Who&apos;s ready to watch?
             </h1>
             <p
                 style={{

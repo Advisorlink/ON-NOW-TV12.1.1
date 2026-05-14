@@ -204,6 +204,43 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   to stack the Watch Later rail.  `NewEpisodeToast` now also
   listens for the test event in addition to the real poll.
 
+## Implemented (Iteration 39 — Feb 14, 2026)
+### Profile copy + Library re-layout + Settings polish
+- **Profile Select page**:
+  - Logo "ON NOW TV V2" shrunk (38 → 28 px for "ON NOW TV",
+    42 → 32 px for "V2") and moved higher via top padding
+    `clamp(60px, 8vh, 120px)` (was `justify-center`).
+  - Headline copy "Who&apos;s watching?" → "Who&apos;s ready to watch?".
+- **My Library** redesigned:
+  - Movies section removed entirely.  Only TV Shows favourites
+    show on the library page.  Movies still go into Watch Later
+    via long-press.
+  - Watch Later moved from a 320px right rail to a **full-width
+    block UNDER the TV Shows section**, sharing the same blue
+    gradient + border styling so the page feels unified.  Tiles
+    render in a horizontal landscape (16:9) row that scrolls
+    horizontally with `scroll-snap-type: x mandatory`.
+  - Expand button (top-right of the block) opens a full-screen
+    overlay (`WatchLaterExpanded`) showing every queued item in
+    a 4-col grid with bigger tiles for at-a-glance scanning.
+    Close button + Escape/Backspace shortcut both dismiss.
+- **Settings page** — everything below the Themes section
+  shrunk so it doesn't dwarf the screen on the HK1 box:
+  - SectionHeader: title 26-44 → 20-28 px, eyebrow 11 → 10 px,
+    icon 28 → 20 px, marginTop 56 → 44 px.
+  - Streams h2 + intro: same scale-down.
+  - ToggleRow: title 18 → 14 px, description 13 → 11.5 px,
+    padding 20·24 → 14·18 px, toggle track 56×32 → 44×26 px,
+    thumb 26 → 20 px, radius 16 → 14 px.
+  - ChoiceRow: same proportions.  Choice pills 38 → 32 px tall.
+  - Switch Profile tile: padding & font sizes shrunk to match.
+- **AddToListModal focus hardening**:
+  - Strips `data-focused` from EVERY element outside the modal
+    on open, then imperatively focuses confirm button.  Retries
+    four times (sync, next frame, 50 ms, 150 ms) so any race
+    with the in-flight long-press release can't leave a
+    background tile looking active.
+
 ## ⚠️ FROZEN BASELINE — D-PAD FOCUS & NAVIGATION (USER-LOCKED Feb 13, 2026)
 
 **THE USER HAS EXPLICITLY LOCKED THE CURRENT D-PAD BEHAVIOUR AS
