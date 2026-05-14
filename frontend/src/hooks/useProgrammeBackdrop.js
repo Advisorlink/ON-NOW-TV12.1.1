@@ -19,6 +19,11 @@ import axios from 'axios';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/search`;
 const cache = new Map(); // normalisedTitle -> { backdrop, poster } | null
 
+const GENERIC_TITLES = new Set([
+    'news', 'sport', 'movie', 'movies', 'music', 'weather', 'cartoon',
+    'cartoons', 'kids', 'show', 'live', 'programme', 'program', 'tv',
+]);
+
 function normalise(s) {
     return (s || '')
         .toLowerCase()
@@ -35,7 +40,14 @@ export default function useProgrammeBackdrop(title) {
 
     useEffect(() => {
         const key = normalise(title);
-        if (!key || key.length < 3) { setData(null); return undefined; }
+        // Skip useless lookups: empty, single word too short, or
+        // generic single-word category like "News".
+        if (!key || key.length < 4) { setData(null); return undefined; }
+        const wordCount = key.split(' ').length;
+        if (wordCount === 1 && GENERIC_TITLES.has(key)) {
+            setData(null);
+            return undefined;
+        }
 
         if (cache.has(key)) {
             setData(cache.get(key));
@@ -60,7 +72,7 @@ export default function useProgrammeBackdrop(title) {
                 cache.set(key, null);
                 setData(null);
             }
-        }, 500);
+        }, 700);
         return () => clearTimeout(t);
     }, [title]);
 

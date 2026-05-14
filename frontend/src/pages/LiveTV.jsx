@@ -72,10 +72,6 @@ export default function LiveTV() {
         <div data-testid="live-tv-page" className="relative w-screen" style={{
             minHeight: '100dvh',
             background: 'var(--vesper-bg-0)',
-            // Subtle top-right cyan highlight gives the page real
-            // depth without any GPU-expensive blur or filter.  Just
-            // a stacked radial-gradient on a solid background.
-            backgroundImage: 'radial-gradient(circle at 88% -8%, rgba(93,200,255,0.10) 0%, transparent 38%), radial-gradient(circle at 12% 10%, rgba(93,200,255,0.04) 0%, transparent 30%)',
             overflowX: 'hidden',
         }}>
             <SideNav />
@@ -377,7 +373,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     //  Now/Next, the right-hand GUIDE column shows the rest.
     //
     //  Guardrails for low-end boxes:
-    //    • 250 ms debounce — fast D-pad scrubbing fires one request.
+    //    • 500 ms debounce — fast D-pad scrubbing fires one request.
     //    • 5-min in-memory cache per stream_id — re-focusing is free.
     //    • Stale-request guard so out-of-order responses can't flicker.
     // -------------------------------------------------------------------
@@ -397,12 +393,12 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             return undefined;
         }
 
-        // Otherwise blank current EPG while we wait, debounce 250 ms.
+        // Otherwise blank current EPG while we wait, debounce 500 ms.
         setEpgItems([]);
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
-                const items = await getFullEpg(provider, sid, 12);
+                const items = await getFullEpg(provider, sid, 8);
                 if (epgReqId.current !== myReq) return; // stale
                 epgCache.current.set(sid, { at: Date.now(), items });
                 setEpgItems(items);
@@ -410,7 +406,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 if (epgReqId.current !== myReq) return;
                 setEpgItems([]);
             }
-        }, 250);
+        }, 500);
         return () => clearTimeout(t);
     }, [focusedChannel, provider]);
 
@@ -519,8 +515,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 /* ============================ Hero (lean) ============================ */
 
 function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onToggleFav, onPlay, onExit }) {
-    const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
-    const backdropSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 600) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
     if (categoryName) eyebrowParts.push(categoryName.toUpperCase());
@@ -530,10 +524,15 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
     const progressPct = computeProgress(now);
 
     // TMDB programme backdrop for the currently-airing show.
-    // Cached + debounced inside the hook so D-pad scrubbing through
-    // 100 channels fires exactly zero unnecessary requests.
+    // Heavily debounced + cached so D-pad scrubbing through 100
+    // channels fires no extra requests.  Routed through the image
+    // proxy at 720 px / q=55 — about 60 KB on the wire, ~10× less
+    // than TMDB's native ~800 KB backdrop, while still looking
+    // crisp behind the gradient overlay.
     const tmdb = useProgrammeBackdrop(now?.title || '');
-    const tmdbBackdrop = tmdb?.backdrop || '';
+    const tmdbBackdrop = tmdb?.backdrop
+        ? proxiedLogo(tmdb.backdrop, 720, 55)
+        : '';
 
     // Lightweight real-time clock — refreshes once a minute, no
     // animation, no transition.  Cheap enough for Chrome 52.
@@ -571,78 +570,10 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
                 />
             )}
 
-            {/* Giant dim channel-logo backdrop.  Uses webkit-mask
-                (Chrome 52 / Android WebView native).  One <img>, ~600
-                px wide, routed through the image proxy so it's <2 KB. */}
-            {backdropSrc && (
-                <div
-                    aria-hidden="true"
-                    style={{
-                        position: 'absolute',
-                        top: -120, right: -120,
-                        width: 720, height: 480,
-                        pointerEvents: 'none',
-                        zIndex: 0,
-                        WebkitMaskImage: 'linear-gradient(180deg, #000 0%, #000 50%, transparent 95%)',
-                        maskImage: 'linear-gradient(180deg, #000 0%, #000 50%, transparent 95%)',
-                    }}
-                >
-                    <img
-                        src={backdropSrc}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        style={{
-                            width: '100%', height: '100%',
-                            objectFit: 'contain',
-                            opacity: 0.06,
-                        }}
-                    />
-                </div>
-            )}
+            {/* Channel-logo backdrop removed in v2.0.7 for perf — the
+                TMDB backdrop alone carries the hero's depth now. */}
 
             <div className="flex items-stretch justify-between" style={{ gap: 28, position: 'relative', zIndex: 1 }}>
-                {/* Channel logo card — solid bg, thin border, no filter */}
-                <div
-                    data-testid="live-tv-hero-logo"
-                    style={{
-                        width: 168,
-                        height: 112,
-                        flexShrink: 0,
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 14,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 16,
-                        position: 'relative',
-                        overflow: 'hidden',
-                    }}
-                >
-                    {logoSrc ? (
-                        <img
-                            src={logoSrc}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            style={{
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                                objectFit: 'contain',
-                            }}
-                        />
-                    ) : (
-                        <div className="vesper-mono" style={{
-                            fontSize: 12,
-                            letterSpacing: '0.3em',
-                            color: 'rgba(255,255,255,0.35)',
-                        }}>
-                            NO LOGO
-                        </div>
-                    )}
-                </div>
-
                 <div className="flex flex-col" style={{ gap: 8, flex: 1, minWidth: 0, justifyContent: 'center' }}>
                     <div className="vesper-mono" style={{
                         fontSize: 11, letterSpacing: '0.32em',
@@ -1360,7 +1291,7 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                    {items.slice(0, 12).map((it, idx) => {
+                    {items.slice(0, 8).map((it, idx) => {
                         const start = Number(it.startTimestamp) || 0;
                         const stop = Number(it.stopTimestamp) || 0;
                         const isLive = nowSec >= start && nowSec < stop;
@@ -1521,11 +1452,11 @@ function useNowClock() {
     };
 }
 
-function proxiedLogo(url, width = 36) {
+function proxiedLogo(url, width = 36, quality = 50) {
     if (!url) return '';
     const base = process.env.REACT_APP_BACKEND_URL;
     if (!base) return url;
-    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=50`;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
 }
 
 /** Returns "HH:MM–HH:MM" for an EPG entry's start/stop timestamps. */
