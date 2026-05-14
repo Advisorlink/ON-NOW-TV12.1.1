@@ -16,37 +16,62 @@ import useLongPress from '@/hooks/useLongPress';
 export default function TabGridView({ shelves, loading, type }) {
     const navigate = useNavigate();
 
-    const items = React.useMemo(() => {
+    // Selected genre filter ('' = "All").  Resets when type swaps.
+    const [genre, setGenre] = React.useState('');
+    React.useEffect(() => {
+        setGenre('');
+    }, [type]);
+
+    const { items: allItems, genres: genreList } = React.useMemo(() => {
         const seen = new Map();
+        const genreCount = new Map();
         for (const shelf of Array.isArray(shelves) ? shelves : []) {
             for (const it of shelf.items || []) {
-                // Kid-safe catalog tiles share a TMDB-based `routePath`
-                // across shelves (e.g. /resolve/movie/12345), but each
-                // shelf gives them a different `id`.  Prefer routePath
-                // for dedupe so the same movie isn't repeated 3 times
-                // when it lives in multiple shelves.
                 const key = it.routePath || it.imdbId || it.id;
                 if (!key) continue;
                 if (!seen.has(key)) seen.set(key, it);
+                for (const g of it.genres || []) {
+                    if (!g) continue;
+                    genreCount.set(g, (genreCount.get(g) || 0) + 1);
+                }
             }
         }
         const all = Array.from(seen.values());
-        // Parse `releaseInfo` ("2023" / "2020-" / "2018–2022") into
-        // an integer for sorting.  Items without a year sink.
         const yearOf = (it) => {
             const raw = (it.sub || '') + ' ' + (it.releaseInfo || '');
             const m = raw.match(/(19|20)\d{2}/);
             return m ? parseInt(m[0], 10) : 0;
         };
         all.sort((a, b) => yearOf(b) - yearOf(a));
-        return all;
+        // Top genres by item count, capped to 14 chips so the rail
+        // stays readable on a 1080p TV.
+        const genres = Array.from(genreCount.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 14)
+            .map(([name]) => name);
+        return { items: all, genres };
     }, [shelves]);
 
+    // What we actually paint:
+    // - No genre selected → top 100 newest releases (capped for
+    //   speed per user spec).
+    // - A genre selected → ALL items in that genre (no cap).
+    const items = React.useMemo(() => {
+        if (!genre) return allItems.slice(0, 100);
+        const g = genre.toLowerCase();
+        return allItems.filter((it) =>
+            (it.genres || []).some((x) => (x || '').toLowerCase() === g)
+        );
+    }, [allItems, genre]);
+
     const heading = type === 'series' ? 'TV Shows' : 'Movies';
-    const eyebrow =
-        type === 'series'
-            ? 'EVERY SERIES · NEWEST FIRST'
-            : 'EVERY MOVIE · NEWEST FIRST';
+    const eyebrow = genre
+        ? type === 'series'
+            ? `EVERY ${genre.toUpperCase()} SERIES`
+            : `EVERY ${genre.toUpperCase()} MOVIE`
+        : type === 'series'
+        ? 'TOP 100 NEW RELEASED TV SHOWS'
+        : 'TOP 100 NEW RELEASED MOVIES';
 
     return (
         <section
@@ -87,11 +112,25 @@ export default function TabGridView({ shelves, loading, type }) {
                 >
                     {loading
                         ? 'Pulling catalogues from your installed sources…'
-                        : `${items.length} title${
+                        : genre
+                        ? `Every ${genre} ${
+                              type === 'series' ? 'series' : 'movie'
+                          } · ${items.length} title${
                               items.length === 1 ? '' : 's'
-                          } from every catalogue you have installed`}
+                          }`
+                        : `Top ${Math.min(items.length, 100)} new released ${
+                              type === 'series' ? 'TV shows' : 'movies'
+                          }`}
                 </div>
             </header>
+
+            {genreList.length > 0 && (
+                <GenreChips
+                    genres={genreList}
+                    selected={genre}
+                    onSelect={(g) => setGenre(g)}
+                />
+            )}
 
             {items.length === 0 && !loading ? (
                 <div
@@ -151,6 +190,80 @@ export default function TabGridView({ shelves, loading, type }) {
                 </div>
             )}
         </section>
+    );
+}
+
+/**
+ * Horizontal scroller of genre pills above the tab grid.  The
+ * "All" chip resets to the default top-100-newest view.  Picking
+ * any other genre swaps the grid to show *every* title in that
+ * genre (no 100-item cap), which is the user's explicit request.
+ */
+function GenreChips({ genres, selected, onSelect }) {
+    return (
+        <div
+            data-testid="tab-genre-chips"
+            className="flex"
+            style={{
+                gap: 10,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                marginBottom: 26,
+                paddingTop: 6,
+                paddingBottom: 12,
+                scrollSnapType: 'x proximity',
+            }}
+        >
+            <GenreChip
+                label="All"
+                active={!selected}
+                onClick={() => onSelect('')}
+            />
+            {genres.map((g) => (
+                <GenreChip
+                    key={g}
+                    label={g}
+                    active={selected === g}
+                    onClick={() => onSelect(g)}
+                />
+            ))}
+        </div>
+    );
+}
+
+function GenreChip({ label, active, onClick }) {
+    return (
+        <button
+            data-testid={`genre-chip-${label.toLowerCase()}`}
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={onClick}
+            className="font-sans flex-shrink-0"
+            style={{
+                height: 40,
+                padding: '0 18px',
+                borderRadius: 999,
+                background: active
+                    ? 'var(--vesper-blue)'
+                    : 'rgba(255,255,255,0.06)',
+                color: active
+                    ? 'var(--vesper-bg-0)'
+                    : 'var(--vesper-text)',
+                border: active
+                    ? 'none'
+                    : '1px solid rgba(255,255,255,0.12)',
+                fontSize: 13,
+                fontWeight: active ? 700 : 600,
+                whiteSpace: 'nowrap',
+                scrollSnapAlign: 'start',
+                boxShadow: active
+                    ? '0 6px 16px rgba(var(--vesper-blue-rgb),0.4)'
+                    : 'none',
+            }}
+        >
+            {label}
+        </button>
     );
 }
 

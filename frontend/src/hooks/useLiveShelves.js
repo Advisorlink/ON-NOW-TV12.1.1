@@ -159,6 +159,13 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                                     .join(' · '),
                                 poster: m.poster,
                                 background: m.background,
+                                // Carry through genres so the tab
+                                // grid can build a category chip
+                                // row + filter against them.
+                                genres: Array.isArray(m.genres)
+                                    ? m.genres
+                                    : [],
+                                releaseInfo: m.releaseInfo,
                                 routePath: `/title/${cat.type}/${m.id}`,
                             })),
                         };
