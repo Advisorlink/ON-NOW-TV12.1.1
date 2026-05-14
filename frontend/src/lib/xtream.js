@@ -248,6 +248,36 @@ export async function getNowNext(provider, streamId) {
     }));
 }
 
+/**
+ * Full EPG (24-48 h) for a given stream_id.  Used by the right-hand
+ * GUIDE column.  Returns up to `limit` entries; older entries are
+ * filtered out client-side so the guide always starts from "now".
+ */
+export async function getFullEpg(provider, streamId, limit = 40) {
+    const result = await fetchDirectOrProxy(
+        provider,
+        { action: 'get_short_epg', stream_id: streamId, limit },
+        '/now-next',
+        { provider: blob(provider), stream_id: streamId, limit },
+    );
+    let items;
+    if (result.direct) {
+        items = result.data?.epg_listings || [];
+        items = items.map((it) => ({
+            title: safeAtob(it.title),
+            description: safeAtob(it.description),
+            start: it.start,
+            end: it.end,
+            startTimestamp: it.start_timestamp,
+            stopTimestamp: it.stop_timestamp,
+        }));
+    } else {
+        items = result.data?.items || [];
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    return items.filter((it) => Number(it.stopTimestamp || it.stop_timestamp || 0) > nowSec);
+}
+
 function safeAtob(s) {
     if (!s) return '';
     try { return decodeURIComponent(escape(atob(s))); }

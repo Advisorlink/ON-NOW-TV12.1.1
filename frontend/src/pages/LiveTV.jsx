@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Tv, Radio, Play, Loader2, ChevronRight, Clock, Settings } from 'lucide-react';
+import {
+    Play, Loader2, Radio, RefreshCw, Star, LogOut, Heart, Bell, BellRing, CalendarDays, Check,
+} from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -9,37 +11,55 @@ import {
     getCategories,
     getStreams,
     getNowNext,
+    getFullEpg,
     getStreamUrl,
 } from '@/lib/xtream';
+import {
+    listFavouriteIds, toggleFavourite,
+    hasReminder, toggleReminder, rehydrateReminders,
+} from '@/lib/xtreamPrefs';
 import Host from '@/lib/host';
 
 /* ====================================================================
- * /live-tv — Xtream Codes live TV browser.
+ *  /live-tv
  *
- * Architecture:
- *   1. Provider gate:   if no Xtream provider is configured, render
- *      <XtreamLogin /> wizard.  Otherwise jump straight to the grid.
- *   2. Hero rotator:    cycles through a small handful of "featured"
- *      channels (heuristic: channels with EPG data + a non-trivial
- *      logo).  Backdrop is the EPG show's TMDB-like backdrop when
- *      we have one, otherwise the channel's stream_icon.
- *   3. Three-column body:
- *        L  — Categories list (~240 px)
- *        M  — Channel list for the focused category (~520 px)
- *        R  — NOW / NEXT for the focused channel (~360 px)
+ *  Layout (matches design screenshot):
  *
- * Performance: no glow / blur / scale animations (those killed the
- * previous build).  `content-visibility: auto` on each channel tile
- * so the browser skips paint work for off-screen rows even when the
- * category has 1000+ channels.  EPG fetches are AbortController-
- * cancelled when the user zaps through channels so we never stack
- * stale requests.
+ *  ┌───────────────────────────────────────────────────────────────┐
+ *  │ LIVE TV · CH 93              [⭐] [↻] [⇥]                     │
+ *  │                                                               │
+ *  │ Sky Cinema Animation HD                  [channel logo]       │
+ *  │ NOW · 03:00 PM  Current show                                  │
+ *  │ ▓▓▓▓▓▓▓▓░░░░░░░░░░  ← progress bar                            │
+ *  │ UP NEXT · 07:00 PM  Coming up...                              │
+ *  │ [▶  Watch full-screen]                                        │
+ *  ├──────────────┬───────────────────────────┬──────────────────┤
+ *  │  Favourites  │  92  [logo] FHD          │  📅 GUIDE  · Sky… │
+ *  │  ──          │       NOW Movie X        │                  │
+ *  │  UK CHAN…    │       ▓▓░░░░             │  03:00  No long… │
+ *  │  UK Ent…     │  93  [logo] HD ← active  │  TOMORROW        │
+ *  │  UK Sky…  ◀  │       NOW Movie Y        │  07:00 …  ⚐ REM │
+ *  │  UK Kids…    │       ▓▓▓▓░░             │  11:00 …  ✓ SET │
+ *  │              │  94  [logo] SD           │  …               │
+ *  └──────────────┴───────────────────────────┴──────────────────┘
+ *
+ *  Perf:
+ *  - No glow/blur/scale animations anywhere.
+ *  - content-visibility: auto on each channel row + EPG row.
+ *  - contain: paint on each column scroll container.
+ *  - AbortController + 180 ms debounce on NOW/NEXT + EPG fetches.
+ *  - 60-s in-memory EPG cache; 300-s full-EPG cache.
  * ==================================================================== */
+
 export default function LiveTV() {
     useSpatialFocus();
     const navigate = useNavigate();
     const [provider, setProvider] = useState(() => getActiveProvider());
     const [view, setView] = useState(provider ? 'grid' : 'login');
+
+    useEffect(() => {
+        if (provider) rehydrateReminders(provider.id);
+    }, [provider]);
 
     useEffect(() => {
         const onKey = (e) => {
@@ -56,31 +76,17 @@ export default function LiveTV() {
     const onAuthed = (p) => { setProvider(p); setView('grid'); };
 
     return (
-        <div
-            data-testid="live-tv-page"
-            className="relative w-screen"
-            style={{
-                minHeight: '100dvh',
-                background: 'var(--vesper-bg-0)',
-                overflowX: 'hidden',
-            }}
-        >
+        <div data-testid="live-tv-page" className="relative w-screen" style={{
+            minHeight: '100dvh', background: 'var(--vesper-bg-0)', overflowX: 'hidden',
+        }}>
             <SideNav />
-            <main
-                style={{
-                    marginLeft: 100,
-                    minHeight: '100dvh',
-                    padding: view === 'grid' ? '0 0 64px 0' : '60px 64px 80px 64px',
-                }}
-            >
-                {view === 'login' ? (
-                    <XtreamLogin onAuthed={onAuthed} onCancel={() => navigate('/')} />
-                ) : (
-                    <LiveTVGrid
-                        provider={provider}
-                        onChangeProvider={() => setView('login')}
-                    />
-                )}
+            <main style={{
+                marginLeft: 100, minHeight: '100dvh',
+                padding: view === 'grid' ? '0 0 24px 0' : '60px 64px 80px 64px',
+            }}>
+                {view === 'login'
+                    ? <XtreamLogin onAuthed={onAuthed} onCancel={() => navigate('/')} />
+                    : <LiveTVGrid provider={provider} onChangeProvider={() => setView('login')} />}
             </main>
         </div>
     );
@@ -89,40 +95,49 @@ export default function LiveTV() {
 /* ============================ Grid ============================ */
 
 function LiveTVGrid({ provider, onChangeProvider }) {
-    // Categories + channels
     const [cats, setCats] = useState([]);
     const [catsLoading, setCatsLoading] = useState(true);
-    const [activeCat, setActiveCat] = useState(null); // category_id, '*'=all favourites, null=loading
+    const [catsError, setCatsError] = useState('');
+    const [activeCat, setActiveCat] = useState('__all__');
     const [channels, setChannels] = useState([]);
     const [channelsLoading, setChannelsLoading] = useState(false);
     const [focusedChannel, setFocusedChannel] = useState(null);
+    const [favVer, setFavVer] = useState(0);
+    const [remVer, setRemVer] = useState(0);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // EPG cache: stream_id -> { now, next, fetchedAt }
-    const epgCache = useRef(new Map());
-    const epgAbort = useRef(null);
-    const [epgVersion, setEpgVersion] = useState(0); // bump to re-render after cache update
+    // EPG caches
+    const nowNextCache = useRef(new Map());  // sid -> { now, next, fetchedAt }
+    const fullEpgCache = useRef(new Map());  // sid -> { items, fetchedAt }
+    const [, setEpgTick] = useState(0);
+    const nowAbort = useRef(null);
+    const fullAbort = useRef(null);
 
     const navigate = useNavigate();
 
-    // Fetch categories once
-    const [catsError, setCatsError] = useState('');
+    /* React to fav / reminder mutations */
+    useEffect(() => {
+        const a = () => setFavVer((v) => v + 1);
+        const b = () => setRemVer((v) => v + 1);
+        window.addEventListener('vesper:xtream-favs-change', a);
+        window.addEventListener('vesper:xtream-reminders-change', b);
+        return () => {
+            window.removeEventListener('vesper:xtream-favs-change', a);
+            window.removeEventListener('vesper:xtream-reminders-change', b);
+        };
+    }, []);
+
+    /* Categories — one shot */
     useEffect(() => {
         let cancel = false;
         (async () => {
             try {
-                setCatsLoading(true);
-                setCatsError('');
+                setCatsLoading(true); setCatsError('');
                 const list = await getCategories(provider, 'live');
                 if (cancel) return;
                 setCats(Array.isArray(list) ? list : []);
-                if (list?.length) setActiveCat(list[0].category_id);
             } catch (e) {
-                console.warn('Failed to load categories', e);
-                if (!cancel) setCatsError(
-                    e?.response?.data?.detail ||
-                    e?.message ||
-                    'Could not reach your IPTV server.'
-                );
+                if (!cancel) setCatsError(e?.message || 'Could not reach your IPTV server.');
             } finally {
                 if (!cancel) setCatsLoading(false);
             }
@@ -130,118 +145,133 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         return () => { cancel = true; };
     }, [provider]);
 
-    // Fetch channels when category changes
+    /* Channels for selected category */
     useEffect(() => {
-        if (!activeCat) return undefined;
         let cancel = false;
         (async () => {
             try {
                 setChannelsLoading(true);
-                const list = await getStreams(provider, 'live', activeCat);
+                let list;
+                if (activeCat === '__fav__') {
+                    // For favourites we need ALL channels to filter against
+                    // saved IDs (since they could span any category).
+                    list = await getStreams(provider, 'live');
+                    const favs = listFavouriteIds(provider.id);
+                    list = (list || []).filter((c) => favs.has(String(c.stream_id)));
+                } else if (activeCat === '__all__') {
+                    list = await getStreams(provider, 'live');
+                } else {
+                    list = await getStreams(provider, 'live', activeCat);
+                }
                 if (cancel) return;
                 setChannels(Array.isArray(list) ? list : []);
                 if (list?.length) setFocusedChannel(list[0]);
                 else setFocusedChannel(null);
             } catch (e) {
-                console.warn('Failed to load streams', e);
+                if (!cancel) console.warn('streams', e);
             } finally {
                 if (!cancel) setChannelsLoading(false);
             }
         })();
         return () => { cancel = true; };
-    }, [provider, activeCat]);
+    }, [provider, activeCat, favVer]);
 
-    // Fetch NOW/NEXT for focused channel (debounced + abortable).
+    /* NOW/NEXT for focused channel — debounced, abortable */
     useEffect(() => {
         if (!focusedChannel) return undefined;
         const sid = focusedChannel.stream_id;
-        const cached = epgCache.current.get(sid);
-        const fresh = cached && Date.now() - cached.fetchedAt < 60_000;
-        if (fresh) return undefined;
-        if (epgAbort.current) epgAbort.current.abort?.();
+        const cached = nowNextCache.current.get(sid);
+        if (cached && Date.now() - cached.fetchedAt < 60_000) return undefined;
+        if (nowAbort.current) nowAbort.current.abort?.();
         const ctl = new AbortController();
-        epgAbort.current = ctl;
+        nowAbort.current = ctl;
         const t = setTimeout(async () => {
             try {
                 const items = await getNowNext(provider, sid);
                 if (ctl.signal.aborted) return;
-                epgCache.current.set(sid, {
-                    now: items[0] || null,
-                    next: items[1] || null,
-                    fetchedAt: Date.now(),
+                nowNextCache.current.set(sid, {
+                    now: items[0] || null, next: items[1] || null, fetchedAt: Date.now(),
                 });
-                setEpgVersion((v) => v + 1);
+                setEpgTick((v) => v + 1);
             } catch { /* ignore */ }
         }, 180);
         return () => { clearTimeout(t); ctl.abort?.(); };
     }, [focusedChannel, provider]);
 
+    /* Full EPG for focused channel — debounced, abortable, 5 min cache */
+    useEffect(() => {
+        if (!focusedChannel) return undefined;
+        const sid = focusedChannel.stream_id;
+        const cached = fullEpgCache.current.get(sid);
+        if (cached && Date.now() - cached.fetchedAt < 300_000) return undefined;
+        if (fullAbort.current) fullAbort.current.abort?.();
+        const ctl = new AbortController();
+        fullAbort.current = ctl;
+        const t = setTimeout(async () => {
+            try {
+                const items = await getFullEpg(provider, sid, 40);
+                if (ctl.signal.aborted) return;
+                fullEpgCache.current.set(sid, { items: items || [], fetchedAt: Date.now() });
+                setEpgTick((v) => v + 1);
+            } catch { /* ignore */ }
+        }, 250);
+        return () => { clearTimeout(t); ctl.abort?.(); };
+    }, [focusedChannel, provider]);
+
+    const refreshAll = useCallback(() => {
+        nowNextCache.current.clear();
+        fullEpgCache.current.clear();
+        setRefreshing(true);
+        setEpgTick((v) => v + 1);
+        setTimeout(() => setRefreshing(false), 600);
+    }, []);
+
     const playChannel = useCallback(async (channel) => {
         if (!channel) return;
-        try {
-            const r = await getStreamUrl(provider, 'live', channel.stream_id, 'ts');
-            if (!r) return;
-            const ep = epgCache.current.get(channel.stream_id);
-            const playUrl = r;
-            const title = `${channel.name}${ep?.now?.title ? ` · ${ep.now.title}` : ''}`;
-            // libVLC on the box; JS player in the preview
-            if (
-                Host.playVideo({
-                    url: playUrl,
-                    title,
-                    type: 'live',
-                    poster: channel.stream_icon || '',
-                    backdrop: channel.stream_icon || '',
-                    synopsis: ep?.now?.description || '',
-                    year: '',
-                    rating: '',
-                    runtime: '',
-                    genres: [],
-                    cwId: `live:${provider.id}:${channel.stream_id}`,
-                })
-            ) return;
-            navigate(`/play?url=${encodeURIComponent(playUrl)}&title=${encodeURIComponent(title)}&type=live`);
-        } catch (e) {
-            console.warn('Failed to play channel', e);
-        }
+        const url = await getStreamUrl(provider, 'live', channel.stream_id, 'ts');
+        if (!url) return;
+        const ep = nowNextCache.current.get(channel.stream_id);
+        const title = `${channel.name}${ep?.now?.title ? ` · ${ep.now.title}` : ''}`;
+        if (Host.playVideo({
+            url, title, type: 'live',
+            poster: channel.stream_icon || '', backdrop: channel.stream_icon || '',
+            synopsis: ep?.now?.description || '',
+            year: '', rating: '', runtime: '', genres: [],
+            cwId: `live:${provider.id}:${channel.stream_id}`,
+        })) return;
+        navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&type=live`);
     }, [provider, navigate]);
 
-    const focusedEpg = focusedChannel ? epgCache.current.get(focusedChannel.stream_id) : null;
-
-    // Pick a hero channel — first channel whose EPG we have cached, fall back to focused
-    const heroChannel = useMemo(() => {
-        for (const [sid, ep] of epgCache.current.entries()) {
-            if (!ep?.now) continue;
-            const c = channels.find((ch) => ch.stream_id === sid);
-            if (c) return { channel: c, epg: ep };
-        }
-        return focusedChannel ? { channel: focusedChannel, epg: focusedEpg } : null;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [focusedChannel, focusedEpg, channels, epgVersion]);
+    const focusedNowNext = focusedChannel ? nowNextCache.current.get(focusedChannel.stream_id) : null;
+    const focusedFullEpg = focusedChannel ? fullEpgCache.current.get(focusedChannel.stream_id) : null;
+    const favCount = listFavouriteIds(provider.id).size;
+    void favVer; void remVer; // keep these in dep arrays even if not directly read
 
     return (
         <div>
-            {/* Hero */}
+            {/* HERO */}
             <LiveHero
-                channel={heroChannel?.channel}
-                epg={heroChannel?.epg}
                 provider={provider}
-                onChangeProvider={onChangeProvider}
-                onPlay={() => playChannel(heroChannel?.channel)}
+                channel={focusedChannel}
+                epg={focusedNowNext}
+                isFav={focusedChannel ? listFavouriteIds(provider.id).has(String(focusedChannel.stream_id)) : false}
+                onFav={() => focusedChannel && toggleFavourite(provider.id, focusedChannel.stream_id)}
+                onRefresh={refreshAll}
+                refreshing={refreshing}
+                onExit={onChangeProvider}
+                onPlay={() => playChannel(focusedChannel)}
             />
 
-            {/* Three-column body */}
-            <div
-                className="grid"
-                style={{
-                    gridTemplateColumns: 'minmax(220px, 240px) minmax(0, 1fr) minmax(320px, 360px)',
-                    gap: 22,
-                    padding: '24px 40px 0 40px',
-                    alignItems: 'start',
-                }}
-            >
+            {/* 3-col body */}
+            <div className="grid" style={{
+                gridTemplateColumns: 'minmax(220px, 240px) minmax(0, 1fr) minmax(360px, 400px)',
+                gap: 18,
+                padding: '14px 32px 0 32px',
+                alignItems: 'start',
+            }}>
                 <CategoriesCol
                     cats={cats}
+                    favCount={favCount}
                     loading={catsLoading}
                     error={catsError}
                     activeId={activeCat}
@@ -250,16 +280,15 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 <ChannelsCol
                     channels={channels}
                     loading={channelsLoading}
-                    epgCache={epgCache.current}
-                    epgVersion={epgVersion}
+                    nowNextCache={nowNextCache.current}
                     focusedId={focusedChannel?.stream_id}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
                 />
-                <NowNextCol
+                <GuideCol
+                    providerId={provider.id}
                     channel={focusedChannel}
-                    epg={focusedEpg}
-                    onPlay={() => playChannel(focusedChannel)}
+                    epg={focusedFullEpg}
                 />
             </div>
         </div>
@@ -268,9 +297,9 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 /* ============================ Hero ============================ */
 
-function LiveHero({ channel, epg, provider, onChangeProvider, onPlay }) {
+function LiveHero({ provider, channel, epg, isFav, onFav, onRefresh, refreshing, onExit, onPlay }) {
     const now = epg?.now;
-    const backdrop = channel?.stream_icon || '';
+    const next = epg?.next;
     const progressPct = useMemo(() => {
         if (!now?.startTimestamp || !now?.stopTimestamp) return 0;
         const start = Number(now.startTimestamp) * 1000;
@@ -280,298 +309,270 @@ function LiveHero({ channel, epg, provider, onChangeProvider, onPlay }) {
         if (t >= end) return 100;
         return Math.round(((t - start) / (end - start)) * 100);
     }, [now]);
-    const minsLeft = useMemo(() => {
-        if (!now?.stopTimestamp) return null;
-        const end = Number(now.stopTimestamp) * 1000;
-        const left = Math.max(0, Math.round((end - Date.now()) / 60000));
-        return left;
-    }, [now]);
 
     return (
-        <section
-            data-testid="live-tv-hero"
-            className="relative"
-            style={{
-                height: 'min(46vh, 460px)',
-                overflow: 'hidden',
-                background: 'var(--vesper-bg-0)',
-            }}
-        >
-            {/* Backdrop */}
-            <div
-                style={{
-                    position: 'absolute', inset: 0,
-                    background: backdrop
-                        ? `center/cover no-repeat url(${backdrop})`
-                        : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb), 0.4), rgba(11,19,34,0.9))',
-                    filter: 'saturate(1.05)',
-                }}
-            />
-            {/* Cinematic gradients — left for legibility, right vignette */}
-            <div style={{
-                position: 'absolute', inset: 0,
-                background:
-                    'linear-gradient(90deg, rgba(6,8,15,0.95) 0%, rgba(6,8,15,0.6) 35%, rgba(6,8,15,0.2) 65%, rgba(6,8,15,0.85) 100%)',
-            }} />
-            <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(180deg, rgba(6,8,15,0.5) 0%, transparent 30%, rgba(6,8,15,0.95) 100%)',
-            }} />
-
-            <div
-                className="absolute"
-                style={{
-                    left: 40, right: 40, bottom: 30, top: 30,
-                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                }}
-            >
-                {/* Top row — provider chip */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-2" style={{
-                            padding: '6px 12px', borderRadius: 999,
-                            background: 'rgba(255,68,68,0.16)',
-                            border: '1px solid rgba(255,68,68,0.55)',
-                            color: '#FF6B6B', fontSize: 11, letterSpacing: '0.24em',
-                            fontWeight: 700, textTransform: 'uppercase',
-                            fontFamily: 'var(--theme-font-mono, monospace)',
-                        }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6B6B', animation: 'vesperPulse 1500ms infinite' }} />
-                            LIVE NOW
-                        </span>
-                        {channel?.name && (
-                            <span style={{
-                                fontSize: 12, color: 'var(--vesper-text-2)',
-                                fontFamily: 'var(--theme-font-mono, monospace)',
-                                letterSpacing: '0.22em', textTransform: 'uppercase',
-                            }}>
-                                {channel.name}
-                            </span>
-                        )}
+        <section data-testid="live-tv-hero" className="relative" style={{
+            padding: '36px 40px 24px 40px',
+            background: 'linear-gradient(180deg, rgba(11,19,34,0.0) 0%, rgba(11,19,34,0.5) 70%, rgba(11,19,34,1) 100%)',
+            minHeight: 260,
+            overflow: 'hidden',
+        }}>
+            <div className="flex items-start justify-between" style={{ gap: 32 }}>
+                <div className="flex flex-col" style={{ gap: 10, flex: 1, minWidth: 0 }}>
+                    <div className="vesper-mono flex items-center gap-3" style={{
+                        fontSize: 11, letterSpacing: '0.32em',
+                        color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
+                    }}>
+                        LIVE TV{channel?.num != null ? ` · CH ${channel.num}` : ''}
                     </div>
+                    <h1 className="vesper-display" style={{
+                        fontSize: 'clamp(40px, 4.4vw, 64px)',
+                        letterSpacing: '-0.028em',
+                        lineHeight: 0.98,
+                        color: '#fff',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                        {channel?.name || 'Live TV'}
+                    </h1>
+                    {/* NOW row */}
+                    <div className="flex items-center gap-3" style={{ marginTop: 6 }}>
+                        <span className="vesper-mono" style={{
+                            padding: '3px 9px', borderRadius: 4,
+                            background: 'rgba(255,68,68,0.18)',
+                            border: '1px solid rgba(255,68,68,0.6)',
+                            color: '#FF6B6B', fontSize: 10, letterSpacing: '0.22em',
+                            fontWeight: 800,
+                        }}>
+                            NOW
+                        </span>
+                        <span className="vesper-mono" style={{ fontSize: 12, color: 'var(--vesper-text-2)', letterSpacing: '0.12em' }}>
+                            · {formatTime(now?.start)}
+                        </span>
+                        <span style={{
+                            fontSize: 16, color: 'var(--vesper-text)',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            maxWidth: '54vw',
+                        }}>
+                            {now?.title || 'No EPG data'}
+                        </span>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{
+                        width: 'min(640px, 60vw)', height: 3, borderRadius: 99,
+                        background: 'rgba(255,255,255,0.08)', overflow: 'hidden',
+                        marginTop: 2,
+                    }}>
+                        <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--vesper-blue-bright)' }} />
+                    </div>
+                    {/* UP NEXT row */}
+                    {next && (
+                        <div className="vesper-mono flex items-center gap-2" style={{
+                            fontSize: 11, color: 'var(--vesper-text-3)',
+                            letterSpacing: '0.16em', textTransform: 'uppercase',
+                            marginTop: 6,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            maxWidth: 'min(640px, 60vw)',
+                        }}>
+                            UP NEXT · {formatTime(next.start)} · <span style={{ color: 'var(--vesper-text-2)', textTransform: 'none', letterSpacing: 0 }}>{next.title || '—'}</span>
+                        </div>
+                    )}
+                    {/* Watch full-screen */}
                     <button
-                        data-testid="live-tv-change-provider"
+                        data-testid="live-tv-hero-play"
                         data-focusable="true"
-                        data-focus-style="quiet"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
                         tabIndex={0}
-                        onClick={onChangeProvider}
-                        className="flex items-center gap-2 rounded-full vesper-mono"
+                        onClick={onPlay}
+                        disabled={!channel}
+                        className="flex items-center gap-2 rounded-full font-sans"
                         style={{
-                            height: 34, padding: '0 14px', fontSize: 10,
-                            letterSpacing: '0.22em', textTransform: 'uppercase',
-                            background: 'rgba(255,255,255,0.06)',
-                            border: '1px solid rgba(255,255,255,0.14)',
-                            color: 'var(--vesper-text)', cursor: 'pointer', fontWeight: 600,
+                            marginTop: 16, height: 56, padding: '0 30px',
+                            fontSize: 17, fontWeight: 700,
+                            background: '#fff', color: '#0B1322', border: 'none',
+                            alignSelf: 'flex-start',
+                            opacity: channel ? 1 : 0.5,
+                            cursor: channel ? 'pointer' : 'not-allowed',
                         }}
                     >
-                        <Settings size={12} strokeWidth={2.2} />
-                        {provider?.name || 'Provider'}
+                        <Play size={18} strokeWidth={2.5} fill="#0B1322" />
+                        Watch full-screen
                     </button>
                 </div>
 
-                {/* Bottom block — show title + meta + actions */}
-                <div className="flex flex-col" style={{ gap: 12, maxWidth: '60ch' }}>
-                    <div
-                        className="vesper-mono"
-                        style={{
-                            fontSize: 10, letterSpacing: '0.32em',
-                            color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
-                        }}
-                    >
-                        Now Showing
+                {/* Right side — top action circles + channel logo */}
+                <div className="flex flex-col items-end" style={{ gap: 24, flexShrink: 0 }}>
+                    <div className="flex items-center gap-3">
+                        <HeroActionCircle
+                            testid="hero-fav"
+                            label="Favourite"
+                            icon={isFav ? <Heart size={18} strokeWidth={2.4} fill="#FF6BCB" color="#FF6BCB" /> : <Star size={18} strokeWidth={2} />}
+                            onClick={onFav}
+                            highlight={isFav}
+                        />
+                        <HeroActionCircle
+                            testid="hero-refresh"
+                            label="Refresh EPG"
+                            icon={<RefreshCw size={18} strokeWidth={2} className={refreshing ? 'vesper-spin' : ''} />}
+                            onClick={onRefresh}
+                        />
+                        <HeroActionCircle
+                            testid="hero-exit"
+                            label="Change provider"
+                            icon={<LogOut size={18} strokeWidth={2} />}
+                            onClick={onExit}
+                        />
                     </div>
-                    <h1
-                        className="vesper-display"
-                        style={{
-                            fontSize: 'clamp(32px, 4vw, 56px)',
-                            letterSpacing: '-0.025em',
-                            lineHeight: 1.0,
-                            color: '#fff',
-                            textShadow: '0 2px 18px rgba(0,0,0,0.55)',
-                        }}
-                    >
-                        {now?.title || channel?.name || 'Live TV'}
-                    </h1>
-                    {now?.start && now?.end && (
-                        <div className="flex items-center gap-3 vesper-mono" style={{
-                            fontSize: 11, color: 'var(--vesper-text-2)',
-                            letterSpacing: '0.16em', textTransform: 'uppercase',
-                        }}>
-                            <Clock size={12} strokeWidth={2} />
-                            {formatTime(now.start)} – {formatTime(now.end)}
-                            {minsLeft != null && minsLeft > 0 && (
-                                <span style={{ color: 'var(--vesper-blue-bright)' }}>
-                                    · {minsLeft} min left
-                                </span>
-                            )}
-                        </div>
-                    )}
-                    {progressPct > 0 && (
+                    {channel?.stream_icon && (
                         <div style={{
-                            width: 280, height: 4, borderRadius: 99,
-                            background: 'rgba(255,255,255,0.10)', overflow: 'hidden',
-                        }}>
-                            <div style={{
-                                width: `${progressPct}%`, height: '100%',
-                                background: 'var(--vesper-blue-bright)',
-                            }} />
-                        </div>
+                            width: 200, height: 110,
+                            background: `center/contain no-repeat url(${channel.stream_icon})`,
+                            opacity: 0.65, marginRight: 8,
+                        }} />
                     )}
-                    {now?.description && (
-                        <p style={{
-                            fontSize: 14, color: 'rgba(255,255,255,0.85)',
-                            lineHeight: 1.5, maxWidth: '52ch',
-                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                        }}>
-                            {now.description}
-                        </p>
-                    )}
-                    <div className="flex items-center gap-3" style={{ marginTop: 4 }}>
-                        <button
-                            data-testid="live-tv-hero-play"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            data-initial-focus="true"
-                            tabIndex={0}
-                            onClick={onPlay}
-                            disabled={!channel}
-                            className="flex items-center gap-2 rounded-full font-sans"
-                            style={{
-                                height: 50, padding: '0 26px', fontSize: 15, fontWeight: 700,
-                                background: '#fff', color: '#0B1322', border: 'none',
-                                opacity: channel ? 1 : 0.5,
-                                cursor: channel ? 'pointer' : 'not-allowed',
-                            }}
-                        >
-                            <Play size={16} strokeWidth={2.5} fill="#0B1322" />
-                            Watch live
-                        </button>
-                    </div>
                 </div>
             </div>
         </section>
     );
 }
 
-/* ====================== Categories column ====================== */
-
-function CategoriesCol({ cats, loading, error, activeId, onPick }) {
+function HeroActionCircle({ testid, label, icon, onClick, highlight }) {
     return (
-        <div
-            data-testid="live-tv-categories"
+        <button
+            data-testid={testid}
+            data-focusable="true"
+            data-focus-style="quiet"
+            aria-label={label}
+            tabIndex={0}
+            onClick={onClick}
+            className="flex items-center justify-center rounded-full"
             style={{
-                padding: '16px 4px 16px 4px',
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 18,
-                maxHeight: 'calc(100dvh - 46vh - 60px)',
-                overflowY: 'auto',
-                contain: 'paint',
+                width: 44, height: 44,
+                background: highlight ? 'rgba(255,107,203,0.15)' : 'rgba(255,255,255,0.06)',
+                border: highlight ? '1px solid rgba(255,107,203,0.6)' : '1px solid rgba(255,255,255,0.14)',
+                color: highlight ? '#FF6BCB' : 'var(--vesper-text)',
+                cursor: 'pointer',
             }}
         >
-            <div className="vesper-mono" style={{
-                fontSize: 10, letterSpacing: '0.32em',
-                color: 'var(--vesper-text-3)', textTransform: 'uppercase',
-                padding: '0 18px 12px',
-            }}>
-                Categories
-            </div>
+            {icon}
+        </button>
+    );
+}
+
+/* ====================== Categories column ====================== */
+
+function CategoriesCol({ cats, favCount, loading, error, activeId, onPick }) {
+    return (
+        <div data-testid="live-tv-categories" style={{
+            padding: '14px 0',
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 16,
+            maxHeight: 'calc(100dvh - 290px)',
+            overflowY: 'auto', contain: 'paint',
+        }}>
+            {/* Favourites pill */}
+            <CategoryRow
+                testid="live-cat-fav"
+                active={activeId === '__fav__'}
+                onClick={() => onPick('__fav__')}
+                heart
+                label="Favourites"
+                count={favCount}
+            />
+            <CategoryRow
+                testid="live-cat-all"
+                active={activeId === '__all__'}
+                onClick={() => onPick('__all__')}
+                label="All channels"
+            />
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '10px 14px' }} />
             {loading ? (
                 <div style={{ padding: '8px 18px', color: 'var(--vesper-text-3)', fontSize: 13, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                     <Loader2 size={14} className="vesper-spin" /> Loading…
                 </div>
             ) : error ? (
-                <div style={{ padding: '12px 18px' }}>
-                    <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: '#FF6B6B', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
+                <div style={{ padding: '10px 18px' }}>
+                    <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: '#FF6B6B', fontWeight: 700, marginBottom: 4 }}>
                         Server unreachable
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', lineHeight: 1.4 }}>
-                        Could not reach your IPTV server.  This is normal in the
-                        web preview — Live TV works fully on the sideloaded APK,
-                        which makes requests through the native layer instead of
-                        the browser.
+                    <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', lineHeight: 1.45 }}>
+                        Normal in web preview — works on the sideloaded APK.
                     </div>
                 </div>
             ) : (
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                    {cats.map((c) => (
-                        <li key={c.category_id}>
-                            <button
-                                data-testid={`live-cat-${c.category_id}`}
-                                data-focusable="true"
-                                data-focus-style="quiet"
-                                tabIndex={0}
-                                onFocus={() => onPick(c.category_id)}
-                                onClick={() => onPick(c.category_id)}
-                                className="text-left"
-                                style={{
-                                    display: 'block',
-                                    width: 'calc(100% - 8px)',
-                                    margin: '0 4px',
-                                    padding: '11px 14px',
-                                    background: c.category_id === activeId
-                                        ? 'rgba(var(--vesper-blue-rgb), 0.16)'
-                                        : 'transparent',
-                                    borderLeft: c.category_id === activeId
-                                        ? '3px solid var(--vesper-blue-bright)'
-                                        : '3px solid transparent',
-                                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
-                                    color: c.category_id === activeId
-                                        ? 'var(--vesper-text)'
-                                        : 'var(--vesper-text-2)',
-                                    fontSize: 13,
-                                    fontWeight: c.category_id === activeId ? 700 : 500,
-                                    cursor: 'pointer',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    borderRadius: 0,
-                                }}
-                            >
-                                {c.category_name}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+                cats.map((c) => (
+                    <CategoryRow
+                        key={c.category_id}
+                        testid={`live-cat-${c.category_id}`}
+                        active={c.category_id === activeId}
+                        onClick={() => onPick(c.category_id)}
+                        label={c.category_name}
+                    />
+                ))
             )}
         </div>
     );
 }
 
-/* ====================== Channels column ====================== */
-
-function ChannelsCol({ channels, loading, epgCache, epgVersion, focusedId, onFocus, onPlay }) {
-    // Note: epgVersion is in deps so this re-renders when EPG cache updates
-    void epgVersion;
+function CategoryRow({ testid, active, onClick, label, heart, count }) {
     return (
-        <div
-            data-testid="live-tv-channels"
+        <button
+            data-testid={testid}
+            data-focusable="true"
+            data-focus-style="quiet"
+            tabIndex={0}
+            onFocus={onClick}
+            onClick={onClick}
+            className="text-left flex items-center gap-3"
             style={{
-                padding: '14px 6px',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 18,
-                maxHeight: 'calc(100dvh - 46vh - 60px)',
-                overflowY: 'auto',
-                contain: 'paint',
+                display: 'flex', width: 'calc(100% - 10px)', margin: '0 5px',
+                padding: '10px 14px',
+                background: active ? 'rgba(var(--vesper-blue-rgb), 0.16)' : 'transparent',
+                borderLeft: active ? '3px solid var(--vesper-blue-bright)' : '3px solid transparent',
+                borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                borderRadius: 8,
+                color: active ? '#fff' : 'var(--vesper-text-2)',
+                fontSize: 13.5, fontWeight: active ? 700 : 500,
+                cursor: 'pointer',
             }}
         >
-            <div className="flex items-center justify-between" style={{ padding: '0 14px 10px' }}>
-                <div className="vesper-mono" style={{
-                    fontSize: 10, letterSpacing: '0.32em',
-                    color: 'var(--vesper-text-3)', textTransform: 'uppercase',
+            {heart && <Heart size={14} strokeWidth={2} fill={active ? '#FF6BCB' : 'transparent'} color="#FF6BCB" />}
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {label}
+            </span>
+            {count != null && (
+                <span className="vesper-mono" style={{
+                    fontSize: 10, color: 'var(--vesper-text-3)',
+                    background: 'rgba(255,255,255,0.05)', borderRadius: 99,
+                    padding: '1px 8px', minWidth: 22, textAlign: 'center',
                 }}>
-                    Channels{!loading && channels.length > 0 ? ` · ${channels.length}` : ''}
-                </div>
-            </div>
+                    {count}
+                </span>
+            )}
+        </button>
+    );
+}
+
+/* ====================== Channels column ====================== */
+
+function ChannelsCol({ channels, loading, nowNextCache, focusedId, onFocus, onPlay }) {
+    return (
+        <div data-testid="live-tv-channels" style={{
+            padding: '12px 6px',
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 16,
+            maxHeight: 'calc(100dvh - 290px)',
+            overflowY: 'auto', contain: 'paint',
+        }}>
             {loading ? (
-                <div style={{ padding: '8px 14px', color: 'var(--vesper-text-3)', fontSize: 13, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                    <Loader2 size={14} className="vesper-spin" /> Loading…
+                <div style={{ padding: '12px', color: 'var(--vesper-text-3)', fontSize: 13, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <Loader2 size={14} className="vesper-spin" /> Loading channels…
                 </div>
             ) : channels.length === 0 ? (
-                <div style={{ padding: '20px 14px', color: 'var(--vesper-text-3)', fontSize: 13 }}>
-                    No channels in this category.
+                <div style={{ padding: '20px 12px', color: 'var(--vesper-text-3)', fontSize: 13 }}>
+                    No channels.
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -579,10 +580,10 @@ function ChannelsCol({ channels, loading, epgCache, epgVersion, focusedId, onFoc
                         <ChannelRow
                             key={c.stream_id}
                             channel={c}
-                            epg={epgCache.get(c.stream_id)}
+                            epg={nowNextCache.get(c.stream_id)}
                             focused={c.stream_id === focusedId}
                             onFocus={() => onFocus(c)}
-                            onPlay={() => onPlay(c)}
+                            onPlay={() => { onFocus(c); onPlay(c); }}
                         />
                     ))}
                 </ul>
@@ -593,179 +594,261 @@ function ChannelsCol({ channels, loading, epgCache, epgVersion, focusedId, onFoc
 
 function ChannelRow({ channel, epg, focused, onFocus, onPlay }) {
     const now = epg?.now;
+    const progress = useMemo(() => {
+        if (!now?.startTimestamp || !now?.stopTimestamp) return 0;
+        const s = Number(now.startTimestamp) * 1000;
+        const e = Number(now.stopTimestamp) * 1000;
+        const t = Date.now();
+        if (t <= s) return 0;
+        if (t >= e) return 100;
+        return Math.round(((t - s) / (e - s)) * 100);
+    }, [now]);
     return (
-        <li style={{ contentVisibility: 'auto', containIntrinsicSize: '0 62px' }}>
+        <li style={{ contentVisibility: 'auto', containIntrinsicSize: '0 86px' }}>
             <button
                 data-testid={`live-channel-${channel.stream_id}`}
                 data-focusable="true"
                 data-focus-style="quiet"
                 tabIndex={0}
                 onFocus={onFocus}
-                onClick={() => { onFocus(); onPlay(); }}
+                onClick={onPlay}
                 className="text-left flex items-center gap-3"
                 style={{
-                    width: 'calc(100% - 12px)',
-                    margin: '2px 6px',
-                    padding: '8px 10px',
-                    background: focused
-                        ? 'rgba(var(--vesper-blue-rgb), 0.18)'
-                        : 'transparent',
+                    width: 'calc(100% - 14px)', margin: '4px 7px',
+                    padding: '12px 14px',
+                    background: focused ? 'rgba(var(--vesper-blue-rgb), 0.08)' : 'transparent',
                     border: focused
-                        ? '1px solid rgba(var(--vesper-blue-rgb), 0.6)'
-                        : '1px solid rgba(255,255,255,0.04)',
-                    color: 'var(--vesper-text)',
+                        ? '1px solid rgba(var(--vesper-blue-rgb), 0.7)'
+                        : '1px solid rgba(255,255,255,0.05)',
                     borderRadius: 12,
+                    color: 'var(--vesper-text)',
                     cursor: 'pointer',
-                    minHeight: 56,
+                    minHeight: 74,
                 }}
             >
+                {channel.num != null && (
+                    <div className="vesper-mono" style={{
+                        fontSize: 13, color: 'var(--vesper-text-3)',
+                        minWidth: 30, textAlign: 'right', fontWeight: 700,
+                    }}>
+                        {channel.num}
+                    </div>
+                )}
                 <div style={{
-                    width: 56, height: 38, flexShrink: 0,
-                    borderRadius: 6,
+                    width: 56, height: 38, flexShrink: 0, borderRadius: 6,
                     background: channel.stream_icon
                         ? `#0a0d18 center/contain no-repeat url(${channel.stream_icon})`
-                        : 'rgba(255,255,255,0.06)',
+                        : 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.06)',
                 }} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{
-                        fontSize: 14, fontWeight: 700,
+                        fontSize: 15, fontWeight: 700, lineHeight: 1.2,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        lineHeight: 1.2,
                     }}>
                         {channel.name}
                     </div>
-                    {now?.title && (
-                        <div style={{
-                            fontSize: 11, color: 'var(--vesper-blue-bright)',
-                            marginTop: 2,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            letterSpacing: '-0.005em',
-                        }}>
-                            NOW · {now.title}
-                        </div>
+                    {now ? (
+                        <>
+                            <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
+                                <span className="vesper-mono" style={{
+                                    padding: '1px 7px', borderRadius: 3,
+                                    background: 'rgba(255,68,68,0.18)',
+                                    border: '1px solid rgba(255,68,68,0.55)',
+                                    color: '#FF6B6B', fontSize: 9, letterSpacing: '0.18em',
+                                    fontWeight: 800,
+                                }}>NOW</span>
+                                <span style={{
+                                    fontSize: 12, color: 'var(--vesper-text-2)',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                    flex: 1, minWidth: 0,
+                                }}>
+                                    {now.title || '—'}
+                                </span>
+                            </div>
+                            <div style={{
+                                width: '100%', height: 2, marginTop: 6,
+                                background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden',
+                            }}>
+                                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--vesper-blue-bright)' }} />
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{ fontSize: 11, color: 'var(--vesper-text-3)', marginTop: 4 }}>—</div>
                     )}
                 </div>
-                {focused && <ChevronRight size={14} color="var(--vesper-blue-bright)" />}
             </button>
         </li>
     );
 }
 
-/* ====================== Now / Next column ====================== */
+/* ============================ Guide ============================ */
 
-function NowNextCol({ channel, epg, onPlay }) {
+function GuideCol({ providerId, channel, epg }) {
+    const items = epg?.items || [];
+    // Group by day (today / tomorrow / weekday names).  Computed
+    // unconditionally so the hook order stays stable even when we
+    // render the "Pick a channel" placeholder below.
+    const groups = useMemo(() => {
+        const m = new Map();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today.getTime() + 86400000);
+        items.forEach((it) => {
+            const ts = Number(it.startTimestamp || it.start_timestamp || 0) * 1000;
+            const d = new Date(ts); d.setHours(0, 0, 0, 0);
+            let label;
+            if (d.getTime() === today.getTime()) label = 'TODAY';
+            else if (d.getTime() === tomorrow.getTime()) label = 'TOMORROW';
+            else label = d.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
+            const key = `${d.getTime()}|${label}`;
+            (m.get(key) || m.set(key, { label, items: [] }).get(key)).items.push(it);
+        });
+        return [...m.values()];
+    }, [items]);
+
+    if (!channel) {
+        return (
+            <div data-testid="live-tv-guide" style={{
+                padding: '18px 18px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 16,
+                color: 'var(--vesper-text-3)', textAlign: 'center', fontSize: 13,
+            }}>
+                <Radio size={22} strokeWidth={1.5} style={{ display: 'block', margin: '14px auto 8px', color: 'var(--vesper-text-3)' }} />
+                Pick a channel to see what's coming up.
+            </div>
+        );
+    }
+
     return (
-        <div
-            data-testid="live-tv-now-next"
-            style={{
-                padding: '18px 18px 22px',
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(var(--vesper-blue-rgb), 0.2)',
-                borderRadius: 18,
-                maxHeight: 'calc(100dvh - 46vh - 60px)',
-                overflowY: 'auto',
-                contain: 'paint',
-            }}
-        >
-            {!channel ? (
-                <div className="flex flex-col items-center" style={{ gap: 12, padding: 30, color: 'var(--vesper-text-3)' }}>
-                    <Radio size={22} strokeWidth={1.6} />
-                    <div style={{ fontSize: 13, textAlign: 'center' }}>Pick a channel to see what's on.</div>
+        <div data-testid="live-tv-guide" style={{
+            padding: '14px 12px',
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 16,
+            maxHeight: 'calc(100dvh - 290px)',
+            overflowY: 'auto', contain: 'paint',
+        }}>
+            <div className="flex items-center gap-2" style={{ padding: '0 4px 10px' }}>
+                <CalendarDays size={14} strokeWidth={2} color="var(--vesper-blue-bright)" />
+                <div className="vesper-mono" style={{
+                    fontSize: 10, letterSpacing: '0.32em',
+                    color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                    GUIDE · {channel.name}
+                </div>
+            </div>
+            {items.length === 0 ? (
+                <div style={{ padding: '20px 6px', color: 'var(--vesper-text-3)', fontSize: 13, textAlign: 'center' }}>
+                    <Loader2 size={14} className="vesper-spin" style={{ display: 'block', margin: '0 auto 8px' }} />
+                    Loading guide…
                 </div>
             ) : (
-                <>
-                    <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
-                        <div style={{
-                            width: 40, height: 28, flexShrink: 0,
-                            borderRadius: 4,
-                            background: channel.stream_icon
-                                ? `#0a0d18 center/contain no-repeat url(${channel.stream_icon})`
-                                : 'rgba(255,255,255,0.06)',
-                        }} />
-                        <div className="vesper-mono" style={{
-                            fontSize: 10, letterSpacing: '0.22em',
-                            color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>
-                            {channel.name}
-                        </div>
-                    </div>
-
-                    <EpgBlock label="NOW" item={epg?.now} highlight />
-                    <EpgBlock label="UP NEXT" item={epg?.next} />
-
-                    <button
-                        data-testid="live-tv-play"
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        onClick={onPlay}
-                        className="flex items-center justify-center gap-2 rounded-full font-sans w-full"
-                        style={{
-                            height: 46, marginTop: 14, fontSize: 14, fontWeight: 700,
-                            background: 'var(--vesper-blue)', color: 'var(--vesper-bg-0)',
-                            border: 'none', cursor: 'pointer',
-                        }}
-                    >
-                        <Play size={14} strokeWidth={2.5} fill="currentColor" />
-                        Watch this channel
-                    </button>
-                </>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                    {groups.map((g) => (
+                        <li key={g.label}>
+                            <div className="vesper-mono" style={{
+                                fontSize: 10, letterSpacing: '0.32em',
+                                color: 'var(--vesper-text-3)', textTransform: 'uppercase',
+                                padding: '14px 6px 6px',
+                            }}>
+                                {g.label}
+                            </div>
+                            {g.items.map((it, i) => (
+                                <GuideRow
+                                    key={`${it.startTimestamp || i}`}
+                                    item={it}
+                                    channel={channel}
+                                    providerId={providerId}
+                                />
+                            ))}
+                        </li>
+                    ))}
+                </ul>
             )}
         </div>
     );
 }
 
-function EpgBlock({ label, item, highlight }) {
-    if (!item) {
-        return (
-            <div style={{
-                padding: '10px 12px', marginTop: 10,
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px dashed rgba(255,255,255,0.1)',
-            }}>
-                <div className="vesper-mono" style={{
-                    fontSize: 9, letterSpacing: '0.24em', color: 'var(--vesper-text-3)',
-                    textTransform: 'uppercase', marginBottom: 4,
-                }}>
-                    {label}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--vesper-text-3)' }}>
-                    No EPG data
-                </div>
-            </div>
-        );
-    }
+function GuideRow({ item, channel, providerId }) {
+    const startTs = Number(item.startTimestamp || item.start_timestamp || 0);
+    const set = hasReminder(providerId, channel.stream_id, startTs);
+    const onToggle = () => {
+        toggleReminder(providerId, {
+            streamId: channel.stream_id,
+            startTs,
+            stopTs: Number(item.stopTimestamp || item.stop_timestamp || 0),
+            title: item.title || '',
+            channelName: channel.name,
+        });
+    };
     return (
-        <div style={{
-            padding: '12px 14px', marginTop: 10,
-            borderRadius: 12,
-            background: highlight ? 'rgba(var(--vesper-blue-rgb), 0.12)' : 'rgba(255,255,255,0.04)',
-            border: highlight ? '1px solid rgba(var(--vesper-blue-rgb), 0.45)' : '1px solid rgba(255,255,255,0.08)',
-        }}>
-            <div className="vesper-mono" style={{
-                fontSize: 9, letterSpacing: '0.24em',
-                color: highlight ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)',
-                textTransform: 'uppercase', marginBottom: 4, fontWeight: 700,
-            }}>
-                {label}{item.start ? ` · ${formatTime(item.start)}–${formatTime(item.end)}` : ''}
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--vesper-text)', lineHeight: 1.3 }}>
-                {item.title || 'Untitled'}
-            </div>
-            {item.description && (
-                <div style={{
-                    fontSize: 12, color: 'var(--vesper-text-2)', lineHeight: 1.4,
-                    marginTop: 4,
-                    display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                }}>
-                    {item.description}
+        <li style={{ contentVisibility: 'auto', containIntrinsicSize: '0 58px' }}>
+            <button
+                data-testid={`guide-row-${channel.stream_id}-${startTs}`}
+                data-focusable="true"
+                data-focus-style="quiet"
+                tabIndex={0}
+                onClick={onToggle}
+                className="text-left flex items-center gap-3"
+                style={{
+                    display: 'flex', width: 'calc(100% - 10px)', margin: '4px 5px',
+                    padding: '10px 12px',
+                    background: set ? 'rgba(255,196,68,0.06)' : 'transparent',
+                    border: set
+                        ? '1px solid rgba(255,196,68,0.55)'
+                        : '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    color: 'var(--vesper-text)',
+                    cursor: 'pointer',
+                    minHeight: 48,
+                }}
+            >
+                <div style={{ minWidth: 54, lineHeight: 1.05 }}>
+                    <div className="vesper-mono" style={{
+                        fontSize: 13, fontWeight: 800,
+                        color: set ? '#FFC444' : 'var(--vesper-text)',
+                        letterSpacing: '0.03em',
+                    }}>
+                        {formatTimeParts(item.start, startTs).hm}
+                    </div>
+                    <div className="vesper-mono" style={{
+                        fontSize: 10, fontWeight: 700,
+                        color: set ? '#FFC444' : 'var(--vesper-text-3)',
+                        letterSpacing: '0.18em', marginTop: 1,
+                    }}>
+                        {formatTimeParts(item.start, startTs).ap}
+                    </div>
                 </div>
-            )}
-        </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: set ? '#FFE2A8' : 'var(--vesper-text)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                        {item.title || 'Untitled'}
+                    </div>
+                    <div className="vesper-mono" style={{
+                        fontSize: 9, letterSpacing: '0.22em',
+                        color: set ? '#FFC444' : 'var(--vesper-text-3)',
+                        textTransform: 'uppercase', marginTop: 2, fontWeight: 600,
+                    }}>
+                        {set ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Check size={9} strokeWidth={3} /> REMINDER SET
+                            </span>
+                        ) : (
+                            'OK TO REMIND'
+                        )}
+                    </div>
+                </div>
+                {set
+                    ? <BellRing size={14} strokeWidth={2.2} color="#FFC444" />
+                    : <Bell size={14} strokeWidth={2} color="var(--vesper-text-3)" />}
+            </button>
+        </li>
     );
 }
 
@@ -773,9 +856,34 @@ function EpgBlock({ label, item, highlight }) {
 
 function formatTime(s) {
     if (!s) return '';
-    // Xtream typically returns "2026-02-14 20:00:00" or ISO.
     const m = /\d{4}-\d{2}-\d{2}[ T](\d{2}):(\d{2})/.exec(s);
-    if (m) return `${m[1]}:${m[2]}`;
-    try { return new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-    catch { return s; }
+    if (m) {
+        let h = parseInt(m[1], 10);
+        const min = m[2];
+        const ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return `${String(h).padStart(2, '0')}:${min} ${ap}`;
+    }
+    try {
+        return new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch { return s; }
 }
+
+function formatTimeParts(s, ts) {
+    let date;
+    if (s) {
+        const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s);
+        if (m) {
+            date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+        }
+    }
+    if (!date && ts) date = new Date(Number(ts) * 1000);
+    if (!date) return { hm: '', ap: '' };
+    let h = date.getHours();
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return { hm: `${String(h).padStart(2, '0')}:${min}`, ap };
+}
+
+function formatTimeFull() { return ''; }

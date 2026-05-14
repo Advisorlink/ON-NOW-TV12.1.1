@@ -34,6 +34,25 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 63 — Feb 14, 2026)
+### Live TV — full redesign to match user's reference + reminders
+- **🎨 User sent the reference screenshot**. Re-skinned everything to match. Key differences vs iter 61/62:
+  - **Hero is now LEFT-ALIGNED** with content; channel logo sits faded on the right (no full-bleed backdrop). NOW + progress bar + UP NEXT live INLINE in the hero text column. Big white "▶ Watch full-screen" pill replaces the cyan version.
+  - **3 action circles top-right of hero**: ⭐ Favourite (toggles for the focused channel — pink heart when on), ↻ Refresh EPG (spins icon while refreshing), ⇥ Exit/change provider.
+  - **L Categories col** now has a pinned **"❤️ Favourites" pill** at the top (with channel-count badge) + an "All channels" pill, then a divider, then the regular Xtream categories.
+  - **M Channels col** rows redesigned: shows channel `num` on the left, tiny channel-logo, big channel name, "NOW · current title" ribbon, and a thin **blue progress bar** of the current programme. Focused row gets a blue 1 px ring instead of a fill.
+  - **R Guide col**: full multi-day EPG schedule for the focused channel, grouped by `TODAY / TOMORROW / WEDNESDAY / ...`. Each EPG row shows time (HH:MM + AM/PM stacked), title, and either "OK TO REMIND" (default) or "✓ REMINDER SET" with a bell-with-ring icon when armed. Set rows glow gold (`#FFC444`).
+- **🔔 Reminders system** (`lib/xtreamPrefs.js`):
+  - Per-provider localStorage stores (key `onnowtv-xtream-reminders__{providerId}`).
+  - `toggleReminder()` flips the entry + schedules a `setTimeout` for `startTimestamp - 60 s`.
+  - `rehydrateReminders(providerId)` called on every `/live-tv` mount — re-arms timers for everything within the next 24 h, purges expired entries.
+  - On fire: tries Web Notification API first → falls back to `window.AndroidApp.notify(...)` for native bridge → console log otherwise.
+- **❤️ Favourites system** (same file): `listFavouriteIds`, `toggleFavourite` — per-provider `Set<streamId>`. The "Favourites" virtual category filters channels to that Set; switching to it triggers a one-shot full channel fetch + Set filter (cached).
+- **📡 EPG fetching**: new `getFullEpg(provider, streamId, limit=40)` in `lib/xtream.js` returning 40 upcoming entries. Decodes Xtream's base64 title/desc client-side. 5-min cache in LiveTVGrid + abortable + 250 ms debounce so D-pad zapping doesn't queue stacks of stale requests.
+- **⚡ Performance**: zero glow/blur/scale animations. `contentVisibility: auto` on every channel row AND every EPG row. `contain: paint` on each of the 3 scroll columns. Confirmed clean in the preview screenshot.
+- **🧪 Smoke test**: `/live-tv` route loads, renders hero with action circles + Favourites pill + 3 columns. Preview pod can't reach the IPTV server (expected — see iter 62 root-cause note) so cats/channels show "Loading…" — works on sideloaded APK 1.9.7+ thanks to the WebView OkHttp interceptor.
+
+
 ## Implemented (Iteration 62 — Feb 14, 2026)
 ### Live TV — root-cause fix for "Provider unreachable"
 - **🐛 User reported**: "It didn't work" after Live TV iteration 61.
