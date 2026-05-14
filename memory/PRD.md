@@ -34,6 +34,18 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 45 — Feb 14, 2026)
+### Network logo image-quality reduction · Categorised avatar rows · TV-show 1080 autoplay · Viewing-style polish
+- **🖼️ Network logos `original` → `w300`** (`backend/server.py`, `components/NetworksShelf.jsx`). TMDB watch-provider wordmark assets served at w300 (≈6-10× smaller payload) — the Browse-by-Network rail now renders noticeably faster on the HK1 box. Cache keys bumped to `networks:logos:v2` so existing devices fetch fresh URLs.
+- **🧑‍🎤 Categorised avatar rows** (`lib/avatars.jsx` + `pages/ProfileEdit.jsx`). New `AVATAR_CATEGORIES` export grouping the 106 avatars into 12 horizontally-scrolling rows: Animals · Wildlife · Fantasy & Cool · Sports · Music & Gaming · Funny Faces · Vibes & Symbols · Food & Drink · Nature · Vehicles · Hobbies & Gear · Magic & Cards. D-pad Down walks row-to-row; Left/Right picks an avatar within a category. Each row has `data-testid="avatar-row-<id>"`.
+- **📺 TV-show autoplay 1080 broadened** (`components/SeriesEpisodes.jsx`). `pickAutoplayCandidate` now uses the shared `is1080p(stream)` helper — anything matching `/1080/i` anywhere in title/name/description triggers autoplay. Brings TV-show autoplay in line with the movie autoplay path.
+- **✨ Viewing-style step polish** (`pages/ProfileEdit.jsx`):
+  - New helper banner `[data-testid="viewing-style-helper"]` at the top of step 4 explaining how it works ("Tap any genre on the left to see its top 20 most-watched titles…").
+  - Top titles count raised from 10 → 20 (backend call now `?limit=20`).
+  - Right-pane header reads "Top 20 in <genre>" instead of "Top 10".
+- **🧪 Testing** (`testing_agent_v3_fork` — iteration_8.json) — 2/2 backend + 9/9 frontend scenarios pass at 100%.
+
+
 ## Implemented (Iteration 44 — Feb 14, 2026)
 ### Profile isolation bug + 6-step wizard (Viewing Style + Autoplay) + Home "For You" rail
 - **🐛 Profile isolation fix** (`lib/profileScope.js`). `readScopedString` no longer falls back to the unscoped legacy key for every profile. Legacy data is promoted ONCE to the currently-active profile, then the legacy key is removed — every subsequent profile starts completely empty. `saveProfile()` also seeds the new profile's scoped namespace with explicit empty defaults for library / continue-watching / watched / autoplay / viewing-style. New profiles never inherit any prior profile's data.
