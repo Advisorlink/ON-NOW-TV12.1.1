@@ -34,6 +34,21 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 73 — Feb 15, 2026)
+### 🔴 CRITICAL FIX — Watch Together "Start Party dumps everyone on the picker"
+- **🐛 User reported**: "Linked us up perfectly. As soon as I pushed Start Party, it just opened up the movie section to push play on, on both of ours. Then it didn't link up at all."
+- **🔬 RCA**: `Detail.jsx:242-252` previously did `autoplayCandidate = streams.find(is1080p) || null`. Plex / Real-Debrid often tag titles as "4K HEVC", "WEBRip H264", etc. — **no `1080p` label** — so `autoplayCandidate` was `null`. The autoplay useEffect bailed (`if (!candidate) return`) and both members landed on the manual picker. Pushing Play on each side spawned independent JS Players with no party WS linkage.
+- **✅ Fix** (`pages/Detail.jsx:261-272`): new `partyAutoplayCandidate` useMemo that ONLY fires in party mode. 4-tier fallback chain:
+  1. 1080p direct stream  →
+  2. 1080p anything  →
+  3. First direct stream  →
+  4. First torrent stream  →
+  5. `streams[0]` (last resort).
+  The autoplay useEffect (`Detail.jsx:286-300`) now uses `partyAutoplayCandidate` instead of strict `autoplayCandidate` whenever `partyCode` is set, AND skips the user's `getAutoplay1080p()` preference check entirely in party mode (so a party member with autoplay off still gets pulled into playback).
+- **🛡️ No regression**: non-party flow still requires a 1080p-labelled stream — that's by design.
+- **🧪 Tested** (`testing_agent_v3_fork` — iter 27): **backend 16/16 pass** (full regression from iter 26). **Frontend**: visited `/title/movie/tt0816692?autoplay=1&party=TEST00&at_ms=0&position_ms=0` — URL changed to `/play?...&party=TEST00&at_ms=0&position_ms=0` within 500 ms. Stream-picker DOM count = 0. Manual play button DOM count = 0. Party autoplay path 100 % verified.
+
+
 ## Implemented (Iteration 72 — Feb 15, 2026)
 ### Watch-Together emoji reactions (D-pad-hold 2-second gesture)
 - **🎯 User**: "Hold the up arrow for 2 seconds → love heart. Hold down → shocked. Hold left → laughing. Hold right → crying."
