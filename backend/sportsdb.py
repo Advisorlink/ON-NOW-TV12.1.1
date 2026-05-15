@@ -61,10 +61,11 @@ TOP_LEAGUES: List[Dict[str, Any]] = [
     # Baseball -------------------------------------------------------------
     {"id": "4424", "name": "MLB",                   "sport": "Baseball",          "country": "USA",       "season": "2025"},
     {"id": "4830", "name": "NPB",                   "sport": "Baseball",          "country": "Japan",     "season": "2025"},
-    # Rugby ----------------------------------------------------------------
-    {"id": "4502", "name": "Rugby Union: Premiership",  "sport": "Rugby",         "country": "England",   "season": "2025-2026"},
-    {"id": "4446", "name": "Rugby League: NRL",         "sport": "Rugby",         "country": "Australia", "season": "2025"},
-    {"id": "4574", "name": "Rugby League: Super League","sport": "Rugby",         "country": "England",   "season": "2025"},
+    # Rugby Union ----------------------------------------------------------
+    {"id": "4414", "name": "English Prem Rugby",       "sport": "Rugby Union",      "country": "England",   "season": "2025-2026"},
+    # Rugby League ---------------------------------------------------------
+    {"id": "4416", "name": "NRL",                      "sport": "Rugby League",     "country": "Australia", "season": "2025"},
+    {"id": "4415", "name": "Super League",             "sport": "Rugby League",     "country": "England",   "season": "2025"},
     # AFL ------------------------------------------------------------------
     {"id": "4449", "name": "AFL",                   "sport": "Australian Football","country": "Australia","season": "2025"},
     # Cricket --------------------------------------------------------------
@@ -94,6 +95,8 @@ SPORT_ICONS = {
     "Basketball":           {"emoji": "🏀", "color": "#FFA844"},
     "Ice Hockey":           {"emoji": "🏒", "color": "#8DC9FF"},
     "Baseball":             {"emoji": "⚾", "color": "#FFE08A"},
+    "Rugby League":         {"emoji": "🏉", "color": "#FF6BCB"},
+    "Rugby Union":          {"emoji": "🏉", "color": "#7AE2A8"},
     "Rugby":                {"emoji": "🏉", "color": "#7AE2A8"},
     "Australian Football":  {"emoji": "🏉", "color": "#FF6B7A"},
     "Cricket":              {"emoji": "🏏", "color": "#A7F0BA"},
@@ -213,6 +216,19 @@ def _to_ts(date_str: Optional[str], time_str: Optional[str]) -> int:
         return 0
 
 
+def _classify_rugby(sport: str, league: str) -> str:
+    """TheSportsDB lumps Rugby League and Rugby Union under `Rugby`.  Split
+    them so the UI can colour-code and filter them as distinct sports."""
+    if sport != "Rugby":
+        return sport
+    lg = (league or "").lower()
+    league_keywords = ("rugby league", "nrl", "super league",
+                       "state of origin", "challenge cup")
+    if any(k in lg for k in league_keywords):
+        return "Rugby League"
+    return "Rugby Union"
+
+
 def _normalise_event(ev: Dict[str, Any]) -> Dict[str, Any]:
     """Project an event into the lean shape the frontend wants."""
     ts = _to_ts(ev.get("dateEvent"), ev.get("strTime"))
@@ -222,13 +238,16 @@ def _normalise_event(ev: Dict[str, Any]) -> Dict[str, Any]:
     status = (ev.get("strStatus") or "").strip()
     # Treat anything with both scores set and status "Finished/Final" as final.
     finished = bool(status and any(w in status.lower() for w in ("finish", "final", "ended", "ft")))
+    sport_raw = ev.get("strSport") or ""
+    league_name = ev.get("strLeague") or ""
+    sport = _classify_rugby(sport_raw, league_name)
     return {
         "id":          str(ev.get("idEvent") or ""),
         "title":       title,
-        "league":      ev.get("strLeague") or "",
+        "league":      league_name,
         "leagueId":    str(ev.get("idLeague") or ""),
         "leagueBadge": ev.get("strLeagueBadge") or "",
-        "sport":       ev.get("strSport") or "",
+        "sport":       sport,
         "ts":          ts,
         "season":      ev.get("strSeason") or "",
         "round":       ev.get("intRound") or "",
@@ -293,7 +312,7 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
         upstream: {ok:int, fail:int, rate_limited:int}
       }
     """
-    cache_key = "sportsdb:fixtures:v5"
+    cache_key = "sportsdb:fixtures:v6"
     cached = _cache_get(cache_key)
     if not refresh and cached:
         return {**cached, "cached": True}
@@ -311,9 +330,11 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
     date_strs = [(today0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(0, 3)]
     primary_sports = ["Soccer", "Basketball", "Ice Hockey", "American Football"]
 
-    # 10 marquee leagues — top revenue / global reach.
+    # 11 marquee leagues — top global revenue / global reach + Australian
+    # Rugby League (NRL) at the user's request.
     MARQUEE_FETCH = ["4328", "4335", "4332", "4331", "4480",      # EPL/LaLiga/SerieA/Bund/UCL
-                     "4391", "4387", "4380", "4424", "4370"]      # NFL/NBA/NHL/MLB/F1
+                     "4391", "4387", "4380", "4424", "4370",      # NFL/NBA/NHL/MLB/F1
+                     "4416"]                                       # NRL (AU Rugby League)
 
     async with httpx.AsyncClient(
         headers={"User-Agent": "VesperTV/2.0 (sports-guide)"},
@@ -430,7 +451,7 @@ async def _enrich_cache(cache_key: str, base_payload: Dict[str, Any]) -> None:
         # Compute the leagues NOT included in the cold fan-out + the secondary
         # sport set for additional breadth.
         already = {"4328", "4335", "4332", "4331", "4480",
-                   "4391", "4387", "4380", "4424", "4370"}
+                   "4391", "4387", "4380", "4424", "4370", "4416"}
         extra_leagues = [lg["id"] for lg in TOP_LEAGUES if lg["id"] not in already]
         extra_sports = ["Baseball", "Motorsport", "Cricket", "Rugby",
                         "MMA", "Boxing", "Tennis", "Golf", "Australian Football"]

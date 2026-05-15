@@ -54,6 +54,8 @@ const SPORT_EMOJI = {
     'Basketball':          '🏀',
     'Ice Hockey':          '🏒',
     'Baseball':            '⚾',
+    'Rugby League':        '🏉',
+    'Rugby Union':         '🏉',
     'Rugby':               '🏉',
     'Australian Football': '🏉',
     'Cricket':             '🏏',
@@ -71,6 +73,8 @@ const SPORT_ACCENT = {
     'Basketball':          '#FFA844',
     'Ice Hockey':          '#8DC9FF',
     'Baseball':            '#FFE08A',
+    'Rugby League':        '#FF6BCB',
+    'Rugby Union':         '#7AE2A8',
     'Rugby':               '#7AE2A8',
     'Australian Football': '#FF6B7A',
     'Cricket':             '#A7F0BA',
@@ -102,6 +106,8 @@ const MARQUEE_LEAGUES = new Set([
     '4370', // Formula 1
     '4443', // UFC
     '4548', // IPL
+    '4416', // Australian National Rugby League (NRL)
+    '4415', // English Rugby League Super League
 ]);
 
 export default function SportsGuide() {

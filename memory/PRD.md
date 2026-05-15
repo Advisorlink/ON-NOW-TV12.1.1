@@ -34,6 +34,19 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 68b — Feb 15, 2026)
+### Sports Guide v3.1 — Australian Rugby League + correct league IDs
+- **🎯 User reported**: "It doesn't have Australian Rugby League. We need to have Australian Rugby League in there as well."
+- **🐛 Root cause**: The original `TOP_LEAGUES` list had three Rugby league IDs (4502, 4446, 4574) that I had guessed — all three were wrong. League id 4446 actually points to United Rugby Championship (rugby union), 4502/4574 don't exist as rugby. The correct IDs (looked up via `search_all_leagues.php?s=Rugby`):
+  - **4416** = Australian National Rugby League (NRL)  ✅
+  - **4415** = English Rugby League Super League  ✅
+  - **4414** = English Prem Rugby (Union) ✅
+- **🆕 Sport split**: TheSportsDB lumps both codes under `strSport: "Rugby"`. Added `_classify_rugby()` in `sportsdb.py` that promotes the sport to either `"Rugby League"` or `"Rugby Union"` based on league name keywords (`nrl`, `rugby league`, `super league`, `state of origin`, `challenge cup`).
+- **🎨 Frontend** (`SportsGuide.jsx`): added pink (`#FF6BCB`) accent for **Rugby League** and green (`#7AE2A8`) for **Rugby Union**, so they're visually distinct pills + cards.
+- **⭐ Marquee promotion**: NRL (id 4416) added to the cold-load `MARQUEE_FETCH` set so an Australian Rugby League fixture is one of the first 11 leagues pulled on every cache miss. Also added to the frontend `MARQUEE_LEAGUES` set so an NRL fixture can be the hero card when it's the soonest upcoming match.
+- **✅ Verified**: cold fetch returns Australian National Rugby League — Cronulla Sharks vs Canterbury Bankstown Bulldogs (08:00 AM Suncorp Stadium); appears in the hero with a pink-tinted backdrop + "AUSTRALIAN NATIONAL RUGBY LEAGUE" league pill + LIVE pulsing badge.
+
+
 ## Implemented (Iteration 68 — Feb 15, 2026)
 ### Sports Guide v3 — completely redesigned with TheSportsDB
 - **🎯 User request**: "the sports guide thing needs to be completely redone… way better. We need to have way more sports in there. We need to make sure that it's got all the listings, all the fixtures, all the sports. References: livesportsontv.com + thesportsdb.com. Make it 10/10 visuals, not cramped, easy to understand."
