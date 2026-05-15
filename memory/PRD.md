@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 74 — Feb 15, 2026)
+### 🔴 SECOND CRITICAL FIX — Watch Together "Play 1080p button on host, stream list on guest"
+- **🐛 User reported again** (iter 73 fix wasn't bulletproof): "I clicked the play button, my side took me to where it says Play 1080p, and hers just said all the streams that were available but didn't actually play."
+- **🔬 Full RCA**: previous fix introduced `partyAutoplayCandidate` but kept the autoplay useEffect as a single combined branch.  When the *guest* had `getAutoplay1080p()` **off** in her profile (a legitimate user pref), line `if (!partyCode && !getAutoplay1080p()) return;` was OK — but the *whole logic* still depended on the unified `autoplayCandidate` for the autoplay-1080p UI button check elsewhere on the page.  The host had pref ON but stream list had no `1080p`-labelled item → host saw "Play 1080p" button instead of auto-firing.  The guest's `partyAutoplayCandidate` fallback wasn't activated because of a stale-closure subtlety in the dep array.
+- **✅ Fix** (`pages/Detail.jsx:286-323`): DEDICATED party-autoplay useEffect — completely decoupled from regular autoplay.  Gates ONLY on `partyCode + autoplayRequested + type==='movie' + streams loaded + non-empty`.  No 1080p guard.  No user-pref guard.  5-tier stream fallback: 1080p direct → any 1080p → first direct → first torrent → `streams[0]`.  Old useEffect now bails immediately when `partyCode` is set (`if (partyCode) return;`).
+- **🆕 Party Joining overlay** (`pages/Detail.jsx:524-572`): full-screen `data-testid="party-joining-overlay"` with spinner + "JOINING WATCH PARTY" badge + status line (`Resolving stream…` while loading / `Starting playback in a moment…` once a pick is made / `No streams available — host needs to pick a different title.` when streams.length === 0).  `pointer-events: none` so it doesn't block the underlying navigate.  Disappears as soon as `autoplayFiredRef.current` flips.
+- **🧪 Tested** (`testing_agent_v3_fork` — iteration 28): **100 % PASS on all 5 acceptance criteria** ([A] Party autoplay fires in ~250 ms regardless of label / pref. [B] Overlay appears before redirect with correct status text. [C] Overlay removed after navigate. [D1] Non-party + pref OFF → stays on picker, autoplay does NOT fire. [D2] Non-party + pref ON → autoplay fires normally. [E] Backend 16/16 pytest pass.). No regressions.  Manual reproduction of user's exact scenario confirmed working.
+
+
 ## Implemented (Iteration 73 — Feb 15, 2026)
 ### 🔴 CRITICAL FIX — Watch Together "Start Party dumps everyone on the picker"
 - **🐛 User reported**: "Linked us up perfectly. As soon as I pushed Start Party, it just opened up the movie section to push play on, on both of ours. Then it didn't link up at all."
