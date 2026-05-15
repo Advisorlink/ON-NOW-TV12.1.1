@@ -1611,6 +1611,113 @@ async def tmdb_similar_to_picks(
     return {"cached": False, "data": merged}
 
 
+# ---------------------------------------------------------------------------
+# Sports Guide — LLM-powered natural-language EPG search
+# ---------------------------------------------------------------------------
+
+class SportsQueryItem(BaseModel):
+    streamId: int | str
+    channelName: str
+    title: str
+    description: str = ""
+    startTs: int = 0
+    stopTs: int = 0
+
+
+class SportsQueryRequest(BaseModel):
+    query: str
+    candidates: List[SportsQueryItem]
+
+
+@api.post("/sports/find")
+async def sports_find(req: SportsQueryRequest):
+    """
+    Given a natural-language sports query and a list of EPG candidate
+    programmes from sports-tagged channels, return the indices of the
+    candidates that best match the query, ranked.
+
+    Why server-side?  The query is best answered by an LLM that can
+    understand "Cowboys game tonight" ≈ "NFL Dallas Cowboys ...", and
+    we don't want to ship the LLM key into the client.
+    """
+    q = (req.query or "").strip()
+    if not q:
+        return {"matches": []}
+    if not req.candidates:
+        return {"matches": []}
+
+    # Cap inputs so the prompt stays small + cheap.
+    cand_list = req.candidates[:80]
+    serialised = "\n".join(
+        f"[{i}] {c.channelName} — {c.title}" + (f" ({c.description[:120]})" if c.description else "")
+        for i, c in enumerate(cand_list)
+    )
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=f"LLM library missing: {exc}")
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
+
+    system_message = (
+        "You are a sports concierge.  The user asks for a sport, team, "
+        "match, or fighter.  You are given a numbered list of upcoming "
+        "or currently-airing TV programmes from sports channels.  Pick "
+        "the indices of the programmes that best match the user's "
+        "request, ranked from most-relevant first.  Return AT MOST 5 "
+        "indices.  Respond with ONLY a JSON array of integers, e.g. "
+        "[3, 0, 7].  If nothing matches, respond with []."
+    )
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"sports-{uuid.uuid4().hex[:8]}",
+        system_message=system_message,
+    ).with_model("gemini", "gemini-2.0-flash")
+
+    user_text = f"Query: {q}\n\nProgrammes:\n{serialised}"
+
+    try:
+        response = await chat.send_message(UserMessage(text=user_text))
+    except Exception as exc:
+        logger.exception("Sports LLM call failed")
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {exc}")
+
+    # Parse the JSON array out of the response.
+    import re
+    import json
+    text = (response or "").strip()
+    m = re.search(r"\[\s*[\d,\s]*\]", text)
+    indices: List[int] = []
+    if m:
+        try:
+            arr = json.loads(m.group(0))
+            for x in arr:
+                if isinstance(x, int) and 0 <= x < len(cand_list):
+                    indices.append(x)
+        except Exception:
+            pass
+
+    return {
+        "query": q,
+        "matches": [
+            {
+                "index": i,
+                "streamId": cand_list[i].streamId,
+                "channelName": cand_list[i].channelName,
+                "title": cand_list[i].title,
+                "description": cand_list[i].description,
+                "startTs": cand_list[i].startTs,
+                "stopTs": cand_list[i].stopTs,
+            }
+            for i in indices
+        ],
+    }
+
+
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
 
@@ -1620,6 +1727,7 @@ app.include_router(xtream_router)
 
 from watch_party import router as watch_party_router  # noqa: E402
 app.include_router(watch_party_router)
+
 
 app.add_middleware(
     CORSMiddleware,

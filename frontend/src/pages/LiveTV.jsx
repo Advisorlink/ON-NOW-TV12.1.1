@@ -59,6 +59,7 @@ import {
     mergeAndSaveEpg,
 } from '@/lib/liveCache';
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
+import ConfirmModal from '@/components/ConfirmModal';
 import Host from '@/lib/host';
 
 const ROW_H = 32;            // category row height
@@ -148,6 +149,10 @@ function Grid({ provider, onLogout }) {
 
     const [query, setQuery] = useState('');
     const [syncing, setSyncing] = useState(false);
+    /* Pending confirmation dialog state.  Shape: { kind, title, body, onConfirm }.
+     * Set by long-press OK on items that would *remove* a saved
+     * entry (favourite, reminder).  Cleared on cancel or confirm. */
+    const [pendingConfirm, setPendingConfirm] = useState(null);
 
     const [favs, setFavs] = useState(() => new Set(getFavList(provider.id).map(String)));
     const [recents, setRecents] = useState(() => getRecents(provider.id).map(String));
@@ -184,11 +189,41 @@ function Grid({ provider, onLogout }) {
         const q = query.trim().toLowerCase();
         if (!q) return allChannels;
         const isNum = /^\d+$/.test(q);
-        return allChannels.filter((c) => {
+
+        // Tier 1 — channels matching by name / number (always shown first).
+        const nameMatches = allChannels.filter((c) => {
             const n = (c.name || '').toLowerCase();
             return n.includes(q) || (isNum && c.num != null && String(c.num).includes(q));
         });
-    }, [allChannels, query]);
+
+        // Tier 2 — channels whose EPG has a programme title or
+        // description containing the query.  Decorate each match
+        // with `_matchedProgramme` so the card can surface what
+        // matched (e.g. "Toronto Raptors vs Lakers" instead of the
+        // currently airing show).  Avoids duplicates from Tier 1.
+        const seen = new Set(nameMatches.map((c) => String(c.stream_id)));
+        const epgMatches = [];
+        if (q.length >= 3 && !isNum) {
+            for (const arr of channelsByCat.current.values()) {
+                for (const c of (arr || [])) {
+                    const key = String(c.stream_id);
+                    if (seen.has(key)) continue;
+                    const items = epg.current.get(c.stream_id) || [];
+                    const hit = items.find((it) => {
+                        const t = (it.title || '').toLowerCase();
+                        const d = (it.description || '').toLowerCase();
+                        return t.includes(q) || d.includes(q);
+                    });
+                    if (hit) {
+                        epgMatches.push({ ...c, _matchedProgramme: hit });
+                        seen.add(key);
+                    }
+                }
+            }
+        }
+        return [...nameMatches, ...epgMatches];
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allChannels, query, bump]);
 
     const focusedChannel = channels[Math.min(sel.chanIdx, channels.length - 1)] || null;
 
@@ -380,22 +415,65 @@ function Grid({ provider, onLogout }) {
     const rerender = useCallback(() => setBump((b) => b + 1), []);
 
     /* ───────── Handlers ───────── */
-    const onToggleFav = useCallback(() => {
+    const doToggleFav = useCallback(() => {
         if (!focusedChannel) return;
         toggleFavorite(provider.id, focusedChannel.stream_id);
         setFavs(new Set(getFavList(provider.id).map(String)));
     }, [focusedChannel, provider]);
 
-    const onToggleReminder = useCallback((item) => {
-        if (!debouncedChannel || !item?.startTimestamp) return;
-        toggleReminder(provider.id, debouncedChannel.stream_id, {
-            channelName: debouncedChannel.name,
+    /* Wrapper used by long-press and the F key.  If the channel is
+     * ALREADY favourited, prompts for confirmation before removing.
+     * Adding a new favourite still happens silently. */
+    const onToggleFav = useCallback(() => {
+        if (!focusedChannel) return;
+        const isFav = favs.has(String(focusedChannel.stream_id));
+        if (!isFav) {
+            doToggleFav();
+            return;
+        }
+        setPendingConfirm({
+            kind: 'unfavourite',
+            title: 'Remove from favourites?',
+            body: `${focusedChannel.name} will be removed from your Favourites list.`,
+            onConfirm: () => {
+                doToggleFav();
+                setPendingConfirm(null);
+            },
+        });
+    }, [focusedChannel, favs, doToggleFav]);
+
+    const doToggleReminder = useCallback((item, ch) => {
+        const channel = ch || debouncedChannel;
+        if (!channel || !item?.startTimestamp) return;
+        toggleReminder(provider.id, channel.stream_id, {
+            channelName: channel.name,
             title: item.title,
             startTs: item.startTimestamp,
             stopTs: item.stopTimestamp,
         });
         setReminders(getReminders(provider.id));
     }, [debouncedChannel, provider]);
+
+    /* Wrapper — confirms before removing an existing reminder. */
+    const onToggleReminder = useCallback((item) => {
+        if (!debouncedChannel || !item?.startTimestamp) return;
+        const sid = debouncedChannel.stream_id;
+        const id = `${Number(sid) || sid}:${Number(item.startTimestamp) || item.startTimestamp}`;
+        const isOn = reminderKeys.has(id);
+        if (!isOn) {
+            doToggleReminder(item);
+            return;
+        }
+        setPendingConfirm({
+            kind: 'unremind',
+            title: 'Remove this reminder?',
+            body: `${item.title || 'Untitled programme'} on ${debouncedChannel.name} will no longer trigger a notification.`,
+            onConfirm: () => {
+                doToggleReminder(item);
+                setPendingConfirm(null);
+            },
+        });
+    }, [debouncedChannel, reminderKeys, doToggleReminder]);
 
     const playChannel = useCallback(async (ch) => {
         if (!ch) return;
@@ -440,6 +518,9 @@ function Grid({ provider, onLogout }) {
 
     useEffect(() => {
         const onKey = (e) => {
+            // Confirm dialog has its own handler — let it handle
+            // keys exclusively while open.
+            if (pendingConfirm) return;
             const tag = (document.activeElement?.tagName || '').toLowerCase();
 
             if (tag === 'input') {
@@ -556,7 +637,7 @@ function Grid({ provider, onLogout }) {
             window.removeEventListener('keyup', onKeyUp, true);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel]);
+    }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel, pendingConfirm]);
 
     useEffect(() => { setSel((s) => ({ ...s, chanIdx: 0, guideIdx: 0 })); }, [sel.catIdx]);
     useEffect(() => { setSel((s) => ({ ...s, guideIdx: 0 })); }, [sel.chanIdx, allChannels]);
@@ -576,6 +657,7 @@ function Grid({ provider, onLogout }) {
         (c, i, focused) => {
             const nextEpg = epg.current.get(c.stream_id);
             const now = nextEpg?.[0] || null;
+            const matched = c._matchedProgramme || null;
             return (
                 <ChannelCard
                     key={c.stream_id}
@@ -583,6 +665,7 @@ function Grid({ provider, onLogout }) {
                     focused={focused}
                     isFav={favs.has(String(c.stream_id))}
                     now={now}
+                    matched={matched}
                 />
             );
         },
@@ -674,6 +757,13 @@ function Grid({ provider, onLogout }) {
                     />
                 </div>
             </div>
+            <ConfirmModal
+                open={!!pendingConfirm}
+                title={pendingConfirm?.title || ''}
+                body={pendingConfirm?.body || ''}
+                onConfirm={pendingConfirm?.onConfirm}
+                onCancel={() => setPendingConfirm(null)}
+            />
         </div>
     );
 }
@@ -880,7 +970,7 @@ const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, 
                 type="text"
                 value={query}
                 onChange={(e) => onChange(e.target.value)}
-                placeholder="Search channels — type to search every category"
+                placeholder="Search channels & guide — e.g. “Toronto Raptors”, “BBC News”"
                 style={{
                     flex: 1, minWidth: 0,
                     background: 'transparent', border: 'none', outline: 'none',
@@ -1108,9 +1198,17 @@ const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
     );
 });
 
-const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now }) {
+const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now, matched }) {
     const accent = '#5DC8FF';
-    const progress = computeProgress(now);
+    const progress = computeProgress(matched || now);
+    /* When the row appeared because of an EPG search match, surface
+     * the matched programme in the slot where NOW normally lives,
+     * tagged differently so the user can see *why* this channel
+     * came up in their search results. */
+    const isMatchView = !!matched;
+    const labelText = isMatchView ? 'MATCH' : 'NOW';
+    const labelColor = isMatchView ? '#5DC8FF' : '#FF4D5E';
+    const displayItem = matched || now;
     return (
         <div style={{
             height: '100%',
@@ -1174,7 +1272,7 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                 }}>
                     {ch.name}
                 </span>
-                {now ? (
+                {displayItem ? (
                     <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         fontSize: 10,
@@ -1187,17 +1285,17 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                             fontFamily: 'monospace', fontSize: 8, fontWeight: 800,
                             letterSpacing: '0.16em', color: '#fff',
                             padding: '1px 5px',
-                            background: '#FF4D5E',
+                            background: labelColor,
                             borderRadius: 2,
                             flexShrink: 0,
                         }}>
-                            NOW
+                            {labelText}
                         </span>
                         <span style={{
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             flex: 1, minWidth: 0,
                         }}>
-                            {now.title || 'Untitled'}
+                            {displayItem.title || 'Untitled'}
                         </span>
                     </span>
                 ) : (

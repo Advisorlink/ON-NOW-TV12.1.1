@@ -16,6 +16,7 @@ import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import WatchTogether from '@/pages/WatchTogether';
 import LiveTV from '@/pages/LiveTV';
+import SportsGuide from '@/pages/SportsGuide';
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
@@ -147,6 +148,7 @@ function App() {
                             <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
                             <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
                             <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
+                            <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
                         </Routes>
                     </Router>
                 </ThemeProvider>

@@ -17,8 +17,8 @@ android {
         // realistic floor.
         minSdk = 19
         targetSdk = 34
-        versionCode = 60
-        versionName = "2.4.4"
+        versionCode = 61
+        versionName = "2.5.0"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.

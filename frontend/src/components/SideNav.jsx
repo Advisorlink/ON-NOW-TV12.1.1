@@ -10,6 +10,7 @@ import {
     Radio,
     Zap,
     Users,
+    Trophy,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
@@ -19,6 +20,7 @@ const NAV = [
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
     { id: 'live-tv', label: 'Live TV', icon: Radio, path: '/live-tv' },
+    { id: 'sports', label: 'Sports Guide', icon: Trophy, path: '/sports' },
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
