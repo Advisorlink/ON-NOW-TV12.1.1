@@ -34,6 +34,31 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 75 — Feb 15, 2026)
+### 🚫 4K filter + 🔐 Profile Backup & Restore with code + PIN
+- **🎯 User**: "A lot of streams come up as 4K and I don't want to play 4K — take away the 4K part.  Also need a nice Settings backup: save profile/CW/library/favourites/Live TV/themes/profile pics behind a PIN code; log back in with the code to restore everything."
+
+#### Part 1 — 4K filter in autoplay
+- **🆕** `lib/streamMeta.js`: new `is4K()` helper — regex `\b(2160p?|4k|uhd|2160)\b` matched case-insensitively across `name + title + description`.
+- **🛠️** `pages/Detail.jsx` (both autoplay useEffects): pool computed via `streams.filter(s => !is4K(s))`; falls back to the full list ONLY if **every** stream is 4K (so a 4K-only title still plays — won't ever leave the user stranded). Applies to both regular Autoplay-1080p and the bulletproof party-autoplay path.
+
+#### Part 2 — Profile Backup & Restore
+- **🆕 Backend** (`backend/backup.py`):
+  - 3 endpoints: `POST /api/backup/save`, `POST /api/backup/restore`, `POST /api/backup/refresh`.
+  - Saved doc fields: `code` (6-char alphanumeric, visually-confusable chars 0/O/1/I/L/U excluded), `payload` (the full localStorage snapshot), `pin_salt` + `pin_hash` (per-row 16-byte salt, SHA-256), `created_at`, `expires_at`, `restore_count`, `last_restore_at`, `size_bytes`.
+  - **TTL index** on `expires_at` with `expireAfterSeconds=0` — Mongo auto-deletes any backup unused for 90 days.  Refresh endpoint bumps the TTL.
+  - 2 MB payload size cap, 8-retry collision avoidance on code generation, 422→400 PIN/code validation, idempotent index creation.
+- **🆕 Frontend lib** (`lib/profileBackup.js`):
+  - `collectBackupPayload()` walks `localStorage` and collects every `onnowtv-*` and `vesper-*` key.  That includes profiles, active profile, Continue Watching, libraries/favourites/watchlist, Live TV favourites/recents/reminders/EPG cache, themes, network/source/addon prefs, autoplay setting, kids config.
+  - `applyBackupPayload(payload)` writes them back, skipping any key outside the two prefixes (defensive).
+- **🎨 Settings UI** (`pages/Settings.jsx`):
+  - New **Backup & Restore** section (above Developer) with `<BackupPanel>`.
+  - **Save flow**: idle → "Save backup" → 4-digit PIN pad (live-updates dots) → result card with big monospace code (e.g. `SMD3JV`) + Copy button + Done.
+  - **Restore flow**: idle → "Restore from code" → 6-char code input (auto-uppercase, alphanumeric filter) → 4-digit PIN pad → confirmation card with "Created on YYYY-MM-DD" + "Restoring will overwrite this device's current profiles…" warning → "Restore and reload" reloads to `/` with the new state in place.
+  - **PIN pad**: 12 keys (1-9, 0, Cancel, Backspace), focus-friendly, D-pad navigable, blue accent on focus.
+- **🧪 Tested** (`testing_agent_v3_fork` — iteration 29): **45/45 pytest pass** (18 new backup tests + 16 watch-party + 11 sportsdb regression).  Manual UI smoke confirms BackupPanel renders + Save button reveals PinPad correctly.
+
+
 ## Implemented (Iteration 74 — Feb 15, 2026)
 ### 🔴 SECOND CRITICAL FIX — Watch Together "Play 1080p button on host, stream list on guest"
 - **🐛 User reported again** (iter 73 fix wasn't bulletproof): "I clicked the play button, my side took me to where it says Play 1080p, and hers just said all the streams that were available but didn't actually play."
