@@ -1,6 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink } from 'lucide-react';
+import {
+    ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink,
+    Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
+} from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -12,6 +15,11 @@ import {
     saveKidsConfig,
     clearActiveProfile,
 } from '@/lib/profiles';
+import {
+    collectBackupPayload,
+    applyBackupPayload,
+    fmtBytes,
+} from '@/lib/profileBackup';
 
 /**
  * Settings → Appearance → Theme picker + Playback toggles.
@@ -372,6 +380,14 @@ export default function Settings() {
                 onChange={(v) => updateKids({ maxRatingSeries: v })}
             />
 
+            {/* ---- BACKUP & RESTORE ---- */}
+            <SectionHeader
+                eyebrow="Settings · Account"
+                title="Backup &amp; Restore"
+                icon={ShieldCheck}
+            />
+            <BackupPanel />
+
             {/* ---- DEVELOPER ---- */}
             <SectionHeader
                 eyebrow="Settings · Developer"
@@ -379,6 +395,475 @@ export default function Settings() {
                 icon={Code2}
             />
             <DeveloperPanel />
+            </div>
+        </div>
+    );
+}
+
+function BackupPanel() {
+    const navigate = useNavigate();
+    const API = process.env.REACT_APP_BACKEND_URL;
+    const [mode, setMode] = React.useState('idle'); // idle | save-pin | save-result | restore-code | restore-pin | restore-confirm
+    const [pin, setPin] = React.useState('');
+    const [code, setCode] = React.useState('');
+    const [busy, setBusy] = React.useState(false);
+    const [err, setErr] = React.useState('');
+    const [result, setResult] = React.useState(null);   // {code, expires_at, size_bytes}
+    const [restorePreview, setRestorePreview] = React.useState(null);
+
+    const reset = React.useCallback(() => {
+        setMode('idle');
+        setPin('');
+        setCode('');
+        setErr('');
+        setResult(null);
+        setRestorePreview(null);
+    }, []);
+
+    const handleStartSave = () => {
+        setPin('');
+        setErr('');
+        setMode('save-pin');
+    };
+
+    const handleStartRestore = () => {
+        setCode('');
+        setPin('');
+        setErr('');
+        setMode('restore-code');
+    };
+
+    const doSave = async (pinDigits) => {
+        setBusy(true);
+        setErr('');
+        try {
+            const payload = collectBackupPayload();
+            const res = await fetch(`${API}/api/backup/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload, pin: pinDigits }),
+            });
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                throw new Error(j.detail || `Save failed (HTTP ${res.status}).`);
+            }
+            const j = await res.json();
+            setResult(j);
+            setMode('save-result');
+        } catch (e) {
+            setErr(e.message || 'Could not save backup.');
+            setMode('save-pin');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const doFetchRestore = async (pinDigits) => {
+        setBusy(true);
+        setErr('');
+        try {
+            const res = await fetch(`${API}/api/backup/restore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, pin: pinDigits }),
+            });
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                throw new Error(j.detail || `Restore failed (HTTP ${res.status}).`);
+            }
+            const j = await res.json();
+            setRestorePreview(j);
+            setMode('restore-confirm');
+        } catch (e) {
+            setErr(e.message || 'Could not fetch backup.');
+            setMode('restore-pin');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const doApplyRestore = async () => {
+        if (!restorePreview?.payload) return;
+        applyBackupPayload(restorePreview.payload);
+        // Hard reload so every page re-reads the new localStorage.
+        try { clearActiveProfile(); } catch { /* ignore */ }
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 250);
+    };
+
+    // PIN entry pinpad reused for both save + restore PIN screens.
+    const onPinComplete = (digits) => {
+        if (mode === 'save-pin') doSave(digits);
+        else if (mode === 'restore-pin') doFetchRestore(digits);
+    };
+
+    return (
+        <div
+            data-testid="backup-panel"
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 16,
+                padding: '22px 24px',
+                marginBottom: 16,
+            }}
+        >
+            {mode === 'idle' && (
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                        <Cloud size={18} style={{ color: 'var(--vesper-blue)' }} />
+                        <div style={{ fontSize: 17, fontWeight: 600 }}>
+                            Save your profile to the cloud
+                        </div>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
+                                    marginBottom: 18, maxWidth: 640 }}>
+                        Lock in everything: your profiles, Continue Watching,
+                        libraries, favourites, Live TV setup, reminders, theme.
+                        You get a 6-character code locked with a 4-digit PIN.
+                        Re-install the app or set up a new TV box — just enter
+                        the code and PIN to get everything back exactly how you
+                        left it.
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <BigBtn testid="backup-save-btn" tone="primary"
+                                icon={Upload} label="Save backup"
+                                onClick={handleStartSave} />
+                        <BigBtn testid="backup-restore-btn" tone="ghost"
+                                icon={Download} label="Restore from code"
+                                onClick={handleStartRestore} />
+                    </div>
+                </div>
+            )}
+
+            {mode === 'save-pin' && (
+                <PinStep
+                    title="Choose a 4-digit PIN"
+                    subtitle="You'll need this PIN to restore later.  Pick something you can remember — there's no way to recover a forgotten PIN."
+                    pin={pin}
+                    setPin={setPin}
+                    onComplete={onPinComplete}
+                    onCancel={reset}
+                    busy={busy}
+                    err={err}
+                />
+            )}
+
+            {mode === 'save-result' && result && (
+                <SaveResult result={result} onDone={reset} />
+            )}
+
+            {mode === 'restore-code' && (
+                <CodeStep
+                    code={code}
+                    setCode={setCode}
+                    onNext={() => { setErr(''); setMode('restore-pin'); }}
+                    onCancel={reset}
+                    err={err}
+                />
+            )}
+
+            {mode === 'restore-pin' && (
+                <PinStep
+                    title="Enter your PIN"
+                    subtitle={`PIN for backup code ${code}.  4 digits.`}
+                    pin={pin}
+                    setPin={setPin}
+                    onComplete={onPinComplete}
+                    onCancel={reset}
+                    busy={busy}
+                    err={err}
+                />
+            )}
+
+            {mode === 'restore-confirm' && restorePreview && (
+                <RestoreConfirm
+                    preview={restorePreview}
+                    onConfirm={doApplyRestore}
+                    onCancel={reset}
+                />
+            )}
+        </div>
+    );
+}
+
+function BigBtn({ testid, tone, icon: Icon, label, onClick }) {
+    const primary = tone === 'primary';
+    return (
+        <button
+            data-testid={testid}
+            data-focusable="true"
+            tabIndex={0}
+            onClick={onClick}
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                padding: '12px 22px', borderRadius: 12,
+                border: primary
+                    ? '1px solid rgba(93,200,255,0.55)'
+                    : '1px solid rgba(255,255,255,0.16)',
+                background: primary
+                    ? 'rgba(93,200,255,0.18)'
+                    : 'rgba(255,255,255,0.04)',
+                color: '#FFFFFF',
+                fontSize: 14, fontWeight: 700, letterSpacing: '0.02em',
+                cursor: 'pointer', outline: 'none',
+            }}
+        >
+            <Icon size={16} />
+            {label}
+        </button>
+    );
+}
+
+function PinStep({ title, subtitle, pin, setPin, onComplete, onCancel, busy, err }) {
+    const onDigit = (d) => {
+        if (busy) return;
+        if (pin.length >= 4) return;
+        const next = pin + d;
+        setPin(next);
+        if (next.length === 4) {
+            // Defer so React can paint the 4th dot before the request fires.
+            setTimeout(() => onComplete(next), 100);
+        }
+    };
+    const onBack = () => {
+        if (busy) return;
+        setPin(pin.slice(0, -1));
+    };
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                <KeyRound size={18} style={{ color: 'var(--vesper-blue)' }} />
+                <div style={{ fontSize: 17, fontWeight: 600 }}>{title}</div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
+                            marginBottom: 18, maxWidth: 640 }}>
+                {subtitle}
+            </div>
+            <PinDots pin={pin} />
+            {err && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                                marginTop: 14, padding: '8px 12px', borderRadius: 8,
+                                background: 'rgba(255,107,122,0.16)',
+                                border: '1px solid rgba(255,107,122,0.45)',
+                                color: '#FF8896', fontSize: 12, fontWeight: 600 }}>
+                    <AlertTriangle size={13} />
+                    {err}
+                </div>
+            )}
+            <div style={{ marginTop: 18 }}>
+                <Pinpad onDigit={onDigit} onBack={onBack} onCancel={onCancel} busy={busy} />
+            </div>
+        </div>
+    );
+}
+
+function PinDots({ pin }) {
+    return (
+        <div style={{ display: 'flex', gap: 14 }}>
+            {[0, 1, 2, 3].map((i) => {
+                const filled = i < pin.length;
+                return (
+                    <div key={i}
+                        style={{
+                            width: 22, height: 22, borderRadius: '50%',
+                            background: filled
+                                ? 'var(--vesper-blue, #5DC8FF)'
+                                : 'rgba(255,255,255,0.05)',
+                            border: filled
+                                ? '1px solid var(--vesper-blue, #5DC8FF)'
+                                : '1px solid rgba(255,255,255,0.18)',
+                            transition: 'background 0.12s, border 0.12s',
+                        }} />
+                );
+            })}
+        </div>
+    );
+}
+
+function Pinpad({ onDigit, onBack, onCancel, busy }) {
+    const rows = [
+        ['1', '2', '3'],
+        ['4', '5', '6'],
+        ['7', '8', '9'],
+        ['cancel', '0', 'back'],
+    ];
+    return (
+        <div style={{ display: 'inline-grid',
+                        gridTemplateColumns: 'repeat(3, 70px)',
+                        gap: 8 }}>
+            {rows.flat().map((k) => {
+                if (k === 'cancel') {
+                    return (
+                        <PinKey key="cancel" label="Cancel" onClick={onCancel} busy={busy} testid="backup-pin-cancel" />
+                    );
+                }
+                if (k === 'back') {
+                    return (
+                        <PinKey key="back" label="⌫" onClick={onBack} busy={busy} testid="backup-pin-back" />
+                    );
+                }
+                return (
+                    <PinKey key={k} label={k}
+                            onClick={() => onDigit(k)} busy={busy}
+                            testid={`backup-pin-${k}`} />
+                );
+            })}
+        </div>
+    );
+}
+
+function PinKey({ label, onClick, busy, testid }) {
+    return (
+        <button
+            data-testid={testid}
+            data-focusable="true"
+            tabIndex={0}
+            disabled={busy}
+            onClick={onClick}
+            style={{
+                width: 70, height: 56, borderRadius: 12,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: '#FFFFFF',
+                fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
+                cursor: busy ? 'not-allowed' : 'pointer', outline: 'none',
+                opacity: busy ? 0.5 : 1,
+                transition: 'background 0.12s, border 0.12s',
+            }}
+            onFocus={(e) => { e.currentTarget.style.background = 'rgba(93,200,255,0.18)'; e.currentTarget.style.borderColor = 'rgba(93,200,255,0.55)'; }}
+            onBlur={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; }}
+        >
+            {label}
+        </button>
+    );
+}
+
+function SaveResult({ result, onDone }) {
+    const [copied, setCopied] = React.useState(false);
+    const onCopy = () => {
+        try {
+            navigator.clipboard.writeText(result.code).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            });
+        } catch { /* ignore */ }
+    };
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <Check size={20} style={{ color: '#7AE2A8' }} />
+                <div style={{ fontSize: 17, fontWeight: 700 }}>Backup saved</div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
+                            marginBottom: 20, maxWidth: 640 }}>
+                Write this code down and remember your PIN.  You'll need both
+                to restore.  Expires {result.expires_at?.slice(0, 10)}.
+            </div>
+            <div data-testid="backup-saved-code"
+                 style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 14,
+                    padding: '18px 26px',
+                    background: 'rgba(93,200,255,0.12)',
+                    border: '1px solid rgba(93,200,255,0.40)',
+                    borderRadius: 14,
+                    fontFamily: 'monospace', fontSize: 'clamp(28px, 3vw, 44px)',
+                    fontWeight: 800, letterSpacing: '0.2em', color: '#FFFFFF',
+                 }}>
+                {result.code}
+            </div>
+            <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <BigBtn testid="backup-copy-code" tone="ghost" icon={copied ? Check : Copy}
+                        label={copied ? 'Copied' : 'Copy code'} onClick={onCopy} />
+                <BigBtn testid="backup-done" tone="primary" icon={Check}
+                        label="Done" onClick={onDone} />
+            </div>
+            <div style={{ marginTop: 14, fontSize: 12,
+                            color: 'var(--vesper-text-2, #9DA5B5)' }}>
+                Backup size: {fmtBytes(result.size_bytes)}
+            </div>
+        </div>
+    );
+}
+
+function CodeStep({ code, setCode, onNext, onCancel, err }) {
+    const onChange = (e) => {
+        const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+        setCode(v);
+    };
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                <Download size={18} style={{ color: 'var(--vesper-blue)' }} />
+                <div style={{ fontSize: 17, fontWeight: 600 }}>Enter your backup code</div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
+                            marginBottom: 18, maxWidth: 640 }}>
+                6 characters, uppercase letters and numbers.
+            </div>
+            <input
+                data-testid="backup-code-input"
+                data-focusable="true"
+                tabIndex={0}
+                autoFocus
+                value={code}
+                onChange={onChange}
+                placeholder="ABCXYZ"
+                maxLength={6}
+                style={{
+                    width: 'min(420px, 90vw)',
+                    padding: '14px 18px',
+                    borderRadius: 12,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    color: '#FFFFFF',
+                    fontFamily: 'monospace',
+                    fontSize: 26, fontWeight: 800,
+                    letterSpacing: '0.22em',
+                    textAlign: 'center',
+                    outline: 'none',
+                }}
+            />
+            {err && (
+                <div style={{ marginTop: 12, fontSize: 12, color: '#FF8896', fontWeight: 600 }}>
+                    {err}
+                </div>
+            )}
+            <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <BigBtn testid="backup-restore-cancel" tone="ghost" icon={ArrowLeft}
+                        label="Cancel" onClick={onCancel} />
+                <BigBtn testid="backup-restore-next" tone="primary" icon={KeyRound}
+                        label="Next" onClick={() => code.length === 6 && onNext()} />
+            </div>
+        </div>
+    );
+}
+
+function RestoreConfirm({ preview, onConfirm, onCancel }) {
+    const created = preview?.created_at?.slice(0, 10) || '—';
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <Check size={20} style={{ color: '#7AE2A8' }} />
+                <div style={{ fontSize: 17, fontWeight: 700 }}>Backup found</div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
+                            marginBottom: 20, maxWidth: 640 }}>
+                Created on <strong style={{ color: '#FFFFFF' }}>{created}</strong>.
+                Restoring will overwrite this device's current profiles,
+                Continue Watching, libraries, themes — everything.  The app
+                will reload once the restore is applied.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <BigBtn testid="backup-restore-cancel-2" tone="ghost" icon={ArrowLeft}
+                        label="Cancel" onClick={onCancel} />
+                <BigBtn testid="backup-restore-apply" tone="primary" icon={Download}
+                        label="Restore and reload" onClick={onConfirm} />
+            </div>
+            <div style={{ marginTop: 14, fontSize: 12,
+                            color: 'var(--vesper-text-2, #9DA5B5)' }}>
+                Backup size: {fmtBytes(preview.size_bytes || 0)}
             </div>
         </div>
     );

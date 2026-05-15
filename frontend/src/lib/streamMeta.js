@@ -31,6 +31,18 @@ export function is1080p(stream) {
 }
 
 /**
+ * "Is this a 4K / 2160p stream?" — used by the autoplay picker to
+ * SKIP 4K streams as a fallback (the user's TV / bandwidth typically
+ * can't handle 4K well, and 4K bitrates are too high for autoplay).
+ */
+export function is4K(stream) {
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
+    return /\b(2160p?|4k|uhd|2160)\b/i.test(haystack);
+}
+
+/**
  * Returns the first matching quality badge for a stream, or null.
  * `tone` is a UI hint that the renderer can map to a color scheme.
  */

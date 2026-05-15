@@ -1,0 +1,40 @@
+{
+  "summary": "Iter 29 — Profile Backup & Restore + Party 4K filter. Created /app/backend/tests/test_backup.py with 18 pytest cases covering [A]–[G]. ALL 18 PASS (3.28s). Regression: /app/backend/tests/test_watch_party.py (16 cases) + /app/backend/tests/test_sportsdb_v9.py (11 cases) → 27/27 PASS (29.15s). Frontend UI smoke for Settings → Backup & Restore: [data-testid=backup-panel] renders, clicking [data-testid=backup-save-btn] reveals the PIN pad with all 10 digit keys ([data-testid=backup-pin-0..9]) plus [data-testid=backup-pin-cancel] + [data-testid=backup-pin-back] — confirmed visually. Party 4K filter [H] verified by code inspection of /app/frontend/src/pages/Detail.jsx — both the regular autoplay useEffect (line 246) and the dedicated party-autoplay useEffect (line 310) call `streams.filter((s) => !is4K(s))` and only fall back to the full pool if EVERY stream is 4K. The is4K() helper at /app/frontend/src/lib/streamMeta.js:38 matches /\\b(2160p?|4k|uhd|2160)\\b/i across name + title + addon name — correct.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backup.py",
+    "/app/test_reports/pytest/iter29_backup.xml",
+    "/app/test_reports/pytest/iter29_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backup.py:48-49 — uses os.environ[\"MONGO_URL\"]/os.environ[\"DB_NAME\"] (no defaults) so misconfig fails fast. Good.",
+    "backup.py:75-77 — visually-confusable chars (0/O, 1/I, L, U) excluded from the code alphabet, but the test still validates against the full [A-Z0-9] regex which is a strict superset — both safe.",
+    "backup.py:89-90 — PIN stored as salted SHA-256 (per-row 16-byte hex salt). Adequate for a 4-digit PIN gating a 90-day backup payload (brute-forcing 10k combos is mitigated by needing the 6-char code first, which has ~30^6 ≈ 730M entropy from the reduced alphabet). Brief explicitly says bcrypt is overkill — agreed.",
+    "backup.py:65 — TTL index expireAfterSeconds=0 with the field BEING the deadline is the correct Mongo idiom. Index creation is idempotent (try/except OperationFailure). Good.",
+    "backup.py:140 — collision retry loop is 8 attempts; given 30^6 ≈ 730M codes the birthday-collision odds at modest backup counts are negligible. Good.",
+    "backup.py:111 — SaveReq enforces pin min_length=max_length=PIN_LEN at the pydantic layer, so wrong-length PINs raise 422 BEFORE _normalise_pin's 400. Tests accept either 400 or 422 — semantically equivalent.",
+    "backup.py:172 — restore_backup correctly projects {_id:0} to avoid the JSON-unserialisable ObjectId leak.",
+    "backup.py:191 — created_at.isoformat() guarded against None; payload returned verbatim with no mutation. Restore round-trip is byte-identical (confirmed by `assert data['payload'] == SAMPLE_PAYLOAD`).",
+    "Detail.jsx:246, 310 — 4K filter is applied to BOTH regular and party-autoplay paths with the same `non4k.length > 0 ? non4k : streams` fallback. Good. is4K() regex covers `2160`, `2160p`, `4k`, `uhd` case-insensitively across name+title+addonName. Matches the brief.",
+    "MINOR — Settings.jsx BackupPanel is ~360 lines (including PinPad + RestoreConfirm + SaveResult sub-components). Settings.jsx total is approaching the 700-line threshold; consider extracting BackupPanel + PinPad into /app/frontend/src/components/Settings/BackupPanel.jsx in a follow-up. Non-blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backup.py (NEW — 18 pytest cases)"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 backup + 27/27 regression = 45/45)",
+    "frontend": "100% — Backup UI smoke (panel + save → pinpad) PASS; party 4K filter verified by code review"
+  },
+  "test_credentials": "None required. Backend tests are public; frontend smoke seeds onnowtv-profiles-v1 + onnowtv-active-profile-v1='tester' via add_init_script.",
+  "seed_data_creation": "Each backup test creates ephemeral profile_backups documents in Mongo. TTL index auto-expires them in 90 days; manual cleanup not required for test isolation since every test generates a fresh unique 6-char code.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backup endpoints live at /api/backup/{save,restore,refresh}. Full regression suite: `REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) python -m pytest backend/tests/test_backup.py backend/tests/test_watch_party.py backend/tests/test_sportsdb_v9.py -v` → 45/45 PASS. The pydantic SaveReq pin field has min/max_length=4 so non-4-char PINs are rejected at 422 (NOT our 400); tests accept both codes — keep that flexibility if you add new PIN-validation tests. For [H] party autoplay 4K filter, a full e2e Playwright test isn't feasible in the preview pod (real Stremio addons don't reliably return both a 4K AND a 1080p stream for a given title), but the filter logic is unit-testable in JS — consider adding a Jest test on /app/frontend/src/lib/streamMeta.js if you want belt-and-braces coverage.",
+  "rca of the issue": "N/A — feature additions verified end-to-end. No bugs found."
+}

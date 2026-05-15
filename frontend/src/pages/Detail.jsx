@@ -15,7 +15,7 @@ import SeriesEpisodes from '@/components/SeriesEpisodes';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
-import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
+import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive } from '@/lib/profiles';
 import * as cw from '@/lib/continueWatching';
@@ -236,17 +236,19 @@ export default function Detail() {
     }, []);
 
     // Pick the best 1080p candidate from the resolved streams list.
-    // Per user spec: anything that even mentions "1080" anywhere in
-    // the title / name / description counts as a 1080p stream.  We
-    // prefer direct mode, but will fall back to any 1080p stream.
+    // We prefer direct mode + explicit 1080p label, but will fall back
+    // to anything that even mentions "1080" — UNLESS it's 4K-labelled
+    // (some Plex titles tag both "1080" and "4K" in the same string;
+    // we'd rather wait than misfire into a too-large stream).
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
         if (!streams || streams.length === 0) return null;
+        const non4k = streams.filter((s) => !is4K(s));
         return (
-            streams.find(
+            non4k.find(
                 (s) => streamMode(s) === 'direct' && is1080p(s)
             ) ||
-            streams.find((s) => is1080p(s)) ||
+            non4k.find((s) => is1080p(s)) ||
             null
         );
     }, [streams, type]);
@@ -302,14 +304,19 @@ export default function Detail() {
         if (type === 'series') return; // series still uses per-episode flow
         if (streamLoading) return;
         if (!streams || streams.length === 0) return;
+        // Filter out 4K — the user explicitly asked us never to
+        // autoplay 4K (bandwidth + TV-decoder constraints on HK1).
+        // Falls back to streams[0] only if EVERY stream is 4K.
+        const non4k = streams.filter((s) => !is4K(s));
+        const pool = non4k.length > 0 ? non4k : streams;
         // Pick the best stream: prefer 1080p direct → any 1080p →
         // first direct → first torrent → first anything.
         const pick =
-            streams.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
-            streams.find((s) => is1080p(s)) ||
-            streams.find((s) => streamMode(s) === 'direct') ||
-            streams.find((s) => streamMode(s) === 'torrent') ||
-            streams[0];
+            pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+            pool.find((s) => is1080p(s)) ||
+            pool.find((s) => streamMode(s) === 'direct') ||
+            pool.find((s) => streamMode(s) === 'torrent') ||
+            pool[0];
         if (!pick) return;
         autoplayFiredRef.current = true;
         // Defer one tick so React has time to commit the streams list

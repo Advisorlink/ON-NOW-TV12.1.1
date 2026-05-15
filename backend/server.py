@@ -1731,6 +1731,9 @@ app.include_router(watch_party_router)
 from sportsdb import router as sportsdb_router  # noqa: E402
 app.include_router(sportsdb_router)
 
+from backup import router as backup_router  # noqa: E402
+app.include_router(backup_router)
+
 
 app.add_middleware(
     CORSMiddleware,
