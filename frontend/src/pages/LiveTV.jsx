@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, LogOut, Star, Clock, Search, X, Bell } from 'lucide-react';
+import { Play, LogOut, Star, Clock, Search, X } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -21,13 +21,6 @@ import {
     getRecents,
     pushRecent,
 } from '@/lib/liveRecents';
-import {
-    getReminders,
-    hasReminder,
-    toggleReminder,
-    pruneStale,
-} from '@/lib/liveReminders';
-import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
 /* ====================================================================
@@ -70,9 +63,7 @@ export default function LiveTV() {
 
     return (
         <div data-testid="live-tv-page" className="relative w-screen" style={{
-            minHeight: '100dvh',
-            background: 'var(--vesper-bg-0)',
-            overflowX: 'hidden',
+            minHeight: '100dvh', background: 'var(--vesper-bg-0)', overflowX: 'hidden',
         }}>
             <SideNav />
             <main style={{
@@ -122,17 +113,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     // Reset on every category change so navigating away clears the
     // filter automatically (no stale state).
     const [query, setQuery] = useState('');
-
-    // Reminders — keyed by provider id, persisted to localStorage.
-    // Pruned of past programmes once on mount.  Stored as state so
-    // toggling re-renders the bell icon in the guide column.
-    const [reminders, setReminders] = useState(
-        () => pruneStale(provider.id),
-    );
-    const reminderKeys = useMemo(
-        () => new Set(reminders.map((r) => r.id)),
-        [reminders],
-    );
 
     // Per-category channel cache; populated entirely during boot so
     // the grid never has to fetch on category-switch.
@@ -289,20 +269,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         setFavorites(new Set(getFavList(provider.id).map((v) => String(v))));
     }, [focusedChannel, provider]);
 
-    /* Reminder toggle for a specific programme on the focused
-     * channel.  Fired by clicking / Enter-ing a guide row. */
-    const onToggleReminder = useCallback((item) => {
-        const ch = focusedChannel;
-        if (!ch || !item) return;
-        toggleReminder(provider.id, ch.stream_id, {
-            channelName: ch.name,
-            title: item.title,
-            startTs: item.startTimestamp,
-            stopTs: item.stopTimestamp,
-        });
-        setReminders(getReminders(provider.id));
-    }, [focusedChannel, provider]);
-
     /* "F" key shortcut — toggles favourite on the focused channel. */
     useEffect(() => {
         const onKey = (e) => {
@@ -315,82 +281,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [onToggleFav]);
-
-    /* ------------------------------------------------------------
-     * Linear 3-column navigation override.
-     *
-     * Spatial focus is great in the abstract but on a real HK1 box
-     * its per-press getBoundingClientRect loops are slow and the
-     * "sameRow" geometry constraint sometimes refuses to cross
-     * columns.  For Live TV we know the layout exactly — three
-     * columns, fixed order — so we override Left/Right at the
-     * window level (capture phase, runs BEFORE useSpatialFocus's
-     * own listener) and do an O(1) jump to the next column.
-     *
-     * Up/Down still go through spatial focus so within-column
-     * navigation works as before.
-     * ------------------------------------------------------------ */
-    useEffect(() => {
-        const COL_SELECTORS = [
-            // Categories
-            '[data-testid^="live-cat-"]',
-            // Channels
-            '[data-testid^="live-channel-"]',
-            // Guide
-            '[data-testid^="live-guide-row-"]',
-        ];
-
-        const colOf = (el) => {
-            if (!el) return -1;
-            for (let i = 0; i < COL_SELECTORS.length; i++) {
-                if (el.matches(COL_SELECTORS[i])) return i;
-            }
-            return -1;
-        };
-
-        const lastInCol = [null, null, null]; // remember last-focused per column
-
-        const focusFirstIn = (colIdx) => {
-            // Prefer the last-focused element in that column (so
-            // returning to a column lands where we left off).
-            const remembered = lastInCol[colIdx];
-            if (remembered && document.body.contains(remembered)) {
-                remembered.focus({ preventScroll: false });
-                return true;
-            }
-            const first = document.querySelector(COL_SELECTORS[colIdx]);
-            if (first) {
-                first.focus({ preventScroll: false });
-                return true;
-            }
-            return false;
-        };
-
-        const onKey = (e) => {
-            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-            // Don't fight inputs (search bar etc.)
-            const tag = (document.activeElement?.tagName || '').toLowerCase();
-            if (tag === 'input' || tag === 'textarea') return;
-
-            const cur = colOf(document.activeElement);
-            if (cur === -1) return; // Not in any of our 3 columns — let spatial focus handle.
-
-            // Remember where we were in this column.
-            lastInCol[cur] = document.activeElement;
-
-            const next = e.key === 'ArrowRight' ? cur + 1 : cur - 1;
-            if (next < 0 || next >= COL_SELECTORS.length) return;
-
-            // Only intercept if the destination column actually exists.
-            if (focusFirstIn(next)) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        };
-        // Capture phase so we run BEFORE useSpatialFocus's listener.
-        window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
-    }, []);
 
     /* "/" key — jumps focus into the search bar from anywhere.
      *  ESC inside the search input — clears the query (and the
@@ -449,13 +339,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     //  Now/Next, the right-hand GUIDE column shows the rest.
     //
     //  Guardrails for low-end boxes:
-    //    • 1500 ms debounce — fast D-pad scrubbing through 30
-    //      channels in 5 seconds fires ZERO requests.  EPG (and
-    //      therefore the TMDB hero backdrop, which derives from
-    //      the EPG title) only loads after the user has settled
-    //      on a channel for ~1.5 s.  Cache hits short-circuit
-    //      instantly — re-focusing a recently-seen channel is
-    //      always immediate.
+    //    • 250 ms debounce — fast D-pad scrubbing fires one request.
     //    • 5-min in-memory cache per stream_id — re-focusing is free.
     //    • Stale-request guard so out-of-order responses can't flicker.
     // -------------------------------------------------------------------
@@ -475,15 +359,12 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             return undefined;
         }
 
-        // Otherwise blank current EPG while we wait, debounce 1500 ms.
-        // The user has explicitly asked us NOT to trigger any
-        // network work while they're flicking through channels —
-        // only when they "stop and read" should we look stuff up.
+        // Otherwise blank current EPG while we wait, debounce 250 ms.
         setEpgItems([]);
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
-                const items = await getFullEpg(provider, sid, 8);
+                const items = await getFullEpg(provider, sid, 12);
                 if (epgReqId.current !== myReq) return; // stale
                 epgCache.current.set(sid, { at: Date.now(), items });
                 setEpgItems(items);
@@ -491,7 +372,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 if (epgReqId.current !== myReq) return;
                 setEpgItems([]);
             }
-        }, 1500);
+        }, 250);
         return () => clearTimeout(t);
     }, [focusedChannel, provider]);
 
@@ -559,9 +440,9 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 onExit={onChangeProvider}
             />
             <div className="grid" style={{
-                gridTemplateColumns: 'minmax(180px, 210px) minmax(0, 1fr) minmax(280px, 340px)',
-                gap: 14,
-                padding: '14px 24px 0 16px',
+                gridTemplateColumns: 'minmax(200px, 240px) minmax(0, 1fr) minmax(280px, 360px)',
+                gap: 16,
+                padding: '14px 32px 0 32px',
                 alignItems: 'start',
             }}>
                 <CategoriesCol
@@ -581,7 +462,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     focusedId={focusedChannel?.stream_id}
                     favorites={favorites}
                     query={query}
-                    nowTitle={nowNext?.now?.title || ''}
                     onQueryChange={setQuery}
                     onFocus={setFocusedChannel}
                     onPlay={playChannel}
@@ -589,8 +469,6 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 <GuideCol
                     channel={focusedChannel}
                     items={epgItems}
-                    reminderKeys={reminderKeys}
-                    onToggleReminder={onToggleReminder}
                 />
             </div>
         </div>
@@ -600,6 +478,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 /* ============================ Hero (lean) ============================ */
 
 function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onToggleFav, onPlay, onExit }) {
+    const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
     if (categoryName) eyebrowParts.push(categoryName.toUpperCase());
@@ -608,57 +487,58 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
     const next = nowNext?.next || null;
     const progressPct = computeProgress(now);
 
-    // TMDB programme backdrop for the currently-airing show.
-    // Heavily debounced + cached so D-pad scrubbing through 100
-    // channels fires no extra requests.  Routed through the image
-    // proxy at 900 px / q=70 — about ~120 KB on the wire, ~7× less
-    // than TMDB's native ~800 KB+ backdrop, and crisp enough to look
-    // gorgeous behind the gradient overlay.
-    const tmdb = useProgrammeBackdrop(now?.title || '');
-    const tmdbBackdrop = tmdb?.backdrop
-        ? proxiedLogo(tmdb.backdrop, 900, 70)
-        : '';
-
     // Lightweight real-time clock — refreshes once a minute, no
     // animation, no transition.  Cheap enough for Chrome 52.
     const clock = useNowClock();
 
     return (
         <section data-testid="live-tv-hero" style={{
-            padding: '32px 24px 18px 16px',
+            padding: '32px 40px 18px 40px',
             background: 'transparent',
             minHeight: 200,
-            position: 'relative',
-            overflow: 'hidden',
         }}>
-            {/* TMDB programme backdrop — only renders when we found a
-                hit for the current "NOW" programme.  Uses a single
-                linear-gradient mask (Chrome-52 safe).  No
-                mask-composite (unsupported on older Chrome) and no
-                filter:blur (kills the HK1 GPU).  Sits behind both
-                the channel-logo backdrop and the content. */}
-            {tmdbBackdrop && (
+            <div className="flex items-stretch justify-between" style={{ gap: 28 }}>
+                {/* Channel logo card — solid bg, thin border, no filter */}
                 <div
-                    aria-hidden="true"
-                    data-testid="live-tv-hero-tmdb-bg"
+                    data-testid="live-tv-hero-logo"
                     style={{
-                        position: 'absolute',
-                        inset: 0,
-                        pointerEvents: 'none',
-                        zIndex: 0,
-                        backgroundImage: `linear-gradient(90deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.0) 75%), url(${tmdbBackdrop})`,
-                        backgroundSize: 'auto, cover',
-                        backgroundPosition: 'center, center right',
-                        backgroundRepeat: 'no-repeat, no-repeat',
-                        opacity: 0.55,
+                        width: 168,
+                        height: 112,
+                        flexShrink: 0,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 16,
+                        position: 'relative',
+                        overflow: 'hidden',
                     }}
-                />
-            )}
+                >
+                    {logoSrc ? (
+                        <img
+                            src={logoSrc}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                objectFit: 'contain',
+                            }}
+                        />
+                    ) : (
+                        <div className="vesper-mono" style={{
+                            fontSize: 12,
+                            letterSpacing: '0.3em',
+                            color: 'rgba(255,255,255,0.35)',
+                        }}>
+                            NO LOGO
+                        </div>
+                    )}
+                </div>
 
-            {/* Channel-logo backdrop removed in v2.0.7 for perf — the
-                TMDB backdrop alone carries the hero's depth now. */}
-
-            <div className="flex items-stretch justify-between" style={{ gap: 28, position: 'relative', zIndex: 1 }}>
                 <div className="flex flex-col" style={{ gap: 8, flex: 1, minWidth: 0, justifyContent: 'center' }}>
                     <div className="vesper-mono" style={{
                         fontSize: 11, letterSpacing: '0.32em',
@@ -830,8 +710,8 @@ function CategoriesCol({ cats, counts = {}, error, activeId, favCatId, favCount,
     return (
         <div data-testid="live-tv-categories" style={{
             padding: '12px 0',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.012) 100%)',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 14,
             maxHeight: 'calc(100dvh - 250px)',
             overflowY: 'auto',
@@ -1040,7 +920,7 @@ function FavCategoryRow({ isActive, count, onPick }) {
     );
 }
 
-function ChannelsCol({ channels, totalCount, focusedId, favorites, query, nowTitle, onQueryChange, onFocus, onPlay }) {
+function ChannelsCol({ channels, totalCount, focusedId, favorites, query, onQueryChange, onFocus, onPlay }) {
     // Windowed render — Chrome 52 (HK1) doesn't support
     // content-visibility, so we hand-virtualize.  Start with 50,
     // grow by 50 every time the sentinel intersects.
@@ -1085,8 +965,8 @@ function ChannelsCol({ channels, totalCount, focusedId, favorites, query, nowTit
                 ref={containerRef}
                 style={{
                     padding: '8px 6px',
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.010) 100%)',
-                    border: '1px solid rgba(255,255,255,0.07)',
+                    background: 'rgba(255,255,255,0.018)',
+                    border: '1px solid rgba(255,255,255,0.06)',
                     borderRadius: 14,
                     maxHeight: 'calc(100dvh - 310px)',
                     overflowY: 'auto',
@@ -1113,20 +993,16 @@ function ChannelsCol({ channels, totalCount, focusedId, favorites, query, nowTit
                     )
                 ) : (
                     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                        {visible.map((c) => {
-                            const isFocused = c.stream_id === focusedId;
-                            return (
-                                <ChannelRowLean
-                                    key={c.stream_id}
-                                    channel={c}
-                                    focused={isFocused}
-                                    nowTitle={isFocused ? nowTitle : ''}
-                                    isFav={favorites?.has(String(c.stream_id)) || false}
-                                    onFocus={() => onFocus(c)}
-                                    onPlay={() => { onFocus(c); onPlay(c); }}
-                                />
-                            );
-                        })}
+                        {visible.map((c) => (
+                            <ChannelRowLean
+                                key={c.stream_id}
+                                channel={c}
+                                focused={c.stream_id === focusedId}
+                                isFav={favorites?.has(String(c.stream_id)) || false}
+                                onFocus={() => onFocus(c)}
+                                onPlay={() => { onFocus(c); onPlay(c); }}
+                            />
+                        ))}
                         {visibleCount < channels.length && (
                             <li ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
                         )}
@@ -1224,7 +1100,7 @@ function ChannelSearchBar({ query, onChange, resultCount, totalCount }) {
 }
 
 /* ============================ Channel Row (lean) ============================ */
-const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) {
+function ChannelRowLean({ channel, focused, isFav, onFocus, onPlay }) {
     return (
         <li>
             <button
@@ -1239,7 +1115,7 @@ const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, no
                     width: 'calc(100% - 12px)',
                     margin: '2px 6px',
                     padding: '8px 12px',
-                    gap: 12,
+                    gap: 14,
                     background: focused ? 'rgba(93,200,255,0.10)' : 'transparent',
                     borderLeft: focused
                         ? '3px solid var(--vesper-blue-bright)'
@@ -1248,7 +1124,7 @@ const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, no
                     borderRadius: 8,
                     color: focused ? '#fff' : 'var(--vesper-text)',
                     cursor: 'pointer',
-                    minHeight: 44,
+                    minHeight: 52,
                 }}
             >
                 {channel.num != null && (
@@ -1261,33 +1137,44 @@ const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, no
                         {channel.num}
                     </span>
                 )}
-                <div className="flex flex-col" style={{
-                    flex: 1, minWidth: 0, gap: 2,
+                <span style={{
+                    width: 44, height: 30, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                    position: 'relative',
                 }}>
-                    <span style={{
-                        fontSize: 14,
-                        fontWeight: focused ? 700 : 600,
-                        color: focused ? '#fff' : 'var(--vesper-text)',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        lineHeight: 1.2,
-                    }}>
-                        {channel.name}
-                    </span>
-                    {focused && nowTitle && (
-                        <span className="vesper-mono" style={{
-                            fontSize: 10,
-                            color: 'var(--vesper-blue-bright)',
-                            letterSpacing: '0.04em',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            lineHeight: 1.2,
-                        }}>
-                            NOW · {nowTitle}
-                        </span>
+                    {channel.stream_icon && (
+                        <img
+                            src={proxiedLogo(channel.stream_icon, 44)}
+                            alt=""
+                            width={44}
+                            height={30}
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            style={{
+                                position: 'absolute', inset: 0,
+                                width: '100%', height: '100%',
+                                objectFit: 'contain',
+                                padding: 3,
+                            }}
+                        />
                     )}
-                </div>
+                </span>
+                <span style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: 14,
+                    fontWeight: focused ? 700 : 600,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                    {channel.name}
+                </span>
                 {isFav && (
                     <Star
-                        size={12}
+                        size={13}
                         strokeWidth={2}
                         fill="#FFC850"
                         color="#FFC850"
@@ -1297,11 +1184,11 @@ const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, no
             </button>
         </li>
     );
-});
+}
 
 /* ============================ Guide Column (right) ============================ */
 
-function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
+function GuideCol({ channel, items }) {
     const nowSec = Math.floor(Date.now() / 1000);
 
     return (
@@ -1309,8 +1196,8 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
             data-testid="live-tv-guide"
             style={{
                 padding: '14px 0 6px 0',
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.012) 100%)',
-                border: '1px solid rgba(255,255,255,0.07)',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: 14,
                 maxHeight: 'calc(100dvh - 250px)',
                 overflowY: 'auto',
@@ -1347,27 +1234,15 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
                 </div>
             ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                    {items.slice(0, 8).map((it, idx) => {
+                    {items.slice(0, 12).map((it, idx) => {
                         const start = Number(it.startTimestamp) || 0;
                         const stop = Number(it.stopTimestamp) || 0;
                         const isLive = nowSec >= start && nowSec < stop;
-                        const isPast = stop > 0 && stop <= nowSec;
-                        const remId = channel ? `${channel.stream_id}:${start}` : '';
-                        const isReminded = !isLive && !isPast && reminderKeys?.has(remId);
-                        // Every guide row is focusable so D-pad right
-                        // from the channels column always lands here.
-                        // Past + Live rows just no-op on Enter; future
-                        // rows toggle a reminder.
-                        const canRemind = !!channel && !isLive && !isPast;
                         return (
                             <GuideRow
                                 key={`${start}-${idx}`}
                                 item={it}
                                 isLive={isLive}
-                                isPast={isPast}
-                                isReminded={isReminded}
-                                canRemind={canRemind}
-                                onToggleReminder={() => canRemind && onToggleReminder && onToggleReminder(it)}
                             />
                         );
                     })}
@@ -1377,114 +1252,74 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
     );
 }
 
-const GuideRow = React.memo(function GuideRow({ item, isLive, isPast, isReminded, canRemind, onToggleReminder }) {
-    const accent = isLive
-        ? 'var(--vesper-blue-bright)'
-        : isReminded
-            ? '#FFC850'
-            : 'transparent';
-
+function GuideRow({ item, isLive }) {
     return (
-        <li>
-            <button
-                data-testid={`live-guide-row-${item.startTimestamp || ''}`}
-                data-focusable="true"
-                data-focus-style="quiet"
-                tabIndex={0}
-                onClick={canRemind ? onToggleReminder : undefined}
-                className="text-left w-full"
-                style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: isLive
-                        ? 'rgba(93,200,255,0.06)'
-                        : isReminded
-                            ? 'rgba(255,200,80,0.08)'
-                            : 'transparent',
-                    borderLeft: `3px solid ${accent}`,
-                    borderTop: 'none', borderRight: 'none', borderBottom: 'none',
-                    color: isPast ? 'var(--vesper-text-3)' : 'var(--vesper-text)',
-                    opacity: isPast ? 0.55 : 1,
-                    cursor: canRemind ? 'pointer' : 'default',
-                }}
-            >
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    marginBottom: 3,
+        <li style={{
+            position: 'relative',
+            padding: '10px 16px',
+            borderLeft: isLive
+                ? '3px solid var(--vesper-blue-bright)'
+                : '3px solid transparent',
+            background: isLive ? 'rgba(93,200,255,0.06)' : 'transparent',
+        }}>
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                marginBottom: 3,
+            }}>
+                <span className="vesper-mono" style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: isLive ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)',
+                    letterSpacing: '0.04em',
                 }}>
+                    {formatTime(item.startTimestamp)}
+                </span>
+                {isLive && (
                     <span className="vesper-mono" style={{
-                        fontSize: 11, fontWeight: 700,
-                        color: isLive
-                            ? 'var(--vesper-blue-bright)'
-                            : isReminded
-                                ? '#FFC850'
-                                : 'var(--vesper-text-3)',
-                        letterSpacing: '0.04em',
+                        fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
+                        color: 'var(--vesper-blue-bright)',
+                        padding: '2px 6px',
+                        background: 'rgba(93,200,255,0.14)',
+                        borderRadius: 3,
                     }}>
-                        {formatTime(item.startTimestamp)}
+                        LIVE
                     </span>
-                    {isLive && (
-                        <span className="vesper-mono" style={{
-                            fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
-                            color: 'var(--vesper-blue-bright)',
-                            padding: '2px 6px',
-                            background: 'rgba(93,200,255,0.14)',
-                            borderRadius: 3,
-                        }}>
-                            LIVE
-                        </span>
-                    )}
-                    {isReminded && (
-                        <span className="vesper-mono flex items-center" style={{
-                            fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
-                            color: '#FFC850',
-                            padding: '2px 6px',
-                            background: 'rgba(255,200,80,0.16)',
-                            borderRadius: 3,
-                            gap: 4,
-                        }}>
-                            <Bell size={9} strokeWidth={2.5} fill="#FFC850" />
-                            REMINDER
-                        </span>
-                    )}
-                </div>
+                )}
+            </div>
+            <div style={{
+                fontSize: 13, fontWeight: isLive ? 700 : 600,
+                color: isLive ? '#fff' : 'var(--vesper-text)',
+                lineHeight: 1.3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                whiteSpace: 'normal',
+            }}>
+                {item.title || 'Untitled programme'}
+            </div>
+            {/* Description only on the currently-airing entry — keeps
+                the rest of the list compact and avoids fetching
+                anything extra (description already came with the EPG). */}
+            {isLive && item.description && (
                 <div style={{
-                    fontSize: 13, fontWeight: isLive || isReminded ? 700 : 600,
-                    color: isLive || isReminded ? '#fff' : (isPast ? 'var(--vesper-text-3)' : 'var(--vesper-text)'),
-                    lineHeight: 1.3,
+                    marginTop: 6,
+                    fontSize: 11,
+                    color: 'var(--vesper-text-2)',
+                    lineHeight: 1.4,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 3,
                     WebkitBoxOrient: 'vertical',
                     whiteSpace: 'normal',
                 }}>
-                    {item.title || 'Untitled programme'}
+                    {item.description}
                 </div>
-                {/* Description only on the currently-airing entry — keeps
-                    the rest of the list compact and avoids fetching
-                    anything extra (description already came with the EPG). */}
-                {isLive && item.description && (
-                    <div style={{
-                        marginTop: 6,
-                        fontSize: 11,
-                        color: 'var(--vesper-text-2)',
-                        lineHeight: 1.4,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        whiteSpace: 'normal',
-                    }}>
-                        {item.description}
-                    </div>
-                )}
-            </button>
+            )}
         </li>
     );
-});
+}
 
 /* ============================ Helpers ============================ */
 
@@ -1508,11 +1343,11 @@ function useNowClock() {
     };
 }
 
-function proxiedLogo(url, width = 36, quality = 50) {
+function proxiedLogo(url, width = 36) {
     if (!url) return '';
     const base = process.env.REACT_APP_BACKEND_URL;
     if (!base) return url;
-    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=50`;
 }
 
 /** Returns "HH:MM–HH:MM" for an EPG entry's start/stop timestamps. */
