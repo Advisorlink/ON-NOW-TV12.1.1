@@ -1728,6 +1728,9 @@ app.include_router(xtream_router)
 from watch_party import router as watch_party_router  # noqa: E402
 app.include_router(watch_party_router)
 
+from sportsdb import router as sportsdb_router  # noqa: E402
+app.include_router(sportsdb_router)
+
 
 app.add_middleware(
     CORSMiddleware,

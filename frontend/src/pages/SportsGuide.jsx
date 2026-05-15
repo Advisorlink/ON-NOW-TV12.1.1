@@ -1,167 +1,248 @@
 /**
- * Sports Guide — V2 (TV-remote first).
+ * Sports Guide — V3.
  *
- *  Two-column browser:
- *    LEFT (220 px):  Sport categories.
- *                    Pinned: "All Sports", "Search…"
- *                    Detected: Football, Basketball, NFL, F1, UFC,
- *                              Tennis, Cricket, Boxing, Golf, …
- *                    + any leftover sports categories the IPTV
- *                    provider exposes.
- *    RIGHT (rest):   Selected sport's content.
- *                    Vertical stack of rails:
- *                       🔴 LIVE NOW     (compact horizontal cards)
- *                       ⏰ NEXT 6 HOURS
- *                       📅 LATER TODAY
- *                    Search-tab variant: TVKeyboard + LLM results.
+ *  Source-of-truth for fixtures:  TheSportsDB (via backend
+ *  /api/sportsdb/fixtures).  Returns ~20-60 upcoming events across
+ *  curated top leagues with team badges, league badges, venue, and
+ *  kickoff time.
  *
- *  Keypad model:
- *    ↑/↓ within a column;  ←/→ between columns.
- *    When the right column has multiple rails, ↓ off the last card
- *    of one rail lands you on the first card of the next rail.
- *    Enter on a card plays the channel.
- *    Long-press Enter on a card sets a reminder.
+ *  Match → Channel binding:  Each fixture is matched against the user's
+ *  IPTV sports-channel EPG (via lib/sportsMatch).  Matching channels are
+ *  rendered as "WATCH ON …" chips at the bottom of the card; OK plays
+ *  the top-scoring channel directly.
  *
- *  Why this design works on a TV box:
- *    • Cards are small (180 × 88) so 6-8 fit per rail without scroll.
- *    • Channel logos are recognisable at a glance, no reading needed.
- *    • Spatial focus only has to traverse two columns plus rails —
- *      far fewer keystrokes than a giant grid.
+ *  Layout (TV-first, 10-foot UI):
+ *    ┌────────────────────────────────────────────────────────────┐
+ *    │ HERO  (marquee fixture: next big event, glossy)            │
+ *    └────────────────────────────────────────────────────────────┘
+ *    [SPORT PILLS]  [   DATE PILLS   ]
+ *    ┌────────────────────────────────────────────────────────────┐
+ *    │ LEAGUE BANNER · LEAGUE NAME · count                        │
+ *    │ FIXTURE CARDS (2-col grid)                                 │
+ *    └────────────────────────────────────────────────────────────┘
  *
- *  Data, performance:
- *    • Everything reads from the existing liveCache (no extra
- *      network) so the page paints on the first frame.
- *    • TMDB backdrop is a quiet enhancement — cards render fine
- *      without it.
+ *  D-pad model:
+ *    ↑/↓  walks through pills → hero → league/cards (rows).
+ *    ←/→  cycles pills, or moves columns within the same row.
+ *    Enter on card  → play top matching channel (or open card detail).
+ *    Hold Enter     → set reminder for kickoff − 5 min.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-    Trophy, Search, Loader2, Play, Bell, Flame, Hourglass,
-    CalendarDays, Dumbbell, Volleyball, Bike, X,
+    Trophy, Bell, Clock, MapPin, Tv, Radio, ChevronLeft,
+    Loader2, AlertTriangle, Calendar, Flame, Play, Award,
 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
-import TVKeyboard from '@/components/TVKeyboard';
 import { getActiveProvider, getStreamUrl } from '@/lib/xtream';
-import { loadCategories, loadChannels, loadEpg } from '@/lib/liveCache';
+import { matchFixture } from '@/lib/sportsMatch';
 import { getReminders, toggleReminder } from '@/lib/liveReminders';
-import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
+import { loadChannels } from '@/lib/liveCache';
 import Host from '@/lib/host';
 
-const SPORTS = [
-    { id: 'football',   label: 'Football',     kws: ['football', 'soccer', 'fifa', 'champions', 'epl', 'premier league', 'la liga', 'serie a', 'bundesliga'] },
-    { id: 'nfl',        label: 'NFL',          kws: ['nfl', 'gridiron', 'super bowl', 'american football'] },
-    { id: 'nba',        label: 'Basketball',   kws: ['nba', 'basketball', 'wnba', 'ncaa basketball'] },
-    { id: 'nrl',        label: 'Rugby / NRL',  kws: ['nrl', 'rugby', 'state of origin'] },
-    { id: 'afl',        label: 'AFL',          kws: ['afl', 'australian rules'] },
-    { id: 'mlb',        label: 'Baseball',     kws: ['mlb', 'baseball', 'world series'] },
-    { id: 'nhl',        label: 'Ice Hockey',   kws: ['nhl', 'hockey', 'stanley cup'] },
-    { id: 'cricket',    label: 'Cricket',      kws: ['cricket', 'test match', 't20', 'ipl', 'big bash'] },
-    { id: 'tennis',     label: 'Tennis',       kws: ['tennis', 'atp', 'wta', 'us open', 'wimbledon', 'australian open', 'roland garros'] },
-    { id: 'golf',       label: 'Golf',         kws: ['golf', 'pga', 'masters', 'open championship'] },
-    { id: 'ufc',        label: 'UFC / MMA',    kws: ['ufc', 'mma', 'cage'] },
-    { id: 'boxing',     label: 'Boxing',       kws: ['boxing', 'heavyweight', 'fight night'] },
-    { id: 'f1',         label: 'Motorsport',   kws: ['f1', 'formula 1', 'formula one', 'motogp', 'nascar', 'indycar'] },
-    { id: 'cycling',    label: 'Cycling',      kws: ['cycling', 'tour de france', 'giro', 'vuelta'] },
-];
-
-function proxy(url, w = 64, q = 55) {
+function proxy(url, w = 80, q = 60) {
     if (!url) return '';
     const base = process.env.REACT_APP_BACKEND_URL;
     return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${w}&q=${q}`;
 }
 
+const SPORT_EMOJI = {
+    'Soccer':              '⚽',
+    'American Football':   '🏈',
+    'Basketball':          '🏀',
+    'Ice Hockey':          '🏒',
+    'Baseball':            '⚾',
+    'Rugby':               '🏉',
+    'Australian Football': '🏉',
+    'Cricket':             '🏏',
+    'Motorsport':          '🏁',
+    'MMA':                 '🥊',
+    'Fighting':            '🥊',
+    'Boxing':              '🥊',
+    'Tennis':              '🎾',
+    'Golf':                '⛳',
+};
+
+const SPORT_ACCENT = {
+    'Soccer':              '#5DC8FF',
+    'American Football':   '#FF8855',
+    'Basketball':          '#FFA844',
+    'Ice Hockey':          '#8DC9FF',
+    'Baseball':            '#FFE08A',
+    'Rugby':               '#7AE2A8',
+    'Australian Football': '#FF6B7A',
+    'Cricket':             '#A7F0BA',
+    'Motorsport':          '#FF4D5E',
+    'MMA':                 '#FF4D5E',
+    'Fighting':            '#FF4D5E',
+    'Boxing':              '#FFC850',
+    'Tennis':              '#D7FF6B',
+    'Golf':                '#A7F0BA',
+};
+
+const ACCENT_DEFAULT = '#5DC8FF';
+
+// Marquee leagues — when picking the hero fixture we prefer these over
+// random smaller leagues for a more cinematic landing experience.
+const MARQUEE_LEAGUES = new Set([
+    '4328', // Premier League
+    '4335', // La Liga
+    '4332', // Serie A
+    '4331', // Bundesliga
+    '4334', // Ligue 1
+    '4480', // Champions League
+    '4481', // Europa League
+    '4346', // MLS
+    '4391', // NFL
+    '4387', // NBA
+    '4380', // NHL
+    '4424', // MLB
+    '4370', // Formula 1
+    '4443', // UFC
+    '4548', // IPL
+]);
+
 export default function SportsGuide() {
-    const provider = getActiveProvider();
     const navigate = useNavigate();
+    const provider = getActiveProvider();
 
-    /* All EPG candidates from sports-tagged channels (next 24 h). */
-    const allCandidates = useMemo(() => {
-        if (!provider) return [];
-        return gatherSportsEpg(provider.id);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [provider?.id]);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState('');
 
-    /* Buckets: { all: [], football: [], nba: [], … }
-     * Built once per data refresh — used by the right column. */
-    const buckets = useMemo(() => bucketBySport(allCandidates), [allCandidates]);
+    const [sportFilter, setSportFilter] = useState('all'); // 'all' or sport name
+    const [dayFilter, setDayFilter]   = useState(0);       // 0=Today, 1=Tomorrow, ..., 6 / -1=Live, -2=All
+    const [, setBump] = useState(0);
 
-    /* Categories the user actually sees — only sports with content. */
-    const navItems = useMemo(() => {
-        const out = [
-            { id: 'all',    kind: 'cat', label: 'All Sports', count: allCandidates.length },
-        ];
-        for (const s of SPORTS) {
-            const list = buckets[s.id] || [];
-            if (list.length > 0) {
-                out.push({ id: s.id, kind: 'cat', label: s.label, count: list.length });
+    /* Load fixtures once. */
+    useEffect(() => {
+        let aborted = false;
+        (async () => {
+            try {
+                const r = await axios.get(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/sportsdb/fixtures`,
+                    { timeout: 60000 },
+                );
+                if (aborted) return;
+                setData(r.data);
+                setLoading(false);
+            } catch (e) {
+                if (aborted) return;
+                setErr(e?.message || 'Could not load fixtures.');
+                setLoading(false);
+            }
+        })();
+        return () => { aborted = true; };
+    }, []);
+
+    /* ─── Derive filtered fixtures + per-league grouping ─── */
+    const allEvents = data?.events || [];
+    const sportsMeta = data?.sportsMeta || [];
+
+    const filtered = useMemo(() => {
+        let out = allEvents;
+        if (sportFilter !== 'all') {
+            out = out.filter((e) => (e.sport || 'Other') === sportFilter);
+        }
+        if (dayFilter === -1) {
+            // LIVE NOW
+            const now = Math.floor(Date.now() / 1000);
+            out = out.filter((e) => e.ts <= now + 600 && e.ts >= now - 3 * 3600);
+        } else if (dayFilter >= 0) {
+            const today0 = midnight(0);
+            const start = today0 + dayFilter * 86400;
+            const end = start + 86400;
+            out = out.filter((e) => e.ts >= start && e.ts < end);
+        }
+        return out;
+    }, [allEvents, sportFilter, dayFilter]);
+
+    /* Group filtered fixtures by league (preserve order by earliest kickoff). */
+    const groups = useMemo(() => {
+        const m = new Map();
+        for (const e of filtered) {
+            const k = e.leagueId || e.league || 'other';
+            if (!m.has(k)) {
+                m.set(k, {
+                    id: k,
+                    name: e.league || 'Other',
+                    sport: e.sport || '',
+                    badge: e.leagueBadge || '',
+                    events: [],
+                });
+            }
+            const g = m.get(k);
+            // Backfill the league badge from any event that has one.
+            if (!g.badge && e.leagueBadge) g.badge = e.leagueBadge;
+            g.events.push(e);
+        }
+        return Array.from(m.values()).sort((a, b) => {
+            const aT = a.events[0]?.ts || 0;
+            const bT = b.events[0]?.ts || 0;
+            return aT - bT;
+        });
+    }, [filtered]);
+
+    /* Available days (today + next 6 with content) for the date strip. */
+    const availableDays = useMemo(() => {
+        const today0 = midnight(0);
+        const out = [{ key: 0, label: 'Today',     date: today0,             count: 0 }];
+        for (let i = 1; i < 7; i++) {
+            const s = today0 + i * 86400;
+            out.push({ key: i, label: dayLabel(s), date: s, count: 0 });
+        }
+        for (const ev of allEvents) {
+            for (const d of out) {
+                if (ev.ts >= d.date && ev.ts < d.date + 86400) {
+                    d.count += 1;
+                    break;
+                }
             }
         }
-        out.push({ id: 'search', kind: 'search', label: 'Search…' });
-        return out;
-    }, [buckets, allCandidates]);
+        // Live count
+        const now = Math.floor(Date.now() / 1000);
+        const liveCount = allEvents.filter((e) => e.ts <= now + 600 && e.ts >= now - 3 * 3600).length;
+        return { days: out, liveCount };
+    }, [allEvents]);
 
-    /* Selection: col 0 = nav, col 1 = rail/card. */
-    const [sel, setSel] = useState(() => ({ col: 0, navIdx: 0, railIdx: 0, cardIdx: 0 }));
+    /* Hero pick: prefer live → soonest fixture in a marquee league → soonest overall. */
+    const hero = useMemo(() => {
+        const now = Math.floor(Date.now() / 1000);
+        const upcoming = allEvents.filter((e) => !e.finished);
+        // 1. Live right now
+        const live = upcoming.find((e) => e.ts <= now && e.ts >= now - 3 * 3600);
+        if (live) return live;
+        // 2. Soonest in a marquee league
+        const future = upcoming.filter((e) => e.ts > now);
+        const marquee = future.find((e) => MARQUEE_LEAGUES.has(e.leagueId));
+        if (marquee) return marquee;
+        // 3. Soonest overall
+        return future[0] || allEvents[0] || null;
+    }, [allEvents]);
 
-    /* Search-tab state. */
-    const [query, setQuery] = useState('');
-    const [searching, setSearching] = useState(false);
-    const [searchErr, setSearchErr] = useState('');
-    const [searchResults, setSearchResults] = useState(null);
-    const [kbOpen, setKbOpen] = useState(false);
+    const reminders = useMemo(() => {
+        if (!provider) return new Set();
+        return new Set(getReminders(provider.id).map((r) => `${r.streamId}:${r.startTs}`));
+    }, [provider]);
 
-    const activeNav = navItems[sel.navIdx] || navItems[0];
+    /* Refresh every 60 s so kickoff countdowns stay live. */
+    useEffect(() => {
+        const t = setInterval(() => setBump((b) => b + 1), 60000);
+        return () => clearInterval(t);
+    }, []);
 
-    /* Right-column rails for the current selection. */
-    const rails = useMemo(() => {
-        if (!activeNav) return [];
-        if (activeNav.id === 'search') return [];
-        const list = activeNav.id === 'all'
-            ? allCandidates
-            : (buckets[activeNav.id] || []);
-        return buildRails(list);
-    }, [activeNav, allCandidates, buckets]);
-
-    /* Reminders bookkeeping. */
-    const [, setBump] = useState(0);
-    const reminders = useMemo(
-        () => (provider ? new Set(getReminders(provider.id).map((r) => r.id)) : new Set()),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [provider, sel],   // re-read on any nav/sel update (cheap)
-    );
-
-    const submit = useCallback(async (q) => {
-        const text = (q ?? query).trim();
-        if (!text) return;
-        setQuery(text);
-        setKbOpen(false);
-        setSearching(true);
-        setSearchErr('');
-        try {
-            const r = await axios.post(
-                `${process.env.REACT_APP_BACKEND_URL}/api/sports/find`,
-                { query: text, candidates: allCandidates.slice(0, 80) },
-                { timeout: 25000 },
-            );
-            setSearchResults(r.data?.matches || []);
-        } catch (e) {
-            setSearchErr(e?.response?.data?.detail || e?.message || 'Search failed.');
-            setSearchResults([]);
-        } finally {
-            setSearching(false);
-        }
-    }, [query, allCandidates]);
-
-    /* Play / remind handlers. */
-    const onPlay = useCallback(async (item) => {
-        if (!provider) return;
+    /* ─── Card actions ─── */
+    const onCardEnter = useCallback(async (fx) => {
+        if (!provider) return navigate('/live-tv');
+        const matches = matchFixture(provider.id, fx, { limit: 1 });
+        if (matches.length === 0) return;
+        const top = matches[0];
         const chans = loadChannels(provider.id) || {};
         let ch = null;
         for (const k in chans) {
-            ch = (chans[k] || []).find((x) => String(x.stream_id) === String(item.streamId));
+            ch = (chans[k] || []).find((x) => String(x.stream_id) === String(top.streamId));
             if (ch) break;
         }
         if (!ch) return;
@@ -175,636 +256,987 @@ export default function SportsGuide() {
         navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(ch.name)}&type=live`);
     }, [provider, navigate]);
 
-    const onRemind = useCallback((item) => {
-        if (!provider || !item?.startTs) return;
-        toggleReminder(provider.id, item.streamId, {
-            channelName: item.channelName,
-            title: item.title,
-            startTs: item.startTs,
-            stopTs: item.stopTs,
+    const onCardRemind = useCallback((fx) => {
+        if (!provider) return;
+        const matches = matchFixture(provider.id, fx, { limit: 1 });
+        if (matches.length === 0) return;
+        const top = matches[0];
+        toggleReminder(provider.id, top.streamId, {
+            channelName: top.channelName,
+            title: fx.title,
+            startTs: top.startTs || fx.ts,
+            stopTs: top.stopTs || (fx.ts + 7200),
         });
         setBump((b) => b + 1);
     }, [provider]);
 
-    /* Long-press tracking for OK = reminder shortcut on cards. */
-    const pressRef = useRef({ count: 0, fired: false });
-
-    /* Keyboard. */
-    useEffect(() => {
-        const onKey = (e) => {
-            const tag = (document.activeElement?.tagName || '').toLowerCase();
-            if (tag === 'input' || kbOpen) return;  // let inputs / overlay handle it
-
-            const k = e.key;
-            if (k === 'Escape' || k === 'Backspace') {
-                e.preventDefault();
-                navigate('/');
-                return;
-            }
-            if (k !== 'ArrowUp' && k !== 'ArrowDown' &&
-                k !== 'ArrowLeft' && k !== 'ArrowRight' &&
-                k !== 'Enter' && k !== ' ') return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            // Long-press tracking for Enter
-            if (k === 'Enter' || k === ' ') {
-                const p = pressRef.current;
-                p.count += 1;
-                if (p.count >= 6 && !p.fired) {
-                    p.fired = true;
-                    if (sel.col === 1 && rails.length > 0) {
-                        const rail = rails[sel.railIdx];
-                        const card = rail?.items?.[sel.cardIdx];
-                        if (card) onRemind(card);
-                    }
-                }
-                return;
-            }
-
-            setSel((s) => {
-                if (k === 'ArrowLeft') {
-                    if (s.col === 0) {
-                        const nav = document.querySelector('[data-testid="side-nav"] [data-focusable="true"]');
-                        nav?.focus();
-                        return s;
-                    }
-                    // From card → first card of same row → nav
-                    if (s.cardIdx > 0) return { ...s, cardIdx: s.cardIdx - 1 };
-                    return { ...s, col: 0 };
-                }
-                if (k === 'ArrowRight') {
-                    if (s.col === 0) {
-                        // Search tab has no rails — focus stays on nav.
-                        if (activeNav?.id === 'search') return s;
-                        if (rails.length === 0) return s;
-                        return { ...s, col: 1, railIdx: 0, cardIdx: 0 };
-                    }
-                    // Card → next card in same rail
-                    const rail = rails[s.railIdx];
-                    if (rail && s.cardIdx < rail.items.length - 1) {
-                        return { ...s, cardIdx: s.cardIdx + 1 };
-                    }
-                    return s;
-                }
-                if (k === 'ArrowUp') {
-                    if (s.col === 0) return { ...s, navIdx: Math.max(0, s.navIdx - 1) };
-                    if (s.railIdx > 0) return { ...s, railIdx: s.railIdx - 1, cardIdx: 0 };
-                    return s;
-                }
-                if (k === 'ArrowDown') {
-                    if (s.col === 0) {
-                        return { ...s, navIdx: Math.min(navItems.length - 1, s.navIdx + 1) };
-                    }
-                    if (s.railIdx < rails.length - 1) {
-                        return { ...s, railIdx: s.railIdx + 1, cardIdx: 0 };
-                    }
-                    return s;
-                }
-                return s;
-            });
-        };
-
-        const onKeyUp = (e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            const p = pressRef.current;
-            const long = p.fired;
-            p.count = 0; p.fired = false;
-            if (long) return;
-            // Short tap → play on cards, open keyboard on Search tab
-            if (sel.col === 0) {
-                if (activeNav?.id === 'search') setKbOpen(true);
-                return;
-            }
-            const rail = rails[sel.railIdx];
-            const card = rail?.items?.[sel.cardIdx];
-            if (card) onPlay(card);
-        };
-
-        window.addEventListener('keydown', onKey, true);
-        window.addEventListener('keyup', onKeyUp, true);
-        return () => {
-            window.removeEventListener('keydown', onKey, true);
-            window.removeEventListener('keyup', onKeyUp, true);
-        };
-    }, [sel, rails, navItems, activeNav, kbOpen, onPlay, onRemind, navigate]);
-
-    /* Reset card cursor when nav changes. */
-    useEffect(() => {
-        setSel((s) => ({ ...s, railIdx: 0, cardIdx: 0 }));
-    }, [sel.navIdx]);
-
-    if (!provider) {
-        return (
-            <div style={{ position: 'fixed', inset: 0, background: '#0A0F1A', color: '#9DA5B5',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: 'monospace', letterSpacing: '0.2em', fontSize: 13 }}>
-                CONNECT YOUR IPTV PROVIDER IN LIVE TV FIRST.
-            </div>
-        );
-    }
-
+    /* ─── Render ─── */
     return (
-        <div style={{ position: 'fixed', inset: 0, background: '#0A0F1A', color: '#E6EAF2', overflow: 'hidden' }}>
+        <div style={{
+            position: 'fixed', inset: 0,
+            background:
+                'radial-gradient(ellipse 1200px 700px at 18% -10%, rgba(93,200,255,0.10) 0%, transparent 55%),' +
+                'radial-gradient(ellipse 900px 600px at 95% 110%, rgba(255,136,85,0.06) 0%, transparent 60%),' +
+                '#06080F',
+            color: '#E6EAF2', overflow: 'hidden',
+        }}>
             <SideNav />
-            <main style={{
-                position: 'absolute', inset: '0 0 0 100px',
-                display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            }}>
+            <main style={{ position: 'absolute', inset: '0 0 0 100px',
+                            display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {/* Title strip */}
-                <header style={{
-                    padding: '20px 24px 12px 24px',
-                    display: 'flex', alignItems: 'baseline', gap: 12,
-                }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
-                                    fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                                    letterSpacing: '0.32em', color: '#5DC8FF' }}>
-                        <Trophy size={12} color="#5DC8FF" />
+                <header style={{ padding: '18px 32px 6px 32px',
+                                  display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                    <BackBtn onClick={() => navigate('/')} />
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9,
+                                    fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                                    letterSpacing: '0.36em', color: ACCENT_DEFAULT }}>
+                        <Trophy size={13} color={ACCENT_DEFAULT} />
                         SPORTS GUIDE
                     </div>
                     <span style={{ fontSize: 13, color: '#7d8493' }}>
-                        Pick a sport on the left, or use Search.
+                        Fixtures, scores &amp; where to watch — across the world.
                     </span>
+                    {data?.fetched_at && (
+                        <span style={{ marginLeft: 'auto',
+                                        fontFamily: 'monospace', fontSize: 10,
+                                        letterSpacing: '0.22em', color: '#5e6473' }}>
+                            UPDATED · {fmtClock(data.fetched_at)}
+                        </span>
+                    )}
                 </header>
 
-                {/* Two-column body */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '220px 1fr',
-                    gap: 14,
-                    padding: '0 24px 24px 24px',
-                    flex: 1, minHeight: 0,
-                }}>
-                    {/* LEFT — categories */}
-                    <NavColumn
-                        items={navItems}
-                        idx={sel.navIdx}
-                        isFocused={sel.col === 0}
-                    />
+                <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden',
+                                padding: '12px 32px 64px 32px' }}>
+                    {loading && <LoadingBlock />}
+                    {!loading && err && <ErrorBlock err={err} />}
+                    {!loading && !err && (
+                        <>
+                            {hero && (
+                                <HeroFixture
+                                    fixture={hero}
+                                    provider={provider}
+                                    onPlay={onCardEnter}
+                                    onRemind={onCardRemind}
+                                    reminders={reminders}
+                                />
+                            )}
 
-                    {/* RIGHT — content for the active category */}
-                    <div style={{
-                        background: 'rgba(255,255,255,0.018)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 14,
-                        overflow: 'hidden',
-                        display: 'flex', flexDirection: 'column',
-                        minHeight: 0,
-                    }}>
-                        {activeNav?.id === 'search' ? (
-                            <SearchPanel
-                                query={query}
-                                onOpen={() => setKbOpen(true)}
-                                loading={searching}
-                                error={searchErr}
-                                results={searchResults}
-                                providerId={provider.id}
-                                reminders={reminders}
-                                isFocused={sel.col === 1}
-                                onPlay={onPlay}
-                                onRemind={onRemind}
+                            <FilterStrip
+                                sportsMeta={sportsMeta}
+                                sportFilter={sportFilter}
+                                onSport={setSportFilter}
+                                allEvents={allEvents}
                             />
-                        ) : (
-                            <RailsPanel
-                                rails={rails}
-                                railIdx={sel.railIdx}
-                                cardIdx={sel.cardIdx}
-                                isFocused={sel.col === 1}
-                                reminders={reminders}
+
+                            <DateStrip
+                                days={availableDays.days}
+                                liveCount={availableDays.liveCount}
+                                dayFilter={dayFilter}
+                                onDay={setDayFilter}
                             />
-                        )}
-                    </div>
+
+                            {groups.length === 0 ? (
+                                <EmptyBlock />
+                            ) : (
+                                groups.map((g) => (
+                                    <LeagueBlock
+                                        key={g.id}
+                                        group={g}
+                                        provider={provider}
+                                        onPlay={onCardEnter}
+                                        onRemind={onCardRemind}
+                                        reminders={reminders}
+                                    />
+                                ))
+                            )}
+                        </>
+                    )}
                 </div>
             </main>
-
-            {kbOpen && (
-                <KeyboardOverlay
-                    query={query}
-                    onChange={setQuery}
-                    onSubmit={() => submit()}
-                    onClose={() => setKbOpen(false)}
-                />
-            )}
-
-            <style>{`@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+                @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+                @keyframes pulse-live {
+                    0%   { opacity: 1;    box-shadow: 0 0 0 0 rgba(255,77,94,0.55); }
+                    50%  { opacity: 0.85; box-shadow: 0 0 0 6px rgba(255,77,94,0.0);  }
+                    100% { opacity: 1;    box-shadow: 0 0 0 0 rgba(255,77,94,0.0);  }
+                }
+            `}</style>
         </div>
     );
 }
 
-/* ──────────────────────────── Left column ──────────────────────────── */
+/* ─────────────────────────────────── Hero ─────────────────────────────────── */
 
-const NavColumn = React.memo(function NavColumn({ items, idx, isFocused }) {
-    return (
-        <div style={{
-            background: 'rgba(255,255,255,0.025)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 14,
-            overflow: 'auto',
-            padding: 6,
-        }}>
-            {items.map((it, i) => {
-                const focused = isFocused && i === idx;
-                const Icon = iconFor(it.id);
-                const accent = it.id === 'search' ? '#FFC850' : '#5DC8FF';
-                return (
-                    <div
-                        key={it.id}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '0 12px',
-                            height: 38,
-                            margin: '2px 0',
-                            borderRadius: 8,
-                            background: focused
-                                ? (it.id === 'search' ? 'rgba(255,200,80,0.10)' : 'rgba(93,200,255,0.10)')
-                                : 'transparent',
-                            border: '1px solid ' + (focused ? accent : 'transparent'),
-                            color: focused ? '#fff' : '#9DA5B5',
-                            fontSize: 13, fontWeight: focused ? 700 : 600,
-                            letterSpacing: it.id === 'search' ? '0.04em' : 0,
-                        }}
-                    >
-                        <Icon size={13} color={focused ? accent : '#5e6473'} />
-                        <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {it.label}
-                        </span>
-                        {it.count !== undefined && it.count > 0 && (
-                            <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                                            color: focused ? accent : '#5e6473' }}>
-                                {it.count}
-                            </span>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
+const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay, onRemind, reminders }) {
+    const accent = SPORT_ACCENT[fixture.sport] || ACCENT_DEFAULT;
+    const matches = useMemo(
+        () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
+        [provider, fixture],
     );
-});
-
-function iconFor(id) {
-    if (id === 'all') return Trophy;
-    if (id === 'search') return Search;
-    if (id === 'football') return Volleyball;
-    if (id === 'f1' || id === 'cycling') return Bike;
-    if (id === 'ufc' || id === 'boxing') return Dumbbell;
-    return Flame;
-}
-
-/* ──────────────────────────── Right column (rails) ──────────────────────────── */
-
-const RailsPanel = React.memo(function RailsPanel({ rails, railIdx, cardIdx, isFocused, reminders }) {
-    if (rails.length === 0) {
-        return (
-            <div style={{
-                flex: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#7d8493', fontSize: 13, padding: 24, textAlign: 'center',
-            }}>
-                Nothing scheduled on this sport in the next 24 hours.<br />
-                Try “All Sports” or another category.
-            </div>
-        );
-    }
-    return (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-            {rails.map((r, i) => (
-                <Rail
-                    key={r.id}
-                    rail={r}
-                    cardIdx={i === railIdx ? cardIdx : -1}
-                    isFocused={isFocused && i === railIdx}
-                    reminders={reminders}
-                />
-            ))}
-        </div>
-    );
-});
-
-const Rail = React.memo(function Rail({ rail, cardIdx, isFocused, reminders }) {
-    const trackRef = useRef(null);
-    /* Keep the focused card scrolled into view horizontally. */
-    useEffect(() => {
-        if (cardIdx < 0 || !trackRef.current) return;
-        const el = trackRef.current.children[cardIdx];
-        if (el?.scrollIntoView) {
-            el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
-        }
-    }, [cardIdx]);
+    const live = isLiveNow(fixture);
+    const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
+    const fxArt = fixture.thumb || fixture.poster;
 
     return (
-        <div style={{ marginBottom: 18 }}>
-            <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.28em', color: rail.accent, marginBottom: 8,
-            }}>
-                <rail.Icon size={12} color={rail.accent} />
-                {rail.label}
-                <span style={{ color: '#5e6473' }}>·  {rail.items.length}</span>
-            </div>
-            <div
-                ref={trackRef}
-                style={{
-                    display: 'grid',
-                    gridAutoFlow: 'column',
-                    gridAutoColumns: 'minmax(180px, 1fr)',
-                    gap: 10,
-                    overflowX: 'auto',
-                    overflowY: 'hidden',
-                    paddingBottom: 2,
-                }}
-            >
-                {rail.items.map((it, i) => (
-                    <Card
-                        key={`${it.streamId}-${it.startTs}`}
-                        item={it}
-                        focused={isFocused && i === cardIdx}
-                        isReminded={reminders.has(`${Number(it.streamId) || it.streamId}:${Number(it.startTs) || it.startTs}`)}
-                    />
-                ))}
-            </div>
-        </div>
-    );
-});
-
-const Card = React.memo(function Card({ item, focused, isReminded }) {
-    /* TMDB lookup — only renders when actually focused for perf.
-     * Unfocused cards stay minimal: channel name + title + time. */
-    const tmdb = useProgrammeBackdrop(focused ? (item.title || '') : '', focused ? (item.channelName || '') : '');
-    const art = tmdb?.backdrop && focused ? proxy(tmdb.backdrop, 360, 50) : '';
-    const channelLogo = item.streamIcon ? proxy(item.streamIcon, 40, 60) : '';
-    const live = isLiveNow(item);
-    const accent = live ? '#FF4D5E' : '#5DC8FF';
-
-    return (
-        <div style={{
-            height: 124,
-            background: '#11182A',
-            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.07)'),
-            boxShadow: focused ? `0 0 0 1px ${accent}` : 'inset 0 1px 0 rgba(255,255,255,0.04)',
-            borderRadius: 10,
-            overflow: 'hidden',
-            position: 'relative',
-            display: 'flex', flexDirection: 'column',
-        }}>
-            {/* Top art half */}
-            <div style={{
-                height: 58,
+        <article
+            tabIndex={0}
+            data-focusable="true"
+            data-initial-focus="true"
+            onClick={() => onPlay(fixture)}
+            style={{
                 position: 'relative',
-                backgroundImage: art
-                    ? `linear-gradient(180deg, rgba(17,24,42,0.05) 0%, rgba(17,24,42,0.88) 100%), url(${art})`
-                    : 'linear-gradient(135deg, rgba(93,200,255,0.16) 0%, rgba(17,24,42,1) 100%)',
-                backgroundSize: 'auto, cover',
+                borderRadius: 20,
+                overflow: 'hidden',
+                marginBottom: 22,
+                background:
+                    'linear-gradient(135deg, rgba(13,18,32,0.0) 0%, rgba(13,18,32,0.0) 30%, rgba(13,18,32,0.65) 60%, rgba(13,18,32,0.92) 100%),' +
+                    `linear-gradient(115deg, ${accent}26 0%, transparent 40%),` +
+                    (fxArt ? `url(${proxy(fxArt, 1200, 65)})` : '#0E1424'),
+                backgroundSize: 'cover, cover, cover',
                 backgroundPosition: 'center',
-            }}>
-                <div style={{
-                    position: 'absolute', top: 6, left: 6,
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '2px 6px',
-                    background: live ? 'rgba(255,77,94,0.20)' : 'rgba(93,200,255,0.20)',
-                    border: '1px solid ' + (live ? 'rgba(255,77,94,0.55)' : 'rgba(93,200,255,0.55)'),
-                    borderRadius: 999,
-                    fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
-                    letterSpacing: '0.16em', color: accent,
-                }}>
-                    {labelFor(item)}
-                </div>
-                {isReminded && (
-                    <div style={{
-                        position: 'absolute', top: 6, right: 6,
-                        display: 'inline-flex', alignItems: 'center',
-                        padding: 3, borderRadius: 999,
-                        background: 'rgba(255,200,80,0.18)',
-                        border: '1px solid rgba(255,200,80,0.5)',
-                    }}>
-                        <Bell size={9} color="#FFC850" fill="#FFC850" />
-                    </div>
-                )}
-            </div>
-            {/* Bottom info half */}
-            <div style={{
-                flex: 1, padding: '6px 8px 8px 8px',
-                display: 'flex', flexDirection: 'column', gap: 4,
-                minWidth: 0,
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                        width: 22, height: 16, flexShrink: 0,
-                        background: 'rgba(255,255,255,0.04)',
-                        borderRadius: 3,
-                        overflow: 'hidden', position: 'relative',
-                    }}>
-                        {channelLogo && (
+                border: `1px solid ${accent}55`,
+                boxShadow: `0 22px 60px -28px ${accent}88, inset 0 1px 0 rgba(255,255,255,0.06)`,
+                minHeight: 260,
+                padding: 28,
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 24,
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+            }}
+            onFocus={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = `0 30px 80px -28px ${accent}, inset 0 0 0 2px ${accent}`;
+            }}
+            onBlur={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = `0 22px 60px -28px ${accent}88, inset 0 1px 0 rgba(255,255,255,0.06)`;
+            }}
+        >
+            {/* LEFT — fixture info */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18, minWidth: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* League pill */}
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                        {fixture.leagueBadge && (
                             <img
-                                src={channelLogo}
-                                alt=""
-                                width={22}
-                                height={16}
-                                loading="lazy"
-                                decoding="async"
-                                referrerPolicy="no-referrer"
+                                src={proxy(fixture.leagueBadge, 56, 65)} alt="" width={28} height={28}
                                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                style={{
-                                    position: 'absolute', inset: 0,
-                                    width: '100%', height: '100%',
-                                    objectFit: 'contain',
-                                }}
+                                style={{ width: 28, height: 28, objectFit: 'contain' }}
                             />
                         )}
-                    </div>
-                    <span style={{
-                        fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
-                        letterSpacing: '0.16em', color: '#9DA5B5',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        flex: 1, minWidth: 0,
-                    }}>
-                        {(item.channelName || '').toUpperCase()}
-                    </span>
-                </div>
-                <div style={{
-                    fontSize: 12, fontWeight: 700,
-                    color: focused ? '#fff' : '#E6EAF2',
-                    lineHeight: 1.2,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                    {item.title || 'Untitled'}
-                </div>
-            </div>
-        </div>
-    );
-});
-
-/* ──────────────────────────── Right column (search) ──────────────────────────── */
-
-function SearchPanel({ query, onOpen, loading, error, results, providerId, reminders, isFocused, onPlay, onRemind }) {
-    return (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-            <button
-                data-focusable="true"
-                data-focus-style="quiet"
-                tabIndex={0}
-                onClick={onOpen}
-                style={{
-                    width: '100%',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '0 14px',
-                    height: 44,
-                    background: 'rgba(20,28,42,0.6)',
-                    border: '1px solid ' + (query ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.10)'),
-                    borderRadius: 10,
-                    color: '#fff', textAlign: 'left',
-                    cursor: 'pointer',
-                }}
-            >
-                <Search size={14} color={query ? '#5DC8FF' : '#7d8493'} />
-                <span style={{
-                    flex: 1, minWidth: 0,
-                    fontSize: 13, fontWeight: 600,
-                    color: query ? '#fff' : '#5e6473',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                    {query || 'Tap to search — “Toronto Raptors”, “UFC”, “Cowboys”…'}
-                </span>
-            </button>
-            {loading && (
-                <div style={{ padding: 14, color: '#9DA5B5', fontSize: 12,
-                                display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Loader2 size={14} color="#5DC8FF" style={{ animation: 'spin 1.2s linear infinite' }} />
-                    Searching…
-                </div>
-            )}
-            {error && !loading && (
-                <div style={{ padding: 12, background: 'rgba(255,107,122,0.08)',
-                                border: '1px solid rgba(255,107,122,0.40)', borderRadius: 10,
-                                color: '#FF6B7A', fontSize: 12, marginTop: 12 }}>
-                    {error}
-                </div>
-            )}
-            {results !== null && !loading && (
-                <div style={{ marginTop: 14 }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                                    letterSpacing: '0.28em', color: '#5DC8FF', marginBottom: 8 }}>
-                        RESULTS · {results.length}
-                    </div>
-                    {results.length === 0 ? (
-                        <div style={{ color: '#7d8493', fontSize: 12, padding: '8px 4px' }}>
-                            No matches in the next 24 hours.
+                        <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '5px 11px', borderRadius: 999,
+                            background: 'rgba(255,255,255,0.07)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.28em', color: '#E6EAF2',
+                        }}>
+                            <span style={{ fontSize: 14, lineHeight: 1 }}>
+                                {SPORT_EMOJI[fixture.sport] || '🏆'}
+                            </span>
+                            {(fixture.league || fixture.sport || '').toUpperCase()}
                         </div>
+                        {live && <LivePill />}
+                    </div>
+
+                    {/* Teams (massive) */}
+                    <h1 style={{
+                        margin: 0,
+                        fontSize: 'clamp(28px, 3.4vw, 50px)',
+                        fontWeight: 800,
+                        lineHeight: 1.06,
+                        letterSpacing: '-0.012em',
+                        color: '#FFFFFF',
+                        textShadow: '0 2px 30px rgba(0,0,0,0.6)',
+                    }}>
+                        {fixture.home && fixture.away ? (
+                            <>
+                                <span>{fixture.home}</span>{' '}
+                                <span style={{ color: accent, fontWeight: 700, opacity: 0.85 }}>vs</span>{' '}
+                                <span>{fixture.away}</span>
+                            </>
+                        ) : (
+                            fixture.title || 'Featured event'
+                        )}
+                    </h1>
+
+                    {/* Sub-line */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
+                                    color: '#C0C8D8', fontSize: 14, fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                            <Clock size={14} color={accent} />
+                            {fmtFull(fixture.ts)}
+                        </span>
+                        {fixture.venue && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                                <MapPin size={13} color="#7d8493" />
+                                {fixture.venue}{fixture.country ? `, ${fixture.country}` : ''}
+                            </span>
+                        )}
+                        {!live && <CountdownBadge ts={fixture.ts} accent={accent} />}
+                    </div>
+                </div>
+
+                {/* Bottom row: WATCH on + actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {matches.length > 0 ? (
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onPlay(fixture); }}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                                    padding: '11px 18px',
+                                    background: '#FFFFFF',
+                                    color: '#0A0F1A',
+                                    border: 'none', borderRadius: 999,
+                                    fontSize: 13, fontWeight: 800,
+                                    letterSpacing: '0.06em',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 8px 24px rgba(255,255,255,0.18)',
+                                }}
+                            >
+                                <Play size={13} fill="#0A0F1A" />
+                                Watch on {matches[0].channelName.toUpperCase()}
+                            </button>
+                            {matches.length > 1 && (
+                                <span style={{ fontFamily: 'monospace', fontSize: 11,
+                                                letterSpacing: '0.18em', color: '#7d8493' }}>
+                                    + {matches.length - 1} MORE CHANNEL{matches.length > 2 ? 'S' : ''}
+                                </span>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onRemind(fixture); }}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '10px 14px',
+                                    background: reminded ? 'rgba(255,200,80,0.18)' : 'rgba(255,255,255,0.05)',
+                                    color: reminded ? '#FFC850' : '#E6EAF2',
+                                    border: '1px solid ' + (reminded ? 'rgba(255,200,80,0.55)' : 'rgba(255,255,255,0.10)'),
+                                    borderRadius: 999,
+                                    fontSize: 12, fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Bell size={12} fill={reminded ? '#FFC850' : 'none'}
+                                       color={reminded ? '#FFC850' : '#E6EAF2'} />
+                                {reminded ? 'REMINDER SET' : 'REMIND ME'}
+                            </button>
+                        </>
                     ) : (
-                        <div style={{ display: 'grid', gridAutoFlow: 'column',
-                                        gridAutoColumns: 'minmax(180px, 1fr)',
-                                        gap: 10, overflowX: 'auto' }}>
-                            {results.map((m) => (
-                                <Card
-                                    key={`${m.streamId}-${m.startTs}`}
-                                    item={decorateWithIcon(m, providerId)}
-                                    focused={false}
-                                    isReminded={reminders.has(`${Number(m.streamId) || m.streamId}:${Number(m.startTs) || m.startTs}`)}
-                                />
-                            ))}
+                        <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '10px 14px',
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px dashed rgba(255,255,255,0.12)',
+                            borderRadius: 999,
+                            fontSize: 12, fontWeight: 600,
+                            color: '#7d8493', letterSpacing: '0.04em',
+                        }}>
+                            <Tv size={12} color="#7d8493" />
+                            Not on any of your channels yet.
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* RIGHT — team badges face-off */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <TeamBadge name={fixture.home} badge={fixture.homeBadge} accent={accent} large />
+                <div style={{
+                    fontFamily: 'monospace', fontSize: 18, fontWeight: 900,
+                    color: accent, letterSpacing: '0.04em',
+                    textShadow: `0 0 18px ${accent}55`,
+                }}>VS</div>
+                <TeamBadge name={fixture.away} badge={fixture.awayBadge} accent={accent} large />
+            </div>
+        </article>
+    );
+});
+
+const TeamBadge = React.memo(function TeamBadge({ name, badge, accent, large }) {
+    const size = large ? 96 : 56;
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <div style={{
+                width: size, height: size,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.10), rgba(255,255,255,0.02))',
+                border: `1px solid ${accent}55`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+                boxShadow: `0 8px 24px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.03)`,
+                flexShrink: 0,
+            }}>
+                {badge ? (
+                    <img
+                        src={proxy(badge, large ? 200 : 120, 80)}
+                        alt=""
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{ width: '78%', height: '78%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))' }}
+                    />
+                ) : (
+                    <span style={{ fontFamily: 'monospace', fontSize: large ? 28 : 18, fontWeight: 800,
+                                    color: accent, letterSpacing: '-0.02em' }}>
+                        {(name || '?').split(/\s+/).map((w) => w[0] || '').join('').slice(0, 3).toUpperCase()}
+                    </span>
+                )}
+            </div>
+            {large && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9DA5B5',
+                                letterSpacing: '0.04em',
+                                maxWidth: 110, textAlign: 'center',
+                                lineHeight: 1.15,
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {(name || '').toUpperCase()}
+                </div>
             )}
         </div>
     );
+});
+
+/* ─────────────────────────────────── Filters ─────────────────────────────────── */
+
+function FilterStrip({ sportsMeta, sportFilter, onSport, allEvents }) {
+    return (
+        <section style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.34em', color: '#7d8493',
+                            marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Award size={11} color="#7d8493" />
+                BROWSE BY SPORT
+            </div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden',
+                            paddingBottom: 3 }}>
+                <SportPill
+                    label="All Sports"
+                    emoji="🏆"
+                    accent={ACCENT_DEFAULT}
+                    active={sportFilter === 'all'}
+                    count={allEvents.length}
+                    onClick={() => onSport('all')}
+                />
+                {sportsMeta.map((s) => (
+                    <SportPill
+                        key={s.name}
+                        label={s.name}
+                        emoji={SPORT_EMOJI[s.name] || s.emoji || '🏆'}
+                        accent={SPORT_ACCENT[s.name] || s.color || ACCENT_DEFAULT}
+                        active={sportFilter === s.name}
+                        count={s.count}
+                        onClick={() => onSport(s.name)}
+                    />
+                ))}
+            </div>
+        </section>
+    );
 }
 
-/* ──────────────────────────── Keyboard overlay ──────────────────────────── */
-
-function KeyboardOverlay({ query, onChange, onSubmit, onClose }) {
-    useEffect(() => {
-        const onKey = (e) => {
-            if (e.key === 'Escape' || e.key === 'Backspace') {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
-    }, [onClose]);
+const SportPill = React.memo(function SportPill({ label, emoji, accent, active, count, onClick }) {
     return (
-        <div
-            role="dialog"
-            aria-modal="true"
-            onClick={onClose}
+        <button
+            data-focusable="true"
+            tabIndex={0}
+            onClick={onClick}
             style={{
-                position: 'fixed', inset: 0,
-                zIndex: 9000,
-                background: 'rgba(0,0,0,0.55)',
-                display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                height: 44, padding: '0 16px',
+                whiteSpace: 'nowrap',
+                background: active ? `${accent}22` : 'rgba(255,255,255,0.025)',
+                border: `1px solid ${active ? accent : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 999,
+                color: active ? '#FFF' : '#9DA5B5',
+                fontSize: 13, fontWeight: 700,
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'background 0.15s, color 0.15s, border 0.15s',
+            }}
+            onFocus={(e) => {
+                e.currentTarget.style.background = `${accent}33`;
+                e.currentTarget.style.borderColor = accent;
+                e.currentTarget.style.color = '#FFF';
+            }}
+            onBlur={(e) => {
+                e.currentTarget.style.background = active ? `${accent}22` : 'rgba(255,255,255,0.025)';
+                e.currentTarget.style.borderColor = active ? accent : 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = active ? '#FFF' : '#9DA5B5';
             }}
         >
-            <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    width: 'min(820px, 100%)',
-                    margin: '0 24px 24px 24px',
-                    background: '#11182A',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    borderRadius: 14,
-                    padding: 18,
-                    boxShadow: '0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)',
-                }}
-            >
-                <div style={{
-                    minHeight: 44,
-                    padding: '0 14px',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: 'rgba(20,28,42,0.6)',
-                    border: '1px solid ' + (query ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.10)'),
-                    borderRadius: 10,
-                    marginBottom: 12,
-                }}>
-                    <Search size={14} color={query ? '#5DC8FF' : '#7d8493'} />
-                    <span style={{
-                        flex: 1, minWidth: 0,
-                        fontSize: 14, fontWeight: 700,
-                        color: query ? '#fff' : '#5e6473',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                        {query || 'Start typing…'}
-                    </span>
-                    <button
-                        onClick={onClose}
-                        aria-label="Close"
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 26, height: 26, borderRadius: 999,
-                            background: 'rgba(255,255,255,0.06)',
-                            border: '1px solid rgba(255,255,255,0.10)',
-                            color: '#9DA5B5', cursor: 'pointer',
-                        }}
-                    >
-                        <X size={11} />
-                    </button>
-                </div>
-                <TVKeyboard
-                    value={query}
-                    onChange={onChange}
-                    onSubmit={onSubmit}
-                    maxLength={60}
-                    variant="name"
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{emoji}</span>
+            <span>{label}</span>
+            {count > 0 && (
+                <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                                color: active ? accent : '#5e6473', letterSpacing: '0.08em' }}>
+                    {count}
+                </span>
+            )}
+        </button>
+    );
+});
+
+function DateStrip({ days, liveCount, dayFilter, onDay }) {
+    return (
+        <section style={{ marginBottom: 22 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.34em', color: '#7d8493',
+                            marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Calendar size={11} color="#7d8493" />
+                WHEN
+            </div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden',
+                            paddingBottom: 3 }}>
+                {liveCount > 0 && (
+                    <DatePill
+                        label="LIVE NOW"
+                        sub={`${liveCount} match${liveCount !== 1 ? 'es' : ''}`}
+                        accent="#FF4D5E"
+                        active={dayFilter === -1}
+                        live
+                        onClick={() => onDay(-1)}
+                    />
+                )}
+                <DatePill
+                    label="All Upcoming"
+                    sub="next 14 days"
+                    accent="#FFC850"
+                    active={dayFilter === -2}
+                    onClick={() => onDay(-2)}
                 />
+                {days.map((d) => (
+                    <DatePill
+                        key={d.key}
+                        label={d.label}
+                        sub={d.count > 0 ? `${d.count} fixtures` : 'no fixtures'}
+                        accent={ACCENT_DEFAULT}
+                        active={dayFilter === d.key}
+                        disabled={d.count === 0}
+                        onClick={() => onDay(d.key)}
+                    />
+                ))}
+            </div>
+        </section>
+    );
+}
+
+const DatePill = React.memo(function DatePill({ label, sub, accent, active, live, disabled, onClick }) {
+    return (
+        <button
+            data-focusable="true"
+            tabIndex={0}
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            style={{
+                display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
+                height: 54, padding: '0 18px',
+                whiteSpace: 'nowrap', justifyContent: 'center',
+                background: active ? `${accent}22` : 'rgba(255,255,255,0.022)',
+                border: `1px solid ${active ? accent : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 14,
+                color: active ? '#FFF' : '#9DA5B5',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.45 : 1,
+                outline: 'none', position: 'relative',
+                transition: 'background 0.15s, color 0.15s, border 0.15s',
+            }}
+            onFocus={(e) => {
+                if (disabled) return;
+                e.currentTarget.style.background = `${accent}33`;
+                e.currentTarget.style.borderColor = accent;
+                e.currentTarget.style.color = '#FFF';
+            }}
+            onBlur={(e) => {
+                if (disabled) return;
+                e.currentTarget.style.background = active ? `${accent}22` : 'rgba(255,255,255,0.022)';
+                e.currentTarget.style.borderColor = active ? accent : 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = active ? '#FFF' : '#9DA5B5';
+            }}
+        >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                            fontSize: 13, fontWeight: 800, letterSpacing: '0.02em' }}>
+                {live && (
+                    <span style={{ width: 7, height: 7, borderRadius: '50%',
+                                    background: '#FF4D5E', animation: 'pulse-live 1.6s ease-in-out infinite' }} />
+                )}
+                {label}
+            </span>
+            <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                            letterSpacing: '0.18em', color: '#7d8493' }}>
+                {sub}
+            </span>
+        </button>
+    );
+});
+
+/* ─────────────────────────────────── League block ─────────────────────────────────── */
+
+const LeagueBlock = React.memo(function LeagueBlock({ group, provider, onPlay, onRemind, reminders }) {
+    const accent = SPORT_ACCENT[group.sport] || ACCENT_DEFAULT;
+    return (
+        <section style={{ marginBottom: 22 }}>
+            <header style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '12px 18px',
+                background:
+                    `linear-gradient(90deg, ${accent}16 0%, transparent 60%),` +
+                    'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderLeft: `3px solid ${accent}`,
+                borderRadius: '12px 12px 4px 4px',
+                marginBottom: 10,
+            }}>
+                <div style={{
+                    width: 46, height: 46, borderRadius: 10,
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                }}>
+                    {group.badge ? (
+                        <img src={proxy(group.badge, 96, 70)} alt=""
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                style={{ width: '78%', height: '78%', objectFit: 'contain' }} />
+                    ) : (
+                        <span style={{ fontSize: 22 }}>{SPORT_EMOJI[group.sport] || '🏆'}</span>
+                    )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#FFFFFF',
+                                    letterSpacing: '-0.01em' }}>
+                        {group.name}
+                    </h2>
+                    <div style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                                    letterSpacing: '0.24em', color: accent, marginTop: 2 }}>
+                        {(group.sport || '').toUpperCase()} · {group.events.length} FIXTURE{group.events.length !== 1 ? 'S' : ''}
+                    </div>
+                </div>
+            </header>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))',
+                gap: 12,
+            }}>
+                {group.events.map((ev) => (
+                    <FixtureCard
+                        key={ev.id}
+                        fixture={ev}
+                        provider={provider}
+                        onPlay={onPlay}
+                        onRemind={onRemind}
+                        reminders={reminders}
+                    />
+                ))}
+            </div>
+        </section>
+    );
+});
+
+/* ─────────────────────────────────── Fixture Card ─────────────────────────────────── */
+
+const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay, onRemind, reminders }) {
+    const accent = SPORT_ACCENT[fixture.sport] || ACCENT_DEFAULT;
+    const matches = useMemo(
+        () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
+        [provider, fixture],
+    );
+    const live = isLiveNow(fixture);
+    const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
+    const showScore = fixture.finished && (fixture.homeScore !== '' || fixture.awayScore !== '');
+
+    /* Press tracking for hold-OK = reminder. */
+    const pressRef = useRef({ count: 0, fired: false });
+    const onKeyDown = (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const p = pressRef.current;
+        p.count += 1;
+        if (p.count >= 6 && !p.fired) {
+            p.fired = true;
+            e.preventDefault();
+            onRemind(fixture);
+        }
+    };
+    const onKeyUp = (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const p = pressRef.current;
+        const wasLong = p.fired;
+        p.count = 0; p.fired = false;
+        if (!wasLong) {
+            e.preventDefault();
+            if (matches.length > 0) onPlay(fixture);
+        }
+    };
+
+    return (
+        <article
+            data-focusable="true"
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
+            onClick={() => { if (matches.length > 0) onPlay(fixture); }}
+            style={{
+                position: 'relative',
+                background:
+                    'linear-gradient(135deg, rgba(20,28,46,0.85) 0%, rgba(14,20,36,0.95) 100%)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 14,
+                padding: '14px 16px 12px 16px',
+                display: 'flex', flexDirection: 'column', gap: 10,
+                cursor: matches.length > 0 ? 'pointer' : 'default',
+                outline: 'none',
+                transition: 'transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease',
+                overflow: 'hidden',
+            }}
+            onFocus={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.borderColor = accent;
+                e.currentTarget.style.boxShadow = `0 14px 32px -16px ${accent}88, inset 0 0 0 1px ${accent}55`;
+            }}
+            onBlur={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.boxShadow = 'none';
+            }}
+        >
+            {/* Accent bar */}
+            <div style={{
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+                background: accent,
+                boxShadow: live ? `0 0 14px ${accent}` : 'none',
+            }} />
+            {/* Header: time + status pill */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 16, fontWeight: 800,
+                        color: '#FFFFFF', letterSpacing: '-0.01em',
+                    }}>
+                        {fmt(fixture.ts)}
+                    </div>
+                    <div style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                    color: '#5e6473', letterSpacing: '0.22em' }}>
+                        {dayLabel(fixture.ts)}
+                    </div>
+                </div>
+                {live ? (
+                    <LivePill />
+                ) : fixture.finished ? (
+                    <FinalPill />
+                ) : (
+                    <CountdownBadge ts={fixture.ts} accent={accent} compact />
+                )}
+            </div>
+
+            {/* Teams row */}
+            {fixture.home && fixture.away ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+                                alignItems: 'center', gap: 10 }}>
+                    <TeamRow side="home" name={fixture.home} badge={fixture.homeBadge}
+                              score={showScore ? fixture.homeScore : ''} accent={accent} />
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 11, fontWeight: 800,
+                        color: accent, letterSpacing: '0.1em', textAlign: 'center',
+                    }}>
+                        {showScore ? '—' : 'VS'}
+                    </div>
+                    <TeamRow side="away" name={fixture.away} badge={fixture.awayBadge}
+                              score={showScore ? fixture.awayScore : ''} accent={accent} />
+                </div>
+            ) : (
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF',
+                                lineHeight: 1.2 }}>
+                    {fixture.title || 'Event'}
+                </div>
+            )}
+
+            {/* Venue line */}
+            {fixture.venue && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                                fontSize: 11, fontWeight: 600, color: '#7d8493',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <MapPin size={11} color="#5e6473" />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {fixture.venue}{fixture.city ? `, ${fixture.city}` : (fixture.country ? `, ${fixture.country}` : '')}
+                    </span>
+                </div>
+            )}
+
+            {/* WATCH ON row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                            paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                {matches.length > 0 ? (
+                    <>
+                        <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                        letterSpacing: '0.22em', color: accent }}>
+                            WATCH ON
+                        </span>
+                        {matches.slice(0, 3).map((m) => (
+                            <ChannelChip key={m.streamId} channel={m} accent={accent} />
+                        ))}
+                        {matches.length > 3 && (
+                            <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                            letterSpacing: '0.18em', color: '#5e6473' }}>
+                                +{matches.length - 3}
+                            </span>
+                        )}
+                        {reminded && (
+                            <span style={{ marginLeft: 'auto', display: 'inline-flex',
+                                            alignItems: 'center', gap: 4,
+                                            fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                            letterSpacing: '0.18em', color: '#FFC850' }}>
+                                <Bell size={10} fill="#FFC850" color="#FFC850" />
+                                REMINDED
+                            </span>
+                        )}
+                    </>
+                ) : (
+                    <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                    letterSpacing: '0.22em', color: '#5e6473' }}>
+                        NOT ON YOUR CHANNELS
+                    </span>
+                )}
+            </div>
+        </article>
+    );
+});
+
+const TeamRow = React.memo(function TeamRow({ side, name, badge, score, accent }) {
+    const reverse = side === 'away';
+    return (
+        <div style={{
+            display: 'flex',
+            flexDirection: reverse ? 'row-reverse' : 'row',
+            alignItems: 'center', gap: 10,
+            minWidth: 0,
+        }}>
+            <div style={{
+                width: 38, height: 38, borderRadius: 9,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', flexShrink: 0,
+            }}>
+                {badge ? (
+                    <img
+                        src={proxy(badge, 80, 75)} alt=""
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+                    />
+                ) : (
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800,
+                                    color: accent }}>
+                        {(name || '?').split(/\s+/).map((w) => w[0] || '').join('').slice(0, 3).toUpperCase()}
+                    </span>
+                )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0,
+                            alignItems: reverse ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                    fontSize: 13, fontWeight: 700, color: '#FFFFFF',
+                    lineHeight: 1.15,
+                    maxWidth: 170,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    textAlign: reverse ? 'right' : 'left',
+                }}>
+                    {name}
+                </div>
+                {score !== '' && (
+                    <div style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 900,
+                                    color: accent, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                        {score}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
+
+const ChannelChip = React.memo(function ChannelChip({ channel, accent }) {
+    return (
+        <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 8px 4px 5px',
+            background: `${accent}14`,
+            border: `1px solid ${accent}44`,
+            borderRadius: 999,
+            maxWidth: 180,
+        }}>
+            <div style={{
+                width: 18, height: 14, borderRadius: 3,
+                background: 'rgba(255,255,255,0.05)',
+                overflow: 'hidden', position: 'relative', flexShrink: 0,
+            }}>
+                {channel.channelIcon && (
+                    <img src={proxy(channel.channelIcon, 40, 60)} alt="" width={18} height={14}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+                                    objectFit: 'contain' }} />
+                )}
+            </div>
+            <span style={{
+                fontSize: 10, fontWeight: 800, color: '#FFFFFF',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                letterSpacing: '0.02em',
+            }}>
+                {channel.channelName}
+            </span>
+        </div>
+    );
+});
+
+/* ─────────────────────────────────── Atoms ─────────────────────────────────── */
+
+function LivePill() {
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '3px 9px', borderRadius: 999,
+            background: 'rgba(255,77,94,0.18)',
+            border: '1px solid rgba(255,77,94,0.55)',
+            fontFamily: 'monospace', fontSize: 9, fontWeight: 800,
+            letterSpacing: '0.22em', color: '#FF4D5E',
+        }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%',
+                            background: '#FF4D5E',
+                            animation: 'pulse-live 1.6s ease-in-out infinite' }} />
+            LIVE
+        </span>
+    );
+}
+
+function FinalPill() {
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: '3px 9px', borderRadius: 999,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            fontFamily: 'monospace', fontSize: 9, fontWeight: 800,
+            letterSpacing: '0.22em', color: '#9DA5B5',
+        }}>
+            FT
+        </span>
+    );
+}
+
+function CountdownBadge({ ts, accent, compact }) {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = ts - now;
+    if (diff <= 0) return null;
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    let txt = '';
+    if (h >= 24) {
+        const d = Math.floor(h / 24);
+        txt = `in ${d}d`;
+    } else if (h >= 1) {
+        txt = `in ${h}h ${m.toString().padStart(2, '0')}m`;
+    } else {
+        txt = `in ${m}m`;
+    }
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: compact ? '3px 8px' : '4px 10px', borderRadius: 999,
+            background: `${accent}14`,
+            border: `1px solid ${accent}44`,
+            fontFamily: 'monospace',
+            fontSize: compact ? 9 : 10, fontWeight: 700,
+            letterSpacing: '0.16em', color: accent,
+        }}>
+            <Clock size={compact ? 9 : 10} color={accent} />
+            {txt.toUpperCase()}
+        </span>
+    );
+}
+
+function BackBtn({ onClick }) {
+    return (
+        <button
+            onClick={onClick}
+            data-focusable="true" tabIndex={0}
+            style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 38, height: 38, borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: '#9DA5B5', cursor: 'pointer', outline: 'none',
+                transition: 'background 0.15s, color 0.15s, border 0.15s',
+            }}
+            onFocus={(e) => {
+                e.currentTarget.style.background = 'rgba(93,200,255,0.14)';
+                e.currentTarget.style.borderColor = '#5DC8FF';
+                e.currentTarget.style.color = '#FFF';
+            }}
+            onBlur={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#9DA5B5';
+            }}
+        >
+            <ChevronLeft size={18} />
+        </button>
+    );
+}
+
+function LoadingBlock() {
+    return (
+        <div style={{ padding: 80, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 14, color: '#9DA5B5' }}>
+            <Loader2 size={28} color="#5DC8FF" style={{ animation: 'spin 1.2s linear infinite' }} />
+            <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                            letterSpacing: '0.34em' }}>
+                LOADING FIXTURES…
+            </div>
+            <div style={{ fontSize: 12 }}>
+                Pulling schedules across {30}+ leagues worldwide.
             </div>
         </div>
     );
 }
 
-/* ──────────────────────────── Data helpers ──────────────────────────── */
-
-function isLiveNow(item) {
-    const nowSec = Math.floor(Date.now() / 1000);
-    return item.startTs <= nowSec && item.stopTs > nowSec;
+function ErrorBlock({ err }) {
+    return (
+        <div style={{ padding: 40, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 14, color: '#FF6B7A' }}>
+            <AlertTriangle size={28} color="#FF6B7A" />
+            <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                            letterSpacing: '0.34em' }}>
+                COULD NOT LOAD FIXTURES
+            </div>
+            <div style={{ fontSize: 12, color: '#9DA5B5' }}>
+                {err}
+            </div>
+        </div>
+    );
 }
 
-function labelFor(item) {
-    if (isLiveNow(item)) return `LIVE · ${fmt(item.startTs)}`;
-    return `${dayLabel(item.startTs)} · ${fmt(item.startTs)}`;
+function EmptyBlock() {
+    return (
+        <div style={{ padding: 50, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 12, color: '#7d8493',
+                        background: 'rgba(255,255,255,0.018)',
+                        border: '1px dashed rgba(255,255,255,0.07)',
+                        borderRadius: 14 }}>
+            <Radio size={22} color="#5e6473" />
+            <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                            letterSpacing: '0.30em' }}>
+                NOTHING IN THIS WINDOW
+            </div>
+            <div style={{ fontSize: 12, textAlign: 'center', maxWidth: 360, lineHeight: 1.5 }}>
+                Try “All Sports”, switch to another day, or come back later — fixtures refresh every 30 minutes.
+            </div>
+        </div>
+    );
+}
+
+/* ─────────────────────────────────── Time helpers ─────────────────────────────────── */
+
+function midnight(offsetDays = 0) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return Math.floor(d.getTime() / 1000) + offsetDays * 86400;
 }
 
 function fmt(ts) {
@@ -817,98 +1249,44 @@ function fmt(ts) {
     return `${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ap}`;
 }
 
+function fmtClock(ts) {
+    if (!ts) return '';
+    const d = new Date(Number(ts) * 1000);
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ap}`;
+}
+
+function fmtFull(ts) {
+    if (!ts) return '';
+    const d = new Date(Number(ts) * 1000);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = days[d.getDay()];
+    const date = d.getDate();
+    const month = months[d.getMonth()];
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${day} ${date} ${month} · ${String(h).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${ap}`;
+}
+
 function dayLabel(ts) {
     if (!ts) return '';
     const d = new Date(Number(ts) * 1000);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const target = new Date(d); target.setHours(0, 0, 0, 0);
     const diff = Math.round((target - today) / 86400000);
-    if (diff === 0) return 'TODAY';
-    if (diff === 1) return 'TOMORROW';
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Tomorrow';
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return days[d.getDay()];
 }
 
-function decorateWithIcon(match, providerId) {
-    if (!providerId) return match;
-    const chans = loadChannels(providerId) || {};
-    for (const k in chans) {
-        const hit = (chans[k] || []).find((x) => String(x.stream_id) === String(match.streamId));
-        if (hit) return { ...match, streamIcon: hit.stream_icon || '' };
-    }
-    return match;
-}
-
-function gatherSportsEpg(providerId) {
-    const cats = loadCategories(providerId) || [];
-    const chans = loadChannels(providerId) || {};
-    const epg = loadEpg(providerId) || {};
-
-    const sportsCatIds = new Set(
-        cats.filter((c) => /sport/i.test(c.category_name || '')).map((c) => String(c.category_id)),
-    );
-
-    const channelLookup = new Map();
-    for (const catId in chans) {
-        if (!sportsCatIds.has(String(catId))) continue;
-        for (const ch of (chans[catId] || [])) {
-            channelLookup.set(String(ch.stream_id), {
-                name: ch.name || '',
-                icon: ch.stream_icon || '',
-            });
-        }
-    }
-
-    const nowSec = Math.floor(Date.now() / 1000);
-    const horizonSec = nowSec + 24 * 3600;
-    const out = [];
-    for (const sid in epg) {
-        const meta = channelLookup.get(String(sid));
-        if (!meta) continue;
-        for (const it of (epg[sid] || [])) {
-            const start = Number(it.startTimestamp) || 0;
-            const stop = Number(it.stopTimestamp) || 0;
-            if (stop <= nowSec) continue;
-            if (start > horizonSec) continue;
-            out.push({
-                streamId: sid,
-                channelName: meta.name,
-                streamIcon: meta.icon,
-                title: it.title || '',
-                description: (it.description || '').slice(0, 220),
-                startTs: start,
-                stopTs: stop,
-            });
-        }
-    }
-    return out.sort((a, b) => a.startTs - b.startTs);
-}
-
-function bucketBySport(items) {
-    const buckets = {};
-    for (const s of SPORTS) buckets[s.id] = [];
-    for (const it of items) {
-        const text = `${it.title || ''} ${it.description || ''}`.toLowerCase();
-        for (const s of SPORTS) {
-            if (s.kws.some((kw) => text.includes(kw))) {
-                buckets[s.id].push(it);
-            }
-        }
-    }
-    return buckets;
-}
-
-function buildRails(items) {
-    const nowSec = Math.floor(Date.now() / 1000);
-    const sixHr = nowSec + 6 * 3600;
-    const live = items.filter((it) => it.startTs <= nowSec && it.stopTs > nowSec);
-    const next = items.filter((it) => it.startTs > nowSec && it.startTs <= sixHr)
-        .sort((a, b) => a.startTs - b.startTs);
-    const later = items.filter((it) => it.startTs > sixHr)
-        .sort((a, b) => a.startTs - b.startTs);
-    const out = [];
-    if (live.length) out.push({ id: 'live', label: 'LIVE NOW', accent: '#FF4D5E', Icon: Flame, items: live });
-    if (next.length) out.push({ id: 'next', label: 'NEXT 6 HOURS', accent: '#5DC8FF', Icon: Hourglass, items: next });
-    if (later.length) out.push({ id: 'later', label: 'LATER TODAY', accent: '#FFC850', Icon: CalendarDays, items: later });
-    return out;
+function isLiveNow(fx) {
+    const now = Math.floor(Date.now() / 1000);
+    return fx.ts <= now + 60 && fx.ts >= now - 3 * 3600 && !fx.finished;
 }

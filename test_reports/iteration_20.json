@@ -1,0 +1,66 @@
+{
+  "summary": "Backend smoke + functional tests on the new /api/sportsdb/* endpoints. Endpoints, shape, normalisation, sorting, cache-headers, and existing-endpoint smoke checks (sports/find, tmdb/search, img-proxy) all pass. However, repeated refresh=1 calls to /api/sportsdb/fixtures cause TheSportsDB free-tier 429 rate-limits, AND the backend then caches the empty 0-event payload for 30 minutes — effectively breaking the Sports Guide for everyone. Same poisoning behaviour exists in /api/sportsdb/league-season (6h TTL).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "Cache poisoning under rate-limit. _fetch() silently swallows 429 Too Many Requests and returns None. After the per-refresh fan-out (~175 outbound requests = 35 leagues × 3 endpoints + 5 days × 14 sport filters) triggers throttling on TheSportsDB free key (123), the function still calls _cache_set(payload, 30*60) with events=[] and bySport={}. Subsequent normal GETs return cached=True with 0 events for the next 30 minutes. Reproduced live: GET /api/sportsdb/fixtures?refresh=1 returned 0 events for 3 consecutive calls; current cache holds cached=true events=0.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "Fan-out volume blows past TheSportsDB free-key budget. The function issues ~175 requests in parallel per cold load (35 leagues for eventsnextleague + 35 for eventsseason + 5*15 daily fan-out). Backend logs show consecutive 429 Too Many Requests responses for nearly every URL. Spec requires >=100 events; observed 121 on first ever cold call, then 53 on a follow-up refresh, then 0 once rate-limited. Currently fails the >=100 / >=8 sports SLO non-deterministically.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "_fetch() logs upstream errors at DEBUG level only and never distinguishes 429 from generic failure. No visibility for ops; suggest WARN-level on non-200 + propagate a soft-error counter into payload (e.g. upstream_errors:int)."
+      },
+      {
+        "endpoint": "/api/sportsdb/league-season",
+        "issue": "Same cache-poisoning shape — TTL is 6 hours, so an unlucky cold call during throttling can hide EPL fixtures for 6 hours. Currently observed cached=true events=[] for league_id=4328."
+      },
+      {
+        "endpoint": "/api/sportsdb/leagues",
+        "issue": "Duplicate league id 4391 used for both 'NFL' (American Football) and 'WTA Tour' (Tennis) in TOP_LEAGUES. byLeague aggregation will collide if both produce events. Tennis WTA id should be 4392 or similar — please verify with TheSportsDB."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportsdb.py",
+    "/app/test_reports/pytest/sportsdb_results.xml"
+  ],
+  "action_items": [
+    "Fix cache-poisoning: DO NOT call _cache_set when the aggregated events list is empty (or fall back to keeping the previous cached value).",
+    "Cap upstream concurrency (e.g. asyncio.Semaphore(8)) and back off on 429 to avoid hammering TheSportsDB. Consider exponential retry + short circuit if a 429 streak is detected.",
+    "Reduce fan-out: per the agent-to-agent note, the cache is meant to be sticky; consider lazy-loading season fetches per-league only when /league-season is explicitly hit.",
+    "Promote 429/non-200 logging from DEBUG to WARN and expose an `upstream_errors` counter in the /api/sportsdb/fixtures response for diagnostics.",
+    "Fix duplicate id 4391 (NFL vs WTA Tour) in TOP_LEAGUES in /app/backend/sportsdb.py line ~53/84.",
+    "Optional: serve stale-while-revalidate — return previously cached payload while a background task refreshes."
+  ],
+  "critical_code_review_comments": [
+    "sportsdb.py line ~129 (_fetch): swallows all non-200s into None — no retry, no log severity, 429 indistinguishable from connection error.",
+    "sportsdb.py line ~320 (_cache_set after fan-out): writes payload unconditionally, even when events=[]. Must guard `if events: _cache_set(...)` or fall back to existing cache.",
+    "sportsdb.py line ~84: idLeague 4391 reused for two sports (NFL + WTA Tour); first one to register a real league wins, the other shows up as empty.",
+    "sportsdb.py: each /api/sportsdb/fixtures cold call issues ~175 outbound HTTP requests with no concurrency cap. Under the free key (123) this is virtually guaranteed to trip rate-limits — both for our pod and any other tenant sharing the same upstream key."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportsdb.py"
+  ],
+  "success_rate": {
+    "backend": "85% (6 of 7 pytest tests pass; the failing one — fixtures volume — fails because of the cache-poisoning + rate-limit bug above, not a test bug. Pre-rate-limit the endpoint did return 121 events across 12 sports.)",
+    "frontend": "n/a (out of scope per request)"
+  },
+  "seed_data_creation": "None — endpoints are read-only against external TheSportsDB API.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Cache may currently be poisoned with cached=true events=0 (30 min TTL on fixtures, 6h TTL on league-season). Either wait for TTL or restart backend to clear in-memory cache before retesting. When testing volume (>=100 events), make a SINGLE cold call (after a long pause or after backend restart) — repeated refresh=1 calls will all 429 and look like the backend is broken. backend_test file: /app/backend/tests/test_sportsdb.py. Tests use REACT_APP_BACKEND_URL from /app/frontend/.env.",
+  "rca of the issue": "Root cause: The free TheSportsDB API key '123' is heavily rate-limited and the backend fan-out pattern (35 curated leagues × eventsnextleague + 35 × eventsseason + 5 days × ~14 sport filters via eventsday = ~175 outbound requests per cold load) trips the rate-limit almost immediately. _fetch() then silently swallows the 429s and returns None for all calls, and the resulting empty payload is written to the cache with full TTL. Reproduction: (1) GET /api/sportsdb/fixtures?refresh=1 three times in succession; events count drops 121 → 53 → 0. (2) GET /api/sportsdb/fixtures — returns cached=true, events=0 for next 30 min. Mitigation: (a) Don't cache empty results: `if events: _cache_set(...)` else keep prior cache. (b) Add asyncio.Semaphore(8) and retry-with-backoff inside _fetch on 429. (c) Reduce fan-out — make eventsseason lazy via /league-season only. (d) Log 429s at WARN level. (e) Fix duplicate league id 4391."
+}
