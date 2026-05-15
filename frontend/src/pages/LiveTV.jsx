@@ -34,6 +34,7 @@ import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
 import XtreamLogin from '@/components/XtreamLogin';
 import LiveTVBoot from '@/components/LiveTVBoot';
+import useIsMobile from '@/lib/useIsMobile';
 import {
     getActiveProvider,
     authenticate,
@@ -882,6 +883,8 @@ function Grid({ provider, onLogout }) {
     const focusedNow = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[0] || null) : null;
     const focusedNext = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[1] || null) : null;
 
+    const isMobile = useIsMobile();
+
     /* While the splash is up, render LiveTVBoot INSTEAD of the grid
      * — the splash is full-screen and intentionally blocks all
      * interaction so the user can't D-pad into an empty grid. */
@@ -915,13 +918,64 @@ function Grid({ provider, onLogout }) {
             />
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: '230px 1fr 320px',
-                gap: 14,
-                padding: '0 24px 24px 24px',
+                gridTemplateColumns: isMobile ? '1fr' : '230px 1fr 320px',
+                gap: isMobile ? 8 : 14,
+                padding: isMobile ? '0 12px 12px 12px' : '0 24px 24px 24px',
                 flex: 1,
                 minHeight: 0,
             }}>
-                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                {/* Mobile: a simple top tab strip lets the user pick
+                    which column to display (categories vs channels vs
+                    guide).  TV: all three columns are visible
+                    simultaneously and D-pad LEFT/RIGHT moves between
+                    them. */}
+                {isMobile && (
+                    <div
+                        data-testid="livetv-mobile-tabs"
+                        style={{
+                            display: 'flex',
+                            gap: 6,
+                            padding: '8px 0',
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 5,
+                            background: 'rgba(6,8,15,0.96)',
+                        }}
+                    >
+                        {[
+                            { id: 0, label: 'Categories' },
+                            { id: 1, label: 'Channels' },
+                            { id: 2, label: 'Guide' },
+                        ].map((t) => {
+                            const active = sel.col === t.id;
+                            return (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setSel((s) => ({ ...s, col: t.id }))}
+                                    style={{
+                                        flex: 1,
+                                        padding: '10px 8px',
+                                        background: active ? 'rgba(93,200,255,0.18)' : 'rgba(255,255,255,0.04)',
+                                        border: active ? '1px solid rgba(93,200,255,0.55)' : '1px solid rgba(255,255,255,0.10)',
+                                        borderRadius: 10,
+                                        color: active ? '#FFFFFF' : '#9DA5B5',
+                                        fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        WebkitTapHighlightColor: 'transparent',
+                                    }}
+                                >
+                                    {t.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <div style={{
+                    display: isMobile && sel.col !== 0 ? 'none' : 'flex',
+                    flexDirection: 'column', minHeight: 0, gap: 8,
+                }}>
                     <Column
                         testid="cats"
                         isFocused={sel.col === 0}
@@ -931,7 +985,10 @@ function Grid({ provider, onLogout }) {
                         rowFn={renderCategory}
                     />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                <div style={{
+                    display: isMobile && sel.col !== 1 ? 'none' : 'flex',
+                    flexDirection: 'column', minHeight: 0, gap: 8,
+                }}>
                     <SearchRow
                         query={query}
                         onChange={setQuery}
@@ -947,7 +1004,10 @@ function Grid({ provider, onLogout }) {
                         rowFn={renderChannel}
                     />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                <div style={{
+                    display: isMobile && sel.col !== 2 ? 'none' : 'flex',
+                    flexDirection: 'column', minHeight: 0, gap: 8,
+                }}>
                     {/* Top blue date label with live clock */}
                     <GuideTopBar todayLabel={guideTodayLabel} />
                     <GuideHeader channelName={debouncedChannel?.name || ''} />

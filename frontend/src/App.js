@@ -25,6 +25,8 @@ import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import MobileBottomNav from '@/components/MobileBottomNav';
+import useIsMobile from '@/lib/useIsMobile';
 
 /* Warm the DiceBear avatar HTTP cache on app boot.  Runs once at
    module load — the 48 character-portrait PNGs (~11 KB each) are
@@ -120,36 +122,79 @@ function HomeRouter() {
     return isKidsActive() ? <KidsHome /> : <Home />;
 }
 
+/* Routes where the mobile bottom-nav should be hidden — full-bleed
+   experiences (player, profile gates, watch party). */
+const MOBILE_NAV_HIDDEN_PREFIXES = [
+    '/play',
+    '/profiles',
+    '/kids/exit-pin',
+    '/watch-together',
+    '/resolve/',
+];
+
+function MobilePlatformRoot({ children }) {
+    const isMobile = useIsMobile();
+    const location = useLocation();
+    /* Tag the document body so global CSS (in index.css) can branch
+       on platform without every component having to know. */
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+        document.body.setAttribute('data-platform', isMobile ? 'mobile' : 'tv');
+        document.documentElement.setAttribute(
+            'data-platform', isMobile ? 'mobile' : 'tv'
+        );
+        return () => {
+            document.body.removeAttribute('data-platform');
+            document.documentElement.removeAttribute('data-platform');
+        };
+    }, [isMobile]);
+
+    const showBottomNav = isMobile &&
+        !MOBILE_NAV_HIDDEN_PREFIXES.some((p) =>
+            p.endsWith('/')
+                ? location.pathname.startsWith(p)
+                : location.pathname === p || location.pathname.startsWith(p + '/'));
+
+    return (
+        <>
+            {children}
+            {showBottomNav && <MobileBottomNav />}
+        </>
+    );
+}
+
 function App() {
     return (
         <div className="App">
             <ErrorBoundary>
                 <ThemeProvider>
                     <Router>
-                        <DevModeBadge />
-                        <NewEpisodeToast />
-                        <AddToListModal />
-                        <ReminderWatcher />
-                        <Routes>
-                            <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
-                            <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
-                            <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
-                            <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
+                        <MobilePlatformRoot>
+                            <DevModeBadge />
+                            <NewEpisodeToast />
+                            <AddToListModal />
+                            <ReminderWatcher />
+                            <Routes>
+                                <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
+                                <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
+                                <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
+                                <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
 
-                            <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
-                            <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />
-                            <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
-                            <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
-                            <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
-                            <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
-                            <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
-                            <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
-                            <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />
-                            <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
-                            <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
-                            <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
-                            <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
-                        </Routes>
+                                <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
+                                <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />
+                                <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
+                                <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
+                                <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
+                                <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
+                                <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
+                                <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
+                                <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />
+                                <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
+                                <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
+                                <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
+                                <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
+                            </Routes>
+                        </MobilePlatformRoot>
                     </Router>
                 </ThemeProvider>
             </ErrorBoundary>

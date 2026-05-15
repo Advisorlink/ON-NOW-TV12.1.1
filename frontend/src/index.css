@@ -679,3 +679,89 @@ a[href*="app.emergent"],
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
 }
+
+
+/* ----------------------------------------------------------------
+   MOBILE MODE OVERRIDES
+   Enabled by <MobilePlatformRoot/> setting [data-platform="mobile"]
+   on <html> and <body>.  These rules:
+     • Hide the TV-only left side-rail
+     • Push page content right to the edge (no 100px sidebar inset)
+     • Add 72px of bottom padding for the <MobileBottomNav/>
+     • Shrink heroic 10-foot typography to phone-friendly sizes
+     • Disable hover states (cause sticky highlight on touch)
+   ---------------------------------------------------------------- */
+html[data-platform="mobile"],
+body[data-platform="mobile"] {
+    font-size: 14px;
+}
+
+/* Hide the desktop SideNav whenever mobile mode is active.  The
+   pages render the side-nav unconditionally on mount; we just
+   visually hide it (display:none) and reclaim its left inset. */
+body[data-platform="mobile"] [data-testid="side-nav"] {
+    display: none !important;
+}
+
+/* Pages use `inset: 0 0 0 100px` to leave room for the side-nav;
+   on mobile we want full-bleed content. */
+body[data-platform="mobile"] main {
+    left: 0 !important;
+}
+
+/* Reserve room for the bottom tab bar.  Apply via the body so
+   every page benefits without each one having to know. */
+body[data-platform="mobile"] {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+}
+
+/* TV-only chrome that doesn't make sense on mobile. */
+body[data-platform="mobile"] [data-testid="dpad-hint"] {
+    display: none !important;
+}
+
+/* Touch target hardening: every focusable button/anchor gets a
+   minimum hit area so fat-finger taps stay reliable. */
+body[data-platform="mobile"] [data-focusable="true"],
+body[data-platform="mobile"] button {
+    min-height: 40px;
+}
+
+/* Heroic display type ramps down on phones — TV headings are
+   built for 4K from 10 feet away, way too big on a 6-inch screen. */
+body[data-platform="mobile"] h1 {
+    font-size: clamp(22px, 6vw, 30px) !important;
+    line-height: 1.15 !important;
+}
+body[data-platform="mobile"] h2 {
+    font-size: clamp(17px, 4.6vw, 22px) !important;
+    line-height: 1.2 !important;
+}
+body[data-platform="mobile"] h3 {
+    font-size: clamp(15px, 4vw, 18px) !important;
+}
+body[data-platform="mobile"] h4 {
+    font-size: clamp(13px, 3.6vw, 16px) !important;
+}
+
+/* Tablet-aware override: tablets in landscape are wide enough to
+   approximate the TV layout, so we keep the side-nav for them. */
+@media (min-width: 1024px) {
+    body[data-platform="mobile"] [data-testid="side-nav"] {
+        display: flex !important;
+    }
+    body[data-platform="mobile"] main {
+        left: 100px !important;
+    }
+}
+
+/* Disable :hover effects in mobile mode — on touch they latch
+   "on" after a tap and look broken until the user taps elsewhere.
+   We bind these via the data-platform attribute so the TV experience
+   keeps its rich hover states. */
+@media (hover: none) {
+    body[data-platform="mobile"] *:hover {
+        transition: none !important;
+    }
+}
