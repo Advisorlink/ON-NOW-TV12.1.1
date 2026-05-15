@@ -283,21 +283,57 @@ export default function Detail() {
     // more aggressive: pick whatever streams are available so the
     // party doesn't desync on the picker.
     const autoplayFiredRef = React.useRef(false);
+
+    // ---------- PARTY AUTOPLAY (the bulletproof path) ----------
+    // The dedicated useEffect for parties.  Watches for:
+    //   • partyCode set (URL has ?party=CODE)
+    //   • autoplay=1 (the WatchTogether nav always passes this)
+    //   • streams have loaded (streamLoading is false)
+    // and ALWAYS plays the best available stream.  No 1080p check,
+    // no user-preference check, no fallback to "show picker".  In a
+    // party, we MUST start something — staying on the Detail page
+    // desyncs the room.  Runs in addition to the regular autoplay
+    // useEffect so the older path still works for non-party uses;
+    // the autoplayFiredRef guard prevents double-firing.
+    useEffect(() => {
+        if (autoplayFiredRef.current) return;
+        if (!partyCode) return;
+        if (!autoplayRequested) return;
+        if (type === 'series') return; // series still uses per-episode flow
+        if (streamLoading) return;
+        if (!streams || streams.length === 0) return;
+        // Pick the best stream: prefer 1080p direct → any 1080p →
+        // first direct → first torrent → first anything.
+        const pick =
+            streams.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+            streams.find((s) => is1080p(s)) ||
+            streams.find((s) => streamMode(s) === 'direct') ||
+            streams.find((s) => streamMode(s) === 'torrent') ||
+            streams[0];
+        if (!pick) return;
+        autoplayFiredRef.current = true;
+        // Defer one tick so React has time to commit the streams list
+        // before we navigate / launch the native player.
+        const t = setTimeout(() => playStream(pick), 30);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partyCode, autoplayRequested, streams, streamLoading, type]);
+
     useEffect(() => {
         if (autoplayFiredRef.current) return;
         if (!autoplayRequested) return;
         if (type === 'series') return; // series uses per-episode flow
         if (streamLoading) return;
-        // Party flow auto-plays even when user's Autoplay setting is off.
-        if (!partyCode && !getAutoplay1080p()) return;
-        // In party mode: use the broader fallback list.
-        const candidate = partyCode ? partyAutoplayCandidate : autoplayCandidate;
-        if (!candidate) return;
+        if (partyCode) return; // handled by the dedicated party useEffect above
+        // Non-party autoplay still requires the user's preference + a
+        // 1080p stream — that's by design.
+        if (!getAutoplay1080p()) return;
+        if (!autoplayCandidate) return;
         autoplayFiredRef.current = true;
-        const t = setTimeout(() => playStream(candidate), 0);
+        const t = setTimeout(() => playStream(autoplayCandidate), 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyAutoplayCandidate, partyCode]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);
@@ -476,6 +512,54 @@ export default function Detail() {
             style={isKidsActive() ? { background: 'var(--vesper-bg-0)' } : undefined}
         >
             <FullscreenButton />
+
+            {/* PARTY JOINING OVERLAY — shown while in a party and the
+                stream is still being picked.  Gives the user clear
+                feedback that the party autoplay is in flight (rather
+                than the picker / Play 1080p button confusing them). */}
+            {partyCode && !autoplayFiredRef.current && (
+                <div
+                    data-testid="party-joining-overlay"
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        background:
+                            'radial-gradient(ellipse 900px 500px at 50% 40%, rgba(93,200,255,0.18) 0%, transparent 60%),' +
+                            'rgba(6,8,15,0.92)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 16,
+                        color: '#E6EAF2',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 56, height: 56, borderRadius: '50%',
+                            border: '3px solid rgba(93,200,255,0.25)',
+                            borderTopColor: '#5DC8FF',
+                            animation: 'spin 1.1s linear infinite',
+                        }}
+                    />
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                        letterSpacing: '0.34em', color: '#5DC8FF',
+                    }}>
+                        JOINING WATCH PARTY
+                    </div>
+                    <div style={{ fontSize: 14, color: '#9DA5B5' }}>
+                        {streamLoading
+                            ? 'Resolving stream…'
+                            : (streams.length === 0
+                                ? 'No streams available — host needs to pick a different title.'
+                                : 'Starting playback in a moment…')}
+                    </div>
+                    <style>{`@keyframes spin { from {transform: rotate(0)} to {transform: rotate(360deg)} }`}</style>
+                </div>
+            )}
 
             {/* Backdrop */}
             <div
