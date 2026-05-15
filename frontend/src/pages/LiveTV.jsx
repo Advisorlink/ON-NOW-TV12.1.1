@@ -427,6 +427,19 @@ function Grid({ provider, onLogout }) {
             e.preventDefault();
             e.stopPropagation();
 
+            /* Enter / Space — perform the action OUTSIDE the state
+             * updater so it can't be called twice by React's
+             * strict-mode double-invocation of updater fns. */
+            if (key === 'Enter' || key === ' ') {
+                if (sel.col === 1 && focusedChannel) {
+                    playChannel(focusedChannel);
+                } else if (sel.col === 2) {
+                    const it = guideGroups[sel.guideIdx];
+                    if (it && !it._kind && !it.kind) onToggleReminder(it);
+                }
+                return;
+            }
+
             setSel((s) => {
                 if (key === 'ArrowLeft') {
                     if (s.col === 0) {
@@ -457,22 +470,13 @@ function Grid({ provider, onLogout }) {
                     if (s.col === 1) return { ...s, chanIdx: Math.min(channels.length - 1, s.chanIdx + 1) };
                     return { ...s, guideIdx: nextNavigableIdx(guideGroups, s.guideIdx) };
                 }
-                if (key === 'Enter' || key === ' ') {
-                    if (s.col === 1 && focusedChannel) {
-                        playChannel(focusedChannel);
-                    } else if (s.col === 2) {
-                        const it = guideGroups[s.guideIdx];
-                        if (it && !it._kind && !it.kind) onToggleReminder(it);
-                    }
-                    return s;
-                }
                 return s;
             });
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel]);
+    }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel]);
 
     useEffect(() => { setSel((s) => ({ ...s, chanIdx: 0, guideIdx: 0 })); }, [sel.catIdx]);
     useEffect(() => { setSel((s) => ({ ...s, guideIdx: 0 })); }, [sel.chanIdx, allChannels]);
@@ -510,7 +514,7 @@ function Grid({ provider, onLogout }) {
                 key={`${it._kind || 'row'}-${it.id || it.startTimestamp || i}`}
                 item={it}
                 focused={focused}
-                isReminded={it.startTimestamp ? reminderKeys.has(`${debouncedChannel?.stream_id}:${it.startTimestamp}`) : false}
+                isReminded={it.startTimestamp ? reminderKeys.has(`${Number(debouncedChannel?.stream_id) || debouncedChannel?.stream_id}:${Number(it.startTimestamp) || it.startTimestamp}`) : false}
             />
         ),
         [reminderKeys, debouncedChannel],

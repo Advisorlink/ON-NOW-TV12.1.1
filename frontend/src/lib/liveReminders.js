@@ -24,7 +24,9 @@ function load() {
 function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch { /* ignore */ }
 }
-function makeId(streamId, startTs) { return `${streamId}:${startTs}`; }
+function makeId(streamId, startTs) {
+    return `${Number(streamId) || streamId}:${Number(startTs) || startTs}`;
+}
 
 export function getReminders(providerId) {
     const c = load();
