@@ -167,7 +167,11 @@ class VlcPlayerActivity : AppCompatActivity() {
                     })
                 }
             }
-            partyHandler.postDelayed(this, 2_000L)
+            /* 1-second cadence (was 2 s).  Guests use these
+               broadcasts to detect drift; a faster heartbeat means
+               the perceived host-vs-guest delay is bounded by ~1 s
+               + RTT instead of ~2 s + RTT. */
+            partyHandler.postDelayed(this, 1_000L)
         }
     }
     private var partyBadge: TextView? = null
@@ -486,12 +490,30 @@ class VlcPlayerActivity : AppCompatActivity() {
         val status = msg.optString("status", "lobby")
         val positionMs = msg.optLong("position_ms", 0L)
         val atMs = msg.optLong("at_ms", 0L)
+        /* Network-latency compensation: the server stamps every
+           state broadcast with its current wallclock (`server_ms`).
+           For the host-heartbeat-driven `playing` state we treat
+           positionMs as the host's position at server_ms and
+           project forward by however long it took for the message
+           to reach us.  Without this we're permanently ~heartbeat
+           interval + RTT behind the host. */
+        val serverMs = msg.optLong("server_ms", 0L)
+        val nowMs = System.currentTimeMillis()
+        val targetMs = if (status == "playing" && serverMs > 0L) {
+            /* Clamp the projection to a reasonable upper bound
+               (5 s) so a temporarily-stalled host doesn't make us
+               leap forward into uncharted buffer territory. */
+            val deltaMs = (nowMs - serverMs).coerceIn(0L, 5_000L)
+            positionMs + deltaMs
+        } else {
+            positionMs
+        }
 
         if (partyRole == "guest") {
             when (status) {
                 "paused" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
-                        mediaPlayer.time = positionMs
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                        mediaPlayer.time = targetMs
                     }
                     if (mediaPlayer.isPlaying) {
                         partyArmed = false
@@ -499,8 +521,8 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                 }
                 "playing" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
-                        mediaPlayer.time = positionMs
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                        mediaPlayer.time = targetMs
                     }
                     if (!mediaPlayer.isPlaying) {
                         partyArmed = false
@@ -508,8 +530,8 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                 }
                 "countdown" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - positionMs) > 1500) {
-                        mediaPlayer.time = positionMs
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                        mediaPlayer.time = targetMs
                     }
                     val remaining = atMs - System.currentTimeMillis()
                     partyBadge?.text = "PARTY · ${partyCode} · STARTING"
@@ -521,6 +543,24 @@ class VlcPlayerActivity : AppCompatActivity() {
                     if (remaining <= 0) fire.run()
                     else partyHandler.postDelayed(fire, remaining)
                 }
+            }
+        } else if (partyRole == "host") {
+            /* Host previously had no countdown handler — once
+               stage-1 paused the libVLC instance it stayed paused
+               until the user manually tapped Play.  This branch
+               kicks the host's playback back on when the server
+               fires the countdown so the host's experience is
+               seamless. */
+            if (status == "countdown") {
+                val remaining = atMs - System.currentTimeMillis()
+                partyBadge?.text = "PARTY · ${partyCode} · STARTING"
+                val fire = Runnable {
+                    partyArmed = false
+                    try { mediaPlayer.play() } catch (_: Exception) {}
+                    partyBadge?.text = "PARTY · ${partyCode} · ${partyRole.uppercase()}"
+                }
+                if (remaining <= 0) fire.run()
+                else partyHandler.postDelayed(fire, remaining)
             }
         }
     }
@@ -666,7 +706,15 @@ class VlcPlayerActivity : AppCompatActivity() {
             "--no-drop-late-frames",
             "--no-skip-frames",
             "--rtsp-tcp",
-            "--network-caching=1500",
+            // 5-second network buffer.  Watch Together pauses the
+            // player during the stage-1 ready handshake; the 1.5 s
+            // default drained during the wait and caused the guest
+            // to re-buffer the instant the countdown fired.  5 s
+            // gives enough headroom for the typical 1-3 s ready-
+            // handshake without noticeably extending the initial
+            // load time (libVLC fires Playing on the first frame,
+            // not when the buffer is full).
+            "--network-caching=5000",
             "--http-reconnect",
             "--avcodec-hw=any",
             "-vvv"

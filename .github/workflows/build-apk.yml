@@ -227,6 +227,19 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.5.5 — Watch Together: zero buffer + ~1 s tighter sync**
+            - 🎬 Fixed the buffer-on-countdown issue.  libVLC's
+              network cache was 1.5 s, which drained during the
+              stage-1 ready handshake; the guest had to re-buffer
+              the moment the countdown fired.  Cache is now 5 s.
+            - ⚡ Tightened the host→guest heartbeat from 2 s to 1 s
+              AND added wallclock-projection on the guest side
+              (positionMs + (now - serverMs)).  Perceived host-vs-
+              guest delay drops from ~2 s to ~300-500 ms.
+            - 🐛 Fixed: the host's player stayed silently paused
+              after the countdown if the user tapped "Start the
+              Party" — host now auto-resumes alongside the guests.
+
             **v2.5.4 — Crash diagnostics + Samsung Auto Blocker note**
             - 🩺 NEW: Built-in crash logger.  If the app fails to
               launch, the next launch shows a black screen with the
