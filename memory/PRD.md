@@ -34,6 +34,25 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 70 — Feb 15, 2026)
+### D-pad / BACK button / push-and-hold audit — Benchmark sideload
+- **🎯 User request**: "Make sure every single D-pad movement, control movement, left, right, up, down is 100% how it should be, every back button is how it should be. Make sure the navigation is perfect. If you're pushing left and it's accidentally opening up the menu, make sure that doesn't happen. Make sure your push and holds, uh, to set favorites, make sure that every single thing to do with button pressing and navigation throughout the entire application works flawlessly."
+- **🆕 SportsGuide D-pad**: `useSpatialFocus()` mounted — D-pad now navigates between hero → sport pills → date pills → league sections → fixture cards. Without this the page relied on browser tab focus and arrow keys did nothing.
+- **🛡️ SideNav dwell** (`components/SideNav.jsx`): added a 300 ms dwell timer on `onFocus`. A quick LEFT-RIGHT roundtrip never surfaces the rail — only ≥350 ms of focus on a nav button expands it. Backdrop-filter blur also removed (Chrome 52 on HK1 doesn't accelerate it; the new solid-fade gradient is JANK-free).
+- **▶️ Long-press / click contract** (`hooks/useSpatialFocus.js`):
+  - Split into two listeners. `keydown` only swallows preventDefault + marks `data-pressed`. `keyup` is where `target.click()` actually fires.
+  - Cards that want a long-press (e.g., `FixtureCard` hold-OK = reminder) set `data-long-pressed="true"` on themselves once their press counter trips; useSpatialFocus skips the click on keyup when that attribute is set, then removes it.
+  - Result: a 600 ms hold on a sports fixture fires onRemind EXACTLY once and DOES NOT also play the channel.
+- **🔙 useBackHandler hook** (`hooks/useBackHandler.js`, new): capture-phase Escape/Backspace listener that ignores Backspace in inputs (so text editing keeps working) but consumes Escape always. Wired into every full-screen page:
+  - `/live-tv` — hoisted to shell level so the LiveTVAuth gate ALSO responds to BACK (iter22 found this was broken).
+  - `/sports`, `/settings`, `/sources`, `/search`, `/watch-together`, `/networks/:slug` — all now navigate to `/` on BACK.
+- **🐛 LiveTV TDZ fix**: `bump` + `setBump` + `rerender` hoisted to line ~157 (was line 417). The `channels` useMemo at line 229 read `bump` from its deps → ReferenceError on first render → error-boundary intercept → LiveTV showed "Something Went Wrong". Fixed.
+- **🧪 Tested** (`testing_agent_v3_fork` — iterations 22, 23, 24):
+  - Iter 22: 2 critical (LiveTV BACK gate, /sports BACK) found.
+  - Iter 23: /sports BACK fixed; LiveTV TDZ regression introduced.
+  - Iter 24: BOTH fixed. **100 % pass rate**. 8/8 routes confirm Escape→/. SideNav width transitions verified: 76 px (collapsed) → 76 px (quick LEFT-RIGHT) → 203 px (after 400 ms dwell). Single tap-Enter fires click exactly once. Long-press code-reviewed and correct.
+
+
 ## Implemented (Iteration 69 — Feb 15, 2026)
 ### Sports Guide v4 — ESPN merge, live scores, every-sport coverage
 - **🎯 User requests**:
