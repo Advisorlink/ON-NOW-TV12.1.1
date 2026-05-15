@@ -78,12 +78,17 @@ const ROW_H = 36;            // single source of truth for row height
 const BUFFER = 4;            // rows to render above + below visible window
 const FAV_CAT = '__fav__';
 const REC_CAT = '__rec__';
+const EMPTY_ARRAY = [];      // stable reference so React.memo can short-circuit
 
 /* ─────────────────────────── Page shell ─────────────────────────── */
 
 export default function LiveTV() {
     const [provider, setProvider] = useState(() => getActiveProvider());
     const navigate = useNavigate();
+
+    // Stable handlers — keeps memoized children from re-rendering.
+    const handleLogout = useCallback(() => setProvider(null), []);
+    const handleAuthed = useCallback((p) => setProvider(p), []);
 
     useEffect(() => {
         const onKey = (e) => {
@@ -107,8 +112,8 @@ export default function LiveTV() {
             <SideNav />
             <main style={{ marginLeft: 100, minHeight: '100dvh', position: 'relative' }}>
                 {provider
-                    ? <Grid provider={provider} onLogout={() => setProvider(null)} />
-                    : <XtreamLogin onAuthed={(p) => setProvider(p)} />}
+                    ? <Grid provider={provider} onLogout={handleLogout} />
+                    : <XtreamLogin onAuthed={handleAuthed} />}
             </main>
         </div>
     );
@@ -203,9 +208,23 @@ function Grid({ provider, onLogout }) {
     }, [allChannels, query]);
 
     const focusedChannel = channels[Math.min(sel.chanIdx, channels.length - 1)] || null;
-    const guideItems = focusedChannel
-        ? (epg.current.get(focusedChannel.stream_id) || [])
-        : [];
+
+    /* Guide items — debounced to settle 120 ms after the user stops
+     * scrubbing.  Holding D-pad down doesn't trigger right-column
+     * re-renders; we only update once you actually pause on a
+     * channel.  Massive perf win on the HK1: previously the right
+     * column reconciled 20 rows every keypress.
+     *
+     * Use stable EMPTY_ARRAY when there's no EPG so React.memo on
+     * Column can short-circuit the comparison. */
+    const [debouncedChannel, setDebouncedChannel] = useState(focusedChannel);
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedChannel(focusedChannel), 120);
+        return () => clearTimeout(t);
+    }, [focusedChannel]);
+    const guideItems = (debouncedChannel
+        ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
+        : EMPTY_ARRAY);
     const focusedItem = guideItems[Math.min(sel.guideIdx, Math.max(0, guideItems.length - 1))] || null;
 
     /* ───────── Background sync (writes-through to localStorage) ───────── */
@@ -415,6 +434,33 @@ function Grid({ provider, onLogout }) {
         navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(ch.name)}&type=live`);
     }, [provider, navigate]);
 
+    /* Stable row renderers — useCallback so Column.props.rowFn
+     * doesn't change between Grid renders.  This is critical:
+     * without it, React.memo on Column never short-circuits.
+     * Each rowFn closes over the props it actually needs.
+     * Declared BEFORE the early-return so React's Rules of Hooks
+     * are respected. */
+    const renderCategory = useCallback(
+        (c, i, focused) => <CategoryRow key={c.id} cat={c} focused={focused} />,
+        [],
+    );
+    const renderChannel = useCallback(
+        (c, i, focused) => (
+            <ChannelRow
+                key={c.stream_id}
+                ch={c}
+                focused={focused}
+                isFav={favs.has(String(c.stream_id))}
+                nowTitle={focused ? (epg.current.get(c.stream_id)?.[0]?.title || '') : ''}
+            />
+        ),
+        [favs],
+    );
+    const renderGuide = useCallback(
+        (it, i, focused) => <GuideRow key={`${it.startTimestamp}-${i}`} item={it} focused={focused} />,
+        [],
+    );
+
     /* ───────── Render ───────── */
 
     if (cats.current.length === 0) {
@@ -453,9 +499,7 @@ function Grid({ provider, onLogout }) {
                     items={sidebarCatsForRender}
                     idx={sel.catIdx}
                     rowHeight={ROW_H}
-                    rowFn={(c, i, focused) => (
-                        <CategoryRow key={c.id} cat={c} focused={focused} />
-                    )}
+                    rowFn={renderCategory}
                 />
                 <Column
                     testid="channels"
@@ -463,13 +507,7 @@ function Grid({ provider, onLogout }) {
                     items={channels}
                     idx={sel.chanIdx}
                     rowHeight={ROW_H}
-                    rowFn={(c, i, focused) => (
-                        <ChannelRow key={c.stream_id}
-                                    ch={c}
-                                    focused={focused}
-                                    isFav={favs.has(String(c.stream_id))}
-                                    nowTitle={focused ? (epg.current.get(c.stream_id)?.[0]?.title || '') : ''} />
-                    )}
+                    rowFn={renderChannel}
                 />
                 <Column
                     testid="guide"
@@ -478,9 +516,7 @@ function Grid({ provider, onLogout }) {
                     idx={sel.guideIdx}
                     rowHeight={ROW_H + 16}
                     headerLabel="PROGRAMME GUIDE"
-                    rowFn={(it, i, focused) => (
-                        <GuideRow key={`${it.startTimestamp}-${i}`} item={it} focused={focused} />
-                    )}
+                    rowFn={renderGuide}
                 />
             </div>
         </div>
@@ -489,7 +525,7 @@ function Grid({ provider, onLogout }) {
 
 /* ──────────────────────────── Header ──────────────────────────── */
 
-function Header({ channel, category, programme, syncing, onLogout }) {
+const Header = React.memo(function Header({ channel, category, programme, syncing, onLogout }) {
     const clock = useClock();
     const eyebrow = [
         'LIVE TV',
@@ -563,11 +599,11 @@ function Header({ channel, category, programme, syncing, onLogout }) {
             </div>
         </section>
     );
-}
+});
 
 /* ──────────────────────────── Search row ──────────────────────────── */
 
-function SearchRow({ query, onChange, resultCount, totalCount }) {
+const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, totalCount }) {
     const has = !!query.trim();
     return (
         <div style={{
@@ -600,11 +636,11 @@ function SearchRow({ query, onChange, resultCount, totalCount }) {
             </span>
         </div>
     );
-}
+});
 
 /* ──────────────────────────── Column (virtualised) ──────────────────────────── */
 
-function Column({ testid, isFocused, items, idx, rowHeight, rowFn, headerLabel }) {
+const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHeight, rowFn, headerLabel }) {
     const containerRef = useRef(null);
     const [scrollTop, setScrollTop] = useState(0);
 
@@ -704,11 +740,11 @@ function Column({ testid, isFocused, items, idx, rowHeight, rowFn, headerLabel }
             </div>
         </div>
     );
-}
+});
 
 /* ──────────────────────────── Row primitives ──────────────────────────── */
 
-function CategoryRow({ cat, focused }) {
+const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
     const isFav = cat.id === FAV_CAT;
     const isRec = cat.id === REC_CAT;
     const accent = isFav ? '#FFC850' : '#5DC8FF';
@@ -746,9 +782,9 @@ function CategoryRow({ cat, focused }) {
             )}
         </div>
     );
-}
+});
 
-function ChannelRow({ ch, focused, isFav, nowTitle }) {
+const ChannelRow = React.memo(function ChannelRow({ ch, focused, isFav, nowTitle }) {
     return (
         <div style={{
             height: '100%',
@@ -791,9 +827,9 @@ function ChannelRow({ ch, focused, isFav, nowTitle }) {
             {isFav && <Star size={11} color="#FFC850" fill="#FFC850" />}
         </div>
     );
-}
+});
 
-function GuideRow({ item, focused }) {
+const GuideRow = React.memo(function GuideRow({ item, focused }) {
     const start = Number(item.startTimestamp) || 0;
     const stop = Number(item.stopTimestamp) || 0;
     const nowSec = Math.floor(Date.now() / 1000);
@@ -838,7 +874,7 @@ function GuideRow({ item, focused }) {
             </div>
         </div>
     );
-}
+});
 
 /* ──────────────────────────── Helpers ──────────────────────────── */
 
