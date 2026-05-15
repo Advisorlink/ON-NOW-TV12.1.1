@@ -59,11 +59,19 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="landscape"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Vesper.Fullscreen">
+            android:theme="@style/Theme.Vesper.Fullscreen"
+            android:resizeableActivity="true">
+            <!-- NOTE: screenOrientation is intentionally NOT pinned to
+                 "landscape" here.  Phones in portrait rotation-lock
+                 (very common on Samsung / Xiaomi / OnePlus) crashed
+                 on launch with `IllegalStateException: Only fullscreen
+                 opaque activities can request orientation` when the
+                 manifest forced landscape + translucent system bars.
+                 MainActivity.kt now sets orientation programmatically
+                 based on whether the device is a TV. -->
 
             <!-- Phone / generic-Android launcher entry.  Kept in its
                  OWN filter (separate from LEANBACK) because some old

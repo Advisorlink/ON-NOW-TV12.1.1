@@ -2,6 +2,8 @@ package tv.vesper.app
 
 import android.annotation.SuppressLint
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -26,6 +28,10 @@ import androidx.webkit.WebViewFeature
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    /** Set to true the moment WebView creation succeeds — prevents
+     *  lifecycle methods from crashing if WebView init failed
+     *  (e.g. a phone without Android System WebView installed). */
+    private var webViewReady: Boolean = false
     private var pendingVoiceCallbackId: String? = null
 
     /** Launches the system speech recognizer and routes the result
@@ -86,6 +92,7 @@ class MainActivity : AppCompatActivity() {
         text: String?,
         error: String?
     ) {
+        if (!webViewReady) return
         val esc = { s: String? -> (s ?: "").replace("\\", "\\\\").replace("'", "\\'") }
         val js = "window.__voiceSearchResult && window.__voiceSearchResult(" +
             "'${esc(callbackId)}', '${esc(text)}', '${esc(error)}')"
@@ -99,8 +106,30 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Lock landscape early so the WebView lays out correctly first time.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // Detect Android TV vs phone via the LEANBACK system feature.
+        // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
+        // AOSP boxes that don't always declare leanback but DO ship
+        // the TV UI mode.
+        val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY) ||
+            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+                Configuration.UI_MODE_TYPE_TELEVISION
+
+        // Only lock orientation on TV.  On phones we let the OS pick
+        // — forcing landscape on a phone with portrait rotation-lock
+        // throws `IllegalStateException: Only fullscreen opaque
+        // activities can request orientation` (combined with the
+        // translucent system bars in Theme.Vesper.Fullscreen).
+        // The React UI auto-adapts via useIsMobile() / data-platform
+        // so phone users get the bottom-nav mobile UI in portrait.
+        if (isTv) {
+            try {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            } catch (_: IllegalStateException) {
+                /* swallow — manifest already provides a fallback */
+            }
+        }
 
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
@@ -108,7 +137,31 @@ class MainActivity : AppCompatActivity() {
         )
         applyImmersiveMode()
 
-        webView = WebView(this).apply {
+        webView = try {
+            WebView(this)
+        } catch (e: Throwable) {
+            // Some phones (especially Huawei without GMS, certain
+            // custom ROMs) can throw `MissingWebViewPackageException`
+            // or `RuntimeException` here if the system WebView
+            // provider is disabled / corrupted.  Show a friendly
+            // error screen instead of crashing the process — gives
+            // the user something actionable rather than an instant
+            // close.
+            val msg = "WebView not available on this device.\n\n" +
+                "Please install or enable Android System WebView " +
+                "from the Play Store, then re-launch ON NOW TV.\n\n" +
+                "Details: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
+            val tv = android.widget.TextView(this).apply {
+                text = msg
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
+                setPadding(48, 48, 48, 48)
+                textSize = 16f
+            }
+            setContentView(tv)
+            return
+        }
+        webView.apply {
             layoutParams = android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -203,18 +256,19 @@ class MainActivity : AppCompatActivity() {
         val bootUrl = devUrl ?: "file:///android_asset/web/index.html"
 
         setContentView(webView)
+        webViewReady = true
         webView.loadUrl(bootUrl)
     }
 
     override fun onResume() {
         super.onResume()
         applyImmersiveMode()
-        webView.onResume()
+        if (webViewReady) webView.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        webView.onPause()
+        if (webViewReady) webView.onPause()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -257,6 +311,10 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (!webViewReady) {
+                finish()
+                return true
+            }
             webView.evaluateJavascript("(window.__vesperOnHome||'')") { raw ->
                 val flag = raw?.trim('"') ?: ""
                 runOnUiThread {
@@ -325,8 +383,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        webView.stopLoading()
-        webView.destroy()
+        if (webViewReady) {
+            webView.stopLoading()
+            webView.destroy()
+        }
         super.onDestroy()
     }
 }
