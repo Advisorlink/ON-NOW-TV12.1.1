@@ -1,0 +1,48 @@
+{
+  "summary": "Iter 23 — re-test of BACK-button fixes from iter22. PASS: Escape on /sports navigates to '/' (NEW useBackHandler works). PASS: Backspace on /sports navigates to '/'. PASS: Escape on /settings, /sources, /search, /watch-together all navigate to '/'. PASS: Backspace inside an INPUT does NOT navigate (would delete char per spec). NEW CRITICAL BLOCKER: /live-tv route now crashes with a JS error 'Cannot access \\'bump\\' before initialization' — the error boundary catches it and shows the 'ON NOW TV2 hit a snag' page. This is a Temporal Dead Zone bug in LiveTV.jsx: the `channels` useMemo at lines 181-219 reads `bump` in its dependency array, but `const [bump, setBump] = useState(0)` is not declared until line 407. Because the error boundary intercepts before useBackHandler ever runs on a fresh /live-tv visit, Escape never fires → both LiveTVAuth gate test AND the main Grid test fail with the SAME root cause (page never renders). MINOR: /network/:id (NetworkRail/Network.jsx) does NOT respond to Escape — the review_request says 'all /network/* navigate to / on Escape', but useBackHandler appears not to be wired into the Network detail page route.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "LiveTV — TDZ on `bump`",
+        "issue": "CRITICAL — /live-tv crashes at render with 'Cannot access bump before initialization'. The `channels` useMemo (LiveTV.jsx line ~181-219) lists `bump` in its dependency array, but `bump` is declared later at line 407 via `const [bump, setBump] = useState(0)`. JavaScript's let/const TDZ throws synchronously, the React error boundary renders the 'ON NOW TV2 hit a snag' page, and useBackHandler's effect never mounts — so Escape on /live-tv (auth gate OR Grid) does nothing. This regression was introduced when the search/EPG match feature was added.",
+        "selector": "/app/frontend/src/pages/LiveTV.jsx line ~219 (channels useMemo deps) + line ~407 (bump declaration)",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Network detail back-button",
+        "issue": "Escape on /network/netflix did not navigate to '/'. review_request says all /network/* routes should respond — likely Network.jsx (or whichever route handles /network/:id) is missing the useBackHandler('/') call.",
+        "selector": "/app/frontend/src/pages/Network.jsx (or NetworkRail / NetworkDetail component)",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "BACK on /live-tv (both gate and Grid)",
+        "issue": "Cannot be verified because the page crashes before mount due to the `bump` TDZ. Once that's fixed, the shell-level useBackHandler('/') should work — the hook itself was independently verified on /sports and the other pages.",
+        "affected_selectors": ["error-boundary 'ON NOW TV2 hit a snag'"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: Fix LiveTV.jsx TDZ — move `const [bump, setBump] = useState(0)` and `const rerender = useCallback(...)` ABOVE the `channels` useMemo (currently at line 407 → move to before line 181). Or simply remove `bump` from the deps array and use the `// eslint-disable-next-line react-hooks/exhaustive-deps` already present.",
+    "HIGH: Add `useBackHandler('/')` to the /network/:id route component (Network.jsx) so the Network detail page returns to Home on BACK, matching the other pages.",
+    "Re-verify /live-tv BACK key (both auth-gate AND Grid) once the TDZ fix lands. The hook itself is correct; this is purely a render-order regression."
+  ],
+  "critical_code_review_comments": [
+    "LiveTV.jsx: TDZ on `bump` — `channels` useMemo at line 219 depends on a variable declared at line 407. This must be flagged by a lint rule (react-hooks/exhaustive-deps would normally catch it, but the eslint-disable comment masks it). Recommend ALSO running ESLint's no-use-before-define for let/const.",
+    "useBackHandler.js: clean implementation; capture phase + INPUT/TEXTAREA guard on Backspace is correct. Consider also guarding `contenteditable` elements.",
+    "All other pages (Settings, Sources, Search, WatchTogether, SportsGuide) wired correctly — the new hook works as designed.",
+    "Network.jsx evidently missed the rollout."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "60% (5/7 routes pass Escape→Home; /live-tv crashes; /network/:id has no handler)" },
+  "test_credentials": "None. Tester profile via localStorage as in iter22.",
+  "seed_data_creation": "Tester profile written to onnowtv-profiles-v1 + onnowtv-active-profile-v1 BEFORE navigating to /live-tv etc.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The TDZ in LiveTV.jsx is the single biggest blocker — fix that first and the /live-tv Escape test will pass (the useBackHandler is already wired correctly at the shell level above the auth gate, that part of iter22's fix is correct). The error boundary will show 'ON NOW TV2 hit a snag' with the exact error 'Cannot access bump before initialization' — open browser devtools or the error-boundary text to confirm. After the fix, retest /live-tv (gate) and /live-tv (with provider) and /network/* routes.",
+  "rca of the issue": "Root cause: LiveTV.jsx declares the `channels` useMemo (line ~181) BEFORE the `bump` useState (line ~407), but references `bump` in the useMemo's dependency array. JS const/let are subject to Temporal Dead Zone — accessing them before declaration throws a ReferenceError at runtime. React renders top-to-bottom inside the function body, so this hits on the very first render of <Grid/>, the error boundary unmounts <LiveTV/>, and the BACK-key handler attached by useBackHandler in the shell never registers (because the shell crashed). Reproduction: visit /live-tv → see 'ON NOW TV2 hit a snag' error page with message 'Cannot access bump before initialization'. Fix: hoist `const [bump, setBump] = useState(0);` and `const rerender = useCallback(...);` above the `allChannels` and `channels` useMemos."
+}

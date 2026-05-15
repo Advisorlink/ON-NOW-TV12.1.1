@@ -117,9 +117,11 @@ export default function SideNav() {
             style={{
                 width: isExpanded ? '240px' : '76px',
                 background: isExpanded
-                    ? 'linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.82) 60%, rgba(10,14,26,0) 100%)'
+                    // Solid layered fade instead of backdrop-filter blur —
+                    // Chrome 52 on HK1 doesn't accelerate `backdrop-filter`
+                    // and it causes visible compositor jank on D-pad scroll.
+                    ? 'linear-gradient(90deg, rgba(8,11,20,0.98) 0%, rgba(8,11,20,0.95) 60%, rgba(8,11,20,0.0) 100%)'
                     : 'transparent',
-                backdropFilter: isExpanded ? 'blur(14px)' : 'none',
             }}
         >
             {/* Brand mark — single "ON NOW TV2" wordmark where the

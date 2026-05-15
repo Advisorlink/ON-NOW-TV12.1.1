@@ -38,6 +38,7 @@ import {
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
+import useBackHandler from '@/hooks/useBackHandler';
 import { getActiveProvider, getStreamUrl } from '@/lib/xtream';
 import { matchFixture } from '@/lib/sportsMatch';
 import { getReminders, toggleReminder } from '@/lib/liveReminders';
@@ -122,6 +123,9 @@ export default function SportsGuide() {
     // Mark this page so the Kotlin Back-key handler treats Back as
     // "navigate to /" (web history pop), not an exit prompt.
     useHomeBackHandler('');
+    // Remote BACK key (Escape / Backspace from the Kotlin wrapper) →
+    // back to Home.  Without this, BACK gets ignored on /sports.
+    useBackHandler('/');
 
     const [data, setData] = useState(null);
     const [liveScores, setLiveScores] = useState({});   // id → score patch

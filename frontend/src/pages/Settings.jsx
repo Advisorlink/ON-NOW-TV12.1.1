@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
@@ -17,6 +18,8 @@ import {
  */
 export default function Settings() {
     useSpatialFocus();
+    // BACK from remote → return to Home.
+    useBackHandler('/');
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());

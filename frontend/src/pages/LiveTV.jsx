@@ -59,6 +59,7 @@ import {
     mergeAndSaveEpg,
 } from '@/lib/liveCache';
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
+import useBackHandler from '@/hooks/useBackHandler';
 import ConfirmModal from '@/components/ConfirmModal';
 import Host from '@/lib/host';
 
@@ -75,21 +76,13 @@ const EMPTY_ARRAY = [];
 
 export default function LiveTV() {
     const [provider, setProvider] = useState(() => getActiveProvider());
-    const navigate = useNavigate();
     const handleLogout = useCallback(() => setProvider(null), []);
     const handleAuthed = useCallback((p) => setProvider(p), []);
 
-    useEffect(() => {
-        const onKey = (e) => {
-            if ((e.key === 'Escape' || e.key === 'Backspace') &&
-                !['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) {
-                e.preventDefault();
-                navigate('/');
-            }
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [navigate]);
+    // Remote BACK key → Home.  Mounted at the SHELL level (not inside
+    // the auth-gated <Grid/> block) so the user can also press BACK
+    // on the LiveTVAuth screen to bail out.
+    useBackHandler('/');
 
     return (
         <div style={{

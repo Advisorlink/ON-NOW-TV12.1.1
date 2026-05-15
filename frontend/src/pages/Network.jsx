@@ -5,6 +5,7 @@ import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
 import NetworkPosterTile from '@/components/NetworkPosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useBackHandler from '@/hooks/useBackHandler';
 import { findNetwork } from '@/lib/networks';
 import { API } from '@/lib/api';
 
@@ -19,6 +20,7 @@ const SUBTAB_KEY = 'vesper-network-subtab';
 
 export default function Network() {
     useSpatialFocus();
+    useBackHandler('/');
     const { slug } = useParams();
     const navigate = useNavigate();
     const network = findNetwork(slug);

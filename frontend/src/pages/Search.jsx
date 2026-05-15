@@ -6,6 +6,7 @@ import FullscreenButton from '@/components/FullscreenButton';
 import PosterTile from '@/components/PosterTile';
 import TVKeyboard from '@/components/TVKeyboard';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useBackHandler from '@/hooks/useBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
@@ -24,6 +25,7 @@ import Host from '@/lib/host';
  */
 export default function Search() {
     useSpatialFocus();
+    useBackHandler('/');
     const kids = isKidsActive();
     const { addons } = useAddons();
     const [q, setQ] = useState('');

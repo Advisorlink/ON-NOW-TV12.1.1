@@ -4,11 +4,13 @@ import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
 import OnScreenKeyboard from '@/components/OnScreenKeyboard';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useBackHandler from '@/hooks/useBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { Vesper } from '@/lib/api';
 
 export default function Sources() {
     useSpatialFocus();
+    useBackHandler('/');
     const { addons, loading, install, remove, refresh } = useAddons();
     const [suggested, setSuggested] = useState([]);
     const [showOSK, setShowOSK] = useState(false);
