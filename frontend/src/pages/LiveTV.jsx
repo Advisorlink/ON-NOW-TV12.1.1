@@ -29,7 +29,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Calendar, Bell, Play, RefreshCw, LogOut, Search } from 'lucide-react';
+import { Star, Calendar, Bell, RefreshCw, LogOut, Search } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import XtreamLogin from '@/components/XtreamLogin';
 import {
@@ -533,7 +533,6 @@ function Grid({ provider, onLogout }) {
                 next={focusedNext}
                 isFav={focusedChannel ? favs.has(String(focusedChannel.stream_id)) : false}
                 syncing={syncing}
-                onPlay={() => focusedChannel && playChannel(focusedChannel)}
                 onToggleFav={onToggleFav}
                 onRefresh={onRefresh}
                 onLogout={onLogout}
@@ -601,7 +600,7 @@ function Grid({ provider, onLogout }) {
 
 const Hero = React.memo(function Hero({
     channel, now, next, isFav, syncing,
-    onPlay, onToggleFav, onRefresh, onLogout,
+    onToggleFav, onRefresh, onLogout,
 }) {
     const tmdb = useProgrammeBackdrop(now?.title || '', channel?.name || '');
     const backdropUrl = tmdb?.backdrop
@@ -615,8 +614,8 @@ const Hero = React.memo(function Hero({
     return (
         <section style={{
             position: 'relative',
-            minHeight: 360,
-            padding: '32px 32px 16px 32px',
+            minHeight: 240,
+            padding: '24px 32px 14px 32px',
             overflow: 'hidden',
             flexShrink: 0,
         }}>
@@ -755,26 +754,6 @@ const Hero = React.memo(function Hero({
                         LOADING PROGRAMME GUIDE…
                     </div>
                 ) : null}
-
-                <button
-                    onClick={onPlay}
-                    disabled={!channel}
-                    style={{
-                        marginTop: 24,
-                        display: 'inline-flex', alignItems: 'center', gap: 10,
-                        height: 48, padding: '0 26px',
-                        borderRadius: 999,
-                        border: 'none',
-                        background: '#fff',
-                        color: '#0A0F1A',
-                        fontWeight: 700, fontSize: 14,
-                        cursor: channel ? 'pointer' : 'not-allowed',
-                        opacity: channel ? 1 : 0.5,
-                    }}
-                >
-                    <Play size={15} fill="#0A0F1A" />
-                    Watch full-screen
-                </button>
             </div>
         </section>
     );

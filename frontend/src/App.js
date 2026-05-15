@@ -19,6 +19,7 @@ import LiveTV from '@/pages/LiveTV';
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
+import ReminderWatcher from '@/components/ReminderWatcher';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
@@ -127,6 +128,7 @@ function App() {
                         <DevModeBadge />
                         <NewEpisodeToast />
                         <AddToListModal />
+                        <ReminderWatcher />
                         <Routes>
                             <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                             <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
