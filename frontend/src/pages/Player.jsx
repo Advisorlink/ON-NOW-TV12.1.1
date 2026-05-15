@@ -14,6 +14,8 @@ import {
     ExternalLink,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import usePartyReactions from '@/hooks/usePartyReactions';
+import PartyReactions from '@/components/PartyReactions';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -455,6 +457,27 @@ export default function Player() {
     const [partyStatus, setPartyStatus] = useState('connecting');
     const [partyCountdown, setPartyCountdown] = useState(0);
 
+    // Floating emoji reactions during party playback.  Reactions are
+    // added by spawnReaction() (called from WS onmessage OR locally by
+    // usePartyReactions) and auto-removed after the float animation
+    // completes (2.6 s).
+    const [partyReactions, setPartyReactions] = useState([]);
+    const spawnReaction = React.useCallback((emoji, memberName) => {
+        const bubble = PartyReactions.nextBubble(emoji, memberName);
+        setPartyReactions((prev) => [...prev, bubble]);
+        setTimeout(() => {
+            setPartyReactions((prev) => prev.filter((b) => b.id !== bubble.id));
+        }, 2700);
+    }, []);
+
+    // Hook up the D-pad-hold-2-seconds reaction sender.  Only active
+    // when we're in a party (partyCode set).
+    usePartyReactions({
+        enabled: !!partyCode,
+        wsRef: partyWsRef,
+        onLocalFire: (emoji) => spawnReaction(emoji, 'YOU'),
+    });
+
     useEffect(() => {
         if (!partyCode) return;
         // Pull role + member id captured by the WatchTogether lobby.
@@ -504,6 +527,17 @@ export default function Player() {
                 partyMemberIdRef.current = msg.member_id;
                 try { sessionStorage.setItem('vesper-party-member-id', msg.member_id); }
                 catch { /* ignore */ }
+                return;
+            }
+            // Incoming emoji reaction from ANY party member.  We render
+            // it as a floating bubble; the sender's own reaction is
+            // already echoed locally via usePartyReactions' onLocalFire
+            // so we de-dup here by ignoring `reaction` whose member.id
+            // matches our own.
+            if (msg.type === 'reaction' && msg.emoji) {
+                const myId = partyMemberIdRef.current;
+                if (msg.member && msg.member.id === myId) return;
+                spawnReaction(msg.emoji, msg.member?.name || '');
                 return;
             }
             if (msg.type !== 'state') return;
@@ -690,6 +724,11 @@ export default function Player() {
                 crossOrigin="anonymous"
                 className="absolute inset-0 w-full h-full object-contain"
             />
+
+            {/* Watch-party floating emoji reactions overlay.  Sits
+                above the video but below the top bar so the BACK
+                button remains pressable.  pointer-events: none. */}
+            {partyCode && <PartyReactions reactions={partyReactions} />}
 
             {/* Top bar */}
             <div

@@ -1,0 +1,36 @@
+{
+  "summary": "Iter 26 — Watch-Together emoji reaction feature (UP=❤️, DOWN=😱, LEFT=😂, RIGHT=😭, 2s D-pad hold). BACKEND: 16/16 pytest tests PASS (13 regression from iter 25 + 3 new reaction tests). New tests verify (A) reaction broadcast to BOTH host and guest with correct {emoji, member:{id,name,avatar}, ts} payload, (B) whitelist enforcement — sending '🎉' (U+1F389) is silently dropped while a follow-up allowed 😆 (U+1F606) goes through, (C) 800ms per-member rate-limit — two reactions back-to-back from the same member produce only ONE broadcast (first wins) and the next reaction AFTER cooldown (sleep 0.9s) is broadcast normally. The whitelist in /app/backend/watch_party.py:345 is exactly {❤️,😭,😆,😱} and matches the brief. FRONTEND smoke: /watch-together renders (Host/Join cards visible), /sports renders cleanly (20.8K body chars, DPadHint already verified in iter25), /live-tv renders cleanly (5.7K body chars, no TDZ regression — the fix from iter24 is holding). Skipped the 2-second-hold gesture test per request — confirmed PartyReactions.jsx (3919 bytes) and usePartyReactions.js (5162 bytes) exist and are wired into Player.jsx (lines 17,18,461-540,731): WS onmessage handler dispatches type:'reaction' to spawnReaction(), local echo via onLocalFire so the firing user sees their own bubble immediately, and <PartyReactions/> is conditionally rendered when partyCode is set so the overlay only mounts during a party.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/test_reports/pytest/iter26_watch_party.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "watch_party.py:345 — whitelist literal `{'\\u2764\\ufe0f', '\\U0001F62D', '\\U0001F606', '\\U0001F631'}` matches the spec exactly (heart, loud-cry, satisfied/joy, fearful). Note: 😱 is U+1F631 (face screaming in fear) — confirmed the DOWN-arrow mapping uses 😱 per the request which is U+1F631. Brief said 'DOWN=😱' so this is correct.",
+    "watch_party.py:349-352 — rate-limit uses `time.time()` (float seconds) and compares `now - last < 0.8`. Correct and per-member (lives on Member.last_reaction_at). No global throttle, so two DIFFERENT members can both fire within 800ms of each other — desirable behaviour.",
+    "watch_party.py:339-365 — the reaction handler is ABOVE the `member.is_host` check (uses just `member`), so guests can also send reactions. Matches the spec ('any party member can send').",
+    "watch_party.py:346-348 — `if emoji not in allowed: continue` silently drops disallowed emojis without any error broadcast — frontend has no way to detect the drop, but per spec this is intentional ('silently dropped').",
+    "Player.jsx:540 — `spawnReaction(msg.emoji, msg.member?.name || '')` — when WS broadcasts back the host's own reaction, both the local-echo from onLocalFire AND the WS-echo will fire, causing a duplicate bubble for the sender. Consider de-duping by msg.member.id === myMemberId, OR rely on the broadcast as the source of truth and drop onLocalFire. Low priority — visual only, no functional impact, and might even be desirable for tactile feedback.",
+    "PartyReactions.jsx exists (3919 bytes) with nextBubble() helper for randomised lanes — wired correctly in Player.jsx line 466.",
+    "usePartyReactions.js exists (5162 bytes) — 2s-hold detector wired via Player.jsx line 475 with onLocalFire callback. Manual gesture test was skipped per request."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_watch_party.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 pytest including 3 new reaction tests)",
+    "frontend": "100% smoke (all 3 routes render cleanly, no console errors, files all in place and wired)"
+  },
+  "test_credentials": "Tester profile seeded in localStorage: onnowtv-profiles-v1 + onnowtv-active-profile-v1='tester-auto'.",
+  "seed_data_creation": "None persistent — ephemeral party rooms created per test, codes from A-HJ-NP-Z2-9 alphabet.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_watch_party.py now has 4 test classes (REST=3, WS=6, ReadyHandshake=2, GuestJoin=2, Reactions=3 = 16 tests). Always export REACT_APP_BACKEND_URL before running pytest. Reaction wire-protocol: client sends {type:'reaction', emoji:'<one of 4 allowed>'}. Server broadcasts {type:'reaction', emoji, member:{id,name,avatar}, ts:int(ms)} to ALL connected members (incl. sender). Allowed emojis on the server are EXACTLY: ❤️ (U+2764+FE0F), 😱 (U+1F631), 😆 (U+1F606), 😭 (U+1F62D). Per-member rate-limit is 800ms (member.last_reaction_at). Disallowed emojis are silently dropped (no error response). For frontend, the 2-second D-pad hold gesture is in usePartyReactions.js and is a manual test — skip in automation.",
+  "rca of the issue": "N/A — no issues found. Feature works end-to-end on backend, frontend files are wired correctly. Only suggestion (low priority) is to consider de-duping the sender's own reaction echo in Player.jsx:540 since onLocalFire already spawns it locally."
+}

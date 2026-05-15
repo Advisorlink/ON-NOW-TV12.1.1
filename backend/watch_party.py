@@ -58,6 +58,9 @@ class Member:
     is_host: bool = False
     socket: Optional[WebSocket] = None
     ready: bool = False
+    # Server-side rate-limit timestamp for emoji reactions (one
+    # reaction per 800 ms per member).  Float unix seconds.
+    last_reaction_at: float = 0.0
 
 
 @dataclass
@@ -332,6 +335,34 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                             "ts": int(time.time() * 1000),
                         },
                     )
+
+            elif mtype == "reaction":
+                # Floating emoji broadcast.  Any party member can send.
+                # We rate-limit per member to one reaction every 800 ms
+                # so a stuck D-pad doesn't spam the room.  Allowed
+                # emojis are an explicit whitelist — the frontend only
+                # ever sends from this set.
+                allowed = {"\u2764\ufe0f", "\U0001F62D", "\U0001F606", "\U0001F631"}
+                emoji = msg.get("emoji") or ""
+                if emoji not in allowed:
+                    continue
+                now_ts = time.time()
+                if now_ts - (member.last_reaction_at or 0) < 0.8:
+                    continue
+                member.last_reaction_at = now_ts
+                await hub.broadcast(
+                    party,
+                    {
+                        "type": "reaction",
+                        "emoji": emoji,
+                        "member": {
+                            "id": member.id,
+                            "name": member.name,
+                            "avatar": member.avatar,
+                        },
+                        "ts": int(now_ts * 1000),
+                    },
+                )
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001

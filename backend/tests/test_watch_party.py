@@ -291,3 +291,97 @@ class TestWatchPartyGuestJoin:
         assert r.status_code == 200
         assert r.json() == {"error": "not_found"}
 
+
+# -------- Iter 26 — Emoji reaction broadcast / whitelist / rate-limit -------
+
+class TestWatchPartyReactions:
+    """Verifies the new {type:'reaction'} handler:
+       - host reaction broadcasts to host + guest with {emoji, member, ts}
+       - server-side whitelist drops disallowed emojis silently (no broadcast)
+       - same-member rate-limit: 2 reactions <800ms apart → only first broadcast
+       - after the 800ms cooldown, next reaction IS broadcast
+    """
+
+    def _new_code(self):
+        return requests.post(f"{BASE_URL}/api/watch-party/create", timeout=10).json()["code"]
+
+    @pytest.mark.asyncio
+    async def test_reaction_broadcasts_to_host_and_guest(self):
+        code = self._new_code()
+        url = f"{WS_BASE}/api/watch-party/ws/{code}"
+        async with websockets.connect(url) as host, websockets.connect(url) as guest:
+            await host.send(json.dumps({"type": "hello", "role": "host", "name": "Hostie", "avatar": "a1"}))
+            await _recv_until(host, lambda m: m.get("type") == "joined")
+            await guest.send(json.dumps({"type": "hello", "role": "guest", "name": "Friendo", "avatar": "a2"}))
+            await _recv_until(guest, lambda m: m.get("type") == "joined")
+            await _drain(host); await _drain(guest)
+
+            await host.send(json.dumps({"type": "reaction", "emoji": "\u2764\ufe0f"}))
+
+            host_r = await _recv_until(host, lambda m: m.get("type") == "reaction", timeout=3.0)
+            guest_r = await _recv_until(guest, lambda m: m.get("type") == "reaction", timeout=3.0)
+
+            for r in (host_r, guest_r):
+                assert r["emoji"] == "\u2764\ufe0f"
+                assert r["member"]["name"] == "Hostie"
+                assert r["member"]["avatar"] == "a1"
+                assert isinstance(r.get("ts"), int)
+
+    @pytest.mark.asyncio
+    async def test_reaction_whitelist_drops_disallowed_emoji(self):
+        code = self._new_code()
+        url = f"{WS_BASE}/api/watch-party/ws/{code}"
+        async with websockets.connect(url) as host, websockets.connect(url) as guest:
+            await host.send(json.dumps({"type": "hello", "role": "host", "name": "H"}))
+            await _recv_until(host, lambda m: m.get("type") == "joined")
+            await guest.send(json.dumps({"type": "hello", "role": "guest", "name": "G"}))
+            await _recv_until(guest, lambda m: m.get("type") == "joined")
+            await _drain(host); await _drain(guest)
+
+            # Disallowed: 🎉 (party popper) — must NOT broadcast
+            await host.send(json.dumps({"type": "reaction", "emoji": "\U0001F389"}))
+
+            # Drain briefly — expect zero reaction messages
+            drained = await _drain(guest, timeout=0.8)
+            reactions = [m for m in drained if m.get("type") == "reaction"]
+            assert reactions == [], f"disallowed emoji should be dropped, got: {reactions}"
+
+            # Now send an allowed one — confirms the socket is still alive
+            await host.send(json.dumps({"type": "reaction", "emoji": "\U0001F606"}))
+            ok = await _recv_until(guest, lambda m: m.get("type") == "reaction", timeout=3.0)
+            assert ok["emoji"] == "\U0001F606"
+
+    @pytest.mark.asyncio
+    async def test_reaction_rate_limit_800ms_per_member(self):
+        code = self._new_code()
+        url = f"{WS_BASE}/api/watch-party/ws/{code}"
+        async with websockets.connect(url) as host, websockets.connect(url) as guest:
+            await host.send(json.dumps({"type": "hello", "role": "host", "name": "H"}))
+            await _recv_until(host, lambda m: m.get("type") == "joined")
+            await guest.send(json.dumps({"type": "hello", "role": "guest", "name": "G"}))
+            await _recv_until(guest, lambda m: m.get("type") == "joined")
+            await _drain(host); await _drain(guest)
+
+            # Two reactions back-to-back from same member within 800ms
+            await host.send(json.dumps({"type": "reaction", "emoji": "\u2764\ufe0f"}))
+            await host.send(json.dumps({"type": "reaction", "emoji": "\U0001F631"}))
+
+            # Collect all reactions for ~0.7s (still inside cooldown window)
+            collected = []
+            try:
+                while True:
+                    raw = await asyncio.wait_for(guest.recv(), timeout=0.7)
+                    m = json.loads(raw)
+                    if m.get("type") == "reaction":
+                        collected.append(m)
+            except asyncio.TimeoutError:
+                pass
+            assert len(collected) == 1, f"expected exactly 1 broadcast within cooldown, got {len(collected)}: {collected}"
+            assert collected[0]["emoji"] == "\u2764\ufe0f", "first reaction wins"
+
+            # Wait past cooldown, then a third reaction SHOULD broadcast
+            await asyncio.sleep(0.9)
+            await host.send(json.dumps({"type": "reaction", "emoji": "\U0001F62D"}))
+            after = await _recv_until(guest, lambda m: m.get("type") == "reaction", timeout=3.0)
+            assert after["emoji"] == "\U0001F62D"
+
