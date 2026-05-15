@@ -107,6 +107,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        /* If the previous run crashed, the global handler in
+           OnNowApplication captured the stack trace to disk.  Show
+           it on screen with a Share / Copy / Dismiss row so the user
+           can send us actionable diagnostic info instead of seeing
+           a silent close.  We render the screen first and skip the
+           rest of onCreate — the user dismisses it to retry boot. */
+        val prevCrash = OnNowApplication.lastCrash
+        if (prevCrash != null && savedInstanceState == null) {
+            showCrashReport(prevCrash)
+            return
+        }
+
         // Detect Android TV vs phone via the LEANBACK system feature.
         // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
         // AOSP boxes that don't always declare leanback but DO ship
@@ -388,5 +400,106 @@ class MainActivity : AppCompatActivity() {
             webView.destroy()
         }
         super.onDestroy()
+    }
+
+    /** Renders a black screen with the previous crash's stack trace
+     *  and Share / Copy / Dismiss buttons.  Dismiss clears the
+     *  on-disk crash log and re-launches MainActivity so the user
+     *  can try to boot normally again. */
+    private fun showCrashReport(crashText: String) {
+        val root = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
+            isFillViewport = true
+        }
+        val col = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 64, 48, 64)
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "ON NOW TV couldn't start last time"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 22f
+            setPadding(0, 0, 0, 16)
+        }
+        val sub = android.widget.TextView(this).apply {
+            text = "Here is the exact error.  Tap Share to send it " +
+                "to the developer — it tells us exactly what went " +
+                "wrong on your device."
+            setTextColor(android.graphics.Color.parseColor("#A8B5C7"))
+            textSize = 14f
+            setPadding(0, 0, 0, 24)
+        }
+        val box = android.widget.TextView(this).apply {
+            text = crashText
+            setTextColor(android.graphics.Color.parseColor("#FCA5A5"))
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setBackgroundColor(android.graphics.Color.parseColor("#0D1422"))
+            setPadding(28, 24, 28, 24)
+        }
+        val buttonRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, 24, 0, 0)
+        }
+        val shareBtn = android.widget.Button(this).apply {
+            text = "Share"
+            setOnClickListener {
+                try {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "ON NOW TV crash report")
+                        putExtra(android.content.Intent.EXTRA_TEXT, crashText)
+                    }
+                    startActivity(android.content.Intent.createChooser(send, "Share crash report"))
+                } catch (_: Throwable) { /* no chooser available */ }
+            }
+        }
+        val copyBtn = android.widget.Button(this).apply {
+            text = "Copy"
+            setOnClickListener {
+                try {
+                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("ON NOW TV crash", crashText))
+                    android.widget.Toast.makeText(
+                        this@MainActivity, "Crash report copied",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } catch (_: Throwable) { /* swallow */ }
+            }
+        }
+        val dismissBtn = android.widget.Button(this).apply {
+            text = "Try again"
+            setOnClickListener {
+                /* Clear the on-disk log so a clean launch doesn't
+                   keep showing the same report forever. */
+                try {
+                    java.io.File(filesDir, OnNowApplication.CRASH_LOG_NAME).delete()
+                    getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)?.let {
+                        java.io.File(it, OnNowApplication.CRASH_LOG_NAME).delete()
+                    }
+                } catch (_: Throwable) { /* swallow */ }
+                OnNowApplication.lastCrash = null
+                /* Relaunch ourselves cleanly. */
+                val launch = packageManager.getLaunchIntentForPackage(packageName)
+                if (launch != null) {
+                    launch.addFlags(
+                        android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    )
+                    startActivity(launch)
+                }
+                finish()
+            }
+        }
+        buttonRow.addView(shareBtn)
+        buttonRow.addView(copyBtn)
+        buttonRow.addView(dismissBtn)
+        col.addView(title)
+        col.addView(sub)
+        col.addView(box)
+        col.addView(buttonRow)
+        root.addView(col)
+        setContentView(root)
     }
 }

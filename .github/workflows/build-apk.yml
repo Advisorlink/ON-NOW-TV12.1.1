@@ -227,22 +227,34 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.5.4 — Crash diagnostics + Samsung Auto Blocker note**
+            - 🩺 NEW: Built-in crash logger.  If the app fails to
+              launch, the next launch shows a black screen with the
+              exact stack trace + Share / Copy buttons.  No more
+              silent close-on-tap mysteries.
+            - 🔒 Samsung Fold / Galaxy users — if the app crashes on
+              tap with no error dialog, disable Samsung **Auto
+              Blocker** (Settings → Security and privacy → Auto
+              Blocker → turn off "Block app installs from
+              unauthorised sources" + "Block harmful apps").  Sammy's
+              new defence-in-depth feature silently kills debug-
+              signed sideloaded apps on launch.
+
             **v2.5.3 — Mobile-ready (Samsung Fold + every Android phone)**
-            - 🐛 Fixed crash-on-launch on phones (Samsung Fold 7, Galaxy
-              S series, OnePlus, Xiaomi).  Caused by the launcher
-              activity forcing landscape orientation while the system
-              bars were translucent.  Phone users now get the OS-
-              preferred orientation — portrait or landscape both work.
+            - 🐛 Fixed crash-on-launch on phones caused by the
+              launcher activity forcing landscape with translucent
+              system bars.  Phone users now get OS-preferred
+              orientation; only TVs lock to landscape.
             - 📱 Full mobile UI when installed on a phone: sticky
-              bottom-tab navigation (Home · Sports · Live · Library ·
-              Settings), touch-friendly buttons, single-column hero,
-              tightened paddings.  No regressions on Android TV.
-            - 🎬 Watch Together now works for TV Shows — host picks the
-              episode in a new season/episode picker, all party members
-              autoplay the same episode in sync.
-            - ⏩ Live TV boot "SKIP" button auto-focuses for instant OK.
-            - 🛡️  WebView init now fails gracefully if the phone has
-              Android System WebView disabled.
+              bottom-tab nav, touch-friendly buttons, single-column
+              hero, tightened paddings.  No TV regressions.
+            - 🎬 Watch Together now works for TV Shows — host picks
+              the episode in a new season/episode picker, all party
+              members autoplay the same episode in sync.
+            - ⏩ Live TV boot "SKIP" button auto-focuses for instant
+              OK press on the remote.
+            - 🛡️  WebView init now fails gracefully if Android System
+              WebView is disabled.
 
             Install: enable "Install unknown apps" for your browser or
             file-manager, then tap the APK below.  On HK1 / Android TV
