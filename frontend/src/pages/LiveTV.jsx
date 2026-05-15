@@ -61,12 +61,13 @@ import {
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
-const ROW_H = 36;            // category row height (more rows visible)
-const CHAN_H = 60;           // channel card height — title + NOW + bar fit at 60
-const GUIDE_ROW_H = 44;      // guide row height
+const ROW_H = 32;            // category row height
+const CHAN_H = 54;           // channel card height
+const GUIDE_ROW_H = 40;      // guide row height
 const BUFFER = 4;
 const FAV_CAT = '__fav__';
 const REC_CAT = '__rec__';
+const REM_CAT = '__rem__';
 const EMPTY_ARRAY = [];
 
 /* ─────────────────────────── Page shell ─────────────────────────── */
@@ -156,9 +157,18 @@ function Grid({ provider, onLogout }) {
         [reminders],
     );
 
+    /* Unique stream IDs that have at least one reminder set — used
+     * both as a sidebar entry count and to resolve the channel
+     * list when the user selects the Reminders pseudo-category. */
+    const reminderStreamIds = useMemo(() => {
+        const seen = new Set();
+        for (const r of reminders) seen.add(String(r.streamId));
+        return seen;
+    }, [reminders]);
+
     const sidebarCats = useMemo(
-        () => buildSidebarCats(cats.current, favs.size, recents.length, channelsByCat.current),
-        [favs, recents, cats.current.length, channelsByCat.current.size],
+        () => buildSidebarCats(cats.current, favs.size, recents.length, reminderStreamIds.size, channelsByCat.current),
+        [favs, recents, reminderStreamIds, cats.current.length, channelsByCat.current.size],
     );
 
     const allChannels = useMemo(() => {
@@ -166,8 +176,9 @@ function Grid({ provider, onLogout }) {
         if (!cat) return EMPTY_ARRAY;
         if (cat.id === FAV_CAT) return resolveByIds(favs, channelsByCat.current);
         if (cat.id === REC_CAT) return resolveByIds(new Set(recents), channelsByCat.current, recents);
+        if (cat.id === REM_CAT) return resolveByIds(reminderStreamIds, channelsByCat.current);
         return channelsByCat.current.get(cat.id) || EMPTY_ARRAY;
-    }, [sel.catIdx, favs, recents, sidebarCats, channelsByCat.current.size]);
+    }, [sel.catIdx, favs, recents, reminderStreamIds, sidebarCats, channelsByCat.current.size]);
 
     const channels = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -576,15 +587,8 @@ function Grid({ provider, onLogout }) {
                     />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
-                    {/* Top blue date label */}
-                    <div style={{
-                        padding: '4px 4px 0 4px',
-                        fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
-                        letterSpacing: '0.32em',
-                        color: '#5DC8FF',
-                    }}>
-                        {guideTodayLabel}
-                    </div>
+                    {/* Top blue date label with live clock */}
+                    <GuideTopBar todayLabel={guideTodayLabel} />
                     <GuideHeader channelName={debouncedChannel?.name || ''} />
                     <Column
                         testid="guide"
@@ -819,6 +823,55 @@ const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, 
     );
 });
 
+/* ─────────────────────── Guide top bar (date + clock) ─────────────────────── */
+
+const GuideTopBar = React.memo(function GuideTopBar({ todayLabel }) {
+    const clock = useClock();
+    return (
+        <div style={{
+            padding: '4px 4px 0 4px',
+            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+            gap: 8,
+        }}>
+            <span style={{
+                fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.32em',
+                color: '#5DC8FF',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+                {todayLabel}
+            </span>
+            <span style={{
+                fontFamily: 'monospace', fontSize: 13, fontWeight: 800,
+                letterSpacing: '0.06em',
+                color: '#fff',
+                fontVariantNumeric: 'tabular-nums',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+            }}>
+                {clock}
+            </span>
+        </div>
+    );
+});
+
+function useClock() {
+    const [now, setNow] = useState(() => formatClock(new Date()));
+    useEffect(() => {
+        const t = setInterval(() => setNow(formatClock(new Date())), 30_000);
+        return () => clearInterval(t);
+    }, []);
+    return now;
+}
+function formatClock(d) {
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${String(h).padStart(2, '0')}:${mm} ${ap}`;
+}
+
 /* ─────────────────────── Guide column header ─────────────────────── */
 
 const GuideHeader = React.memo(function GuideHeader({ channelName }) {
@@ -940,13 +993,16 @@ const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
         );
     }
     const isFav = cat.id === FAV_CAT;
-    const accent = isFav ? '#FFC850' : '#5DC8FF';
+    const isRem = cat.id === REM_CAT;
+    const accent = isFav ? '#FFC850' : isRem ? '#FFC850' : '#5DC8FF';
     return (
         <div style={{
             height: '100%',
             padding: '0 12px',
             display: 'flex', alignItems: 'center', gap: 8,
-            background: focused ? (isFav ? 'rgba(255,200,80,0.10)' : 'rgba(20,28,42,0.85)') : 'rgba(20,28,42,0.5)',
+            background: focused
+                ? (isFav || isRem ? 'rgba(255,200,80,0.10)' : 'rgba(20,28,42,0.85)')
+                : 'rgba(20,28,42,0.5)',
             border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
             boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
             borderRadius: 10,
@@ -956,6 +1012,9 @@ const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
         }}>
             {isFav && (
                 <Star size={12} color={accent} fill={focused ? accent : 'none'} />
+            )}
+            {isRem && (
+                <Bell size={11} color={accent} fill={focused ? accent : 'none'} />
             )}
             <span style={{
                 flex: 1, minWidth: 0,
@@ -1207,15 +1266,12 @@ function proxyImg(url, width = 36, quality = 50) {
     return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
 }
 
-function buildSidebarCats(rawCats, favCount, recCount, channelsMap) {
+function buildSidebarCats(rawCats, favCount, recCount, remCount, channelsMap) {
     const out = [];
     out.push({ id: FAV_CAT, name: 'Favourites', count: favCount });
     if (recCount > 0) out.push({ id: REC_CAT, name: 'Recently Watched', count: recCount });
+    if (remCount > 0) out.push({ id: REM_CAT, name: 'Reminders', count: remCount });
     if (rawCats.length > 0) {
-        // Section header — flagged by `kind: 'header'`, treated as a
-        // non-focusable row.  Kept index-aware so navigation skips
-        // headers automatically (we don't render them as focus
-        // targets).
         out.push({ id: 'h-cats', kind: 'header', name: 'CHANNEL GROUPS' });
     }
     for (const c of rawCats) {
