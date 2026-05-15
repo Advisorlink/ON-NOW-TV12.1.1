@@ -34,6 +34,18 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 76 — Feb 15, 2026)
+### Live TV — boot splash + EPG keeps loading after dismiss
+- **🎯 User**: "Put that loading screen back in once you've entered your details. Take as much time as we need to. Make sure that when we go into the actual Live TV itself, all of the EPG is at least half-loaded, and then as we're continuing to use it, then it keeps loading the EPG as well. Right now even if you stop at a certain channel, it's still not loading the whole thing. I want to get as much down as we can."
+- **🆕** Restored / enhanced `<LiveTVBoot/>` full-screen splash shown *only* on the first login (when the cache is empty). 4 stages — Connecting to provider → Loading categories → Loading channels (`X/Y categories · N channels`) → Loading TV guide (`X/Y channels`). Status dot per row: pending/active/done/failed.
+- **🛡️ Boot-blocked grid**: while `bootBlocked` is true the splash REPLACES the grid (vs. overlaying it), so the user can't D-pad into an empty channel list.
+- **⏱️ Threshold**: splash dismisses the instant `epgDone / epgTotal ≥ 0.50` so the user lands in Live TV with NOW/NEXT already populated for at least half the channels.
+- **♾️ No more HARD_CAP**: removed the 120 s timeout. EPG workers (6 concurrent) keep flowing for **every** channel after the splash dismisses, so by the time the user has been browsing a minute or two the entire EPG is cached locally — even channels they've never tuned to.
+- **⚡ Warm-cache short-circuit**: if a previous session already cached enough EPG to clear the threshold (≥50 % of stream IDs already in `epg.current`), the splash is bypassed entirely and Live TV opens instantly.
+- **📊 Counters**: stages' `detail` text updates live (`12/34 categories · 287 channels`, `186/342 channels`) so the user sees real progress rather than a spinner.
+- **🧪 Smoke verified**: navigating to `/live-tv` with a stub provider shows `[data-testid="live-tv-boot"]` with all 4 stages rendered (auth=active, others=pending). No console errors.
+
+
 ## Implemented (Iteration 75 — Feb 15, 2026)
 ### 🚫 4K filter + 🔐 Profile Backup & Restore with code + PIN
 - **🎯 User**: "A lot of streams come up as 4K and I don't want to play 4K — take away the 4K part.  Also need a nice Settings backup: save profile/CW/library/favourites/Live TV/themes/profile pics behind a PIN code; log back in with the code to restore everything."

@@ -33,6 +33,7 @@ import { Star, Calendar, Bell, RefreshCw, LogOut, Search } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
 import XtreamLogin from '@/components/XtreamLogin';
+import LiveTVBoot from '@/components/LiveTVBoot';
 import {
     getActiveProvider,
     authenticate,
@@ -154,6 +155,37 @@ function Grid({ provider, onLogout }) {
 
     const [query, setQuery] = useState('');
     const [syncing, setSyncing] = useState(false);
+    /* Boot progress: drives the full-screen <LiveTVBoot/> splash that
+     * blocks Live TV until the cache is ≥ EPG_BOOT_TARGET full.  Each
+     * stage is one of pending | active | done | failed.  Stages:
+     *   auth         → authenticating with the Xtream server
+     *   categories   → category list fetched
+     *   channels     → channels for every category fetched
+     *   epg          → EPG (now/next + 12h) for >= 50 % of channels
+     * Once the `epg` stage is `done`, the splash dismisses and the
+     * grid mounts.  EPG keeps loading in the background for the rest.
+     */
+    const [bootStages, setBootStages] = useState(() => ([
+        { id: 'auth',       label: 'Connecting to your provider', status: 'pending', detail: '' },
+        { id: 'categories', label: 'Loading categories',          status: 'pending', detail: '' },
+        { id: 'channels',   label: 'Loading channels',            status: 'pending', detail: '' },
+        { id: 'epg',        label: 'Loading TV guide (NOW & NEXT)',status: 'pending', detail: '' },
+    ]));
+    const setStage = useCallback((id, status, detail) => {
+        setBootStages((prev) => prev.map((s) =>
+            s.id === id ? { ...s, status, detail: detail ?? s.detail } : s
+        ));
+    }, []);
+    /* `bootBlocked` = should we show the splash?  Stays true until
+     * the `epg` stage flips to `done` (≥ 50 % EPG cached). */
+    const [bootBlocked, setBootBlocked] = useState(() => {
+        // If we already have categories + channels + some EPG cached
+        // from a previous session, skip the splash entirely.
+        const cached = cats.current.length > 0
+                       && channelsByCat.current.size > 0
+                       && epg.current.size > 0;
+        return !cached;
+    });
     /* Pending confirmation dialog state.  Shape: { kind, title, body, onConfirm }.
      * Set by long-press OK on items that would *remove* a saved
      * entry (favourite, reminder).  Cleared on cancel or confirm. */
@@ -340,22 +372,35 @@ function Grid({ provider, onLogout }) {
     /* ───────── Background sync ───────── */
     useEffect(() => {
         let cancel = false;
+        const TARGET_BOOT_FRACTION = 0.5;
         (async () => {
             setSyncing(true);
             try {
+                /* AUTH */
+                setStage('auth', 'active', '');
                 await authenticate(provider);
                 if (cancel) return;
+                setStage('auth', 'done', '');
 
+                /* CATEGORIES */
+                setStage('categories', 'active', '');
                 const list = await getCategories(provider, 'live');
                 if (cancel) return;
                 if (Array.isArray(list) && list.length) {
                     cats.current = list;
                     saveCategories(provider.id, list);
                     rerender();
+                    setStage('categories', 'done', `${list.length} categories`);
+                } else {
+                    setStage('categories', 'failed', 'No categories returned');
                 }
 
+                /* CHANNELS */
+                setStage('channels', 'active', '');
                 const fetched = {};
                 const BATCH = 4;
+                let chCount = 0;
+                let catsDone = 0;
                 for (let i = 0; i < list.length; i += BATCH) {
                     if (cancel) return;
                     const slice = list.slice(i, i + BATCH);
@@ -365,13 +410,20 @@ function Grid({ provider, onLogout }) {
                             const arr = Array.isArray(ch) ? ch : [];
                             channelsByCat.current.set(cat.category_id, arr);
                             fetched[cat.category_id] = arr;
+                            chCount += arr.length;
                         } catch { /* keep stale */ }
                     }));
+                    catsDone = Math.min(i + BATCH, list.length);
+                    setStage('channels', 'active',
+                        `${catsDone}/${list.length} categories · ${chCount} channels`);
                 }
                 if (cancel) return;
                 if (Object.keys(fetched).length) saveChannels(provider.id, fetched);
                 rerender();
+                setStage('channels', 'done', `${chCount} channels`);
 
+                /* EPG */
+                setStage('epg', 'active', '');
                 const sids = [];
                 const seen = new Set();
                 for (const arr of channelsByCat.current.values()) {
@@ -380,8 +432,20 @@ function Grid({ provider, onLogout }) {
                         if (!seen.has(k)) { seen.add(k); sids.push(c.stream_id); }
                     }
                 }
-                const startedAt = Date.now();
-                const HARD_CAP = 120_000;
+                /* Pre-fill: count channels we already have EPG for. */
+                let epgDone = sids.filter((sid) => epg.current.has(sid)).length;
+                const epgTotal = sids.length || 1;
+                setStage('epg', 'active', `${epgDone}/${epgTotal} channels`);
+
+                /* If the cache was already >= 50 % full, dismiss the
+                 * splash immediately and let the rest fetch in bg. */
+                if (epgDone / epgTotal >= TARGET_BOOT_FRACTION) {
+                    setStage('epg', 'done', `${epgDone}/${epgTotal} cached, more loading…`);
+                    setBootBlocked(false);
+                }
+
+                /* No HARD_CAP — keep loading EPG for ALL channels.
+                 * The user explicitly asked: "as long as we need to". */
                 const buffer = {};
                 let bufferDirty = 0;
                 let cursor = 0;
@@ -395,7 +459,6 @@ function Grid({ provider, onLogout }) {
                     while (!cancel) {
                         const i = cursor++;
                         if (i >= sids.length) return;
-                        if (Date.now() - startedAt > HARD_CAP) return;
                         const sid = sids[i];
                         try {
                             const items = await getFullEpg(provider, sid, 12);
@@ -407,12 +470,26 @@ function Grid({ provider, onLogout }) {
                                 if (bufferDirty >= 25) flush();
                             }
                         } catch { /* swallow */ }
+                        epgDone += 1;
+                        const frac = epgDone / epgTotal;
+                        setStage('epg', frac >= 1 ? 'done' : 'active',
+                            `${epgDone}/${epgTotal} channels`);
+                        /* The MOMENT we cross the threshold, dismiss
+                         * the splash so the user gets in fast — the
+                         * rest of the EPG keeps flowing in the bg. */
+                        if (frac >= TARGET_BOOT_FRACTION) {
+                            setBootBlocked(false);
+                        }
                     }
                 };
                 const workers = [];
                 for (let i = 0; i < 6; i++) workers.push(worker());
                 await Promise.all(workers);
-                if (!cancel) flush();
+                if (!cancel) {
+                    flush();
+                    setStage('epg', 'done', `${epgDone}/${epgTotal} channels`);
+                    setBootBlocked(false);
+                }
             } finally {
                 if (!cancel) setSyncing(false);
             }
@@ -698,6 +775,13 @@ function Grid({ provider, onLogout }) {
     const activeCat = sidebarCats[sel.catIdx] || sidebarCats[0];
     const focusedNow = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[0] || null) : null;
     const focusedNext = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[1] || null) : null;
+
+    /* While the splash is up, render LiveTVBoot INSTEAD of the grid
+     * — the splash is full-screen and intentionally blocks all
+     * interaction so the user can't D-pad into an empty grid. */
+    if (bootBlocked) {
+        return <LiveTVBoot stages={bootStages} />;
+    }
 
     return (
         <div style={{
