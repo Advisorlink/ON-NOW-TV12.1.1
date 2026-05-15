@@ -1418,7 +1418,7 @@ _IMG_PROXY_MAX = 512  # LRU cap
 @api.get("/img-proxy")
 async def img_proxy(
     url: str = Query(..., description="Source image URL"),
-    w: int = Query(64, ge=16, le=512),
+    w: int = Query(64, ge=16, le=2048),
     q: int = Query(70, ge=20, le=95),
 ):
     """Down-sample and re-encode an image so the Android WebView only

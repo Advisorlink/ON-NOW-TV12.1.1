@@ -559,7 +559,7 @@ const Hero = React.memo(function Hero({
     channel, now, next, isFav, syncing,
     onPlay, onToggleFav, onRefresh, onLogout,
 }) {
-    const tmdb = useProgrammeBackdrop(now?.title || '');
+    const tmdb = useProgrammeBackdrop(now?.title || '', channel?.name || '');
     const backdropUrl = tmdb?.backdrop
         ? proxyImg(tmdb.backdrop, 1200, 60)
         : '';

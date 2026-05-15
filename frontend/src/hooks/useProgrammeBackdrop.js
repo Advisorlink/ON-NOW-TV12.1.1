@@ -1,27 +1,23 @@
 /**
- * Programme backdrop lookup — given an EPG title, hits the existing
- * `/api/tmdb/search` endpoint to find a backdrop URL.  Heavily
- * cached so D-pad scrubbing doesn't melt TMDB.
+ * Programme backdrop lookup — given an EPG title or fallback channel
+ * name, hits the existing `/api/tmdb/search` endpoint to find a
+ * backdrop URL.  Heavily cached so D-pad scrubbing doesn't melt
+ * TMDB.
  *
- *  - 600 ms debounce — only the channel the user settles on fires
+ *  - 500 ms debounce — only the channel the user settles on fires
  *    a lookup.
- *  - In-memory cache by normalised title — re-focusing a channel
+ *  - In-memory cache by normalised query — re-focusing a channel
  *    you've seen before is instant.
- *  - Backend itself caches results for 1 h, so cold-cache lookups
- *    only hammer TMDB once per programme per hour.
- *  - Skip generic single-word titles ("News", "Sport", etc.) that
- *    will never match a real TMDB entry.
+ *  - Backend itself caches results for 1 h.
+ *  - Tries the EPG title first; falls back to the channel name if
+ *    the EPG didn't match anything.  This means TMDB still shows
+ *    a backdrop even on channels where EPG is missing or generic.
  */
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/search`;
-const cache = new Map(); // normalisedTitle -> { backdrop, poster } | null
-
-const GENERIC = new Set([
-    'news', 'sport', 'movie', 'movies', 'music', 'weather', 'cartoon',
-    'cartoons', 'kids', 'show', 'live', 'programme', 'program', 'tv',
-]);
+const cache = new Map(); // normalised query -> { backdrop, poster } | null
 
 function normalise(s) {
     return (s || '')
@@ -33,45 +29,62 @@ function normalise(s) {
         .trim();
 }
 
-export default function useProgrammeBackdrop(title) {
+async function searchOne(key) {
+    if (cache.has(key)) return cache.get(key);
+    try {
+        const r = await axios.get(API, { params: { q: key }, timeout: 8000 });
+        const arr = r?.data?.data || [];
+        const hit = arr.find((it) => it.backdrop) || arr[0];
+        const found = hit
+            ? { backdrop: hit.backdrop || '', poster: hit.poster || '' }
+            : null;
+        cache.set(key, found);
+        return found;
+    } catch {
+        cache.set(key, null);
+        return null;
+    }
+}
+
+export default function useProgrammeBackdrop(title, channelName) {
     const [data, setData] = useState(null);
     const reqId = useRef(0);
 
     useEffect(() => {
-        const key = normalise(title);
-        if (!key || key.length < 4) { setData(null); return undefined; }
-        const words = key.split(' ');
-        if (words.length === 1 && GENERIC.has(key)) {
-            setData(null);
-            return undefined;
-        }
+        const titleKey = normalise(title);
+        const channelKey = normalise(channelName);
 
-        if (cache.has(key)) {
-            setData(cache.get(key));
+        // Try the longer of the two first — usually the programme
+        // title gives us a specific movie/show that TMDB can match.
+        const candidates = [];
+        if (titleKey && titleKey.length >= 3) candidates.push(titleKey);
+        if (channelKey && channelKey.length >= 3 && channelKey !== titleKey) {
+            candidates.push(channelKey);
+        }
+        if (candidates.length === 0) { setData(null); return undefined; }
+
+        // Synchronous cache hit on the first candidate?  Show
+        // instantly, skip the network.
+        if (cache.has(candidates[0])) {
+            setData(cache.get(candidates[0]));
             return undefined;
         }
 
         setData(null);
         const myReq = ++reqId.current;
         const t = setTimeout(async () => {
-            try {
-                const r = await axios.get(API, { params: { q: key }, timeout: 8000 });
+            for (const key of candidates) {
+                const hit = await searchOne(key);
                 if (reqId.current !== myReq) return;
-                const arr = r?.data?.data || [];
-                const hit = arr.find((it) => it.backdrop) || arr[0];
-                const found = hit
-                    ? { backdrop: hit.backdrop || '', poster: hit.poster || '' }
-                    : null;
-                cache.set(key, found);
-                setData(found);
-            } catch {
-                if (reqId.current !== myReq) return;
-                cache.set(key, null);
-                setData(null);
+                if (hit?.backdrop) {
+                    setData(hit);
+                    return;
+                }
             }
-        }, 600);
+            if (reqId.current === myReq) setData(null);
+        }, 500);
         return () => clearTimeout(t);
-    }, [title]);
+    }, [title, channelName]);
 
     return data;
 }
