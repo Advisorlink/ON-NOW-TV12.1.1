@@ -313,7 +313,19 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
       }
     """
     cache_key = "sportsdb:fixtures:v9"
+    survivor_key = "sportsdb:survivor:v1"
     cached = _cache_get(cache_key)
+
+    # Seed the survivor cache from the main cache's TheSportsDB events.
+    # This protects NRL/IPL from disappearing during rate-limit storms — they
+    # live in the survivor cache for 24h, longer than the 30 min main TTL.
+    if cached and not _cache_get(survivor_key):
+        prior_sportsdb = [e for e in (cached.get("events") or [])
+                          if e.get("source") == "sportsdb"]
+        if prior_sportsdb:
+            _cache_set(survivor_key, prior_sportsdb, 24 * 3600)
+            logger.info("sportsdb: seeded survivor cache with %d events.", len(prior_sportsdb))
+
     if not refresh and cached:
         return {**cached, "cached": True}
 
@@ -429,51 +441,71 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
             key2 = (e["away"].lower(), e["home"].lower())
             espn_pairs[key1] = e
             espn_pairs[key2] = e
+
+    # Build the list of TheSportsDB events from this fresh fan-out + merge
+    # with the long-TTL "survivor" cache.  This is what protects NRL / IPL
+    # from disappearing during rate-limit storms.
+    sportsdb_events_fresh: List[Dict[str, Any]] = []
     for r in sportsdb_results:
         if not isinstance(r, dict):
             continue
-        evs = r.get("events") or []
-        for raw in evs:
+        for raw in (r.get("events") or []):
             n = _normalise_event(raw)
-            if not n["id"] or n["id"] in seen_ids:
+            if not n.get("id") or not n.get("ts"):
                 continue
-            if not n["ts"]:
+            n["source"] = "sportsdb"
+            n["homeShort"] = ""
+            n["awayShort"] = ""
+            n["statusShort"] = n.get("status", "")
+            n["state"] = ("post" if n.get("finished")
+                          else ("in" if (n["ts"] <= nowSec and not n.get("finished")) else "pre"))
+            n["live"] = n["state"] == "in"
+            n["broadcasts"] = []
+            sportsdb_events_fresh.append(n)
+
+    # Merge fresh + survivor cache.  Survivor wins ONLY if fresh is missing.
+    survivor = _cache_get(survivor_key) or []
+    survivor_by_id = {e["id"]: e for e in survivor}
+    for n in sportsdb_events_fresh:
+        survivor_by_id[n["id"]] = n   # fresh overrides any stale survivor
+    # Update survivor cache (24h TTL).  Drop events whose ts is now in the
+    # deep past so it doesn't grow forever.
+    survivor_pruned = [e for e in survivor_by_id.values()
+                       if e.get("ts") and e["ts"] >= nowSec - 24 * 3600]
+    if survivor_pruned:
+        _cache_set(survivor_key, survivor_pruned, 24 * 3600)
+    sportsdb_to_merge = survivor_pruned or sportsdb_events_fresh
+
+    for n in sportsdb_to_merge:
+        if n["id"] in seen_ids:
+            continue
+        if n["ts"] < past_window or n["ts"] > horizon:
+            continue
+        # De-dupe against ESPN by team-pair match within ±2 h.
+        pair = (n["home"].lower(), n["away"].lower())
+        dup = espn_pairs.get(pair)
+        if dup and abs(dup["ts"] - n["ts"]) < 7200:
+            continue
+        # Fuzzy match: any home/away token in ESPN matching.
+        home_words = set((n["home"] or "").lower().split())
+        away_words = set((n["away"] or "").lower().split())
+        fuzzy_dup = False
+        for k, v in espn_pairs.items():
+            if abs(v["ts"] - n["ts"]) > 7200:
                 continue
-            if n["ts"] < past_window or n["ts"] > horizon:
-                continue
-            # De-dupe against ESPN by team-pair match within ±2 h.
-            pair = (n["home"].lower(), n["away"].lower())
-            dup = espn_pairs.get(pair)
-            if dup and abs(dup["ts"] - n["ts"]) < 7200:
-                continue
-            # Also fuzzy-match: any home/away token in ESPN matching.
-            home_words = set((n["home"] or "").lower().split())
-            away_words = set((n["away"] or "").lower().split())
-            fuzzy_dup = False
-            for k, v in espn_pairs.items():
-                if abs(v["ts"] - n["ts"]) > 7200:
-                    continue
-                k_words = set(k[0].split()) | set(k[1].split())
-                if len(home_words & k_words) >= 1 and len(away_words & k_words) >= 1:
-                    fuzzy_dup = True
-                    break
-            if fuzzy_dup:
-                continue
-            # Title-key dedupe (catches sources that differ by ts up to 24 h).
-            tkey = _title_key(n)
-            if tkey and tkey in seen_titles:
-                continue
-            n.setdefault("source", "sportsdb")
-            n.setdefault("homeShort", "")
-            n.setdefault("awayShort", "")
-            n.setdefault("statusShort", n.get("status", ""))
-            n.setdefault("state", "post" if n.get("finished") else ("in" if (n["ts"] <= nowSec and not n.get("finished")) else "pre"))
-            n.setdefault("live", n["state"] == "in")
-            n.setdefault("broadcasts", [])
-            seen_ids.add(n["id"])
-            if tkey:
-                seen_titles.add(tkey)
-            events.append(n)
+            k_words = set(k[0].split()) | set(k[1].split())
+            if len(home_words & k_words) >= 1 and len(away_words & k_words) >= 1:
+                fuzzy_dup = True
+                break
+        if fuzzy_dup:
+            continue
+        tkey = _title_key(n)
+        if tkey and tkey in seen_titles:
+            continue
+        seen_ids.add(n["id"])
+        if tkey:
+            seen_titles.add(tkey)
+        events.append(n)
 
     events.sort(key=lambda e: e["ts"])
 

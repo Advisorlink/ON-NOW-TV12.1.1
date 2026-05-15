@@ -34,6 +34,34 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 69 — Feb 15, 2026)
+### Sports Guide v4 — ESPN merge, live scores, every-sport coverage
+- **🎯 User requests**:
+  1. "every single sport on that sports TV though as well… make sure this is the number one sports database."
+  2. "can we have the scores there? If it's a live game at the top, can we have the score displayed in a nice way please?"
+  3. "for the live stuff… once we've got the channel list, we should be able to click and go straight to watch the show."
+- **🆕 ESPN integration** (`backend/espn.py`, new):
+  - ESPN's free unofficial scoreboard API — no API key, no rate-limit, returns LIVE SCORES + status (`Q3 5:23`, `HT`, `Final`, `12:54 - 2nd`).
+  - 50+ curated leagues across 10+ sports: Premier League / La Liga / Serie A / Bundesliga / Ligue 1 / UEFA Champions / UEFA Europa / Conference / EFL Championship / FA Cup / Liga MX / MLS / J1 / K-League / A-League / Saudi Pro / Copa Libertadores / Concacaf / FIFA World; NFL + College Football; NBA + WNBA + NCAA Basketball (men & women); MLB; NHL; UFC + PFL + Bellator; Boxing; F1 / NASCAR / IndyCar; ATP / WTA; PGA / LPGA / Champions Tour / LIV; AFL; Rugby (Union).
+  - Each event normalised to `{state: pre|in|post, live, finished, home/awayScore, statusShort, broadcasts, …}`.
+- **🔄 ESPN ⨉ TheSportsDB merge** (`backend/sportsdb.py`):
+  - ESPN events fetched in parallel with TheSportsDB.  Three-stage de-dupe: by id → team-pair (both orderings, ESPN uses "X at Y" / TheSportsDB uses "Y vs X" for the same game) → fuzzy token-overlap within ±2 h → title-key with 30 min ts-buckets.  Filters out ESPN placeholder "TBD at TBD" tournament rows.
+  - **Survivor cache** (`sportsdb:survivor:v1`, 24 h TTL): when a TheSportsDB-only sport (NRL / IPL Cricket / etc.) is fetched successfully, it's also persisted into a longer-TTL side cache.  During rate-limit storms (≥85 % of TheSportsDB calls 429'd) the survivor still keeps NRL/IPL fixtures visible in the guide.  Survivor is auto-seeded from the main cache on cold-start.
+  - **Result**: cold fetch returns **370+ events across 12-13 sports** (was 41 events / 6 sports).  NCAA Baseball alone now contributes ~70 fixtures, Soccer 100+, NFL/NBA/NHL/MLB all present, plus NRL via TheSportsDB survivor cache.
+- **🟢 Live scores in the UI** (`frontend/pages/SportsGuide.jsx`):
+  - **Hero card**: when the featured fixture is live with a score, the right-side "VS" panel turns into a massive face-off: `[HOME LOGO]   12 — 42   [AWAY LOGO]` with a `12:54 - 2ND` status caption below in pulsing red mono.  Picks live-with-score → live-any → marquee future → soonest fallback.
+  - **Fixture cards**: each live card shows team logos + giant 24px mono scores per side + a pulsing red status pill (`12:54 - 2ND`, `HT`, `44'`, etc.).
+  - **`/api/sportsdb/livescores` polling**: frontend polls every 30 s; backend caches 25 s.  Scores tick up in real-time without refetching the entire 370-event payload.
+- **▶️ Click-to-watch for live games**:
+  - When a fixture is live AND `matchFixture()` finds a channel airing it on the user's IPTV EPG, the WATCH-ON row becomes a prominent red-bordered **`▶ WATCH LIVE · SKY SPORTS ACTION`** button (vs. the regular subtle channel chips for upcoming games).
+  - Pressing OK / Enter on the card immediately calls `getStreamUrl()` → `Host.playVideo()` → libVLC opens the channel.  Already worked for upcoming games; now visually emphasised for live ones.
+- **🧪 Backend tested** (`testing_agent_v3_fork` — iteration_21.json):
+  - 10/11 pytest cases pass (1 skipped because all source=='espn' at test time).
+  - Live samples observed: Sydney Swans 12-45 Collingwood (AFL 2nd Qtr), Adelaide United 0-1 Auckland FC (HT), Gold Coast SUNS 24-14 Port Adelaide.
+  - Empty-cache poisoning regression (iter 20) confirmed fixed.
+  - **Survivor-cache fix added post-test**: validated by hammering `?refresh=1` until 22 of 26 TheSportsDB calls 429'd — NRL still present in the response.
+
+
 ## Implemented (Iteration 68b — Feb 15, 2026)
 ### Sports Guide v3.1 — Australian Rugby League + correct league IDs
 - **🎯 User reported**: "It doesn't have Australian Rugby League. We need to have Australian Rugby League in there as well."
