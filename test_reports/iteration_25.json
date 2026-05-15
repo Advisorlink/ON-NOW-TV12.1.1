@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 25 — Watch-Together end-to-end + DPadHint. BACKEND: 13/13 pytest tests PASS (added new tests for the two-stage play→loading→countdown handshake and ready-outside-loading guardrail). The /api/watch-party/create returns a 6-char code matching A-HJ-NP-Z2-9 alphabet, /state/{code} returns full party state for known codes and {error:'not_found'} for unknown, WebSocket /api/watch-party/ws/{code} correctly handles hello (host+guest), pick, play (→loading not countdown), ready (flips loading→countdown only when ALL members ready), pause, chat, disconnect rebroadcast. FRONTEND: /watch-together lobby renders Host/Join cards cleanly. Clicking 'Host a party' from a fresh load creates a party code (e.g. 9JYGEE), opens host view with copy button + member rail + TVKeyboard for picking a title. Direct browser-side WS smoke shows code creation + hello + joined + state broadcast in <500ms. DPadHint mounts on /, /sports, /live-tv with per-page storage key vesper-dpad-hint-views:<key>, counter bumps on each mount (2× in dev due to React.StrictMode double-mount), and hint correctly hides when counter >= MAX_VIEWS (3) — verified by setting counter to 3 and re-mounting Home (hint absent). Player.jsx ready-signal: code review confirms streamReadyRef + partyReadySentRef are wired BOTH in ws.onopen (line 490 — sends ready if buffer already arrived before WS opened) AND in a dedicated useEffect at line 646 (sends ready when streamReady fires after WS open). partyReadySentRef resets on url change so re-plays re-handshake. No regressions in SideNav dwell / BACK key (out of scope for this iter but app loads cleanly across /, /sports, /live-tv, /watch-together).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "WatchTogether / startHost",
+        "issue": "Saw a transient 'TypeError: Failed to execute \\'json\\' on \\'Response\\': body stream already read at startHost' once after running an in-page WebSocket smoke test via page.evaluate. NOT reproducible on a clean page load — clicking Host a party from a fresh navigation succeeded and produced code 9JYGEE. Likely a React.StrictMode dev-mode double-invocation race when other in-flight fetches share an HMR module. Recommend a defensive guard in startHost so a double-click cannot re-enter while the first request is pending (e.g. `if (creatingRef.current) return; creatingRef.current = true; try{...}finally{creatingRef.current=false}`).",
+        "selector": "text=Host a party",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/test_reports/pytest/iter25_watch_party.xml"
+  ],
+  "action_items": [
+    "Optional hardening: add a re-entrancy guard inside WatchTogether.startHost / joinAs so a double click (or React StrictMode dev-double-invoke) cannot fire two POSTs that race over the same Response body.",
+    "Consider unwrapping <React.StrictMode> only for production builds — does not affect production but causes the DPadHint counter to bump by 2 per visit in dev (still caps at MAX_VIEWS so behaviour is correct in prod where StrictMode no-ops effect doubling).",
+    "Backend reaper evicts parties with zero connected members after 5 min and any party after 6 h. Feature D (3-hour idleness with a heartbeat) is implicitly satisfied because parties live up to 6h on create_at — but there is no membership-level heartbeat; if all members disconnect briefly the room is evicted after 5 min. Consider extending the no-members threshold to 30 min if guests are expected to drop/rejoin."
+  ],
+  "critical_code_review_comments": [
+    "watch_party.py:255-262 — the ready→countdown flip is gated by `len(party.members) > 0 and all(m.ready for m in party.members.values())`. This is correct, but if a NEW member joins (hello) while status=='loading', they start with ready=False which means the existing 'all ready' check would never have been true for them — but if all OTHER members had already gone ready and triggered countdown BEFORE the join, the new member would join into status='countdown' without ever sending ready. That's OK semantically (they'll just play late) but worth a comment.",
+    "watch_party.py:236-243 — 'pick' resets status to 'lobby' and clears every member's ready=False, which is correct. Same with 'play' at 282-283.",
+    "Player.jsx:490 — sending `ready` inside ws.onopen guards `if (streamReadyRef.current && !partyReadySentRef.current)`. Good — handles the race where the stream finished buffering BEFORE the WS opened.",
+    "Player.jsx:646-655 — useEffect with deps [streamReady, partyCode, url] sends `ready` exactly once per url change. partyReadySentRef gates re-entry. Good.",
+    "DPadHint.jsx:39 — `useState(() => readCount(fullKey) < MAX_VIEWS)` correctly determines visibility on mount. bumpCount runs inside useEffect, so per render with StrictMode in dev the counter increments by 2 per visit — production builds (no StrictMode) bump by 1. Behaviour caps at MAX_VIEWS either way.",
+    "DPadHint.jsx:65 — `pointerEvents: 'none'` ensures the hint never blocks D-pad spatial focus from passing through, good for TV UX.",
+    "test_watch_party.py was updated: old iter18 test `test_host_play_sets_countdown_future_at_ms` was renamed to `test_host_play_transitions_to_loading` to reflect the new 2-stage handshake contract (play → loading, NOT play → countdown)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_watch_party.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 pytest)",
+    "frontend": "95% (lobby renders, host flow works on clean load, DPadHint correct on all 3 pages; one transient 'body stream already read' seen in dev-mode after a prior in-page fetch smoke, not repro on fresh load)"
+  },
+  "test_credentials": "Tester profile seeded in localStorage: onnowtv-profiles-v1 + onnowtv-active-profile-v1='tester-auto' (plain string).",
+  "seed_data_creation": "None persistent — backend party rooms are ephemeral; codes generated per test (e.g. J9RFSA, 9JYGEE).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test_watch_party.py now has 3 test classes (REST, WS, ReadyHandshake, GuestJoin = 13 tests). Always export REACT_APP_BACKEND_URL before running pytest (the test file asserts it). The 2-stage handshake is: pick → play (status='loading', at_ms=0) → each member sends {type:'ready', member_id:<id>} → when ALL members have ready=True, server flips to status='countdown' with at_ms=now+pending_lead_ms. Frontend ready signal lives in Player.jsx (NOT WatchTogether.jsx). For UI regression, watch out for React.StrictMode dev double-invoke of effects (causes DPadHint counter to bump by 2 per visit in dev — harmless, capped at MAX_VIEWS).",
+  "rca of the issue": "N/A — no critical issues found. Transient 'body stream already read' from startHost was a one-off in dev mode after a prior in-page page.evaluate fetch smoke test — could not be reproduced on a clean navigation. Likely cause: React.StrictMode dev-mode invariant where a stale closure from a prior render re-runs an onClick handler whose response was already consumed. Recommended defensive fix in action_items (re-entrancy guard)."
+}

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import SideNav from '@/components/SideNav';
+import DPadHint from '@/components/DPadHint';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
@@ -370,6 +371,14 @@ export default function Home() {
                     </div>
                 </main>
             )}
+            <DPadHint
+                storageKey="home"
+                items={[
+                    { keys: '↑↓←→', label: 'NAVIGATE' },
+                    { keys: 'OK', label: 'OPEN' },
+                    { keys: '←←', label: 'MENU' },
+                ]}
+            />
         </div>
     );
 }

@@ -31,6 +31,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { Star, Calendar, Bell, RefreshCw, LogOut, Search } from 'lucide-react';
 import SideNav from '@/components/SideNav';
+import DPadHint from '@/components/DPadHint';
 import XtreamLogin from '@/components/XtreamLogin';
 import {
     getActiveProvider,
@@ -104,6 +105,17 @@ export default function LiveTV() {
                     ? <Grid provider={provider} onLogout={handleLogout} />
                     : <XtreamLogin onAuthed={handleAuthed} />}
             </main>
+            {provider && (
+                <DPadHint
+                    storageKey="livetv"
+                    items={[
+                        { keys: '←', label: 'BACK' },
+                        { keys: '↑↓←→', label: 'NAVIGATE' },
+                        { keys: 'OK', label: 'WATCH' },
+                        { keys: 'HOLD OK', label: 'FAVOURITE' },
+                    ]}
+                />
+            )}
         </div>
     );
 }

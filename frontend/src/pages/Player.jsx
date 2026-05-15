@@ -114,6 +114,17 @@ export default function Player() {
     const [streamReady, setStreamReady] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
 
+    // Mirror streamReady into a ref so the watch-party WebSocket
+    // open-handler can read the LATEST value (state closures would
+    // capture the initial `false`).
+    const streamReadyRef = useRef(false);
+    useEffect(() => { streamReadyRef.current = streamReady; }, [streamReady]);
+    // Tracks whether we've sent the `ready` handshake for the current
+    // stream URL; reset whenever the URL changes so a fresh stream
+    // re-handshakes the party.
+    const partyReadySentRef = useRef(false);
+    useEffect(() => { partyReadySentRef.current = false; }, [url]);
+
     const startPlayback = async () => {
         const v = videoRef.current;
         if (!v) return;
@@ -474,6 +485,12 @@ export default function Player() {
                 avatar: profile.avatarId || 'a1',
             });
             setPartyStatus('connected');
+            // If the stream was already buffered before the WS opened,
+            // fire ready right away so the party can advance.
+            if (streamReadyRef.current && !partyReadySentRef.current) {
+                partyReadySentRef.current = true;
+                send({ type: 'ready', member_id: partyMemberIdRef.current });
+            }
         };
 
         ws.onclose = () => {
@@ -492,6 +509,14 @@ export default function Player() {
             if (msg.type !== 'state') return;
             const v = videoRef.current;
             if (!v) return;
+
+            // Show a "preparing party…" overlay while server is in
+            // `loading` (waiting for every member's <video> to buffer
+            // enough to fire `ready`).
+            if (msg.status === 'loading') {
+                setPartyCountdown(0);
+                return;
+            }
 
             // Countdown handling — every client.  When `status` is
             // 'countdown' we render an overlay that ticks down until
@@ -609,6 +634,25 @@ export default function Player() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamReady, partyCode]);
+
+    // Watch-party HANDSHAKE — every member sends `ready` once their
+    // <video> has buffered enough to start playback.  The server
+    // collects these and only then flips `status` to `countdown`.
+    // Without this the party hangs forever in `loading` after the
+    // host hits Start.  `partyReadySentRef` resets when `url` changes
+    // so re-picks re-handshake.
+    useEffect(() => {
+        if (!partyCode) return;
+        if (!streamReady) return;
+        const ws = partyWsRef.current;
+        if (!ws || ws.readyState !== 1) return;
+        if (partyReadySentRef.current) return;
+        partyReadySentRef.current = true;
+        try {
+            ws.send(JSON.stringify({ type: 'ready', member_id: partyMemberIdRef.current }));
+        } catch { /* ignore */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streamReady, partyCode, url]);
 
     if (!url) {
         return (

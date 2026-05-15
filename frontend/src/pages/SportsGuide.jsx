@@ -36,6 +36,7 @@ import {
     Loader2, AlertTriangle, Calendar, Flame, Play, Award,
 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
+import DPadHint from '@/components/DPadHint';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -431,6 +432,15 @@ export default function SportsGuide() {
                     100% { opacity: 1;    box-shadow: 0 0 0 0 rgba(255,77,94,0.0);  }
                 }
             `}</style>
+            <DPadHint
+                storageKey="sports"
+                items={[
+                    { keys: '←', label: 'BACK' },
+                    { keys: '↑↓←→', label: 'NAVIGATE' },
+                    { keys: 'OK', label: 'WATCH' },
+                    { keys: 'HOLD OK', label: 'REMIND' },
+                ]}
+            />
         </div>
     );
 }

@@ -131,7 +131,10 @@ class TestWatchPartyWS:
             assert gst["status"] == "lobby"
 
     @pytest.mark.asyncio
-    async def test_host_play_sets_countdown_future_at_ms(self):
+    async def test_host_play_transitions_to_loading(self):
+        """Iter25 contract: play → status='loading' (NOT countdown yet).
+        Countdown only fires after all members send `ready`.
+        """
         code = self._new_code()
         url = f"{WS_BASE}/api/watch-party/ws/{code}"
         async with websockets.connect(url) as host, websockets.connect(url) as guest:
@@ -143,10 +146,9 @@ class TestWatchPartyWS:
             await _drain(host); await _drain(guest)
 
             await host.send(json.dumps({"type": "play", "lead_ms": 3000, "position_ms": 0}))
-            st = await _recv_until(guest, lambda m: m.get("type") == "state" and m.get("status") == "countdown")
-            assert st["at_ms"] > st["server_ms"], "at_ms should be in the future relative to server clock"
-            # lead_ms ~ 3000, allow generous tolerance
-            assert 500 < (st["at_ms"] - st["server_ms"]) < 10000
+            st = await _recv_until(guest, lambda m: m.get("type") == "state" and m.get("status") == "loading")
+            assert st["status"] == "loading"
+            assert st["at_ms"] == 0, "at_ms must be 0 during loading (set only after all-ready)"
 
     @pytest.mark.asyncio
     async def test_host_pause_updates_position_and_status(self):
@@ -203,3 +205,89 @@ class TestWatchPartyWS:
             # After guest closes, host should receive a state with only itself
             st = await _recv_until(host, lambda m: m.get("type") == "state" and len(m["members"]) == 1, timeout=6.0)
             assert st["members"][0]["name"] == "H"
+
+# -------- Iter 25 — READY handshake (status: loading → countdown) -----------
+
+class TestWatchPartyReadyHandshake:
+    """Verifies the 2-stage play handshake:
+       host play → status='loading' → each member 'ready' → status='countdown' with at_ms in future.
+    """
+
+    def _new_code(self):
+        return requests.post(f"{BASE_URL}/api/watch-party/create", timeout=10).json()["code"]
+
+    @pytest.mark.asyncio
+    async def test_play_emits_loading_then_countdown_after_all_ready(self):
+        code = self._new_code()
+        url = f"{WS_BASE}/api/watch-party/ws/{code}"
+        async with websockets.connect(url) as host, websockets.connect(url) as guest:
+            # hello both
+            await host.send(json.dumps({"type": "hello", "role": "host", "name": "H"}))
+            host_joined = await _recv_until(host, lambda m: m.get("type") == "joined")
+            host_id = host_joined["member_id"]
+            await guest.send(json.dumps({"type": "hello", "role": "guest", "name": "G"}))
+            guest_joined = await _recv_until(guest, lambda m: m.get("type") == "joined")
+            guest_id = guest_joined["member_id"]
+
+            # pick
+            await host.send(json.dumps({"type": "pick", "payload": {"tmdb_id": "1", "media_type": "movie", "title": "T"}}))
+            await _drain(host); await _drain(guest)
+
+            # play — must transition to 'loading' (NOT countdown yet)
+            await host.send(json.dumps({"type": "play", "lead_ms": 3000, "position_ms": 0}))
+            loading_state = await _recv_until(guest, lambda m: m.get("type") == "state" and m.get("status") == "loading")
+            assert loading_state["status"] == "loading"
+            assert loading_state["at_ms"] == 0, "at_ms must be 0 during loading"
+            # All members should have ready=False
+            assert all(mm["ready"] is False for mm in loading_state["members"])
+            await _drain(host)
+
+            # Only host ready → still loading (NOT countdown)
+            await host.send(json.dumps({"type": "ready", "member_id": host_id}))
+            partial = await _recv_until(host, lambda m: m.get("type") == "state")
+            assert partial["status"] == "loading", "must remain in loading until ALL members ready"
+            host_member = next(mm for mm in partial["members"] if mm["name"] == "H")
+            assert host_member["ready"] is True
+            guest_member = next(mm for mm in partial["members"] if mm["name"] == "G")
+            assert guest_member["ready"] is False
+            await _drain(guest)
+
+            # Guest ready → flip to countdown with at_ms in the future
+            await guest.send(json.dumps({"type": "ready", "member_id": guest_id}))
+            cd = await _recv_until(guest, lambda m: m.get("type") == "state" and m.get("status") == "countdown")
+            assert cd["at_ms"] > cd["server_ms"], "at_ms must be in the future"
+            assert 500 < (cd["at_ms"] - cd["server_ms"]) < 10000
+            assert all(mm["ready"] is True for mm in cd["members"])
+
+    @pytest.mark.asyncio
+    async def test_ready_outside_loading_does_not_flip_status(self):
+        """A stray ready in 'lobby' must NOT cause a countdown."""
+        code = self._new_code()
+        url = f"{WS_BASE}/api/watch-party/ws/{code}"
+        async with websockets.connect(url) as host:
+            await host.send(json.dumps({"type": "hello", "role": "host", "name": "H"}))
+            j = await _recv_until(host, lambda m: m.get("type") == "joined")
+            await _drain(host)
+            await host.send(json.dumps({"type": "ready", "member_id": j["member_id"]}))
+            st = await _recv_until(host, lambda m: m.get("type") == "state")
+            assert st["status"] == "lobby"
+            assert st["at_ms"] == 0
+
+
+# -------- Iter 25 — Guest join via REST -------------------------------------
+
+class TestWatchPartyGuestJoin:
+    def test_join_existing_code_via_state_endpoint(self):
+        """Guest flow verifies code via GET /state/{code} (the join endpoint per design)."""
+        c = requests.post(f"{BASE_URL}/api/watch-party/create", timeout=10).json()["code"]
+        r = requests.get(f"{BASE_URL}/api/watch-party/state/{c}", timeout=10)
+        assert r.status_code == 200
+        j = r.json()
+        assert j.get("code") == c
+        assert j.get("status") == "lobby"
+
+    def test_join_invalid_code_returns_not_found(self):
+        r = requests.get(f"{BASE_URL}/api/watch-party/state/ABCDEF", timeout=10)
+        assert r.status_code == 200
+        assert r.json() == {"error": "not_found"}
+
