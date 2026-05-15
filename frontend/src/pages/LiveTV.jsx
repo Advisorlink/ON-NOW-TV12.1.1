@@ -21,6 +21,14 @@ import {
     getRecents,
     pushRecent,
 } from '@/lib/liveRecents';
+import {
+    loadCategories,
+    saveCategories,
+    loadChannels,
+    saveChannels,
+    loadEpg,
+    mergeAndSaveEpg,
+} from '@/lib/liveCache';
 import Host from '@/lib/host';
 
 /* ====================================================================
@@ -81,13 +89,48 @@ export default function LiveTV() {
 /* ============================ Grid ============================ */
 
 function LiveTVGrid({ provider, onChangeProvider }) {
-    const [cats, setCats] = useState([]);
-    const [catsError, setCatsError] = useState('');
-    const [activeCat, setActiveCat] = useState(null);
-    const [channels, setChannels] = useState([]);
-    const [focusedChannel, setFocusedChannel] = useState(null);
+    // -------------------------------------------------------------------
+    //  Synchronous hydrate from localStorage.  If we have a cached
+    //  copy of categories + per-category channels, the grid is
+    //  rendered with stale data IMMEDIATELY (no boot screen) and
+    //  the network sync runs silently in the background.  EPG also
+    //  comes back from disk so the right-hand guide column lights
+    //  up on the very first frame.
+    //
+    //  This is the "asynchronous database loading" + "background
+    //  data syncing" pattern: UI never waits on the network when
+    //  there's anything cached.
+    // -------------------------------------------------------------------
+    const cachedCats = useRef(loadCategories(provider.id));
+    const cachedChans = useRef(loadChannels(provider.id));
+    const cachedEpg = useRef(loadEpg(provider.id));
+    const hasHotCache = !!(
+        cachedCats.current &&
+        cachedCats.current.length > 0 &&
+        cachedChans.current
+    );
 
-    const [booted, setBooted] = useState(false);
+    const initialFirstCat = hasHotCache ? cachedCats.current[0]?.category_id || null : null;
+    const initialFirstChannels = hasHotCache && initialFirstCat
+        ? (cachedChans.current[initialFirstCat] || [])
+        : [];
+
+    const [cats, setCats] = useState(hasHotCache ? cachedCats.current : []);
+    const [catsError, setCatsError] = useState('');
+    const [activeCat, setActiveCat] = useState(initialFirstCat);
+    const [channels, setChannels] = useState(initialFirstChannels);
+    const [focusedChannel, setFocusedChannel] = useState(initialFirstChannels[0] || null);
+
+    // If we hydrated from cache, the grid is ready instantly.  The
+    // boot screen is reserved for genuine first-time / cold-cache
+    // sessions only.
+    const [booted, setBooted] = useState(hasHotCache);
+
+    // Background-sync indicator — true while we're refreshing
+    // anything from the network, regardless of whether we showed
+    // a boot screen or skipped straight to the grid.
+    const [syncing, setSyncing] = useState(false);
+
     const [stages, setStages] = useState(() => [
         { id: 'auth', label: 'Authenticating with provider', status: 'pending' },
         { id: 'cats', label: 'Fetching channel categories', status: 'pending' },
@@ -95,13 +138,34 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         { id: 'epg', label: 'Pre-loading programme guides', status: 'pending' },
     ]);
 
-    // Per-stream EPG cache.  Populated entirely during boot so the
-    // in-guide useEffect for the focused channel becomes a 100 %
-    // cache hit on every D-pad press.  Survives the lifetime of
-    // the LiveTVGrid mount.  TV-Mate-style: spend boot once,
-    // navigate forever.
-    const epgCache = useRef(new Map()); // stream_id -> { at, items }
+    // Per-stream EPG cache.  Hydrated synchronously from
+    // localStorage above; the background sync writes-through to
+    // both the in-memory map and disk so subsequent app launches
+    // are also instant.
+    const epgCache = useRef(new Map());
+    if (cachedEpg.current && epgCache.current.size === 0) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        for (const sid in cachedEpg.current) {
+            if (!Object.prototype.hasOwnProperty.call(cachedEpg.current, sid)) continue;
+            const items = (cachedEpg.current[sid] || []).filter(
+                (it) => Number(it.stopTimestamp || 0) > nowSec,
+            );
+            if (items.length > 0) {
+                epgCache.current.set(Number(sid) || sid, { at: Date.now(), items });
+            }
+        }
+    }
     const epgReqId = useRef(0);
+
+    // Per-category channel cache; hydrated synchronously above so
+    // the grid never has to fetch on category-switch.
+    const channelsCache = useRef(new Map());
+    if (cachedChans.current && channelsCache.current.size === 0) {
+        for (const catId in cachedChans.current) {
+            if (!Object.prototype.hasOwnProperty.call(cachedChans.current, catId)) continue;
+            channelsCache.current.set(catId, cachedChans.current[catId] || []);
+        }
+    }
 
     // Favorites — keyed by provider.id, persisted to localStorage.
     // Tracked in state so toggling re-renders the star / sidebar
@@ -123,15 +187,19 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     // filter automatically (no stale state).
     const [query, setQuery] = useState('');
 
-    // Per-category channel cache; populated entirely during boot so
-    // the grid never has to fetch on category-switch.
-    const channelsCache = useRef(new Map());
     const navigate = useNavigate();
 
     /* -------------------------------------------------------------------
-     *  Boot — runs once per LiveTVGrid mount.
-     *  Designed to take as long as it needs to (TV Mate takes ~90 s on
-     *  the user's box).  Once done, the grid is purely synchronous.
+     *  Background sync — runs once per LiveTVGrid mount.
+     *
+     *  If we hydrated from the persistent cache (`hasHotCache`), the
+     *  grid is already showing data and this whole effect is silent:
+     *  no boot screen, no full-page lock.  We just refresh in the
+     *  background and write-through to localStorage so the next
+     *  launch is also instant.
+     *
+     *  Cold start (no cache) keeps the original boot screen with
+     *  4-stage progress so the user knows what's happening.
      * ----------------------------------------------------------------- */
     useEffect(() => {
         let cancel = false;
@@ -140,6 +208,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             setStages((arr) => arr.map((s) => (s.id === id ? { ...s, ...patch } : s)));
         };
         (async () => {
+            setSyncing(true);
             setStage('auth', { status: 'active' });
             try {
                 await authenticate(provider);
@@ -155,17 +224,27 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             try {
                 list = await getCategories(provider, 'live');
                 if (cancel) return;
-                setCats(Array.isArray(list) ? list : []);
+                if (Array.isArray(list) && list.length > 0) {
+                    setCats(list);
+                    saveCategories(provider.id, list);
+                }
                 setStage('cats', { status: 'done', detail: `${list.length} categories.` });
             } catch (e) {
                 if (cancel) return;
                 setStage('cats', { status: 'failed', detail: e?.message || 'Failed.' });
-                setCatsError(e?.message || 'Could not reach your IPTV server.');
-                setTimeout(() => !cancel && setBooted(true), 400);
+                if (!hasHotCache) {
+                    setCatsError(e?.message || 'Could not reach your IPTV server.');
+                    setTimeout(() => !cancel && setBooted(true), 400);
+                    setSyncing(false);
+                    return;
+                }
+                // Hot cache — keep showing stale data, abort sync.
+                setSyncing(false);
                 return;
             }
 
             setStage('cache', { status: 'active', detail: `0 / ${list.length}` });
+            const fetchedChans = {};
             try {
                 let done = 0;
                 const BATCH = 4;
@@ -175,19 +254,25 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                     await Promise.all(slice.map(async (cat) => {
                         try {
                             const ch = await getStreams(provider, 'live', cat.category_id);
-                            channelsCache.current.set(cat.category_id, Array.isArray(ch) ? ch : []);
-                        } catch { /* ignore */ }
+                            const arr = Array.isArray(ch) ? ch : [];
+                            channelsCache.current.set(cat.category_id, arr);
+                            fetchedChans[cat.category_id] = arr;
+                        } catch { /* ignore — keep stale entry from cache */ }
                         done += 1;
                     }));
                     if (!cancel) setStage('cache', { status: 'active', detail: `${done} / ${list.length}` });
                 }
-                if (!cancel) setStage('cache', { status: 'done', detail: `${list.length} cached.` });
+                if (!cancel) {
+                    saveChannels(provider.id, fetchedChans);
+                    setStage('cache', { status: 'done', detail: `${list.length} cached.` });
+                }
             } catch {
                 if (!cancel) setStage('cache', { status: 'failed', detail: 'Cache failed.' });
             }
 
-            // Auto-select first category + first channel.
-            if (!cancel && list.length > 0) {
+            // First-time boot only: auto-select first cat + channel.
+            // (Hot-cache sessions already have these set from hydrate.)
+            if (!cancel && !hasHotCache && list.length > 0) {
                 const firstCat = list[0].category_id;
                 const firstChannels = channelsCache.current.get(firstCat) || [];
                 setActiveCat(firstCat);
@@ -196,20 +281,14 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             }
 
             // ---------------------------------------------------------
-            //  STAGE 4 — Pre-load programme guides for every channel.
+            //  EPG warm-up — drain every channel's guide into the
+            //  in-memory + persistent cache.  Concurrency-capped so
+            //  we don't hammer the IPTV server, time-capped so a
+            //  flaky network can't hang the sync forever.
             //
-            //  This is the TV-Mate trick: spend ~30-90 seconds on the
-            //  boot screen warming the EPG cache so that, once the
-            //  user is in the guide, every channel switch is an
-            //  instant cache read.  Zero network calls during
-            //  navigation = zero chunkiness.
-            //
-            //  Concurrency 6 is conservative for the IPTV server but
-            //  fast enough to drain a 3000-channel provider in ~1.5
-            //  minutes.  Hard cap of 120 sec so a flaky server can't
-            //  hang the boot screen forever — anything not cached
-            //  by then will fall back to the on-focus debounced
-            //  fetch (cache miss path above).
+            //  Hot-cache launch: this happens silently in the
+            //  background while the user is already navigating.
+            //  Cold launch: the boot screen shows progress.
             // ---------------------------------------------------------
             const allStreams = [];
             const seen = new Set();
@@ -227,6 +306,15 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             const CONCURRENCY = 6;
             let cursor = 0;
             let completed = 0;
+            const persistBuffer = {};       // stream_id -> items, drained periodically
+            let persistDirty = 0;
+
+            const flushPersist = () => {
+                if (persistDirty === 0) return;
+                mergeAndSaveEpg(provider.id, persistBuffer);
+                for (const k in persistBuffer) delete persistBuffer[k];
+                persistDirty = 0;
+            };
 
             const worker = async () => {
                 while (!cancel) {
@@ -239,12 +327,17 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                         if (cancel) return;
                         if (Array.isArray(items) && items.length > 0) {
                             epgCache.current.set(sid, { at: Date.now(), items });
+                            persistBuffer[sid] = items;
+                            persistDirty += 1;
                         }
                     } catch { /* swallow — cache stays empty for this id */ }
                     completed += 1;
-                    // Throttle UI updates: only every 25th tick.
                     if (completed % 25 === 0 && !cancel) {
                         setStage('epg', { status: 'active', detail: `${completed} / ${total}` });
+                        // Persist in 25-channel chunks so the user
+                        // gets some saved data even if the network
+                        // dies halfway through.
+                        flushPersist();
                     }
                 }
             };
@@ -252,6 +345,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             const workers = [];
             for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
             await Promise.all(workers);
+            if (!cancel) flushPersist();
 
             if (!cancel) {
                 const cached = epgCache.current.size;
@@ -261,9 +355,15 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 setStage('epg', { status: 'done', detail });
             }
 
-            // Brief pause on the "done" state so the user sees the
-            // green checkmark, then transition to the grid.
-            setTimeout(() => !cancel && setBooted(true), 500);
+            // First-time only: brief "done" pause before flipping
+            // out of the boot screen.  Hot-cache sessions: just
+            // hide the "Updating…" pill.
+            if (!cancel) {
+                if (!hasHotCache) {
+                    setTimeout(() => !cancel && setBooted(true), 500);
+                }
+                setSyncing(false);
+            }
         })();
         return () => { cancel = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -515,6 +615,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 categoryName={activeCategoryName}
                 nowNext={nowNext}
                 isFavorite={isFocusedFav}
+                syncing={syncing}
                 onToggleFav={onToggleFav}
                 onPlay={() => playChannel(focusedChannel)}
                 onExit={onChangeProvider}
@@ -557,7 +658,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
 
 /* ============================ Hero (lean) ============================ */
 
-function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onToggleFav, onPlay, onExit }) {
+function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, syncing, onToggleFav, onPlay, onExit }) {
     const logoSrc = channel?.stream_icon ? proxiedLogo(channel.stream_icon, 200) : '';
     const eyebrowParts = ['LIVE TV'];
     if (channel?.num != null) eyebrowParts.push(`CH ${channel.num}`);
@@ -620,12 +721,31 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
                 </div>
 
                 <div className="flex flex-col" style={{ gap: 8, flex: 1, minWidth: 0, justifyContent: 'center' }}>
-                    <div className="vesper-mono" style={{
-                        fontSize: 11, letterSpacing: '0.32em',
-                        color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                        {eyebrowParts.join(' · ')}
+                    <div className="flex items-center" style={{ gap: 10 }}>
+                        <div className="vesper-mono" style={{
+                            fontSize: 11, letterSpacing: '0.32em',
+                            color: 'var(--vesper-blue-bright)', textTransform: 'uppercase',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            flex: 1, minWidth: 0,
+                        }}>
+                            {eyebrowParts.join(' · ')}
+                        </div>
+                        {syncing && (
+                            <span
+                                data-testid="live-tv-syncing"
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 9, letterSpacing: '0.22em', fontWeight: 700,
+                                    color: 'var(--vesper-text-3)',
+                                    padding: '3px 7px',
+                                    background: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.10)',
+                                    borderRadius: 3, flexShrink: 0,
+                                }}
+                            >
+                                UPDATING…
+                            </span>
+                        )}
                     </div>
                     <h1 className="vesper-display" style={{
                         fontSize: 'clamp(34px, 3.6vw, 52px)',
