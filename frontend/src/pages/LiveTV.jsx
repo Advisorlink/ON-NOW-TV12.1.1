@@ -229,8 +229,9 @@ function Grid({ provider, onLogout }) {
      * ~20 channels of the active category in PARALLEL so progress
      * bars + "NOW" lines appear across all of them within a couple
      * of seconds, not one-at-a-time.  Re-runs whenever the user
-     * lands on a new category.  Stops after the first batch; full-
-     * catalog prefetch runs separately in the background sync. */
+     * lands on a new category.  Batches re-renders every 4
+     * completions so the UI fills in incrementally (you see the
+     * top cards light up first, then the rest as they arrive). */
     useEffect(() => {
         const sample = channels.slice(0, 20);
         const missing = sample.filter((c) => !epg.current.has(c.stream_id));
@@ -239,7 +240,7 @@ function Grid({ provider, onLogout }) {
         (async () => {
             const CONC = 6;
             let cursor = 0;
-            let anyHit = false;
+            let sinceLastFlush = 0;
             const worker = async () => {
                 while (!cancel) {
                     const i = cursor++;
@@ -251,7 +252,15 @@ function Grid({ provider, onLogout }) {
                         if (items && items.length) {
                             epg.current.set(ch.stream_id, items);
                             mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
-                            anyHit = true;
+                            sinceLastFlush += 1;
+                            // Incremental UI update — every 4 hits
+                            // we re-render so cards light up as
+                            // they arrive instead of waiting for
+                            // the whole batch.
+                            if (sinceLastFlush >= 4) {
+                                sinceLastFlush = 0;
+                                if (!cancel) rerender();
+                            }
                         }
                     } catch { /* swallow */ }
                 }
@@ -259,7 +268,7 @@ function Grid({ provider, onLogout }) {
             const workers = [];
             for (let i = 0; i < CONC; i++) workers.push(worker());
             await Promise.all(workers);
-            if (!cancel && anyHit) rerender();
+            if (!cancel && sinceLastFlush > 0) rerender();
         })();
         return () => { cancel = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -362,7 +371,12 @@ function Grid({ provider, onLogout }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider]);
 
-    const [, setBump] = useState(0);
+    /* `bump` is a cheap re-render counter — incremented whenever
+     * we mutate epg.current so the memoised renderChannel can
+     * regenerate, which in turn changes ChannelCard's `now` prop
+     * so React.memo doesn't short-circuit and the new EPG data
+     * appears on every visible card. */
+    const [bump, setBump] = useState(0);
     const rerender = useCallback(() => setBump((b) => b + 1), []);
 
     /* ───────── Handlers ───────── */
@@ -572,7 +586,12 @@ function Grid({ provider, onLogout }) {
                 />
             );
         },
-        [favs],
+        // `bump` is critical here: when prefetch fills epg.current,
+        // rerender() bumps the counter, this callback regenerates,
+        // Column receives a new rowFn, and every visible card
+        // gets a fresh `now` prop — overriding React.memo.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [favs, bump],
     );
     const renderGuide = useCallback(
         (it, i, focused) => (
