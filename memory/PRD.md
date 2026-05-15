@@ -34,6 +34,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 82 — Feb 16, 2026)
+### Server-side persistent EPG cache + Android-16 crash fix + Watch Together polish
+- **🗄️ EPG ON THE SERVER** (`backend/epg_cache.py`, `backend/xtream.py`):
+  - New MongoDB-backed EPG store with two collections: `epg_cache` (full XMLTV payload per provider) + `epg_providers` (encrypted-at-rest provider blobs, XOR-against-MONGO_URL-derived key, so the scheduler knows what to refresh).
+  - Background asyncio scheduler runs on backend startup; every 10 min scans for any provider whose persisted EPG is older than 6 h and proactively refreshes via the existing xmltv.php fetch+parse path.  Stale providers (last seen >30 d ago) auto-skipped.
+  - NEW endpoint `GET /api/xtream/cached-epg?provider=…` returns the persisted EPG **gzipped** (~600 KB vs 10 MB raw) with diagnostic headers (`X-Cache-Age-Sec`, `X-Channel-Count`, `X-Programme-Count`).  On cache miss falls through to one-time synchronous fetch + persist.
+  - Self-registering: every call to `/full-epg` or `/cached-epg` upserts the provider so the scheduler picks it up automatically — zero manual config.
+  - Frontend (`lib/xtream.js`) tries `/cached-epg` FIRST with 3 s timeout, falls back to direct XMLTV → live backend `/full-epg`.  HK1 boxes get the EPG in ~300 ms instead of 5–20 s.
+  - Live TV boot splash surfaces the source: "1834/14000 channels · cached on server (12 min old)".
+  - 6 new pytest regression tests (`tests/test_epg_cache.py`) — all passing.
+- **📱 ANDROID 16 CRASH FIX** (`android/MainActivity.kt`, v2.5.6):
+  - Stack trace from user's Samsung Fold 7 (SDK 36) pointed at `applyImmersiveMode()` → NPE on `window.insetsController`.  On Android 16 the DecorView is lazy-created — `insetsController` is null until content attaches.
+  - Three layers of defence: (a) removed the eager `applyImmersiveMode()` from `onCreate` — `onWindowFocusChanged` already invokes it post-WebView-attach, (b) touch `window.decorView` to force decor creation, (c) null-guard the controller.
+- **🩺 CRASH LOGGER** (`android/OnNowApplication.kt` + `MainActivity.showCrashReport`, v2.5.4):
+  - Custom Application class registers global UncaughtExceptionHandler in `attachBaseContext`.  Crashes written to `getFilesDir()/onnowtv-crash.txt` + `getExternalFilesDir(DOWNLOADS)/onnowtv-crash.txt` (visible in Samsung "My Files" without hidden-files toggle).
+  - On next launch, MainActivity detects the log and shows a black diagnostic screen with full stack trace + Share / Copy / Try-again buttons.
+- **🎬 WATCH TOGETHER · BUFFER + DELAY FIX** (`android/VlcPlayerActivity.kt`, v2.5.5):
+  - libVLC `--network-caching=1500` → `5000`.  The 1.5 s buffer drained during stage-1 ready handshake, forcing the guest to re-buffer when countdown fired.
+  - Host→guest heartbeat tightened 2 s → 1 s + wallclock projection on guest side: `target = positionMs + (now - serverMs)` clamped to 5 s.  Perceived delay drops ~2 s → ~300-500 ms.
+  - Host's player previously stayed silently paused after countdown.  Now mirrors guest's countdown→play scheduling.
+- **🧪 Testing**: Backend 98/102 pytest pass (4 pre-existing flakes: sportsdb snapshot + watch-party WS timeouts).  Frontend mobile smoke test confirmed iter 30.
+
 ## Implemented (Iteration 81 — Feb 15, 2026)
 ### Mobile responsive shell + Watch Together for TV Shows + SKIP auto-focus
 - **🎯 User**: "I also need you to build me a full mobile version only for this as well… responsive to mobile screens only" + (carryover) "fix Watch Together for TV Shows".

@@ -526,9 +526,20 @@ function Grid({ provider, onLogout }) {
                             mergeAndSaveEpg(provider.id, mergedBuffer);
                             epgDone = merged;
                             setBootCounters((c) => ({ ...c, epgDone }));
+                            /* Surface where the EPG came from so the
+                               user can see when the new server-side
+                               cache kicks in (~600 KB gzipped vs the
+                               3–10 MB direct fetch — huge win on the
+                               HK1 box).  cacheAgeSec is the seconds
+                               since the server last refreshed the
+                               persisted copy. */
+                            const srcLabel = xml.source === 'backend-cached'
+                                ? `cached on server (${Math.round((xml.cacheAgeSec || 0) / 60)} min old)`
+                                : xml.source === 'backend-live'
+                                ? 'live via backend'
+                                : 'direct from provider';
                             setStage('epg', 'done',
-                                `${merged}/${epgTotal} channels via XMLTV ` +
-                                `(${Math.round((xml.sizeBytes || 0) / 1024)} KB)`);
+                                `${merged}/${epgTotal} channels · ${srcLabel}`);
                             xmltvOK = true;
                             setBootBlocked(false);
                             /* Rerender so the boot screen flips off and

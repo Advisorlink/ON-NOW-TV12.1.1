@@ -1753,3 +1753,17 @@ logger = logging.getLogger("vesper")
 @app.on_event("shutdown")
 async def shutdown():
     mongo.close()
+
+
+@app.on_event("startup")
+async def _start_epg_scheduler():
+    """Kick off the background EPG refresh scheduler.  Self-registers
+    every provider that has ever hit /full-epg or /cached-epg and
+    re-fetches their XMLTV every ~6 h so the persisted MongoDB copy
+    stays warm.  Runs in the same event loop as the API server."""
+    try:
+        import epg_cache
+        from xtream import scheduler_refresh
+        epg_cache.start_scheduler(scheduler_refresh)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to start EPG scheduler: %s", exc)

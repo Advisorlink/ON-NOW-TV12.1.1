@@ -31,13 +31,18 @@ two boxes pointing at the same provider share cached responses.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import logging
+import time
 from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi.responses import Response
+
+import epg_cache
 
 log = logging.getLogger("vesper.xtream")
 
@@ -386,31 +391,56 @@ async def full_epg(
         f"{p['scheme']}://{p['host']}:{p['port']}|{p['username']}".encode()
     ).hexdigest()
 
+    # Register this provider so the background scheduler will keep
+    # the persisted MongoDB cache warm in the future (no-op when the
+    # MongoDB write fails — we never block the user on that path).
+    try:
+        await epg_cache.register_provider(p)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("xtream.full_epg: provider registration failed: %s", exc)
+
     if not refresh:
         hit = _XMLTV_CACHE.get(cache_key)
         if hit and hit[0] > _time_mod.time():
             return {**hit[1], "cached": True}
 
+    payload = await _fetch_and_parse_xmltv(p)
+    _XMLTV_CACHE[cache_key] = (_time_mod.time() + _XMLTV_TTL, payload)
+    # Persist for cross-restart durability and so /cached-epg can
+    # serve instantly.  We don't await this on the hot path beyond
+    # the swallowed exception below — the user already has their
+    # payload in hand.
+    try:
+        await epg_cache.save_payload(cache_key, payload)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("xtream.full_epg: persist failed: %s", exc)
+    return payload
+
+
+async def _fetch_and_parse_xmltv(p: Dict[str, Any]) -> Dict[str, Any]:
+    """Internal helper used by /full-epg AND the background
+    scheduler — does the network fetch + streaming XML parse + JSON
+    shape.  Raising httpx errors propagate so callers can distinguish
+    transient failures from parse failures.  Always returns a payload
+    dict on success.
+    """
     url = _xmltv_url(p)
     started = _time_mod.time()
-    try:
-        client = _http()
-        # Send Accept-Encoding so the provider gzips the XML on the
-        # wire — typically a 10× reduction.  httpx will transparently
-        # decompress before yielding bytes.
-        r = await client.get(
-            url,
-            headers={"Accept-Encoding": "gzip, deflate"},
-            timeout=60.0,
+    client = _http()
+    # Send Accept-Encoding so the provider gzips the XML on the
+    # wire — typically a 10× reduction.  httpx will transparently
+    # decompress before yielding bytes.
+    r = await client.get(
+        url,
+        headers={"Accept-Encoding": "gzip, deflate"},
+        timeout=60.0,
+    )
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"xmltv.php returned HTTP {r.status_code}",
         )
-        if r.status_code != 200:
-            raise HTTPException(
-                status_code=502,
-                detail=f"xmltv.php returned HTTP {r.status_code}",
-            )
-        body = r.content
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"xmltv fetch failed: {exc}") from None
+    body = r.content
 
     epg: Dict[str, list] = {}
     programme_count = 0
@@ -455,7 +485,7 @@ async def full_epg(
     for ch_id in epg:
         epg[ch_id].sort(key=lambda x: x["startTimestamp"])
 
-    payload = {
+    return {
         "cached":          False,
         "fetched_at":      int(started),
         "channel_count":   len(channel_count_seen),
@@ -463,5 +493,87 @@ async def full_epg(
         "size_bytes":      len(body),
         "epg":             epg,
     }
-    _XMLTV_CACHE[cache_key] = (_time_mod.time() + _XMLTV_TTL, payload)
-    return payload
+
+
+# Public entry-point used by the scheduler.  Keep this signature
+# (`async (provider) -> payload`) stable — `epg_cache.start_scheduler`
+# calls us through it.
+async def scheduler_refresh(provider: Dict[str, Any]) -> Dict[str, Any]:
+    """Background scheduler entry-point.  Used by `epg_cache` to
+    refresh a provider's persisted EPG.  Logs errors and returns an
+    empty dict on failure — the scheduler will skip-and-retry on the
+    next tick rather than aborting the whole pass."""
+    try:
+        return await _fetch_and_parse_xmltv(provider)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("xtream.scheduler_refresh failed: %s", exc)
+        return {}
+
+
+@router.get("/cached-epg")
+async def cached_epg(provider: str = Query(...)) -> Response:
+    """Return the MOST-RECENT persisted EPG for this provider with
+    near-zero latency — no provider round-trip.  The background
+    scheduler keeps the persisted store warm.
+
+    Gzipped response body.  10 MB JSON → ~600 KB on the wire — huge
+    win for the HK1 boxes' shaky Wi-Fi.  We compress in-process
+    instead of relying on FastAPI's GZipMiddleware so the response
+    is gzipped EVERY time (avoiding the middleware's content-type +
+    min-size heuristics, both of which silently disable compression
+    in many real-world request shapes).
+
+    On a cache miss, falls back to a synchronous full-EPG fetch so
+    the very first request from a never-before-seen provider still
+    works — albeit slowly.  Subsequent requests are then instant.
+    """
+    p = _parse_provider(provider)
+    cache_key = epg_cache.provider_key(p)
+
+    # Re-register so this provider stays in the active set.
+    try:
+        await epg_cache.register_provider(p)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("xtream.cached_epg: provider registration failed: %s", exc)
+
+    payload = await epg_cache.load_payload(cache_key)
+
+    if not payload:
+        # Cache miss — do one synchronous fetch, persist, return.
+        try:
+            payload = await _fetch_and_parse_xmltv(p)
+            await epg_cache.save_payload(cache_key, payload)
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=502,
+                detail=f"cached-epg miss & live fetch failed: {exc}",
+            ) from None
+
+    persisted_at = payload.pop("_persisted_at", payload.get("fetched_at", 0))
+    cache_age = max(0, int(time.time() - persisted_at)) if persisted_at else None
+
+    body = {
+        **payload,
+        "cached":         True,
+        "persisted_at":   persisted_at,
+        "cache_age_sec":  cache_age,
+    }
+    raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    compressed = gzip.compress(raw, compresslevel=6)
+    return Response(
+        content=compressed,
+        media_type="application/json",
+        headers={
+            "Content-Encoding": "gzip",
+            # Hint to the WebView's HTTP cache: serve from disk for
+            # 5 min before re-fetching even when our scheduler hasn't
+            # written a fresh payload yet.  Lets the box re-open the
+            # Live TV page instantly when bouncing between tabs.
+            "Cache-Control": "private, max-age=300",
+            "X-Cache-Age-Sec": str(cache_age if cache_age is not None else -1),
+            "X-Channel-Count": str(payload.get("channel_count", 0)),
+            "X-Programme-Count": str(payload.get("programme_count", 0)),
+        },
+    )

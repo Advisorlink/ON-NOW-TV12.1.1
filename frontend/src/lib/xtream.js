@@ -315,7 +315,38 @@ export async function getXmltvEpg(provider, { signal, directTimeoutMs = 15000, p
         `?username=${encodeURIComponent(provider.username)}` +
         `&password=${encodeURIComponent(provider.password)}`;
 
-    /* 1) Direct XMLTV from the IPTV server.  Aborted if it takes
+    /* 1) Try the persistent backend cache FIRST.  The server keeps
+     *    this warm via a 6-hourly background scheduler so it returns
+     *    within a few hundred milliseconds — beating the direct
+     *    XMLTV fetch on cheap Android-7 boxes whose Wi-Fi can take
+     *    5–20 s for a 3 MB download.  Gzipped on the wire.  Fast-
+     *    timeout (3 s) so a momentarily slow backend doesn't keep
+     *    the box waiting — we fall through to the direct fetch on
+     *    timeout. */
+    try {
+        const { data } = await axios.get(`${API}/cached-epg`, {
+            params: { provider: blob(provider) },
+            timeout: 3000,
+            signal,
+        });
+        if (data && data.epg && Object.keys(data.epg).length > 0) {
+            return {
+                epg: data.epg,
+                channelCount: data.channel_count || 0,
+                programmeCount: data.programme_count || 0,
+                sizeBytes: data.size_bytes || 0,
+                cached: true,
+                cacheAgeSec: data.cache_age_sec ?? null,
+                source: 'backend-cached',
+            };
+        }
+    } catch {
+        // Backend cache miss / timeout — fall through.  We don't
+        // surface this as an error because the next path usually
+        // succeeds.
+    }
+
+    /* 2) Direct XMLTV from the IPTV server.  Aborted if it takes
      *    longer than directTimeoutMs — otherwise a dead provider can
      *    hang the entire boot splash. */
     try {
@@ -334,15 +365,16 @@ export async function getXmltvEpg(provider, { signal, directTimeoutMs = 15000, p
         }
         if (res && res.ok) {
             const text = await res.text();
-            return parseXmltv(text);
+            const parsed = parseXmltv(text);
+            return { ...parsed, source: 'direct' };
         }
     } catch {
         // CORS, network, or our own timeout — fall through to the proxy.
     }
 
-    /* 2) Backend proxy fallback.  Lower default timeout so preview
-     *    pod (which can't reach the IPTV server) bails fast and the
-     *    per-channel loop takes over. */
+    /* 3) Backend live-fetch proxy fallback.  Lower default timeout so
+     *    preview pod (which can't reach the IPTV server) bails fast
+     *    and the per-channel loop takes over. */
     try {
         const { data } = await axios.get(`${API}/full-epg`, {
             params: { provider: blob(provider) },
@@ -355,11 +387,12 @@ export async function getXmltvEpg(provider, { signal, directTimeoutMs = 15000, p
             programmeCount: data?.programme_count || 0,
             sizeBytes: data?.size_bytes || 0,
             cached: !!data?.cached,
+            source: 'backend-live',
         };
     } catch (err) {
         /* Last-ditch: return an empty result so the caller can fall
          * back to the per-channel loop without crashing. */
-        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: 0, cached: false, error: err?.message || String(err) };
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: 0, cached: false, source: 'failed', error: err?.message || String(err) };
     }
 }
 
