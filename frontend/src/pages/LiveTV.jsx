@@ -61,9 +61,10 @@ import {
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
-const ROW_H = 52;
-const GUIDE_ROW_H = 64;
-const BUFFER = 4;
+const ROW_H = 44;            // category row height (was 52)
+const CHAN_H = 72;           // channel card height (incl. inline progress bar)
+const GUIDE_ROW_H = 52;      // guide row height (was 64)
+const BUFFER = 4;            // rows to render above + below visible window
 const FAV_CAT = '__fav__';
 const REC_CAT = '__rec__';
 const EMPTY_ARRAY = [];
@@ -204,8 +205,6 @@ function Grid({ provider, onLogout }) {
                 if (epgReqId.current !== myReq) return;
                 if (items && items.length) {
                     epg.current.set(ch.stream_id, items);
-                    // Write-through to disk so subsequent launches
-                    // are still instant.
                     mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
                     rerender();
                 }
@@ -215,12 +214,47 @@ function Grid({ provider, onLogout }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedChannel, provider]);
 
+    /* Visible-channels EPG prefetch — fills in EPG for the first
+     * ~12 channels of the active category right after the channel
+     * list becomes visible, so progress bars + "NOW" lines appear
+     * across all of them instead of only the focused one.  Stops
+     * after the first batch; full-catalog prefetch runs separately
+     * in the background sync effect. */
+    useEffect(() => {
+        const sample = channels.slice(0, 12);
+        const missing = sample.filter((c) => !epg.current.has(c.stream_id));
+        if (missing.length === 0) return undefined;
+        let cancel = false;
+        (async () => {
+            for (const ch of missing) {
+                if (cancel) return;
+                try {
+                    const items = await getFullEpg(provider, ch.stream_id, 12);
+                    if (cancel) return;
+                    if (items && items.length) {
+                        epg.current.set(ch.stream_id, items);
+                        mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
+                    }
+                } catch { /* swallow */ }
+            }
+            if (!cancel) rerender();
+        })();
+        return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sel.catIdx, channels.length]);
+
     const guideItems = debouncedChannel
         ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
         : EMPTY_ARRAY;
 
     /* Group guide entries by day for the TODAY / TOMORROW headers. */
     const guideGroups = useMemo(() => groupByDay(guideItems), [guideItems]);
+    /* Blue label above the GUIDE header — shows today's date in
+     * the format the user asked for ("TODAY · WED 15 MAY"). */
+    const guideTodayLabel = useMemo(() => {
+        const d = new Date();
+        return `TODAY · ${formatDayLabel(d)}`;
+    }, []);
 
     /* ───────── Background sync ───────── */
     useEffect(() => {
@@ -405,7 +439,8 @@ function Grid({ provider, onLogout }) {
                 if (key === 'ArrowRight') {
                     if (s.col === 2) return s;
                     if (s.col === 0 && channels.length === 0) return s;
-                    if (s.col === 1 && guideGroups.length === 0) return s;
+                    // Always allow channels → guide, even if guide is empty,
+                    // so the user can navigate over to set reminders later.
                     return { ...s, col: s.col + 1 };
                 }
                 if (key === 'ArrowUp') {
@@ -533,11 +568,20 @@ function Grid({ provider, onLogout }) {
                         isFocused={sel.col === 1}
                         items={channels}
                         idx={sel.chanIdx}
-                        rowHeight={ROW_H + 28}    // pill card height
+                        rowHeight={CHAN_H}
                         rowFn={renderChannel}
                     />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                    {/* Top blue date label */}
+                    <div style={{
+                        padding: '4px 4px 0 4px',
+                        fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                        letterSpacing: '0.32em',
+                        color: '#5DC8FF',
+                    }}>
+                        {guideTodayLabel}
+                    </div>
                     <GuideHeader channelName={debouncedChannel?.name || ''} />
                     <Column
                         testid="guide"
@@ -956,16 +1000,20 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
             height: '100%',
             padding: '0 14px',
             display: 'flex', alignItems: 'center', gap: 14,
-            background: 'rgba(20,28,42,0.55)',
-            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
-            boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
+            background: focused
+                ? 'linear-gradient(180deg, rgba(93,200,255,0.10) 0%, rgba(20,28,42,0.65) 100%)'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(20,28,42,0.55) 100%)',
+            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.07)'),
+            boxShadow: focused
+                ? '0 0 0 1px rgba(93,200,255,0.35), inset 0 1px 0 rgba(255,255,255,0.08)'
+                : 'inset 0 1px 0 rgba(255,255,255,0.04)',
             borderRadius: 14,
             position: 'relative',
             overflow: 'hidden',
         }}>
             <span style={{
                 fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
-                color: focused ? accent : '#5e6473',
+                color: focused ? accent : '#7d8493',
                 minWidth: 36, textAlign: 'right',
             }}>
                 {ch.num ?? ''}
@@ -996,8 +1044,12 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                     />
                 )}
             </span>
+            {/* Title + NOW line + (right-aligned) progress bar.  The
+                progress bar lives inside this column so it aligns
+                with the title text (starts under "NOW") rather than
+                spanning the whole card width. */}
             <div style={{ flex: 1, minWidth: 0,
-                            display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
                 <span style={{
                     fontSize: 14, fontWeight: 700,
                     color: focused ? '#fff' : '#E6EAF2',
@@ -1005,31 +1057,46 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                 }}>
                     {ch.name}
                 </span>
-                {now && (
+                {now ? (
                     <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
                         fontSize: 11,
                         color: '#9DA5B5',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        display: 'inline-flex', alignItems: 'baseline', gap: 6,
+                        minWidth: 0,
                     }}>
                         <span style={{
-                            fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                            letterSpacing: '0.2em', color: '#FF4D5E',
+                            fontFamily: 'monospace', fontSize: 9, fontWeight: 800,
+                            letterSpacing: '0.18em', color: '#fff',
+                            padding: '2px 6px',
+                            background: '#FF4D5E',
+                            borderRadius: 3,
+                            flexShrink: 0,
                         }}>
                             NOW
                         </span>
-                        {now.title || 'Untitled'}
+                        <span style={{
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            flex: 1, minWidth: 0,
+                        }}>
+                            {now.title || 'Untitled'}
+                        </span>
+                    </span>
+                ) : (
+                    <span style={{
+                        fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.2em',
+                        color: '#5e6473',
+                    }}>
+                        NO GUIDE DATA
                     </span>
                 )}
-            </div>
-            {isFav && <Star size={12} color="#FFC850" fill="#FFC850" />}
-            {/* Thin progress bar at the bottom edge of the card */}
-            {now && (
+                {/* Progress bar — aligned with the title text, starts
+                    under "NOW".  Renders even when there's no EPG
+                    so the channel card looks consistent. */}
                 <div style={{
-                    position: 'absolute',
-                    left: 14, right: 14, bottom: 6,
+                    marginTop: 4,
                     height: 2,
-                    background: 'rgba(255,255,255,0.06)',
+                    background: 'rgba(255,255,255,0.08)',
                     borderRadius: 1,
                     overflow: 'hidden',
                 }}>
@@ -1039,7 +1106,8 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                         background: accent,
                     }} />
                 </div>
-            )}
+            </div>
+            {isFav && <Star size={12} color="#FFC850" fill="#FFC850" style={{ flexShrink: 0 }} />}
         </div>
     );
 });
@@ -1197,14 +1265,18 @@ function resolveByIds(idsSet, channelsMap, orderedKeys) {
     return out;
 }
 
-/** Inject TODAY / TOMORROW / dated headers into an EPG list. */
+/** Inject TOMORROW / dated headers into an EPG list.  The TODAY
+ *  group is implicit — its label sits above the GUIDE header in
+ *  the UI, not inside the scrollable list.  This keeps the column
+ *  clean: it's all upcoming items, with a date divider only when
+ *  programmes span into a new day. */
 function groupByDay(items) {
     if (!items || items.length === 0) return EMPTY_ARRAY;
     const out = [];
     const today = startOfDay(new Date()).getTime() / 1000;
     const tomorrow = today + 86400;
     const dayAfter = tomorrow + 86400;
-    let lastBucket = '';
+    let lastBucket = 'TODAY';   // assume we start with today
     for (const it of items) {
         const start = Number(it.startTimestamp) || 0;
         let bucket;
