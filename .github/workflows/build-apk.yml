@@ -227,8 +227,26 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            Install on your HK1 box via "Downloader" by AFTVnews — paste
-            this release page's APK download URL.
+            **v2.5.3 — Mobile-ready (Samsung Fold + every Android phone)**
+            - 🐛 Fixed crash-on-launch on phones (Samsung Fold 7, Galaxy
+              S series, OnePlus, Xiaomi).  Caused by the launcher
+              activity forcing landscape orientation while the system
+              bars were translucent.  Phone users now get the OS-
+              preferred orientation — portrait or landscape both work.
+            - 📱 Full mobile UI when installed on a phone: sticky
+              bottom-tab navigation (Home · Sports · Live · Library ·
+              Settings), touch-friendly buttons, single-column hero,
+              tightened paddings.  No regressions on Android TV.
+            - 🎬 Watch Together now works for TV Shows — host picks the
+              episode in a new season/episode picker, all party members
+              autoplay the same episode in sync.
+            - ⏩ Live TV boot "SKIP" button auto-focuses for instant OK.
+            - 🛡️  WebView init now fails gracefully if the phone has
+              Android System WebView disabled.
+
+            Install: enable "Install unknown apps" for your browser or
+            file-manager, then tap the APK below.  On HK1 / Android TV
+            use "Downloader" by AFTVnews and paste the APK URL.
           files: onnowtv-v2-debug.apk
           prerelease: true
           make_latest: 'false'
