@@ -34,6 +34,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 72 — Feb 15, 2026)
+### Watch-Together emoji reactions (D-pad-hold 2-second gesture)
+- **🎯 User**: "Hold the up arrow for 2 seconds → love heart. Hold down → shocked. Hold left → laughing. Hold right → crying."
+- **🆕 Backend** (`watch_party.py`):
+  - Added `Member.last_reaction_at: float` for per-member 800 ms rate-limit.
+  - New WS message type `reaction` with payload `{emoji}` — only the 4 whitelisted glyphs accepted (`❤️ U+2764+FE0F`, `😱 U+1F631`, `😂 U+1F606`, `😭 U+1F62D`), anything else silently dropped.
+  - Broadcasts `{type:'reaction', emoji, member:{id,name,avatar}, ts:ms}` to every connected socket (including sender for tactile confirmation).
+- **🆕 Frontend hook** (`hooks/usePartyReactions.js`, new):
+  - Tracks first non-repeat keydown timestamp per arrow key; fires when held ≥2 s (Date.now() math, not key-repeat counts — portable across remotes with different auto-repeat rates).
+  - 200 ms fallback timer covers the older Android 7 WebView batching auto-repeats.
+  - Skips firing inside `<input>` / `<textarea>`.
+  - 1 s post-fire cooldown so a stuck D-pad never spams.
+  - Sends WS `reaction` + invokes local `onLocalFire` callback for instant feedback.
+- **🆕 Floating overlay** (`components/PartyReactions.jsx`, new): full-screen `pointer-events:none` overlay. Each bubble is a 72px emoji floating from `bottom: 8vh` to `transform: translate(toX, -70vh)` over 2.6 s with cubic-bezier easing. Random horizontal lane (8–92 %) + drift so multiple bubbles don't stack. Optional name caption.
+- **🪝 Player wiring** (`pages/Player.jsx`): `usePartyReactions({enabled:!!partyCode, wsRef:partyWsRef, onLocalFire})` active only during a party. `ws.onmessage` dispatches incoming `reaction` (de-duped against `msg.member.id === myId` so the sender doesn't see double bubbles). `<PartyReactions />` conditionally mounted above the `<video>`.
+- **🧪 Tested** (`testing_agent_v3_fork` — iteration 26): **backend 16/16 pytest pass** (13 regression from iter 25 + 3 new reaction tests for broadcast, whitelist, rate-limit). Frontend 100 % smoke (`/watch-together`, `/sports`, `/live-tv` all render with no console errors). 2-s-hold gesture is a manual test (skipped in automation, code reviewed and correct).
+
+### TV-shows-in-Watch-Together — partial support, noted
+- **Status**: host *can* pick a TV show in the party search; party navigates members to `/title/series/imdb_id?party=...`.  But `Detail.jsx:267` explicitly bails out of party-autoplay for series (no episode-picker in the lobby flow).  Members would land on the Detail page and have to manually pick the same episode — no synchronisation.
+- **Future**: extend the party lobby with a season+episode picker so the host can select a specific episode before hitting Start. **Tracked as a follow-up.**
+
+
 ## Implemented (Iteration 71 — Feb 15, 2026)
 ### Watch Together end-to-end fix + D-pad hint overlay
 - **🎯 User**: "I want to make sure that the share with the Watch Together, that's a hundred percent working as well, because we're about to test that now."
