@@ -61,10 +61,10 @@ import {
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
-const ROW_H = 44;            // category row height (was 52)
-const CHAN_H = 72;           // channel card height (incl. inline progress bar)
-const GUIDE_ROW_H = 52;      // guide row height (was 64)
-const BUFFER = 4;            // rows to render above + below visible window
+const ROW_H = 36;            // category row height (more rows visible)
+const CHAN_H = 60;           // channel card height — title + NOW + bar fit at 60
+const GUIDE_ROW_H = 44;      // guide row height
+const BUFFER = 4;
 const FAV_CAT = '__fav__';
 const REC_CAT = '__rec__';
 const EMPTY_ARRAY = [];
@@ -961,15 +961,15 @@ const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
     return (
         <div style={{
             height: '100%',
-            padding: '0 14px',
-            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '0 12px',
+            display: 'flex', alignItems: 'center', gap: 8,
             background: focused ? (isFav ? 'rgba(255,200,80,0.10)' : 'rgba(20,28,42,0.85)') : 'rgba(20,28,42,0.5)',
             border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
             boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
-            borderRadius: 12,
+            borderRadius: 10,
             color: focused ? '#fff' : '#9DA5B5',
             fontWeight: focused ? 700 : 600,
-            fontSize: 13,
+            fontSize: 12,
         }}>
             {isFav && (
                 <Star size={12} color={accent} fill={focused ? accent : 'none'} />
@@ -1012,25 +1012,25 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
             overflow: 'hidden',
         }}>
             <span style={{
-                fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
+                fontFamily: 'monospace', fontSize: 12, fontWeight: 700,
                 color: focused ? accent : '#7d8493',
-                minWidth: 36, textAlign: 'right',
+                minWidth: 30, textAlign: 'right',
             }}>
                 {ch.num ?? ''}
             </span>
             <span style={{
-                width: 52, height: 36, flexShrink: 0,
+                width: 44, height: 30, flexShrink: 0,
                 background: 'rgba(255,255,255,0.04)',
-                borderRadius: 6,
+                borderRadius: 5,
                 overflow: 'hidden',
                 position: 'relative',
             }}>
                 {ch.stream_icon && (
                     <img
-                        src={proxyImg(ch.stream_icon, 52, 50)}
+                        src={proxyImg(ch.stream_icon, 44, 50)}
                         alt=""
-                        width={52}
-                        height={36}
+                        width={44}
+                        height={30}
                         loading="lazy"
                         decoding="async"
                         referrerPolicy="no-referrer"
@@ -1039,7 +1039,7 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                             position: 'absolute', inset: 0,
                             width: '100%', height: '100%',
                             objectFit: 'contain',
-                            padding: 3,
+                            padding: 2,
                         }}
                     />
                 )}
@@ -1049,28 +1049,30 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                 with the title text (starts under "NOW") rather than
                 spanning the whole card width. */}
             <div style={{ flex: 1, minWidth: 0,
-                            display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
+                            display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
                 <span style={{
-                    fontSize: 14, fontWeight: 700,
+                    fontSize: 13, fontWeight: 700,
                     color: focused ? '#fff' : '#E6EAF2',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    lineHeight: 1.15,
                 }}>
                     {ch.name}
                 </span>
                 {now ? (
                     <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        fontSize: 11,
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        fontSize: 10,
                         color: '#9DA5B5',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         minWidth: 0,
+                        lineHeight: 1.15,
                     }}>
                         <span style={{
-                            fontFamily: 'monospace', fontSize: 9, fontWeight: 800,
-                            letterSpacing: '0.18em', color: '#fff',
-                            padding: '2px 6px',
+                            fontFamily: 'monospace', fontSize: 8, fontWeight: 800,
+                            letterSpacing: '0.16em', color: '#fff',
+                            padding: '1px 5px',
                             background: '#FF4D5E',
-                            borderRadius: 3,
+                            borderRadius: 2,
                             flexShrink: 0,
                         }}>
                             NOW
@@ -1084,17 +1086,14 @@ const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now })
                     </span>
                 ) : (
                     <span style={{
-                        fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.2em',
-                        color: '#5e6473',
+                        fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em',
+                        color: '#5e6473', lineHeight: 1.15,
                     }}>
                         NO GUIDE DATA
                     </span>
                 )}
-                {/* Progress bar — aligned with the title text, starts
-                    under "NOW".  Renders even when there's no EPG
-                    so the channel card looks consistent. */}
                 <div style={{
-                    marginTop: 4,
+                    marginTop: 3,
                     height: 2,
                     background: 'rgba(255,255,255,0.08)',
                     borderRadius: 1,
@@ -1138,44 +1137,46 @@ const GuideRow = React.memo(function GuideRow({ item, focused, isReminded }) {
     return (
         <div style={{
             height: '100%',
-            padding: '0 12px',
-            display: 'flex', gap: 10, alignItems: 'stretch',
+            padding: '0 10px',
+            display: 'flex', gap: 8, alignItems: 'stretch',
             background: 'rgba(20,28,42,0.55)',
             border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
             boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
-            borderRadius: 12,
+            borderRadius: 10,
             opacity: isPast ? 0.55 : 1,
             overflow: 'hidden',
         }}>
             <div style={{
-                width: 44, flexShrink: 0,
+                width: 38, flexShrink: 0,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 0,
                 color: isLive ? accent : '#9DA5B5',
             }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', lineHeight: 1.1 }}>
                     {hhmm}
                 </span>
-                <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: '#5e6473' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: '#5e6473', lineHeight: 1.1 }}>
                     {ampm}
                 </span>
             </div>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
-                            justifyContent: 'center', gap: 3 }}>
+                            justifyContent: 'center', gap: 2 }}>
                 <span style={{
-                    fontSize: 13, fontWeight: 600,
+                    fontSize: 12, fontWeight: 600,
                     color: isLive ? '#fff' : '#E6EAF2',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    lineHeight: 1.2,
                 }}>
                     {item.title || 'Untitled'}
                 </span>
                 {!isPast && (
                     <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                        letterSpacing: '0.16em', color: isReminded ? '#FFC850' : '#7d8493',
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
+                        letterSpacing: '0.14em', color: isReminded ? '#FFC850' : '#7d8493',
+                        lineHeight: 1.1,
                     }}>
-                        <Bell size={10} color={isReminded ? '#FFC850' : '#7d8493'}
+                        <Bell size={9} color={isReminded ? '#FFC850' : '#7d8493'}
                                 fill={isReminded ? '#FFC850' : 'none'} />
                         {isReminded ? 'REMIND ON' : 'OK TO REMIND'}
                     </span>
