@@ -188,6 +188,33 @@ function Grid({ provider, onLogout }) {
         return () => clearTimeout(t);
     }, [focusedChannel]);
 
+    /* On-demand EPG fetch — fires 200 ms after the user settles on
+     * a channel that has no cached EPG.  Lands in epg.current
+     * (same map the prefetch fills), so a subsequent focus on the
+     * same channel is instant.  Cancelled if the user moves on. */
+    const epgReqId = useRef(0);
+    useEffect(() => {
+        const ch = debouncedChannel;
+        if (!ch) return undefined;
+        if (epg.current.has(ch.stream_id)) return undefined;
+        const myReq = ++epgReqId.current;
+        const t = setTimeout(async () => {
+            try {
+                const items = await getFullEpg(provider, ch.stream_id, 12);
+                if (epgReqId.current !== myReq) return;
+                if (items && items.length) {
+                    epg.current.set(ch.stream_id, items);
+                    // Write-through to disk so subsequent launches
+                    // are still instant.
+                    mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
+                    rerender();
+                }
+            } catch { /* swallow */ }
+        }, 200);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedChannel, provider]);
+
     const guideItems = debouncedChannel
         ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
         : EMPTY_ARRAY;
@@ -675,6 +702,14 @@ const Hero = React.memo(function Hero({
                             </div>
                         )}
                     </>
+                ) : channel ? (
+                    <div style={{
+                        marginTop: 16,
+                        fontFamily: 'monospace', fontSize: 11,
+                        letterSpacing: '0.24em', color: '#7d8493',
+                    }}>
+                        LOADING PROGRAMME GUIDE…
+                    </div>
                 ) : null}
 
                 <button
