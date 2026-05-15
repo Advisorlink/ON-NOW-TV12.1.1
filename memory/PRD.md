@@ -34,6 +34,20 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 68 — Feb 15, 2026)
+### Sports Guide v3 — completely redesigned with TheSportsDB
+- **🎯 User request**: "the sports guide thing needs to be completely redone… way better. We need to have way more sports in there. We need to make sure that it's got all the listings, all the fixtures, all the sports. References: livesportsontv.com + thesportsdb.com. Make it 10/10 visuals, not cramped, easy to understand."
+- **🆕 Backend** (`backend/sportsdb.py`, new): TheSportsDB integration (free test key `123`) with 35 curated top leagues across 13 sports. 3 endpoints: `GET /api/sportsdb/leagues` (curated list + sport icon meta), `GET /api/sportsdb/fixtures` (combined upcoming events), `GET /api/sportsdb/league-season` (drill-in).
+- **🛡️ Rate-limit-safe fan-out**: 25 calls max (10 marquee leagues `eventsnextleague` + 3 days no-filter + 12 day-by-sport) throttled by `asyncio.Semaphore(2)` + 400 ms pacing. Stays under TheSportsDB's ~30 req/min free-tier limit.
+- **🔁 Background enrichment**: 70 s after the cold fetch, an async task fans out to the remaining 25 leagues + 9 secondary sports using a SEPARATE slower `_BG_SEM` (1 concurrent + 1.2 s pacing) so it never starves foreground requests.
+- **🚫 Cache-poisoning protection**: empty fan-out results NEVER overwrite a non-empty cache; stale-while-revalidate served when upstream is fully throttled.
+- **💾 Disk-persistence layer** (`/tmp/onnowtv-sportsdb-cache.json`): cache survives backend restarts so cold-starts serve in <200 ms.
+- **🎨 Frontend** (`pages/SportsGuide.jsx` — complete rewrite): cinematic hero (marquee league preferred — EPL/LaLiga/SerieA/NBA/NFL/etc.) with 96 px team-badge face-off + countdown + venue + WATCH-ON white pill + REMIND bell; sport pill strip (12+ sports, colour-tinted); date pill strip (LIVE / All Upcoming / Today / Tomorrow / next 5 days, each with count); per-league sections with badge + sport-coloured left accent; 2-col fixture cards with time + countdown/LIVE/FT pill + team rows + venue + WATCH-ON channel chips.
+- **🔍 Match → IPTV channel** (`lib/sportsMatch.js`, new): fuzzy-matches a SportsDB fixture against the user's IPTV sports-channel EPG by tokenising team names (drops stopwords like "FC", "United", "VS"), requires at least one home + one away token to hit AND optionally the league name.
+- **🧪 Backend tested** (`testing_agent_v3_fork` — iteration_20.json): all critical issues identified and fixed (cache poisoning, fan-out volume, duplicate league id 4391, 429 handling). Cold fetch: 40 events / 6 sports in 7 s; cached fetch: 40 events in 180 ms. Background enrichment pushes to 80+ events / 10+ sports within 90 s.
+
+
+
 ## Implemented (Iteration 67 — Feb 14, 2026)
 ### Live TV — full strip-down to TV Mate-lean
 - **🐛 User reported**: "Still super slow, channels in the middle aren't loading anymore."

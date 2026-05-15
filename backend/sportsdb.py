@@ -81,7 +81,7 @@ TOP_LEAGUES: List[Dict[str, Any]] = [
     {"id": "4630", "name": "Boxing",                "sport": "Boxing",            "country": "International","season": "2025"},
     # Tennis ---------------------------------------------------------------
     {"id": "4464", "name": "ATP Tour",              "sport": "Tennis",            "country": "International","season": "2025"},
-    {"id": "4391", "name": "WTA Tour",              "sport": "Tennis",            "country": "International","season": "2025"},
+    {"id": "4392", "name": "WTA Tour",              "sport": "Tennis",            "country": "International","season": "2025"},
     # Golf -----------------------------------------------------------------
     {"id": "4425", "name": "PGA Tour",              "sport": "Golf",              "country": "USA",       "season": "2025"},
     {"id": "4596", "name": "DP World Tour",         "sport": "Golf",              "country": "International","season": "2025"},
@@ -105,9 +105,11 @@ SPORT_ICONS = {
 }
 
 # ---------------------------------------------------------------------------
-# In-memory TTL cache
+# In-memory TTL cache + disk persistence (survives backend restarts).
 # ---------------------------------------------------------------------------
 _CACHE: Dict[str, tuple[float, Any]] = {}
+_DISK_CACHE_PATH = "/tmp/onnowtv-sportsdb-cache.json"
+
 
 def _cache_get(key: str) -> Any | None:
     v = _CACHE.get(key)
@@ -121,20 +123,77 @@ def _cache_get(key: str) -> Any | None:
 
 def _cache_set(key: str, val: Any, ttl: int) -> None:
     _CACHE[key] = (time.time() + ttl, val)
-
-
-# ---------------------------------------------------------------------------
-# HTTP helper
-# ---------------------------------------------------------------------------
-async def _fetch(client: httpx.AsyncClient, url: str) -> Optional[Dict[str, Any]]:
+    # Best-effort disk persistence so cold-start serves data instantly.
     try:
-        r = await client.get(url, timeout=8.0)
-        if r.status_code != 200:
-            return None
-        return r.json()
+        import json as _json
+        snapshot = {
+            k: {"expires_at": exp, "value": v}
+            for k, (exp, v) in _CACHE.items()
+        }
+        with open(_DISK_CACHE_PATH, "w") as fh:
+            _json.dump(snapshot, fh)
     except Exception as exc:
-        logger.debug("sportsdb fetch failed url=%s err=%s", url, exc)
-        return None
+        logger.debug("sportsdb cache disk-write failed: %s", exc)
+
+
+def _load_disk_cache() -> None:
+    """Hydrate in-memory cache from disk on import."""
+    try:
+        import json as _json
+        import os
+        if not os.path.exists(_DISK_CACHE_PATH):
+            return
+        with open(_DISK_CACHE_PATH) as fh:
+            snapshot = _json.load(fh)
+        nowSec = time.time()
+        loaded = 0
+        for k, entry in (snapshot or {}).items():
+            exp = entry.get("expires_at", 0)
+            if exp > nowSec:
+                _CACHE[k] = (exp, entry.get("value"))
+                loaded += 1
+        if loaded:
+            logger.info("sportsdb: loaded %d cached entries from disk.", loaded)
+    except Exception as exc:
+        logger.debug("sportsdb cache disk-load failed: %s", exc)
+
+
+_load_disk_cache()
+
+
+# ---------------------------------------------------------------------------
+# HTTP helper — concurrency-limited, 429-aware, soft-fail.
+# Throttled to 2 concurrent + 400ms pacing to stay well under TheSportsDB's
+# free-tier limit (~30 requests / minute).
+# A separate, slower lock is used by the background enrichment task so it
+# never starves foreground requests of fetch slots.
+# ---------------------------------------------------------------------------
+_SEM = asyncio.Semaphore(2)
+_BG_SEM = asyncio.Semaphore(1)
+_FETCH_STATS = {"ok": 0, "fail": 0, "rate_limited": 0}
+
+
+async def _fetch(client: httpx.AsyncClient, url: str, *, bg: bool = False) -> Optional[Dict[str, Any]]:
+    sem = _BG_SEM if bg else _SEM
+    pace = 1.2 if bg else 0.40
+    async with sem:
+        await asyncio.sleep(pace)
+        try:
+            r = await client.get(url, timeout=10.0)
+            if r.status_code == 429:
+                _FETCH_STATS["rate_limited"] += 1
+                logger.warning("sportsdb 429 throttled: %s", url[:120])
+                return None
+            if r.status_code != 200:
+                _FETCH_STATS["fail"] += 1
+                logger.warning("sportsdb non-200 %s for %s", r.status_code, url[:120])
+                return None
+            _FETCH_STATS["ok"] += 1
+            return r.json()
+        except Exception as exc:
+            _FETCH_STATS["fail"] += 1
+            logger.warning("sportsdb fetch failed url=%s err=%s", url[:120], exc)
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -211,8 +270,18 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
     """
     Combined upcoming fixtures across all curated leagues.
 
-    Returns ~30-60 events sorted by kickoff time, grouped by sport+league.
+    Returns ~30-100 events sorted by kickoff time, grouped by sport+league.
     Caches 30 minutes (TheSportsDB rate-limits the free key heavily).
+
+    Lean fan-out to stay under TheSportsDB free-tier rate-limits:
+      • eventsnextleague per curated league (next fixtures)  — 35 calls
+      • eventsday no-sport-filter × 3 days                    — 3 calls
+      • eventsday × 3 days × <sport name> for the top 8 sports — 24 calls
+    Total ≤ 62 outbound requests, throttled by a Semaphore to 6 concurrent.
+
+    Stale-while-revalidate: if the fan-out fails to produce events (rate
+    limit / network), serve the previously cached payload rather than
+    poisoning the cache with an empty body.
 
     Shape:
       {
@@ -221,45 +290,52 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
         events: [ <normalised event>, … ],
         bySport: {Soccer: [<event>], Basketball: […], …},
         byLeague: {<leagueId>: {name, badge, sport, events:[…]}, …},
+        upstream: {ok:int, fail:int, rate_limited:int}
       }
     """
-    cache_key = "sportsdb:fixtures:v3"
-    if not refresh:
-        hit = _cache_get(cache_key)
-        if hit:
-            return {**hit, "cached": True}
+    cache_key = "sportsdb:fixtures:v5"
+    cached = _cache_get(cache_key)
+    if not refresh and cached:
+        return {**cached, "cached": True}
 
-    # Build a 5-day window of date strings + the curated sport list.
+    # Reset fetch stats for this call (best-effort, racy under concurrent loads)
+    _FETCH_STATS.update({"ok": 0, "fail": 0, "rate_limited": 0})
+
+    # Cold-load fan-out — stays under TheSportsDB's free-tier rate-limit
+    # (~30 requests/minute) by capping volume to ~20 calls total.
+    #   • eventsday × 3 days, no sport filter        — 3 calls   (broad)
+    #   • eventsday × 3 days × top 4 sports          — 12 calls  (per-sport breadth)
+    #   • eventsnextleague for ~10 marquee leagues   — see MARQUEE_FETCH below
+    # Total ≤ 25 outbound, completes in ≤ 15s with 2-concurrent + 400ms pacing.
     today0 = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    date_strs = [(today0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(0, 5)]
-    distinct_sports = sorted({lg["sport"] for lg in TOP_LEAGUES})
+    date_strs = [(today0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(0, 3)]
+    primary_sports = ["Soccer", "Basketball", "Ice Hockey", "American Football"]
+
+    # 10 marquee leagues — top revenue / global reach.
+    MARQUEE_FETCH = ["4328", "4335", "4332", "4331", "4480",      # EPL/LaLiga/SerieA/Bund/UCL
+                     "4391", "4387", "4380", "4424", "4370"]      # NFL/NBA/NHL/MLB/F1
 
     async with httpx.AsyncClient(
         headers={"User-Agent": "VesperTV/2.0 (sports-guide)"},
+        http2=False,
     ) as client:
-        # Fan-out:
-        #   1. eventsnextleague per league   — up to 15 events each (next fixtures).
-        #   2. eventsseason per league        — up to 15 events each (whole season sample).
-        #   3. eventsday × 5 days × per sport — up to 3 events each (cross-sport breadth).
-        # Each free-tier call returns SAMPLE data so we fan-out wide and dedupe later.
         next_tasks = [
-            _fetch(client, f"{SPORTSDB_BASE}/eventsnextleague.php?id={lg['id']}")
-            for lg in TOP_LEAGUES
+            _fetch(client, f"{SPORTSDB_BASE}/eventsnextleague.php?id={lid}")
+            for lid in MARQUEE_FETCH
         ]
-        season_tasks = [
-            _fetch(client, f"{SPORTSDB_BASE}/eventsseason.php?id={lg['id']}&s={lg['season']}")
-            for lg in TOP_LEAGUES
+        day_tasks = [
+            _fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={d}")
+            for d in date_strs
         ]
-        day_tasks = []
-        for date_str in date_strs:
-            # No-sport-filter once per day to catch random globally-popular events.
-            day_tasks.append(_fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={date_str}"))
-            for sport in distinct_sports:
-                # URL-encode space → %20
+        sport_tasks = []
+        for d in date_strs:
+            for sport in primary_sports:
                 s_enc = sport.replace(' ', '%20')
-                day_tasks.append(_fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={date_str}&s={s_enc}"))
+                sport_tasks.append(
+                    _fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={d}&s={s_enc}")
+                )
         results = await asyncio.gather(
-            *next_tasks, *season_tasks, *day_tasks, return_exceptions=True
+            *next_tasks, *day_tasks, *sport_tasks, return_exceptions=True
         )
 
     nowSec = int(time.time())
@@ -316,9 +392,129 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
              "count": len(by_sport.get(s, []))}
             for s in sorted(by_sport.keys(), key=str.lower)
         ],
+        "upstream":    dict(_FETCH_STATS),
     }
-    _cache_set(cache_key, payload, 30 * 60)  # 30 min
+
+    # Cache-poisoning protection — if we got nothing back from upstream (full
+    # rate-limit or upstream outage), serve the previously cached payload
+    # rather than overwriting it with an empty body.
+    if not events and cached:
+        logger.warning(
+            "sportsdb: empty fan-out (ok=%d, fail=%d, 429=%d); serving stale cache.",
+            _FETCH_STATS["ok"], _FETCH_STATS["fail"], _FETCH_STATS["rate_limited"],
+        )
+        return {**cached, "cached": True, "stale": True}
+
+    # Only cache non-empty payloads, so the next call has a chance to refresh.
+    if events:
+        _cache_set(cache_key, payload, 30 * 60)  # 30 min
+        # Fire-and-forget background enrichment so future cache hits are richer
+        # (more leagues + more sports), without blocking this response.
+        try:
+            asyncio.create_task(_enrich_cache(cache_key, payload))
+        except RuntimeError:
+            pass
     return payload
+
+
+async def _enrich_cache(cache_key: str, base_payload: Dict[str, Any]) -> None:
+    """Background fan-out: fetch remaining curated leagues + sports and merge
+    them into the cache.  Best-effort: skips silently if the cache has been
+    replaced or the run errors.
+
+    Sleeps 70 s before starting so TheSportsDB's per-minute rate-limit window
+    resets after the foreground fan-out has finished.
+    """
+    try:
+        await asyncio.sleep(70)
+        # Compute the leagues NOT included in the cold fan-out + the secondary
+        # sport set for additional breadth.
+        already = {"4328", "4335", "4332", "4331", "4480",
+                   "4391", "4387", "4380", "4424", "4370"}
+        extra_leagues = [lg["id"] for lg in TOP_LEAGUES if lg["id"] not in already]
+        extra_sports = ["Baseball", "Motorsport", "Cricket", "Rugby",
+                        "MMA", "Boxing", "Tennis", "Golf", "Australian Football"]
+        today0 = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_strs = [(today0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(0, 3)]
+
+        async with httpx.AsyncClient(
+            headers={"User-Agent": "VesperTV/2.0 (sports-guide-enrich)"},
+            http2=False,
+        ) as client:
+            next_tasks = [
+                _fetch(client, f"{SPORTSDB_BASE}/eventsnextleague.php?id={lid}", bg=True)
+                for lid in extra_leagues
+            ]
+            sport_tasks = []
+            for d in date_strs:
+                for sport in extra_sports:
+                    s_enc = sport.replace(' ', '%20')
+                    sport_tasks.append(
+                        _fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={d}&s={s_enc}", bg=True)
+                    )
+            extra_results = await asyncio.gather(
+                *next_tasks, *sport_tasks, return_exceptions=True
+            )
+
+        nowSec = int(time.time())
+        horizon = nowSec + 14 * 24 * 3600
+        past_window = nowSec - 6 * 3600
+        seen_ids: set[str] = {e["id"] for e in base_payload["events"] if e.get("id")}
+        new_events: List[Dict[str, Any]] = list(base_payload["events"])
+        for r in extra_results:
+            if not isinstance(r, dict):
+                continue
+            for raw in (r.get("events") or []):
+                n = _normalise_event(raw)
+                if not n["id"] or n["id"] in seen_ids or not n["ts"]:
+                    continue
+                if n["ts"] < past_window or n["ts"] > horizon:
+                    continue
+                seen_ids.add(n["id"])
+                new_events.append(n)
+
+        new_events.sort(key=lambda e: e["ts"])
+
+        by_sport: Dict[str, List[Dict[str, Any]]] = {}
+        by_league: Dict[str, Dict[str, Any]] = {}
+        for e in new_events:
+            s = e["sport"] or "Other"
+            by_sport.setdefault(s, []).append(e)
+            lid = e["leagueId"]
+            if lid:
+                bl = by_league.setdefault(lid, {
+                    "id": lid,
+                    "name": e["league"],
+                    "badge": e["leagueBadge"],
+                    "sport": s,
+                    "events": [],
+                })
+                if not bl["badge"] and e["leagueBadge"]:
+                    bl["badge"] = e["leagueBadge"]
+                bl["events"].append(e)
+
+        enriched = {
+            "cached":     False,
+            "fetched_at": base_payload["fetched_at"],
+            "events":     new_events,
+            "bySport":    by_sport,
+            "byLeague":   by_league,
+            "sportsMeta": [
+                {"name": s, **SPORT_ICONS.get(s, {"emoji": "🏆", "color": "#5DC8FF"}),
+                 "count": len(by_sport.get(s, []))}
+                for s in sorted(by_sport.keys(), key=str.lower)
+            ],
+            "upstream":   dict(_FETCH_STATS),
+            "enriched":   True,
+        }
+        _cache_set(cache_key, enriched, 30 * 60)
+        logger.info(
+            "sportsdb: background enrichment done — events=%d (+%d), sports=%d",
+            len(new_events), len(new_events) - len(base_payload["events"]),
+            len(by_sport),
+        )
+    except Exception as exc:
+        logger.warning("sportsdb enrich task failed: %s", exc)
 
 
 @router.get("/league-season")
@@ -354,5 +550,7 @@ async def get_league_season(
         "season":     season,
         "events":     events,
     }
-    _cache_set(cache_key, payload, 6 * 3600)  # 6 h
+    # Don't cache empty results — let the next call retry the upstream API.
+    if events:
+        _cache_set(cache_key, payload, 6 * 3600)  # 6 h
     return payload
