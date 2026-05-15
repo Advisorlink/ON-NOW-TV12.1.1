@@ -227,6 +227,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.5.8 — Mobile polish pass**
+            - 📱 NEW: 5th "More" tab in the mobile bottom nav opens
+              a beautiful bottom sheet with EVERY secondary
+              destination (Sports, TV Shows, Movies, Watch Together,
+              Profiles, Sources, Settings) — phone users now have
+              feature-parity with the TV side-rail.
+            - 🔑 NEW: Kids mode on mobile now shows a floating "EXIT
+              KIDS" pill in the top-right (the desktop KidsSideNav
+              Exit row is hidden on phones for space reasons —
+              previously left parents trapped in kids mode).
+            - ⌨️ TV-keyboard auto-falls-back to the native OS keyboard
+              on phones — the 10-column TV grid is impossible to use
+              on a 360 px screen.  Fully thumb-friendly with the
+              right autocapitalize / inputMode hints.
+            - 👆 Fixed touch scroll being eaten by long-press handler.
+              Now tracks finger movement; >8 px of slide = scroll
+              gesture, no longer fires tap or "Add to My List" modal.
+              Tap-and-hold (no movement) still triggers the modal.
+            - 🛰️ Live TV mobile flow: tapping a channel now SELECTS
+              it (showing its Now/Next guide); tap again to play.
+              No more accidentally tuning the wrong channel when you
+              just wanted to peek at what's on.
+            - 🍿 Network catalogue pages (Netflix / HBO / Disney+)
+              now use the full mobile width — was rendering 2 thin
+              tile-columns with huge wasted side gutters.
+            - 🪡 Profile create flow on mobile: removed the duplicate
+              "Continue" + "Your name" pill rows; the native input
+              from the keyboard fallback covers both jobs.
+
             **v2.5.7 — In-player Live Guide overlay**
             - 🛰️ NEW: While a live channel is playing, press the
               "Channels" button (or the GUIDE / channel-up / TV-input

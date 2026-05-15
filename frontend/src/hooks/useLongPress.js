@@ -29,6 +29,9 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
     const longPressFiredRef = useRef(false);
     const lastReleaseRef = useRef(0);
     const elRef = useRef(null);
+    /* Touch tracking: remember the starting (x,y) so we can detect
+       scroll gestures and cancel cleanly without ever firing onTap. */
+    const touchStartRef = useRef({ x: 0, y: 0, t: 0, moved: false });
 
     useEffect(() => {
         return () => {
@@ -101,6 +104,62 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         },
         onMouseLeave: () => {
             // Mouse dragged off mid-hold → cancel without firing tap.
+            cancel();
+        },
+        /* Touch handlers ─────────────────────────────────────────
+         *
+         * The key insight here is that on a phone, every touch is
+         * potentially the START of a scroll gesture.  We must NOT
+         * preventDefault on touchstart/touchend/touchmove (doing so
+         * would freeze page scrolling), and we must cancel the long-
+         * press timer the moment we detect the finger has moved
+         * more than a few pixels in any direction — that's the
+         * browser's signal that the user is scrolling, not tapping.
+         */
+        onTouchStart: (e) => {
+            if (e.touches && e.touches.length > 1) return;   // pinch
+            const t = e.touches?.[0] || e;
+            touchStartRef.current = {
+                x: t.clientX || 0,
+                y: t.clientY || 0,
+                t: Date.now(),
+                moved: false,
+            };
+            start();
+        },
+        onTouchMove: (e) => {
+            /* If the finger has moved more than 8 px in any
+               direction since touchstart, treat it as a scroll
+               gesture and cancel the long-press + tap intent.
+               iOS / Chrome both use ~10 px as their built-in
+               click-vs-drag threshold; 8 px is a touch tighter
+               and works well on a high-DPI Fold 7 screen. */
+            const t = e.touches?.[0];
+            if (!t) return;
+            const dx = (t.clientX || 0) - touchStartRef.current.x;
+            const dy = (t.clientY || 0) - touchStartRef.current.y;
+            if (Math.hypot(dx, dy) > 8) {
+                touchStartRef.current.moved = true;
+                cancel();
+            }
+        },
+        onTouchEnd: (_e) => {
+            /* IMPORTANT: do NOT call preventDefault here.  Doing so
+               prevents browsers from completing the scroll-up
+               gesture cleanly on iOS Safari + some Android
+               WebViews — they snap back instead of holding the
+               scroll position.  We also don't need to suppress the
+               synthetic click — onClick is already a no-op (see
+               below) and the tap action is fired from `release()`. */
+            if (touchStartRef.current.moved) {
+                /* Pure scroll gesture — neutralise so onTap never
+                   fires from a leftover heldRef. */
+                cancel();
+                return;
+            }
+            release();
+        },
+        onTouchCancel: () => {
             cancel();
         },
         onClick: (e) => {

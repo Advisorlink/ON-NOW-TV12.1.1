@@ -1093,6 +1093,10 @@ function Grid({ provider, onLogout }) {
                         idx={sel.catIdx}
                         rowHeight={ROW_H}
                         rowFn={renderCategory}
+                        onTap={(item, i) => {
+                            if (item?.kind === 'header') return;
+                            setSel((s) => ({ ...s, col: 1, catIdx: i, chanIdx: 0 }));
+                        }}
                     />
                 </div>
                 <div style={{
@@ -1112,12 +1116,85 @@ function Grid({ provider, onLogout }) {
                         idx={sel.chanIdx}
                         rowHeight={CHAN_H}
                         rowFn={renderChannel}
+                        onTap={(item, i) => {
+                            /* Mobile tap-to-explore: the first tap on
+                             * a channel SELECTS it (showing its guide
+                             * column on phones); a second tap on the
+                             * same row plays.  This matches the
+                             * expected "see what's on" → "watch it"
+                             * mental model users tested on phones.
+                             * On a TV browser (D-pad), this is a no-
+                             * op because tap doesn't fire — OK still
+                             * goes through the keyboard handler. */
+                            if (isMobile) {
+                                const alreadySelected = sel.chanIdx === i;
+                                if (alreadySelected) {
+                                    if (item) playChannel(item);
+                                } else {
+                                    /* Show guide column (col 2) for
+                                       the tapped channel. */
+                                    setSel((s) => ({ ...s, col: 2, chanIdx: i, guideIdx: 0 }));
+                                }
+                            } else {
+                                setSel((s) => ({ ...s, col: 1, chanIdx: i }));
+                                if (item) playChannel(item);
+                            }
+                        }}
                     />
                 </div>
                 <div style={{
                     display: isMobile && sel.col !== 2 ? 'none' : 'flex',
                     flexDirection: 'column', minHeight: 0, gap: 8,
                 }}>
+                    {/* Mobile-only top action bar: lets the user
+                        either watch the selected channel or go back
+                        to the channel list without playing.  This is
+                        critical because on mobile the only way to
+                        "see what else is on" without auto-tuning is
+                        to first select the channel (col 2) — there
+                        was previously no way to back out without
+                        playing. */}
+                    {isMobile && focusedChannel && (
+                        <div style={{
+                            display: 'flex', gap: 10, alignItems: 'center',
+                            padding: '0 4px 4px 4px',
+                        }}>
+                            <button
+                                data-testid="livetv-mobile-back-to-channels"
+                                onClick={() => setSel((s) => ({ ...s, col: 1 }))}
+                                style={{
+                                    height: 40, padding: '0 14px',
+                                    borderRadius: 999,
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    color: '#E6EAF2',
+                                    fontSize: 13, fontWeight: 600,
+                                    WebkitTapHighlightColor: 'transparent',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                ← Channels
+                            </button>
+                            <button
+                                data-testid="livetv-mobile-watch"
+                                onClick={() => playChannel(focusedChannel)}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    borderRadius: 999,
+                                    background: 'var(--vesper-blue)',
+                                    border: 'none',
+                                    color: 'var(--vesper-bg-0)',
+                                    fontSize: 14, fontWeight: 800,
+                                    letterSpacing: '0.04em',
+                                    WebkitTapHighlightColor: 'transparent',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                ▶  WATCH {focusedChannel.name?.slice(0, 18).toUpperCase() || 'CHANNEL'}
+                            </button>
+                        </div>
+                    )}
                     {/* Top blue date label with live clock */}
                     <GuideTopBar todayLabel={guideTodayLabel} />
                     <GuideHeader channelName={debouncedChannel?.name || ''} />
@@ -1128,6 +1205,18 @@ function Grid({ provider, onLogout }) {
                         idx={sel.guideIdx}
                         rowHeight={GUIDE_ROW_H}
                         rowFn={renderGuide}
+                        onTap={(item, i) => {
+                            setSel((s) => ({ ...s, col: 2, guideIdx: i }));
+                            /* Tapping the currently-airing programme
+                               row (kind: 'now') tunes the channel.
+                               Tapping future programmes is a no-op on
+                               mobile (no catch-up support yet) — but
+                               the user can use the WATCH button
+                               above for an unambiguous play action. */
+                            if (!isMobile && item && item._kind === 'now' && focusedChannel) {
+                                playChannel(focusedChannel);
+                            }
+                        }}
                     />
                 </div>
             </div>
@@ -1444,7 +1533,7 @@ const GuideHeader = React.memo(function GuideHeader({ channelName }) {
 
 /* ──────────────────── Column (virtualised) ──────────────────── */
 
-const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHeight, rowFn }) {
+const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHeight, rowFn, onTap }) {
     const containerRef = useRef(null);
     const [scrollTop, setScrollTop] = useState(0);
 
@@ -1498,12 +1587,16 @@ const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHe
                 {visible.map(({ item, i }) => (
                     <div
                         key={item?.id || item?.stream_id || item?.startTimestamp || i}
+                        data-testid={`${testid}-row-${i}`}
+                        onClick={onTap ? (() => onTap(item, i)) : undefined}
                         style={{
                             position: 'absolute',
                             top: i * rowHeight,
                             left: 0, right: 0,
                             height: rowHeight,
                             padding: '0 0 6px 0',
+                            cursor: onTap ? 'pointer' : undefined,
+                            WebkitTapHighlightColor: 'transparent',
                         }}
                     >
                         {rowFn(item, i, isFocused && i === idx)}

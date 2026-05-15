@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '@/index.css';
-import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Home from '@/pages/Home';
 import Sources from '@/pages/Sources';
 import Detail from '@/pages/Detail';
@@ -26,6 +26,7 @@ import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 
 /* Warm the DiceBear avatar HTTP cache on app boot.  Runs once at
@@ -155,11 +156,62 @@ function MobilePlatformRoot({ children }) {
                 ? location.pathname.startsWith(p)
                 : location.pathname === p || location.pathname.startsWith(p + '/'));
 
+    /* In kids mode on mobile we hide the desktop KidsSideNav (no
+       room on a phone screen) — but that ALSO hides the "Exit Kids"
+       button.  Render a floating Exit pill in the top-right so the
+       parent can still get out.  Only shown in kids mode, not on
+       the PIN gate itself (the gate IS the exit). */
+    const kidsActive = isMobile && isKidsActive() &&
+        !location.pathname.startsWith('/kids/exit-pin');
+
     return (
         <>
             {children}
             {showBottomNav && <MobileBottomNav />}
+            {kidsActive && <KidsExitPill />}
         </>
+    );
+}
+
+/**
+ * Floating "Exit Kids" pill rendered in the top-right corner of
+ * the kids-mode mobile UI.  Replaces the desktop KidsSideNav's Exit
+ * row which is hidden on phones for space reasons.
+ *
+ * Sits above all other content (z-index 65) with a safe-area inset
+ * so the notch / camera-cutout on the Fold 7 doesn't overlap it.
+ */
+function KidsExitPill() {
+    const navigate = useNavigate();
+    return (
+        <button
+            data-testid="kids-mobile-exit"
+            onClick={() => navigate('/kids/exit-pin')}
+            style={{
+                position: 'fixed',
+                top: 'calc(12px + env(safe-area-inset-top, 0px))',
+                right: 'calc(12px + env(safe-area-inset-right, 0px))',
+                zIndex: 65,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 38,
+                padding: '0 14px',
+                borderRadius: 999,
+                background: 'rgba(6,8,15,0.85)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                WebkitTapHighlightColor: 'transparent',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
+            }}
+        >
+            <LogOut size={14} strokeWidth={2.4} />
+            <span>EXIT KIDS</span>
+        </button>
     );
 }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Delete, ArrowUp, Space } from 'lucide-react';
+import useIsMobile from '@/lib/useIsMobile';
 
 /**
  * Themed TV-friendly on-screen keyboard.  Rendered as a grid of
@@ -14,6 +15,12 @@ import { Delete, ArrowUp, Space } from 'lucide-react';
  *   maxLength     — clamp typed value to this length (default 40)
  *   variant       — 'name' (alpha + space) or 'pin' (digits)
  *                   defaults to 'name'
+ *
+ * **Mobile mode**: when running on a phone (`useIsMobile()`), the
+ * grid is replaced with a native HTML <input> so the OS keyboard
+ * pops up.  The 10-column TV keyboard is essentially impossible to
+ * use on a 360 px screen — each key would be 28 px wide and 32 px
+ * tall with no thumb-friendly target area.
  */
 export default function TVKeyboard({
     value,
@@ -22,6 +29,7 @@ export default function TVKeyboard({
     maxLength = 40,
     variant = 'name',
 }) {
+    const isMobile = useIsMobile();
     const [shift, setShift] = React.useState(false);
     // Mirror the controlled `value` prop into a ref so that the
     // click handlers ALWAYS read the freshest value — even if two
@@ -78,6 +86,84 @@ export default function TVKeyboard({
         valueRef.current = next;
         onChange(next);
     };
+
+    /* Mobile branch — native input.  The OS keyboard does a far
+       better job on phones than our 10-col TV grid ever could.  We
+       still expose `data-testid="tv-keyboard-<variant>"` so existing
+       e2e tests find the field. */
+    if (isMobile) {
+        const isPin = variant === 'pin';
+        return (
+            <div
+                data-testid={`tv-keyboard-${variant}`}
+                style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+                <input
+                    data-testid={`tv-keyboard-input-${variant}`}
+                    autoFocus
+                    value={value || ''}
+                    onChange={(e) => {
+                        const next = isPin
+                            ? e.target.value.replace(/\D/g, '').slice(0, maxLength)
+                            : e.target.value.slice(0, maxLength);
+                        valueRef.current = next;
+                        onChange(next);
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && onSubmit) {
+                            e.preventDefault();
+                            onSubmit();
+                        }
+                    }}
+                    inputMode={isPin ? 'numeric' : 'text'}
+                    pattern={isPin ? '[0-9]*' : undefined}
+                    type={isPin ? 'tel' : 'text'}
+                    maxLength={maxLength}
+                    autoCapitalize={isPin ? 'off' : 'words'}
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder={isPin ? '••••' : 'Type here'}
+                    enterKeyHint={onSubmit ? 'go' : 'done'}
+                    style={{
+                        width: '100%',
+                        height: 56,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(93,200,255,0.35)',
+                        borderRadius: 14,
+                        color: '#fff',
+                        fontSize: isPin ? 24 : 18,
+                        fontWeight: 600,
+                        letterSpacing: isPin ? '0.4em' : '0.01em',
+                        textAlign: isPin ? 'center' : 'left',
+                        padding: '0 18px',
+                        outline: 'none',
+                        WebkitTapHighlightColor: 'transparent',
+                    }}
+                />
+                {onSubmit && (
+                    <button
+                        data-testid={`tv-keyboard-submit-${variant}`}
+                        onClick={onSubmit}
+                        style={{
+                            width: '100%',
+                            height: 52,
+                            background: 'var(--vesper-blue)',
+                            border: 'none',
+                            borderRadius: 14,
+                            color: 'var(--vesper-bg-0)',
+                            fontSize: 15,
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                        }}
+                    >
+                        Continue
+                    </button>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div

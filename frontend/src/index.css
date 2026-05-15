@@ -982,3 +982,134 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
         display: none !important; /* Free up horizontal room on small phones */
     }
 }
+
+/* ============================================================
+   Mobile More-sheet animations
+   ============================================================ */
+@keyframes vesper-mob-sheet-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes vesper-mob-sheet-slide {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+}
+
+/* ============================================================
+   LIVE TV — mobile-specific layout
+   ============================================================
+   The TV layout is a 3-column grid (categories · channels · player
+   preview).  On a phone we collapse it to a single column with the
+   currently-focused column visible at any one time + tap targets
+   sized for thumbs.  Most of this is already handled by the page's
+   own `isMobile` branch but a handful of inline desktop paddings
+   need overriding here. */
+body[data-platform="mobile"] [data-testid="livetv-page"] main {
+    left: 0 !important;
+    /* Reserve room for the bottom-nav so the channel list isn't
+       hidden beneath it. */
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Channel cards: enable touch action so the row taps reliably
+   (without this, the parent's onTouchMove handler eats the tap).
+   Also enforce the 48 px min-height we promised for hit targets. */
+body[data-platform="mobile"] [data-focusable='true'][data-testid^='livetv-channel-'] {
+    min-height: 64px;
+    touch-action: manipulation;
+}
+
+/* Categories rail tile heights */
+body[data-platform="mobile"] [data-testid^='livetv-cat-'] {
+    min-height: 48px;
+    touch-action: manipulation;
+}
+
+/* Search page mobile-friendly tweaks ─────────────────────────
+   The search-results posters are already in a grid; just make sure
+   the focus glow doesn't clip the bottom nav. */
+body[data-platform="mobile"] [data-testid="search-page"] {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Watch-Together search results grid (2 cols on phone) */
+body[data-platform="mobile"] [data-testid="watch-together-search-results"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+
+/* TVKeyboard takes about ~250px vertical when rendered as a grid;
+   the mobile branch renders a single input.  Ensure the input row
+   never gets pushed under the bottom-nav. */
+body[data-platform="mobile"] [data-testid^="tv-keyboard-"] {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* ProfileEdit mobile fix — tighten heading sizes and ensure the
+   keyboard area fits without scrolling.  TVKeyboard already
+   auto-falls-back to a native input on mobile (see TVKeyboard.jsx). */
+body[data-platform="mobile"] [data-testid="profile-edit"] {
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    height: 100dvh !important;
+    overflow-y: auto !important;
+}
+body[data-platform="mobile"] [data-testid="profile-step-name"] h2,
+body[data-platform="mobile"] [data-testid="profile-edit"] h2 {
+    font-size: clamp(22px, 6vw, 30px) !important;
+}
+/* On mobile the on-screen TV-keyboard is replaced with a native
+   <input>, which already shows the typed value.  Hide the "Your
+   name…" display pill + the duplicate "Next: choose an avatar"
+   button — TVKeyboard's own mobile-mode "Continue" button covers
+   both jobs. */
+body[data-platform="mobile"] [data-testid="profile-name-display"],
+body[data-platform="mobile"] [data-testid="profile-name-next"] {
+    display: none !important;
+}
+/* Avatar / theme grids — collapse to 3 cols on phones so they
+   don't run off-screen. */
+body[data-platform="mobile"] [data-testid="profile-edit"] [data-testid^="avatar-grid"],
+body[data-platform="mobile"] [data-testid="profile-edit"] [data-testid="profile-step-avatar"] > div > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+/* Theme cards (Step 2) — single column for readability. */
+body[data-platform="mobile"] [data-testid="profile-step-theme"] [class*="grid-cols"] {
+    grid-template-columns: 1fr !important;
+}
+
+/* Sources / Xtream login — same idea, full-width column. */
+body[data-platform="mobile"] [data-testid="xtream-login"] {
+    padding: 24px 16px calc(96px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    max-width: 100% !important;
+}
+
+/* ============================================================
+   NETWORK page (Netflix / HBO / Disney+ catalogue browser)
+   ============================================================
+   Inline `paddingLeft: clamp(92px, 6.5vw, 132px)` reserves room
+   for the desktop SideNav.  On mobile we hide the SideNav so we
+   need to claim that horizontal space back — otherwise the tile
+   grid renders as a narrow column ("two thin lines of movies"). */
+body[data-platform="mobile"] [data-testid^="network-page-"] header,
+body[data-platform="mobile"] [data-testid^="network-page-"] main > div {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] header {
+    height: clamp(180px, 42vw, 240px) !important;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] header img,
+body[data-platform="mobile"] [data-testid^="network-page-"] header [class*="text-"] {
+    /* Trim the hero so it's not visually overwhelming on small
+       screens; the actual posters need the room. */
+    font-size: clamp(20px, 6vw, 28px);
+}
+/* Poster tiles — claim more of the screen width so we get 3 posters
+   per row on a 390 px phone (was rendering at 120 px width which
+   left ~80 px gutters at the screen edges). */
+body[data-platform="mobile"] [data-testid^="network-poster-"] {
+    width: calc((100vw - 32px - 24px) / 3) !important;
+    min-width: 0 !important;
+}

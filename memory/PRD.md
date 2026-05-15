@@ -34,6 +34,18 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 84 — Feb 16, 2026)
+### Mobile polish pass — 8 fixes
+- **5th "More" tab** in MobileBottomNav opens a bottom sheet exposing **every** secondary destination from the desktop SideNav: Sports, TV Shows, Movies, Watch Together, Profiles, Sources, Settings.  Feature parity for phone users.
+- **Kids exit pill** — floating "EXIT KIDS" button in the top-right corner, shown only on mobile + only in kids mode (parents were trapped in kids mode because the KidsSideNav was hidden by mobile CSS).
+- **TVKeyboard mobile fallback** — auto-detects mobile via `useIsMobile()` and renders a native `<input>` with the right `inputMode` / `autocapitalize` / `enterKeyHint` for the OS keyboard.  10-col TV grid is unusable on 360 px screens.
+- **Touch-scroll fix** in `useLongPress.js` — track touch start position, cancel on >8 px movement, never preventDefault on touchend.  Long-press "Add to My List" still works for non-moving taps.
+- **LiveTV mobile UX** — tap-to-select instead of tap-to-play.  First tap on a channel jumps to its guide column; second tap (or the new mobile-only "WATCH" CTA pill) plays.  Includes a "← Channels" back button in the guide column.
+- **Network/Catalogue mobile width fix** — `paddingLeft: clamp(92px, 6.5vw, 132px)` (set for the desktop SideNav inset) was leaving phone users with ~258 px of content width.  CSS override claims the full viewport and resizes posters to 3-per-row.
+- **ProfileEdit duplicate-input fix** — TVKeyboard's mobile native input was rendering alongside the page's own "Your name" pill + "Next" button.  Hidden via CSS now.
+- **Mobile More-sheet animations** — `vesper-mob-sheet-fade` + `vesper-mob-sheet-slide` keyframes for a polished slide-up.
+- **Manifest v2.5.8 (versionCode 69)** — GitHub Actions auto-builds & publishes.
+
 ## Implemented (Iteration 83 — Feb 16, 2026)
 ### In-player Live Guide overlay
 - **🛰️ Beautiful native channel browser inside the libVLC player** (v2.5.7 APK).  While a live stream is playing, the user presses the new "Channels" pill in the controls (or GUIDE / CHANNEL_UP / TV_INPUT on the remote) → a translucent overlay slides in with:
