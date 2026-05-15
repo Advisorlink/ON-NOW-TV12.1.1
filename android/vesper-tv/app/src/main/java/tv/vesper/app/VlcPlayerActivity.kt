@@ -94,6 +94,12 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var btnAudio: Button
     private lateinit var btnSpeed: Button
     private lateinit var btnAspect: Button
+    private lateinit var btnChannels: Button
+
+    /** In-player Live Guide overlay — only initialised when this
+     *  activity is hosting a `live` stream.  Null for movie / series
+     *  playback so movies don't waste memory on a channel browser. */
+    private var liveGuide: LiveGuideController? = null
 
     // Picker sheet
     private lateinit var pickerRoot: View
@@ -239,6 +245,27 @@ class VlcPlayerActivity : AppCompatActivity() {
         btnAudio = findViewById(R.id.btn_audio)
         btnSpeed = findViewById(R.id.btn_speed)
         btnAspect = findViewById(R.id.btn_aspect)
+        btnChannels = findViewById(R.id.btn_channels)
+
+        /* Live-channel-only setup: surface the Channels button + wire
+         * up the overlay controller.  For movies / series the button
+         * stays gone (XML default) and liveGuide is null. */
+        if (contentType?.equals("live", ignoreCase = true) == true) {
+            btnChannels.visibility = android.view.View.VISIBLE
+            liveGuide = LiveGuideController(this, findViewById(R.id.guide_root))
+            /* Seed the "now playing" channel highlight + auto-focus.
+             * cwId for live streams is `live:{providerId}:{streamId}`
+             * — see LiveTV.jsx > playChannel(). */
+            cwId?.takeIf { it.startsWith("live:") }?.split(":")?.let { parts ->
+                if (parts.size >= 3) {
+                    liveGuide?.setCurrentPlayingChannel(parts.last())
+                }
+            }
+            btnChannels.setOnClickListener {
+                lastFocusedControl = btnChannels
+                liveGuide?.open()
+            }
+        }
 
         previewRoot = findViewById(R.id.preview_root)
         previewBackdrop = findViewById(R.id.preview_backdrop)
@@ -831,6 +858,55 @@ class VlcPlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Live-channel hot-swap.  Called from `LiveGuideController` when
+     * the user picks a new channel from the in-player overlay.
+     *
+     * Replaces the libVLC `Media` *without* releasing the player,
+     * detaching views, or restarting the Activity — so the transition
+     * is sub-second (libVLC just demuxes the new URL into its
+     * existing pipeline).  The cinematic preview poster + title bar
+     * are updated to reflect the new channel.
+     *
+     * Restricted to live channels — the EXTRA_TYPE check is already
+     * enforced by the caller (LiveGuideController only initialises
+     * when contentType == "live").
+     */
+    fun swapChannel(newUrl: String, newTitle: String, newLogo: String, newStreamId: String) {
+        streamUrl = newUrl
+        streamTitle = newTitle
+        posterUrl = newLogo
+        /* Rebuild cwId so future CW writes (recents, last-played
+         * channel) refer to the NEW channel, not the original. */
+        val providerId = cwId?.takeIf { it.startsWith("live:") }
+            ?.split(":")?.getOrNull(1) ?: ""
+        if (providerId.isNotBlank()) {
+            cwId = "live:$providerId:$newStreamId"
+        }
+        try {
+            mediaPlayer.stop()
+        } catch (_: Throwable) { /* swallow — first swap may not have started yet */ }
+        val media = Media(libVlc, Uri.parse(newUrl))
+        media.setHWDecoderEnabled(true, false)
+        // 1.5 s buffer for live streams — same as the initial path.
+        media.addOption(":network-caching=1500")
+        mediaPlayer.media = media
+        media.release()
+        mediaPlayer.play()
+        titleTv.text = newTitle
+        liveGuide?.setCurrentPlayingChannel(newStreamId)
+        // Repopulate the cinematic preview so the new channel name
+        // is what flashes on screen during the brief reconnect.
+        previewTitle.text = newTitle
+        previewMeta.text = ""
+        previewStatus.text = "Switching channel\u2026"
+        previewRoot.visibility = View.VISIBLE
+        previewRoot.alpha = 0f
+        previewRoot.animate().alpha(1f).setDuration(160).start()
+        // Hide the preview when the first frame decodes — same path
+        // the initial-play uses (see the playing-state event handler).
+    }
+
     private fun togglePlayPause() {
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
@@ -1119,10 +1195,39 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // BACK closes the Live Guide overlay first (it has higher
+        // visual priority than the track picker).
+        if (keyCode == KeyEvent.KEYCODE_BACK && liveGuide?.onBackPressed() == true) {
+            return true
+        }
         // BACK closes the picker if it's open, otherwise exits the player
         if (keyCode == KeyEvent.KEYCODE_BACK && isPickerOpen()) {
             closePicker()
             return true
+        }
+        // Live-channel shortcuts: GUIDE (TV remote dedicated key) +
+        // PROG_RED (one of the coloured remote buttons that many
+        // HK1 / AOSP-Android-7.1 remotes ship with) + CHANNEL_UP/
+        // DOWN (legacy IR remotes) all open the in-player browser.
+        // Only enabled for live streams, and only when the guide
+        // itself is closed.
+        if (liveGuide != null && liveGuide?.isOpen() != true) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_GUIDE,
+                KeyEvent.KEYCODE_PROG_RED,
+                KeyEvent.KEYCODE_CHANNEL_UP,
+                KeyEvent.KEYCODE_CHANNEL_DOWN,
+                KeyEvent.KEYCODE_TV_INPUT -> {
+                    liveGuide?.open()
+                    return true
+                }
+            }
+        }
+        // While the Live Guide is open, swallow keys we don't want
+        // bubbling up to picker / playback logic — but let the OS
+        // traverse focus inside the RecyclerViews normally.
+        if (liveGuide?.isOpen() == true) {
+            return super.onKeyDown(keyCode, event)
         }
         if (isPickerOpen()) {
             return super.onKeyDown(keyCode, event)

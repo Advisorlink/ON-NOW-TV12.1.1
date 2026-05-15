@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Channel card row for VlcPlayerActivity's in-player Live Guide.
+  Layout:
+    [logo 80×80]  [name + Now / Next + progress bar  ]   [LIVE NOW pill]
+
+  Targets HK1 / Android 7.1 hardware so no fancy blurs/shadows.
+  Focus state is driven by the row's @drawable/guide_channel_row_bg
+  selector (neon-blue border on focus).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="104dp"
+    android:layout_marginEnd="20dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/guide_channel_row_bg"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingEnd="20dp">
+
+    <!-- Channel logo -->
+    <FrameLayout
+        android:layout_width="76dp"
+        android:layout_height="76dp"
+        android:background="@drawable/guide_logo_bg">
+        <ImageView
+            android:id="@+id/row_logo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="8dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <!-- Name + Now + Next + progress -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/row_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/row_now"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#C7CFDB"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <!-- Progress bar — width is driven from Kotlin -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
+            android:background="#1FFFFFFF">
+            <View
+                android:id="@+id/row_progress"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#5DC8FF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/row_next"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#6B7587"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- "LIVE NOW" pill — shown only on the currently-playing channel -->
+    <TextView
+        android:id="@+id/row_playing_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="@drawable/guide_playing_pill"
+        android:text="ON NOW"
+        android:textColor="#5DC8FF"
+        android:textSize="10sp"
+        android:letterSpacing="0.22"
+        android:fontFamily="monospace"
+        android:textStyle="bold"
+        android:visibility="gone" />
+</LinearLayout>

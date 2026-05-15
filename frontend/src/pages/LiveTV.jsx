@@ -380,6 +380,96 @@ function Grid({ provider, onLogout }) {
     }, []);
 
     /* ───────── Background sync ───────── */
+
+    /**
+     * Push the current Live TV state (categories + channels + EPG +
+     * provider info) into the native player's SharedPreferences so
+     * the in-player **Live Guide overlay** has everything it needs
+     * to render channel switching while a stream is playing.
+     *
+     * Called whenever channels or EPG change in a meaningful way.
+     * Safe to call repeatedly — the native side just overwrites.
+     * No-op outside the Android WebView (the bridge method is gated
+     * on `window.OnNowTV?.setLiveGuide`).
+     */
+    const pushLiveGuideToNative = useCallback(() => {
+        const bridge = typeof window !== 'undefined' ? window.OnNowTV : null;
+        if (!bridge || typeof bridge.setLiveGuide !== 'function') return;
+        try {
+            /* Build categories payload — keep it light, the native
+             * side only needs id, name, and a quick channel count. */
+            const categoriesPayload = (cats.current || []).map((c) => ({
+                id: String(c.category_id),
+                name: String(c.category_name || ''),
+                count: (channelsByCat.current.get(c.category_id) || []).length,
+            }));
+
+            /* Build channels payload — one entry per channel, with
+             * just the fields the overlay renders.  Stream URL is
+             * pre-built here (instead of re-fetched in Kotlin) so
+             * channel switching is instant. */
+            const channelsPayload = [];
+            for (const [catId, arr] of channelsByCat.current.entries()) {
+                for (const c of (arr || [])) {
+                    /* The Xtream stream URL pattern is stable; we
+                     * build it here so the native side never needs
+                     * to make another /stream-url call. */
+                    const scheme = provider.scheme || 'http';
+                    const portPart = provider.port && provider.port !== '80' && provider.port !== '443'
+                        ? `:${provider.port}` : '';
+                    const streamUrl =
+                        `${scheme}://${provider.host}${portPart}/live/` +
+                        `${encodeURIComponent(provider.username)}/` +
+                        `${encodeURIComponent(provider.password)}/` +
+                        `${c.stream_id}.ts`;
+                    channelsPayload.push({
+                        stream_id: String(c.stream_id),
+                        name: String(c.name || ''),
+                        logo: String(c.stream_icon || ''),
+                        category_id: String(catId),
+                        epg_channel_id: String(c.epg_channel_id || ''),
+                        stream_url: streamUrl,
+                    });
+                }
+            }
+
+            /* Build EPG payload — only NEXT 6 hours of programmes
+             * per channel to keep the JSON manageable (the box's
+             * SharedPreferences performance degrades >2 MB). */
+            const epgPayload = {};
+            const nowSec = Math.floor(Date.now() / 1000);
+            const horizonSec = nowSec + 6 * 3600;
+            for (const [sid, list] of epg.current.entries()) {
+                const trimmed = [];
+                for (const it of (list || [])) {
+                    if (it.stopTimestamp < nowSec) continue;
+                    if (it.startTimestamp > horizonSec) break;
+                    trimmed.push({
+                        title: it.title || '',
+                        startTimestamp: it.startTimestamp || 0,
+                        stopTimestamp: it.stopTimestamp || 0,
+                    });
+                    if (trimmed.length >= 4) break;
+                }
+                if (trimmed.length > 0) {
+                    epgPayload[String(sid)] = trimmed;
+                }
+            }
+
+            bridge.setLiveGuide(
+                String(provider.id || ''),
+                JSON.stringify(categoriesPayload),
+                JSON.stringify(channelsPayload),
+                JSON.stringify(epgPayload),
+            );
+        } catch (e) {
+            /* Bridge errors are silent — the overlay will just be
+             * empty / stale until the next push. */
+            // eslint-disable-next-line no-console
+            console.debug('pushLiveGuideToNative failed:', e);
+        }
+    }, [provider]);
+
     useEffect(() => {
         let cancel = false;
         /* Threshold: dismiss the boot splash once the first
@@ -439,6 +529,10 @@ function Grid({ provider, onLogout }) {
                 if (Object.keys(fetched).length) saveChannels(provider.id, fetched);
                 rerender();
                 setStage('channels', 'done', `${chCount} channels`);
+
+                /* Push channel list + categories to the native player
+                 * so the in-player Live Guide overlay can render. */
+                pushLiveGuideToNative();
 
                 /* EPG */
                 setStage('epg', 'active', '');
@@ -526,6 +620,11 @@ function Grid({ provider, onLogout }) {
                             mergeAndSaveEpg(provider.id, mergedBuffer);
                             epgDone = merged;
                             setBootCounters((c) => ({ ...c, epgDone }));
+                            /* Push freshly-merged EPG to the native
+                             * player so the in-player Live Guide
+                             * overlay can show Now/Next for every
+                             * channel. */
+                            pushLiveGuideToNative();
                             /* Surface where the EPG came from so the
                                user can see when the new server-side
                                cache kicks in (~600 KB gzipped vs the

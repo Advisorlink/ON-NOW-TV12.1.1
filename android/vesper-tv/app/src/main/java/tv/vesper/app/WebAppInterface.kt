@@ -354,4 +354,49 @@ class WebAppInterface(private val activity: Activity) {
             }.toString()
         }
     }
+
+    /**
+     * In-player Live Guide bridge.
+     *
+     * Persists the current Live TV channel list (and the EPG that
+     * goes with it) to SharedPreferences so VlcPlayerActivity can
+     * read it on launch and render an in-player channel browser
+     * overlay.
+     *
+     * Stored under `live_guide` prefs:
+     *   - "categories" : JSON array  [{id, name, count}, ...]
+     *   - "channels"   : JSON array  [{stream_id, name, logo,
+     *                                  category_id, epg_channel_id,
+     *                                  stream_url}, ...]
+     *   - "epg"        : JSON object {stream_id_str: [{title,
+     *                                  startTimestamp, stopTimestamp,
+     *                                  description}, ...], ...}
+     *   - "provider_id": String  (so we can invalidate when the user
+     *                              switches providers)
+     *   - "updated_at" : Long unix ms
+     *
+     * Called by LiveTV.jsx each time the channel list is freshly
+     * loaded.  Idempotent — overwrites on every call.
+     */
+    @JavascriptInterface
+    fun setLiveGuide(
+        providerId: String?,
+        categoriesJson: String?,
+        channelsJson: String?,
+        epgJson: String?
+    ) {
+        try {
+            val prefs = activity.getSharedPreferences("live_guide", android.content.Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("provider_id", providerId ?: "")
+                .putString("categories", categoriesJson ?: "[]")
+                .putString("channels",   channelsJson   ?: "[]")
+                .putString("epg",        epgJson        ?: "{}")
+                .putLong  ("updated_at", System.currentTimeMillis())
+                .apply()
+        } catch (e: Throwable) {
+            // Never let a bridge call crash the WebView.  The Live
+            // Guide overlay will just be empty until the next call.
+        }
+    }
 }

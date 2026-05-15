@@ -453,7 +453,27 @@
                     android:textSize="14sp"
                     android:focusable="true"
                     android:nextFocusUp="@id/btn_skip_fwd"
-                    android:nextFocusLeft="@id/btn_speed" />
+                    android:nextFocusLeft="@id/btn_speed"
+                    android:nextFocusRight="@id/btn_channels" />
+
+                <Button
+                    android:id="@+id/btn_channels"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/btn_pill_accent"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_grid"
+                    android:drawablePadding="10dp"
+                    android:text="Channels"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:visibility="gone"
+                    android:nextFocusUp="@id/btn_skip_fwd"
+                    android:nextFocusLeft="@id/btn_aspect" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
@@ -467,7 +487,6 @@
         android:layout_height="match_parent"
         android:background="#A6000000"
         android:visibility="gone">
-
         <LinearLayout
             android:layout_width="460dp"
             android:layout_height="match_parent"
@@ -518,5 +537,171 @@
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
         </LinearLayout>
+    </FrameLayout>
+
+    <!-- ============================================================
+         LIVE GUIDE OVERLAY  —  in-player channel browser
+         ============================================================
+         Slides in from the right while the video keeps playing
+         behind a translucent scrim.  Two columns:
+           • LEFT (300dp): category rail — vertical RecyclerView
+           • RIGHT (rest): channel list  — vertical RecyclerView
+                            with logo + name + Now/Next EPG bar
+         Neon-blue focus glow drives the D-pad navigation; OK on a
+         channel calls back into VlcPlayerActivity.swapChannel(url, …)
+         which swaps the libVLC media in place (no Activity restart).
+         ============================================================ -->
+    <FrameLayout
+        android:id="@+id/guide_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC06080F"
+        android:visibility="gone">
+
+        <!-- Subtle top-edge gradient so the guide feels lifted off
+             the video underneath even without a backdrop blur. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_gravity="top"
+            android:background="@drawable/grad_top" />
+
+        <!-- Eyebrow + Title (top-left) -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="48dp"
+            android:layout_marginTop="36dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LIVE TV · NOW PLAYING"
+                android:textColor="#5DC8FF"
+                android:textSize="12sp"
+                android:letterSpacing="0.32"
+                android:fontFamily="monospace"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/guide_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Channel Guide"
+                android:textColor="#FFFFFF"
+                android:textSize="38sp"
+                android:textStyle="bold"
+                android:letterSpacing="-0.02" />
+            <TextView
+                android:id="@+id/guide_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#9DA5B5"
+                android:textSize="14sp"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+
+        <!-- Two-pane content area -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:paddingTop="156dp"
+            android:paddingBottom="36dp"
+            android:paddingStart="48dp"
+            android:paddingEnd="48dp">
+
+            <!-- LEFT: Categories rail -->
+            <FrameLayout
+                android:layout_width="300dp"
+                android:layout_height="match_parent">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CATEGORIES"
+                    android:textColor="#5DC8FF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.32"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:paddingStart="20dp" />
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/guide_categories"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingTop="32dp"
+                    android:paddingBottom="80dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:scrollbars="none" />
+            </FrameLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="32dp"
+                android:background="#1FFFFFFF" />
+
+            <!-- RIGHT: Channel list -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+                <TextView
+                    android:id="@+id/guide_category_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ALL CHANNELS"
+                    android:textColor="#5DC8FF"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.32"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold" />
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/guide_channels"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingTop="32dp"
+                    android:paddingBottom="80dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:scrollbars="none" />
+
+                <!-- Empty state shown when the WebView hasn't pushed
+                     channels yet.  Centered. -->
+                <TextView
+                    android:id="@+id/guide_empty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center"
+                    android:text="Channel list not yet loaded.\nGo back and open Live TV first."
+                    android:textColor="#9DA5B5"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- Hint pill in the bottom-right corner -->
+        <TextView
+            android:id="@+id/guide_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="48dp"
+            android:layout_marginBottom="32dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:background="@drawable/status_pill"
+            android:text="OK · WATCH    BACK · CLOSE"
+            android:textColor="#9DA5B5"
+            android:textSize="11sp"
+            android:letterSpacing="0.22"
+            android:fontFamily="monospace" />
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

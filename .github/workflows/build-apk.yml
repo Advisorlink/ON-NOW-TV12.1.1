@@ -227,6 +227,23 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.5.7 — In-player Live Guide overlay**
+            - 🛰️ NEW: While a live channel is playing, press the
+              "Channels" button (or the GUIDE / channel-up / TV-input
+              key on your remote) to slide in a beautiful in-player
+              channel browser without stopping playback.
+            - 🎨 Two-pane design: categories rail on the left + tall
+              channel cards on the right with logo + Now/Next EPG +
+              live progress bar.  Currently-playing channel marked
+              with an "ON NOW" pill + auto-focused on open.
+            - ⚡ Channel switching is in-place (libVLC swaps Media
+              without restarting the Activity) so it feels instant —
+              you see the new channel name flash on the cinematic
+              preview poster and the first frame decodes in ~1 s.
+            - 🌐 Categories + EPG come straight from the WebView's
+              fully-loaded EPG store (gzipped server cache from
+              v2.5.x) so the guide is instantly populated.
+
             **v2.5.6 — FIX: Crash on launch for Android 16 (Fold 7,
             Pixel 8, Pixel 9, Galaxy S25)**
             - 🐛 `applyImmersiveMode()` ran before `setContentView()`

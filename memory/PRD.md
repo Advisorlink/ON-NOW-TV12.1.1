@@ -34,6 +34,23 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 83 — Feb 16, 2026)
+### In-player Live Guide overlay
+- **🛰️ Beautiful native channel browser inside the libVLC player** (v2.5.7 APK).  While a live stream is playing, the user presses the new "Channels" pill in the controls (or GUIDE / CHANNEL_UP / TV_INPUT on the remote) → a translucent overlay slides in with:
+  - LEFT 300 dp rail: categories list with focus-driven instant filtering.
+  - RIGHT pane: tall channel cards (104 dp) with logo + name + Now/Next EPG + live progress bar.
+  - Currently-playing channel marked with an "ON NOW" pill and auto-focused on open.
+  - Hint pill bottom-right: "OK · WATCH    BACK · CLOSE".
+- **⚡ In-place channel swap** (`VlcPlayerActivity.swapChannel`).  libVLC's Media is replaced without restarting the Activity — sub-second transition.  Cinematic preview poster flashes the new channel name during the brief reconnect; first frame typically decodes in ~1 s.
+- **🌐 Data wiring** (`LiveTV.jsx` `pushLiveGuideToNative()` + `WebAppInterface.setLiveGuide` bridge):
+  - JS pushes categories, channels (with pre-built stream URLs to avoid HTTP from native), and trimmed Now/Next EPG (next 4 programmes per channel, ≤6 h horizon) to SharedPreferences whenever the data refreshes.
+  - Kotlin reads from SharedPreferences on overlay open — works offline too once the data has been cached.
+- **🎨 Visuals**: Neon-blue focus glow on every D-pad target.  No backdrop blurs (HK1's Android 7.1.2 Chrome 52 can't render them perf-friendly).  All resource files (drawables + layouts) hand-tuned for the 1080p TV viewing distance.
+- **♿ D-pad nav**: focus traversal works without extra `nextFocus*` attrs thanks to the RecyclerView's `LinearLayoutManager`.  OK on a category jumps focus into the channel list; OK on a channel swaps stream + closes overlay; BACK closes overlay.
+- New Kotlin file: `LiveGuideController.kt` (~330 lines) — fully self-contained, no external image library, lazy-decodes logos with a 2-thread executor + 48-entry LRU cache.  Fallback initial-letter avatar drawn via Canvas if a logo fails / is missing.
+- New resources: `item_guide_category.xml`, `item_guide_channel.xml`, `guide_category_row_bg.xml`, `guide_channel_row_bg.xml`, `guide_playing_pill.xml`, `guide_logo_bg.xml`, `btn_pill_accent.xml`, `ic_grid.xml`.
+- Manifest version bumped to **v2.5.7 (versionCode 68)**.  GitHub Actions auto-builds and publishes the APK on push.
+
 ## Implemented (Iteration 82 — Feb 16, 2026)
 ### Server-side persistent EPG cache + Android-16 crash fix + Watch Together polish
 - **🗄️ EPG ON THE SERVER** (`backend/epg_cache.py`, `backend/xtream.py`):
