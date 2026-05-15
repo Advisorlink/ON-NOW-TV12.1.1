@@ -34,6 +34,35 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 85 — Feb 16, 2026)
+### Cast + "More like this" + Actor profiles + In-app Update Gate
+- **🎭 Cast row** on every movie + TV detail page (`components/CastRow.jsx`):
+  - Horizontal scrolling strip of B&W portraits (TMDB w342), 132×196 cards.
+  - Focus / hover on an actor swaps the **page hero backdrop** to their B&W portrait AND the **page title** to their name + "AS character".
+  - Pulls from new `GET /api/tmdb/credits/{type}/{tmdb_id}` (cached 7d, top-20 billed cast).
+- **🍿 "More like this" row** below cast (`components/RecommendationsRow.jsx`):
+  - Pulls from new `GET /api/tmdb/recommendations/{type}/{tmdb_id}` (TMDB's collaborative-filter recommendations endpoint with /similar fallback).
+  - Tap → resolves to IMDB → routes to existing /title/{type}/{imdb} detail page (cached imdb mapping = instant).
+- **🎬 Actor profile page** (`pages/Person.jsx`, route `/person/:tmdbId`):
+  - Full-bleed B&W portrait hero (Detail-style) covering 55vh+ with overlaid name (clamp 48-92px), age, place_of_birth, bio (5-line clamp).
+  - "Known for" filmography grid below, 6+ posters per row, sorted by popularity desc, with character + year metadata.
+  - "TV" badge on series cards.
+  - Powered by new `GET /api/tmdb/person/{id}` (single round-trip with `append_to_response=combined_credits`).
+- **🔔 In-app forced Update Gate** (`components/UpdateGate.jsx`):
+  - Mounted at app root in `App.js`.  Bails when `window.__APP_VERSION__` is undefined (web users / non-WebView).
+  - Fetches `GET /api/app/latest-version` on mount + every 6h; caches in localStorage to dodge GitHub's 60-req/h rate limit.
+  - When `running < latest`, renders a blocking dark fullscreen "Update required" page with release notes excerpt + "Download and install" CTA.
+  - CTA prefers `window.OnNowTV.installApk(url)` (future native silent install) → `openExternal(url)` → `window.location.href` fallback.  WebView's download manager handles the rest.
+- **📱 Native WebViewClient injects `window.__APP_VERSION__` = BuildConfig.VERSION_NAME** in both `onPageStarted` AND `onPageFinished` so the gate has the value before React mounts.
+- **🪲 Phone playback fix**: `pages/Player.jsx` now shows a friendly "torrent streams need the Android TV box" message instead of silently spinning forever when the user picked a `magnet:` URL on a phone (phones can't bittorrent-demux without native libVLC).
+- **🛠️ Backend endpoints added** (`server.py`):
+  - `GET /api/tmdb/find-by-imdb/{imdb_id}` — resolve IMDB → TMDB id + media_type (cached 7d).
+  - `GET /api/tmdb/credits/{type}/{tmdb_id}` — top-20 cast (cached 7d).
+  - `GET /api/tmdb/recommendations/{type}/{tmdb_id}` — recs with /similar fallback (cached 24h).
+  - `GET /api/tmdb/person/{person_id}` — bio, age, place, filmography (cached 7d).
+  - `GET /api/app/latest-version` — GitHub releases lookup with 5-min cache (set `APK_GITHUB_REPO` env var to your repo slug, e.g. `youruser/onnowtv-v2`).
+- **Manifest v2.6.0 (versionCode 70)** — GitHub Actions auto-builds & publishes.
+
 ## Implemented (Iteration 84 — Feb 16, 2026)
 ### Mobile polish pass — 8 fixes
 - **5th "More" tab** in MobileBottomNav opens a bottom sheet exposing **every** secondary destination from the desktop SideNav: Sports, TV Shows, Movies, Watch Together, Profiles, Sources, Settings.  Feature parity for phone users.

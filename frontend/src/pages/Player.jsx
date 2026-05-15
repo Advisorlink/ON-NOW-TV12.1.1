@@ -164,6 +164,20 @@ export default function Player() {
         setError(null);
         setLoading(true);
 
+        // Phone playback compatibility check.  The native libVLC
+        // Activity (on the HK1 box) can demux magnet: URIs via the
+        // bittorrent demuxer — phones can't.  Surface a helpful
+        // message instead of silently spinning.
+        if (url.startsWith('magnet:')) {
+            setError(
+                'Torrent streams (magnet links) need the Android TV ' +
+                'box to play.  On a phone, please pick a "Direct" ' +
+                'stream from the streams list — those work everywhere.'
+            );
+            setLoading(false);
+            return undefined;
+        }
+
         const isHls = url.toLowerCase().includes('.m3u8');
         const cleanup = [];
 

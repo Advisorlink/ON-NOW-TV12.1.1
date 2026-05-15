@@ -703,7 +703,330 @@ async def tmdb_to_imdb(type_: str, tmdb_id: int):
     return {"cached": False, "imdb_id": imdb}
 
 
-# ----- Library calendar (upcoming TV episodes) --------------------------------
+# ----- Detail-page extras: cast, recommendations, person -----------------------
+
+@api.get("/tmdb/find-by-imdb/{imdb_id}")
+async def tmdb_find_by_imdb(imdb_id: str):
+    """Resolve `imdb_id` (tt-prefixed) → TMDB id + media_type.
+
+    Used by the Detail page to drive the cast row + recommendations
+    row without forcing the front-end to know the TMDB id.
+
+    Cached for 7 days (the IMDB↔TMDB mapping is rock-stable).
+    """
+    if not imdb_id.startswith("tt"):
+        raise HTTPException(400, "imdb_id must start with 'tt'")
+    cache_key = f"find_by_imdb:{imdb_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+
+    data = await _tmdb_get(
+        f"/find/{imdb_id}", {"external_source": "imdb_id"}
+    )
+    out: Dict[str, Any] = {"tmdb_id": None, "media_type": None}
+    if data.get("movie_results"):
+        out["tmdb_id"] = data["movie_results"][0].get("id")
+        out["media_type"] = "movie"
+    elif data.get("tv_results"):
+        out["tmdb_id"] = data["tv_results"][0].get("id")
+        out["media_type"] = "tv"
+    if out["tmdb_id"]:
+        await cache.set(cache_key, out, CACHE_TTL_TMDB_IMDB)
+    return {"cached": False, **out}
+
+
+@api.get("/tmdb/credits/{type_}/{tmdb_id}")
+async def tmdb_credits(type_: str, tmdb_id: int):
+    """Return the top-billed cast for a movie or TV show.
+
+    Shape:
+        {
+          cast: [
+            { id, name, character, profile_path, order },
+            ...
+          ]
+        }
+
+    Only the first 20 billed cast members are returned — that's
+    plenty for the horizontal Cast row on the Detail page and keeps
+    the payload small (~3 KB).  Cached for 7 days because cast lists
+    don't change between releases.
+    """
+    if type_ not in ("tv", "movie"):
+        raise HTTPException(400, "type must be 'tv' or 'movie'")
+    cache_key = f"credits:{type_}:{tmdb_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "cast": cached}
+
+    data = await _tmdb_get(f"/{type_}/{tmdb_id}/credits")
+    raw = data.get("cast") or []
+    raw.sort(key=lambda c: c.get("order", 999))
+    cast: List[Dict[str, Any]] = []
+    for c in raw[:20]:
+        profile = c.get("profile_path")
+        cast.append({
+            "id":           c.get("id"),
+            "name":         c.get("name") or "",
+            "character":    c.get("character") or "",
+            "profile_path": profile or "",
+            "profile":      f"{TMDB_IMG}/w342{profile}" if profile else "",
+            "order":        c.get("order", 999),
+        })
+    await cache.set(cache_key, cast, 7 * 24 * 3600)
+    return {"cached": False, "cast": cast}
+
+
+@api.get("/tmdb/recommendations/{type_}/{tmdb_id}")
+async def tmdb_recommendations(type_: str, tmdb_id: int):
+    """Return TMDB's "More like this" recommendations.
+
+    Picks the recommendations endpoint (collaborative-filtering style
+    "users who liked X also liked Y") not /similar (which is just
+    genre overlap and tends to surface lower-quality matches).
+
+    Falls back to /similar when /recommendations is empty (common
+    for obscure titles).  Capped at 20 items so the Detail page row
+    renders fast.  Cached for 24 h.
+    """
+    if type_ not in ("tv", "movie"):
+        raise HTTPException(400, "type must be 'tv' or 'movie'")
+    cache_key = f"recs:{type_}:{tmdb_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "results": cached}
+
+    results: List[Dict[str, Any]] = []
+    for path in (
+        f"/{type_}/{tmdb_id}/recommendations",
+        f"/{type_}/{tmdb_id}/similar",
+    ):
+        try:
+            data = await _tmdb_get(path)
+        except HTTPException:
+            continue
+        for r in (data.get("results") or [])[:20]:
+            poster = r.get("poster_path")
+            backdrop = r.get("backdrop_path")
+            results.append({
+                "tmdb_id":    r.get("id"),
+                "media_type": type_,
+                "title":      r.get("title") or r.get("name") or "",
+                "year":       (r.get("release_date") or r.get("first_air_date") or "")[:4],
+                "rating":     round(r.get("vote_average") or 0, 1) or None,
+                "poster":     f"{TMDB_IMG}/w342{poster}" if poster else "",
+                "backdrop":   f"{TMDB_IMG}/w780{backdrop}" if backdrop else "",
+            })
+        if results:
+            break  # don't bother with /similar if /recommendations had hits
+    await cache.set(cache_key, results, 24 * 3600)
+    return {"cached": False, "results": results}
+
+
+@api.get("/tmdb/person/{person_id}")
+async def tmdb_person(person_id: int):
+    """Return the actor profile page payload — bio, headshot, age,
+    birthplace, and filmography.
+
+    Shape:
+        {
+          id, name, profile, biography, birthday, deathday, age,
+          place_of_birth, known_for_department,
+          filmography: [
+            { tmdb_id, media_type, title, character, year, poster,
+              rating, popularity }
+          ]
+        }
+
+    The filmography is sorted by popularity descending so the most
+    recognisable roles surface first.  Cached for 7 days.
+    """
+    cache_key = f"person:{person_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+
+    # /person/{id}?append_to_response=combined_credits gets us bio +
+    # filmography in a single request — saves an extra round-trip.
+    data = await _tmdb_get(
+        f"/person/{person_id}",
+        {"append_to_response": "combined_credits"},
+    )
+    profile = data.get("profile_path")
+    # Compute age (or age-at-death).
+    age: Optional[int] = None
+    bday = data.get("birthday") or ""
+    dday = data.get("deathday") or ""
+    try:
+        from datetime import datetime as _dt
+        if bday:
+            born = _dt.strptime(bday, "%Y-%m-%d")
+            end = _dt.strptime(dday, "%Y-%m-%d") if dday else _dt.utcnow()
+            age = int((end - born).days // 365.25)
+    except Exception:  # noqa: BLE001
+        age = None
+
+    combined = data.get("combined_credits") or {}
+    raw_cast = combined.get("cast") or []
+    # De-duplicate by tmdb_id+media_type; keep the most popular role.
+    seen: Dict[str, Dict[str, Any]] = {}
+    for r in raw_cast:
+        mt = r.get("media_type")
+        if mt not in ("movie", "tv"):
+            continue
+        key = f"{mt}:{r.get('id')}"
+        prev = seen.get(key)
+        if prev and prev.get("popularity", 0) >= (r.get("popularity") or 0):
+            continue
+        poster = r.get("poster_path")
+        seen[key] = {
+            "tmdb_id":    r.get("id"),
+            "media_type": mt,
+            "title":      r.get("title") or r.get("name") or "",
+            "character":  r.get("character") or "",
+            "year":       (r.get("release_date") or r.get("first_air_date") or "")[:4],
+            "rating":     round(r.get("vote_average") or 0, 1) or None,
+            "poster":     f"{TMDB_IMG}/w342{poster}" if poster else "",
+            "popularity": r.get("popularity") or 0,
+        }
+    filmography = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))[:60]
+
+    out = {
+        "id":                   data.get("id"),
+        "name":                 data.get("name") or "",
+        "profile":              f"{TMDB_IMG}/w780{profile}" if profile else "",
+        "biography":            data.get("biography") or "",
+        "birthday":             bday,
+        "deathday":             dday,
+        "age":                  age,
+        "place_of_birth":       data.get("place_of_birth") or "",
+        "known_for_department": data.get("known_for_department") or "",
+        "filmography":          filmography,
+    }
+    await cache.set(cache_key, out, 7 * 24 * 3600)
+    return {"cached": False, **out}
+
+
+# ----- App version check (forced in-app update gate) ------------------------
+
+@api.get("/app/latest-version")
+async def app_latest_version():
+    """Return the latest published APK release from GitHub.
+
+    Used by the in-app forced-update gate.  The frontend compares
+    `version` against its own bundled `versionName` (from
+    `app.json` / a constant) and shows a fullscreen "Update
+    required" prompt with a direct APK download URL.
+
+    Shape:
+        {
+          version: "2.5.8",           # tag_name without leading "v"
+          tag_name: "v2.5.8",         # raw tag
+          name: "ON NOW TV V2 …",     # human-readable release name
+          published_at: "...",        # ISO timestamp
+          notes: "markdown body",     # release notes
+          apk_url: "https://…/onnowtv-v2-debug.apk",
+          html_url: "https://github.com/…/releases/tag/v2.5.8"
+        }
+
+    Cached for 5 min so we don't blow through GitHub's 60-req/hour/IP
+    unauthenticated rate limit when many boxes check at once.  We
+    use the `apk-latest` tag as the canonical "current" release —
+    the workflow rolls this tag forward on every push, which is the
+    UX you said you want ("just one link that always works").
+    """
+    cache_key = "github:app-latest:v2"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+
+    owner_repo = os.environ.get("APK_GITHUB_REPO", "")
+    if not owner_repo:
+        # Fall back to a default that matches the workflow we set up
+        # earlier.  The user can override via the env var.
+        owner_repo = "andrewbailey-uk/onnowtv-v2"
+
+    url = f"https://api.github.com/repos/{owner_repo}/releases/tags/apk-latest"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            r = await client.get(
+                url,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "vesper-onnowtv-update-check",
+                },
+            )
+            # Treat 404 as "no release yet" — return a soft empty
+            # response instead of a 502 so the gate just doesn't show.
+            if r.status_code == 404:
+                empty = {
+                    "version":      None,
+                    "tag_name":     None,
+                    "name":         None,
+                    "published_at": None,
+                    "notes":        "",
+                    "apk_url":      None,
+                    "html_url":     None,
+                }
+                await cache.set(cache_key, empty, 300)
+                return {"cached": False, **empty}
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            502,
+            f"GitHub release lookup failed: {exc.response.status_code} {exc.response.text[:200]}",
+        ) from None
+    except httpx.RequestError as exc:
+        raise HTTPException(504, f"GitHub network error: {exc}") from None
+
+    # Extract the APK asset URL (workflow always uploads exactly one
+    # file: `onnowtv-v2-debug.apk`).  Pick the first asset whose
+    # `name` ends with `.apk`.
+    apk_url = None
+    for asset in data.get("assets") or []:
+        name = (asset.get("name") or "").lower()
+        if name.endswith(".apk"):
+            apk_url = asset.get("browser_download_url")
+            break
+
+    # Tag is e.g. "apk-latest"; we want the semver from the release
+    # NAME instead.  The workflow names releases like
+    # "ON NOW TV V2 — latest debug build" and the actual version is
+    # parsed out of the release body's first **v…** line.
+    body = data.get("body") or ""
+    semver = _parse_semver_from_body(body)
+    if not semver:
+        # Fallback: scan the body for any vX.Y.Z token.
+        import re as _re
+        m = _re.search(r"\bv?(\d+\.\d+\.\d+)\b", body)
+        if m:
+            semver = m.group(1)
+
+    out = {
+        "version":      semver,
+        "tag_name":     data.get("tag_name"),
+        "name":         data.get("name") or "",
+        "published_at": data.get("published_at"),
+        "notes":        body,
+        "apk_url":      apk_url,
+        "html_url":     data.get("html_url"),
+    }
+    await cache.set(cache_key, out, 300)
+    return {"cached": False, **out}
+
+
+def _parse_semver_from_body(body: str) -> Optional[str]:
+    """Look at the release-notes markdown for the first **vX.Y.Z**
+    pattern (our workflow renders the version this way as the first
+    bullet header)."""
+    import re as _re
+    m = _re.search(r"\*\*v(\d+\.\d+\.\d+)", body)
+    return m.group(1) if m else None
+
+
+
 
 @api.post("/tmdb/upcoming-episodes")
 async def upcoming_episodes(body: Dict[str, Any] = Body(...)):

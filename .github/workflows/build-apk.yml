@@ -227,6 +227,25 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.0 — Cast + "More like this" + Actor profiles +
+            In-app Update Gate**
+            - 🎭 NEW: Beautiful B&W cast strip below the Play button
+              on every movie + TV detail page.  D-pad / scroll
+              focus on an actor instantly swaps the page hero
+              backdrop to their portrait + name.
+            - 🎬 NEW: Click any actor → full Actor Profile page
+              (`/person/:id`) with B&W hero, age, birthplace, bio,
+              and a "Known for" filmography grid.  Tap any film to
+              jump straight to its detail page.
+            - 🍿 NEW: "More like this" recommendations row beneath
+              the cast row.  Powered by TMDB's collaborative
+              filtering (+ /similar fallback for obscure titles).
+            - 🔔 NEW: In-app **forced Update Gate**.  When a new
+              APK is published to GitHub Releases, the next launch
+              shows a beautiful fullscreen "Update required" prompt
+              with the release notes and a one-tap "Download and
+              install" button.  No more shipping APK files manually.
+
             **v2.5.8 — Mobile polish pass**
             - 📱 NEW: 5th "More" tab in the mobile bottom nav opens
               a beautiful bottom sheet with EVERY secondary

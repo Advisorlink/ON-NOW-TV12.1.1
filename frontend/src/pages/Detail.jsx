@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
+import CastRow from '@/components/CastRow';
+import RecommendationsRow from '@/components/RecommendationsRow';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -116,6 +118,43 @@ export default function Detail() {
             cancel = true;
         };
     }, [type, id]);
+
+    /* Resolve the IMDB id → TMDB id so the Cast row + "More like
+       this" row can hit TMDB directly.  This is a single cached
+       request on the backend so re-renders are free. */
+    const [tmdbInfo, setTmdbInfo] = useState(null);
+    useEffect(() => {
+        let cancel = false;
+        if (!id || !id.startsWith('tt')) {
+            setTmdbInfo(null);
+            return undefined;
+        }
+        (async () => {
+            try {
+                const r = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/find-by-imdb/${id}`,
+                    { cache: 'force-cache' }
+                );
+                const data = await r.json();
+                if (!cancel && data?.tmdb_id) {
+                    setTmdbInfo({
+                        tmdb_id: data.tmdb_id,
+                        media_type: data.media_type,
+                    });
+                }
+            } catch {
+                /* swallow — Cast / Recommendations rows will just
+                   stay hidden when tmdbInfo is null. */
+            }
+        })();
+        return () => { cancel = true; };
+    }, [id]);
+
+    /* Focused-actor hero swap.  When the Cast row tells us an actor
+       is focused, we render their B&W portrait as the page hero
+       backdrop with their name as the giant title.  Setting back
+       to null restores the title's regular hero. */
+    const [focusedActor, setFocusedActor] = useState(null);
 
     useEffect(() => {
         if (type === 'series') {
@@ -649,14 +688,19 @@ export default function Detail() {
                 </div>
             )}
 
-            {/* Backdrop */}
+            {/* Backdrop — when an actor is focused in the Cast row,
+                swap to a B&W portrait of them.  Otherwise show the
+                title's regular backdrop. */}
             <div
                 className="absolute inset-0"
                 style={{
-                    backgroundImage: `url(${meta.background || meta.poster || ''})`,
+                    backgroundImage: `url(${focusedActor?.profile || meta.background || meta.poster || ''})`,
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    filter: 'brightness(0.6) saturate(1.1)',
+                    backgroundPosition: focusedActor ? 'center top' : 'center',
+                    filter: focusedActor
+                        ? 'grayscale(1) contrast(1.08) brightness(0.55)'
+                        : 'brightness(0.6) saturate(1.1)',
+                    transition: 'filter 240ms ease, background-image 240ms ease',
                 }}
             />
             <div
@@ -715,14 +759,31 @@ export default function Detail() {
                     )}
                     <h1
                         className="vesper-display"
+                        data-testid="detail-title"
                         style={{
                             fontSize: 'clamp(56px, 6vw, 92px)',
                             letterSpacing: '-0.035em',
+                            transition: 'opacity 220ms ease',
                         }}
                     >
-                        {meta.name}
+                        {focusedActor?.name || meta.name}
                     </h1>
 
+                    {focusedActor ? (
+                        <div
+                            className="vesper-mono mt-2"
+                            style={{
+                                fontSize: 14, letterSpacing: '0.18em',
+                                color: 'var(--vesper-blue)',
+                                textTransform: 'uppercase',
+                                fontWeight: 700,
+                            }}
+                        >
+                            {focusedActor.character
+                                ? `As ${focusedActor.character}`
+                                : 'Cast'}
+                        </div>
+                    ) : (
                     <div
                         className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
                         style={{ fontSize: 18 }}
@@ -741,6 +802,7 @@ export default function Detail() {
                             <span>{meta.genres.slice(0, 3).join(' · ')}</span>
                         )}
                     </div>
+                    )}
 
                     {meta.description && (
                         <p
@@ -1293,6 +1355,22 @@ export default function Detail() {
                             </>
                         )}
                     </section>
+                    )}
+
+                    {/* Cast row + "More like this" — only when we
+                        successfully resolved the title's TMDB id. */}
+                    {tmdbInfo?.tmdb_id && (
+                        <>
+                            <CastRow
+                                tmdbId={tmdbInfo.tmdb_id}
+                                mediaType={tmdbInfo.media_type}
+                                onFocus={setFocusedActor}
+                            />
+                            <RecommendationsRow
+                                tmdbId={tmdbInfo.tmdb_id}
+                                mediaType={tmdbInfo.media_type}
+                            />
+                        </>
                     )}
                 </div>
             </main>

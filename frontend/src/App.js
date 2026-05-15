@@ -26,6 +26,8 @@ import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import UpdateGate from '@/components/UpdateGate';
+import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 
@@ -245,7 +247,9 @@ function App() {
                                 <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
                                 <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
                                 <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
+                                <Route path="/person/:tmdbId" element={<RequireProfile><Person /></RequireProfile>} />
                             </Routes>
+                            <UpdateGate />
                         </MobilePlatformRoot>
                     </Router>
                 </ThemeProvider>

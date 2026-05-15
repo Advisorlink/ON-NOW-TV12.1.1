@@ -149,11 +149,25 @@ class VesperWebViewClient : WebViewClient() {
         // Inject the killer stylesheet as early as possible so the
         // badge never gets a chance to flash on screen.
         view?.evaluateJavascript(BADGE_NUKE_JS, null)
+        // Expose the installed APK version to the React app so the
+        // <UpdateGate/> can compare it against the GitHub latest tag
+        // and show the forced-update screen.  Set `window.__APP_VERSION__`
+        // BEFORE the React bundle parses so the first render of the
+        // gate has the value available.
+        view?.evaluateJavascript(
+            "window.__APP_VERSION__ = '" + BuildConfig.VERSION_NAME + "';",
+            null,
+        )
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         view?.evaluateJavascript(BADGE_NUKE_JS, null)
+        // Re-set in case the bundle nuked it during hydration.
+        view?.evaluateJavascript(
+            "window.__APP_VERSION__ = '" + BuildConfig.VERSION_NAME + "';",
+            null,
+        )
     }
 
     companion object {
