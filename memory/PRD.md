@@ -34,6 +34,31 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 81 — Feb 15, 2026)
+### Mobile responsive shell + Watch Together for TV Shows + SKIP auto-focus
+- **🎯 User**: "I also need you to build me a full mobile version only for this as well… responsive to mobile screens only" + (carryover) "fix Watch Together for TV Shows".
+- **📱 MOBILE SHELL — all pages** (`index.css` + `App.js`):
+  - `useIsMobile.js` detects mobile via coarse-pointer + width<900, with `?mobile=1` URL override.
+  - `MobilePlatformRoot` sets `data-platform='mobile'` on `<body>` + `<html>` so global CSS branches.
+  - `MobileBottomNav.jsx` renders sticky 5-tab bar (Home · Sports · Live · Library · Settings) with 44 px touch targets, blue active state, hidden on full-bleed routes (`/play`, `/profiles`, `/kids/exit-pin`, `/watch-together`, `/resolve/`).
+  - ~200 lines of CSS overrides in `index.css` covering Hero billboard, Shelves, Detail, Settings, Library (incl. TV-empty-state grid), Search, Watch Together (incl. host/join 2-col grid), Sports Guide (incl. hero stack), Live TV — all keyed off `body[data-platform='mobile']` so TV mode is untouched.
+  - SideNav + KidsSideNav `display:none` on phones; tablet landscape (≥1024 px) re-shows them.
+  - Touch-ergonomic tweaks: focus-glow + press-ripple disabled on touch, hover transitions disabled.
+- **🎬 WATCH TOGETHER · TV SHOWS** (`pages/WatchTogether.jsx`, `pages/Detail.jsx`):
+  - NEW `<EpisodePicker>` component: resolves `tmdb_id → imdb_id` via `/api/tmdb/imdb/tv/{id}`, fetches Stremio meta `/api/meta/series/{imdb}` for the season+episode list, renders season pills + episode cards with thumbnail/title/overview.
+  - `MoviePicker` now branches: TV result → `setPendingShow(item)` → renders `<EpisodePicker/>`; movie result → broadcasts pick immediately (legacy flow untouched).
+  - Host's `pick` WS payload now carries `season`, `episode`, `episode_title`, `imdb_id` for TV shows (opaque to the backend; no `watch_party.py` change).
+  - Navigation handler routes TV-show parties to `/title/series/{imdb_id}?party=…&autoplay=1&season=S&episode=E&at_ms=…&position_ms=…` (and falls back to `/resolve/tv/…` when imdb_id is missing).
+  - **Detail.jsx** new `series-party autoplay useEffect`: reads `season`/`episode` URL params, when `type==='series'+partyCode+autoplay+season+episode+meta` all present, fetches streams for `${id}:${S}:${E}`, picks best (1080p direct → 1080p any → direct → torrent → first), fires `playStream(stream, {cwId, season, episode})`.  Same 4K filter as movie path.
+  - `playStream` now accepts `episodeOverride` so the CW entry, subtitle fetch, native-host title, and Player URL all use the composite episode id without polluting the movie path.
+  - Party-joining overlay status text shows "Loading S01E01…" for series.
+  - `MoviePreview` shows an episode tag (`S01E01 · Pilot`) under the show title when a TV episode is queued.
+- **⏩ LIVE TV SKIP BUTTON** (`components/LiveTVBoot.jsx`):
+  - `<SkipButton/>` now auto-focuses with 3 staggered retries (0/80/240 ms) once it appears at the 10 s mark.  User can press OK / Enter on the remote instantly to dismiss.
+  - Added `data-focus-style="pill"` + explicit `onKeyDown` for Enter/Space so keyboard activation works even before spatial focus engine wakes up.
+- **🧪 Tested** (`testing_agent_v3_fork` — iteration 30): **Frontend 100 % PASS**.  Mobile shell verified at 390×844 (data-platform attr, SideNav hidden, bottom-nav rendered with 5 tabs, correct routes).  TV mode regression verified at 1920×1080 (SideNav still visible, no bottom-nav).  Watch Together TV-show flow runtime-verified: WebSocket capture shows pick payload `{tmdb_id:'1396', media_type:'tv', title:'Breaking Bad', poster, year:'2008', season:1, episode:1, episode_title:'Pilot', imdb_id:'tt0903747'}` — all 9 fields present.  Navigation to `/title/series/tt0903747?party=…&season=1&episode=1` confirmed.  **Backend 44/45 regression** (the 1 sportsdb test snapshot drift is pre-existing — actual `/api/sportsdb/fixtures` endpoint correctly returns `statusShort/state/live` fields; the test fixture-shape check needs updating but the live UI is unaffected).
+
+
 ## Implemented (Iteration 80 — Feb 15, 2026)
 ### Live TV boot — crash-proof XMLTV fetch + Skip escape hatch
 - **🐛 User reported**: "When I'm loading in preview mode, it gets all the way to just start to load the EPG and now it crashes."
