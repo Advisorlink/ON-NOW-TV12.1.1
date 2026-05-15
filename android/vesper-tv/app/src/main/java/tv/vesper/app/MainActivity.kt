@@ -147,7 +147,14 @@ class MainActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
-        applyImmersiveMode()
+        // NOTE: applyImmersiveMode() is intentionally NOT called
+        // here.  On Android 16 (Pixel 8, Samsung Fold 7) the
+        // window.insetsController is null until the DecorView is
+        // created — which happens when setContentView() runs.
+        // Calling immersive mode here threw a NullPointerException
+        // and crashed the app on launch.  We rely on the call from
+        // onWindowFocusChanged() below to apply immersive mode once
+        // the WebView has been attached.
 
         webView = try {
             WebView(this)
@@ -290,15 +297,31 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("DEPRECATION")
     private fun applyImmersiveMode() {
+        /* On Android 16 (SDK 36) `window.insetsController` returns
+           null until the DecorView has been created — which only
+           happens once `setContentView()` runs OR something forces
+           the decor view to instantiate.  Touching `window.decorView`
+           here forces creation; without it the next line NPEs and
+           crashes the app at onCreate time on Pixel 8 / Fold 7 /
+           every Android 16 device. */
+        try {
+            window.decorView
+        } catch (_: Throwable) { /* swallow */ }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
+            try {
+                window.setDecorFitsSystemWindows(false)
+            } catch (_: Throwable) { /* swallow — Fold's outer cover
+                screen has thrown IllegalStateException here in some
+                One UI builds */ }
             val controller = window.insetsController
-            controller?.hide(
-                android.view.WindowInsets.Type.statusBars() or
-                    android.view.WindowInsets.Type.navigationBars()
-            )
-            controller?.systemBarsBehavior =
-                android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (controller != null) {
+                controller.hide(
+                    android.view.WindowInsets.Type.statusBars() or
+                        android.view.WindowInsets.Type.navigationBars()
+                )
+                controller.systemBarsBehavior =
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
         } else {
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY

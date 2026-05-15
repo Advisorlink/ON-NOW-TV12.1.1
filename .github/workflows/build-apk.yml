@@ -227,6 +227,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.5.6 — FIX: Crash on launch for Android 16 (Fold 7,
+            Pixel 8, Pixel 9, Galaxy S25)**
+            - 🐛 `applyImmersiveMode()` ran before `setContentView()`
+              which threw `NullPointerException` on
+              `window.insetsController` because Android 16 lazy-
+              creates the DecorView only when content is attached.
+              We now (a) touch `window.decorView` first to force
+              creation, (b) null-guard the controller, and (c) skip
+              the eager onCreate call entirely (we already invoke
+              immersive mode from `onWindowFocusChanged`).
+            - 🩺 Crash logger from v2.5.4 stays in — any future
+              Android-version-specific surprises will surface the
+              exact stack trace instead of crashing silently.
+
             **v2.5.5 — Watch Together: zero buffer + ~1 s tighter sync**
             - 🎬 Fixed the buffer-on-countdown issue.  libVLC's
               network cache was 1.5 s, which drained during the
