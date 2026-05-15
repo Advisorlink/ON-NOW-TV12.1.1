@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 30 — Mobile responsive shell + Watch Together TV-show episode picker + LiveTVBoot skip auto-focus + Detail.jsx series-party autoplay. ALL features verified via Playwright e2e on the preview pod. Backend regression: 16/16 watch_party + 18/18 backup + 10/11 sportsdb_v9 = 44/45 pass. The 1 sportsdb failure (test_b_event_normalised_fields — events missing 'statusShort'/'state'/'live' fields) is PRE-EXISTING and unrelated to this iteration (watch_party.py was untouched per the brief; the host's pick payload carries extra opaque fields).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/sportsdb/* (fixtures normalisation)", "issue": "test_b_event_normalised_fields — events missing fields ['statusShort','state','live']. Pre-existing — NOT caused by this iter's mobile/watch-together changes. Iter29 showed 11/11 pass; suggests sportsdb provider response shape changed OR a recent code edit dropped those normalised fields."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/backend/tests/test_backup.py",
+    "/app/backend/tests/test_sportsdb_v9.py",
+    "/app/test_reports/pytest/iter30_regression.xml"
+  ],
+  "action_items": [
+    "Investigate /api/sportsdb fixtures: missing statusShort/state/live in normalised event shape. Compare with iter29 output. Likely a tiny field-mapping miss in the fixtures merger (NOT a regression from this fork's changes)."
+  ],
+  "critical_code_review_comments": [
+    "MobileBottomNav.jsx: clean component, 5 tabs with correct routes (/, /sports, /live-tv, /library, /settings), data-testid present on all 5 (mobile-nav-{label}). Active accent #5DC8FF. 44px tap targets via 58px height. Good.",
+    "useIsMobile.js: detection correctly combines coarse-pointer + width<900 AND honours ?mobile=1/?mobile=0 URL override. Subscribed to resize + orientationchange. Good.",
+    "App.js:135-148 MobilePlatformRoot: sets data-platform='mobile' on body AND documentElement on mount, removes on unmount. Conditionally renders MobileBottomNav based on route. Good.",
+    "WatchTogether.jsx:557-568 — MoviePicker correctly branches: if pendingShow is set (TV result picked), renders EpisodePicker; otherwise renders search results. Movies skip episode picker entirely (per brief).",
+    "WatchTogether.jsx:801-808 handlePickEpisode spreads {...show} (which carries tmdb_id, media_type='tv', title, poster, year) and ADDS imdb_id, season, episode, episode_title. CONFIRMED VIA RUNTIME WS CAPTURE: pick payload contains all 9 fields {tmdb_id:'1396', media_type:'tv', title:'Breaking Bad', poster:..., year:'2008', season:1, episode:1, episode_title:'Pilot', imdb_id:'tt0903747'}.",
+    "WatchTogether.jsx:103-104 navigate URL for series correctly: `/title/series/${target.imdb_id}?party=CODE&autoplay=1&at_ms=X&position_ms=Y&season=S&episode=E`. Members route through Detail.jsx (NOT manual episode picker).",
+    "Detail.jsx:84-88,372-410 — series-party autoplay useEffect reads partySeason/partyEpisode from URL, fetches stream for `${id}:${S}:${E}` videoId, passes episodeOverride to playStream. Good.",
+    "Detail.jsx:412-492 playStream now accepts episodeOverride with cwId/season/episode/title for correct routing and CW persistence. Good.",
+    "Detail.jsx:608 party-joining-overlay testid present.",
+    "LiveTVBoot.jsx:239-263 SkipButton uses 3 staggered focus attempts (0/80/240ms) once `show` flips true at 10s, sets data-focused='true', and handles Enter/Space via onKeyDown. Correct — survives spatial-nav re-focus races.",
+    "MINOR — index.css mobile overrides are extensive (~200 lines keyed off body[data-platform='mobile']). Works well but watch for selector specificity drift as new components ship — e.g. hardcoded paths like `.max-w-\\[60vw\\]` will silently stop matching if Tailwind class changes."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "98% (44/45 — 1 pre-existing sportsdb fixture-shape failure unrelated to this iter)",
+    "frontend": "100% — Mobile shell (390x844), TV regression (1920x1080), Watch Together TV-show episode picker + pick-payload all 9 fields, preview transition — ALL PASS"
+  },
+  "test_credentials": "None. Seeded profile via add_init_script: onnowtv-profiles-v1 + onnowtv-active-profile-v1='p1'.",
+  "seed_data_creation": "Ephemeral profile in localStorage only. Watch party rooms are server-side ephemeral (auto-expire); no cleanup required.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "TVKeyboard search input does NOT respond to page.keyboard.type — must click on-screen buttons. CRITICAL selector gotcha: search-result testids use item.type which is 'series' or 'movie' (NOT 'tv'/'movie'). Correct selector for TV-show results is `[data-testid^=\"party-pick-series-\"]`. The /api/tmdb/search?q=breaking%20bad returns 13 results with 4 being type='series' (Breaking Bad tmdb_id=1396 is index 0). Episode-picker testids: `watch-together-season-{N}` and `watch-together-episode-{S}-{E}`. WS capture for verifying pick payload: `page.on('websocket', ...)`+ `ws.on('framesent', ...)` to access JSON. The watch-party WS endpoint is `wss://.../api/watch-party/ws/{CODE}`. For mobile mode: use ?mobile=1 URL override OR set viewport <900px + emulate touch (viewport alone is NOT enough because useIsMobile requires hasTouch).",
+  "rca of the issue": "Sportsdb fixtures regression: event objects returned by /api/sportsdb/fixtures merger are missing 'statusShort', 'state', 'live' fields. This iter did NOT touch backend/server.py per the brief, so the issue likely existed before this fork OR a different recent commit changed the espn/sportsdb normaliser. Reproduction: `curl $REACT_APP_BACKEND_URL/api/sportsdb/fixtures` and inspect the first event's keys. Mitigation: add the 3 missing field aliases in the normaliser (likely in the espn/sportsdb merger in backend/server.py)."
+}

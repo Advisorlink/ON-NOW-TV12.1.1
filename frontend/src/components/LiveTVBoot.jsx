@@ -238,17 +238,45 @@ export default function LiveTVBoot({ stages, counters, bootTarget = 500, onSkip 
 
 function SkipButton({ onSkip }) {
     const [show, setShow] = React.useState(false);
+    const btnRef = React.useRef(null);
     React.useEffect(() => {
         const t = setTimeout(() => setShow(true), 10000);
         return () => clearTimeout(t);
     }, []);
+    /* Once the button appears, focus it so the user can press OK
+       on the D-pad to instantly skip (no D-pad tabbing needed).
+       The boot splash has nothing else focusable on screen, so this
+       doesn't steal focus from anything important. */
+    React.useEffect(() => {
+        if (!show) return;
+        const tries = [0, 80, 240];
+        const timers = tries.map((ms) =>
+            setTimeout(() => {
+                const el = btnRef.current;
+                if (el && document.activeElement !== el) {
+                    try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+                    el.setAttribute('data-focused', 'true');
+                }
+            }, ms)
+        );
+        return () => timers.forEach(clearTimeout);
+    }, [show]);
     if (!show) return null;
     return (
         <button
+            ref={btnRef}
             data-testid="livetv-boot-skip"
             data-focusable="true"
+            data-focus-style="pill"
+            data-initial-focus="true"
             tabIndex={0}
             onClick={onSkip}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSkip();
+                }
+            }}
             style={{
                 position: 'absolute',
                 bottom: 56,

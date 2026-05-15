@@ -88,7 +88,23 @@ export default function WatchTogether() {
                     // time, otherwise the server kicks us out).
                     try { ws.close(); } catch { /* ignore */ }
                     wsRef.current = null;
-                    const url = `/resolve/${target.media_type}/${target.tmdb_id}?party=${code}&autoplay=1&at_ms=${payload.at_ms}&position_ms=${payload.position_ms}`;
+                    /* TV-show episodes route through /title/series/{imdb}
+                       with extra season+episode params so Detail.jsx
+                       can fire the episode-specific autoplay.  When
+                       the host hasn't provided an imdb_id (older
+                       client), fall back to /resolve/tv which looks
+                       it up before redirecting (preserves the query
+                       string). */
+                    const partyQS = `party=${code}&autoplay=1&at_ms=${payload.at_ms}&position_ms=${payload.position_ms}`;
+                    const epQS = (target.media_type === 'tv' && target.season != null && target.episode != null)
+                        ? `&season=${target.season}&episode=${target.episode}`
+                        : '';
+                    let url;
+                    if (target.media_type === 'tv' && target.imdb_id && target.season != null && target.episode != null) {
+                        url = `/title/series/${target.imdb_id}?${partyQS}${epQS}`;
+                    } else {
+                        url = `/resolve/${target.media_type}/${target.tmdb_id}?${partyQS}${epQS}`;
+                    }
                     navigate(url);
                 }
             }
@@ -520,6 +536,11 @@ function MoviePicker({ onPick }) {
     const [results, setResults] = useState([]);
     const [busy, setBusy] = useState(false);
     const [searched, setSearched] = useState(false);
+    /* When the host taps a TV result we don't broadcast the pick
+       immediately — we open an in-line season+episode picker first
+       so the whole party autoplays the SAME episode.  Movies skip
+       this step entirely. */
+    const [pendingShow, setPendingShow] = useState(null);
     const submit = async () => {
         if (q.trim().length < 2) return;
         setBusy(true);
@@ -529,6 +550,36 @@ function MoviePicker({ onPick }) {
             setResults(Array.isArray(j?.data) ? j.data : []);
             setSearched(true);
         } catch { setResults([]); } finally { setBusy(false); }
+    };
+
+    /* If the host has already tapped a TV result, render the
+       episode picker instead of the search results. */
+    if (pendingShow) {
+        return (
+            <EpisodePicker
+                show={pendingShow}
+                onBack={() => setPendingShow(null)}
+                onPick={(payload) => {
+                    onPick(payload);
+                    setPendingShow(null);
+                }}
+            />
+        );
+    }
+
+    const handlePickResult = (item) => {
+        const base = {
+            tmdb_id: String(item.tmdb_id),
+            media_type: item.type === 'series' ? 'tv' : 'movie',
+            title: item.title,
+            poster: item.poster,
+            year: item.year || '',
+        };
+        if (item.type === 'series') {
+            setPendingShow(base);
+        } else {
+            onPick(base);
+        }
     };
     return (
         <div className="flex flex-col" style={{ gap: 24, width: '100%' }}>
@@ -626,18 +677,29 @@ function MoviePicker({ onPick }) {
                                 data-testid={`party-pick-${item.type}-${item.tmdb_id}`}
                                 data-focusable="true"
                                 tabIndex={0}
-                                onClick={() => onPick({
-                                    tmdb_id: String(item.tmdb_id),
-                                    media_type: item.type === 'series' ? 'tv' : 'movie',
-                                    title: item.title,
-                                    poster: item.poster,
-                                    year: item.year || '',
-                                })}
-                                className="rounded-xl overflow-hidden text-left"
+                                onClick={() => handlePickResult(item)}
+                                className="rounded-xl overflow-hidden text-left relative"
                                 style={{ width: 'clamp(120px, 10vw, 160px)', aspectRatio: '2 / 3', padding: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
                             >
                                 {item.poster && (
                                     <img src={item.poster} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                )}
+                                {item.type === 'series' && (
+                                    <span
+                                        className="vesper-mono"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 8, left: 8,
+                                            padding: '3px 8px', borderRadius: 999,
+                                            background: 'rgba(6,8,15,0.78)',
+                                            border: '1px solid rgba(93,200,255,0.55)',
+                                            color: '#8de0ff',
+                                            fontSize: 9, letterSpacing: '0.18em',
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        TV
+                                    </span>
                                 )}
                             </button>
                         ))}
@@ -652,8 +714,250 @@ function MoviePicker({ onPick }) {
     );
 }
 
+/* --------------------------- EpisodePicker -------------------------- */
+
+/**
+ * After the host picks a TV show, EpisodePicker shows season pills
+ * and an episode list so the host can choose the exact episode the
+ * party will watch together.
+ *
+ * Resolves the show's IMDB id (via /api/tmdb/imdb/tv/{tmdb_id}) and
+ * fetches Stremio-format metadata (which includes a `videos` array
+ * of episodes, each with `season`, `episode`, `name`, `overview`,
+ * `released`, `thumbnail`).  The host taps an episode → we call
+ * onPick({ ...show, season, episode, episode_title, imdb_id }).
+ */
+function EpisodePicker({ show, onBack, onPick }) {
+    const [imdbId, setImdbId] = useState(null);
+    const [meta, setMeta] = useState(null);
+    const [busy, setBusy] = useState(true);
+    const [err, setErr] = useState(null);
+    const [season, setSeason] = useState(1);
+
+    useEffect(() => {
+        let cancel = false;
+        (async () => {
+            setBusy(true);
+            setErr(null);
+            try {
+                const r = await fetch(`${API}/tmdb/imdb/tv/${show.tmdb_id}`, {
+                    cache: 'force-cache',
+                });
+                const data = await r.json();
+                const imdb = data?.imdb_id;
+                if (!imdb) {
+                    if (!cancel) {
+                        setErr('Couldn\u2019t resolve the show id.');
+                        setBusy(false);
+                    }
+                    return;
+                }
+                if (cancel) return;
+                setImdbId(imdb);
+                /* Fetch Stremio-format meta so we get the
+                   season/episode list with names & overviews. */
+                const m = await fetch(`${API}/meta/series/${imdb}`);
+                const mj = await m.json();
+                const fullMeta = mj?.data?.meta || null;
+                if (cancel) return;
+                if (!fullMeta) {
+                    setErr('No episode list available for this show.');
+                    setBusy(false);
+                    return;
+                }
+                setMeta(fullMeta);
+                /* Default to the first non-zero season. */
+                const seasons = Array.from(
+                    new Set((fullMeta.videos || [])
+                        .map((v) => Number(v.season))
+                        .filter((n) => n > 0))
+                ).sort((a, b) => a - b);
+                if (seasons.length) setSeason(seasons[0]);
+                setBusy(false);
+            } catch (e) {
+                if (!cancel) {
+                    setErr('Couldn\u2019t reach the metadata server.');
+                    setBusy(false);
+                }
+            }
+        })();
+        return () => { cancel = true; };
+    }, [show.tmdb_id]);
+
+    const seasons = useMemo(() => {
+        if (!meta?.videos) return [];
+        return Array.from(
+            new Set(meta.videos.map((v) => Number(v.season)).filter((n) => n > 0))
+        ).sort((a, b) => a - b);
+    }, [meta]);
+
+    const episodes = useMemo(() => {
+        if (!meta?.videos) return [];
+        return meta.videos
+            .filter((v) => Number(v.season) === season)
+            .sort((a, b) => Number(a.episode) - Number(b.episode));
+    }, [meta, season]);
+
+    const handlePickEpisode = (ep) => {
+        onPick({
+            ...show,
+            imdb_id: imdbId,
+            season: Number(ep.season),
+            episode: Number(ep.episode),
+            episode_title: ep.name || `Episode ${ep.episode}`,
+        });
+    };
+
+    return (
+        <div data-testid="watch-together-episode-picker" className="flex flex-col" style={{ gap: 20, width: '100%' }}>
+            <div className="flex items-center" style={{ gap: 14 }}>
+                <button
+                    data-testid="watch-together-episode-back"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onBack}
+                    className="flex items-center justify-center rounded-full"
+                    style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--vesper-text-2)' }}
+                >
+                    <ArrowLeft size={18} />
+                </button>
+                <div>
+                    <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.32em', color: 'var(--vesper-blue-bright)' }}>
+                        PICK AN EPISODE
+                    </div>
+                    <h2 className="vesper-display" style={{ fontSize: 'clamp(22px, 2.4vw, 34px)', letterSpacing: '-0.02em', lineHeight: 1.05 }}>
+                        {show.title}
+                    </h2>
+                </div>
+            </div>
+
+            {busy && (
+                <div className="flex items-center gap-3" style={{ color: 'var(--vesper-text-2)', justifyContent: 'center', marginTop: 24 }}>
+                    <Loader2 className="vesper-spin" size={20} /> Loading episode list…
+                </div>
+            )}
+
+            {!busy && err && (
+                <div style={{ color: '#FCA5A5', fontSize: 14 }}>{err}</div>
+            )}
+
+            {!busy && !err && meta && (
+                <>
+                    {/* Season pills */}
+                    <div
+                        data-testid="watch-together-season-pills"
+                        className="flex flex-wrap"
+                        style={{ gap: 8 }}
+                    >
+                        {seasons.map((s) => {
+                            const isActive = s === season;
+                            return (
+                                <button
+                                    key={s}
+                                    data-testid={`watch-together-season-${s}`}
+                                    data-focusable="true"
+                                    data-focus-style="pill"
+                                    tabIndex={0}
+                                    onClick={() => setSeason(s)}
+                                    className="rounded-full vesper-mono"
+                                    style={{
+                                        padding: '8px 16px',
+                                        background: isActive ? 'rgba(93,200,255,0.20)' : 'rgba(255,255,255,0.05)',
+                                        border: isActive ? '1px solid rgba(93,200,255,0.55)' : '1px solid rgba(255,255,255,0.12)',
+                                        color: isActive ? '#8de0ff' : 'var(--vesper-text-2)',
+                                        fontSize: 12, letterSpacing: '0.16em',
+                                        textTransform: 'uppercase', fontWeight: 700,
+                                    }}
+                                >
+                                    Season {s}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Episode list */}
+                    <div
+                        data-testid="watch-together-episode-list"
+                        className="flex flex-col"
+                        style={{ gap: 10, maxHeight: '52vh', overflowY: 'auto' }}
+                    >
+                        {episodes.map((ep) => (
+                            <button
+                                key={`${ep.season}-${ep.episode}`}
+                                data-testid={`watch-together-episode-${ep.season}-${ep.episode}`}
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => handlePickEpisode(ep)}
+                                className="text-left rounded-xl flex items-stretch"
+                                style={{
+                                    padding: 0,
+                                    background: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {ep.thumbnail && (
+                                    <img
+                                        src={ep.thumbnail}
+                                        alt=""
+                                        loading="lazy"
+                                        style={{
+                                            width: 160,
+                                            aspectRatio: '16 / 9',
+                                            objectFit: 'cover',
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                )}
+                                <div className="flex flex-col" style={{ padding: '14px 18px', flex: 1, gap: 6 }}>
+                                    <div className="vesper-mono" style={{
+                                        fontSize: 10, letterSpacing: '0.22em',
+                                        color: 'var(--vesper-blue-bright)',
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        S{String(ep.season).padStart(2, '0')} · E{String(ep.episode).padStart(2, '0')}
+                                    </div>
+                                    <div style={{
+                                        fontSize: 16, fontWeight: 600, lineHeight: 1.2,
+                                        color: 'var(--vesper-text)',
+                                    }}>
+                                        {ep.name || `Episode ${ep.episode}`}
+                                    </div>
+                                    {ep.overview && (
+                                        <div style={{
+                                            fontSize: 13, lineHeight: 1.45,
+                                            color: 'var(--vesper-text-2)',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                        }}>
+                                            {ep.overview}
+                                        </div>
+                                    )}
+                                </div>
+                            </button>
+                        ))}
+                        {episodes.length === 0 && (
+                            <div style={{ color: 'var(--vesper-text-3)', textAlign: 'center', padding: 24 }}>
+                                No episodes found for this season.
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function MoviePreview({ movie, status, iAmHost, onStart }) {
     const startBtnRef = React.useRef(null);
+    /* For TV shows, surface which episode the host queued up so
+       guests know exactly what they're about to watch. */
+    const episodeTag = movie?.media_type === 'tv' && movie?.season != null && movie?.episode != null
+        ? `S${String(movie.season).padStart(2, '0')}E${String(movie.episode).padStart(2, '0')}`
+        : null;
     // Imperative focus: as soon as the host's "Start the party"
     // button mounts (i.e. the moment after picking a movie), focus
     // it so the user can press OK on the remote without needing to
@@ -689,18 +993,27 @@ function MoviePreview({ movie, status, iAmHost, onStart }) {
             <div className="flex flex-col" style={{ gap: 16, flex: 1 }}>
                 <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.28em', color: 'var(--vesper-blue-bright)' }}>
                     SELECTED · {movie.media_type === 'tv' ? 'TV SHOW' : 'MOVIE'}
+                    {episodeTag && <span style={{ marginLeft: 10, color: '#fff' }}>· {episodeTag}</span>}
                 </div>
                 <h2 className="vesper-display" style={{ fontSize: 'clamp(26px, 3vw, 44px)', letterSpacing: '-0.02em', lineHeight: 1.04 }}>
                     {movie.title}
                 </h2>
+                {episodeTag && movie.episode_title && (
+                    <div className="vesper-mono" style={{
+                        fontSize: 12, letterSpacing: '0.14em', color: '#8de0ff',
+                        textTransform: 'uppercase',
+                    }}>
+                        {episodeTag} · {movie.episode_title}
+                    </div>
+                )}
                 {movie.year && (
                     <div style={{ color: 'var(--vesper-text-2)' }}>{movie.year}</div>
                 )}
                 <div style={{ color: 'var(--vesper-text-2)', maxWidth: '60ch' }}>
                     {status === 'lobby'
                         ? (iAmHost
-                            ? 'When everyone is ready, hit Start — your party will see a 3-2-1 countdown then the movie will play in sync.'
-                            : 'Your host will start the movie shortly.  Hang tight!')
+                            ? `When everyone is ready, hit Start — your party will see a 3-2-1 countdown then the ${movie.media_type === 'tv' ? 'episode' : 'movie'} will play in sync.`
+                            : `Your host will start the ${movie.media_type === 'tv' ? 'episode' : 'movie'} shortly.  Hang tight!`)
                         : status === 'countdown'
                         ? 'Get ready — the party is starting in 3, 2, 1…'
                         : 'Playing now.'}

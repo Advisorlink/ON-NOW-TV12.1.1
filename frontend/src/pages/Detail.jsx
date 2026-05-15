@@ -76,6 +76,19 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('position_ms') || '',
         [location.search]
     );
+    /* Watch Together for TV shows — when a party host picks an
+       episode, the URL carries `season` + `episode` numbers so we
+       know exactly which episode to autoplay.  Without these the
+       series detail page bails out of autoplay (the manual episode
+       picker is the right UX for the non-party flow). */
+    const partySeason = useMemo(
+        () => new URLSearchParams(location.search).get('season') || '',
+        [location.search]
+    );
+    const partyEpisode = useMemo(
+        () => new URLSearchParams(location.search).get('episode') || '',
+        [location.search]
+    );
 
     const [meta, setMeta] = useState(null);
     const [streams, setStreams] = useState([]);
@@ -342,8 +355,67 @@ export default function Detail() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
-    const playStream = async (stream) => {
+    /* ---------- PARTY AUTOPLAY for TV SERIES ----------
+     * When the host picks a TV show in Watch Together and selects a
+     * specific season+episode, the URL carries ?party=…&season=S&
+     * episode=E&autoplay=1.  Fetches the episode's streams and fires
+     * the best one, mirroring the movie party-autoplay path.  Skips
+     * the user's Autoplay-1080p preference and the 4K-only fallback
+     * — same logic as the movie path. */
+    const seriesPartyFiredRef = React.useRef(false);
+    useEffect(() => {
+        if (seriesPartyFiredRef.current) return;
+        if (autoplayFiredRef.current) return;
+        if (!partyCode) return;
+        if (!autoplayRequested) return;
+        if (type !== 'series') return;
+        if (!partySeason || !partyEpisode) return;
+        if (!meta) return; // wait for the show metadata so the CW entry is rich
+        seriesPartyFiredRef.current = true;
+        autoplayFiredRef.current = true;
+        (async () => {
+            const videoId = `${id}:${partySeason}:${partyEpisode}`;
+            try {
+                const res = await Vesper.getStreams('series', videoId);
+                const list = Array.isArray(res?.streams) ? res.streams : [];
+                if (list.length === 0) {
+                    seriesPartyFiredRef.current = false;
+                    autoplayFiredRef.current = false;
+                    return;
+                }
+                const non4k = list.filter((s) => !is4K(s));
+                const pool = non4k.length > 0 ? non4k : list;
+                const pick =
+                    pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+                    pool.find((s) => is1080p(s)) ||
+                    pool.find((s) => streamMode(s) === 'direct') ||
+                    pool.find((s) => streamMode(s) === 'torrent') ||
+                    pool[0];
+                if (!pick) {
+                    seriesPartyFiredRef.current = false;
+                    autoplayFiredRef.current = false;
+                    return;
+                }
+                await playStream(pick, {
+                    cwId: videoId,
+                    season: Number(partySeason),
+                    episode: Number(partyEpisode),
+                });
+            } catch (_e) {
+                seriesPartyFiredRef.current = false;
+                autoplayFiredRef.current = false;
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partyCode, autoplayRequested, type, partySeason, partyEpisode, id, meta]);
+
+    const playStream = async (stream, episodeOverride = null) => {
         const mode = streamMode(stream);
+        /* For series episodes coming from the party-autoplay path,
+           use the composite videoId (`imdbId:season:episode`) for
+           subtitles, CW key, and resume.  Movies pass null and
+           everything works exactly like before. */
+        const playId = episodeOverride?.cwId || id;
         if (mode === 'direct' || mode === 'torrent') {
             // Resolve the playable URL.  Direct streams already
             // carry a `url`; torrents are converted to a magnet:
@@ -356,7 +428,7 @@ export default function Detail() {
             if (!playUrl) return;
             // Look up any previously-saved position so we can resume.
             const cwList = cw.getEntries();
-            const existing = cwList.find((e) => e.id === id);
+            const existing = cwList.find((e) => e.id === playId);
             const startAtMs =
                 resumeRequested && existing?.positionMs
                     ? existing.positionMs
@@ -367,7 +439,7 @@ export default function Detail() {
             let subtitleUrl = '';
             try {
                 const r = await fetch(
-                    `${API}/subtitles/${type}/${encodeURIComponent(id)}`,
+                    `${API}/subtitles/${type}/${encodeURIComponent(playId)}`,
                     { cache: 'no-store' }
                 );
                 if (r.ok) {
@@ -384,10 +456,14 @@ export default function Detail() {
             // Track / refresh the Continue Watching entry up front so
             // the show appears on Home even before the native player
             // reports any progress.
+            const episodeLabel = episodeOverride
+                ? `S${String(episodeOverride.season).padStart(2, '0')}E${String(episodeOverride.episode).padStart(2, '0')}`
+                : '';
             cw.upsert({
-                id,
+                id: playId,
                 type,
                 title: meta?.name || '',
+                episodeLabel,
                 backdrop: meta?.background || meta?.poster || '',
                 poster: meta?.poster || '',
                 synopsis: meta?.description || '',
@@ -413,10 +489,13 @@ export default function Detail() {
             const partyMemberId = partyCode
                 ? (sessionStorage.getItem('vesper-party-member-id') || '')
                 : '';
+            const playTitle = episodeOverride
+                ? `${meta?.name || ''} · ${episodeLabel}`
+                : (meta?.name || '');
             if (
                 Host.playVideo({
                     url: playUrl,
-                    title: meta?.name || '',
+                    title: playTitle,
                     type: type,
                     subtitleUrl,
                     poster: meta?.poster || '',
@@ -429,7 +508,7 @@ export default function Detail() {
                     startAtMs: partyCode
                         ? Number(partyPositionMs) || 0
                         : startAtMs,
-                    cwId: id,
+                    cwId: playId,
                     partyCode: partyCode || undefined,
                     partyRole: partyRole || undefined,
                     partyMemberId: partyMemberId || undefined,
@@ -446,9 +525,9 @@ export default function Detail() {
             navigate(
                 `/play?url=${encodeURIComponent(
                     playUrl
-                )}&title=${encodeURIComponent(meta?.name || '')}&type=${encodeURIComponent(
+                )}&title=${encodeURIComponent(playTitle)}&type=${encodeURIComponent(
                     type
-                )}&imdbId=${encodeURIComponent(id)}${partyQuery}`
+                )}&imdbId=${encodeURIComponent(playId)}${partyQuery}`
             );
         } else if (mode === 'external') {
             try {
@@ -558,11 +637,13 @@ export default function Detail() {
                         JOINING WATCH PARTY
                     </div>
                     <div style={{ fontSize: 14, color: '#9DA5B5' }}>
-                        {streamLoading
-                            ? 'Resolving stream…'
-                            : (streams.length === 0
-                                ? 'No streams available — host needs to pick a different title.'
-                                : 'Starting playback in a moment…')}
+                        {type === 'series' && partySeason && partyEpisode
+                            ? `Loading S${String(partySeason).padStart(2, '0')}E${String(partyEpisode).padStart(2, '0')}…`
+                            : streamLoading
+                                ? 'Resolving stream…'
+                                : (streams.length === 0
+                                    ? 'No streams available — host needs to pick a different title.'
+                                    : 'Starting playback in a moment…')}
                     </div>
                     <style>{`@keyframes spin { from {transform: rotate(0)} to {transform: rotate(360deg)} }`}</style>
                 </div>

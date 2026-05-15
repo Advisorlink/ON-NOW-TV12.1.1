@@ -343,7 +343,7 @@ export default function SportsGuide() {
 
     /* ─── Render ─── */
     return (
-        <div style={{
+        <div data-testid="sports-page" style={{
             position: 'fixed', inset: 0,
             background:
                 'radial-gradient(ellipse 1200px 700px at 18% -10%, rgba(93,200,255,0.10) 0%, transparent 55%),' +

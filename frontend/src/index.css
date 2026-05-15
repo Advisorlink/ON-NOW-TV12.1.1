@@ -699,7 +699,8 @@ body[data-platform="mobile"] {
 /* Hide the desktop SideNav whenever mobile mode is active.  The
    pages render the side-nav unconditionally on mount; we just
    visually hide it (display:none) and reclaim its left inset. */
-body[data-platform="mobile"] [data-testid="side-nav"] {
+body[data-platform="mobile"] [data-testid="side-nav"],
+body[data-platform="mobile"] [data-testid="kids-side-nav"] {
     display: none !important;
 }
 
@@ -748,7 +749,8 @@ body[data-platform="mobile"] h4 {
 /* Tablet-aware override: tablets in landscape are wide enough to
    approximate the TV layout, so we keep the side-nav for them. */
 @media (min-width: 1024px) {
-    body[data-platform="mobile"] [data-testid="side-nav"] {
+    body[data-platform="mobile"] [data-testid="side-nav"],
+    body[data-platform="mobile"] [data-testid="kids-side-nav"] {
         display: flex !important;
     }
     body[data-platform="mobile"] main {
@@ -763,5 +765,220 @@ body[data-platform="mobile"] h4 {
 @media (hover: none) {
     body[data-platform="mobile"] *:hover {
         transition: none !important;
+    }
+}
+
+/* ----------------------------------------------------------------
+   MOBILE — page-specific layout overrides.
+   These CSS rules tame the TV pages' big inline paddings + side-rail
+   reservations without touching JSX (preserving the TV experience
+   on a desktop browser).  Every rule below is gated on
+   `body[data-platform="mobile"]` so it ONLY fires on phones.
+   ---------------------------------------------------------------- */
+
+/* ---- HOME ----
+   Hero billboard's left padding is `clamp(92px, 6.5vw, 132px)` so it
+   stays clear of the desktop SideNav rail (76 px collapsed).  On
+   mobile we hide the rail so we want full-bleed content. */
+body[data-platform="mobile"] [data-testid="hero-billboard"] {
+    height: clamp(280px, 62vh, 460px) !important;
+}
+body[data-platform="mobile"] [data-testid="hero-billboard"] > div.absolute.inset-0.flex > div {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    padding-bottom: 28px !important;
+    max-width: 100% !important;
+}
+body[data-platform="mobile"] [data-testid="hero-title"] {
+    font-size: clamp(26px, 7.5vw, 38px) !important;
+    line-height: 1.05 !important;
+}
+/* Hero pagination dots — hidden on small phones (they live in the
+   bottom-right corner and overlap content there). */
+@media (max-width: 600px) {
+    body[data-platform="mobile"] [data-testid="hero-billboard"] > .absolute.bottom-10 {
+        display: none !important;
+    }
+}
+
+/* Shelves — paddings & gaps tightened.  The `vesper-shelf-section`
+   class is on every shelf row, including Continue Watching, For You,
+   Networks, and dynamic shelves. */
+body[data-platform="mobile"] .vesper-shelf-section header,
+body[data-platform="mobile"] .vesper-shelf-section > div {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] .vesper-shelf {
+    gap: 12px !important;
+}
+body[data-platform="mobile"] .vesper-shelf-section h2 {
+    font-size: clamp(18px, 5vw, 22px) !important;
+}
+
+/* Empty-addons banner uses inline margins keyed off the SideNav
+   inset — collapse them on mobile. */
+body[data-platform="mobile"] [data-testid="home-page"] section[style*="margin: 32px"] {
+    margin: 20px 16px 0 16px !important;
+    padding: 14px 16px !important;
+}
+
+/* Footer (ON NOW TV V2 · v1.0 + n sources active) */
+body[data-platform="mobile"] [data-testid="shelves-region"] footer {
+    padding: 16px !important;
+}
+
+/* ---- DETAIL ----
+   Detail page wraps content in <main> with `padding: 64px 80px 80px
+   80px` and the inner column has `max-w-[60vw]`.  Collapse both. */
+body[data-platform="mobile"] [data-testid="detail-page"] main {
+    padding: 18px 16px 96px 16px !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] main > div.max-w-\[60vw\] {
+    max-width: 100% !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] h1 {
+    font-size: clamp(28px, 7vw, 40px) !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] .vesper-meta {
+    font-size: 13px !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] p {
+    font-size: 14px !important;
+}
+/* Detail's autoplay Play button — make it touch-friendly. */
+body[data-platform="mobile"] [data-testid="detail-play-autoplay"] {
+    height: 52px !important;
+    padding-left: 22px !important;
+    padding-right: 26px !important;
+    font-size: 16px !important;
+}
+
+/* ---- SETTINGS ---- */
+body[data-platform="mobile"] [data-testid="settings-scroll"] {
+    padding: 24px 16px 96px 16px !important;
+}
+body[data-platform="mobile"] [data-testid="settings-page"] h1 {
+    font-size: clamp(28px, 7vw, 38px) !important;
+}
+
+/* ---- LIBRARY ---- */
+body[data-platform="mobile"] [data-testid="library-page"] {
+    padding: 24px 14px 96px 14px !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] {
+    margin-top: 32px !important;
+    padding: 18px 14px !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-expanded"] {
+    padding: 28px 16px 96px 16px !important;
+}
+/* TV Shows empty state uses a 2-col grid that becomes too narrow on
+   phones — stack it vertically. */
+body[data-platform="mobile"] [data-testid="library-page"] .grid[style*="1.1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+}
+
+/* ---- SEARCH ---- */
+body[data-platform="mobile"] [data-testid="search-page"] main {
+    padding: 24px 14px 96px 14px !important;
+}
+
+/* ---- WATCH TOGETHER ----
+   Top-level <main> uses paddingLeft clamp(140px…) reserving room for
+   the SideNav.  Collapse to phone-friendly 16 px. */
+body[data-platform="mobile"] [data-testid="watch-together"] main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 20px !important;
+    padding-bottom: 96px !important;
+}
+/* Landing's host/join tile grid has `minmax(260px, 1fr)` which
+   horizontally overflows on phones — switch to single column or
+   fluid 2-col with no min so both tiles fit. */
+body[data-platform="mobile"] [data-testid="watch-together-landing"] > div.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+
+/* ---- SPORTS GUIDE ----
+   <main> uses `inset: 0 0 0 100px`.  Already covered by global
+   `body[data-platform="mobile"] main { left: 0 !important }`.
+   Tighten section paddings + header. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > header,
+body[data-platform="mobile"] [data-testid="sports-page"] main > div {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+}
+/* The Sports header has an inline "Sports Guide" mono tagline that
+   doesn't fit on a 360 px phone — hide it. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > header > span {
+    display: none !important;
+}
+/* Hero fixture card uses `gridTemplateColumns: '1fr auto'` which puts
+   the score / VS panel beside the venue meta on TV, but on phones
+   the team-badge column overlaps the venue text.  Stack vertically. */
+body[data-platform="mobile"] [data-testid="sports-page"] article[style*="grid-template-columns: 1fr auto"] {
+    grid-template-columns: 1fr !important;
+    padding: 18px !important;
+    gap: 16px !important;
+    min-height: 0 !important;
+}
+/* Sport / date pill rows should scroll horizontally instead of
+   wrapping into a tall block on phones. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > div .vesper-shelf,
+body[data-platform="mobile"] [data-testid="sports-page"] main > div > div[style*="overflow-x"] {
+    overflow-x: auto;
+}
+
+/* ---- LIVE TV ----
+   Already mobile-aware via JS (isMobile).  Just ensure the page's
+   main wrapper doesn't leak the 100-px side-rail offset. */
+body[data-platform="mobile"] [data-testid="livetv-page"] main {
+    left: 0 !important;
+}
+
+/* ---- DETAIL · BACK BUTTON ----
+   Make the chrome back button more thumb-friendly on phones. */
+body[data-platform="mobile"] [data-testid="back-button"] {
+    min-height: 44px;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+/* Hide the fullscreen toggle button entirely on mobile (the
+   browser is already in fullscreen, or fullscreen is meaningless
+   on a PWA / WebView wrapper). */
+body[data-platform="mobile"] [data-testid="fullscreen-button"] {
+    display: none !important;
+}
+
+/* Disable D-pad press-ripple effects on touch — they look broken
+   after a tap (the focus ring lingers because the button retains
+   focus on touch). */
+body[data-platform="mobile"] [data-focusable='true'][data-pressed='true'] {
+    animation: none !important;
+}
+body[data-platform="mobile"] [data-focusable='true'][data-pressed='true']::after {
+    display: none !important;
+}
+/* And kill all focus glow on touch — the system already provides
+   a tap highlight that's more familiar to mobile users. */
+body[data-platform="mobile"] [data-focusable='true'][data-focused='true']:not(button),
+body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* TV Hero billboard's hero list-button ("My List") — push it onto a
+   second row when paired with Play + More Info to avoid overflow on
+   narrow phones. */
+@media (max-width: 480px) {
+    body[data-platform="mobile"] [data-testid="hero-billboard"] .flex.items-center.gap-3.mt-5 {
+        flex-wrap: wrap;
+    }
+    body[data-platform="mobile"] [data-testid="hero-list-button"] {
+        display: none !important; /* Free up horizontal room on small phones */
     }
 }

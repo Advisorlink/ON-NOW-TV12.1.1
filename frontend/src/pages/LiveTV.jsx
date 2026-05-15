@@ -89,7 +89,7 @@ export default function LiveTV() {
     useBackHandler('/');
 
     return (
-        <div style={{
+        <div data-testid="livetv-page" style={{
             position: 'fixed',
             inset: 0,
             background: '#0A0F1A',
