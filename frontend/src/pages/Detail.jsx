@@ -251,6 +251,26 @@ export default function Detail() {
         );
     }, [streams, type]);
 
+    // PARTY-MODE fallback: when the user is in a Watch Together
+    // session we MUST start *something* — getting stuck on the
+    // picker desyncs the party.  If no 1080p-labelled stream is
+    // found, pick the best available: first direct stream → first
+    // magnet → first anything.  Only used in party mode; regular
+    // Autoplay-1080p users still see the picker when no 1080p is
+    // present (that's by design).
+    const partyAutoplayCandidate = useMemo(() => {
+        if (type !== 'movie') return null;
+        if (!partyCode) return null;
+        if (!streams || streams.length === 0) return null;
+        if (autoplayCandidate) return autoplayCandidate;
+        return (
+            streams.find((s) => streamMode(s) === 'direct') ||
+            streams.find((s) => streamMode(s) === 'torrent') ||
+            streams[0] ||
+            null
+        );
+    }, [streams, type, partyCode, autoplayCandidate]);
+
     // Manual trigger for the on-page Play button.
     const triggerAutoplay = () => {
         if (autoplayCandidate) playStream(autoplayCandidate);
@@ -259,7 +279,9 @@ export default function Detail() {
     // ---------- AUTOPLAY (via ?autoplay=1 URL) ----------
     // Fires automatically when the user arrived via hero Play / a
     // CW resume etc.  Falls back silently to the manual picker if
-    // no 1080p candidate is found.
+    // no 1080p candidate is found.  In PARTY mode the fallback is
+    // more aggressive: pick whatever streams are available so the
+    // party doesn't desync on the picker.
     const autoplayFiredRef = React.useRef(false);
     useEffect(() => {
         if (autoplayFiredRef.current) return;
@@ -268,12 +290,14 @@ export default function Detail() {
         if (streamLoading) return;
         // Party flow auto-plays even when user's Autoplay setting is off.
         if (!partyCode && !getAutoplay1080p()) return;
-        if (!autoplayCandidate) return;
+        // In party mode: use the broader fallback list.
+        const candidate = partyCode ? partyAutoplayCandidate : autoplayCandidate;
+        if (!candidate) return;
         autoplayFiredRef.current = true;
-        const t = setTimeout(() => playStream(autoplayCandidate), 0);
+        const t = setTimeout(() => playStream(candidate), 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyAutoplayCandidate, partyCode]);
 
     const playStream = async (stream) => {
         const mode = streamMode(stream);

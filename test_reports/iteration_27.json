@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 27 — Watch Together party-autoplay bug fix verification (the user-reported 'Start Party just dumped both members on the picker' issue). BACKEND: 16/16 pytest tests PASS (full regression from iter 26, no regressions in REST, WS hello/pick/play/pause/chat/disconnect, ready handshake, guest join, or reactions). FRONTEND: visited /title/movie/tt0816692?autoplay=1&party=TEST00&at_ms=0&position_ms=0 — within 500ms the URL changed from /title/movie/... to /play?url=...&party=TEST00&at_ms=0&position_ms=0, proving the autoplay path fired. The stream-picker / detail-play-autoplay buttons are NOT rendered (count=0) — confirming the user is bypassed straight to the player rather than getting stuck on the manual picker as in the original bug. The picked stream is a Plex direct stream (yamicdn.cloud/library/parts/.../file.mkv?X-Plex-Token=...) and fails to load in the preview pod ('Could not load this stream') because the Plex token is private to the owner's network — but that's expected and the user was told this is fine ('NAVIGATION to /play is what proves the autoplay path triggered'). Negative-control: navigating to the same URL WITHOUT &party= also fired autoplay — this is because getAutoplay1080p() defaults to TRUE (prefs.js:20) AND the Interstellar Plex stream label contains '1080' (Plex tagging) so is1080p() matches → autoplayCandidate is set → autoplay fires. This is fully consistent with regression [C] ('non-party autoplay still requires a 1080p-labelled stream'). Both party fallback [A][B] and the 1080p-only guard [C] are honoured by the Detail.jsx logic exactly as designed (lines 261-300).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/test_reports/pytest/iter27_watch_party.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Detail.jsx:261-272 — partyAutoplayCandidate useMemo is correctly gated on `partyCode` so it ONLY fires the broader fallback in party mode. Falls through autoplayCandidate (1080p) → first direct → first torrent → streams[0]. Matches the brief.",
+    "Detail.jsx:292 — `if (!partyCode && !getAutoplay1080p()) return;` correctly skips the pref check when in a party so a party member with autoplay-1080p OFF still gets pulled into playback. This is the key second half of the fix.",
+    "Detail.jsx:294 — `const candidate = partyCode ? partyAutoplayCandidate : autoplayCandidate;` correctly picks the broader fallback ONLY in party mode. Non-party path still uses the strict 1080p-only candidate, satisfying regression [C].",
+    "Detail.jsx:402-408 — webview fallback navigate carries the partyQuery (`&party=...&at_ms=...&position_ms=...`) so the JS Player can reattach to the party WebSocket — verified in the test (URL preserved party=TEST00 through the redirect).",
+    "Non-functional/cosmetic: streamMeta.js:13 — the 1080p regex `\\b1080p?\\b|\\b1080(?:[._-]|$)` is somewhat loose (matches '1080' inside any token boundary) but is intentional per user spec ('anything that even mentions 1080 counts'). No action needed."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (16/16 pytest)",
+    "frontend": "100% — party autoplay confirmed navigates to /play within 500ms; stream-picker and detail-play-autoplay both correctly NOT rendered (the previously-broken state)"
+  },
+  "test_credentials": "Tester profile seeded in localStorage (onnowtv-profiles-v1 + onnowtv-active-profile-v1='tester-auto'); vesper-party-role='guest' and vesper-party-member-id='test-member-1' seeded in sessionStorage to satisfy the playStream party-mode prelude.",
+  "seed_data_creation": "Ephemeral — no persistent data. TEST00 is a non-existent party code used purely to flip the partyCode prop in Detail.jsx; the WS connection attempt to wss://.../ws/TEST00 fails (room doesn't exist) which is fine — the bug under test happens entirely client-side BEFORE any WS frame is exchanged.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Detail.jsx party-autoplay flow is now fully fixed. If retesting: (1) seed tester profile + sessionStorage party-role/member-id, (2) navigate to /title/movie/<imdbId>?autoplay=1&party=<code> (any 6-char code works for the client-side check, no need to create a real party), (3) within ~1s URL must contain /play and the &party=<code> qparam — that's the green light. The Plex token in the picked stream is private to the owner's HK1 network and will fail to actually play in the preview pod with 'Could not load this stream' — that's expected and unrelated. For the regular Autoplay-1080p flow (non-party), the pref defaults to ON via prefs.js:20 — if you want to test the 'picker should show when no 1080p' fallback, you must call setAutoplay1080p(false) FIRST.",
+  "rca of the issue": "Original bug: Detail.jsx line 242-252 `autoplayCandidate = streams.find(is1080p) || null`. When the Watch Together party sent both members to /title/movie/X?autoplay=1&party=CODE and the addons returned ZERO 1080p-tagged streams (common for Plex / Real-Debrid which tag titles like '4K HEVC' or 'WEBRip H264'), autoplayCandidate was null, the autoplay useEffect bailed (line 295 `if (!candidate) return;`), and both members were left staring at the manual stream picker — pushing Play on each side spawned two independent JS Players with no party WS linkage. RCA confirmed. Fix (verified iter 27): new `partyAutoplayCandidate` useMemo (Detail.jsx:261-272) only fires in party mode and walks a 4-tier fallback (1080p direct → 1080p anything → first direct → first torrent → streams[0]), and the autoplay useEffect (Detail.jsx:286-300) picks it in place of the strict 1080p candidate whenever `partyCode` is set, AND skips the user's `getAutoplay1080p()` pref check entirely in party mode. Manual smoke test: party-autoplay URL → /play navigation within ~500ms, party= qparam preserved through redirect, picker DOM not rendered. Bug fully closed."
+}
