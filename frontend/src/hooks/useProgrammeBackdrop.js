@@ -72,7 +72,7 @@ export default function useProgrammeBackdrop(title) {
                 cache.set(key, null);
                 setData(null);
             }
-        }, 700);
+        }, 200);
         return () => clearTimeout(t);
     }, [title]);
 

@@ -449,7 +449,13 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     //  Now/Next, the right-hand GUIDE column shows the rest.
     //
     //  Guardrails for low-end boxes:
-    //    • 500 ms debounce — fast D-pad scrubbing fires one request.
+    //    • 1500 ms debounce — fast D-pad scrubbing through 30
+    //      channels in 5 seconds fires ZERO requests.  EPG (and
+    //      therefore the TMDB hero backdrop, which derives from
+    //      the EPG title) only loads after the user has settled
+    //      on a channel for ~1.5 s.  Cache hits short-circuit
+    //      instantly — re-focusing a recently-seen channel is
+    //      always immediate.
     //    • 5-min in-memory cache per stream_id — re-focusing is free.
     //    • Stale-request guard so out-of-order responses can't flicker.
     // -------------------------------------------------------------------
@@ -469,7 +475,10 @@ function LiveTVGrid({ provider, onChangeProvider }) {
             return undefined;
         }
 
-        // Otherwise blank current EPG while we wait, debounce 500 ms.
+        // Otherwise blank current EPG while we wait, debounce 1500 ms.
+        // The user has explicitly asked us NOT to trigger any
+        // network work while they're flicking through channels —
+        // only when they "stop and read" should we look stuff up.
         setEpgItems([]);
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
@@ -482,7 +491,7 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 if (epgReqId.current !== myReq) return;
                 setEpgItems([]);
             }
-        }, 500);
+        }, 1500);
         return () => clearTimeout(t);
     }, [focusedChannel, provider]);
 
