@@ -2,29 +2,35 @@
  * Sports Guide — natural-language "where can I watch …?" search.
  *
  *  Layout:
- *    1. Hero — "Sports Guide" title + tagline
- *    2. Live preview line — shows your current draft query
- *    3. TVKeyboard (themed on-screen keyboard — no Android IME)
- *    4. Suggestion chips ("Toronto Raptors", "NFL", …)
- *    5. After a search: ranked LLM matches as cards
- *    6. Always: "🔥 ON RIGHT NOW" + "⏰ COMING UP SOON" rails of
- *       sport programmes pulled from cached EPG — no LLM call,
- *       instant on first render.
+ *    • Top: compact search bar (single line).
+ *    • Search bar focused → TVKeyboard pops up as a bottom overlay,
+ *      blurring the content underneath.  Click anywhere outside or
+ *      hit ESC to dismiss; ENTER on the keyboard runs the search.
+ *    • Below the search bar: rails of cards
+ *        🔥 ON RIGHT NOW
+ *        ⏳ COMING UP SOON
+ *      Once the user submits a query, a new SEARCH rail slots in
+ *      at the top.
  *
- *  How candidates are gathered (zero network):
- *    • Read sports-tagged channels + their EPG from localStorage.
- *    • Filter to programmes whose stop_ts > now and start_ts within
- *      the next 24 h.
+ *  Cards:
+ *    • Top half: TMDB programme backdrop (or a tinted gradient
+ *      placeholder when no match).
+ *    • Bottom half: small channel logo + channel name + time + title +
+ *      Watch / Remind buttons.
+ *
+ *  Data:
+ *    • Sports-tagged channels' EPG from localStorage.
+ *    • Filtered to programmes ending in the future, starting in the
+ *      next 24 h.
  *    • Sorted by start time.
- *
- *  Sports Guide is *additive* to Live TV — both pull from the same
- *  liveCache so EPG warmed in one view powers the other.
+ *    • Channel logos pulled from the same liveCache so they show
+ *      next to the channel name in each card.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Trophy, Loader2, Play, Bell, Flame, Hourglass } from 'lucide-react';
+import { Trophy, Loader2, Play, Bell, Flame, Hourglass, Search, X } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import TVKeyboard from '@/components/TVKeyboard';
 import { getActiveProvider, getStreamUrl } from '@/lib/xtream';
@@ -35,7 +41,7 @@ import Host from '@/lib/host';
 
 const SUGGESTIONS = [
     'Toronto Raptors',
-    'NFL Cowboys',
+    'Cowboys',
     'Premier League',
     'Champions League',
     'UFC',
@@ -46,19 +52,22 @@ const SUGGESTIONS = [
     'Boxing',
 ];
 
+function proxy(url, w = 64, q = 55) {
+    if (!url) return '';
+    const base = process.env.REACT_APP_BACKEND_URL;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${w}&q=${q}`;
+}
+
 export default function SportsGuide() {
     const provider = getActiveProvider();
     const navigate = useNavigate();
 
-    /* Cached sports EPG — built once, used by suggestion rails AND
-     * LLM candidate payload. */
     const sportsCandidates = useMemo(() => {
         if (!provider) return [];
         return gatherSportsEpg(provider.id);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider?.id]);
 
-    /* Rail A — programmes currently airing on sports channels. */
     const liveNow = useMemo(() => {
         const nowSec = Math.floor(Date.now() / 1000);
         return sportsCandidates.filter(
@@ -66,25 +75,25 @@ export default function SportsGuide() {
         ).slice(0, 24);
     }, [sportsCandidates]);
 
-    /* Rail B — programmes starting within the next 6 h. */
     const upNext = useMemo(() => {
         const nowSec = Math.floor(Date.now() / 1000);
         const horizon = nowSec + 6 * 3600;
         return sportsCandidates
             .filter((it) => it.startTs > nowSec && it.startTs <= horizon)
-            .sort((a, b) => a.startTs - b.startTs)
             .slice(0, 24);
     }, [sportsCandidates]);
 
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
-    const [results, setResults] = useState(null);    // null = pre-search
+    const [results, setResults] = useState(null);
     const [error, setError] = useState('');
+    const [kbOpen, setKbOpen] = useState(false);
 
     const submit = useCallback(async (q) => {
         const text = (q ?? query).trim();
         if (!text) return;
         setQuery(text);
+        setKbOpen(false);
         setLoading(true);
         setError('');
         try {
@@ -102,7 +111,6 @@ export default function SportsGuide() {
         }
     }, [query, sportsCandidates]);
 
-    /* Reminders snapshot used by every card to highlight bells. */
     const [reminderTick, setReminderTick] = useState(0);
     const reminders = useMemo(
         () => (provider ? new Set(getReminders(provider.id).map((r) => r.id)) : new Set()),
@@ -140,10 +148,14 @@ export default function SportsGuide() {
         setReminderTick((t) => t + 1);
     }, [provider]);
 
-    /* Esc / Back goes home. */
     useEffect(() => {
         const onKey = (e) => {
             if (e.key === 'Escape' || e.key === 'Backspace') {
+                if (kbOpen) {
+                    e.preventDefault();
+                    setKbOpen(false);
+                    return;
+                }
                 if ((document.activeElement?.tagName || '').toLowerCase() === 'input') return;
                 e.preventDefault();
                 navigate('/');
@@ -151,7 +163,7 @@ export default function SportsGuide() {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [navigate]);
+    }, [navigate, kbOpen]);
 
     if (!provider) {
         return (
@@ -168,40 +180,36 @@ export default function SportsGuide() {
             <SideNav />
             <main style={{ position: 'absolute', inset: '0 0 0 100px',
                             display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-                <section style={{ padding: '32px 32px 16px 32px' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
-                                    fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
-                                    letterSpacing: '0.32em', color: '#5DC8FF',
-                                    marginBottom: 8 }}>
-                        <Trophy size={13} color="#5DC8FF" />
-                        SPORTS GUIDE
-                    </div>
-                    <h1 style={{ fontSize: 'clamp(24px, 2.6vw, 38px)', fontWeight: 800,
-                                    letterSpacing: '-0.025em', lineHeight: 1.05, margin: 0,
-                                    color: '#fff', marginBottom: 6 }}>
-                        Where can I watch …?
-                    </h1>
-                    <p style={{ color: '#9DA5B5', fontSize: 13, margin: 0, marginBottom: 16 }}>
-                        Type any team, league, fight, or fixture and we'll find the channel and time.
-                    </p>
-
-                    {/* Live draft preview — mirrors what's in the TVKeyboard */}
-                    <DraftPreview query={query} />
-
-                    <div style={{ marginTop: 12, width: '100%', maxWidth: 720 }}>
-                        <TVKeyboard
-                            value={query}
-                            onChange={setQuery}
-                            onSubmit={() => submit()}
-                            maxLength={60}
-                            variant="name"
-                        />
+                <section style={{ padding: '28px 32px 8px 32px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginBottom: 14 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
+                                            fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                                            letterSpacing: '0.32em', color: '#5DC8FF',
+                                            marginBottom: 6 }}>
+                                <Trophy size={12} color="#5DC8FF" />
+                                SPORTS GUIDE
+                            </div>
+                            <h1 style={{ fontSize: 'clamp(22px, 2.2vw, 32px)', fontWeight: 800,
+                                            letterSpacing: '-0.025em', lineHeight: 1.1, margin: 0,
+                                            color: '#fff' }}>
+                                Where can I watch …?
+                            </h1>
+                        </div>
                     </div>
 
-                    {/* Suggestion chips — focus first chip sits in the
-                        spatial-focus pool so D-pad up from the keyboard
-                        can reach them.  Press OK to run the query. */}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                    {/* One-line search trigger.  Tapping it opens the
+                        TVKeyboard overlay; it is otherwise a static
+                        display of the current query. */}
+                    <SearchTrigger
+                        query={query}
+                        onOpen={() => setKbOpen(true)}
+                        onClear={() => { setQuery(''); setResults(null); }}
+                    />
+
+                    {/* Suggestion chips — always visible.  Run a search
+                        immediately when clicked. */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                         {SUGGESTIONS.map((s) => (
                             <button
                                 key={s}
@@ -210,9 +218,9 @@ export default function SportsGuide() {
                                 tabIndex={0}
                                 onClick={() => submit(s)}
                                 style={{
-                                    padding: '8px 14px',
+                                    padding: '7px 13px',
                                     borderRadius: 999,
-                                    background: 'rgba(255,255,255,0.05)',
+                                    background: 'rgba(255,255,255,0.04)',
                                     border: '1px solid rgba(255,255,255,0.10)',
                                     color: '#E6EAF2',
                                     fontSize: 12, fontWeight: 600,
@@ -225,102 +233,175 @@ export default function SportsGuide() {
                     </div>
                 </section>
 
-                {/* Search results (only after a search submission) */}
+                {/* Search results */}
                 {(loading || error || (results !== null)) && (
-                    <section style={{ padding: '8px 32px 16px 32px' }}>
-                        <RailHeader icon={Trophy} label={`SEARCH · ${query.toUpperCase()}`} accent="#5DC8FF" />
+                    <section style={{ padding: '8px 32px 12px 32px' }}>
+                        <RailHeader icon={Search} label={`SEARCH · ${query.toUpperCase()}`} accent="#5DC8FF" />
                         {error && (
-                            <div style={{ padding: 16, background: 'rgba(255,107,122,0.08)',
+                            <div style={{ padding: 14, background: 'rgba(255,107,122,0.08)',
                                             border: '1px solid rgba(255,107,122,0.40)', borderRadius: 12,
-                                            color: '#FF6B7A', fontSize: 13, marginBottom: 8 }}>
+                                            color: '#FF6B7A', fontSize: 13 }}>
                                 {error}
                             </div>
                         )}
                         {loading && (
-                            <div style={{ padding: 16, color: '#9DA5B5', fontSize: 13,
+                            <div style={{ padding: 14, color: '#9DA5B5', fontSize: 13,
                                             display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <Loader2 size={16} color="#5DC8FF" style={{ animation: 'spin 1.2s linear infinite' }} />
-                                Searching the guide…
+                                Searching…
                             </div>
                         )}
                         {!loading && results !== null && results.length === 0 && !error && (
-                            <div style={{ padding: 16, color: '#7d8493', fontSize: 13 }}>
-                                No matches in the next 24 hours.  Try a different query.
+                            <div style={{ padding: 14, color: '#7d8493', fontSize: 13 }}>
+                                No matches in the next 24 hours.
                             </div>
                         )}
                         {!loading && results !== null && results.length > 0 && (
-                            <Grid items={results.map((m) => ({
-                                streamId: m.streamId,
-                                channelName: m.channelName,
-                                title: m.title,
-                                description: m.description,
-                                startTs: m.startTs,
-                                stopTs: m.stopTs,
-                            }))}
-                                  reminders={reminders}
-                                  onPlay={onPlay}
-                                  onRemind={onRemind} />
+                            <Grid items={results.map((m) => decorateWithIcon(m, provider?.id))}
+                                  reminders={reminders} onPlay={onPlay} onRemind={onRemind} />
                         )}
                     </section>
                 )}
 
                 {/* Always-on rails */}
-                <section style={{ padding: '8px 32px 16px 32px' }}>
+                <section style={{ padding: '8px 32px 12px 32px' }}>
                     <RailHeader icon={Flame} label={`ON RIGHT NOW · ${liveNow.length}`} accent="#FF4D5E" />
-                    {liveNow.length === 0 ? (
-                        <EmptyRail text="No sports currently airing on your provider." />
-                    ) : (
-                        <Grid items={liveNow} reminders={reminders}
-                              onPlay={onPlay} onRemind={onRemind} />
-                    )}
+                    {liveNow.length === 0
+                        ? <EmptyRail text="No sports currently airing on your provider." />
+                        : <Grid items={liveNow} reminders={reminders} onPlay={onPlay} onRemind={onRemind} />}
                 </section>
 
                 <section style={{ padding: '8px 32px 40px 32px' }}>
                     <RailHeader icon={Hourglass} label={`COMING UP SOON · ${upNext.length}`} accent="#FFC850" />
-                    {upNext.length === 0 ? (
-                        <EmptyRail text="No upcoming sports in the next 6 hours." />
-                    ) : (
-                        <Grid items={upNext} reminders={reminders}
-                              onPlay={onPlay} onRemind={onRemind} />
-                    )}
+                    {upNext.length === 0
+                        ? <EmptyRail text="No upcoming sports in the next 6 hours." />
+                        : <Grid items={upNext} reminders={reminders} onPlay={onPlay} onRemind={onRemind} />}
                 </section>
             </main>
+
+            {/* Floating keyboard overlay — only present when search is focused. */}
+            {kbOpen && (
+                <KeyboardOverlay
+                    query={query}
+                    onChange={setQuery}
+                    onSubmit={() => submit()}
+                    onClose={() => setKbOpen(false)}
+                />
+            )}
+
             <style>{`@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
 
-/* ─────────────────────────────── Bits ─────────────────────────────── */
+/* ──────────────────────────── Pieces ──────────────────────────── */
 
-function DraftPreview({ query }) {
+function SearchTrigger({ query, onOpen, onClear }) {
+    const has = !!query;
     return (
-        <div
-            data-testid="sports-draft"
+        <button
+            data-focusable="true"
+            data-focus-style="quiet"
+            tabIndex={0}
+            onClick={onOpen}
             style={{
-                minHeight: 56,
-                padding: '0 18px',
+                width: '100%',
                 display: 'flex', alignItems: 'center', gap: 12,
+                padding: '0 18px',
+                height: 52,
                 background: 'rgba(20,28,42,0.6)',
-                border: '1px solid ' + (query ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.10)'),
+                border: '1px solid ' + (has ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.10)'),
                 borderRadius: 14,
+                color: '#fff', textAlign: 'left',
+                cursor: 'pointer',
             }}
         >
-            <div style={{
-                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.28em',
-                color: query ? '#5DC8FF' : '#5e6473',
-                flexShrink: 0,
-            }}>
-                QUERY
-            </div>
-            <div style={{
-                fontSize: 18, fontWeight: 700,
-                color: query ? '#fff' : '#5e6473',
-                minHeight: 22,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            <Search size={16} color={has ? '#5DC8FF' : '#7d8493'} />
+            <span style={{
                 flex: 1, minWidth: 0,
+                fontSize: 14, fontWeight: 600,
+                color: has ? '#fff' : '#5e6473',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-                {query || 'Start typing on the keyboard below…'}
+                {has ? query : 'Tap to search — “Toronto Raptors”, “UFC”, “Cowboys”…'}
+            </span>
+            {has && (
+                <span
+                    role="button"
+                    aria-label="Clear search"
+                    onClick={(e) => { e.stopPropagation(); onClear(); }}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 26, height: 26,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                    }}
+                >
+                    <X size={12} color="#9DA5B5" />
+                </span>
+            )}
+        </button>
+    );
+}
+
+function KeyboardOverlay({ query, onChange, onSubmit, onClose }) {
+    return (
+        <div
+            role="dialog"
+            aria-modal="true"
+            onClick={onClose}
+            style={{
+                position: 'fixed', inset: 0,
+                zIndex: 9000,
+                background: 'rgba(0,0,0,0.55)',
+                display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: 'min(840px, 100%)',
+                    margin: '0 24px 24px 24px',
+                    background: '#11182A',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    borderRadius: 16,
+                    padding: 20,
+                    boxShadow: '0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)',
+                }}
+            >
+                <div style={{
+                    minHeight: 48,
+                    padding: '0 16px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: 'rgba(20,28,42,0.6)',
+                    border: '1px solid ' + (query ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.10)'),
+                    borderRadius: 12,
+                    marginBottom: 14,
+                }}>
+                    <Search size={16} color={query ? '#5DC8FF' : '#7d8493'} />
+                    <span style={{
+                        flex: 1, minWidth: 0,
+                        fontSize: 15, fontWeight: 700,
+                        color: query ? '#fff' : '#5e6473',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                        {query || 'Start typing…'}
+                    </span>
+                    <span style={{
+                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '0.22em', color: '#7d8493',
+                    }}>
+                        OK = SEARCH
+                    </span>
+                </div>
+                <TVKeyboard
+                    value={query}
+                    onChange={onChange}
+                    onSubmit={onSubmit}
+                    maxLength={60}
+                    variant="name"
+                />
             </div>
         </div>
     );
@@ -329,10 +410,10 @@ function DraftPreview({ query }) {
 function RailHeader({ icon: Icon, label, accent }) {
     return (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
-                        marginBottom: 12,
+                        marginBottom: 10,
                         fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
                         letterSpacing: '0.28em', color: accent }}>
-            <Icon size={14} color={accent} />
+            <Icon size={13} color={accent} />
             {label}
         </div>
     );
@@ -340,7 +421,7 @@ function RailHeader({ icon: Icon, label, accent }) {
 
 function EmptyRail({ text }) {
     return (
-        <div style={{ padding: '12px 14px', color: '#7d8493', fontSize: 12,
+        <div style={{ padding: '10px 14px', color: '#7d8493', fontSize: 12,
                         background: 'rgba(255,255,255,0.025)',
                         border: '1px solid rgba(255,255,255,0.06)',
                         borderRadius: 10 }}>
@@ -351,7 +432,7 @@ function EmptyRail({ text }) {
 
 function Grid({ items, reminders, onPlay, onRemind }) {
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
             {items.map((it) => (
                 <Card
                     key={`${it.streamId}-${it.startTs}`}
@@ -365,11 +446,13 @@ function Grid({ items, reminders, onPlay, onRemind }) {
     );
 }
 
-function Card({ item, isReminded, onPlay, onRemind }) {
+const Card = React.memo(function Card({ item, isReminded, onPlay, onRemind }) {
     const tmdb = useProgrammeBackdrop(item.title, item.channelName);
     const art = tmdb?.backdrop
-        ? `${process.env.REACT_APP_BACKEND_URL}/api/img-proxy?url=${encodeURIComponent(tmdb.backdrop)}&w=540&q=55`
+        ? proxy(tmdb.backdrop, 540, 55)
         : '';
+    const channelLogo = item.streamIcon ? proxy(item.streamIcon, 48, 60) : '';
+    const isLive = isLiveNow(item);
 
     return (
         <div style={{
@@ -381,33 +464,73 @@ function Card({ item, isReminded, onPlay, onRemind }) {
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
         }}>
             <div style={{
-                height: 110,
+                height: 130,
                 position: 'relative',
                 backgroundImage: art
-                    ? `linear-gradient(180deg, rgba(17,24,42,0.05) 0%, rgba(17,24,42,0.88) 100%), url(${art})`
-                    : 'linear-gradient(135deg, rgba(93,200,255,0.14) 0%, rgba(17,24,42,1) 100%)',
+                    ? `linear-gradient(180deg, rgba(17,24,42,0.1) 0%, rgba(17,24,42,0.85) 100%), url(${art})`
+                    : 'linear-gradient(135deg, rgba(93,200,255,0.16) 0%, rgba(17,24,42,1) 100%)',
                 backgroundSize: 'auto, cover',
                 backgroundPosition: 'center',
             }}>
+                {/* Time / status badge */}
                 <div style={{
-                    position: 'absolute', top: 8, left: 10,
+                    position: 'absolute', top: 10, left: 10,
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     padding: '3px 9px',
-                    background: 'rgba(93,200,255,0.18)',
-                    border: '1px solid rgba(93,200,255,0.45)',
+                    background: isLive ? 'rgba(255,77,94,0.20)' : 'rgba(93,200,255,0.20)',
+                    border: '1px solid ' + (isLive ? 'rgba(255,77,94,0.55)' : 'rgba(93,200,255,0.55)'),
                     borderRadius: 999,
                     fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                    letterSpacing: '0.18em', color: '#5DC8FF',
+                    letterSpacing: '0.18em', color: isLive ? '#FF6B7A' : '#5DC8FF',
                 }}>
                     {labelFor(item)}
                 </div>
+                {/* TMDB watermark — only when no cover */}
+                {!art && (
+                    <div style={{
+                        position: 'absolute', bottom: 10, right: 12,
+                        fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em',
+                        color: '#5e6473', fontWeight: 700,
+                    }}>
+                        NO COVER ART
+                    </div>
+                )}
             </div>
             <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                <div style={{
-                    fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                    letterSpacing: '0.22em', color: '#9DA5B5',
-                }}>
-                    {(item.channelName || '').toUpperCase()}
+                {/* Channel logo row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                        width: 30, height: 22, flexShrink: 0,
+                        background: 'rgba(255,255,255,0.04)',
+                        borderRadius: 4,
+                        overflow: 'hidden', position: 'relative',
+                    }}>
+                        {channelLogo && (
+                            <img
+                                src={channelLogo}
+                                alt=""
+                                width={30}
+                                height={22}
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                style={{
+                                    position: 'absolute', inset: 0,
+                                    width: '100%', height: '100%',
+                                    objectFit: 'contain', padding: 2,
+                                }}
+                            />
+                        )}
+                    </div>
+                    <span style={{
+                        fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                        color: '#fff',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        flex: 1, minWidth: 0,
+                    }}>
+                        {item.channelName || ''}
+                    </span>
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.25,
                                 display: '-webkit-box',
@@ -443,11 +566,17 @@ function Card({ item, isReminded, onPlay, onRemind }) {
             </div>
         </div>
     );
+});
+
+/* ──────────────────────────── Helpers ──────────────────────────── */
+
+function isLiveNow(item) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    return item.startTs <= nowSec && item.stopTs > nowSec;
 }
 
 function labelFor(item) {
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (item.startTs <= nowSec && item.stopTs > nowSec) return `LIVE · ${fmt(item.startTs)}`;
+    if (isLiveNow(item)) return `LIVE · ${fmt(item.startTs)}`;
     return `${dayLabel(item.startTs)} · ${fmt(item.startTs)}`;
 }
 
@@ -473,6 +602,18 @@ function dayLabel(ts) {
     return days[d.getDay()];
 }
 
+/* When the LLM returns matches, decorate each one with the channel
+ * icon URL from our local cache.  Cheap O(channels) walk. */
+function decorateWithIcon(match, providerId) {
+    if (!providerId) return match;
+    const chans = loadChannels(providerId) || {};
+    for (const k in chans) {
+        const hit = (chans[k] || []).find((x) => String(x.stream_id) === String(match.streamId));
+        if (hit) return { ...match, streamIcon: hit.stream_icon || '' };
+    }
+    return match;
+}
+
 function gatherSportsEpg(providerId) {
     const cats = loadCategories(providerId) || [];
     const chans = loadChannels(providerId) || {};
@@ -484,11 +625,15 @@ function gatherSportsEpg(providerId) {
             .map((c) => String(c.category_id)),
     );
 
+    // channelLookup keeps not just the name but the logo URL too.
     const channelLookup = new Map();
     for (const catId in chans) {
         if (!sportsCatIds.has(String(catId))) continue;
         for (const ch of (chans[catId] || [])) {
-            channelLookup.set(String(ch.stream_id), ch.name || '');
+            channelLookup.set(String(ch.stream_id), {
+                name: ch.name || '',
+                icon: ch.stream_icon || '',
+            });
         }
     }
 
@@ -496,8 +641,8 @@ function gatherSportsEpg(providerId) {
     const horizonSec = nowSec + 24 * 3600;
     const out = [];
     for (const sid in epg) {
-        const channelName = channelLookup.get(String(sid));
-        if (!channelName) continue;
+        const meta = channelLookup.get(String(sid));
+        if (!meta) continue;
         for (const it of (epg[sid] || [])) {
             const start = Number(it.startTimestamp) || 0;
             const stop = Number(it.stopTimestamp) || 0;
@@ -505,7 +650,8 @@ function gatherSportsEpg(providerId) {
             if (start > horizonSec) continue;
             out.push({
                 streamId: sid,
-                channelName,
+                channelName: meta.name,
+                streamIcon: meta.icon,
                 title: it.title || '',
                 description: (it.description || '').slice(0, 220),
                 startTs: start,
