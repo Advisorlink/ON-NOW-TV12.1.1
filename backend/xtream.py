@@ -172,7 +172,21 @@ async def auth(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     Returns the user_info + server_info block on success, raises on
     failure.  Client persists the validated credentials to
     localStorage and uses them on all subsequent requests.
+
+    Side-effect: on a successful auth we IMMEDIATELY kick off the
+    full XMLTV EPG fetch + parse + persist as a fire-and-forget
+    background task.  By the time the user navigates from the login
+    screen → Home → Live TV (typically 5-15 s of human UI input),
+    the server has the entire EPG cached for that provider.  The
+    LiveTV boot splash then hits `/cached-epg` and gets a sub-
+    second gzipped response instead of paying the cold-fetch cost.
+
+    The task is fire-and-forget on purpose — we don't await it,
+    because the login response shouldn't block on a 10-MB XMLTV
+    download.  If the fetch fails the user just gets the legacy
+    per-channel fallback when they reach Live TV.
     """
+    import asyncio as _asyncio
     p = _parse_provider(json.dumps(payload))
     data = await _player_api(p)
     if (
@@ -181,11 +195,60 @@ async def auth(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
         or data.get("user_info", {}).get("auth") in (0, "0")
     ):
         raise HTTPException(401, "Invalid Xtream credentials.")
+
+    async def _prewarm_epg(prov: Dict[str, Any]) -> None:
+        """Background task — fetches + parses + persists the full
+        EPG so the user's first Live TV visit is instant.  Skips
+        the fetch if a fresh persisted copy already exists (< 6 h
+        old) so we don't hammer the provider's xmltv.php endpoint
+        when the same user logs in repeatedly.
+
+        Uses the per-provider asyncio.Lock from epg_cache so that
+        if `/cached-epg` arrives mid-prewarm the second request
+        just awaits the lock and serves the result instantly when
+        the prewarm completes (no duplicate xmltv.php hit)."""
+        key = epg_cache.provider_key(prov)
+        lock = epg_cache.get_inflight_lock(key)
+        async with lock:
+            try:
+                await epg_cache.register_provider(prov)
+                persisted = await epg_cache.load_payload(key)
+                if persisted:
+                    age = int(time.time()) - persisted.get("_persisted_at", 0)
+                    if age < 6 * 60 * 60:
+                        log.info(
+                            "xtream.auth prewarm: skipping fetch for %s "
+                            "(persisted %d s ago)",
+                            key[:8], age,
+                        )
+                        return
+                log.info("xtream.auth prewarm: fetching full EPG for %s", key[:8])
+                payload = await _fetch_and_parse_xmltv(prov)
+                await epg_cache.save_payload(key, payload)
+                log.info(
+                    "xtream.auth prewarm: persisted EPG for %s "
+                    "(channels=%s, programmes=%s)",
+                    key[:8],
+                    payload.get("channel_count"),
+                    payload.get("programme_count"),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("xtream.auth prewarm failed: %s", exc)
+
+    # Fire-and-forget.  Note: we don't `await` this — we return the
+    # auth response immediately and let the task run in the same
+    # event loop in parallel with whatever the user does next.
+    _asyncio.create_task(_prewarm_epg(p))
+
     return {
         "ok": True,
         "providerId": _provider_id(p),
         "user_info": data.get("user_info"),
         "server_info": data.get("server_info"),
+        # Diagnostic — the frontend can show "EPG prewarming…" so
+        # the user understands what's happening if they're really
+        # fast and beat the background task to the Live TV page.
+        "epg_prewarm_started": True,
     }
 
 
@@ -539,17 +602,26 @@ async def cached_epg(provider: str = Query(...)) -> Response:
     payload = await epg_cache.load_payload(cache_key)
 
     if not payload:
-        # Cache miss — do one synchronous fetch, persist, return.
-        try:
-            payload = await _fetch_and_parse_xmltv(p)
-            await epg_cache.save_payload(cache_key, payload)
-        except HTTPException:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(
-                status_code=502,
-                detail=f"cached-epg miss & live fetch failed: {exc}",
-            ) from None
+        # Cache miss.  Acquire the per-provider lock so that if a
+        # parallel prewarm task is already fetching, we just wait for
+        # it instead of issuing a duplicate xmltv.php download.  Once
+        # we have the lock, re-check the persisted store (the
+        # prewarm may have populated it while we were waiting); if
+        # still empty, we do the live fetch ourselves.
+        lock = epg_cache.get_inflight_lock(cache_key)
+        async with lock:
+            payload = await epg_cache.load_payload(cache_key)
+            if not payload:
+                try:
+                    payload = await _fetch_and_parse_xmltv(p)
+                    await epg_cache.save_payload(cache_key, payload)
+                except HTTPException:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"cached-epg miss & live fetch failed: {exc}",
+                    ) from None
 
     persisted_at = payload.pop("_persisted_at", payload.get("fetched_at", 0))
     cache_age = max(0, int(time.time() - persisted_at)) if persisted_at else None

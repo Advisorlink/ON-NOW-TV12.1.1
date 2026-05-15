@@ -319,14 +319,17 @@ export async function getXmltvEpg(provider, { signal, directTimeoutMs = 15000, p
      *    this warm via a 6-hourly background scheduler so it returns
      *    within a few hundred milliseconds — beating the direct
      *    XMLTV fetch on cheap Android-7 boxes whose Wi-Fi can take
-     *    5–20 s for a 3 MB download.  Gzipped on the wire.  Fast-
-     *    timeout (3 s) so a momentarily slow backend doesn't keep
-     *    the box waiting — we fall through to the direct fetch on
-     *    timeout. */
+     *    5–20 s for a 3 MB download.  Gzipped on the wire.
+     *
+     *    Timeout is generous (25 s) because on a fresh login the
+     *    backend may still be mid-prewarm — the request acquires
+     *    the per-provider lock, waits for the prewarm to finish,
+     *    then serves the persisted copy.  Result: even the FIRST
+     *    Live TV visit gets a fully-populated EPG. */
     try {
         const { data } = await axios.get(`${API}/cached-epg`, {
             params: { provider: blob(provider) },
-            timeout: 3000,
+            timeout: 25000,
             signal,
         });
         if (data && data.epg && Object.keys(data.epg).length > 0) {

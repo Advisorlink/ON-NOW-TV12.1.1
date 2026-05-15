@@ -94,6 +94,35 @@ _COLL_PROVIDERS = "epg_providers"
 _db = None  # type: ignore[assignment]
 
 
+# ---------------------------------------------------------------------------
+# Per-provider in-flight locks
+# ---------------------------------------------------------------------------
+#
+# Without these, two near-simultaneous requests (e.g. the auth-time
+# prewarm task + the LiveTV page's /cached-epg call) would each
+# trigger a full xmltv.php download.  Wasteful AND it can trip the
+# provider's rate-limiter.
+#
+# A single asyncio.Lock per provider key serialises the work; one
+# request fetches, the other waits and gets the freshly-persisted
+# payload instantly.
+
+_inflight: Dict[str, asyncio.Lock] = {}
+
+
+def get_inflight_lock(key: str) -> asyncio.Lock:
+    """Return the asyncio.Lock associated with this provider key,
+    creating it lazily.  Locks are kept for the lifetime of the
+    process — they're trivially small (a few hundred bytes each)
+    and we expect at most a handful of unique providers per
+    deployment."""
+    lock = _inflight.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _inflight[key] = lock
+    return lock
+
+
 def _get_db():
     """Return the EPG-cache-backing database handle.  Motor's
     AsyncIOMotorClient binds to the event loop in which it was
