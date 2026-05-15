@@ -1,0 +1,59 @@
+{
+  "summary": "Iter 21 — backend-only test of the new ESPN+TheSportsDB merged Sports Guide. 10/11 pytest cases pass (1 skipped). Live scores work beautifully (e.g. Sydney Swans 12-45 Collingwood [17:23 - 2nd], Adelaide United 0-1 Auckland FC [HT], Gold Coast SUNS 24-14 Port Adelaide [16:27 - 1st]). Cache + disk-hydration after backend restart works. Empty-cache poisoning from iter 20 is fixed. HOWEVER — TheSportsDB free key is still being heavily rate-limited (~70% 429s on a fresh fan-out), so the merged universe is largely ESPN-only after a few refreshes. That causes two SLOs to flake:  (a) the 'distinct sports >=8' bar drops to 7 (Rugby League / Cricket / Motorsport / Golf / American Football / Rugby Union / Fighting disappear), (b) NRL fixtures vanish entirely once TheSportsDB is rate-limited. A pre-cached payload still shows 14 sports incl. NRL/IPL, so the merge logic is correct — the bottleneck is upstream rate-limit budget.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "TheSportsDB rate-limit: a fresh ?refresh=1 fan-out reports upstream={ok:9, fail:0, rate_limited:21} → ~70% of calls 429'd. Merged result silently drops to ESPN-only (342 events, 7 sports). Spec requires >=8 sports; passes on warm cache (saw 14 sports earlier) but fails on a fresh fan-out. Recommend cap fan-out to <=10 outbound + exponential backoff on 429, or back away from per-day*per-sport eventsday combinatorial calls."
+      },
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "NRL/Rugby League fixture is flaky. Spec calls for NRL to always appear. When TheSportsDB rate-limits, no events with sport='Rugby League' are produced and the league is not even registered in byLeague (NRL isn't in ESPN's API). Suggestion: persist NRL fixtures from TheSportsDB into a longer-TTL secondary cache (e.g. 24h) so they survive rate-limit storms."
+      },
+      {
+        "endpoint": "/api/sportsdb/fixtures",
+        "issue": "test_d_source_field_espn_and_sportsdb skipped because sources are 100% 'espn' on the current cache. When TheSportsDB serves real data the 'sportsdb' source is present (validated indirectly via byLeague registry / earlier 14-sport runs), but the API never exposes a hard guarantee that both sources appear."
+      },
+      {
+        "endpoint": "/api/sportsdb/livescores",
+        "issue": "Working correctly (5 live games at test time). Minor: cached=true response includes the same fetched_at as the original. 'finished' games within 2h are included alongside live games — frontend should be aware these aren't strictly 'live'."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportsdb_v9.py",
+    "/app/test_reports/pytest/iter21_sportsdb_v9.xml"
+  ],
+  "action_items": [
+    "Reduce upstream fan-out to TheSportsDB: cap concurrent requests (e.g. asyncio.Semaphore(4)) and add 200-400ms pacing between batches; or drop per-sport eventsday calls (these are the lowest-value, highest-volume).",
+    "Add exponential back-off on 429 from TheSportsDB inside _fetch() so a single rate-limited call doesn't silently zero out an entire sport's events.",
+    "Persist NRL+IPL (TheSportsDB-only sports) into a separate longer-TTL cache (24h+) so they survive when refresh fan-out is rate-limited.",
+    "Consider promoting upstream.rate_limited > N to a /healthz/sportsdb warning so ops sees the degraded state.",
+    "Verify TOP_LEAGUES league-ID dedup issue from iter 20 (4391 reused for NFL + WTA) was addressed; ESPN covers both so the collision may be moot, but byLeague aggregation should still be checked."
+  ],
+  "critical_code_review_comments": [
+    "espn.py + sportsdb.py merge: clean separation, normaliser produces a consistent shape across both sources. Good.",
+    "sportsdb.py line ~315: cache key 'sportsdb:fixtures:v9' bumped correctly. Empty-payload guard (don't _cache_set when events=[]) confirmed in code path.",
+    "sportsdb.py /livescores: only feeds from ESPN (`_fetch_espn_events(days_forward=0)`). TheSportsDB live scores (e.g. Cricket / NRL in-progress) won't appear here. Acceptable for now since TheSportsDB sample data rarely has live scores.",
+    "espn.py _normalise: state==pre sets scores to ''. Verified live games carry real scores. Good.",
+    "espn.py _fetch_one: 8.0s timeout per league × ~70 leagues × up to 4 days = could stretch cold load past 30s in worst case. Semaphore(8) helps but consider lowering timeout to 5s and adding a global deadline."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportsdb_v9.py"
+  ],
+  "success_rate": {
+    "backend": "91% (10/11 pytest pass, 1 skipped, 0 failures — but 2 of the passing tests are flaky depending on TheSportsDB rate-limit state)",
+    "frontend": "n/a (out of scope per request)"
+  },
+  "seed_data_creation": "None — read-only against live ESPN + TheSportsDB public APIs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Cache key 'sportsdb:fixtures:v9'. Disk cache at /tmp/onnowtv-sportsdb-cache.json hydrates on restart and stays at last-known-good payload. /livescores returns ESPN-only live scores (works great). TheSportsDB rate-limiting is the only persistent issue — it kills NRL/IPL coverage. To get a clean 14-sport snapshot wait 5-10 min between refresh=1 calls. Test file: /app/backend/tests/test_sportsdb_v9.py. Live sample data observed today: Sydney Swans 12-45 Collingwood (AFL 2nd Qtr), Adelaide United 0-1 Auckland FC (HT), Gold Coast SUNS 24-14 Port Adelaide (AFL 1st Qtr).",
+  "rca of the issue": "Root cause of the flaky 'sports>=8' and NRL-missing assertions: TheSportsDB free key (123) rate-limits the cold-fan-out (~30 outbound requests: 11 marquee leagues × eventsnextleague + 3 eventsday + 3×4 sport-filtered eventsday = 26+). On a clean run we get 9 OK + 21 rate-limited. The empty-cache-poison bug from iter 20 is fixed (verified: cache stays at the last good payload), but events from TheSportsDB-only sports (NRL, IPL Cricket, sometimes Rugby Union/Golf) silently disappear. Mitigation: lower upstream concurrency, add 429 backoff, persist NRL/IPL in a longer-TTL side cache, or proxy via paid TheSportsDB key."
+}

@@ -115,6 +115,7 @@ export default function SportsGuide() {
     const provider = getActiveProvider();
 
     const [data, setData] = useState(null);
+    const [liveScores, setLiveScores] = useState({});   // id → score patch
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState('');
 
@@ -143,9 +144,49 @@ export default function SportsGuide() {
         return () => { aborted = true; };
     }, []);
 
+    /* Poll /api/sportsdb/livescores every 30 s so live tickers update. */
+    useEffect(() => {
+        let aborted = false;
+        let timer;
+        const tick = async () => {
+            try {
+                const r = await axios.get(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/sportsdb/livescores`,
+                    { timeout: 8000 },
+                );
+                if (aborted) return;
+                const map = {};
+                for (const s of (r.data?.scores || [])) map[s.id] = s;
+                setLiveScores(map);
+            } catch { /* ignore */ }
+            if (!aborted) timer = setTimeout(tick, 30000);
+        };
+        tick();
+        return () => { aborted = true; if (timer) clearTimeout(timer); };
+    }, []);
+
     /* ─── Derive filtered fixtures + per-league grouping ─── */
-    const allEvents = data?.events || [];
+    const baseEvents = data?.events || [];
     const sportsMeta = data?.sportsMeta || [];
+
+    /* Patch in live score updates (id-keyed) so the cards tick up live. */
+    const allEvents = useMemo(() => {
+        if (!Object.keys(liveScores).length) return baseEvents;
+        return baseEvents.map((e) => {
+            const patch = liveScores[e.id];
+            if (!patch) return e;
+            return {
+                ...e,
+                homeScore:   patch.homeScore   ?? e.homeScore,
+                awayScore:   patch.awayScore   ?? e.awayScore,
+                status:      patch.status      ?? e.status,
+                statusShort: patch.statusShort ?? e.statusShort,
+                state:       patch.state       ?? e.state,
+                finished:    patch.finished    ?? e.finished,
+                live:        patch.live        ?? e.live,
+            };
+        });
+    }, [baseEvents, liveScores]);
 
     const filtered = useMemo(() => {
         let out = allEvents;
@@ -153,9 +194,13 @@ export default function SportsGuide() {
             out = out.filter((e) => (e.sport || 'Other') === sportFilter);
         }
         if (dayFilter === -1) {
-            // LIVE NOW
+            // LIVE NOW — anything with explicit live flag, or ESPN state==='in',
+            // or kickoff within the last 3h that isn't finished.
             const now = Math.floor(Date.now() / 1000);
-            out = out.filter((e) => e.ts <= now + 600 && e.ts >= now - 3 * 3600);
+            out = out.filter((e) =>
+                e.live === true || e.state === 'in' ||
+                (e.ts <= now + 600 && e.ts >= now - 3 * 3600 && !e.finished),
+            );
         } else if (dayFilter >= 0) {
             const today0 = midnight(0);
             const start = today0 + dayFilter * 86400;
@@ -209,22 +254,28 @@ export default function SportsGuide() {
         }
         // Live count
         const now = Math.floor(Date.now() / 1000);
-        const liveCount = allEvents.filter((e) => e.ts <= now + 600 && e.ts >= now - 3 * 3600).length;
+        const liveCount = allEvents.filter((e) =>
+            e.live === true || e.state === 'in' ||
+            (e.ts <= now + 600 && e.ts >= now - 3 * 3600 && !e.finished),
+        ).length;
         return { days: out, liveCount };
     }, [allEvents]);
 
-    /* Hero pick: prefer live → soonest fixture in a marquee league → soonest overall. */
+    /* Hero pick: prefer live-with-score → live-without-score → soonest in
+       a marquee league → soonest overall. */
     const hero = useMemo(() => {
         const now = Math.floor(Date.now() / 1000);
-        const upcoming = allEvents.filter((e) => !e.finished);
-        // 1. Live right now
-        const live = upcoming.find((e) => e.ts <= now && e.ts >= now - 3 * 3600);
-        if (live) return live;
-        // 2. Soonest in a marquee league
-        const future = upcoming.filter((e) => e.ts > now);
+        const isLive = (e) => (e.live === true || e.state === 'in') && !e.finished;
+        const hasScore = (e) =>
+            (e.homeScore !== '' && e.homeScore !== undefined && e.homeScore !== null) ||
+            (e.awayScore !== '' && e.awayScore !== undefined && e.awayScore !== null);
+        const liveScored = allEvents.find((e) => isLive(e) && hasScore(e));
+        if (liveScored) return liveScored;
+        const liveAny = allEvents.find(isLive);
+        if (liveAny) return liveAny;
+        const future = allEvents.filter((e) => !e.finished && e.ts > now);
         const marquee = future.find((e) => MARQUEE_LEAGUES.has(e.leagueId));
         if (marquee) return marquee;
-        // 3. Soonest overall
         return future[0] || allEvents[0] || null;
     }, [allEvents]);
 
@@ -379,9 +430,13 @@ const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay,
         () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
         [provider, fixture],
     );
-    const live = isLiveNow(fixture);
+    const live = isLiveNow(fixture) || fixture.live || fixture.state === 'in';
     const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
     const fxArt = fixture.thumb || fixture.poster;
+    const hasScore = (fixture.homeScore !== '' && fixture.homeScore !== undefined && fixture.homeScore !== null)
+                  || (fixture.awayScore !== '' && fixture.awayScore !== undefined && fixture.awayScore !== null);
+    const showLiveScore  = live && hasScore;
+    const showFinalScore = (fixture.finished || fixture.state === 'post') && hasScore;
 
     return (
         <article
@@ -549,14 +604,49 @@ const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay,
                 </div>
             </div>
 
-            {/* RIGHT — team badges face-off */}
+            {/* RIGHT — score panel (live/final) OR team badges face-off (pre) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                 <TeamBadge name={fixture.home} badge={fixture.homeBadge} accent={accent} large />
-                <div style={{
-                    fontFamily: 'monospace', fontSize: 18, fontWeight: 900,
-                    color: accent, letterSpacing: '0.04em',
-                    textShadow: `0 0 18px ${accent}55`,
-                }}>VS</div>
+                {showLiveScore || showFinalScore ? (
+                    <div style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                        padding: '8px 18px',
+                        minWidth: 140,
+                    }}>
+                        <div style={{
+                            fontFamily: 'monospace',
+                            fontSize: 'clamp(38px, 4.2vw, 64px)',
+                            fontWeight: 900,
+                            color: '#FFFFFF',
+                            letterSpacing: '-0.04em',
+                            lineHeight: 1,
+                            textShadow: `0 4px 32px ${accent}66`,
+                        }}>
+                            {fixture.homeScore || '0'}
+                            <span style={{
+                                color: accent,
+                                opacity: 0.55,
+                                margin: '0 12px',
+                                fontWeight: 600,
+                            }}>—</span>
+                            {fixture.awayScore || '0'}
+                        </div>
+                        <div style={{
+                            fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
+                            letterSpacing: '0.18em',
+                            color: showLiveScore ? '#FF4D5E' : '#9DA5B5',
+                            textAlign: 'center',
+                        }}>
+                            {(fixture.statusShort || fixture.status || (showFinalScore ? 'FINAL' : 'LIVE')).toUpperCase()}
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 18, fontWeight: 900,
+                        color: accent, letterSpacing: '0.04em',
+                        textShadow: `0 0 18px ${accent}55`,
+                    }}>VS</div>
+                )}
                 <TeamBadge name={fixture.away} badge={fixture.awayBadge} accent={accent} large />
             </div>
         </article>
@@ -847,9 +937,14 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
         () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
         [provider, fixture],
     );
-    const live = isLiveNow(fixture);
+    const live = isLiveNow(fixture) || fixture.live || fixture.state === 'in';
     const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
-    const showScore = fixture.finished && (fixture.homeScore !== '' || fixture.awayScore !== '');
+    const hasScore = (fixture.homeScore !== '' && fixture.homeScore !== undefined && fixture.homeScore !== null)
+                  || (fixture.awayScore !== '' && fixture.awayScore !== undefined && fixture.awayScore !== null);
+    const showLiveScore  = live && hasScore;
+    const showFinalScore = (fixture.finished || fixture.state === 'post') && hasScore;
+    const showScore      = showLiveScore || showFinalScore;
+    const liveWatchable  = live && matches.length > 0;
 
     /* Press tracking for hold-OK = reminder. */
     const pressRef = useRef({ count: 0, fired: false });
@@ -939,20 +1034,41 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr',
                                 alignItems: 'center', gap: 10 }}>
                     <TeamRow side="home" name={fixture.home} badge={fixture.homeBadge}
-                              score={showScore ? fixture.homeScore : ''} accent={accent} />
+                              score={showScore ? fixture.homeScore : ''} accent={accent} live={showLiveScore} />
                     <div style={{
-                        fontFamily: 'monospace', fontSize: 11, fontWeight: 800,
-                        color: accent, letterSpacing: '0.1em', textAlign: 'center',
+                        fontFamily: 'monospace', fontSize: showScore ? 22 : 11, fontWeight: 900,
+                        color: showLiveScore ? '#FF4D5E' : accent,
+                        letterSpacing: showScore ? '-0.04em' : '0.1em', textAlign: 'center',
+                        lineHeight: 1,
+                        textShadow: showLiveScore ? `0 0 16px ${accent}66` : 'none',
                     }}>
                         {showScore ? '—' : 'VS'}
                     </div>
                     <TeamRow side="away" name={fixture.away} badge={fixture.awayBadge}
-                              score={showScore ? fixture.awayScore : ''} accent={accent} />
+                              score={showScore ? fixture.awayScore : ''} accent={accent} live={showLiveScore} />
                 </div>
             ) : (
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF',
                                 lineHeight: 1.2 }}>
                     {fixture.title || 'Event'}
+                </div>
+            )}
+
+            {/* Live progress strip — shows period/quarter/minute */}
+            {showLiveScore && fixture.statusShort && (
+                <div style={{
+                    display: 'inline-flex', alignSelf: 'flex-start',
+                    alignItems: 'center', gap: 6,
+                    padding: '3px 10px', borderRadius: 999,
+                    background: 'rgba(255,77,94,0.12)',
+                    border: '1px solid rgba(255,77,94,0.4)',
+                    fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
+                    letterSpacing: '0.12em', color: '#FF4D5E',
+                }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%',
+                                    background: '#FF4D5E',
+                                    animation: 'pulse-live 1.6s ease-in-out infinite' }} />
+                    {fixture.statusShort.toUpperCase()}
                 </div>
             )}
 
@@ -971,7 +1087,28 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
             {/* WATCH ON row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
                             paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                {matches.length > 0 ? (
+                {liveWatchable ? (
+                    /* Live game with a matching channel → prominent CTA */
+                    <>
+                        <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '6px 12px', borderRadius: 999,
+                            background: 'rgba(255,77,94,0.16)',
+                            border: '1px solid rgba(255,77,94,0.55)',
+                            fontSize: 11, fontWeight: 800,
+                            letterSpacing: '0.04em', color: '#FFFFFF',
+                        }}>
+                            <Play size={11} fill="#FFFFFF" />
+                            WATCH LIVE · {matches[0].channelName.toUpperCase()}
+                        </div>
+                        {matches.length > 1 && (
+                            <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                            letterSpacing: '0.18em', color: '#7d8493' }}>
+                                +{matches.length - 1} MORE
+                            </span>
+                        )}
+                    </>
+                ) : matches.length > 0 ? (
                     <>
                         <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
                                         letterSpacing: '0.22em', color: accent }}>
@@ -1007,7 +1144,7 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
     );
 });
 
-const TeamRow = React.memo(function TeamRow({ side, name, badge, score, accent }) {
+const TeamRow = React.memo(function TeamRow({ side, name, badge, score, accent, live }) {
     const reverse = side === 'away';
     return (
         <div style={{
@@ -1048,8 +1185,11 @@ const TeamRow = React.memo(function TeamRow({ side, name, badge, score, accent }
                     {name}
                 </div>
                 {score !== '' && (
-                    <div style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 900,
-                                    color: accent, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 24, fontWeight: 900,
+                        color: '#FFFFFF', letterSpacing: '-0.04em', lineHeight: 1,
+                        textShadow: live ? `0 0 14px ${accent}66` : 'none',
+                    }}>
                         {score}
                     </div>
                 )}

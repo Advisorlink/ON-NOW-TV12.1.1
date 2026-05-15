@@ -312,7 +312,7 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
         upstream: {ok:int, fail:int, rate_limited:int}
       }
     """
-    cache_key = "sportsdb:fixtures:v6"
+    cache_key = "sportsdb:fixtures:v9"
     cached = _cache_get(cache_key)
     if not refresh and cached:
         return {**cached, "cached": True}
@@ -355,17 +355,81 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
                 sport_tasks.append(
                     _fetch(client, f"{SPORTSDB_BASE}/eventsday.php?d={d}&s={s_enc}")
                 )
-        results = await asyncio.gather(
+        # Kick off ESPN in parallel — ESPN has no rate-limit + gives us live
+        # scores + dozens of additional leagues (no-NRL/no-IPL gaps are
+        # backfilled by TheSportsDB above).
+        from espn import fetch_all_events as _fetch_espn_events
+        espn_future = asyncio.create_task(_fetch_espn_events(days_forward=3))
+        sportsdb_results = await asyncio.gather(
             *next_tasks, *day_tasks, *sport_tasks, return_exceptions=True
         )
+        try:
+            espn_events = await espn_future
+        except Exception as exc:
+            logger.warning("espn fan-out failed: %s", exc)
+            espn_events = []
 
     nowSec = int(time.time())
     horizon = nowSec + 14 * 24 * 3600   # 14 days forward
     past_window = nowSec - 6 * 3600     # show events that started in last 6 h (live)
 
     seen_ids: set[str] = set()
+    seen_titles: set[tuple] = set()
     events: List[Dict[str, Any]] = []
-    for r in results:
+
+    def _title_key(e: Dict[str, Any]) -> Optional[tuple]:
+        # Round timestamp to nearest 30 min so slightly-different sources still
+        # collide on the same fixture.
+        ts_bucket = (e["ts"] // 1800) * 1800 if e.get("ts") else 0
+        title = (e.get("title") or "").strip().lower()
+        home = (e.get("home") or "").strip().lower()
+        away = (e.get("away") or "").strip().lower()
+        # Skip TBD or empty placeholder fixtures.
+        if home in ("tbd", "", "tba") and away in ("tbd", "", "tba"):
+            if not title:
+                return None
+            return ("title", title, ts_bucket)
+        if home and away:
+            return ("teams", tuple(sorted([home, away])), ts_bucket)
+        if title:
+            return ("title", title, ts_bucket)
+        return None
+
+    # 1) ESPN first — preferred source (has live scores, fresh team logos).
+    for raw in espn_events:
+        if not raw.get("id") or raw["id"] in seen_ids:
+            continue
+        if not raw.get("ts"):
+            continue
+        if raw["ts"] < past_window or raw["ts"] > horizon:
+            continue
+        # Filter out placeholder TBD-at-TBD entries entirely.
+        h = (raw.get("home") or "").strip().lower()
+        a = (raw.get("away") or "").strip().lower()
+        if (h in ("tbd", "tba", "")) and (a in ("tbd", "tba", "")) and not raw.get("title"):
+            continue
+        tkey = _title_key(raw)
+        if tkey and tkey in seen_titles:
+            continue
+        raw.setdefault("source", "espn")
+        seen_ids.add(raw["id"])
+        if tkey:
+            seen_titles.add(tkey)
+        events.append(raw)
+
+    # 2) TheSportsDB — supplemental.  Used for sports ESPN doesn't expose
+    # (NRL, IPL, etc.) + as a fallback when ESPN returned nothing.
+    # De-dupe against ESPN by team-pair match (BOTH directions, since
+    # ESPN labels "X at Y" while TheSportsDB labels "Y vs X" for the same
+    # fixture).
+    espn_pairs: Dict[tuple, Dict[str, Any]] = {}
+    for e in events:
+        if e.get("home") and e.get("away"):
+            key1 = (e["home"].lower(), e["away"].lower())
+            key2 = (e["away"].lower(), e["home"].lower())
+            espn_pairs[key1] = e
+            espn_pairs[key2] = e
+    for r in sportsdb_results:
         if not isinstance(r, dict):
             continue
         evs = r.get("events") or []
@@ -373,14 +437,42 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
             n = _normalise_event(raw)
             if not n["id"] or n["id"] in seen_ids:
                 continue
-            # Skip events with no kickoff timestamp (no date data = unusable).
             if not n["ts"]:
                 continue
-            if n["ts"] < past_window:   # too old
+            if n["ts"] < past_window or n["ts"] > horizon:
                 continue
-            if n["ts"] > horizon:
+            # De-dupe against ESPN by team-pair match within ±2 h.
+            pair = (n["home"].lower(), n["away"].lower())
+            dup = espn_pairs.get(pair)
+            if dup and abs(dup["ts"] - n["ts"]) < 7200:
                 continue
+            # Also fuzzy-match: any home/away token in ESPN matching.
+            home_words = set((n["home"] or "").lower().split())
+            away_words = set((n["away"] or "").lower().split())
+            fuzzy_dup = False
+            for k, v in espn_pairs.items():
+                if abs(v["ts"] - n["ts"]) > 7200:
+                    continue
+                k_words = set(k[0].split()) | set(k[1].split())
+                if len(home_words & k_words) >= 1 and len(away_words & k_words) >= 1:
+                    fuzzy_dup = True
+                    break
+            if fuzzy_dup:
+                continue
+            # Title-key dedupe (catches sources that differ by ts up to 24 h).
+            tkey = _title_key(n)
+            if tkey and tkey in seen_titles:
+                continue
+            n.setdefault("source", "sportsdb")
+            n.setdefault("homeShort", "")
+            n.setdefault("awayShort", "")
+            n.setdefault("statusShort", n.get("status", ""))
+            n.setdefault("state", "post" if n.get("finished") else ("in" if (n["ts"] <= nowSec and not n.get("finished")) else "pre"))
+            n.setdefault("live", n["state"] == "in")
+            n.setdefault("broadcasts", [])
             seen_ids.add(n["id"])
+            if tkey:
+                seen_titles.add(tkey)
             events.append(n)
 
     events.sort(key=lambda e: e["ts"])
@@ -536,6 +628,48 @@ async def _enrich_cache(cache_key: str, base_payload: Dict[str, Any]) -> None:
         )
     except Exception as exc:
         logger.warning("sportsdb enrich task failed: %s", exc)
+
+
+@router.get("/livescores")
+async def get_livescores():
+    """Lightweight live-score poll endpoint.
+
+    Returns the subset of `bySport` events that are currently `live: true`,
+    with their current scores + status detail.  The frontend polls this
+    every ~30 s while the user is on `/sports` so live games tick up in
+    real-time.
+
+    Cached 25 s (just under the polling interval) so concurrent users
+    don't fan out N times.
+    """
+    cache_key = "sportsdb:livescores:v1"
+    hit = _cache_get(cache_key)
+    if hit:
+        return {**hit, "cached": True}
+    try:
+        from espn import fetch_all_events as _fetch_espn_events
+        evs = await _fetch_espn_events(days_forward=0)
+    except Exception as exc:
+        logger.warning("livescore espn fetch failed: %s", exc)
+        evs = []
+    # Keep ONLY live games + recently finished (last 2 h).
+    nowSec = int(time.time())
+    live = []
+    for e in evs:
+        if e.get("live") or (e.get("finished") and abs(e["ts"] - nowSec) < 2 * 3600):
+            live.append({
+                "id":          e["id"],
+                "homeScore":   e["homeScore"],
+                "awayScore":   e["awayScore"],
+                "status":      e["status"],
+                "statusShort": e["statusShort"],
+                "state":       e["state"],
+                "finished":    e["finished"],
+                "live":        e["live"],
+            })
+    payload = {"cached": False, "fetched_at": nowSec, "scores": live}
+    _cache_set(cache_key, payload, 25)
+    return payload
 
 
 @router.get("/league-season")
