@@ -226,29 +226,40 @@ function Grid({ provider, onLogout }) {
     }, [debouncedChannel, provider]);
 
     /* Visible-channels EPG prefetch — fills in EPG for the first
-     * ~12 channels of the active category right after the channel
-     * list becomes visible, so progress bars + "NOW" lines appear
-     * across all of them instead of only the focused one.  Stops
-     * after the first batch; full-catalog prefetch runs separately
-     * in the background sync effect. */
+     * ~20 channels of the active category in PARALLEL so progress
+     * bars + "NOW" lines appear across all of them within a couple
+     * of seconds, not one-at-a-time.  Re-runs whenever the user
+     * lands on a new category.  Stops after the first batch; full-
+     * catalog prefetch runs separately in the background sync. */
     useEffect(() => {
-        const sample = channels.slice(0, 12);
+        const sample = channels.slice(0, 20);
         const missing = sample.filter((c) => !epg.current.has(c.stream_id));
         if (missing.length === 0) return undefined;
         let cancel = false;
         (async () => {
-            for (const ch of missing) {
-                if (cancel) return;
-                try {
-                    const items = await getFullEpg(provider, ch.stream_id, 12);
-                    if (cancel) return;
-                    if (items && items.length) {
-                        epg.current.set(ch.stream_id, items);
-                        mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
-                    }
-                } catch { /* swallow */ }
-            }
-            if (!cancel) rerender();
+            const CONC = 6;
+            let cursor = 0;
+            let anyHit = false;
+            const worker = async () => {
+                while (!cancel) {
+                    const i = cursor++;
+                    if (i >= missing.length) return;
+                    const ch = missing[i];
+                    try {
+                        const items = await getFullEpg(provider, ch.stream_id, 12);
+                        if (cancel) return;
+                        if (items && items.length) {
+                            epg.current.set(ch.stream_id, items);
+                            mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
+                            anyHit = true;
+                        }
+                    } catch { /* swallow */ }
+                }
+            };
+            const workers = [];
+            for (let i = 0; i < CONC; i++) workers.push(worker());
+            await Promise.all(workers);
+            if (!cancel && anyHit) rerender();
         })();
         return () => { cancel = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,7 +409,21 @@ function Grid({ provider, onLogout }) {
         rerender();
     }, [provider, rerender]);
 
-    /* ───────── Keyboard ───────── */
+    /* ───────── Keyboard ─────────
+     *
+     * Long-press support for Enter/Space — most TV remotes report
+     * a held button as repeated keydown events.  When the same
+     * Enter key arrives ≥ 6 times in quick succession (≈ 600 ms),
+     * we interpret it as a long-press and toggle the favourite
+     * on the focused channel instead of playing it.
+     *
+     * On keyup we reset the counter so a fresh press starts over.
+     * The play / reminder action only fires on keyup (so short
+     * taps still work as before, and a long-press doesn't both
+     * play AND favourite).
+     */
+    const pressRef = useRef({ key: '', count: 0, fired: false });
+
     useEffect(() => {
         const onKey = (e) => {
             const tag = (document.activeElement?.tagName || '').toLowerCase();
@@ -438,15 +463,24 @@ function Grid({ provider, onLogout }) {
             e.preventDefault();
             e.stopPropagation();
 
-            /* Enter / Space — perform the action OUTSIDE the state
-             * updater so it can't be called twice by React's
-             * strict-mode double-invocation of updater fns. */
+            /* Enter / Space — track repeat count.  Action fires on
+             * keyup; long-press toggles favourite. */
             if (key === 'Enter' || key === ' ') {
-                if (sel.col === 1 && focusedChannel) {
-                    playChannel(focusedChannel);
-                } else if (sel.col === 2) {
-                    const it = guideGroups[sel.guideIdx];
-                    if (it && !it._kind && !it.kind) onToggleReminder(it);
+                const p = pressRef.current;
+                if (p.key !== key) {
+                    p.key = key;
+                    p.count = 1;
+                    p.fired = false;
+                } else {
+                    p.count += 1;
+                }
+                // Long-press threshold: 6 repeats ≈ 600 ms on most
+                // TV firmwares.  Fire the favourite toggle once,
+                // mark `fired` so the keyup handler skips its
+                // default play action.
+                if (p.count >= 6 && !p.fired && sel.col === 1 && focusedChannel) {
+                    p.fired = true;
+                    onToggleFav();
                 }
                 return;
             }
@@ -463,8 +497,6 @@ function Grid({ provider, onLogout }) {
                 if (key === 'ArrowRight') {
                     if (s.col === 2) return s;
                     if (s.col === 0 && channels.length === 0) return s;
-                    // Always allow channels → guide, even if guide is empty,
-                    // so the user can navigate over to set reminders later.
                     return { ...s, col: s.col + 1 };
                 }
                 if (key === 'ArrowUp') {
@@ -484,8 +516,31 @@ function Grid({ provider, onLogout }) {
                 return s;
             });
         };
+
+        const onKeyUp = (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const p = pressRef.current;
+            const wasLongPress = p.fired;
+            // Reset state regardless.
+            p.key = '';
+            p.count = 0;
+            p.fired = false;
+            if (wasLongPress) return; // long-press already handled the favourite
+            // Short tap — perform the column's default action.
+            if (sel.col === 1 && focusedChannel) {
+                playChannel(focusedChannel);
+            } else if (sel.col === 2) {
+                const it = guideGroups[sel.guideIdx];
+                if (it && !it._kind && !it.kind) onToggleReminder(it);
+            }
+        };
+
         window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
+        window.addEventListener('keyup', onKeyUp, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            window.removeEventListener('keyup', onKeyUp, true);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel]);
 
