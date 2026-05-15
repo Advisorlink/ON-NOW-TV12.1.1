@@ -284,6 +284,145 @@ function safeAtob(s) {
     catch { try { return atob(s); } catch { return s; } }
 }
 
+/**
+ * Fetch the FULL XMLTV EPG for a provider in a single request.
+ *
+ * Returns:
+ *   { epg: { <epg_channel_id>: [{title, startTimestamp, stopTimestamp, …}], … },
+ *     channel_count, programme_count, size_bytes, fetched_at, cached }
+ *
+ * Strategy:
+ *   1. Try the provider's `xmltv.php` directly from the WebView — same
+ *      origin as the channel/stream requests so this works on the
+ *      Android box without CORS hassle.  The provider gzips the
+ *      response on the wire so we get the full 14 000-channel EPG in
+ *      a single ~3 MB download instead of 14 000 individual JSON
+ *      requests.
+ *   2. If the direct fetch fails (CORS in a browser, network issue,
+ *      etc.), fall back to the backend proxy `/api/xtream/full-epg`
+ *      which does the same fetch + parse server-side.
+ *
+ *   The endpoint returns ~14 000 channels of programme data, so we
+ *   stream-parse on the backend.  The frontend just gets a tidy
+ *   JSON map keyed by EPG channel id.
+ */
+export async function getXmltvEpg(provider) {
+    const scheme = provider.scheme || 'http';
+    const port = provider.port && provider.port !== '80' && provider.port !== '443'
+        ? `:${provider.port}` : '';
+    const xmltvUrl =
+        `${scheme}://${provider.host}${port}/xmltv.php` +
+        `?username=${encodeURIComponent(provider.username)}` +
+        `&password=${encodeURIComponent(provider.password)}`;
+
+    // 1) Direct XMLTV from the IPTV server.
+    try {
+        const res = await fetch(xmltvUrl, {
+            // Gzip is negotiated automatically by the browser; we just
+            // need to keep the request open for a while since the
+            // payload can be 10+ MB.
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit',
+        });
+        if (res.ok) {
+            const text = await res.text();
+            return parseXmltv(text);
+        }
+    } catch {
+        // CORS or network — fall through to the proxy.
+    }
+
+    // 2) Backend proxy fallback.
+    const { data } = await axios.get(`${API}/full-epg`, {
+        params: { provider: blob(provider) },
+        timeout: 90000,
+    });
+    return {
+        epg: data?.epg || {},
+        channelCount: data?.channel_count || 0,
+        programmeCount: data?.programme_count || 0,
+        sizeBytes: data?.size_bytes || 0,
+        cached: !!data?.cached,
+    };
+}
+
+/* Lean XMLTV parser — done in JS because the WebView fetch returns
+ * the raw XML string. */
+function parseXmltv(xmlText) {
+    const epg = {};
+    let programmeCount = 0;
+    const channels = new Set();
+
+    /* Regex-based extraction.  XMLTV is grammar-strict so the
+     * "regex parse" is safe here — every <programme> appears on
+     * its own with attribute syntax in a predictable order. */
+    const PRG = /<programme([^>]+)>([\s\S]*?)<\/programme>/g;
+    const ATTR = /(\w+)\s*=\s*"([^"]*)"/g;
+    const TITLE = /<title[^>]*>([\s\S]*?)<\/title>/;
+    const DESC = /<desc[^>]*>([\s\S]*?)<\/desc>/;
+
+    let m;
+    while ((m = PRG.exec(xmlText))) {
+        const attrs = {};
+        let am;
+        ATTR.lastIndex = 0;
+        while ((am = ATTR.exec(m[1]))) {
+            attrs[am[1]] = am[2];
+        }
+        const channel = attrs.channel || '';
+        if (!channel) continue;
+        const start = parseXmltvTime(attrs.start);
+        const stop = parseXmltvTime(attrs.stop);
+        if (!start) continue;
+        const tm = TITLE.exec(m[2]);
+        const dm = DESC.exec(m[2]);
+        const title = tm ? unescapeXml(tm[1]).slice(0, 200) : '';
+        const desc = dm ? unescapeXml(dm[1]).slice(0, 600) : '';
+        if (!epg[channel]) epg[channel] = [];
+        epg[channel].push({
+            title,
+            description: desc,
+            start: attrs.start || '',
+            stop: attrs.stop || '',
+            startTimestamp: start,
+            stopTimestamp: stop,
+        });
+        channels.add(channel);
+        programmeCount += 1;
+    }
+    // Sort each channel's programmes by start.
+    for (const ch of Object.keys(epg)) {
+        epg[ch].sort((a, b) => a.startTimestamp - b.startTimestamp);
+    }
+    return {
+        epg,
+        channelCount: channels.size,
+        programmeCount,
+        sizeBytes: xmlText.length,
+        cached: false,
+    };
+}
+
+function parseXmltvTime(raw) {
+    if (!raw) return 0;
+    // Format: "20260515063000 +0000"
+    const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(raw);
+    if (!m) return 0;
+    // Treat as UTC since EPG times are absolute.
+    const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+    return Math.floor(dt.getTime() / 1000);
+}
+
+function unescapeXml(s) {
+    return String(s)
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, '&');
+}
+
 export async function getStreamUrl(provider, type, streamId, ext = 'ts') {
     // For Xtream Codes the stream URL is a direct construct — no
     // round-trip needed.  Format is documented:

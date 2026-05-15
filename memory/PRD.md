@@ -34,6 +34,17 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 79 — Feb 15, 2026)
+### Live TV — confirmed no VOD load in bg + single-shot XMLTV fast-path
+- **🎯 User**: "Can we also confirm that we're not actually loading or loading in the background, the video on demand, the VOD stuff?  Someone else was saying something about a GZ file — if it's easier to compress it to a GZ file, would that be easier?"
+- **✅ VOD confirmation**: audited `pages/LiveTV.jsx` background sync (`useEffect [provider]`). It only calls `getCategories(provider, 'live')`, `getStreams(provider, 'live', cat_id)`, and `getFullEpg(provider, sid)` — **zero VOD/series HTTP calls**.  The 14 000-channel scope is entirely live-channel EPG.  No VOD list, no movie posters, no series metadata loads while you're in Live TV.
+- **🆕 XMLTV gzip fast-path**: Xtream-Codes providers expose `xmltv.php?username=...&password=...` which returns the ENTIRE EPG for ALL channels in a single gzipped XML response (typically 3-5 MB compressed instead of 14 000 individual JSON calls).
+  - **Backend** (`backend/xtream.py`): new `GET /api/xtream/full-epg` endpoint.  Sends `Accept-Encoding: gzip, deflate`, stream-parses the XML with `ElementTree.iterparse` for memory-bounded RAM use (no 50 MB allocations), returns a JSON map keyed by EPG channel id.  30-min in-memory cache per provider hash.
+  - **Frontend** (`lib/xtream.js`): new `getXmltvEpg(provider)` — tries the direct provider XMLTV URL first (zero-latency, works inside the WebView since same-origin as the channel feeds); falls back to the backend proxy on CORS / network failure.  Inline JS regex parser (faster than DOMParser on Chrome 52 for this format).
+  - **Boot integration** (`pages/LiveTV.jsx`): the EPG stage now tries the XMLTV fast-path BEFORE the per-channel loop. If it returns at least 1 valid programme, it merges into `epg.current` (keyed by `stream_id` via `epg_channel_id` map), saves to disk-cache, dismisses the boot splash, and **skips the 14 000-call per-channel loop entirely**. Net effect on the user's HK1: ~3-8 second EPG hydration instead of ~10-15 minutes.
+  - **Graceful fallback**: if XMLTV fetch fails (404, CORS in some niche providers, malformed XML), the existing 6-worker per-channel `getFullEpg` loop runs unchanged — so no regression for providers that don't expose `xmltv.php`.
+
+
 ## Implemented (Iteration 78 — Feb 15, 2026)
 ### Live TV boot — 500-channel target instead of half-of-all
 - **🎯 User**: "How about we try 500 channels for the TV guide instead of 14000? 500 channels completely set up and ready to go with the EPG, and then the rest can load while they're using it?"

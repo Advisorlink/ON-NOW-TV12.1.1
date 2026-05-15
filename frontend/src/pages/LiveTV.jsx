@@ -41,6 +41,7 @@ import {
     getStreams,
     getStreamUrl,
     getFullEpg,
+    getXmltvEpg,
 } from '@/lib/xtream';
 import {
     getFavorites as getFavList,
@@ -442,10 +443,16 @@ function Grid({ provider, onLogout }) {
                 setStage('epg', 'active', '');
                 const sids = [];
                 const seen = new Set();
+                /* Also build a stream_id → epg_channel_id map so we
+                 * can apply the XMLTV index back to the right cache
+                 * key (epg.current is keyed by stream_id). */
+                const sidToEpgId = new Map();
                 for (const arr of channelsByCat.current.values()) {
                     for (const c of (arr || [])) {
                         const k = String(c.stream_id);
                         if (!seen.has(k)) { seen.add(k); sids.push(c.stream_id); }
+                        const eid = (c.epg_channel_id || '').trim();
+                        if (eid) sidToEpgId.set(String(c.stream_id), eid);
                     }
                 }
                 /* Pre-fill: count channels we already have EPG for. */
@@ -461,6 +468,63 @@ function Grid({ provider, onLogout }) {
                     setStage('epg', 'done', `${epgDone}/${epgTotal} cached, more loading…`);
                     setBootBlocked(false);
                 }
+
+                /* FAST PATH — try the full XMLTV download first.  A
+                 * single ~3-5 MB gzipped request returns the entire
+                 * EPG for all 14 000 channels in one shot.  If it
+                 * succeeds we apply it, save the cache, dismiss the
+                 * splash, and skip the per-channel loop entirely. */
+                let xmltvOK = false;
+                try {
+                    setStage('epg', 'active', 'Downloading XMLTV…');
+                    const xml = await getXmltvEpg(provider);
+                    if (cancel) return;
+                    if (xml && xml.epg && Object.keys(xml.epg).length > 0) {
+                        /* Map XMLTV channel IDs onto our stream_ids.
+                         * The IPTV-server normally sets
+                         * channel.epg_channel_id to the XMLTV id. */
+                        const mergedBuffer = {};
+                        let merged = 0;
+                        for (const [sid, eid] of sidToEpgId.entries()) {
+                            const items = xml.epg[eid];
+                            if (items && items.length) {
+                                /* Drop programmes that ended more
+                                 * than 6 h ago — keeps cache lean. */
+                                const nowSec = Math.floor(Date.now() / 1000);
+                                const filtered = items.filter(
+                                    (it) => it.stopTimestamp > nowSec - 6 * 3600,
+                                );
+                                if (filtered.length) {
+                                    epg.current.set(sid, filtered);
+                                    mergedBuffer[sid] = filtered;
+                                    merged += 1;
+                                }
+                            }
+                        }
+                        if (merged > 0) {
+                            mergeAndSaveEpg(provider.id, mergedBuffer);
+                            epgDone = merged;
+                            setBootCounters((c) => ({ ...c, epgDone }));
+                            setStage('epg', 'done',
+                                `${merged}/${epgTotal} channels via XMLTV ` +
+                                `(${Math.round((xml.sizeBytes || 0) / 1024)} KB)`);
+                            xmltvOK = true;
+                            setBootBlocked(false);
+                            /* Rerender so the boot screen flips off and
+                             * channel cards pick up the new EPG immediately. */
+                            rerender();
+                        }
+                    }
+                } catch (xmltvErr) {
+                    /* eslint-disable-next-line no-console */
+                    console.debug('XMLTV fast-path failed; will use per-channel loop.', xmltvErr);
+                }
+
+                if (xmltvOK) {
+                    /* XMLTV succeeded — no per-channel loop needed.
+                     * The cache is now complete for every channel
+                     * whose epg_channel_id was in the XMLTV index. */
+                } else {
 
                 /* No HARD_CAP — keep loading EPG for ALL channels.
                  * The user explicitly asked: "as long as we need to". */
@@ -508,6 +572,8 @@ function Grid({ provider, onLogout }) {
                     setStage('epg', 'done', `${epgDone}/${epgTotal} channels`);
                     setBootBlocked(false);
                 }
+
+                } /* end of !xmltvOK branch */
             } finally {
                 if (!cancel) setSyncing(false);
             }
