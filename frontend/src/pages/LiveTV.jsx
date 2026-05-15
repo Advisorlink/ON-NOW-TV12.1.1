@@ -537,10 +537,43 @@ const Header = React.memo(function Header({ channel, category, programme, syncin
         <section style={{
             padding: '24px 24px 14px 24px',
             display: 'flex',
-            alignItems: 'flex-end',
-            gap: 24,
+            alignItems: 'center',
+            gap: 20,
             color: '#fff',
         }}>
+            {/* Channel logo card — Header is React.memo'd so this
+                only re-renders when the channel actually changes,
+                not on every keypress.  Safe. */}
+            <div style={{
+                width: 110, height: 74, flexShrink: 0,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 10,
+                overflow: 'hidden',
+            }}>
+                {channel?.stream_icon ? (
+                    <img
+                        src={proxyLogo(channel.stream_icon, 180, 60)}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{
+                            maxWidth: '100%', maxHeight: '100%',
+                            objectFit: 'contain',
+                        }}
+                    />
+                ) : (
+                    <div style={{
+                        fontFamily: 'monospace', fontSize: 10,
+                        letterSpacing: '0.28em', color: '#5e6473',
+                    }}>
+                        LIVE
+                    </div>
+                )}
+            </div>
+
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
                     <div style={{
@@ -789,7 +822,7 @@ const ChannelRow = React.memo(function ChannelRow({ ch, focused, isFav, nowTitle
         <div style={{
             height: '100%',
             padding: '0 12px',
-            display: 'flex', alignItems: 'center', gap: 12,
+            display: 'flex', alignItems: 'center', gap: 10,
             borderLeft: focused ? '3px solid #5DC8FF' : '3px solid transparent',
             background: focused ? 'rgba(93,200,255,0.10)' : 'transparent',
             color: focused ? '#fff' : '#E6EAF2',
@@ -800,11 +833,42 @@ const ChannelRow = React.memo(function ChannelRow({ ch, focused, isFav, nowTitle
                 <span style={{
                     fontFamily: 'monospace', fontSize: 11,
                     color: focused ? '#5DC8FF' : '#5e6473',
-                    minWidth: 32, textAlign: 'right', fontWeight: 700,
+                    minWidth: 28, textAlign: 'right', fontWeight: 700,
                 }}>
                     {ch.num}
                 </span>
             )}
+            {/* Logo cell.  Safe to bring back now that ChannelRow is
+                React.memo'd — logos only render when the row's
+                channel actually changes, not on every focus move.
+                Routed through the image proxy at 36 px so each
+                logo is ~600 bytes. */}
+            <span style={{
+                width: 36, height: 24, flexShrink: 0,
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 3,
+                overflow: 'hidden',
+                position: 'relative',
+            }}>
+                {ch.stream_icon && (
+                    <img
+                        src={proxyLogo(ch.stream_icon, 36)}
+                        alt=""
+                        width={36}
+                        height={24}
+                        loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{
+                            position: 'absolute', inset: 0,
+                            width: '100%', height: '100%',
+                            objectFit: 'contain',
+                            padding: 2,
+                        }}
+                    />
+                )}
+            </span>
             <span style={{
                 flex: 1, minWidth: 0,
                 display: 'flex', flexDirection: 'column', gap: 1,
@@ -898,6 +962,16 @@ function fmtTime(ts) {
     if (!ts) return '';
     const d = new Date(Number(ts) * 1000);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Route TMDB / IPTV logos through the backend image proxy.  Crushes
+ *  large source images down to a width-targeted, q=50 JPEG (~600 B
+ *  for a 36-px logo) so the HK1's image decoder doesn't choke. */
+function proxyLogo(url, width = 36, quality = 50) {
+    if (!url) return '';
+    const base = process.env.REACT_APP_BACKEND_URL;
+    if (!base) return url;
+    return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
 }
 
 function buildSidebarCats(cats, favCount, recCount, channelsMap) {
