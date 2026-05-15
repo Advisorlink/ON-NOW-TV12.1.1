@@ -34,6 +34,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 71 — Feb 15, 2026)
+### Watch Together end-to-end fix + D-pad hint overlay
+- **🎯 User**: "I want to make sure that the share with the Watch Together, that's a hundred percent working as well, because we're about to test that now."
+- **🐛 CRITICAL BUG FOUND & FIXED**: the watch-party `ready` handshake was completely missing from the frontend.
+  - Server flow: host emits `play` → server sets `status='loading'` → broadcasts → waits for ALL members to emit `{type:'ready'}` → flips to `countdown` → all players seek+play at `at_ms`.
+  - **No frontend code anywhere sent `ready`**. The party would hang forever in `loading` after the host hit Start.
+  - **Fix** (`pages/Player.jsx`):
+    - Added `streamReadyRef` (mirror of `streamReady` state) so the WS open-handler can read the latest buffer state without stale closures.
+    - Added `partyReadySentRef` reset whenever `url` changes (so a host re-pick re-handshakes the new stream).
+    - New `useEffect([streamReady, partyCode, url])` sends `ready` once the `<video>` reaches the `canplay` state.
+    - `ws.onopen` now also sends `ready` immediately if the buffer was already filled before the WS opened (covers the race).
+    - `ws.onmessage` now treats `status === 'loading'` as "show preparing overlay, suppress countdown".
+- **🆕 `components/DPadHint.jsx`** (new): tiny floating bottom-right cheat-sheet that shows for 5 seconds on the first 3 visits to each page (per-page `localStorage` counter `vesper-dpad-hint-views:<page>`).  `pointer-events: none` so it never blocks D-pad focus.
+  - Home: `↑↓←→ NAVIGATE · OK OPEN · ←← MENU`
+  - SportsGuide: `← BACK · ↑↓←→ NAVIGATE · OK WATCH · HOLD OK REMIND`
+  - LiveTV: `← BACK · ↑↓←→ NAVIGATE · OK WATCH · HOLD OK FAVOURITE`
+- **🛡️ Re-entrancy guard** in `WatchTogether.startHost()` — `creatingRef` blocks double-clicks / React.StrictMode dev double-invokes that otherwise produce "body stream already read" errors when two parallel `POST /watch-party/create` requests race over the same Response.
+- **🧪 Tested** (`testing_agent_v3_fork` — iteration 25):
+  - Backend **13/13 pytest pass**.  New tests cover `test_host_play_transitions_to_loading` and `test_ready_handshake_flips_loading_to_countdown` (covers single member, all members, partial-ready non-flip).
+  - Frontend lobby renders, host can create code (e.g., `9JYGEE`), TVKeyboard for code entry works, DPadHint mounts and hides correctly past `MAX_VIEWS=3`.
+
+
 ## Implemented (Iteration 70 — Feb 15, 2026)
 ### D-pad / BACK button / push-and-hold audit — Benchmark sideload
 - **🎯 User request**: "Make sure every single D-pad movement, control movement, left, right, up, down is 100% how it should be, every back button is how it should be. Make sure the navigation is perfect. If you're pushing left and it's accidentally opening up the menu, make sure that doesn't happen. Make sure your push and holds, uh, to set favorites, make sure that every single thing to do with button pressing and navigation throughout the entire application works flawlessly."

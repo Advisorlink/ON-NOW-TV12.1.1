@@ -108,12 +108,25 @@ export default function WatchTogether() {
         }
     };
 
+    // Re-entrancy guard — prevents a double-click (or React.StrictMode
+    // dev double-invoke) from firing two parallel POSTs whose Response
+    // body can only be read once.  Without this we saw transient
+    // "body stream already read" errors in the testing agent.
+    const creatingRef = useRef(false);
     const startHost = async () => {
-        const r = await fetch(`${API}/watch-party/create`, { method: 'POST' });
-        const j = await r.json();
-        setPartyCode(j.code);
-        setView('room');
-        connect(j.code, 'host');
+        if (creatingRef.current) return;
+        creatingRef.current = true;
+        try {
+            const r = await fetch(`${API}/watch-party/create`, { method: 'POST' });
+            const j = await r.json();
+            setPartyCode(j.code);
+            setView('room');
+            connect(j.code, 'host');
+        } catch (err) {
+            console.warn('watch-party create failed', err);
+        } finally {
+            creatingRef.current = false;
+        }
     };
 
     const joinAs = (code) => {
