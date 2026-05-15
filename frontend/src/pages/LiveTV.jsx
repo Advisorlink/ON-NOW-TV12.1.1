@@ -316,6 +316,82 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [onToggleFav]);
 
+    /* ------------------------------------------------------------
+     * Linear 3-column navigation override.
+     *
+     * Spatial focus is great in the abstract but on a real HK1 box
+     * its per-press getBoundingClientRect loops are slow and the
+     * "sameRow" geometry constraint sometimes refuses to cross
+     * columns.  For Live TV we know the layout exactly — three
+     * columns, fixed order — so we override Left/Right at the
+     * window level (capture phase, runs BEFORE useSpatialFocus's
+     * own listener) and do an O(1) jump to the next column.
+     *
+     * Up/Down still go through spatial focus so within-column
+     * navigation works as before.
+     * ------------------------------------------------------------ */
+    useEffect(() => {
+        const COL_SELECTORS = [
+            // Categories
+            '[data-testid^="live-cat-"]',
+            // Channels
+            '[data-testid^="live-channel-"]',
+            // Guide
+            '[data-testid^="live-guide-row-"]',
+        ];
+
+        const colOf = (el) => {
+            if (!el) return -1;
+            for (let i = 0; i < COL_SELECTORS.length; i++) {
+                if (el.matches(COL_SELECTORS[i])) return i;
+            }
+            return -1;
+        };
+
+        const lastInCol = [null, null, null]; // remember last-focused per column
+
+        const focusFirstIn = (colIdx) => {
+            // Prefer the last-focused element in that column (so
+            // returning to a column lands where we left off).
+            const remembered = lastInCol[colIdx];
+            if (remembered && document.body.contains(remembered)) {
+                remembered.focus({ preventScroll: false });
+                return true;
+            }
+            const first = document.querySelector(COL_SELECTORS[colIdx]);
+            if (first) {
+                first.focus({ preventScroll: false });
+                return true;
+            }
+            return false;
+        };
+
+        const onKey = (e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            // Don't fight inputs (search bar etc.)
+            const tag = (document.activeElement?.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea') return;
+
+            const cur = colOf(document.activeElement);
+            if (cur === -1) return; // Not in any of our 3 columns — let spatial focus handle.
+
+            // Remember where we were in this column.
+            lastInCol[cur] = document.activeElement;
+
+            const next = e.key === 'ArrowRight' ? cur + 1 : cur - 1;
+            if (next < 0 || next >= COL_SELECTORS.length) return;
+
+            // Only intercept if the destination column actually exists.
+            if (focusFirstIn(next)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        // Capture phase so we run BEFORE useSpatialFocus's listener.
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
+
     /* "/" key — jumps focus into the search bar from anywhere.
      *  ESC inside the search input — clears the query (and the
      *  global ESC→home handler is already gated on tagName so
@@ -526,12 +602,12 @@ function LiveHeroLean({ channel, categoryName, nowNext, isFavorite: favOn, onTog
     // TMDB programme backdrop for the currently-airing show.
     // Heavily debounced + cached so D-pad scrubbing through 100
     // channels fires no extra requests.  Routed through the image
-    // proxy at 720 px / q=55 — about 60 KB on the wire, ~10× less
-    // than TMDB's native ~800 KB backdrop, while still looking
-    // crisp behind the gradient overlay.
+    // proxy at 900 px / q=70 — about ~120 KB on the wire, ~7× less
+    // than TMDB's native ~800 KB+ backdrop, and crisp enough to look
+    // gorgeous behind the gradient overlay.
     const tmdb = useProgrammeBackdrop(now?.title || '');
     const tmdbBackdrop = tmdb?.backdrop
-        ? proxiedLogo(tmdb.backdrop, 720, 55)
+        ? proxiedLogo(tmdb.backdrop, 900, 70)
         : '';
 
     // Lightweight real-time clock — refreshes once a minute, no
@@ -1139,7 +1215,7 @@ function ChannelSearchBar({ query, onChange, resultCount, totalCount }) {
 }
 
 /* ============================ Channel Row (lean) ============================ */
-function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) {
+const ChannelRowLean = React.memo(function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) {
     return (
         <li>
             <button
@@ -1154,7 +1230,7 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
                     width: 'calc(100% - 12px)',
                     margin: '2px 6px',
                     padding: '8px 12px',
-                    gap: 14,
+                    gap: 12,
                     background: focused ? 'rgba(93,200,255,0.10)' : 'transparent',
                     borderLeft: focused
                         ? '3px solid var(--vesper-blue-bright)'
@@ -1163,7 +1239,7 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
                     borderRadius: 8,
                     color: focused ? '#fff' : 'var(--vesper-text)',
                     cursor: 'pointer',
-                    minHeight: 56,
+                    minHeight: 44,
                 }}
             >
                 {channel.num != null && (
@@ -1176,35 +1252,6 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
                         {channel.num}
                     </span>
                 )}
-                <span style={{
-                    width: 54, height: 36, flexShrink: 0,
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                    border: focused
-                        ? '1px solid rgba(93,200,255,0.45)'
-                        : '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 5,
-                    overflow: 'hidden',
-                    position: 'relative',
-                }}>
-                    {channel.stream_icon && (
-                        <img
-                            src={proxiedLogo(channel.stream_icon, 54)}
-                            alt=""
-                            width={54}
-                            height={36}
-                            loading="lazy"
-                            decoding="async"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            style={{
-                                position: 'absolute', inset: 0,
-                                width: '100%', height: '100%',
-                                objectFit: 'contain',
-                                padding: 4,
-                            }}
-                        />
-                    )}
-                </span>
                 <div className="flex flex-col" style={{
                     flex: 1, minWidth: 0, gap: 2,
                 }}>
@@ -1231,7 +1278,7 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
                 </div>
                 {isFav && (
                     <Star
-                        size={13}
+                        size={12}
                         strokeWidth={2}
                         fill="#FFC850"
                         color="#FFC850"
@@ -1241,7 +1288,7 @@ function ChannelRowLean({ channel, focused, nowTitle, isFav, onFocus, onPlay }) 
             </button>
         </li>
     );
-}
+});
 
 /* ============================ Guide Column (right) ============================ */
 
@@ -1321,7 +1368,7 @@ function GuideCol({ channel, items, reminderKeys, onToggleReminder }) {
     );
 }
 
-function GuideRow({ item, isLive, isPast, isReminded, canRemind, onToggleReminder }) {
+const GuideRow = React.memo(function GuideRow({ item, isLive, isPast, isReminded, canRemind, onToggleReminder }) {
     const accent = isLive
         ? 'var(--vesper-blue-bright)'
         : isReminded
@@ -1428,7 +1475,7 @@ function GuideRow({ item, isLive, isPast, isReminded, canRemind, onToggleReminde
             </button>
         </li>
     );
-}
+});
 
 /* ============================ Helpers ============================ */
 
