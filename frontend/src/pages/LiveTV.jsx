@@ -171,6 +171,14 @@ function Grid({ provider, onLogout }) {
         { id: 'channels',   label: 'Loading channels',            status: 'pending', detail: '' },
         { id: 'epg',        label: 'Loading TV guide (NOW & NEXT)',status: 'pending', detail: '' },
     ]));
+    /* Counters drive the big animated numbers in <LiveTVBoot/>. */
+    const [bootCounters, setBootCounters] = useState({
+        categoriesDone: 0,
+        categoriesTotal: 0,
+        channelsCount: 0,
+        epgDone: 0,
+        epgTotal: 0,
+    });
     const setStage = useCallback((id, status, detail) => {
         setBootStages((prev) => prev.map((s) =>
             s.id === id ? { ...s, status, detail: detail ?? s.detail } : s
@@ -390,6 +398,7 @@ function Grid({ provider, onLogout }) {
                     cats.current = list;
                     saveCategories(provider.id, list);
                     rerender();
+                    setBootCounters((c) => ({ ...c, categoriesTotal: list.length }));
                     setStage('categories', 'done', `${list.length} categories`);
                 } else {
                     setStage('categories', 'failed', 'No categories returned');
@@ -414,6 +423,7 @@ function Grid({ provider, onLogout }) {
                         } catch { /* keep stale */ }
                     }));
                     catsDone = Math.min(i + BATCH, list.length);
+                    setBootCounters((c) => ({ ...c, categoriesDone: catsDone, channelsCount: chCount }));
                     setStage('channels', 'active',
                         `${catsDone}/${list.length} categories · ${chCount} channels`);
                 }
@@ -435,6 +445,7 @@ function Grid({ provider, onLogout }) {
                 /* Pre-fill: count channels we already have EPG for. */
                 let epgDone = sids.filter((sid) => epg.current.has(sid)).length;
                 const epgTotal = sids.length || 1;
+                setBootCounters((c) => ({ ...c, epgDone, epgTotal }));
                 setStage('epg', 'active', `${epgDone}/${epgTotal} channels`);
 
                 /* If the cache was already >= 50 % full, dismiss the
@@ -472,6 +483,7 @@ function Grid({ provider, onLogout }) {
                         } catch { /* swallow */ }
                         epgDone += 1;
                         const frac = epgDone / epgTotal;
+                        setBootCounters((c) => ({ ...c, epgDone }));
                         setStage('epg', frac >= 1 ? 'done' : 'active',
                             `${epgDone}/${epgTotal} channels`);
                         /* The MOMENT we cross the threshold, dismiss
@@ -780,7 +792,7 @@ function Grid({ provider, onLogout }) {
      * — the splash is full-screen and intentionally blocks all
      * interaction so the user can't D-pad into an empty grid. */
     if (bootBlocked) {
-        return <LiveTVBoot stages={bootStages} />;
+        return <LiveTVBoot stages={bootStages} counters={bootCounters} />;
     }
 
     return (

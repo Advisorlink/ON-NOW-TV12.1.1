@@ -34,6 +34,21 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 77 — Feb 15, 2026)
+### Live TV boot splash — premium redesign
+- **🎯 User**: "We have to make that loading sequence way nicer looking — I want the UI to look really beautiful on that loading sequence."
+- **🎨 Full rewrite of `<LiveTVBoot/>`** — cinematic 4K-TV-ready splash, GPU-cheap on Chrome 52 (only `transform` + `opacity` animations, no `backdrop-filter`, no full-page radial layers).
+- **Components**:
+  1. **Brand header**: `V2 · ON NOW TV` monospace eyebrow in glowing cyan + 42 px wordmark "Preparing your TV guide" + reassurance subtitle.
+  2. **Huge 240 px circular SVG progress arc** with a linear gradient stroke (cyan → soft-blue → white), `strokeDasharray` driven `strokeDashoffset` for the fill, a rotating white tip dot, and a centre cluster showing the active phase icon + giant 38 px monospace percentage + caption.
+  3. **Three counter cards** — CATEGORIES, CHANNELS, TV GUIDE — each with a monospace 28 px tweening number (`<AnimatedNumber>` cubic-eased tween over ~250-450 ms based on delta) and an `X / total` divisor. The currently-active stage's card glows cyan with a pulsing dot.
+  4. **Four stage rows** with their own inline fill bars at the bottom (per-row progress), pulsing accent dots while active, and a right-edge status word (`NOW` / `DONE` / `FAILED` / `...`).
+  5. **Drifting bottom marquee** of TV/film glyphs (📺 🎬 ⚡ 🏆 🎙️ 🎞️ 🌍 🎤 🎵 🏈 🎮) — 38 s linear loop with a horizontal mask gradient at the edges for a clean fade-out.
+- **🧩 Counters wiring** (`pages/LiveTV.jsx`): new `bootCounters` state alongside `bootStages`. The background sync writes both as it progresses; `<LiveTVBoot/>` receives them as props.
+- **🛡️ Perf-friendly**: every animation runs on `transform`/`opacity`/`stroke-dashoffset` only. No `box-shadow` on animated elements, no `filter: blur`, no Chrome-52-killing CSS. Marquee uses a single GPU `translateX` loop.
+- **✅ Verified visually**: screenshot confirms the layout renders correctly — V2 brand mark, huge 10 % progress arc with rotating tip, 3 counter cards, 4 stage rows with the active "Connecting to your provider" highlighted in cyan, drifting glyph marquee at the bottom.
+
+
 ## Implemented (Iteration 76 — Feb 15, 2026)
 ### Live TV — boot splash + EPG keeps loading after dismiss
 - **🎯 User**: "Put that loading screen back in once you've entered your details. Take as much time as we need to. Make sure that when we go into the actual Live TV itself, all of the EPG is at least half-loaded, and then as we're continuing to use it, then it keeps loading the EPG as well. Right now even if you stop at a certain channel, it's still not loading the whole thing. I want to get as much down as we can."
