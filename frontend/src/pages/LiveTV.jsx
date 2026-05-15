@@ -92,7 +92,16 @@ function LiveTVGrid({ provider, onChangeProvider }) {
         { id: 'auth', label: 'Authenticating with provider', status: 'pending' },
         { id: 'cats', label: 'Fetching channel categories', status: 'pending' },
         { id: 'cache', label: 'Caching every channel list', status: 'pending' },
+        { id: 'epg', label: 'Pre-loading programme guides', status: 'pending' },
     ]);
+
+    // Per-stream EPG cache.  Populated entirely during boot so the
+    // in-guide useEffect for the focused channel becomes a 100 %
+    // cache hit on every D-pad press.  Survives the lifetime of
+    // the LiveTVGrid mount.  TV-Mate-style: spend boot once,
+    // navigate forever.
+    const epgCache = useRef(new Map()); // stream_id -> { at, items }
+    const epgReqId = useRef(0);
 
     // Favorites — keyed by provider.id, persisted to localStorage.
     // Tracked in state so toggling re-renders the star / sidebar
@@ -184,6 +193,72 @@ function LiveTVGrid({ provider, onChangeProvider }) {
                 setActiveCat(firstCat);
                 setChannels(firstChannels);
                 setFocusedChannel(firstChannels[0] || null);
+            }
+
+            // ---------------------------------------------------------
+            //  STAGE 4 — Pre-load programme guides for every channel.
+            //
+            //  This is the TV-Mate trick: spend ~30-90 seconds on the
+            //  boot screen warming the EPG cache so that, once the
+            //  user is in the guide, every channel switch is an
+            //  instant cache read.  Zero network calls during
+            //  navigation = zero chunkiness.
+            //
+            //  Concurrency 6 is conservative for the IPTV server but
+            //  fast enough to drain a 3000-channel provider in ~1.5
+            //  minutes.  Hard cap of 120 sec so a flaky server can't
+            //  hang the boot screen forever — anything not cached
+            //  by then will fall back to the on-focus debounced
+            //  fetch (cache miss path above).
+            // ---------------------------------------------------------
+            const allStreams = [];
+            const seen = new Set();
+            for (const arr of channelsCache.current.values()) {
+                for (const ch of (arr || [])) {
+                    const key = String(ch.stream_id);
+                    if (!seen.has(key)) { seen.add(key); allStreams.push(ch.stream_id); }
+                }
+            }
+            const total = allStreams.length;
+            setStage('epg', { status: 'active', detail: `0 / ${total}` });
+
+            const startedAt = Date.now();
+            const HARD_CAP_MS = 120_000;
+            const CONCURRENCY = 6;
+            let cursor = 0;
+            let completed = 0;
+
+            const worker = async () => {
+                while (!cancel) {
+                    const idx = cursor++;
+                    if (idx >= allStreams.length) return;
+                    if (Date.now() - startedAt > HARD_CAP_MS) return;
+                    const sid = allStreams[idx];
+                    try {
+                        const items = await getFullEpg(provider, sid, 8);
+                        if (cancel) return;
+                        if (Array.isArray(items) && items.length > 0) {
+                            epgCache.current.set(sid, { at: Date.now(), items });
+                        }
+                    } catch { /* swallow — cache stays empty for this id */ }
+                    completed += 1;
+                    // Throttle UI updates: only every 25th tick.
+                    if (completed % 25 === 0 && !cancel) {
+                        setStage('epg', { status: 'active', detail: `${completed} / ${total}` });
+                    }
+                }
+            };
+
+            const workers = [];
+            for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
+            await Promise.all(workers);
+
+            if (!cancel) {
+                const cached = epgCache.current.size;
+                const detail = completed >= total
+                    ? `${cached} cached.`
+                    : `Time-capped: ${cached} cached, ${total - completed} on-demand.`;
+                setStage('epg', { status: 'done', detail });
             }
 
             // Brief pause on the "done" state so the user sees the
@@ -344,27 +419,32 @@ function LiveTVGrid({ provider, onChangeProvider }) {
     //    • Stale-request guard so out-of-order responses can't flicker.
     // -------------------------------------------------------------------
     const [epgItems, setEpgItems] = useState([]); // full upcoming list
-    const epgCache = useRef(new Map()); // stream_id -> { at, items }
-    const epgReqId = useRef(0);
 
     useEffect(() => {
         const ch = focusedChannel;
         if (!ch) { setEpgItems([]); return undefined; }
         const sid = ch.stream_id;
 
-        // Cache hit (≤ 5 min) — show immediately, skip fetch.
+        // Cache hit (≤ 60 min) — the EPG was prefetched during boot
+        // so this is the universal path during normal navigation.
+        // Zero network, zero debounce, zero waiting.
         const cached = epgCache.current.get(sid);
-        if (cached && Date.now() - cached.at < 5 * 60_000) {
+        if (cached && Date.now() - cached.at < 60 * 60_000) {
             setEpgItems(cached.items);
             return undefined;
         }
 
-        // Otherwise blank current EPG while we wait, debounce 250 ms.
+        // Cache miss only happens for channels that:
+        //   • the boot prefetch couldn't reach in time (hard cap)
+        //   • returned an error during boot (we don't poison the
+        //     cache with empties, so they stay missing).
+        // Debounce 250 ms in this rare case so D-pad scrubbing
+        // doesn't flood the IPTV server.
         setEpgItems([]);
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
-                const items = await getFullEpg(provider, sid, 12);
+                const items = await getFullEpg(provider, sid, 8);
                 if (epgReqId.current !== myReq) return; // stale
                 epgCache.current.set(sid, { at: Date.now(), items });
                 setEpgItems(items);
