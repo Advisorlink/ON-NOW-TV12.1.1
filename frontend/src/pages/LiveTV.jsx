@@ -473,12 +473,32 @@ function Grid({ provider, onLogout }) {
                  * single ~3-5 MB gzipped request returns the entire
                  * EPG for all 14 000 channels in one shot.  If it
                  * succeeds we apply it, save the cache, dismiss the
-                 * splash, and skip the per-channel loop entirely. */
+                 * splash, and skip the per-channel loop entirely.
+                 *
+                 * Hard budget of 30 s — if the fetch + parse hasn't
+                 * resolved by then we fall back to the per-channel
+                 * loop.  Prevents the boot screen from hanging when
+                 * the IPTV server is unreachable from this device
+                 * (e.g., when testing in preview mode where the
+                 * Emergent pod is firewalled from the user's
+                 * provider). */
                 let xmltvOK = false;
                 try {
                     setStage('epg', 'active', 'Downloading XMLTV…');
-                    const xml = await getXmltvEpg(provider);
+                    const xml = await Promise.race([
+                        getXmltvEpg(provider, {
+                            directTimeoutMs: 15000,
+                            proxyTimeoutMs: 20000,
+                        }),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('xmltv overall budget exceeded')), 30000)
+                        ),
+                    ]);
                     if (cancel) return;
+                    if (xml && xml.error) {
+                        /* eslint-disable-next-line no-console */
+                        console.debug('XMLTV fast-path returned error:', xml.error);
+                    }
                     if (xml && xml.epg && Object.keys(xml.epg).length > 0) {
                         /* Map XMLTV channel IDs onto our stream_ids.
                          * The IPTV-server normally sets
@@ -518,6 +538,8 @@ function Grid({ provider, onLogout }) {
                 } catch (xmltvErr) {
                     /* eslint-disable-next-line no-console */
                     console.debug('XMLTV fast-path failed; will use per-channel loop.', xmltvErr);
+                    setStage('epg', 'active',
+                        `XMLTV failed (${xmltvErr?.message?.slice(0, 60) || 'error'}) — using fallback…`);
                 }
 
                 if (xmltvOK) {
@@ -864,7 +886,14 @@ function Grid({ provider, onLogout }) {
      * — the splash is full-screen and intentionally blocks all
      * interaction so the user can't D-pad into an empty grid. */
     if (bootBlocked) {
-        return <LiveTVBoot stages={bootStages} counters={bootCounters} bootTarget={500} />;
+        return (
+            <LiveTVBoot
+                stages={bootStages}
+                counters={bootCounters}
+                bootTarget={500}
+                onSkip={() => setBootBlocked(false)}
+            />
+        );
     }
 
     return (

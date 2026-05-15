@@ -306,7 +306,7 @@ function safeAtob(s) {
  *   stream-parse on the backend.  The frontend just gets a tidy
  *   JSON map keyed by EPG channel id.
  */
-export async function getXmltvEpg(provider) {
+export async function getXmltvEpg(provider, { signal, directTimeoutMs = 15000, proxyTimeoutMs = 20000 } = {}) {
     const scheme = provider.scheme || 'http';
     const port = provider.port && provider.port !== '80' && provider.port !== '443'
         ? `:${provider.port}` : '';
@@ -315,86 +315,124 @@ export async function getXmltvEpg(provider) {
         `?username=${encodeURIComponent(provider.username)}` +
         `&password=${encodeURIComponent(provider.password)}`;
 
-    // 1) Direct XMLTV from the IPTV server.
+    /* 1) Direct XMLTV from the IPTV server.  Aborted if it takes
+     *    longer than directTimeoutMs — otherwise a dead provider can
+     *    hang the entire boot splash. */
     try {
-        const res = await fetch(xmltvUrl, {
-            // Gzip is negotiated automatically by the browser; we just
-            // need to keep the request open for a while since the
-            // payload can be 10+ MB.
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'omit',
-        });
-        if (res.ok) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), directTimeoutMs);
+        let res;
+        try {
+            res = await fetch(xmltvUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit',
+                signal: signal || ctrl.signal,
+            });
+        } finally {
+            clearTimeout(t);
+        }
+        if (res && res.ok) {
             const text = await res.text();
             return parseXmltv(text);
         }
     } catch {
-        // CORS or network — fall through to the proxy.
+        // CORS, network, or our own timeout — fall through to the proxy.
     }
 
-    // 2) Backend proxy fallback.
-    const { data } = await axios.get(`${API}/full-epg`, {
-        params: { provider: blob(provider) },
-        timeout: 90000,
-    });
-    return {
-        epg: data?.epg || {},
-        channelCount: data?.channel_count || 0,
-        programmeCount: data?.programme_count || 0,
-        sizeBytes: data?.size_bytes || 0,
-        cached: !!data?.cached,
-    };
+    /* 2) Backend proxy fallback.  Lower default timeout so preview
+     *    pod (which can't reach the IPTV server) bails fast and the
+     *    per-channel loop takes over. */
+    try {
+        const { data } = await axios.get(`${API}/full-epg`, {
+            params: { provider: blob(provider) },
+            timeout: proxyTimeoutMs,
+            signal,
+        });
+        return {
+            epg: data?.epg || {},
+            channelCount: data?.channel_count || 0,
+            programmeCount: data?.programme_count || 0,
+            sizeBytes: data?.size_bytes || 0,
+            cached: !!data?.cached,
+        };
+    } catch (err) {
+        /* Last-ditch: return an empty result so the caller can fall
+         * back to the per-channel loop without crashing. */
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: 0, cached: false, error: err?.message || String(err) };
+    }
 }
 
 /* Lean XMLTV parser — done in JS because the WebView fetch returns
- * the raw XML string. */
+ * the raw XML string.  Hardened so a malformed / huge payload (e.g.,
+ * a CORS-blocked HTML error page or an unbounded broker response)
+ * fails gracefully with an empty result rather than crashing the
+ * Live TV boot. */
 function parseXmltv(xmlText) {
+    /* Sanity ceiling — XMLTV for 14 000 channels with 7-day EPG is
+     * ~80 MB uncompressed.  Refuse > 100 MB so a server bug can't
+     * blow up Chrome 52 on the HK1 box. */
+    if (!xmlText || typeof xmlText !== 'string' || xmlText.length < 80) {
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: xmlText?.length || 0, cached: false };
+    }
+    if (xmlText.length > 100 * 1024 * 1024) {
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: xmlText.length, cached: false, error: 'xmltv too large' };
+    }
+    /* Bail fast if this doesn't look like XMLTV — saves the regex
+     * loop from chewing through a 5 MB HTML error page. */
+    if (xmlText.indexOf('<programme') === -1) {
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: xmlText.length, cached: false };
+    }
+
     const epg = {};
     let programmeCount = 0;
     const channels = new Set();
 
-    /* Regex-based extraction.  XMLTV is grammar-strict so the
-     * "regex parse" is safe here — every <programme> appears on
-     * its own with attribute syntax in a predictable order. */
-    const PRG = /<programme([^>]+)>([\s\S]*?)<\/programme>/g;
-    const ATTR = /(\w+)\s*=\s*"([^"]*)"/g;
-    const TITLE = /<title[^>]*>([\s\S]*?)<\/title>/;
-    const DESC = /<desc[^>]*>([\s\S]*?)<\/desc>/;
+    try {
+        /* Regex-based extraction.  XMLTV is grammar-strict so the
+         * "regex parse" is safe here — every <programme> appears on
+         * its own with attribute syntax in a predictable order. */
+        const PRG = /<programme([^>]+)>([\s\S]*?)<\/programme>/g;
+        const ATTR = /(\w+)\s*=\s*"([^"]*)"/g;
+        const TITLE = /<title[^>]*>([\s\S]*?)<\/title>/;
+        const DESC = /<desc[^>]*>([\s\S]*?)<\/desc>/;
 
-    let m;
-    while ((m = PRG.exec(xmlText))) {
-        const attrs = {};
-        let am;
-        ATTR.lastIndex = 0;
-        while ((am = ATTR.exec(m[1]))) {
-            attrs[am[1]] = am[2];
+        let m;
+        while ((m = PRG.exec(xmlText))) {
+            const attrs = {};
+            let am;
+            ATTR.lastIndex = 0;
+            while ((am = ATTR.exec(m[1]))) {
+                attrs[am[1]] = am[2];
+            }
+            const channel = attrs.channel || '';
+            if (!channel) continue;
+            const start = parseXmltvTime(attrs.start);
+            const stop = parseXmltvTime(attrs.stop);
+            if (!start) continue;
+            const tm = TITLE.exec(m[2]);
+            const dm = DESC.exec(m[2]);
+            const title = tm ? unescapeXml(tm[1]).slice(0, 200) : '';
+            const desc = dm ? unescapeXml(dm[1]).slice(0, 600) : '';
+            if (!epg[channel]) epg[channel] = [];
+            epg[channel].push({
+                title,
+                description: desc,
+                start: attrs.start || '',
+                stop: attrs.stop || '',
+                startTimestamp: start,
+                stopTimestamp: stop,
+            });
+            channels.add(channel);
+            programmeCount += 1;
         }
-        const channel = attrs.channel || '';
-        if (!channel) continue;
-        const start = parseXmltvTime(attrs.start);
-        const stop = parseXmltvTime(attrs.stop);
-        if (!start) continue;
-        const tm = TITLE.exec(m[2]);
-        const dm = DESC.exec(m[2]);
-        const title = tm ? unescapeXml(tm[1]).slice(0, 200) : '';
-        const desc = dm ? unescapeXml(dm[1]).slice(0, 600) : '';
-        if (!epg[channel]) epg[channel] = [];
-        epg[channel].push({
-            title,
-            description: desc,
-            start: attrs.start || '',
-            stop: attrs.stop || '',
-            startTimestamp: start,
-            stopTimestamp: stop,
-        });
-        channels.add(channel);
-        programmeCount += 1;
+        for (const ch of Object.keys(epg)) {
+            epg[ch].sort((a, b) => a.startTimestamp - b.startTimestamp);
+        }
+    } catch (err) {
+        return { epg: {}, channelCount: 0, programmeCount: 0, sizeBytes: xmlText.length, cached: false, error: err?.message || String(err) };
     }
-    // Sort each channel's programmes by start.
-    for (const ch of Object.keys(epg)) {
-        epg[ch].sort((a, b) => a.startTimestamp - b.startTimestamp);
-    }
+
     return {
         epg,
         channelCount: channels.size,

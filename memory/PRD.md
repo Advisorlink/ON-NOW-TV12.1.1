@@ -34,6 +34,20 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 80 — Feb 15, 2026)
+### Live TV boot — crash-proof XMLTV fetch + Skip escape hatch
+- **🐛 User reported**: "When I'm loading in preview mode, it gets all the way to just start to load the EPG and now it crashes."
+- **🔬 RCA**: `getXmltvEpg()` had two unbounded waits — the direct `fetch()` had no `AbortController` and the backend-proxy `axios.get` had a 90 s timeout.  In the preview pod (firewalled from the user's IPTV server), both calls hung for ~90 s before throwing, with no visible feedback.  Felt like a crash.
+- **✅ Fix** (`frontend/src/lib/xtream.js`):
+  - Direct fetch now uses `AbortController` with a 15 s default timeout.
+  - Backend proxy axios timeout dropped to 20 s default.
+  - Caller can override both via `getXmltvEpg(provider, {directTimeoutMs, proxyTimeoutMs, signal})`.
+  - `parseXmltv()` hardened: sanity-bails on payloads < 80 bytes, > 100 MB, or that don't even contain `<programme`.  Wraps the regex loop in try/catch.  Returns an `{error}` field instead of throwing.
+- **🛡️ Outer race** (`pages/LiveTV.jsx`): the XMLTV call site is now wrapped in `Promise.race([getXmltvEpg(...), timeout(30000)])` so the splash CAN'T hang on XMLTV — it falls through to the per-channel loop after 30 s no matter what happens upstream.  Stage-status updates on error so the user sees "XMLTV failed (timeout) — using fallback…" instead of a frozen UI.
+- **🆕 Skip button** (`components/LiveTVBoot.jsx`): a discreet `SKIP →` pill appears in the bottom-right after **10 seconds** of splash time.  Clicking it calls `onSkip()` which immediately dismisses the splash and drops the user into the grid (where the EPG loader keeps running in the background regardless).  Hidden during the first 10 s so it doesn't suggest the loader is broken when it's working normally.
+- **✅ Verified** via headless screenshot — splash renders, SKIP button appears after 10 s in the bottom-right, no console errors.
+
+
 ## Implemented (Iteration 79 — Feb 15, 2026)
 ### Live TV — confirmed no VOD load in bg + single-shot XMLTV fast-path
 - **🎯 User**: "Can we also confirm that we're not actually loading or loading in the background, the video on demand, the VOD stuff?  Someone else was saying something about a GZ file — if it's easier to compress it to a GZ file, would that be easier?"

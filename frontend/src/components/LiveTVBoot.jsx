@@ -51,7 +51,7 @@ const STAGE_FRACTION = {
     },
 };
 
-export default function LiveTVBoot({ stages, counters, bootTarget = 500 }) {
+export default function LiveTVBoot({ stages, counters, bootTarget = 500, onSkip }) {
     const activeStage = stages.find((s) => s.status === 'active')
                      || stages.find((s) => s.status === 'failed')
                      || stages.find((s) => s.status === 'pending')
@@ -223,8 +223,60 @@ export default function LiveTVBoot({ stages, counters, bootTarget = 500 }) {
                 Pure CSS translateX, no opacity stagger, GPU-cheap. */}
             <Marquee />
 
+            {/* Escape hatch — visible after 10 seconds so a stuck
+                provider can't hold the user captive on the splash.
+                Hidden until then so it doesn't suggest the loader
+                is broken when it's working normally. */}
+            {onSkip && (
+                <SkipButton onSkip={onSkip} />
+            )}
+
             <style>{LVTV_KEYFRAMES}</style>
         </div>
+    );
+}
+
+function SkipButton({ onSkip }) {
+    const [show, setShow] = React.useState(false);
+    React.useEffect(() => {
+        const t = setTimeout(() => setShow(true), 10000);
+        return () => clearTimeout(t);
+    }, []);
+    if (!show) return null;
+    return (
+        <button
+            data-testid="livetv-boot-skip"
+            data-focusable="true"
+            tabIndex={0}
+            onClick={onSkip}
+            style={{
+                position: 'absolute',
+                bottom: 56,
+                right: 36,
+                padding: '8px 14px',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: '#9DA5B5',
+                fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.18em',
+                cursor: 'pointer',
+                outline: 'none',
+                zIndex: 20,
+            }}
+            onFocus={(e) => {
+                e.currentTarget.style.background = 'rgba(93,200,255,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(93,200,255,0.55)';
+                e.currentTarget.style.color = '#FFFFFF';
+            }}
+            onBlur={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                e.currentTarget.style.color = '#9DA5B5';
+            }}
+        >
+            SKIP &rarr;
+        </button>
     );
 }
 
