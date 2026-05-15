@@ -141,13 +141,23 @@ function Grid({ provider, onLogout }) {
     }
 
     /* Selection — the ONLY state in the hot path.  `col` is one
-     *  of 0 (categories), 1 (channels), 2 (guide). */
-    const [sel, setSel] = useState(() => ({
-        col: 1,                 // start in channels — feels like coming home
-        catIdx: 0,
-        chanIdx: 0,
-        guideIdx: 0,
-    }));
+     *  of 0 (categories), 1 (channels), 2 (guide).
+     *  Initial catIdx points at the first REAL category (skipping
+     *  the optional Recently Watched / Favourites pseudo-rows) so
+     *  the user lands on actual content like "UK | Entertainment"
+     *  on first launch. */
+    const [sel, setSel] = useState(() => {
+        const hasRecents = (getRecents(provider.id) || []).length > 0;
+        let idx = 0;
+        if (hasRecents) idx += 1;  // skip Recently Watched
+        idx += 1;                   // skip Favourites
+        return {
+            col: 1,                 // start in channels — feels like coming home
+            catIdx: idx,
+            chanIdx: 0,
+            guideIdx: 0,
+        };
+    });
 
     /* Lightweight UI flags. */
     const [query, setQuery] = useState('');
@@ -165,14 +175,22 @@ function Grid({ provider, onLogout }) {
         () => getRecents(provider.id).map(String),
     );
 
+    /* Build the sidebar (Recents + Favourites + real cats) once
+     * per data change.  Used as the single source of truth for
+     * rendering AND for resolving the active category by index. */
+    const sidebarCats = useMemo(
+        () => buildSidebarCats(cats.current, favs.size, recents.length, channelsByCat.current),
+        [favs, recents, cats.current.length, channelsByCat.current.size],
+    );
+
     /* Derived: full + filtered list for the active category. */
     const allChannels = useMemo(() => {
-        const cat = effectiveCat(sel.catIdx, cats.current);
+        const cat = sidebarCats[sel.catIdx];
         if (!cat) return [];
         if (cat.id === FAV_CAT) return resolveByIds(favs, channelsByCat.current);
         if (cat.id === REC_CAT) return resolveByIds(new Set(recents), channelsByCat.current, recents);
         return channelsByCat.current.get(cat.id) || [];
-    }, [sel.catIdx, favs, recents, cats.current.length, channelsByCat.current.size]);
+    }, [sel.catIdx, favs, recents, sidebarCats, channelsByCat.current.size]);
 
     const channels = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -351,7 +369,7 @@ function Grid({ provider, onLogout }) {
                 }
                 if (key === 'ArrowDown') {
                     if (s.col === 0) {
-                        const max = effectiveCatCount(cats.current) - 1;
+                        const max = sidebarCats.length - 1;
                         return { ...s, catIdx: Math.min(max, s.catIdx + 1) };
                     }
                     if (s.col === 1) return { ...s, chanIdx: Math.min(channels.length - 1, s.chanIdx + 1) };
@@ -369,7 +387,7 @@ function Grid({ provider, onLogout }) {
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [channels, guideItems, focusedChannel, provider, query]);
+    }, [channels, guideItems, focusedChannel, provider, query, sidebarCats]);
 
     /* When you change category, snap channel index to 0. */
     useEffect(() => { setSel((s) => ({ ...s, chanIdx: 0, guideIdx: 0 })); }, [sel.catIdx]);
@@ -408,8 +426,8 @@ function Grid({ provider, onLogout }) {
         );
     }
 
-    const sidebarCats = buildSidebarCats(cats.current, favs.size, recents.length, channelsByCat.current);
-    const activeCat = sidebarCats[sel.catIdx] || sidebarCats[0];
+    const sidebarCatsForRender = sidebarCats;
+    const activeCat = sidebarCatsForRender[sel.catIdx] || sidebarCatsForRender[0];
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
@@ -432,7 +450,7 @@ function Grid({ provider, onLogout }) {
                 <Column
                     testid="cats"
                     isFocused={sel.col === 0}
-                    items={sidebarCats}
+                    items={sidebarCatsForRender}
                     idx={sel.catIdx}
                     rowHeight={ROW_H}
                     rowFn={(c, i, focused) => (
@@ -858,18 +876,6 @@ function buildSidebarCats(cats, favCount, recCount, channelsMap) {
         });
     }
     return out;
-}
-
-function effectiveCat(idx, rawCats) {
-    // Reconstruct the same sidebar order so idx maps to the right cat.
-    if (idx === 0) return { id: REC_CAT, name: 'Recently Watched' };
-    if (idx === 1) return { id: FAV_CAT, name: 'Favourites' };
-    const real = rawCats[idx - 2];
-    return real ? { id: real.category_id, name: real.category_name } : null;
-}
-
-function effectiveCatCount(rawCats) {
-    return 2 + rawCats.length;
 }
 
 function resolveByIds(idsSet, channelsMap, orderedKeys) {
