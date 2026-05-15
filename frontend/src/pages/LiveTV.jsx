@@ -380,7 +380,13 @@ function Grid({ provider, onLogout }) {
     /* ───────── Background sync ───────── */
     useEffect(() => {
         let cancel = false;
-        const TARGET_BOOT_FRACTION = 0.5;
+        /* Threshold: dismiss the boot splash once the first
+         * BOOT_TARGET_CHANNELS channels have their EPG cached (or all
+         * channels, whichever is smaller).  500 is the sweet spot —
+         * fast enough to feel snappy on the HK1 box, slow enough that
+         * a meaningful chunk of NOW/NEXT is ready before the user
+         * lands in the grid. */
+        const BOOT_TARGET_CHANNELS = 500;
         (async () => {
             setSyncing(true);
             try {
@@ -445,12 +451,13 @@ function Grid({ provider, onLogout }) {
                 /* Pre-fill: count channels we already have EPG for. */
                 let epgDone = sids.filter((sid) => epg.current.has(sid)).length;
                 const epgTotal = sids.length || 1;
+                const bootTarget = Math.min(BOOT_TARGET_CHANNELS, epgTotal);
                 setBootCounters((c) => ({ ...c, epgDone, epgTotal }));
                 setStage('epg', 'active', `${epgDone}/${epgTotal} channels`);
 
-                /* If the cache was already >= 50 % full, dismiss the
-                 * splash immediately and let the rest fetch in bg. */
-                if (epgDone / epgTotal >= TARGET_BOOT_FRACTION) {
+                /* If the cache was already past the target, dismiss
+                 * the splash immediately and let the rest fetch in bg. */
+                if (epgDone >= bootTarget) {
                     setStage('epg', 'done', `${epgDone}/${epgTotal} cached, more loading…`);
                     setBootBlocked(false);
                 }
@@ -486,10 +493,9 @@ function Grid({ provider, onLogout }) {
                         setBootCounters((c) => ({ ...c, epgDone }));
                         setStage('epg', frac >= 1 ? 'done' : 'active',
                             `${epgDone}/${epgTotal} channels`);
-                        /* The MOMENT we cross the threshold, dismiss
-                         * the splash so the user gets in fast — the
-                         * rest of the EPG keeps flowing in the bg. */
-                        if (frac >= TARGET_BOOT_FRACTION) {
+                        /* Dismiss the splash the moment we've covered
+                         * the boot target (500 channels by default). */
+                        if (epgDone >= bootTarget) {
                             setBootBlocked(false);
                         }
                     }
@@ -792,7 +798,7 @@ function Grid({ provider, onLogout }) {
      * — the splash is full-screen and intentionally blocks all
      * interaction so the user can't D-pad into an empty grid. */
     if (bootBlocked) {
-        return <LiveTVBoot stages={bootStages} counters={bootCounters} />;
+        return <LiveTVBoot stages={bootStages} counters={bootCounters} bootTarget={500} />;
     }
 
     return (

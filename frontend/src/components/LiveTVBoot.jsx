@@ -18,9 +18,14 @@ import { Tv, Cast, ListTree, Radio, Calendar } from 'lucide-react';
  *   5. Drifting marquee of TV / film glyphs at the very bottom
  *
  * Props:
- *   • stages   — [{ id, label, status, detail }, …]
- *   • counters — { categoriesDone, categoriesTotal,
- *                  channelsCount, epgDone, epgTotal }
+ *   • stages       — [{ id, label, status, detail }, …]
+ *   • counters     — { categoriesDone, categoriesTotal,
+ *                      channelsCount, epgDone, epgTotal }
+ *   • bootTarget   — number of EPG channels needed to dismiss the
+ *                    splash.  The arc + percentage are computed
+ *                    against this, NOT epgTotal, so a 14 000-channel
+ *                    provider doesn't feel "stuck at 3 %".  Defaults
+ *                    to 500.
  */
 
 const PHASE_ICON = {
@@ -36,11 +41,17 @@ const STAGE_FRACTION = {
         ? Math.min(1, c.categoriesDone / c.categoriesTotal) : 0,
     channels:   (c) => c.categoriesTotal
         ? Math.min(1, c.categoriesDone / c.categoriesTotal) : 0,
-    epg:        (c) => c.epgTotal
-        ? Math.min(1, c.epgDone / c.epgTotal) : 0,
+    /* EPG fraction is measured against the BOOT TARGET (e.g. 500), not
+     * the full channel count.  Otherwise on a 14 000-channel provider
+     * the user would stare at "3 %" for ages even though we're nearly
+     * ready to dismiss the splash. */
+    epg:        (c, target) => {
+        const t = Math.min(target || 500, c.epgTotal || 0) || 1;
+        return Math.min(1, (c.epgDone || 0) / t);
+    },
 };
 
-export default function LiveTVBoot({ stages, counters }) {
+export default function LiveTVBoot({ stages, counters, bootTarget = 500 }) {
     const activeStage = stages.find((s) => s.status === 'active')
                      || stages.find((s) => s.status === 'failed')
                      || stages.find((s) => s.status === 'pending')
@@ -48,10 +59,12 @@ export default function LiveTVBoot({ stages, counters }) {
     const ActiveIcon = PHASE_ICON[activeStage?.id] || Tv;
 
     // Overall progress: weight stages 10/20/30/40 (EPG dominates).
+    // `bootTarget` is threaded into the EPG stage fraction so the
+    // arc fills with respect to "500 channels", not "14 000".
     const weights = { auth: 0.10, categories: 0.20, channels: 0.30, epg: 0.40 };
     let overall = 0;
     for (const s of stages) {
-        const f = (STAGE_FRACTION[s.id] || (() => 0))(counters || {});
+        const f = (STAGE_FRACTION[s.id] || (() => 0))(counters || {}, bootTarget);
         if (s.status === 'done') overall += weights[s.id] || 0;
         else if (s.status === 'active') overall += (weights[s.id] || 0) * f;
     }
@@ -181,7 +194,9 @@ export default function LiveTVBoot({ stages, counters }) {
                 <CounterCard
                     label="TV GUIDE"
                     value={counters.epgDone}
-                    total={counters.epgTotal}
+                    /* Cap the visible divisor at the boot target —
+                     * "237 / 500" reads cleaner than "237 / 14 273". */
+                    total={Math.min(bootTarget, counters.epgTotal || bootTarget)}
                     active={activeStage?.id === 'epg'}
                 />
             </div>
@@ -199,7 +214,7 @@ export default function LiveTVBoot({ stages, counters }) {
                     <StageRow
                         key={s.id}
                         stage={s}
-                        fraction={(STAGE_FRACTION[s.id] || (() => 0))(counters || {})}
+                        fraction={(STAGE_FRACTION[s.id] || (() => 0))(counters || {}, bootTarget)}
                     />
                 ))}
             </ul>

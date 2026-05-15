@@ -34,6 +34,15 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 78 — Feb 15, 2026)
+### Live TV boot — 500-channel target instead of half-of-all
+- **🎯 User**: "How about we try 500 channels for the TV guide instead of 14000? 500 channels completely set up and ready to go with the EPG, and then the rest can load while they're using it?"
+- **🔁 Threshold change** (`pages/LiveTV.jsx`): replaced `TARGET_BOOT_FRACTION = 0.5` with `BOOT_TARGET_CHANNELS = 500`. Splash now dismisses the instant the first 500 channels (or all channels, whichever is smaller) have their EPG cached. On a 14 000-channel Xtream this drops boot time from ~minutes (50 % of 14k) to ~10–20 s (500 channels).
+- **🪞 Splash math** (`components/LiveTVBoot.jsx`): the arc + percentage + per-row fill are now computed against `bootTarget`, NOT against the full `epgTotal`. So the user sees a smooth 0 → 100 % climb to "ready" rather than the splash staring at 3 % for ages.
+- **📊 TV GUIDE card divisor**: capped at `min(bootTarget, epgTotal)` so the counter reads `237 / 500` instead of `237 / 14 273`. Once the splash dismisses, the rest of the EPG keeps loading silently in the background.
+- **♾️ No regression**: post-splash background load still iterates the full channel list with 6 workers and no hard cap, so given a few minutes of grid time the entire 14 000-channel EPG ends up cached locally.
+
+
 ## Implemented (Iteration 77 — Feb 15, 2026)
 ### Live TV boot splash — premium redesign
 - **🎯 User**: "We have to make that loading sequence way nicer looking — I want the UI to look really beautiful on that loading sequence."
