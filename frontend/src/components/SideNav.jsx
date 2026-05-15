@@ -43,6 +43,20 @@ export default function SideNav() {
     const currentFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
 
+    // 300 ms dwell timer — the rail only expands after the focus
+    // has been on a nav button for a moment.  This prevents
+    // accidental "I tapped LEFT at the leftmost tile and the menu
+    // popped open" surprises — a quick LEFT-then-RIGHT round trip
+    // never actually surfaces the rail.
+    const dwellTimer = React.useRef(null);
+    const clearDwell = () => {
+        if (dwellTimer.current) {
+            clearTimeout(dwellTimer.current);
+            dwellTimer.current = null;
+        }
+    };
+    React.useEffect(() => () => clearDwell(), []);
+
     // Reset the force-collapse flag whenever the route actually
     // changes — by then Home's focus-retry effect has begun to
     // move focus into the grid so natural onBlur collapse takes
@@ -55,6 +69,7 @@ export default function SideNav() {
 
     const handleNavClick = (path) => {
         setExpanded(false);
+        clearDwell();
         setNavigatingAway(true);
         // Drop focus off the SideNav button so onFocus doesn't
         // immediately re-expand the rail on the next paint.
@@ -78,12 +93,25 @@ export default function SideNav() {
     return (
         <nav
             data-testid="side-nav"
-            onFocus={() => {
-                if (!navigatingAway) setExpanded(true);
+            onFocus={(e) => {
+                // Don't fire when the rail itself or an outer wrapper
+                // bubbled — only when focus genuinely moves into a
+                // focusable child.
+                if (!e.target.matches('[data-focusable="true"]')) return;
+                if (navigatingAway) return;
+                // 300 ms dwell — quick LEFT-RIGHT round trips never
+                // actually expand the rail.
+                clearDwell();
+                dwellTimer.current = setTimeout(() => {
+                    setExpanded(true);
+                    dwellTimer.current = null;
+                }, 300);
             }}
             onBlur={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget))
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                    clearDwell();
                     setExpanded(false);
+                }
             }}
             className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-300"
             style={{

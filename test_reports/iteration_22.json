@@ -1,0 +1,70 @@
+{
+  "summary": "Iter 22 — frontend-only D-pad / navigation audit benchmark. PASSED: Profile-select page renders without SideNav, LEFT/RIGHT moves between profile cards. Home initial focus lands on content (network-netflix), NOT in SideNav. SideNav 300 ms dwell works as specified: width stays ~76 px immediately after a LEFT press, expands to ~190 px after ~450 ms of dwell on a nav button, collapses back to ~76 px after RIGHT moves focus out. A quick LEFT-then-RIGHT round trip (80 ms) NEVER expands the rail (still 76 px both immediately and 350 ms later). Short-press Enter fires the click handler exactly 1 time. FAILED / CRITICAL: Escape (Android-wrapper Back) on /sports does NOT navigate to '/' — SportsGuide only sets the window.__vesperOnHome flag via useHomeBackHandler('') which is consumed by the Kotlin native side and has NO JS handler. Escape on /live-tv also did NOT navigate to '/' in our run despite an Escape listener existing in LiveTV.jsx (likely because the LiveTVAuth gate rendered first — preview pod can't reach the user's IPTV server, so only 2 focusables are present). Long-press hold-OK on fixture cards COULD NOT BE VERIFIED end-to-end due to profile-bootstrap routing reverting to /profiles after our localStorage injection on the /sports route — but Home's short-press test confirms the keydown/keyup split in useSpatialFocus is wired (single click on press, no double-click).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SportsGuide back-button",
+        "issue": "Pressing Escape on /sports does NOT navigate to '/'. useHomeBackHandler('') only sets a window flag (for Kotlin to read via evaluateJavascript) — it does NOT attach any keydown handler. The Android wrapper sends Escape as the BACK key (per the test spec), so the web side must also listen for Escape/Backspace and navigate('/'). Currently broken on both web preview and most likely on Android too (the Kotlin side only fires on KEYCODE_BACK, and depending on wrapper implementation that may translate to Escape that the WebView never consumes).",
+        "selector": "/app/frontend/src/pages/SportsGuide.jsx (around line 124 — useHomeBackHandler('') is insufficient)",
+        "priority": "HIGH"
+      },
+      {
+        "component": "LiveTV back-button under Auth gate",
+        "issue": "Escape on /live-tv did not navigate to '/' in our run. LiveTV.jsx has the Escape→navigate('/') effect (line 82-92), but it only mounts inside the <LiveTV/> component AFTER auth provider is set. When the LiveTVAuth gate is shown (provider==null — the preview pod / fresh install case), there is no Escape handler. On a sideloaded APK without provider config the user is stuck on the auth screen with no Back key.",
+        "selector": "/app/frontend/src/pages/LiveTV.jsx line 82 — effect should be hoisted above the provider check, or LiveTVAuth should have its own Escape handler.",
+        "priority": "HIGH"
+      },
+      {
+        "component": "SideNav expanded width",
+        "issue": "Spec says 240 px expanded; measured ~190 px (189.98 px). Functionally correct (clearly expanded vs 76 px collapsed) but does not match the spec's '≈240 px' target. The CSS sets width:240px in style — likely a layout-clamp / max-width somewhere in the parent. Minor cosmetic.",
+        "selector": "/app/frontend/src/components/SideNav.jsx line 117-123",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Long-press hold-OK suppression on Sports fixture cards",
+        "issue": "Could not directly verify the 'hold-Enter fires reminder, does NOT also play' guarantee end-to-end because routing kept landing on /profiles when we reloaded /sports with our tester profile injected (the React app's profile bootstrap runs before our localStorage takes effect on a reload). Code-review-wise the path looks correct: useSpatialFocus onKeyUp checks data-long-pressed and skips target.click() when set; FixtureCard's onKeyDown sets data-long-pressed after 6 repeats. Recommend an integration smoke test on the actual APK once sideloaded — or in preview, drive D-pad navigation from the profile screen instead of jumping straight to /sports.",
+        "affected_selectors": ["[data-testid^='fixture']", "data-long-pressed"]
+      },
+      {
+        "flow": "Live TV column D-pad nav",
+        "issue": "Preview pod cannot reach IPTV server, so only 2 focusables render on /live-tv (the auth gate's email + connect buttons). Cannot test the 3-column LEFT/RIGHT nav nor the hold-OK favourite toggle on a channel. This is expected per request, but means the Live TV portion of the benchmark is uncovered in preview — the user MUST validate this on the sideloaded APK with a real provider configured.",
+        "affected_selectors": ["[data-testid='live-tv-channel-list']", "[data-testid='live-tv-categories']", "[data-testid='live-tv-epg']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: Add a real Escape/Backspace keydown handler to /sports (SportsGuide.jsx) that calls navigate('/'). useHomeBackHandler alone is not enough — it only flags the window for Kotlin. Easiest fix: import useNavigate and useEffect a window-level keydown listener that catches Escape/Backspace (when activeElement is not an INPUT/TEXTAREA) and routes to '/'. Mirror what LiveTV.jsx does at line 82-92.",
+    "CRITICAL: Move the Escape→navigate('/') effect in LiveTV.jsx to a level that mounts regardless of provider auth state — currently when LiveTVAuth gate shows (no provider), there's no back-button handler at all. Either hoist the effect into a wrapper above the conditional return, or duplicate it inside LiveTVAuth.",
+    "Apply the same Escape/Backspace pattern to every page that uses useHomeBackHandler — verify SearchPage, Library, WatchTogether, Sources, Settings, Detail routes all return to either previous route or '/' as appropriate.",
+    "SideNav expanded width measures 189 px not the spec-target 240 px. Either update the spec or find the clamp (likely a flex parent or transform-scale). Cosmetic only.",
+    "Add a data-testid='fixture-card' (and similar) prefix convention so testing agents and the user can reliably query/long-press fixture cards regardless of fixture id.",
+    "Consider adding window.__vesperLongPressFired counter (already exposed) plus a data-testid on FixtureCard host for testing — would let us verify hold-OK fires reminder once and NOT also click."
+  ],
+  "critical_code_review_comments": [
+    "useSpatialFocus.js: Excellent split of keydown vs keyup for click dispatch. The data-long-pressed contract is clean. One concern: keyup unconditionally clears data-pressed via both removeAttribute and a 320 ms setTimeout — the timeout is redundant.",
+    "useSpatialFocus.js line 524: Escape inside an input blurs it. That's correct — but Escape outside an input is NOT handled here at all. The intended back-key contract is on each page individually (LiveTV, etc.), which is fragile. Consider a single useGlobalBackHandler hook that pages opt into with a target route.",
+    "useHomeBackHandler.js: Misleadingly named — it sets a flag, it does not handle anything. Rename to useNativeHomeFlag or similar, or merge with a real key handler.",
+    "SideNav.jsx: The 300 ms dwell timer is implemented correctly using a ref + setTimeout and cleared on blur. The navigatingAway flag (350 ms) is a nice touch to prevent re-expansion during route transition.",
+    "LiveTV.jsx: The Escape handler is inside the post-auth component. When provider==null and LiveTVAuth renders, this effect never mounts → no back key. Fix is one-liner: pull the useEffect above the `if (!provider) return <LiveTVAuth ...>` line.",
+    "useSpatialFocus.js fixture long-press: relies on cooperating components setting data-long-pressed on the host element. Good pattern, but undocumented in the hook's JSDoc. Add a 'Long-press contract' section to the header comment so future components don't accidentally fire both reminder and click."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only)",
+    "frontend": "70% (9/13 spec items verified passing; 2 critical back-button failures; 2 items uncoverable in preview pod)"
+  },
+  "test_credentials": "None. Tester profile injected via localStorage keys onnowtv-profiles-v1 + onnowtv-active-profile-v1.",
+  "seed_data_creation": "Tester profile {id:'tester', name:'Tester', avatar:'🧪', isKid:false, pin:null} written to localStorage for navigation tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "(1) Profile bootstrap takes precedence over localStorage if injection happens AFTER initial mount — inject localStorage BEFORE the first navigation, not after page.reload(). The cleanest pattern is: page.goto(BASE), evaluate localStorage setItem, then page.goto(target_route). (2) Preview pod cannot reach the user's IPTV server, so /live-tv shows the LiveTVAuth gate (only ~2 focusables: email field + connect button). Real 3-column nav testing requires a sideloaded APK with provider configured. (3) To measure SideNav dwell, capture rail width immediately after ArrowLeft (expect ~76), at 100 ms (still 76), at 400 ms (expanded ~190+). Width is read off [data-testid='side-nav'].getBoundingClientRect().width. (4) Long-press simulation: dispatch 7-8 keydown events with repeat=true at ~90 ms intervals on document.activeElement AND on window, then a single keyup. Verify __clickCount === 0 and data-long-pressed was 'true' before keyup. (5) The Escape key does NOT navigate from /sports today — this is the biggest blocker for the benchmark; do not waste cycles re-verifying once the main agent fixes SportsGuide.",
+  "rca of the issue": "Root cause of [F] back-button failure on /sports: SportsGuide.jsx imports and calls useHomeBackHandler(''), but that hook only writes window.__vesperOnHome — it is a HINT to the Kotlin native MainActivity, not a working back handler. There is no window 'keydown' listener for Escape/Backspace anywhere in the SportsGuide route. Reproduction: open /sports in browser, press Escape → URL stays at /sports (verified twice). Mitigation: add a one-shot useEffect that listens for Escape/Backspace on window and calls navigate('/'), mirroring LiveTV.jsx line 82-92. Root cause of [F] back-button failure on /live-tv in preview: the Escape handler exists but is mounted on the <LiveTV/> body which only renders after provider auth — when the IPTV provider is null, <LiveTVAuth/> renders without any Escape handler. Mitigation: hoist the useEffect above the early-return."
+}

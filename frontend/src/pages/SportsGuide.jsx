@@ -36,6 +36,8 @@ import {
     Loader2, AlertTriangle, Calendar, Flame, Play, Award,
 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { getActiveProvider, getStreamUrl } from '@/lib/xtream';
 import { matchFixture } from '@/lib/sportsMatch';
 import { getReminders, toggleReminder } from '@/lib/liveReminders';
@@ -113,6 +115,13 @@ const MARQUEE_LEAGUES = new Set([
 export default function SportsGuide() {
     const navigate = useNavigate();
     const provider = getActiveProvider();
+
+    // Spatial D-pad focus — same global hook Home / Detail / Search use.
+    // Without this, ArrowKeys don't move focus on the TV box.
+    useSpatialFocus();
+    // Mark this page so the Kotlin Back-key handler treats Back as
+    // "navigate to /" (web history pop), not an exit prompt.
+    useHomeBackHandler('');
 
     const [data, setData] = useState(null);
     const [liveScores, setLiveScores] = useState({});   // id → score patch
@@ -946,7 +955,11 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
     const showScore      = showLiveScore || showFinalScore;
     const liveWatchable  = live && matches.length > 0;
 
-    /* Press tracking for hold-OK = reminder. */
+    /* Press tracking for hold-OK = reminder.  We set
+       `data-long-pressed="true"` on the card element when the long
+       press fires so useSpatialFocus' onKeyUp skips its automatic
+       click() — otherwise a long press would BOTH set a reminder
+       AND play the channel. */
     const pressRef = useRef({ count: 0, fired: false });
     const onKeyDown = (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -954,19 +967,17 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
         p.count += 1;
         if (p.count >= 6 && !p.fired) {
             p.fired = true;
-            e.preventDefault();
+            e.currentTarget.setAttribute('data-long-pressed', 'true');
             onRemind(fixture);
         }
     };
     const onKeyUp = (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         const p = pressRef.current;
-        const wasLong = p.fired;
         p.count = 0; p.fired = false;
-        if (!wasLong) {
-            e.preventDefault();
-            if (matches.length > 0) onPlay(fixture);
-        }
+        // Don't call onPlay here — the global useSpatialFocus keyup
+        // will fire onClick (which the card wires to onPlay) only
+        // if data-long-pressed is not set.  Avoids duplicate plays.
     };
 
     return (

@@ -554,21 +554,44 @@ export default function useSpatialFocus() {
                 return;
             }
 
+            // Enter / Space — we ONLY swallow the default browser
+            // behaviour here.  The actual click() fires on keyup so
+            // a component's own onKeyDown / onKeyUp handler (e.g.,
+            // hold-OK to favourite / set reminder) gets first crack
+            // at consuming the press.  Without this split, a held
+            // OK would fire BOTH the long-press action AND a click
+            // on every repeat — playing the channel AND favouriting
+            // it in one go.
             if (e.key === 'Enter' || e.key === ' ') {
                 if (
                     document.activeElement &&
                     document.activeElement.matches('[data-focusable="true"]')
                 ) {
                     e.preventDefault();
-                    const target = document.activeElement;
                     // Press-ripple feedback (CSS @keyframes).
-                    target.setAttribute('data-pressed', 'true');
-                    setTimeout(() => {
-                        target.removeAttribute('data-pressed');
-                    }, 320);
-                    target.click();
+                    if (!e.repeat) {
+                        document.activeElement.setAttribute('data-pressed', 'true');
+                    }
                 }
             }
+        };
+
+        const onKeyUp = (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const target = document.activeElement;
+            if (!target || !target.matches('[data-focusable="true"]')) return;
+            // Clear the press-ripple state.
+            target.removeAttribute('data-pressed');
+            setTimeout(() => {
+                target.removeAttribute('data-pressed');
+            }, 320);
+            // If a component-level handler claimed the press as a
+            // long-press, don't also dispatch a click.
+            if (target.getAttribute('data-long-pressed') === 'true') {
+                target.removeAttribute('data-long-pressed');
+                return;
+            }
+            target.click();
         };
 
         // Initial focus: prefer `data-initial-focus`, but the hero
@@ -621,8 +644,10 @@ export default function useSpatialFocus() {
         );
 
         window.addEventListener('keydown', onKey);
+        window.addEventListener('keyup', onKeyUp);
         return () => {
             window.removeEventListener('keydown', onKey);
+            window.removeEventListener('keyup', onKeyUp);
             timers.forEach((t) => clearTimeout(t));
             observer.disconnect();
             if (invalidationTimer) cancelAnimationFrame(invalidationTimer);

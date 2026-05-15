@@ -26,6 +26,7 @@ import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import SideNav from '@/components/SideNav';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
 
 /** WebSocket URL derived from REACT_APP_BACKEND_URL.  Falls back
  *  to wss:// when the page is loaded over https://. */
@@ -43,6 +44,9 @@ export default function WatchTogether() {
     const [partyState, setPartyState] = useState(null);
     const wsRef = useRef(null);
     const myMemberIdRef = useRef(null);
+
+    // Global spatial D-pad — same hook used by Home / Detail / Search.
+    useSpatialFocus();
 
     /** Open the websocket for the chosen code & role.  Idempotent
      *  while we're still mounted. */
