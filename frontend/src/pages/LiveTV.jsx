@@ -147,6 +147,16 @@ function Grid({ provider, onLogout }) {
      * entry (favourite, reminder).  Cleared on cancel or confirm. */
     const [pendingConfirm, setPendingConfirm] = useState(null);
 
+    /* `bump` — cheap re-render counter incremented whenever the
+     * background EPG prefetch fills `epg.current` or a long-press
+     * mutates the favourites / reminders refs.  Lives above the
+     * `channels` / `allChannels` useMemos because BOTH read it in
+     * their dependency arrays (TDZ would otherwise fire on first
+     * render — caught by the error boundary as "Cannot access
+     * 'bump' before initialization"). */
+    const [bump, setBump] = useState(0);
+    const rerender = useCallback(() => setBump((b) => b + 1), []);
+
     const [favs, setFavs] = useState(() => new Set(getFavList(provider.id).map(String)));
     const [recents, setRecents] = useState(() => getRecents(provider.id).map(String));
     const [reminders, setReminders] = useState(() => pruneStale(provider.id));
@@ -398,14 +408,6 @@ function Grid({ provider, onLogout }) {
         return () => { cancel = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider]);
-
-    /* `bump` is a cheap re-render counter — incremented whenever
-     * we mutate epg.current so the memoised renderChannel can
-     * regenerate, which in turn changes ChannelCard's `now` prop
-     * so React.memo doesn't short-circuit and the new EPG data
-     * appears on every visible card. */
-    const [bump, setBump] = useState(0);
-    const rerender = useCallback(() => setBump((b) => b + 1), []);
 
     /* ───────── Handlers ───────── */
     const doToggleFav = useCallback(() => {
