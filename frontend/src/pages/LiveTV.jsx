@@ -1,54 +1,35 @@
 /**
- * Live TV — HK1-OPTIMISED REWRITE
+ * Live TV — V2.3 design rebuild.
  *
- * Designed for Android 7.1.2 / Chrome 52 / Mali-450 GPU.  Every
- * decision below is informed by what TV Mate does to feel buttery
- * on the same hardware.
+ *   ── Layout ──
+ *     Hero (fixed at top, never scrolls):
+ *       • Full-bleed TMDB programme backdrop (debounced, cached)
+ *       • Eyebrow · Channel name · NOW time · synopsis · progress bar
+ *       • UP NEXT line · big "Watch full-screen" pill
+ *       • Top-right utility buttons (★ favourite · ⟳ refresh · ↪ exit)
+ *     Body (only this scrolls inside its 3 columns):
+ *       • Categories pill list (Favourites pinned, then real cats)
+ *       • Channels pill cards (logo + ch# + name + NOW + progress)
+ *       • Guide column grouped by TODAY / TOMORROW (reminder rows)
  *
- *   ── Architecture ──
+ *   ── Perf ──
+ *     Same proven primitives from v2.2.2:
+ *       • Hot data in refs, only `sel` state in the hot path
+ *       • All row + column components React.memo'd
+ *       • Stable rowFn callbacks via useCallback
+ *       • Stable EMPTY_ARRAY for "no EPG" case
+ *       • Guide column debounced 120 ms — settles, then renders
+ *       • TMDB backdrop fires only after settle + cache by title
  *
- *   • Hot data lives in REFS, not state.  React only re-renders
- *     when the visible window or the selection cursor changes —
- *     never when a single channel is focused.
- *
- *   • The channel + guide lists are virtualised manually.  Rows
- *     are absolutely positioned at `top: index * ROW_H`.  No
- *     flexbox per-row, no nested spans, no buttons.  Only the
- *     ~20 rows visible in the viewport are mounted; everything
- *     else is just a number on a ruler.
- *
- *   • Navigation is INDEX-BASED, not geometric.  A single keydown
- *     handler at the page level reads `state.col` and `state.idx`,
- *     bumps the index, and re-renders.  No `getBoundingClientRect`
- *     loops, no spatial focus geometry — that's the single biggest
- *     source of chunkiness on the box.
- *
- *   • Focus is a CSS attribute on the column container, not the
- *     row.  When you arrow-down, we set `state.idx + 1`; React
- *     diffs *one* `data-focused="true"` attribute.  The previous
- *     and next rows don't re-render at all — their CSS rule
- *     `[data-col-focused] [data-idx="…"] { … }` applies the
- *     highlight purely via the cascade.
- *
- *   • EPG and channel data are persisted to localStorage (see
- *     liveCache.js) so subsequent launches are instant: the grid
- *     paints with cached data on the first frame, and the network
- *     refresh runs silently in the background.
- *
- *   • TMDB hero backdrop fires only after the user has SETTLED on
- *     a programme for 1500 ms — fast scrubbing triggers zero
- *     network calls.  Cached results re-render instantly.
- *
- *   ── Stripped on purpose ──
- *   No useSpatialFocus on this page.  No transitions/animations.
- *   No CSS variables in the row body.  No shadow effects.  No
- *   filter / mask-composite.  No channel logos.  No gradients on
- *   row backgrounds.
+ *   ── Keypad ──
+ *     Initial focus: col 0 (categories), idx 0.
+ *     ←/→ moves between columns; ↑/↓ within column; Enter plays a
+ *     channel or toggles a reminder; F toggles favourite.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Clock, Search } from 'lucide-react';
+import { Star, Calendar, Bell, Play, RefreshCw, LogOut, Search } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import XtreamLogin from '@/components/XtreamLogin';
 import {
@@ -65,6 +46,11 @@ import {
 } from '@/lib/liveFavorites';
 import { getRecents, pushRecent } from '@/lib/liveRecents';
 import {
+    getReminders,
+    toggleReminder,
+    pruneStale,
+} from '@/lib/liveReminders';
+import {
     loadCategories,
     saveCategories,
     loadChannels,
@@ -72,21 +58,21 @@ import {
     loadEpg,
     mergeAndSaveEpg,
 } from '@/lib/liveCache';
+import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import Host from '@/lib/host';
 
-const ROW_H = 36;            // single source of truth for row height
-const BUFFER = 4;            // rows to render above + below visible window
+const ROW_H = 52;
+const GUIDE_ROW_H = 64;
+const BUFFER = 4;
 const FAV_CAT = '__fav__';
 const REC_CAT = '__rec__';
-const EMPTY_ARRAY = [];      // stable reference so React.memo can short-circuit
+const EMPTY_ARRAY = [];
 
 /* ─────────────────────────── Page shell ─────────────────────────── */
 
 export default function LiveTV() {
     const [provider, setProvider] = useState(() => getActiveProvider());
     const navigate = useNavigate();
-
-    // Stable handlers — keeps memoized children from re-rendering.
     const handleLogout = useCallback(() => setProvider(null), []);
     const handleAuthed = useCallback((p) => setProvider(p), []);
 
@@ -103,14 +89,21 @@ export default function LiveTV() {
     }, [navigate]);
 
     return (
-        <div className="relative w-screen" style={{
-            minHeight: '100dvh',
+        <div style={{
+            position: 'fixed',
+            inset: 0,
             background: '#0A0F1A',
-            overflow: 'hidden',
             color: '#E6EAF2',
+            overflow: 'hidden',
         }}>
             <SideNav />
-            <main style={{ marginLeft: 100, minHeight: '100dvh', position: 'relative' }}>
+            <main style={{
+                position: 'absolute',
+                inset: '0 0 0 100px',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+            }}>
                 {provider
                     ? <Grid provider={provider} onLogout={handleLogout} />
                     : <XtreamLogin onAuthed={handleAuthed} />}
@@ -124,14 +117,12 @@ export default function LiveTV() {
 function Grid({ provider, onLogout }) {
     const navigate = useNavigate();
 
-    /* Hot data — never re-rendered.  Only when we change selection. */
-    const cats = useRef([]);                 // Category[]
-    const channelsByCat = useRef(new Map()); // catId -> Channel[]
-    const epg = useRef(new Map());           // streamId -> EpgItem[]
+    /* Hot data — never re-rendered. */
+    const cats = useRef([]);
+    const channelsByCat = useRef(new Map());
+    const epg = useRef(new Map());
 
-    /* Synchronous hydrate from localStorage on first mount.  If we
-     * have anything, the grid renders with stale data on the very
-     * first frame.  No boot screen, no loading spinner. */
+    /* Synchronous hydrate. */
     if (cats.current.length === 0) {
         const c = loadCategories(provider.id) || [];
         const ch = loadChannels(provider.id) || {};
@@ -145,56 +136,36 @@ function Grid({ provider, onLogout }) {
         }
     }
 
-    /* Selection — the ONLY state in the hot path.  `col` is one
-     *  of 0 (categories), 1 (channels), 2 (guide).
-     *  Initial catIdx points at the first REAL category (skipping
-     *  the optional Recently Watched / Favourites pseudo-rows) so
-     *  the user lands on actual content like "UK | Entertainment"
-     *  on first launch. */
-    const [sel, setSel] = useState(() => {
-        const hasRecents = (getRecents(provider.id) || []).length > 0;
-        let idx = 0;
-        if (hasRecents) idx += 1;  // skip Recently Watched
-        idx += 1;                   // skip Favourites
-        return {
-            col: 1,                 // start in channels — feels like coming home
-            catIdx: idx,
-            chanIdx: 0,
-            guideIdx: 0,
-        };
-    });
+    /* Selection — initial focus on TOP CATEGORY. */
+    const [sel, setSel] = useState(() => ({
+        col: 0,                 // Categories column
+        catIdx: 0,              // Top of the list (Favourites or first cat)
+        chanIdx: 0,
+        guideIdx: 0,
+    }));
 
-    /* Lightweight UI flags. */
     const [query, setQuery] = useState('');
     const [syncing, setSyncing] = useState(false);
-    const [bootMessage, setBootMessage] = useState(
-        cats.current.length > 0 ? '' : 'Connecting…',
+
+    const [favs, setFavs] = useState(() => new Set(getFavList(provider.id).map(String)));
+    const [recents, setRecents] = useState(() => getRecents(provider.id).map(String));
+    const [reminders, setReminders] = useState(() => pruneStale(provider.id));
+    const reminderKeys = useMemo(
+        () => new Set(reminders.map((r) => r.id)),
+        [reminders],
     );
 
-    /* Per-provider favs / recents.  Stored in state so the sidebar
-     * re-renders when toggled. */
-    const [favs, setFavs] = useState(
-        () => new Set(getFavList(provider.id).map(String)),
-    );
-    const [recents, setRecents] = useState(
-        () => getRecents(provider.id).map(String),
-    );
-
-    /* Build the sidebar (Recents + Favourites + real cats) once
-     * per data change.  Used as the single source of truth for
-     * rendering AND for resolving the active category by index. */
     const sidebarCats = useMemo(
         () => buildSidebarCats(cats.current, favs.size, recents.length, channelsByCat.current),
         [favs, recents, cats.current.length, channelsByCat.current.size],
     );
 
-    /* Derived: full + filtered list for the active category. */
     const allChannels = useMemo(() => {
         const cat = sidebarCats[sel.catIdx];
-        if (!cat) return [];
+        if (!cat) return EMPTY_ARRAY;
         if (cat.id === FAV_CAT) return resolveByIds(favs, channelsByCat.current);
         if (cat.id === REC_CAT) return resolveByIds(new Set(recents), channelsByCat.current, recents);
-        return channelsByCat.current.get(cat.id) || [];
+        return channelsByCat.current.get(cat.id) || EMPTY_ARRAY;
     }, [sel.catIdx, favs, recents, sidebarCats, channelsByCat.current.size]);
 
     const channels = useMemo(() => {
@@ -209,25 +180,22 @@ function Grid({ provider, onLogout }) {
 
     const focusedChannel = channels[Math.min(sel.chanIdx, channels.length - 1)] || null;
 
-    /* Guide items — debounced to settle 120 ms after the user stops
-     * scrubbing.  Holding D-pad down doesn't trigger right-column
-     * re-renders; we only update once you actually pause on a
-     * channel.  Massive perf win on the HK1: previously the right
-     * column reconciled 20 rows every keypress.
-     *
-     * Use stable EMPTY_ARRAY when there's no EPG so React.memo on
-     * Column can short-circuit the comparison. */
+    /* Debounced guide channel (120 ms after focus settles).  Skips
+     * re-renders of the right column during fast scrubbing. */
     const [debouncedChannel, setDebouncedChannel] = useState(focusedChannel);
     useEffect(() => {
         const t = setTimeout(() => setDebouncedChannel(focusedChannel), 120);
         return () => clearTimeout(t);
     }, [focusedChannel]);
-    const guideItems = (debouncedChannel
-        ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
-        : EMPTY_ARRAY);
-    const focusedItem = guideItems[Math.min(sel.guideIdx, Math.max(0, guideItems.length - 1))] || null;
 
-    /* ───────── Background sync (writes-through to localStorage) ───────── */
+    const guideItems = debouncedChannel
+        ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
+        : EMPTY_ARRAY;
+
+    /* Group guide entries by day for the TODAY / TOMORROW headers. */
+    const guideGroups = useMemo(() => groupByDay(guideItems), [guideItems]);
+
+    /* ───────── Background sync ───────── */
     useEffect(() => {
         let cancel = false;
         (async () => {
@@ -235,7 +203,6 @@ function Grid({ provider, onLogout }) {
             try {
                 await authenticate(provider);
                 if (cancel) return;
-                if (!cats.current.length) setBootMessage('Loading channel list…');
 
                 const list = await getCategories(provider, 'live');
                 if (cancel) return;
@@ -261,11 +228,8 @@ function Grid({ provider, onLogout }) {
                 }
                 if (cancel) return;
                 if (Object.keys(fetched).length) saveChannels(provider.id, fetched);
-                setBootMessage('');
                 rerender();
 
-                /* EPG prefetch — concurrency 6, hard cap 120 s.  All
-                 * results write through to disk in 25-channel chunks. */
                 const sids = [];
                 const seen = new Set();
                 for (const arr of channelsByCat.current.values()) {
@@ -292,7 +256,7 @@ function Grid({ provider, onLogout }) {
                         if (Date.now() - startedAt > HARD_CAP) return;
                         const sid = sids[i];
                         try {
-                            const items = await getFullEpg(provider, sid, 8);
+                            const items = await getFullEpg(provider, sid, 12);
                             if (cancel) return;
                             if (items && items.length) {
                                 epg.current.set(sid, items);
@@ -315,18 +279,58 @@ function Grid({ provider, onLogout }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider]);
 
-    /* Cheap re-render trigger — just bumps a counter so React
-     * notices the refs changed.  We avoid copying the data into
-     * state because that's the whole point of refs. */
     const [, setBump] = useState(0);
     const rerender = useCallback(() => setBump((b) => b + 1), []);
+
+    /* ───────── Handlers ───────── */
+    const onToggleFav = useCallback(() => {
+        if (!focusedChannel) return;
+        toggleFavorite(provider.id, focusedChannel.stream_id);
+        setFavs(new Set(getFavList(provider.id).map(String)));
+    }, [focusedChannel, provider]);
+
+    const onToggleReminder = useCallback((item) => {
+        if (!debouncedChannel || !item?.startTimestamp) return;
+        toggleReminder(provider.id, debouncedChannel.stream_id, {
+            channelName: debouncedChannel.name,
+            title: item.title,
+            startTs: item.startTimestamp,
+            stopTs: item.stopTimestamp,
+        });
+        setReminders(getReminders(provider.id));
+    }, [debouncedChannel, provider]);
+
+    const playChannel = useCallback(async (ch) => {
+        if (!ch) return;
+        const url = await getStreamUrl(provider, 'live', ch.stream_id, 'ts');
+        if (!url) return;
+        try {
+            pushRecent(provider.id, ch.stream_id);
+            setRecents(getRecents(provider.id).map(String));
+        } catch { /* ignore */ }
+        if (Host.playVideo({
+            url, title: ch.name, type: 'live',
+            cwId: `live:${provider.id}:${ch.stream_id}`,
+        })) return;
+        navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(ch.name)}&type=live`);
+    }, [provider, navigate]);
+
+    const onRefresh = useCallback(() => {
+        // Cheapest meaningful "refresh" — clear in-memory + persistent
+        // EPG, then trigger a sync by re-running the effect.  Refs
+        // are reset so the next render reads from disk again.
+        try {
+            localStorage.removeItem(`onnowtv-livecache-v1:${provider.id}:epg`);
+        } catch { /* ignore */ }
+        epg.current.clear();
+        rerender();
+    }, [provider, rerender]);
 
     /* ───────── Keyboard ───────── */
     useEffect(() => {
         const onKey = (e) => {
             const tag = (document.activeElement?.tagName || '').toLowerCase();
 
-            // Search input has its own input loop.  Up/Down hops out.
             if (tag === 'input') {
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
@@ -350,10 +354,7 @@ function Grid({ provider, onLogout }) {
             }
             if (e.key === 'f' || e.key === 'F') {
                 e.preventDefault();
-                if (focusedChannel) {
-                    toggleFavorite(provider.id, focusedChannel.stream_id);
-                    setFavs(new Set(getFavList(provider.id).map(String)));
-                }
+                onToggleFav();
                 return;
             }
 
@@ -368,7 +369,6 @@ function Grid({ provider, onLogout }) {
             setSel((s) => {
                 if (key === 'ArrowLeft') {
                     if (s.col === 0) {
-                        // Hop to side nav.
                         const nav = document.querySelector('[data-testid="side-nav"] [data-focusable="true"]');
                         nav?.focus();
                         return s;
@@ -378,25 +378,29 @@ function Grid({ provider, onLogout }) {
                 if (key === 'ArrowRight') {
                     if (s.col === 2) return s;
                     if (s.col === 0 && channels.length === 0) return s;
-                    if (s.col === 1 && guideItems.length === 0) return s;
+                    if (s.col === 1 && guideGroups.length === 0) return s;
                     return { ...s, col: s.col + 1 };
                 }
                 if (key === 'ArrowUp') {
-                    if (s.col === 0) return { ...s, catIdx: Math.max(0, s.catIdx - 1) };
+                    if (s.col === 0) {
+                        return { ...s, catIdx: prevNavigableIdx(sidebarCats, s.catIdx) };
+                    }
                     if (s.col === 1) return { ...s, chanIdx: Math.max(0, s.chanIdx - 1) };
-                    return { ...s, guideIdx: Math.max(0, s.guideIdx - 1) };
+                    return { ...s, guideIdx: prevNavigableIdx(guideGroups, s.guideIdx) };
                 }
                 if (key === 'ArrowDown') {
                     if (s.col === 0) {
-                        const max = sidebarCats.length - 1;
-                        return { ...s, catIdx: Math.min(max, s.catIdx + 1) };
+                        return { ...s, catIdx: nextNavigableIdx(sidebarCats, s.catIdx) };
                     }
                     if (s.col === 1) return { ...s, chanIdx: Math.min(channels.length - 1, s.chanIdx + 1) };
-                    return { ...s, guideIdx: Math.min(guideItems.length - 1, s.guideIdx + 1) };
+                    return { ...s, guideIdx: nextNavigableIdx(guideGroups, s.guideIdx) };
                 }
                 if (key === 'Enter' || key === ' ') {
                     if (s.col === 1 && focusedChannel) {
                         playChannel(focusedChannel);
+                    } else if (s.col === 2) {
+                        const it = guideGroups[s.guideIdx];
+                        if (it && !it._kind && !it.kind) onToggleReminder(it);
                     }
                     return s;
                 }
@@ -406,247 +410,329 @@ function Grid({ provider, onLogout }) {
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [channels, guideItems, focusedChannel, provider, query, sidebarCats]);
+    }, [channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel]);
 
-    /* When you change category, snap channel index to 0. */
     useEffect(() => { setSel((s) => ({ ...s, chanIdx: 0, guideIdx: 0 })); }, [sel.catIdx]);
     useEffect(() => { setSel((s) => ({ ...s, guideIdx: 0 })); }, [sel.chanIdx, allChannels]);
 
-    /* Reset chanIdx when filtering shrinks the list past the cursor. */
     useEffect(() => {
         if (sel.chanIdx >= channels.length && channels.length > 0) {
             setSel((s) => ({ ...s, chanIdx: 0 }));
         }
     }, [channels.length, sel.chanIdx]);
 
-    const playChannel = useCallback(async (ch) => {
-        if (!ch) return;
-        const url = await getStreamUrl(provider, 'live', ch.stream_id, 'ts');
-        if (!url) return;
-        try {
-            pushRecent(provider.id, ch.stream_id);
-            setRecents(getRecents(provider.id).map(String));
-        } catch { /* ignore */ }
-        if (Host.playVideo({
-            url, title: ch.name, type: 'live',
-            cwId: `live:${provider.id}:${ch.stream_id}`,
-        })) return;
-        navigate(`/play?url=${encodeURIComponent(url)}&title=${encodeURIComponent(ch.name)}&type=live`);
-    }, [provider, navigate]);
-
-    /* Stable row renderers — useCallback so Column.props.rowFn
-     * doesn't change between Grid renders.  This is critical:
-     * without it, React.memo on Column never short-circuits.
-     * Each rowFn closes over the props it actually needs.
-     * Declared BEFORE the early-return so React's Rules of Hooks
-     * are respected. */
+    /* Stable row renderers. */
     const renderCategory = useCallback(
         (c, i, focused) => <CategoryRow key={c.id} cat={c} focused={focused} />,
         [],
     );
     const renderChannel = useCallback(
-        (c, i, focused) => (
-            <ChannelRow
-                key={c.stream_id}
-                ch={c}
-                focused={focused}
-                isFav={favs.has(String(c.stream_id))}
-                nowTitle={focused ? (epg.current.get(c.stream_id)?.[0]?.title || '') : ''}
-            />
-        ),
+        (c, i, focused) => {
+            const nextEpg = epg.current.get(c.stream_id);
+            const now = nextEpg?.[0] || null;
+            return (
+                <ChannelCard
+                    key={c.stream_id}
+                    ch={c}
+                    focused={focused}
+                    isFav={favs.has(String(c.stream_id))}
+                    now={now}
+                />
+            );
+        },
         [favs],
     );
     const renderGuide = useCallback(
-        (it, i, focused) => <GuideRow key={`${it.startTimestamp}-${i}`} item={it} focused={focused} />,
-        [],
+        (it, i, focused) => (
+            <GuideRow
+                key={`${it._kind || 'row'}-${it.id || it.startTimestamp || i}`}
+                item={it}
+                focused={focused}
+                isReminded={it.startTimestamp ? reminderKeys.has(`${debouncedChannel?.stream_id}:${it.startTimestamp}`) : false}
+            />
+        ),
+        [reminderKeys, debouncedChannel],
     );
 
-    /* ───────── Render ───────── */
-
-    if (cats.current.length === 0) {
-        return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          minHeight: '100dvh', color: '#5DC8FF', fontSize: 14, letterSpacing: '0.2em' }}>
-                {bootMessage}
-            </div>
-        );
-    }
-
-    const sidebarCatsForRender = sidebarCats;
-    const activeCat = sidebarCatsForRender[sel.catIdx] || sidebarCatsForRender[0];
+    const activeCat = sidebarCats[sel.catIdx] || sidebarCats[0];
+    const focusedNow = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[0] || null) : null;
+    const focusedNext = focusedChannel ? (epg.current.get(focusedChannel.stream_id)?.[1] || null) : null;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-            <Header
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            minHeight: 0,
+        }}>
+            <Hero
                 channel={focusedChannel}
-                category={activeCat}
-                programme={guideItems[0] || null}
+                now={focusedNow}
+                next={focusedNext}
+                isFav={focusedChannel ? favs.has(String(focusedChannel.stream_id)) : false}
                 syncing={syncing}
+                onPlay={() => focusedChannel && playChannel(focusedChannel)}
+                onToggleFav={onToggleFav}
+                onRefresh={onRefresh}
                 onLogout={onLogout}
             />
-            <SearchRow query={query} onChange={setQuery} resultCount={channels.length} totalCount={allChannels.length} />
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: '210px 1fr 320px',
-                gap: 12,
-                padding: '0 24px 24px 16px',
+                gridTemplateColumns: '230px 1fr 320px',
+                gap: 14,
+                padding: '0 24px 24px 24px',
                 flex: 1,
                 minHeight: 0,
             }}>
-                <Column
-                    testid="cats"
-                    isFocused={sel.col === 0}
-                    items={sidebarCatsForRender}
-                    idx={sel.catIdx}
-                    rowHeight={ROW_H}
-                    rowFn={renderCategory}
-                />
-                <Column
-                    testid="channels"
-                    isFocused={sel.col === 1}
-                    items={channels}
-                    idx={sel.chanIdx}
-                    rowHeight={ROW_H}
-                    rowFn={renderChannel}
-                />
-                <Column
-                    testid="guide"
-                    isFocused={sel.col === 2}
-                    items={guideItems}
-                    idx={sel.guideIdx}
-                    rowHeight={ROW_H + 16}
-                    headerLabel="PROGRAMME GUIDE"
-                    rowFn={renderGuide}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                    <Column
+                        testid="cats"
+                        isFocused={sel.col === 0}
+                        items={sidebarCats}
+                        idx={sel.catIdx}
+                        rowHeight={ROW_H}
+                        rowFn={renderCategory}
+                    />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                    <SearchRow
+                        query={query}
+                        onChange={setQuery}
+                        resultCount={channels.length}
+                        totalCount={allChannels.length}
+                    />
+                    <Column
+                        testid="channels"
+                        isFocused={sel.col === 1}
+                        items={channels}
+                        idx={sel.chanIdx}
+                        rowHeight={ROW_H + 28}    // pill card height
+                        rowFn={renderChannel}
+                    />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 8 }}>
+                    <GuideHeader channelName={debouncedChannel?.name || ''} />
+                    <Column
+                        testid="guide"
+                        isFocused={sel.col === 2}
+                        items={guideGroups}
+                        idx={sel.guideIdx}
+                        rowHeight={GUIDE_ROW_H}
+                        rowFn={renderGuide}
+                    />
+                </div>
             </div>
         </div>
     );
 }
 
-/* ──────────────────────────── Header ──────────────────────────── */
+/* ─────────────────────────────── Hero ─────────────────────────────── */
 
-const Header = React.memo(function Header({ channel, category, programme, syncing, onLogout }) {
-    const clock = useClock();
-    const eyebrow = [
-        'LIVE TV',
-        channel?.num != null ? `CH ${channel.num}` : null,
-        category?.name?.toUpperCase() || null,
-    ].filter(Boolean).join(' · ');
+const Hero = React.memo(function Hero({
+    channel, now, next, isFav, syncing,
+    onPlay, onToggleFav, onRefresh, onLogout,
+}) {
+    const tmdb = useProgrammeBackdrop(now?.title || '');
+    const backdropUrl = tmdb?.backdrop
+        ? proxyImg(tmdb.backdrop, 1200, 60)
+        : '';
+
+    const progress = computeProgress(now);
+    const nowTime = formatTime(now?.startTimestamp);
+    const nextTime = formatTime(next?.startTimestamp);
 
     return (
         <section style={{
-            padding: '24px 24px 14px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 20,
-            color: '#fff',
+            position: 'relative',
+            minHeight: 360,
+            padding: '32px 32px 16px 32px',
+            overflow: 'hidden',
+            flexShrink: 0,
         }}>
-            {/* Channel logo card — Header is React.memo'd so this
-                only re-renders when the channel actually changes,
-                not on every keypress.  Safe. */}
+            {/* TMDB backdrop layer */}
+            {backdropUrl && (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundImage: `linear-gradient(90deg, #0A0F1A 0%, rgba(10,15,26,0.85) 38%, rgba(10,15,26,0.2) 100%), url(${backdropUrl})`,
+                        backgroundSize: 'auto, cover',
+                        backgroundPosition: 'center, center',
+                        backgroundRepeat: 'no-repeat, no-repeat',
+                    }}
+                />
+            )}
+            {/* Bottom fade so hero blends into body */}
+            <div aria-hidden="true" style={{
+                position: 'absolute',
+                inset: 'auto 0 0 0',
+                height: 80,
+                background: 'linear-gradient(180deg, transparent 0%, #0A0F1A 100%)',
+            }} />
+
+            {/* Top-right utility cluster */}
             <div style={{
-                width: 110, height: 74, flexShrink: 0,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: 10,
-                overflow: 'hidden',
+                position: 'absolute',
+                top: 24,
+                right: 32,
+                display: 'flex',
+                gap: 8,
+                zIndex: 2,
             }}>
-                {channel?.stream_icon ? (
-                    <img
-                        src={proxyLogo(channel.stream_icon, 180, 60)}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        style={{
-                            maxWidth: '100%', maxHeight: '100%',
-                            objectFit: 'contain',
-                        }}
-                    />
-                ) : (
-                    <div style={{
-                        fontFamily: 'monospace', fontSize: 10,
-                        letterSpacing: '0.28em', color: '#5e6473',
-                    }}>
-                        LIVE
-                    </div>
-                )}
+                <HeroIconButton
+                    label={isFav ? 'Unfavourite' : 'Favourite'}
+                    onClick={onToggleFav}
+                    accent={isFav ? '#FFC850' : undefined}
+                >
+                    <Star size={16} fill={isFav ? '#FFC850' : 'none'} color={isFav ? '#FFC850' : '#9DA5B5'} />
+                </HeroIconButton>
+                <HeroIconButton label="Refresh" onClick={onRefresh}>
+                    <RefreshCw size={15} color={syncing ? '#5DC8FF' : '#9DA5B5'} />
+                </HeroIconButton>
+                <HeroIconButton label="Sign out" onClick={onLogout}>
+                    <LogOut size={15} color="#9DA5B5" />
+                </HeroIconButton>
             </div>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                    <div style={{
-                        fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
-                        letterSpacing: '0.32em', color: '#5DC8FF',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                        {eyebrow}
-                    </div>
-                    {syncing && (
-                        <span style={{
-                            fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                            letterSpacing: '0.22em', color: '#7d8493',
-                            padding: '3px 7px',
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(255,255,255,0.10)',
-                            borderRadius: 3,
-                        }}>
-                            UPDATING…
-                        </span>
-                    )}
+            <div style={{ position: 'relative', maxWidth: 720, zIndex: 1 }}>
+                <div style={{
+                    fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                    letterSpacing: '0.32em', color: '#5DC8FF', marginBottom: 10,
+                }}>
+                    LIVE TV{channel?.num != null ? ` · CH ${channel.num}` : ''}
                 </div>
                 <h1 style={{
-                    fontSize: 'clamp(28px, 3.0vw, 44px)',
+                    margin: 0,
+                    fontSize: 'clamp(36px, 4vw, 56px)',
                     fontWeight: 800,
                     lineHeight: 1.05,
-                    letterSpacing: '-0.02em',
-                    margin: 0,
+                    letterSpacing: '-0.025em',
+                    color: '#fff',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                     {channel?.name || 'Live TV'}
                 </h1>
-                {programme && (
-                    <div style={{
-                        marginTop: 4, fontSize: 13, color: '#9DA5B5',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                        <span style={{ color: '#5DC8FF', fontWeight: 700, marginRight: 8 }}>NOW</span>
-                        {programme.title}
-                    </div>
-                )}
-            </div>
-            <div style={{ textAlign: 'right' }}>
-                <div style={{
-                    fontFamily: 'monospace', fontSize: 24, fontWeight: 700,
-                    color: '#fff', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-                }}>
-                    {clock.hhmm}
-                </div>
-                <div style={{
-                    fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em',
-                    color: '#7d8493', marginTop: 4,
-                }}>
-                    {clock.day}
-                </div>
+
+                {now ? (
+                    <>
+                        <div style={{
+                            marginTop: 16,
+                            fontSize: 13,
+                            color: '#E6EAF2',
+                            display: 'flex', alignItems: 'baseline', gap: 12,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                            <span style={{
+                                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                                letterSpacing: '0.24em', color: '#5DC8FF',
+                            }}>
+                                NOW · {nowTime}
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: 14 }}>
+                                {now.title || 'Untitled'}
+                            </span>
+                        </div>
+                        {now.description && (
+                            <div style={{
+                                marginTop: 8,
+                                fontSize: 13,
+                                color: '#9DA5B5',
+                                lineHeight: 1.45,
+                                maxWidth: 640,
+                                overflow: 'hidden',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                textOverflow: 'ellipsis',
+                            }}>
+                                {now.description}
+                            </div>
+                        )}
+                        <div style={{
+                            marginTop: 12,
+                            width: '100%', maxWidth: 540,
+                            height: 3, background: 'rgba(255,255,255,0.10)', borderRadius: 2,
+                            overflow: 'hidden',
+                        }}>
+                            <div style={{
+                                width: `${progress}%`,
+                                height: '100%',
+                                background: '#5DC8FF',
+                            }} />
+                        </div>
+                        {next && (
+                            <div style={{
+                                marginTop: 8,
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                letterSpacing: '0.2em',
+                                color: '#7d8493',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                maxWidth: 540,
+                            }}>
+                                UP NEXT · {nextTime} · {next.title || 'Untitled'}
+                            </div>
+                        )}
+                    </>
+                ) : null}
+
+                <button
+                    onClick={onPlay}
+                    disabled={!channel}
+                    style={{
+                        marginTop: 24,
+                        display: 'inline-flex', alignItems: 'center', gap: 10,
+                        height: 48, padding: '0 26px',
+                        borderRadius: 999,
+                        border: 'none',
+                        background: '#fff',
+                        color: '#0A0F1A',
+                        fontWeight: 700, fontSize: 14,
+                        cursor: channel ? 'pointer' : 'not-allowed',
+                        opacity: channel ? 1 : 0.5,
+                    }}
+                >
+                    <Play size={15} fill="#0A0F1A" />
+                    Watch full-screen
+                </button>
             </div>
         </section>
     );
 });
 
-/* ──────────────────────────── Search row ──────────────────────────── */
+const HeroIconButton = React.memo(function HeroIconButton({ children, label, onClick, accent }) {
+    return (
+        <button
+            type="button"
+            aria-label={label}
+            onClick={onClick}
+            style={{
+                width: 40, height: 40,
+                borderRadius: 999,
+                background: accent ? 'rgba(255,200,80,0.12)' : 'rgba(20,28,42,0.85)',
+                border: '1px solid ' + (accent ? 'rgba(255,200,80,0.45)' : 'rgba(255,255,255,0.10)'),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+            }}
+        >
+            {children}
+        </button>
+    );
+});
+
+/* ─────────────────────────── Search row ─────────────────────────── */
 
 const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, totalCount }) {
     const has = !!query.trim();
     return (
         <div style={{
-            margin: '0 24px 12px 16px',
-            padding: '8px 14px',
-            display: 'flex', alignItems: 'center', gap: 10,
-            background: has ? 'rgba(93,200,255,0.10)' : 'rgba(255,255,255,0.04)',
-            border: '1px solid ' + (has ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.08)'),
-            borderRadius: 10,
-            minHeight: 40,
+            padding: '10px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'rgba(20,28,42,0.6)',
+            border: '1px solid ' + (has ? 'rgba(93,200,255,0.45)' : 'rgba(255,255,255,0.07)'),
+            borderRadius: 14,
+            minHeight: 50,
         }}>
             <Search size={14} color={has ? '#5DC8FF' : '#7d8493'} />
             <input
@@ -654,7 +740,7 @@ const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, 
                 type="text"
                 value={query}
                 onChange={(e) => onChange(e.target.value)}
-                placeholder="Search channels (name or number)…"
+                placeholder="Search channels — type to search every category"
                 style={{
                     flex: 1, minWidth: 0,
                     background: 'transparent', border: 'none', outline: 'none',
@@ -662,23 +748,53 @@ const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, 
                 }}
             />
             <span style={{
-                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                fontFamily: 'monospace', fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
                 color: has ? '#5DC8FF' : '#7d8493',
             }}>
-                {has ? `${resultCount} / ${totalCount}` : totalCount}
+                {has ? `${resultCount} / ${totalCount}` : `${totalCount} CHANNELS`}
             </span>
         </div>
     );
 });
 
-/* ──────────────────────────── Column (virtualised) ──────────────────────────── */
+/* ─────────────────────── Guide column header ─────────────────────── */
 
-const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHeight, rowFn, headerLabel }) {
+const GuideHeader = React.memo(function GuideHeader({ channelName }) {
+    return (
+        <div style={{
+            padding: '10px 16px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(20,28,42,0.6)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 14,
+            minHeight: 50,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+            <Calendar size={14} color="#7d8493" />
+            <span style={{
+                fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.24em',
+                color: '#7d8493', fontWeight: 700,
+            }}>
+                GUIDE
+            </span>
+            <span style={{ color: '#5e6473' }}>·</span>
+            <span style={{
+                color: '#E6EAF2', fontSize: 13, fontWeight: 600,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                flex: 1, minWidth: 0,
+            }}>
+                {channelName || '—'}
+            </span>
+        </div>
+    );
+});
+
+/* ──────────────────── Column (virtualised) ──────────────────── */
+
+const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHeight, rowFn }) {
     const containerRef = useRef(null);
     const [scrollTop, setScrollTop] = useState(0);
 
-    /* Scroll the focused row into view whenever idx changes.
-     * No animation, no smooth-scroll — we just snap. */
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -690,7 +806,6 @@ const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHe
         else if (bottom > viewBottom) el.scrollTop = bottom - el.clientHeight;
     }, [idx, rowHeight]);
 
-    /* Throttle scroll listener via rAF. */
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -707,7 +822,6 @@ const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHe
         return () => el.removeEventListener('scroll', onScroll);
     }, []);
 
-    /* Compute visible window. */
     const view = containerRef.current?.clientHeight || 600;
     const start = Math.max(0, Math.floor(scrollTop / rowHeight) - BUFFER);
     const end = Math.min(items.length, Math.ceil((scrollTop + view) / rowHeight) + BUFFER);
@@ -719,95 +833,77 @@ const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHe
     return (
         <div
             data-testid={`live-tv-${testid}`}
-            data-col-focused={isFocused ? 'true' : 'false'}
+            ref={containerRef}
             style={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
                 position: 'relative',
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 10,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
             }}
         >
-            {headerLabel && (
-                <div style={{
-                    padding: '10px 16px',
-                    borderBottom: '1px solid rgba(255,255,255,0.06)',
-                    fontFamily: 'monospace',
-                    fontSize: 10, fontWeight: 700,
-                    letterSpacing: '0.32em',
-                    color: '#5DC8FF',
-                    flexShrink: 0,
-                }}>
-                    {headerLabel}
-                </div>
-            )}
-            <div
-                ref={containerRef}
-                style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    position: 'relative',
-                }}
-            >
-                {/* Spacer */}
-                <div style={{ height: items.length * rowHeight, position: 'relative' }}>
-                    {visible.map(({ item, i }) => (
-                        <div
-                            key={item?.id || item?.stream_id || item?.startTimestamp || i}
-                            data-idx={i}
-                            style={{
-                                position: 'absolute',
-                                top: i * rowHeight,
-                                left: 0, right: 0,
-                                height: rowHeight,
-                            }}
-                        >
-                            {rowFn(item, i, isFocused && i === idx)}
-                        </div>
-                    ))}
-                </div>
+            <div style={{ height: items.length * rowHeight, position: 'relative' }}>
+                {visible.map(({ item, i }) => (
+                    <div
+                        key={item?.id || item?.stream_id || item?.startTimestamp || i}
+                        style={{
+                            position: 'absolute',
+                            top: i * rowHeight,
+                            left: 0, right: 0,
+                            height: rowHeight,
+                            padding: '0 0 6px 0',
+                        }}
+                    >
+                        {rowFn(item, i, isFocused && i === idx)}
+                    </div>
+                ))}
             </div>
         </div>
     );
 });
 
-/* ──────────────────────────── Row primitives ──────────────────────────── */
+/* ─────────────────────────── Rows ─────────────────────────── */
 
 const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
+    if (cat.kind === 'header') {
+        return (
+            <div style={{
+                height: '100%',
+                padding: '14px 16px 4px 16px',
+                fontFamily: 'monospace', fontSize: 10, letterSpacing: '0.24em',
+                color: '#5e6473', fontWeight: 700,
+                display: 'flex', alignItems: 'center',
+            }}>
+                {cat.name}
+            </div>
+        );
+    }
     const isFav = cat.id === FAV_CAT;
-    const isRec = cat.id === REC_CAT;
     const accent = isFav ? '#FFC850' : '#5DC8FF';
-
     return (
         <div style={{
             height: '100%',
-            padding: '0 12px',
-            display: 'flex', alignItems: 'center', gap: 8,
-            borderLeft: focused ? `3px solid ${accent}` : '3px solid transparent',
-            background: focused ? (isFav ? 'rgba(255,200,80,0.12)' : 'rgba(93,200,255,0.10)') : 'transparent',
+            padding: '0 14px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: focused ? (isFav ? 'rgba(255,200,80,0.10)' : 'rgba(20,28,42,0.85)') : 'rgba(20,28,42,0.5)',
+            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
+            boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
+            borderRadius: 12,
             color: focused ? '#fff' : '#9DA5B5',
             fontWeight: focused ? 700 : 600,
-            fontSize: 12,
+            fontSize: 13,
         }}>
-            {(isFav || isRec) ? (
-                isFav
-                    ? <Star size={11} color={accent} fill={focused ? accent : 'none'} />
-                    : <Clock size={11} color={accent} />
-            ) : (
-                <span style={{ width: 5, height: 5, borderRadius: '50%',
-                                background: focused ? accent : 'rgba(255,255,255,0.20)' }} />
+            {isFav && (
+                <Star size={12} color={accent} fill={focused ? accent : 'none'} />
             )}
-            <span style={{ flex: 1, minWidth: 0,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{
+                flex: 1, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
                 {cat.name}
             </span>
             {cat.count > 0 && (
                 <span style={{
-                    fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                    fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
                     color: focused ? accent : '#5e6473',
                 }}>
                     {cat.count}
@@ -817,45 +913,41 @@ const CategoryRow = React.memo(function CategoryRow({ cat, focused }) {
     );
 });
 
-const ChannelRow = React.memo(function ChannelRow({ ch, focused, isFav, nowTitle }) {
+const ChannelCard = React.memo(function ChannelCard({ ch, focused, isFav, now }) {
+    const accent = '#5DC8FF';
+    const progress = computeProgress(now);
     return (
         <div style={{
             height: '100%',
-            padding: '0 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
-            borderLeft: focused ? '3px solid #5DC8FF' : '3px solid transparent',
-            background: focused ? 'rgba(93,200,255,0.10)' : 'transparent',
-            color: focused ? '#fff' : '#E6EAF2',
-            fontWeight: focused ? 700 : 600,
-            fontSize: 13,
+            padding: '0 14px',
+            display: 'flex', alignItems: 'center', gap: 14,
+            background: 'rgba(20,28,42,0.55)',
+            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
+            boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
+            borderRadius: 14,
+            position: 'relative',
+            overflow: 'hidden',
         }}>
-            {ch.num != null && (
-                <span style={{
-                    fontFamily: 'monospace', fontSize: 11,
-                    color: focused ? '#5DC8FF' : '#5e6473',
-                    minWidth: 28, textAlign: 'right', fontWeight: 700,
-                }}>
-                    {ch.num}
-                </span>
-            )}
-            {/* Logo cell.  Safe to bring back now that ChannelRow is
-                React.memo'd — logos only render when the row's
-                channel actually changes, not on every focus move.
-                Routed through the image proxy at 36 px so each
-                logo is ~600 bytes. */}
             <span style={{
-                width: 36, height: 24, flexShrink: 0,
+                fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
+                color: focused ? accent : '#5e6473',
+                minWidth: 36, textAlign: 'right',
+            }}>
+                {ch.num ?? ''}
+            </span>
+            <span style={{
+                width: 52, height: 36, flexShrink: 0,
                 background: 'rgba(255,255,255,0.04)',
-                borderRadius: 3,
+                borderRadius: 6,
                 overflow: 'hidden',
                 position: 'relative',
             }}>
                 {ch.stream_icon && (
                     <img
-                        src={proxyLogo(ch.stream_icon, 36)}
+                        src={proxyImg(ch.stream_icon, 52, 50)}
                         alt=""
-                        width={36}
-                        height={24}
+                        width={52}
+                        height={36}
                         loading="lazy"
                         decoding="async"
                         referrerPolicy="no-referrer"
@@ -864,121 +956,182 @@ const ChannelRow = React.memo(function ChannelRow({ ch, focused, isFav, nowTitle
                             position: 'absolute', inset: 0,
                             width: '100%', height: '100%',
                             objectFit: 'contain',
-                            padding: 2,
+                            padding: 3,
                         }}
                     />
                 )}
             </span>
-            <span style={{
-                flex: 1, minWidth: 0,
-                display: 'flex', flexDirection: 'column', gap: 1,
-                overflow: 'hidden',
-            }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                lineHeight: 1.15 }}>
+            <div style={{ flex: 1, minWidth: 0,
+                            display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{
+                    fontSize: 14, fontWeight: 700,
+                    color: focused ? '#fff' : '#E6EAF2',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
                     {ch.name}
                 </span>
-                {focused && nowTitle && (
+                {now && (
                     <span style={{
-                        fontFamily: 'monospace', fontSize: 9, color: '#5DC8FF',
+                        fontSize: 11,
+                        color: '#9DA5B5',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        letterSpacing: '0.04em', lineHeight: 1.15,
+                        display: 'inline-flex', alignItems: 'baseline', gap: 6,
                     }}>
-                        NOW · {nowTitle}
+                        <span style={{
+                            fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                            letterSpacing: '0.2em', color: '#FF4D5E',
+                        }}>
+                            NOW
+                        </span>
+                        {now.title || 'Untitled'}
                     </span>
                 )}
-            </span>
-            {isFav && <Star size={11} color="#FFC850" fill="#FFC850" />}
+            </div>
+            {isFav && <Star size={12} color="#FFC850" fill="#FFC850" />}
+            {/* Thin progress bar at the bottom edge of the card */}
+            {now && (
+                <div style={{
+                    position: 'absolute',
+                    left: 14, right: 14, bottom: 6,
+                    height: 2,
+                    background: 'rgba(255,255,255,0.06)',
+                    borderRadius: 1,
+                    overflow: 'hidden',
+                }}>
+                    <div style={{
+                        width: `${progress}%`,
+                        height: '100%',
+                        background: accent,
+                    }} />
+                </div>
+            )}
         </div>
     );
 });
 
-const GuideRow = React.memo(function GuideRow({ item, focused }) {
+const GuideRow = React.memo(function GuideRow({ item, focused, isReminded }) {
+    if (item._kind === 'header') {
+        return (
+            <div style={{
+                height: '100%',
+                padding: '14px 16px 4px 16px',
+                fontFamily: 'monospace', fontSize: 10, letterSpacing: '0.24em',
+                color: '#5e6473', fontWeight: 700,
+                display: 'flex', alignItems: 'center',
+            }}>
+                {item.label}
+            </div>
+        );
+    }
     const start = Number(item.startTimestamp) || 0;
     const stop = Number(item.stopTimestamp) || 0;
     const nowSec = Math.floor(Date.now() / 1000);
     const isLive = nowSec >= start && nowSec < stop;
     const isPast = stop > 0 && stop <= nowSec;
-    const accent = isLive ? '#5DC8FF' : (focused ? '#5DC8FF' : 'transparent');
+    const accent = isLive ? '#5DC8FF' : (isReminded ? '#FFC850' : '#5DC8FF');
+    const timeStr = formatTime(start);
+    const [hhmm, ampm] = splitHHMM_AMPM(timeStr);
 
     return (
         <div style={{
             height: '100%',
-            padding: '6px 14px',
-            borderLeft: `3px solid ${accent}`,
-            background: focused ? 'rgba(93,200,255,0.10)' : (isLive ? 'rgba(93,200,255,0.05)' : 'transparent'),
-            color: isPast ? '#5e6473' : (focused || isLive ? '#fff' : '#E6EAF2'),
-            opacity: isPast ? 0.6 : 1,
-            display: 'flex', flexDirection: 'column', gap: 2,
-            justifyContent: 'center',
+            padding: '0 12px',
+            display: 'flex', gap: 10, alignItems: 'stretch',
+            background: 'rgba(20,28,42,0.55)',
+            border: '1px solid ' + (focused ? accent : 'rgba(255,255,255,0.06)'),
+            boxShadow: focused ? `0 0 0 1px ${accent}` : 'none',
+            borderRadius: 12,
+            opacity: isPast ? 0.55 : 1,
+            overflow: 'hidden',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                    fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                    color: isLive ? '#5DC8FF' : '#5e6473', letterSpacing: '0.04em',
-                }}>
-                    {fmtTime(start)}
+            <div style={{
+                width: 44, flexShrink: 0,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 0,
+                color: isLive ? accent : '#9DA5B5',
+            }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>
+                    {hhmm}
                 </span>
-                {isLive && (
+                <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: '#5e6473' }}>
+                    {ampm}
+                </span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+                            justifyContent: 'center', gap: 3 }}>
+                <span style={{
+                    fontSize: 13, fontWeight: 600,
+                    color: isLive ? '#fff' : '#E6EAF2',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                    {item.title || 'Untitled'}
+                </span>
+                {!isPast && (
                     <span style={{
-                        fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
-                        letterSpacing: '0.22em', color: '#5DC8FF',
-                        padding: '1px 5px', background: 'rgba(93,200,255,0.14)', borderRadius: 2,
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '0.16em', color: isReminded ? '#FFC850' : '#7d8493',
                     }}>
-                        LIVE
+                        <Bell size={10} color={isReminded ? '#FFC850' : '#7d8493'}
+                                fill={isReminded ? '#FFC850' : 'none'} />
+                        {isReminded ? 'REMIND ON' : 'OK TO REMIND'}
                     </span>
                 )}
-            </div>
-            <div style={{
-                fontSize: 12, fontWeight: focused || isLive ? 700 : 500,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                lineHeight: 1.2,
-            }}>
-                {item.title || 'Untitled'}
             </div>
         </div>
     );
 });
 
-/* ──────────────────────────── Helpers ──────────────────────────── */
+/* ─────────────────────────── Helpers ─────────────────────────── */
 
-function useClock() {
-    const [now, setNow] = useState(() => new Date());
-    useEffect(() => {
-        const t = setInterval(() => setNow(new Date()), 30_000);
-        return () => clearInterval(t);
-    }, []);
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    return {
-        hhmm: `${hh}:${mm}`,
-        day: `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`,
-    };
-}
-
-function fmtTime(ts) {
+function formatTime(ts) {
+    // 12-hour with AM/PM for the design.
     if (!ts) return '';
     const d = new Date(Number(ts) * 1000);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${String(h).padStart(2, '0')}:${mm} ${ap}`;
 }
 
-/** Route TMDB / IPTV logos through the backend image proxy.  Crushes
- *  large source images down to a width-targeted, q=50 JPEG (~600 B
- *  for a 36-px logo) so the HK1's image decoder doesn't choke. */
-function proxyLogo(url, width = 36, quality = 50) {
+function splitHHMM_AMPM(timeStr) {
+    if (!timeStr) return ['', ''];
+    const parts = timeStr.split(' ');
+    return [parts[0] || '', parts[1] || ''];
+}
+
+function computeProgress(item) {
+    if (!item) return 0;
+    const start = Number(item.startTimestamp) || 0;
+    const stop = Number(item.stopTimestamp) || 0;
+    if (stop <= start) return 0;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec <= start) return 0;
+    if (nowSec >= stop) return 100;
+    return Math.round(((nowSec - start) / (stop - start)) * 100);
+}
+
+function proxyImg(url, width = 36, quality = 50) {
     if (!url) return '';
     const base = process.env.REACT_APP_BACKEND_URL;
     if (!base) return url;
     return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
 }
 
-function buildSidebarCats(cats, favCount, recCount, channelsMap) {
+function buildSidebarCats(rawCats, favCount, recCount, channelsMap) {
     const out = [];
-    if (recCount > 0) out.push({ id: REC_CAT, name: 'Recently Watched', count: recCount });
     out.push({ id: FAV_CAT, name: 'Favourites', count: favCount });
-    for (const c of cats) {
+    if (recCount > 0) out.push({ id: REC_CAT, name: 'Recently Watched', count: recCount });
+    if (rawCats.length > 0) {
+        // Section header — flagged by `kind: 'header'`, treated as a
+        // non-focusable row.  Kept index-aware so navigation skips
+        // headers automatically (we don't render them as focus
+        // targets).
+        out.push({ id: 'h-cats', kind: 'header', name: 'CHANNEL GROUPS' });
+    }
+    for (const c of rawCats) {
         out.push({
             id: c.category_id,
             name: c.category_name,
@@ -1007,4 +1160,56 @@ function resolveByIds(idsSet, channelsMap, orderedKeys) {
         if (ch) out.push(ch);
     }
     return out;
+}
+
+/** Inject TODAY / TOMORROW / dated headers into an EPG list. */
+function groupByDay(items) {
+    if (!items || items.length === 0) return EMPTY_ARRAY;
+    const out = [];
+    const today = startOfDay(new Date()).getTime() / 1000;
+    const tomorrow = today + 86400;
+    const dayAfter = tomorrow + 86400;
+    let lastBucket = '';
+    for (const it of items) {
+        const start = Number(it.startTimestamp) || 0;
+        let bucket;
+        if (start >= today && start < tomorrow) bucket = 'TODAY';
+        else if (start >= tomorrow && start < dayAfter) bucket = 'TOMORROW';
+        else bucket = formatDayLabel(new Date(start * 1000));
+        if (bucket !== lastBucket) {
+            out.push({ _kind: 'header', id: `h-${bucket}`, label: bucket });
+            lastBucket = bucket;
+        }
+        out.push(it);
+    }
+    return out;
+}
+
+function startOfDay(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
+
+function formatDayLabel(d) {
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+/** Skip non-focusable section headers when arrow-navigating. */
+function isHeaderItem(it) {
+    return !!(it && (it.kind === 'header' || it._kind === 'header'));
+}
+function nextNavigableIdx(arr, from) {
+    for (let i = from + 1; i < arr.length; i++) {
+        if (!isHeaderItem(arr[i])) return i;
+    }
+    return from;
+}
+function prevNavigableIdx(arr, from) {
+    for (let i = from - 1; i >= 0; i--) {
+        if (!isHeaderItem(arr[i])) return i;
+    }
+    return from;
 }
