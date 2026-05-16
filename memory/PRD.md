@@ -34,6 +34,23 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 90 — Feb 16, 2026)
+### v2.6.5 — Bulletproof Watch Together + Load existing profile
+- **🐛 User reported (4th recurrence)** of the Watch Together "Start Party shows the picker" bug. Even on v2.6.3 with the bulletproof autoplay + watchdog, the user saw a "Play 1080p" button rendered behind the joining overlay and tapped through it.
+- **🔬 Root cause traced**: the `pointerEvents: 'none'` on the JOINING WATCH PARTY overlay meant clicks fell straight through to the picker behind it. Even worse, the picker itself was still being rendered in the DOM — just hidden by an overlay.
+- **🛠️ Permanent fix** (`pages/Detail.jsx` + new `components/PartyJoiningScreen.jsx`):
+  - When `partyCode && !autoplayFired` is true, Detail.jsx now returns a **dedicated full-screen `<PartyJoiningScreen/>` component as an early return** — the stream picker, cast, recommendations, episodes etc are NEVER mounted at all. There is literally no clickable picker behind the joining screen.
+  - PartyJoiningScreen: full-bleed blurred poster, neon cyan glow, poster card, "PARTY · LOADING" eyebrow, title + status copy, plus explicit Cancel + Retry buttons (the only interactive elements on screen).
+  - Returns this branch BEFORE the meta-loading / err-not-found branches too, so the user sees the joining screen from the very first paint instead of "Loading metadata…".
+- **💾 NEW: Load existing profile** on the profile picker:
+  - User asked: "add a load existing profile or something like that into the home screen of the profile section".
+  - New neon "Load existing profile" pill on `/profiles`, right next to "Manage profiles".
+  - Dedicated `/profiles/load` route with beautiful 3-step UX: code entry (TV keypad with 6 slots) → PIN entry (reuses `PinGate`) → confirm preview (shows profile/library/CW counts before overwriting).
+  - Reuses the existing `/api/backup/restore` endpoint so backups created via Settings → Backups on any other device work seamlessly.
+  - Route added to `NO_PROFILE_REQUIRED` so it's reachable from a fresh install with zero profiles.
+- **🧪 Verified end-to-end in preview**: party URL `/title/movie/X?party=…&autoplay=1` navigates straight to `/play` with party context, picker has 0 mounted buttons. Profile picker shows the new pill; clicking it lands on the load page with focused TV-friendly keypad.
+- **Manifest v2.6.5 (versionCode 75).**
+
 ## Implemented (Iteration 89 — Feb 16, 2026)
 ### Working APK auto-update installer + Update Gate fixes (v2.6.4)
 - **🐛 User reported:** "DOWNLOADING…" spinner stuck forever on the v2.6.2 gate; profile picker bled through the gate's background.

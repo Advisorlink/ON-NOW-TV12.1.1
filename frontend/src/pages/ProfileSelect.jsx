@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Lock } from 'lucide-react';
+import { Plus, Pencil, Lock, Download } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
     listProfiles,
@@ -182,28 +182,58 @@ export default function ProfileSelect() {
                     <AddProfileTile onClick={() => navigate('/profiles/new')} />
                 </div>
 
-                <button
-                    data-testid="manage-profiles"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={() => setEditMode((v) => !v)}
-                    className="flex items-center gap-2 mt-12 rounded-full"
+                <div
                     style={{
-                        height: 44,
-                        padding: '0 22px',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        background: editMode
-                            ? 'var(--vesper-blue)'
-                            : 'rgba(255,255,255,0.08)',
-                        color: editMode ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
-                        border: '1px solid rgba(255,255,255,0.16)',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        marginTop: 48,
+                        justifyContent: 'center',
                     }}
                 >
-                    <Pencil size={14} strokeWidth={2} />
-                    {editMode ? 'Done' : 'Manage profiles'}
-                </button>
+                    <button
+                        data-testid="manage-profiles"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => setEditMode((v) => !v)}
+                        className="flex items-center gap-2 rounded-full"
+                        style={{
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            background: editMode
+                                ? 'var(--vesper-blue)'
+                                : 'rgba(255,255,255,0.08)',
+                            color: editMode ? 'var(--vesper-bg-0)' : 'var(--vesper-text-2)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        <Pencil size={14} strokeWidth={2} />
+                        {editMode ? 'Done' : 'Manage profiles'}
+                    </button>
+                    <button
+                        data-testid="load-existing-profile"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => navigate('/profiles/load')}
+                        className="flex items-center gap-2 rounded-full"
+                        style={{
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            background: 'rgba(93,200,255,0.10)',
+                            color: 'var(--vesper-blue-bright)',
+                            border: '1px solid rgba(93,200,255,0.36)',
+                        }}
+                    >
+                        <Download size={14} strokeWidth={2.2} />
+                        Load existing profile
+                    </button>
+                </div>
             </div>
 
             {removeTarget && (

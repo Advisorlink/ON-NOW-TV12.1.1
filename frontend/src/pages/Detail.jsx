@@ -14,6 +14,7 @@ import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
 import CastRow from '@/components/CastRow';
 import RecommendationsRow from '@/components/RecommendationsRow';
+import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -676,6 +677,37 @@ export default function Detail() {
         }
     };
 
+    // ---------- PARTY MODE — DEDICATED JOINING SCREEN ----------
+    // Highest-priority render path.  When the URL has `?party=…`
+    // AND autoplay hasn't fired yet, we render a clean, focused
+    // "Starting your party" screen and nothing else.  Critically:
+    // the stream picker is NEVER mounted — there's no clickable
+    // picker to confuse the user, and no race condition where they
+    // tap a half-visible button behind the overlay.  We do this
+    // BEFORE the `loading` / `err / !meta` checks so the user sees
+    // the joining screen from the very first paint instead of a
+    // plain "Loading metadata…" fragment.
+    if (partyCode && !autoplayFired) {
+        const seriesLabel = (type === 'series' && partySeason && partyEpisode)
+            ? ` · S${String(partySeason).padStart(2, '0')}E${String(partyEpisode).padStart(2, '0')}`
+            : '';
+        const noStreams = !streamLoading && streams.length === 0 && type !== 'series';
+        return (
+            <PartyJoiningScreen
+                title={meta ? (meta.name || '') + seriesLabel : 'Your watch party is starting'}
+                poster={meta?.poster}
+                backdrop={meta?.background || meta?.poster}
+                loading={loading || streamLoading}
+                noStreams={noStreams}
+                onCancel={() => navigate('/watch-together')}
+                onRetry={() => {
+                    partyBreadcrumb('party-joining:user-retry', { partyCode });
+                    window.location.reload();
+                }}
+            />
+        );
+    }
+
     if (loading) {
         return (
             <CenterMsg>
@@ -723,56 +755,6 @@ export default function Detail() {
             style={isKidsActive() ? { background: 'var(--vesper-bg-0)' } : undefined}
         >
             <FullscreenButton />
-
-            {/* PARTY JOINING OVERLAY — shown while in a party and the
-                stream is still being picked.  Gives the user clear
-                feedback that the party autoplay is in flight (rather
-                than the picker / Play 1080p button confusing them). */}
-            {partyCode && !autoplayFired && (
-                <div
-                    data-testid="party-joining-overlay"
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 80,
-                        background:
-                            'radial-gradient(ellipse 900px 500px at 50% 40%, rgba(93,200,255,0.18) 0%, transparent 60%),' +
-                            'rgba(6,8,15,0.92)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 16,
-                        color: '#E6EAF2',
-                        pointerEvents: 'none',
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 56, height: 56, borderRadius: '50%',
-                            border: '3px solid rgba(93,200,255,0.25)',
-                            borderTopColor: '#5DC8FF',
-                            animation: 'spin 1.1s linear infinite',
-                        }}
-                    />
-                    <div style={{
-                        fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
-                        letterSpacing: '0.34em', color: '#5DC8FF',
-                    }}>
-                        JOINING WATCH PARTY
-                    </div>
-                    <div style={{ fontSize: 14, color: '#9DA5B5' }}>
-                        {type === 'series' && partySeason && partyEpisode
-                            ? `Loading S${String(partySeason).padStart(2, '0')}E${String(partyEpisode).padStart(2, '0')}…`
-                            : streamLoading
-                                ? 'Resolving stream…'
-                                : (streams.length === 0
-                                    ? 'No streams available — host needs to pick a different title.'
-                                    : 'Starting playback in a moment…')}
-                    </div>
-                    <style>{`@keyframes spin { from {transform: rotate(0)} to {transform: rotate(360deg)} }`}</style>
-                </div>
-            )}
 
             {/* Backdrop — when an actor is focused in the Cast row,
                 swap to a B&W portrait of them.  Otherwise show the

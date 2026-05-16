@@ -12,6 +12,7 @@ import Settings from '@/pages/Settings';
 import Library from '@/pages/Library';
 import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
+import ProfileLoad from '@/pages/ProfileLoad';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import WatchTogether from '@/pages/WatchTogether';
@@ -74,6 +75,7 @@ const NO_PROFILE_REQUIRED = [
     '/profiles',
     '/profiles/new',
     '/profiles/edit',
+    '/profiles/load',
     '/kids/exit-pin',
 ];
 
@@ -232,6 +234,7 @@ function App() {
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
+                                <Route path="/profiles/load" element={<RequireProfile><ProfileLoad /></RequireProfile>} />
                                 <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
 
                                 <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />

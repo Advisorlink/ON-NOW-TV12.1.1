@@ -227,6 +227,24 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.5 — Bulletproof Watch Together + Load existing profile**
+            - 🎯 PERMANENT fix for "Start Party shows the picker
+              instead of just playing": the Detail page now renders
+              a dedicated full-screen "Starting your party…" screen
+              when the URL has `?party=…`.  The stream picker is
+              not mounted at all — there's no clickable button to
+              tap, no race condition, nothing to confuse anyone.
+            - 🔄 Cancel + Retry built into the joining screen: if
+              you ever do get stuck, one tap reloads the page; one
+              tap leaves the party.  Never silently broken again.
+            - 💾 NEW "Load existing profile" on the profile picker:
+              if you've saved a backup on another device (Settings
+              → Backups → Save), tap the new neon button on the
+              "Who's ready to watch?" screen, enter your 6-character
+              code + PIN, and your profiles + library + Continue
+              Watching are restored.  Beautiful focused TV-friendly
+              keypad, no copy-paste needed.
+
             **v2.6.4 — Working auto-update installer + gate fixes**
             - 🔧 FIXED: The in-app update gate's "Download and install"
               button is now actually wired through to a native
