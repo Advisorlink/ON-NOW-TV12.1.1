@@ -227,6 +227,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.3 — Watch Together bulletproof autoplay + diagnostics**
+            - 🛡️ FIXED (3rd recurrence): "Start Party → both end on the
+              manual stream picker, host plays solo, guest does nothing."
+              The autoplay guard is now a hybrid REF + STATE pattern so
+              the JOINING-WATCH-PARTY overlay always tracks reality AND
+              the deferred `playStream` can't be self-cancelled by its
+              own state-update.
+            - 🦮 Autoplay watchdog: separate 5-second safety net that
+              re-fires the pick + playStream if the primary autoplay
+              didn't run.  No more permanently-stranded party members.
+            - 🧷 WS-open-aware lobby send: `Start Party` now waits up
+              to 2.5 s for the WebSocket to reach OPEN before sending
+              `play`.  Previously a fast click could silently drop the
+              message and leave both members hung in the lobby.
+            - 🌀 Start Party button shows disabled / spinner / error
+              states so you always know what's happening.
+            - 🍞 Diagnostic breadcrumb trail in
+              `localStorage["vesper-party-breadcrumbs"]` capturing the
+              full party lifecycle (lobby connect → joined → send →
+              navigate → streams → autoplay → native/web bridge).
+              Mirrored to `console.log` so adb logcat sees them live.
+
             **v2.6.2 — Premium Live TV overlay redesign**
             - 🎨 NEW: Beautiful premium Live Guide overlay.  Drop
               the old full-screen design — the new one is a 460dp
