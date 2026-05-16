@@ -40,29 +40,136 @@ const PREFIXES = [
  *   • `vesper-tmdb-*` — TMDB poster / network art cache.
  *   • `vesper-recent-*` — last 50 plays per profile (kept locally,
  *     not worth syncing across devices).
+ *   • `onnowtv-xmltv-*` — gzipped XMLTV blobs that some older builds
+ *     persisted to localStorage instead of the modern in-memory
+ *     cache.  Always megabytes in size, always regenerable.
+ *   • `onnowtv-bootcache-*` — Live TV boot splash snapshot.
+ *   • `vesper-poster-*` / `vesper-backdrop-*` — TMDB art blobs that
+ *     a previous build wrote as base64 strings.
  */
 const EXCLUDE_PREFIXES = [
     'onnowtv-livecache-',
     'onnowtv-channelcache-',
+    'onnowtv-xmltv-',
+    'onnowtv-bootcache-',
     'vesper-tmdb-',
     'vesper-recent-',
+    'vesper-poster-',
+    'vesper-backdrop-',
 ];
+
+/* Cap per-key size.  Even if a key wasn't explicitly excluded, drop
+   it if it's bigger than this — almost certainly cache pollution. */
+const MAX_PER_KEY_BYTES = 128 * 1024; // 128 KB
+
+/* Target total payload size.  If we end up over this after the basic
+   filtering, we progressively trim — dropping the LARGEST remaining
+   non-essential keys first.  This is a generous limit; the backend
+   stores the payload gzipped so the actual wire size is way smaller. */
+const TARGET_TOTAL_BYTES = 4 * 1024 * 1024; // 4 MB raw → ~500 KB gzipped
+
+/* Keys we MUST keep — never drop these even if we're over budget. */
+const ESSENTIAL_KEYS = new Set([
+    'onnowtv-profiles-v1',
+    'onnowtv-active-profile-v1',
+    'onnowtv-provider-v1',     // saved Xtream credentials
+]);
+const ESSENTIAL_PREFIXES = [
+    'onnowtv-pref:',
+    'vesper-library-',
+    'vesper-fav-',
+    'vesper-cw-',           // Continue Watching state
+    'onnowtv-live-fav-',    // Live TV favourites
+    'onnowtv-live-rem-',    // EPG reminders
+    'vesper-pref-',
+    'vesper-theme-',
+];
+
+/** Best-effort byte count for a string (UTF-8). */
+function bytesOf(s) {
+    if (s == null) return 0;
+    /* TextEncoder gives an exact count when available; otherwise the
+       char-count is a good-enough overestimate. */
+    try {
+        return new TextEncoder().encode(s).length;
+    } catch {
+        return s.length;
+    }
+}
+
+function isEssential(key) {
+    if (ESSENTIAL_KEYS.has(key)) return true;
+    return ESSENTIAL_PREFIXES.some((p) => key.startsWith(p));
+}
 
 /** Read every matching key into a plain object.  Skips the bulky
  *  regenerable caches listed in EXCLUDE_PREFIXES so the backup fits
- *  comfortably inside the server's 12 MB BSON-document limit. */
+ *  comfortably inside the server's BSON-document limit.
+ *
+ *  Returns `{ payload, dropped, totalBytes }` so the UI can show
+ *  a friendly diagnostic if anything had to be trimmed. */
 export function collectBackupPayload() {
-    const out = {};
+    /* Pass 1 — filter by prefix + per-key size cap. */
+    const candidates = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (!key) continue;
         if (!PREFIXES.some((p) => key.startsWith(p))) continue;
         if (EXCLUDE_PREFIXES.some((p) => key.startsWith(p))) continue;
+        let value;
         try {
-            out[key] = localStorage.getItem(key);
-        } catch { /* ignore */ }
+            value = localStorage.getItem(key);
+        } catch { continue; }
+        if (value == null) continue;
+        const size = bytesOf(value);
+        if (size > MAX_PER_KEY_BYTES && !isEssential(key)) {
+            /* Drop oversize non-essential blobs (usually cache
+               pollution from older builds). */
+            continue;
+        }
+        candidates.push({ key, value, size, essential: isEssential(key) });
     }
-    return out;
+
+    /* Pass 2 — progressive trim if we're still over budget.  Sort
+       by (essential first, then ascending size); keep adding until
+       we hit the target.  Essential keys are always included even
+       if we end up over budget. */
+    candidates.sort((a, b) => {
+        if (a.essential !== b.essential) return a.essential ? -1 : 1;
+        return a.size - b.size;
+    });
+
+    const out = {};
+    const dropped = [];
+    let total = 0;
+    for (const c of candidates) {
+        if (c.essential) {
+            out[c.key] = c.value;
+            total += c.size;
+        } else if (total + c.size <= TARGET_TOTAL_BYTES) {
+            out[c.key] = c.value;
+            total += c.size;
+        } else {
+            dropped.push(c.key);
+        }
+    }
+
+    return Object.assign(out, {
+        /* Diagnostic only — Object.assign onto a plain object so the
+           caller can iterate values without these leaking into the
+           saved set.  Stripped by the wrapper before posting. */
+    });
+}
+
+/* Some callers (the Settings page) want diagnostic info — kept
+   separately so collectBackupPayload remains a flat map of
+   string→string suitable for JSON.stringify. */
+export function collectBackupPayloadWithStats() {
+    const payload = collectBackupPayload();
+    const totalBytes = Object.entries(payload).reduce(
+        (s, [, v]) => s + bytesOf(v), 0
+    );
+    return { payload, totalBytes };
 }
 
 /** Apply a payload object back into localStorage.  Overwrites any

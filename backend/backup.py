@@ -130,14 +130,30 @@ async def save_backup(req: SaveReq):
     await _ensure_indexes()
     pin = _normalise_pin(req.pin)
 
-    # Size check — refuse silly-sized payloads early.
+    # Serialise + size check.
     import json as _json
+    import gzip as _gzip
     try:
         body = _json.dumps(req.payload).encode("utf-8")
     except Exception:
         raise HTTPException(status_code=400, detail="Backup payload could not be serialised.")
     if len(body) > PAYLOAD_BYTES_MAX:
         raise HTTPException(status_code=413, detail=f"Backup too large ({len(body)} bytes).")
+
+    # Gzip-compress the payload before storing.  JSON-heavy localStorage
+    # snapshots typically shrink 5-10× — a 6 MB raw payload becomes
+    # ~700 KB stored, sitting comfortably inside MongoDB's 16 MB BSON
+    # document limit and dropping bandwidth costs on restore.
+    #
+    # The decision to compress is based on the raw size — anything
+    # above 256 KB benefits.  We store either a `payload` field (raw
+    # dict, for small backups) OR a `payload_gz` field (gzipped
+    # bytes); the restore path auto-detects which.
+    compressed = None
+    store_format = "raw"
+    if len(body) > 256 * 1024:
+        compressed = _gzip.compress(body, compresslevel=6)
+        store_format = "gz"
 
     # Make a fresh unique code.  Retry up to 8 times to avoid the
     # vanishingly rare collision against the unique index.
@@ -147,22 +163,30 @@ async def save_backup(req: SaveReq):
         salt = secrets.token_hex(16)
         pin_hash = _hash_pin(pin, salt)
         now = datetime.now(timezone.utc)
+        doc: Dict[str, Any] = {
+            "code":         code,
+            "size_bytes":   len(body),
+            "stored_bytes": len(compressed) if compressed else len(body),
+            "format":       store_format,
+            "pin_salt":     salt,
+            "pin_hash":     pin_hash,
+            "created_at":   now,
+            "expires_at":   now + timedelta(days=TTL_DAYS),
+            "restore_count": 0,
+            "last_restore_at": None,
+        }
+        if compressed is not None:
+            doc["payload_gz"] = compressed
+        else:
+            doc["payload"] = req.payload
         try:
-            await _col.insert_one({
-                "code":         code,
-                "payload":      req.payload,
-                "size_bytes":   len(body),
-                "pin_salt":     salt,
-                "pin_hash":     pin_hash,
-                "created_at":   now,
-                "expires_at":   now + timedelta(days=TTL_DAYS),
-                "restore_count": 0,
-                "last_restore_at": None,
-            })
+            await _col.insert_one(doc)
             return {
                 "code":       code,
                 "expires_at": (now + timedelta(days=TTL_DAYS)).isoformat(),
                 "size_bytes": len(body),
+                "stored_bytes": doc["stored_bytes"],
+                "format":     store_format,
             }
         except pymongo.errors.DuplicateKeyError as e:
             last_err = e
@@ -182,6 +206,15 @@ async def restore_backup(req: RestoreReq):
     salt = doc.get("pin_salt", "")
     if not expected or _hash_pin(pin, salt) != expected:
         raise HTTPException(status_code=403, detail="Incorrect PIN.")
+    # Auto-detect storage format — older backups (pre-v2.6.2) store
+    # the dict raw under `payload`; v2.6.2+ may store the gzipped
+    # bytes under `payload_gz`.
+    payload = doc.get("payload")
+    if payload is None and "payload_gz" in doc:
+        import json as _json
+        import gzip as _gzip
+        raw = _gzip.decompress(doc["payload_gz"])
+        payload = _json.loads(raw.decode("utf-8"))
     # Bump restore counter (best-effort).
     try:
         await _col.update_one(
@@ -192,7 +225,7 @@ async def restore_backup(req: RestoreReq):
     except Exception:
         pass
     return {
-        "payload":    doc["payload"],
+        "payload":    payload,
         "created_at": doc["created_at"].isoformat() if doc.get("created_at") else None,
         "size_bytes": doc.get("size_bytes", 0),
     }
