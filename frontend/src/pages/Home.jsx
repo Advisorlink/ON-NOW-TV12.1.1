@@ -331,11 +331,16 @@ export default function Home() {
                         className="flex-1 overflow-y-auto"
                         style={{
                             scrollBehavior: 'auto',
-                            // Top padding so the focus ring around
-                            // the FIRST shelf's tiles isn't clipped
-                            // by the scroller's top edge (the focus
-                            // ring extends ~22 px above each tile).
-                            paddingTop: 26,
+                            // Just enough top padding for the focus
+                            // ring not to clip into the hero above.
+                            // Reduced from 26 → 8 in v2.6.9 because
+                            // 26 was pushing the pinned row down too
+                            // far, causing the posters' bottom edge
+                            // to clip against the shelves-region's
+                            // bottom boundary on 1080p.  Mirrors the
+                            // scrollPaddingTop below so every snapped
+                            // row lands at the same Y.
+                            paddingTop: 8,
                             // ROW PINNING — when our keyboard handler
                             // calls scrollIntoView({block:'start'})
                             // on a shelf section, this scroll-padding
@@ -344,16 +349,14 @@ export default function Home() {
                             // clipped AND every snapped row lands at
                             // identical Y.  Same trick CSS scroll-snap
                             // uses, but driven manually here.
-                            scrollPaddingTop: 26,
+                            scrollPaddingTop: 8,
                             // GPU-accelerated vertical scrolling.
-                            // `contain: content` lets the WebView
-                            // skip layout/paint for shelves that
-                            // aren't currently in view (combined with
-                            // content-visibility on each PosterTile).
-                            // `overscrollBehavior: contain` prevents
-                            // a stray scroll gesture from bubbling
-                            // up and rubber-banding the whole page.
-                            contain: 'content',
+                            // NOTE: do NOT add `contain: content` —
+                            // it would clip the focused tile's
+                            // scale(1.08) transform at the shelves
+                            // region's bottom edge.  Tile-level
+                            // `content-visibility: auto` already
+                            // handles virtualisation.
                             transform: 'translateZ(0)',
                             willChange: 'scroll-position',
                             overscrollBehavior: 'contain',

@@ -227,6 +227,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.9 — Row pinning sits higher (no more bottom clip)**
+            - 🎯 FIXED: focused poster rows were landing a touch
+              too far down on 1080p, clipping the bottom edge of
+              the posters against the shelves region's bottom
+              boundary.  Reduced the row-pinning top padding from
+              26 px → 8 px so each row sits ~18 px higher — exactly
+              the "tiny bit" up the user asked for.
+            - 🎯 FIXED: `contain: content` on the scroll containers
+              from v2.6.8 was clipping the focused tile's
+              scale(1.08) animation at the row's bottom edge.
+              Removed it — virtualisation already happens at the
+              tile level via `content-visibility: auto`, so the
+              container-level containment was redundant AND
+              harmful.
+
             **v2.6.8 — Native-smooth Home + Live Guide EPG fix**
             - 🚀 Home shelves now feel RecyclerView-smooth: every
               tile uses `content-visibility: auto` (the WebView's

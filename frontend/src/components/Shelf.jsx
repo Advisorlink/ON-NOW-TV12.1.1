@@ -66,11 +66,11 @@ export default function Shelf({ shelf, onSelect }) {
                     paddingTop: 'clamp(14px, 1.4vw, 22px)',
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
                     // GPU-accelerated horizontal scrolling on the
-                    // WebView — same recipe as PosterTile but at the
-                    // row level.  `contain: content` lets the WebView
-                    // skip off-screen rows entirely once they've been
-                    // virtualised by content-visibility on the tiles.
-                    contain: 'content',
+                    // WebView.  NOTE: do NOT add `contain: content`
+                    // here — it would clip the focused tile's
+                    // scale(1.08) transform at the row's bottom
+                    // edge.  Virtualisation already happens at the
+                    // tile level via `content-visibility: auto`.
                     transform: 'translateZ(0)',
                     willChange: 'scroll-position',
                     // Use scroll-snap so D-pad left/right anchors
