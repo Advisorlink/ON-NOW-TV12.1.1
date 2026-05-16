@@ -227,6 +227,19 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.18 — Detail page: long titles fit on one line**
+            - 🎯 FIXED: long movie titles (e.g. "The Punisher: One
+              Last Kill") wrapped to 2 lines at the old 92 px max
+              font size, pushing the Cast row off-screen on the
+              box's overscan-tight viewport.
+            - ✅ Reduced detail title max font from 92 → 72 px and
+              widened max-width from 60vw → 68vw so 30-character
+              titles fit on a single line.  Tightened header
+              spacing (mb-8 → mb-5, mb-4 → mb-3) and main padding
+              (64 → 40 top, 80 → 60 bottom) to claw back ~50 px of
+              vertical space.  Cast row and "More like this" now
+              both fit on screen without scrolling.
+
             **v2.6.17 — Actor focus: in-place hero swap with biography**
             - 🎭 NEW: when an actor card in the Cast row receives
               focus, the Detail page hero now swaps IN-PLACE to:

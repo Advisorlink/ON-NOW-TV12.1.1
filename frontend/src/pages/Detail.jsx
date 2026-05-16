@@ -872,9 +872,9 @@ export default function Detail() {
 
             <main
                 className="relative z-10 w-full h-full overflow-y-auto"
-                style={{ padding: '64px 80px 80px 80px' }}
+                style={{ padding: '40px 80px 60px 80px' }}
             >
-                <div className="flex items-center gap-3 mb-8">
+                <div className="flex items-center gap-3 mb-5">
                     <button
                         data-testid="back-button"
                         data-focusable="true"
@@ -897,9 +897,9 @@ export default function Detail() {
                     <LibraryStatusPill id={id} />
                 </div>
 
-                <div className="max-w-[60vw] vesper-fade-up">
+                <div className="max-w-[68vw] vesper-fade-up">
                     {meta.imdb_id && (
-                        <div className="vesper-eyebrow mb-4">
+                        <div className="vesper-eyebrow mb-3">
                             {type} · {meta.imdb_id}
                         </div>
                     )}
@@ -907,8 +907,14 @@ export default function Detail() {
                         className="vesper-display"
                         data-testid="detail-title"
                         style={{
-                            fontSize: 'clamp(56px, 6vw, 92px)',
+                            // Smaller cap (was 92 → 72) so long titles
+                            // like "The Punisher: One Last Kill" fit
+                            // on a single line and don't push the
+                            // Cast row off-screen on the box's
+                            // overscan-tight viewport.
+                            fontSize: 'clamp(44px, 4.6vw, 72px)',
                             letterSpacing: '-0.035em',
+                            lineHeight: 1.05,
                             transition: 'opacity 220ms ease',
                         }}
                     >
