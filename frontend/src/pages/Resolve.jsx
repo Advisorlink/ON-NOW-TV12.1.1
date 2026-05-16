@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
 
@@ -13,6 +13,7 @@ import { API } from '@/lib/api';
 export default function Resolve() {
     const { type, id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
         let cancel = false;
@@ -30,7 +31,15 @@ export default function Resolve() {
                 // at_ms=, position_ms=, etc.) through the redirect
                 // so Watch Together / autoplay flows survive the
                 // tmdb→imdb hop.
-                const qs = window.location.search || '';
+                //
+                // CRITICAL: use `location.search` from react-router
+                // — NOT `window.location.search`.  Inside the APK we
+                // run under `file://` which forces HashRouter, where
+                // `window.location.search` is always empty because the
+                // query params live INSIDE the hash.  Using the
+                // router's location object normalises this across
+                // BrowserRouter (preview) and HashRouter (APK).
+                const qs = location.search || '';
                 if (imdbId) {
                     navigate(`/title/${appType}/${imdbId}${qs}`, { replace: true });
                 } else {
@@ -43,7 +52,7 @@ export default function Resolve() {
         return () => {
             cancel = true;
         };
-    }, [type, id, navigate]);
+    }, [type, id, navigate, location.search]);
 
     return (
         <div

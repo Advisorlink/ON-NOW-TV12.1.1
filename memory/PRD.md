@@ -34,6 +34,16 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 91 — Feb 16, 2026)
+### v2.6.6 — THE real Watch Together root cause (HashRouter query-string bug)
+- **🐛 User reported (5th recurrence)** on v2.6.5: "Start Party still opens the manual stream picker with Play 1080p on both screens."
+- **🔬 ACTUAL ROOT CAUSE finally found**: the React app, when bundled into the APK, loads from `file:///android_asset/web/index.html`. The router-selection logic in `App.js` (line 51-54) detects `file:` protocol and switches React Router into **HashRouter** mode. In HashRouter, the URL is `file://.../index.html#/resolve/movie/123?party=XYZ` — the `?party=XYZ` query string is **inside the hash**, so `window.location.search` returns an empty string.
+- **The silent failure chain**: `Resolve.jsx` was reading `window.location.search` to forward the party context through the tmdb→imdb redirect. On the APK (HashRouter) it returned empty → redirect dropped `?party=…` → Detail.jsx mounted with no `partyCode` → no early return → manual picker rendered. Every fix I attempted previously (autoplay watchdog, ref+state guard, dedicated party screen) was defeated by the upstream query-string drop.
+- **The reason it never reproduced in preview**: the preview at `rebrand-app-5.preview.emergentagent.com` runs on HTTPS so `App.js` uses BrowserRouter, where `window.location.search` works correctly. So my preview tests passed every time while the APK silently failed.
+- **🛠️ Fix** (`pages/Resolve.jsx`): replaced `window.location.search` with `useLocation().search` from react-router-dom. Works identically under both routers because react-router normalises the search string regardless of the URL transport.
+- **🧪 Verified in preview**: navigating to `/resolve/movie/157336?party=TESTQS&autoplay=1&...` now hops cleanly through `/title/movie/tt0816692?party=TESTQS&...` straight to `/play?url=…&party=TESTQS` with the party context fully intact, with 0 stream picker buttons rendered at any step.
+- **Manifest v2.6.6 (versionCode 76).**
+
 ## Implemented (Iteration 90 — Feb 16, 2026)
 ### v2.6.5 — Bulletproof Watch Together + Load existing profile
 - **🐛 User reported (4th recurrence)** of the Watch Together "Start Party shows the picker" bug. Even on v2.6.3 with the bulletproof autoplay + watchdog, the user saw a "Play 1080p" button rendered behind the joining overlay and tapped through it.

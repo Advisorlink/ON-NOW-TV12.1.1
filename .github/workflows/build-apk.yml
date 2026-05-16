@@ -227,6 +227,26 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.6 — THE Watch Together fix (HashRouter query-string bug)**
+            - 🎯 ROOT CAUSE finally identified: inside the APK the
+              app runs from `file://` which forces React Router
+              into **HashRouter** mode.  In HashRouter, the URL is
+              `file://.../index.html#/resolve/movie/123?party=XYZ`
+              — the `?party=XYZ` is INSIDE the hash, so
+              `window.location.search` returns EMPTY.
+            - 📌 `Resolve.jsx` was reading `window.location.search`
+              to forward party context through the tmdb→imdb hop.
+              Result: every party redirect silently dropped the
+              `?party=…` query, so Detail.jsx never knew it was in
+              a party and rendered the regular picker.
+            - ✅ Fix: switched to `useLocation().search` from
+              react-router, which works identically under both
+              HashRouter (APK) and BrowserRouter (preview/dev).
+              This is why the bug never reproduced in preview no
+              matter how many fixes I attempted — preview uses
+              BrowserRouter so `window.location.search` worked
+              there but failed silently on the box.
+
             **v2.6.5 — Bulletproof Watch Together + Load existing profile**
             - 🎯 PERMANENT fix for "Start Party shows the picker
               instead of just playing": the Detail page now renders
