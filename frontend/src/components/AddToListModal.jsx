@@ -108,6 +108,13 @@ export default function AddToListModal() {
     // handlers AND before the window-level spatial-focus handler so
     // we can veto the held-key auto-confirm.  We also catch leftover
     // mouseup on the backdrop here so it doesn't dismiss the modal.
+    //
+    // CRITICAL: only eat the FIRST keyup (the tail of the long-press
+    // that opened the modal).  Once `armedRef` flips to true, all
+    // subsequent Enter / Space presses must flow through to the
+    // focused button — otherwise the user can't actually confirm
+    // the action they wanted to take.  Earlier versions ate EVERY
+    // keyup which broke "Add to My List" entirely.
     useEffect(() => {
         if (!payload) return;
         const onKeyDownCapture = (e) => {
@@ -122,10 +129,13 @@ export default function AddToListModal() {
             }
         };
         const onKeyUpCapture = (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
+            if ((e.key === 'Enter' || e.key === ' ') && !armedRef.current) {
+                // First Enter/Space release after modal mounts is
+                // the tail of the long-press the user opened the
+                // modal with — eat it once and arm the modal.  All
+                // subsequent presses are real user input and must
+                // pass through to the buttons inside the modal.
                 armedRef.current = true;
-                // Eat this release too — it's the tail of the same
-                // press the user used to open the modal.
                 e.preventDefault();
                 e.stopPropagation();
             }

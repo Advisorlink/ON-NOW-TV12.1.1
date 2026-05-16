@@ -227,6 +227,23 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.11 — "Add to My List" OK button works again**
+            - 🐛 FIXED: long-pressing OK on a poster opened the
+              "Add to My List" modal correctly, but pressing OK on
+              the modal's confirm button did nothing.  Root cause:
+              the capture-phase keyup guard was eating EVERY
+              Enter/Space release while the modal was open, not
+              just the first one (the long-press tail).  So the
+              user's confirm press never reached the button.
+            - ✅ Now eats only the FIRST keyup (the long-press
+              tail), then arms the modal.  All subsequent presses
+              flow through to the focused button as expected.
+            - 🎨 Home rows: NO visual changes from v2.6.10.  The
+              perfect row layout you confirmed is preserved
+              exactly — same scale animation, same row pinning,
+              no clipping, no glow added.  Only the long-press
+              modal's keyboard handling was touched.
+
             **v2.6.10 — Fix focused poster bottom clipping**
             - 🎯 FIXED: focused poster's scale(1.08) animation was
               getting clipped at the bottom edge.  Root cause:
