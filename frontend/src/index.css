@@ -177,15 +177,21 @@ body {
     -webkit-backface-visibility: hidden;
     -webkit-overflow-scrolling: touch;
     /* Tell the browser this scroll container's children are
-       layout-contained — paint / layout / size of one tile can't
-       affect siblings.  Massive win on big shelves. */
-    contain: layout style paint;
+       layout-contained — paint / layout of one tile can't affect
+       siblings.  We deliberately omit `paint` from the contain
+       list because `contain: paint` clips painting to the box's
+       content edge, which chops off the bottom ~10 px of a
+       focused tile's scale(1.08) animation.  `layout` + `style`
+       give us the perf win without the clipping. */
+    contain: layout style;
 }
 
 /* Each shelf row is its own paint / layout container so scrolling
-   one row doesn't invalidate sibling rows.  Critical for 60 fps. */
+   one row doesn't invalidate sibling rows.  Critical for 60 fps.
+   NOTE: paint containment intentionally OMITTED here — see the
+   comment on `.vesper-shelf` above for why. */
 .vesper-shelf-section {
-    contain: layout style paint;
+    contain: layout style;
     /* NOTE: we previously also set `content-visibility: auto` here
        for the off-screen-shelves perf win — but that makes a
        shelf's descendants render with 0 × 0 layout boxes when the

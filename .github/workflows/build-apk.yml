@@ -227,6 +227,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.15 — THE actual bottom-clipping fix (paint containment)**
+            - 🎯 ROOT CAUSE finally found.  CSS `contain: paint` on
+              `.vesper-shelf` and `.vesper-shelf-section` was acting
+              like an invisible `overflow: hidden` on every shelf
+              row — clipping the bottom ~10 px of any focused tile's
+              scale(1.08) animation, regardless of where the row was
+              positioned in the viewport.  No amount of row-pinning
+              could ever fix it because the clip happened at paint
+              time inside each row.
+            - ✅ Removed `paint` from the contain list (kept `layout`
+              + `style` — those provide the perf win without
+              clipping).  Focused poster bottoms now render fully
+              regardless of which row they're in or where they sit
+              on screen.
+
             **v2.6.14 — Row pinning recentered (no more bottom clip)**
             - 🎯 FIXED: focused row was clipping at the bottom again
               after the v2.6.12 cover-size bump made rows ~10%
