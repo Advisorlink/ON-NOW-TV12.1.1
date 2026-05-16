@@ -227,6 +227,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.7 — Home row pinning + flush row scrolling**
+            - 🎯 FIXED: home page rows would land at slightly
+              different vertical positions when navigating Up/Down
+              between them — sometimes cut off at the bottom,
+              sometimes drifting up.  The scrollIntoView call was
+              using `block: 'nearest'` which scrolls the minimum
+              amount to bring the tile on-screen, so each row
+              parked wherever the previous row's height left it.
+            - ✅ Row pinning: now scrolls the ENTIRE shelf section
+              (not the tile) to `block: 'start'` on every row
+              change, with a matching `scroll-padding-top` on the
+              shelves container.  Result: every Down / Up press
+              lands the focused row at exactly the same Y position,
+              identical to how a native RecyclerView snaps rows.
+
             **v2.6.6 — THE Watch Together fix (HashRouter query-string bug)**
             - 🎯 ROOT CAUSE finally identified: inside the APK the
               app runs from `file://` which forces React Router

@@ -265,10 +265,26 @@ export default function Home() {
                 .forEach((el) => {
                     if (el !== target.el) el.removeAttribute('data-focused');
                 });
+            // ROW PINNING — scroll the entire SHELF SECTION (not the
+            // tile) to a consistent position at the top of the
+            // shelves region.  Previously we used `block: 'nearest'`
+            // which scrolled the minimum amount necessary, leaving
+            // the row at a slightly different Y offset every time
+            // depending on direction + previous row height.  By
+            // scrolling the section's top to `start` (with
+            // `scroll-padding-top` on the parent scroller for a
+            // consistent gap), every row navigation lands the
+            // focused row at exactly the same visual position.  Feels
+            // identical to a native RecyclerView snapping rows.
+            const sectionAncestor = target.el.closest(
+                '[data-testid="for-you-shelf"], [data-testid^="continue-watching"], [data-testid="networks-shelf"], section'
+            );
+            const toScroll = sectionAncestor || target.el;
             try {
-                target.el.scrollIntoView({
+                toScroll.scrollIntoView({
                     behavior: 'smooth',
-                    block: 'nearest',
+                    block: 'start',
+                    inline: 'nearest',
                 });
             } catch { /* ignore */ }
         };
@@ -320,6 +336,15 @@ export default function Home() {
                             // by the scroller's top edge (the focus
                             // ring extends ~22 px above each tile).
                             paddingTop: 26,
+                            // ROW PINNING — when our keyboard handler
+                            // calls scrollIntoView({block:'start'})
+                            // on a shelf section, this scroll-padding
+                            // pushes the section's top down by the
+                            // same offset so the focus ring isn't
+                            // clipped AND every snapped row lands at
+                            // identical Y.  Same trick CSS scroll-snap
+                            // uses, but driven manually here.
+                            scrollPaddingTop: 26,
                         }}
                     >
                         <ContinueWatchingShelf />
