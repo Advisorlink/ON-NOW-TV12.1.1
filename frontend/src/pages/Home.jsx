@@ -266,16 +266,17 @@ export default function Home() {
                     if (el !== target.el) el.removeAttribute('data-focused');
                 });
             // ROW PINNING — scroll the entire SHELF SECTION (not the
-            // tile) to a consistent position at the top of the
-            // shelves region.  Previously we used `block: 'nearest'`
-            // which scrolled the minimum amount necessary, leaving
-            // the row at a slightly different Y offset every time
-            // depending on direction + previous row height.  By
-            // scrolling the section's top to `start` (with
-            // `scroll-padding-top` on the parent scroller for a
-            // consistent gap), every row navigation lands the
-            // focused row at exactly the same visual position.  Feels
-            // identical to a native RecyclerView snapping rows.
+            // tile) to a consistent position in the shelves region.
+            // We use `block: 'center'` so the focused row anchors at
+            // the vertical middle of the visible shelves area: every
+            // row is the same height, so they all land at exactly
+            // the same Y, AND the focus scale(1.08) animation has
+            // equal headroom above AND below — no clipping at the
+            // top OR bottom regardless of which row is focused.
+            // Earlier `block: 'start'` worked when posters were
+            // smaller, but the v2.6.12 size bump made each row tall
+            // enough that the scaled tile's bottom edge spilled
+            // out the bottom of the shelves region.
             const sectionAncestor = target.el.closest(
                 '[data-testid="for-you-shelf"], [data-testid^="continue-watching"], [data-testid="networks-shelf"], section'
             );
@@ -283,7 +284,7 @@ export default function Home() {
             try {
                 toScroll.scrollIntoView({
                     behavior: 'smooth',
-                    block: 'start',
+                    block: 'center',
                     inline: 'nearest',
                 });
             } catch { /* ignore */ }

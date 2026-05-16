@@ -227,6 +227,17 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.14 — Row pinning recentered (no more bottom clip)**
+            - 🎯 FIXED: focused row was clipping at the bottom again
+              after the v2.6.12 cover-size bump made rows ~10%
+              taller.  Switched row pinning from `block: 'start'`
+              (top edge of row aligns to top of shelves region) to
+              `block: 'center'` (row anchors at vertical center).
+              Result: every row still lands at the same consistent
+              Y position (RecyclerView feel), but the focus scale
+              animation now has equal headroom above AND below
+              instead of all the buffer being above.
+
             **v2.6.13 — TV episode-end UX (return to picker + Up Next pill)**
             - 📺 NEW: when a TV episode ends, the player now returns
               to the **episode picker on the Detail page**, scrolled
