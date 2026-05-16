@@ -244,7 +244,7 @@ function ActorCard({ actor, onFocus, onBlur, onPick }) {
             onMouseLeave={(e) => onBlur?.(e)}
             style={{
                 flexShrink: 0,
-                width: 132,
+                width: 108,
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
@@ -257,9 +257,9 @@ function ActorCard({ actor, onFocus, onBlur, onPick }) {
         >
             <div
                 style={{
-                    width: 132,
-                    height: 196,
-                    borderRadius: 14,
+                    width: 108,
+                    height: 162,
+                    borderRadius: 12,
                     overflow: 'hidden',
                     position: 'relative',
                     background: 'rgba(255,255,255,0.05)',
@@ -422,7 +422,7 @@ function FilmCard({ film, onPick }) {
             onMouseLeave={() => setFocused(false)}
             style={{
                 flexShrink: 0,
-                width: 132,
+                width: 108,
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
@@ -435,9 +435,9 @@ function FilmCard({ film, onPick }) {
         >
             <div
                 style={{
-                    width: 132,
-                    height: 196,
-                    borderRadius: 14,
+                    width: 108,
+                    height: 162,
+                    borderRadius: 12,
                     overflow: 'hidden',
                     position: 'relative',
                     background: 'rgba(255,255,255,0.05)',
