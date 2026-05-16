@@ -227,6 +227,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.1 — Bug-fix batch + Cast reveal pattern**
+            - 🐛 Home: removed the **duplicate focus border** on tiles
+              (Chrome's default `:focus-visible` outline was rendering
+              ON TOP of our custom box-shadow ring).
+            - 💾 Backup "bytes size too large" fixed — server limit
+              bumped to 12 MB AND the EPG / TMDB / channel caches
+              are now excluded from backups (regenerable server-side).
+            - ✋ Long-press to add to library now works in
+              Networks / Movies / TV catalogue pages on the box
+              (NetworkPosterTile wired into the same useLongPress
+              hook as Home).
+            - 🎭 NEW Cast reveal pattern: tap an actor in the cast
+              row → the strip TRANSFORMS in-place into that actor's
+              filmography (with a "Back to cast" pill + a "Full
+              profile →" link to the dedicated profile page).
+            - 🎬 Filmography accuracy massively improved: backend
+              now filters out talk-show / news / self appearances,
+              1-episode guest spots, and obscure entries with no
+              poster.  Solves the "some movies don't even have that
+              actor in them" issue.
+            - 📺 Sports guide now shows **broadcast channels for
+              100% of fixtures** (was ~5%).  Added curated league →
+              channel mapping covering 60+ leagues across UK/US/AU.
+
             **v2.6.0 — Cast + "More like this" + Actor profiles +
             In-app Update Gate**
             - 🎭 NEW: Beautiful B&W cast strip below the Play button

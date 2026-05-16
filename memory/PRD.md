@@ -34,6 +34,24 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 86 — Feb 16, 2026)
+### Bug-fix batch + Cast reveal pattern + Sports broadcasters
+- **🐛 Home double focus border fixed** — added global `*:focus-visible { outline: none }` reset.  Chrome's default outline was rendering on top of our custom box-shadow ring.
+- **💾 Backup size limit fixed** — `PAYLOAD_BYTES_MAX` raised 2 MB → 12 MB; `profileBackup.js` now excludes `onnowtv-livecache-*`, `onnowtv-channelcache-*`, `vesper-tmdb-*`, `vesper-recent-*` (all regenerable server-side, no point sending across devices).
+- **✋ Push-and-hold "Add to library"** now wired in `NetworkPosterTile.jsx` (Movies / TV / Networks catalogue pages on the box now match Home's behaviour).
+- **🎭 Cast reveal pattern** (`components/CastRow.jsx`): tapping an actor transforms the strip in-place into that actor's filmography (matches user's screenshots).  Two modes:
+  - Cast mode (default) — 20 B&W portraits, focus swaps hero.
+  - Filmography mode — same strip but showing posters, with "← Back to cast" + "Full profile →" pills.
+- **🎬 Filmography accuracy fix** (`server.py`): `/api/tmdb/person/{id}` now filters out:
+  - Talk shows + News genres (10767, 10763).
+  - "Self" / "Himself" / "(uncredited)" character names.
+  - 1-episode guest spots (TV episode_count < 2).
+  - Entries with no poster.
+  - Popularity < 0.5.
+  - Cache key bumped to `v2`.
+- **📺 Sports guide broadcasters** (`sportsdb.py`): added curated `_LEAGUE_BROADCASTS` (60+ leagues) + `_SPORT_BROADCAST` (catch-all by sport).  Applied to BOTH SportsDB events AND ESPN events with empty broadcasts.  Coverage went from 5% → 100% of fixtures.
+- **Manifest v2.6.1 (versionCode 71)** — auto-built by GitHub Actions.
+
 ## Implemented (Iteration 85 — Feb 16, 2026)
 ### Cast + "More like this" + Actor profiles + In-app Update Gate
 - **🎭 Cast row** on every movie + TV detail page (`components/CastRow.jsx`):

@@ -29,6 +29,158 @@ from fastapi import APIRouter, Query
 
 logger = logging.getLogger("vesper.sportsdb")
 
+# ---------------------------------------------------------------------------
+# League-to-broadcaster heuristics
+# ---------------------------------------------------------------------------
+#
+# TheSportsDB's free tier doesn't return broadcast info, but for most
+# top-flight leagues the channels are stable enough that a curated
+# static mapping is more useful than the empty list we currently
+# ship.  These are the UK + USA + AU channels that carry each league —
+# the user's setup is UK/AU so we lead with those.  The frontend can
+# show the FIRST entry as "Watch on …" with the rest as a tooltip.
+#
+# Match keys are matched against the lowercased league name with
+# partial-substring matching (so "English Premier League" and
+# "Premier League" both hit).  Generic catch-alls live in the
+# _SPORT_BROADCAST table below for everything outside a known
+# league.
+_LEAGUE_BROADCASTS: Dict[str, List[str]] = {
+    # Football / soccer
+    "premier league":            ["Sky Sports", "TNT Sports", "Amazon Prime", "NBC Sports"],
+    "english premier league":    ["Sky Sports", "TNT Sports", "Amazon Prime", "NBC Sports"],
+    "championship":              ["Sky Sports", "ESPN+"],
+    "league one":                ["Sky Sports"],
+    "league two":                ["Sky Sports"],
+    "fa cup":                    ["BBC One", "ITV", "ESPN+"],
+    "efl cup":                   ["Sky Sports"],
+    "uefa champions league":     ["TNT Sports", "Paramount+"],
+    "uefa europa league":        ["TNT Sports", "Paramount+"],
+    "uefa conference league":    ["TNT Sports", "Paramount+"],
+    "la liga":                   ["Premier Sports", "ESPN+", "Paramount+"],
+    "serie a":                   ["TNT Sports", "Paramount+"],
+    "bundesliga":                ["Sky Sports", "ESPN+"],
+    "ligue 1":                   ["TNT Sports", "Paramount+"],
+    "eredivisie":                ["Premier Sports", "ESPN+"],
+    "scottish premiership":      ["Sky Sports", "Premier Sports"],
+    "mls":                       ["Apple TV+"],
+    "a-league":                  ["Channel 10", "Paramount+", "Network 10"],
+    "fifa world cup":            ["BBC One", "ITV", "FOX", "Telemundo"],
+    "fifa club world cup":       ["DAZN", "TNT Sports"],
+
+    # American football
+    "nfl":                       ["Sky Sports", "DAZN", "CBS", "FOX", "NBC", "ESPN"],
+    "college football":          ["ESPN", "ABC", "CBS"],
+
+    # Basketball
+    "nba":                       ["Sky Sports", "TNT Sports", "ESPN", "TNT", "ABC"],
+    "wnba":                      ["ESPN", "ABC"],
+    "ncaa basketball":           ["CBS", "TNT Sports", "TBS"],
+
+    # Baseball
+    "mlb":                       ["BT Sport", "TNT Sports", "ESPN", "FOX", "TBS"],
+
+    # Hockey
+    "nhl":                       ["ESPN", "ABC", "TNT Sports", "TNT"],
+
+    # Cricket
+    "icc cricket world cup":     ["Sky Sports", "Star Sports"],
+    "the ashes":                 ["Sky Sports", "BBC Test Match Special"],
+    "ipl":                       ["Sky Sports", "Star Sports", "Disney+ Hotstar"],
+    "indian premier league":     ["Sky Sports", "Star Sports", "Disney+ Hotstar"],
+    "big bash":                  ["BT Sport", "Channel 7", "Foxtel"],
+    "cricket":                   ["Sky Sports", "BT Sport"],
+
+    # Rugby
+    "six nations":               ["BBC", "ITV"],
+    "premiership rugby":         ["TNT Sports"],
+    "rugby world cup":           ["ITV"],
+    "super rugby":               ["Sky Sport NZ"],
+    "j1 league":                 ["Premier Sports", "DAZN Japan"],
+    "j-league":                  ["Premier Sports", "DAZN Japan"],
+    "brasileirão":               ["Premier Sports", "FOX Deportes"],
+    "brasileirao":               ["Premier Sports", "FOX Deportes"],
+    "campeonato brasileiro":     ["Premier Sports", "FOX Deportes"],
+    "primeira liga":             ["Sky Sports", "GOL TV"],
+    "süper lig":                 ["S Sport", "beIN Sports"],
+    "super lig":                 ["S Sport", "beIN Sports"],
+    "saudi pro league":          ["DAZN", "SSC"],
+    "chinese super league":      ["CCTV-5"],
+    "argentine primera":         ["ESPN", "TyC Sports"],
+    "liga mx":                   ["TUDN", "ESPN Deportes"],
+    "ncaa baseball":             ["ESPN", "SEC Network"],
+    "ncaa football":             ["ESPN", "ABC", "CBS"],
+
+    # Motorsport
+    "formula 1":                 ["Sky Sports F1", "Channel 4"],
+    "formula one":               ["Sky Sports F1", "Channel 4"],
+    "f1":                        ["Sky Sports F1", "Channel 4"],
+    "motogp":                    ["BT Sport", "TNT Sports"],
+    "nascar":                    ["FOX Sports", "NBC Sports"],
+    "indycar":                   ["NBC Sports"],
+
+    # Tennis
+    "wimbledon":                 ["BBC One", "BBC Two", "ESPN"],
+    "us open":                   ["Sky Sports", "ESPN"],
+    "australian open":           ["Channel 9", "Eurosport"],
+    "french open":               ["Eurosport", "TNT Sports", "NBC Sports"],
+    "atp tour":                  ["Sky Sports", "Tennis Channel", "Eurosport"],
+    "atp":                       ["Sky Sports", "Tennis Channel", "Eurosport"],
+    "wta tour":                  ["Sky Sports", "Tennis Channel", "Eurosport"],
+    "wta":                       ["Sky Sports", "Tennis Channel", "Eurosport"],
+
+    # Aussie rules
+    "afl":                       ["Channel 7", "Foxtel", "Kayo Sports"],
+    "nrl":                       ["Channel 9", "Foxtel", "Kayo Sports"],
+
+    # Boxing / UFC
+    "ufc":                       ["TNT Sports", "BT Sport", "ESPN+"],
+    "boxing":                    ["DAZN", "Sky Sports Box Office"],
+
+    # Golf
+    "the masters":               ["Sky Sports Golf", "CBS"],
+    "the open":                  ["Sky Sports Golf", "NBC"],
+    "pga tour":                  ["Sky Sports Golf", "NBC", "CBS"],
+}
+
+# Catch-all broadcasters per sport — used when the league name didn't
+# match any specific entry above.  Less precise but better than the
+# empty list we used to ship.
+_SPORT_BROADCAST: Dict[str, List[str]] = {
+    "soccer":         ["Sky Sports", "TNT Sports"],
+    "american football": ["Sky Sports", "DAZN"],
+    "basketball":     ["Sky Sports", "TNT Sports"],
+    "baseball":       ["TNT Sports"],
+    "ice hockey":     ["Premier Sports"],
+    "rugby":          ["TNT Sports"],
+    "cricket":        ["Sky Sports"],
+    "tennis":         ["Sky Sports", "Eurosport"],
+    "motorsport":     ["Sky Sports F1"],
+    "fighting":       ["TNT Sports"],
+    "golf":           ["Sky Sports Golf"],
+}
+
+
+def _broadcasts_for(league_name: str, sport: str) -> List[str]:
+    """Return a best-guess list of broadcasters for the given league.
+
+    Strategy: substring-match against `_LEAGUE_BROADCASTS` first
+    (most specific), fall back to `_SPORT_BROADCAST` for the sport
+    category.  Empty list if neither resolved.
+    """
+    league_lower = (league_name or "").lower()
+    if league_lower:
+        for key, channels in _LEAGUE_BROADCASTS.items():
+            if key in league_lower:
+                return channels
+    sport_lower = (sport or "").lower()
+    if sport_lower:
+        for key, channels in _SPORT_BROADCAST.items():
+            if key in sport_lower:
+                return channels
+    return []
+
+
 router = APIRouter(prefix="/api/sportsdb")
 
 SPORTSDB_BASE = "https://www.thesportsdb.com/api/v1/json/123"
@@ -424,6 +576,15 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
         if tkey and tkey in seen_titles:
             continue
         raw.setdefault("source", "espn")
+        # Backfill broadcasts on ESPN events too — ESPN's broadcasts
+        # array is sometimes empty for niche fixtures (AFL, ATP, WTA,
+        # J-League).  Our static league→channels mapping fills the
+        # gap so the user always sees "Watch on …" info.
+        if not raw.get("broadcasts"):
+            raw["broadcasts"] = _broadcasts_for(
+                raw.get("league", "") or "",
+                raw.get("sport", "") or "",
+            )
         seen_ids.add(raw["id"])
         if tkey:
             seen_titles.add(tkey)
@@ -460,7 +621,15 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
             n["state"] = ("post" if n.get("finished")
                           else ("in" if (n["ts"] <= nowSec and not n.get("finished")) else "pre"))
             n["live"] = n["state"] == "in"
-            n["broadcasts"] = []
+            # League/sport-driven broadcaster guess.  TheSportsDB's
+            # free tier returns empty `broadcasts` for everything,
+            # so we substitute a curated UK/US/AU channel list per
+            # league.  Frontend will surface the first entry as
+            # "Watch on …".
+            n["broadcasts"] = _broadcasts_for(
+                n.get("league", "") or "",
+                n.get("sport", "") or "",
+            )
             sportsdb_events_fresh.append(n)
 
     # Merge fresh + survivor cache.  Survivor wins ONLY if fresh is missing.
@@ -475,6 +644,18 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
     if survivor_pruned:
         _cache_set(survivor_key, survivor_pruned, 24 * 3600)
     sportsdb_to_merge = survivor_pruned or sportsdb_events_fresh
+
+    # Backfill broadcasts on EVERY event in the merge pool — old
+    # survivor-cached events have empty broadcasts because the
+    # static mapping didn't exist when they were first written.
+    # Cheap (one dict lookup) and ensures the table is always
+    # in-sync with the latest leagues we add.
+    for n in sportsdb_to_merge:
+        if not n.get("broadcasts"):
+            n["broadcasts"] = _broadcasts_for(
+                n.get("league", "") or "",
+                n.get("sport", "") or "",
+            )
 
     for n in sportsdb_to_merge:
         if n["id"] in seen_ids:

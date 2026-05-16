@@ -842,7 +842,7 @@ async def tmdb_person(person_id: int):
     The filmography is sorted by popularity descending so the most
     recognisable roles surface first.  Cached for 7 days.
     """
-    cache_key = f"person:{person_id}:v1"
+    cache_key = f"person:{person_id}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -870,14 +870,47 @@ async def tmdb_person(person_id: int):
     combined = data.get("combined_credits") or {}
     raw_cast = combined.get("cast") or []
     # De-duplicate by tmdb_id+media_type; keep the most popular role.
+    # Also filter out the noise that bloats raw TMDB combined_credits:
+    #   • Talk-show / news / award-show appearances where the actor
+    #     plays themselves (genre 10767 = Talk, 10763 = News;
+    #     character contains "self").
+    #   • Documentaries and shorts where they're not the lead.
+    #   • Zero-popularity / unreleased / no-poster entries.
+    # Bumps the accuracy of the "Known for" grid noticeably — these
+    # were producing the "some movies don't even have that actor in
+    # them" complaint.
+    NOISE_GENRE_IDS = {10767, 10763}   # Talk + News
     seen: Dict[str, Dict[str, Any]] = {}
     for r in raw_cast:
         mt = r.get("media_type")
         if mt not in ("movie", "tv"):
             continue
+        character = (r.get("character") or "").strip().lower()
+        # "Self" / "Self - Host" / "(uncredited)" / "Himself" etc.
+        if (not character
+                or character in {"self", "himself", "herself", "themselves"}
+                or character.startswith("self ")
+                or character.startswith("self - ")
+                or "uncredited" in character):
+            continue
+        genres = set(r.get("genre_ids") or [])
+        if genres & NOISE_GENRE_IDS:
+            continue
+        popularity = r.get("popularity") or 0
+        if popularity < 0.5:           # tiny obscure entries
+            continue
+        if not (r.get("poster_path") or "").strip():
+            continue                   # no poster → almost always noise
+        # Episode-count gate for TV: 1-episode appearances are
+        # typically guest spots, not roles people associate with the
+        # actor.  Skip them.
+        episode_count = r.get("episode_count")
+        if mt == "tv" and isinstance(episode_count, int) and episode_count < 2:
+            continue
+
         key = f"{mt}:{r.get('id')}"
         prev = seen.get(key)
-        if prev and prev.get("popularity", 0) >= (r.get("popularity") or 0):
+        if prev and prev.get("popularity", 0) >= popularity:
             continue
         poster = r.get("poster_path")
         seen[key] = {
@@ -888,7 +921,7 @@ async def tmdb_person(person_id: int):
             "year":       (r.get("release_date") or r.get("first_air_date") or "")[:4],
             "rating":     round(r.get("vote_average") or 0, 1) or None,
             "poster":     f"{TMDB_IMG}/w342{poster}" if poster else "",
-            "popularity": r.get("popularity") or 0,
+            "popularity": popularity,
         }
     filmography = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))[:60]
 

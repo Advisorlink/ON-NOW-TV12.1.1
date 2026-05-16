@@ -28,13 +28,36 @@ const PREFIXES = [
     'vesper-',
 ];
 
-/** Read every matching key into a plain object. */
+/**
+ * Keys / prefixes to EXCLUDE from backups.  These are regenerable
+ * server-side caches — shipping them across devices bloats the
+ * payload past the server's BSON limit (and they're stale by
+ * lunchtime anyway).
+ *
+ *   • `onnowtv-livecache-*` — channel logos + EPG per provider.
+ *     Re-warmed from `/api/xtream/cached-epg` on first Live TV open.
+ *   • `onnowtv-channelcache-*` — Xtream channel-list cache.
+ *   • `vesper-tmdb-*` — TMDB poster / network art cache.
+ *   • `vesper-recent-*` — last 50 plays per profile (kept locally,
+ *     not worth syncing across devices).
+ */
+const EXCLUDE_PREFIXES = [
+    'onnowtv-livecache-',
+    'onnowtv-channelcache-',
+    'vesper-tmdb-',
+    'vesper-recent-',
+];
+
+/** Read every matching key into a plain object.  Skips the bulky
+ *  regenerable caches listed in EXCLUDE_PREFIXES so the backup fits
+ *  comfortably inside the server's 12 MB BSON-document limit. */
 export function collectBackupPayload() {
     const out = {};
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (!key) continue;
         if (!PREFIXES.some((p) => key.startsWith(p))) continue;
+        if (EXCLUDE_PREFIXES.some((p) => key.startsWith(p))) continue;
         try {
             out[key] = localStorage.getItem(key);
         } catch { /* ignore */ }

@@ -152,6 +152,13 @@ body {
 *:focus {
     outline: none;
 }
+/* Modern Chrome treats :focus-visible separately from :focus —
+   without this reset the browser's default 2-3 px outline ring
+   renders ON TOP of our custom box-shadow rings, producing the
+   "two blue borders" the user reported on focused tiles. */
+*:focus-visible {
+    outline: none;
+}
 
 /* ------------------------------------------------------------------
    GPU acceleration hints — promote scrollable shelves + focused

@@ -79,7 +79,12 @@ _CODE_ALPHABET = _CODE_ALPHABET.replace("O", "").replace("0", "")\
 CODE_LEN = 6
 PIN_LEN = 4
 TTL_DAYS = 90
-PAYLOAD_BYTES_MAX = 2 * 1024 * 1024   # 2 MB cap (more than ample for localStorage)
+PAYLOAD_BYTES_MAX = 12 * 1024 * 1024  # 12 MB cap.  Boxes with the
+                                       # full EPG cached in localStorage
+                                       # blew through the old 2 MB cap.
+                                       # MongoDB's BSON limit is 16 MB
+                                       # so 12 MB leaves headroom for
+                                       # the wrapper document.
 
 
 def _generate_code() -> str:

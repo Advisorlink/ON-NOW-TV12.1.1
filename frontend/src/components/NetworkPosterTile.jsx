@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
 import * as img from '@/lib/img';
+import useLongPress from '@/hooks/useLongPress';
 
 /**
  * Poster tile for TMDB-sourced network catalogues.  The TMDB discover
@@ -11,6 +12,11 @@ import * as img from '@/lib/img';
  * the existing `/title/{type}/{imdbId}` detail page.  Resolution is
  * cached on the backend for 7 days, so the first click on a given
  * title is the only slow one.
+ *
+ * Long-press (OK held >700 ms on the remote, or tap-and-hold on
+ * mobile) opens the "Add to My List" modal — same UX as the
+ * Home-page <PosterTile/>, so users have one mental model for
+ * adding to library across the whole app.
  */
 export default function NetworkPosterTile({ item }) {
     const navigate = useNavigate();
@@ -44,6 +50,36 @@ export default function NetworkPosterTile({ item }) {
         }
     };
 
+    /* Long-press → "Add to My List" modal.  We need to resolve the
+       IMDB id first (the AddToListModal keys library entries on
+       imdb ids, matching the rest of the app).  Resolution is
+       cached so subsequent long-presses on the same tile are
+       instant. */
+    const handleLongPress = async () => {
+        try {
+            const r = await fetch(
+                `${API}/tmdb/imdb/${tmdbType}/${item.tmdb_id}`,
+                { cache: 'force-cache' }
+            );
+            const data = await r.json();
+            const imdbId = data?.imdb_id;
+            if (!imdbId) return;
+            window.dispatchEvent(new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id:     imdbId,
+                    type:   item.type,    // 'movie' or 'series'
+                    title:  item.title,
+                    poster: img.poster(item.poster),
+                    year:   item.year ? String(item.year).slice(0, 4) : '',
+                },
+            }));
+        } catch {
+            /* swallow — user can try again or click for detail page */
+        }
+    };
+
+    const press = useLongPress(handleLongPress, handleClick);
+
     const ratingLabel =
         item.rating && item.rating > 0 ? `★ ${Number(item.rating).toFixed(1)}` : null;
     const sub = [item.year ? item.year.slice(0, 4) : null, ratingLabel]
@@ -56,7 +92,18 @@ export default function NetworkPosterTile({ item }) {
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={handleClick}
+            ref={press.ref}
+            onKeyDown={press.onKeyDown}
+            onKeyUp={press.onKeyUp}
+            onMouseDown={press.onMouseDown}
+            onMouseUp={press.onMouseUp}
+            onMouseLeave={press.onMouseLeave}
+            onTouchStart={press.onTouchStart}
+            onTouchMove={press.onTouchMove}
+            onTouchEnd={press.onTouchEnd}
+            onTouchCancel={press.onTouchCancel}
+            onClick={press.onClick}
+            onContextMenu={press.onContextMenu}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
                 width: 'clamp(120px, 10.5vw, 180px)',
