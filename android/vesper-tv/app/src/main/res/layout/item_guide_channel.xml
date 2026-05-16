@@ -1,45 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Channel card row for VlcPlayerActivity's in-player Live Guide.
-  Layout:
-    [logo 80×80]  [name + Now / Next + progress bar  ]   [LIVE NOW pill]
+  Channel row for the redesigned (v2.6.2) Live Guide overlay.
 
-  Targets HK1 / Android 7.1 hardware so no fancy blurs/shadows.
-  Focus state is driven by the row's @drawable/guide_channel_row_bg
-  selector (neon-blue border on focus).
+  Premium aesthetic:
+    [LOGO 56×56 glass plate]  [name + Now/Next + progress  ]
+                                                       (channel#)
+
+  The row's background is a `data-focused`-driven selector:
+   • Default → transparent
+   • Focused → glass card with cyan-accented border + slight scale
+  This lets the user "feel" their D-pad movement instead of just
+  staring at static rows.
+
+  Used by LiveGuideController.kt's ChannelAdapter (v2.6.2).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row_root"
     android:layout_width="match_parent"
-    android:layout_height="104dp"
-    android:layout_marginEnd="20dp"
-    android:layout_marginBottom="8dp"
+    android:layout_height="78dp"
+    android:layout_marginBottom="6dp"
     android:background="@drawable/guide_channel_row_bg"
     android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingEnd="20dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp">
 
-    <!-- Channel logo -->
+    <!-- Logo -->
     <FrameLayout
-        android:layout_width="76dp"
-        android:layout_height="76dp"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
         android:background="@drawable/guide_logo_bg">
         <ImageView
             android:id="@+id/row_logo"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_margin="8dp"
+            android:layout_margin="6dp"
             android:scaleType="fitCenter"
             android:contentDescription="@null" />
     </FrameLayout>
 
-    <!-- Name + Now + Next + progress -->
+    <!-- Centre column: name + Now/Next + progress -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="20dp"
+        android:layout_marginStart="14dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -48,62 +53,69 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
-            android:textSize="17sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:letterSpacing="-0.005" />
 
         <TextView
             android:id="@+id/row_now"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:textColor="#C7CFDB"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:maxLines="1"
             android:ellipsize="end" />
 
-        <!-- Progress bar — width is driven from Kotlin -->
+        <!-- Progress bar — driven from code -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="3dp"
-            android:layout_marginTop="6dp"
-            android:background="#1FFFFFFF">
+            android:layout_height="2dp"
+            android:layout_marginTop="5dp"
+            android:background="#1AFFFFFF">
             <View
                 android:id="@+id/row_progress"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:background="#5DC8FF" />
         </FrameLayout>
+    </LinearLayout>
 
+    <!-- Right column: channel number + ON NOW pill (shown when this
+         row is the currently-playing channel). -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="end|center_vertical"
+        android:layout_marginStart="10dp">
         <TextView
-            android:id="@+id/row_next"
-            android:layout_width="match_parent"
+            android:id="@+id/row_number"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:textColor="#6B7587"
             android:textSize="11sp"
             android:fontFamily="monospace"
-            android:maxLines="1"
-            android:ellipsize="end" />
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+        <TextView
+            android:id="@+id/row_playing_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:background="@drawable/guide_playing_pill"
+            android:text="ON"
+            android:textColor="#5DC8FF"
+            android:textSize="9sp"
+            android:letterSpacing="0.2"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:visibility="gone" />
     </LinearLayout>
-
-    <!-- "LIVE NOW" pill — shown only on the currently-playing channel -->
-    <TextView
-        android:id="@+id/row_playing_pill"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="14dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:background="@drawable/guide_playing_pill"
-        android:text="ON NOW"
-        android:textColor="#5DC8FF"
-        android:textSize="10sp"
-        android:letterSpacing="0.22"
-        android:fontFamily="monospace"
-        android:textStyle="bold"
-        android:visibility="gone" />
 </LinearLayout>

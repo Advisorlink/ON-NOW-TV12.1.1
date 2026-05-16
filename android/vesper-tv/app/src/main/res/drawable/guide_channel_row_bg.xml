@@ -1,29 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Channel card background.  Three states:
-    • focused — bright blue border + tinted fill (D-pad lit up)
-    • pressed — flash for instant feedback on OK
-    • default — soft glass card (white 6% fill + 8% stroke)
+  Channel-row background.  Three states:
+    • focused — glass card with cyan-accented border (D-pad lit)
+    • pressed — quick flash on OK
+    • default — borderless, transparent
+  No fill in the default state so the panel's own background reads
+  cleanly through.
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <corners android:radius="16dp" />
-            <solid android:color="#2A5DC8FF" />
-            <stroke android:width="2dp" android:color="#5DC8FF" />
+            <corners android:radius="12dp" />
+            <solid android:color="#225DC8FF" />
+            <stroke android:width="1dp" android:color="#5DC8FF" />
         </shape>
     </item>
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <corners android:radius="16dp" />
-            <solid android:color="#3A5DC8FF" />
+            <corners android:radius="12dp" />
+            <solid android:color="#3F5DC8FF" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <corners android:radius="16dp" />
-            <solid android:color="#0FFFFFFF" />
-            <stroke android:width="1dp" android:color="#14FFFFFF" />
+            <corners android:radius="12dp" />
+            <solid android:color="@android:color/transparent" />
         </shape>
     </item>
 </selector>

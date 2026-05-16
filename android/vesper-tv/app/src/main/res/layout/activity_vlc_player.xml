@@ -540,168 +540,320 @@
     </FrameLayout>
 
     <!-- ============================================================
-         LIVE GUIDE OVERLAY  —  in-player channel browser
+         LIVE GUIDE OVERLAY — premium edge-panel design
          ============================================================
-         Slides in from the right while the video keeps playing
-         behind a translucent scrim.  Two columns:
-           • LEFT (300dp): category rail — vertical RecyclerView
-           • RIGHT (rest): channel list  — vertical RecyclerView
-                            with logo + name + Now/Next EPG bar
-         Neon-blue focus glow drives the D-pad navigation; OK on a
-         channel calls back into VlcPlayerActivity.swapChannel(url, …)
-         which swaps the libVLC media in place (no Activity restart).
+         REDESIGNED v2.6.2.  The previous full-screen guide covered
+         the video; this one slides in from the LEFT as a 460dp-wide
+         vertical panel so the player stays fully visible to the
+         right.  The currently-focused channel renders a programme
+         detail card that overlays the player's bottom-right corner
+         with poster + title + Now/Next.
+
+         Two animated parts:
+           • guide_panel  – slides in/out (translateX from -460dp → 0)
+           • guide_detail – fades in/out as focus moves (alpha 0 → 1)
+
+         No traditional player buttons inside the guide — the user's
+         brief was "premium, no buttons, channel + cover art the
+         star".  D-pad up/down to scroll, OK to switch channel, BACK
+         to dismiss.
          ============================================================ -->
     <FrameLayout
         android:id="@+id/guide_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#CC06080F"
-        android:visibility="gone">
+        android:visibility="gone"
+        android:clipChildren="false">
 
-        <!-- Subtle top-edge gradient so the guide feels lifted off
-             the video underneath even without a backdrop blur. -->
+        <!-- Soft scrim under the right edge of the panel so the
+             panel's drop shadow looks lifted off the video.  4 dp
+             gradient with no blur (HK1's Chrome 52 can't handle a
+             real backdrop-filter without dropping frames). -->
         <View
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_gravity="top"
-            android:background="@drawable/grad_top" />
-
-        <!-- Eyebrow + Title (top-left) -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginStart="48dp"
-            android:layout_marginTop="36dp">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="LIVE TV · NOW PLAYING"
-                android:textColor="#5DC8FF"
-                android:textSize="12sp"
-                android:letterSpacing="0.32"
-                android:fontFamily="monospace"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/guide_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Channel Guide"
-                android:textColor="#FFFFFF"
-                android:textSize="38sp"
-                android:textStyle="bold"
-                android:letterSpacing="-0.02" />
-            <TextView
-                android:id="@+id/guide_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:textColor="#9DA5B5"
-                android:textSize="14sp"
-                android:fontFamily="monospace" />
-        </LinearLayout>
-
-        <!-- Two-pane content area -->
-        <LinearLayout
+            android:id="@+id/guide_scrim"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:paddingTop="156dp"
-            android:paddingBottom="36dp"
-            android:paddingStart="48dp"
-            android:paddingEnd="48dp">
+            android:background="@drawable/guide_scrim_gradient" />
 
-            <!-- LEFT: Categories rail -->
-            <FrameLayout
-                android:layout_width="300dp"
-                android:layout_height="match_parent">
+        <!-- LEFT panel — vertical channel list + header.  All other
+             content lives inside this view so the slide-in animation
+             is a single translateX on the panel. -->
+        <LinearLayout
+            android:id="@+id/guide_panel"
+            android:layout_width="460dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:orientation="vertical"
+            android:background="@drawable/guide_panel_bg"
+            android:elevation="24dp"
+            android:paddingTop="36dp"
+            android:paddingBottom="36dp">
+
+            <!-- Header strip: eyebrow + title + categories pill -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="28dp"
+                android:paddingEnd="28dp">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="CATEGORIES"
+                    android:text="LIVE TV"
                     android:textColor="#5DC8FF"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.32"
-                    android:fontFamily="monospace"
-                    android:textStyle="bold"
-                    android:paddingStart="20dp" />
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/guide_categories"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:paddingTop="32dp"
-                    android:paddingBottom="80dp"
-                    android:clipToPadding="false"
-                    android:overScrollMode="never"
-                    android:scrollbars="none" />
-            </FrameLayout>
-
-            <!-- Divider -->
-            <View
-                android:layout_width="1dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="20dp"
-                android:layout_marginEnd="32dp"
-                android:background="#1FFFFFFF" />
-
-            <!-- RIGHT: Channel list -->
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1">
-                <TextView
-                    android:id="@+id/guide_category_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="ALL CHANNELS"
-                    android:textColor="#5DC8FF"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.32"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.36"
                     android:fontFamily="monospace"
                     android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/guide_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Channel guide"
+                    android:textColor="#FFFFFF"
+                    android:textSize="32sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.025" />
+                <TextView
+                    android:id="@+id/guide_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#9DA5B5"
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.06" />
+
+                <!-- Category pill rail — horizontal scroll, plays
+                     the role of "All channels" / "Sports" / "Movies"
+                     filter without taking up vertical space. -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:scrollbars="none"
+                    android:overScrollMode="never">
+                    <LinearLayout
+                        android:id="@+id/guide_category_pills"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
+
+            <!-- 1dp neon-cyan accent line under the header -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginStart="28dp"
+                android:layout_marginEnd="28dp"
+                android:background="#1F5DC8FF" />
+
+            <!-- Channel list takes the remaining height -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/guide_channels"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:paddingTop="32dp"
-                    android:paddingBottom="80dp"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="40dp"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
                     android:scrollbars="none" />
 
-                <!-- Empty state shown when the WebView hasn't pushed
-                     channels yet.  Centered. -->
+                <!-- Empty state -->
                 <TextView
                     android:id="@+id/guide_empty"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
                     android:gravity="center"
-                    android:text="Channel list not yet loaded.\nGo back and open Live TV first."
+                    android:text="Channel list not loaded yet.\nGo back and open Live TV first."
                     android:textColor="#9DA5B5"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
                     android:visibility="gone" />
             </FrameLayout>
+
+            <!-- Subtle bottom hint bar -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="28dp"
+                android:paddingEnd="28dp"
+                android:paddingTop="12dp"
+                android:gravity="center_vertical">
+                <View
+                    android:layout_width="6dp"
+                    android:layout_height="6dp"
+                    android:background="@drawable/guide_dot_live" />
+                <TextView
+                    android:id="@+id/guide_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="OK · TUNE     BACK · CLOSE"
+                    android:textColor="#6B7587"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.22"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Hint pill in the bottom-right corner -->
-        <TextView
-            android:id="@+id/guide_hint"
-            android:layout_width="wrap_content"
+        <!-- RIGHT: floating programme detail card.  Sits in the
+             bottom-right corner over the video.  Slides in 200ms
+             after the panel; refreshes its content as the user
+             D-pads through the channel list. -->
+        <FrameLayout
+            android:id="@+id/guide_detail"
+            android:layout_width="380dp"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:layout_marginEnd="48dp"
-            android:layout_marginBottom="32dp"
-            android:paddingStart="18dp"
-            android:paddingEnd="18dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:background="@drawable/status_pill"
-            android:text="OK · WATCH    BACK · CLOSE"
-            android:textColor="#9DA5B5"
-            android:textSize="11sp"
-            android:letterSpacing="0.22"
-            android:fontFamily="monospace" />
+            android:layout_marginEnd="36dp"
+            android:layout_marginBottom="36dp"
+            android:alpha="0"
+            android:background="@drawable/guide_detail_bg"
+            android:elevation="18dp">
+
+            <!-- Backdrop poster — programme art or channel logo,
+                 with a dark gradient over the bottom so the text
+                 is readable.  16:9 aspect. -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <ImageView
+                    android:id="@+id/detail_backdrop"
+                    android:layout_width="match_parent"
+                    android:layout_height="214dp"
+                    android:scaleType="centerCrop"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="@null" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="214dp"
+                    android:background="@drawable/guide_detail_gradient" />
+
+                <!-- Top-left LIVE pill + channel name -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="14dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/guide_live_pill"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="14dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+                    <View
+                        android:layout_width="7dp"
+                        android:layout_height="7dp"
+                        android:background="@drawable/guide_dot_white"
+                        android:layout_marginEnd="8dp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="LIVE NOW"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.24" />
+                </LinearLayout>
+
+                <!-- Top-right channel logo on glass plate -->
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="14dp"
+                    android:background="@drawable/guide_detail_logo_bg">
+                    <ImageView
+                        android:id="@+id/detail_channel_logo"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_margin="6dp"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="@null" />
+                </FrameLayout>
+            </FrameLayout>
+
+            <!-- Programme info -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="22dp">
+
+                <TextView
+                    android:id="@+id/detail_channel_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#5DC8FF"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.28"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/detail_programme_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.015"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/detail_time_range"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="#9DA5B5"
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.08" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="10dp"
+                    android:background="#1FFFFFFF">
+                    <View
+                        android:id="@+id/detail_progress"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:background="#5DC8FF" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/detail_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textColor="#7d8493"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.06"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+        </FrameLayout>
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

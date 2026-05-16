@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Live-pill / dot background — pulsing cyan circle.  Used both
+     as a list dot and the LIVE-NOW indicator in the detail card. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#5DC8FF" />
+</shape>

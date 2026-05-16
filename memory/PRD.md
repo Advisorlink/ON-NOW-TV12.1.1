@@ -34,6 +34,25 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 87 — Feb 16, 2026)
+### Premium Live TV overlay redesign + Update Gate live config
+- **🗝️ Update Gate live**: `APK_GITHUB_REPO=Advisorlink/ON-NOW-TV12.1.1` set in `backend/.env`.  Once the GitHub workflow publishes a v2.6.2+ release with the `apk-latest` tag, every install older than that will show the forced-update screen on next launch.
+- **🎨 Live Guide overlay — total redesign (v2.6.2)**:
+  - **Layout shift**: previous full-screen 2-column (categories | channels) overlay → new 460dp left edge-panel with the video fully visible to the right.  The video keeps playing.
+  - **Animations**:
+    - Panel slides in from `translationX = -460dp` to `0` over 280ms with `AccelerateDecelerateInterpolator`.
+    - Scrim cross-fades 0→1 over 240ms.
+    - Detail card fades in 0→1 over 240ms with a 120ms start-delay so it lands after the panel finishes sliding.
+  - **Channel row redesign** (`item_guide_channel.xml`): logo on glass plate + name + Now/Next + neon-cyan progress bar + per-category channel number badge (e.g. `003`).  Background is a focus-state selector — transparent default, glass-card with cyan border on focus.
+  - **Programme detail card** (`@id/guide_detail`): floats in the bottom-right corner of the player.  Shows a 214dp backdrop image (currently the channel logo, future: TMDB programme art), red LIVE pill with white pulsing dot, channel logo on glass plate, programme title (2-line clamp), time range, progress bar, NEXT-on text.  Live-refreshes via `setOnFocusChangeListener` as the user D-pads through rows.
+  - **Category pill rail** at the top of the panel (horizontal scroll) replaces the old categories column.  First pill is "All · N", followed by each category.  Active pill lit up with cyan accent.
+  - **New shortcut**: pressing **DPAD_LEFT** while the player controls are hidden opens the guide instantly (matches user's "push left → slide in" brief).  GUIDE / CHANNEL_UP / TV_INPUT remote keys still open it too.
+  - **No traditional player buttons inside the overlay** — D-pad up/down to navigate, OK to tune, BACK to close.  Matches the "premium, button-less" brief.
+- **🎨 8 new drawables**: `guide_scrim_gradient.xml`, `guide_panel_bg.xml` (layered with edge stroke), `guide_dot_live.xml`, `guide_dot_white.xml`, `guide_detail_bg.xml`, `guide_detail_gradient.xml`, `guide_live_pill.xml` (red), `guide_detail_logo_bg.xml`, `guide_category_pill_bg.xml`.
+- **🎨 2 new layouts**: `item_guide_channel.xml` (rewritten), `item_guide_category_pill.xml`.
+- **🛠️ Controller rewrite** (`LiveGuideController.kt`): adds `renderDetail()` per-channel, `renderCategoryPills()`, focus-driven detail card updates, slide-in/out animations.  Same data flow as before (SharedPreferences pushed by `WebAppInterface.setLiveGuide`).
+- **Manifest v2.6.2 (versionCode 72)** — GitHub Actions auto-builds.
+
 ## Implemented (Iteration 86 — Feb 16, 2026)
 ### Bug-fix batch + Cast reveal pattern + Sports broadcasters
 - **🐛 Home double focus border fixed** — added global `*:focus-visible { outline: none }` reset.  Chrome's default outline was rendering on top of our custom box-shadow ring.

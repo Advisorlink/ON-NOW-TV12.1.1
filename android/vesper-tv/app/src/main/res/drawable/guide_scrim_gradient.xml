@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Horizontal gradient from solid-ish dark at the LEFT edge to
+     fully transparent at the RIGHT.  Sits behind the panel so the
+     panel feels embedded into a softly-darkened slice of the
+     video without using elevation (which renders unreliably on
+     Android 7.1.2). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="0"
+        android:startColor="#9906080F"
+        android:centerColor="#3306080F"
+        android:endColor="#0006080F" />
+</shape>

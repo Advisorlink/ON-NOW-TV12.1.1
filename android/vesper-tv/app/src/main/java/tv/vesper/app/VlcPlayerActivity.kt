@@ -1221,6 +1221,18 @@ class VlcPlayerActivity : AppCompatActivity() {
                     liveGuide?.open()
                     return true
                 }
+                /* DPAD_LEFT while the player controls are HIDDEN is
+                 * the "press left to peek the guide" shortcut the
+                 * user asked for in v2.6.2.  When the controls are
+                 * visible the LEFT key still falls through to
+                 * Android's focus traversal (so the buttons row
+                 * works as expected). */
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (!controlsVisible) {
+                        liveGuide?.open()
+                        return true
+                    }
+                }
             }
         }
         // While the Live Guide is open, swallow keys we don't want

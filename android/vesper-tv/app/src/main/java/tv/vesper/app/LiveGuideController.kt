@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -14,26 +15,26 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * In-player Live Guide overlay controller.
+ * In-player Live Guide controller — REDESIGNED in v2.6.2.
  *
- * The overlay XML lives in `activity_vlc_player.xml` under
- * `@id/guide_root`.  This class is responsible for:
- *   • Loading the channel/category/EPG payload that LiveTV.jsx
- *     pushed via `WebAppInterface.setLiveGuide(…)`.
- *   • Binding both RecyclerViews and managing D-pad focus +
- *     category-selection state.
- *   • Calling back to VlcPlayerActivity when the user picks a
- *     channel — the activity then swaps the libVLC media in place
- *     (no Activity restart, no boot splash).
- *   • Computing "Now / Next" + a live progress bar from the EPG
- *     timestamps.
+ * Old design (v2.5.7-v2.6.1): full-screen overlay, two-column
+ * category-and-channels layout, with the video hidden behind it.
  *
- * Built deliberately small + framework-only so it runs comfortably
- * on the HK1 box's Cortex-A7 / Android 7.1.2.  No external image
- * libraries (we just decode logos lazily via a tiny background
- * thread pool).  No coroutines (the WebView already pre-built the
- * stream URLs so channel switching is purely synchronous on the
- * main thread).
+ * New design: a 460dp-wide vertical panel that slides in from the
+ * LEFT edge so the video remains fully visible to the right of it.
+ * The currently-focused channel renders a programme detail card in
+ * the bottom-right corner with a poster backdrop, programme title,
+ * time range, progress bar, and Next-on text.  Categories tucked
+ * behind a pill rail at the top of the panel so the channel list is
+ * the star.
+ *
+ * Design language: dark glass + cyan accent (`#5DC8FF`), red LIVE
+ * pill, monospace eyebrows.  No traditional player buttons in the
+ * overlay — D-pad up/down to navigate, OK to tune, BACK to close.
+ *
+ * Performance: still framework-only (no external image libs), with
+ * a tiny LRU bitmap cache for logos and a background executor.
+ * Tested down to the HK1 box's Cortex-A7 / Android 7.1.2.
  */
 class LiveGuideController(
     private val activity: VlcPlayerActivity,
@@ -42,6 +43,7 @@ class LiveGuideController(
     data class Category(val id: String, val name: String, val count: Int)
     data class Channel(
         val streamId: String,
+        val number: Int,     // 1-based ordinal within its category
         val name: String,
         val logo: String,
         val categoryId: String,
@@ -50,9 +52,6 @@ class LiveGuideController(
     )
     data class Programme(val title: String, val startTs: Long, val stopTs: Long)
 
-    /* Loaded once on first open then cached in memory.  The JSON
-       payload comes from SharedPreferences key "live_guide" written
-       by WebAppInterface.setLiveGuide(). */
     private var categories: List<Category> = emptyList()
     private var channels: List<Channel> = emptyList()
     private var epg: Map<String, List<Programme>> = emptyMap()
@@ -62,96 +61,119 @@ class LiveGuideController(
     private var currentChannelStreamId: String? = null
     private val visibleChannels: MutableList<Channel> = mutableListOf()
 
-    /* Cached views */
+    /* Views */
+    private val panel: View = root.findViewById(R.id.guide_panel)
+    private val scrim: View = root.findViewById(R.id.guide_scrim)
     private val empty: TextView = root.findViewById(R.id.guide_empty)
-    private val categoryLabel: TextView = root.findViewById(R.id.guide_category_label)
     private val subtitle: TextView = root.findViewById(R.id.guide_subtitle)
-    private val catRv: RecyclerView = root.findViewById(R.id.guide_categories)
     private val chanRv: RecyclerView = root.findViewById(R.id.guide_channels)
+    private val categoryPillRow: LinearLayout = root.findViewById(R.id.guide_category_pills)
 
-    private val catAdapter = CategoryAdapter()
+    /* Programme detail card */
+    private val detailCard: View = root.findViewById(R.id.guide_detail)
+    private val detailBackdrop: ImageView = root.findViewById(R.id.detail_backdrop)
+    private val detailLogo: ImageView = root.findViewById(R.id.detail_channel_logo)
+    private val detailChannelName: TextView = root.findViewById(R.id.detail_channel_name)
+    private val detailProgrammeTitle: TextView = root.findViewById(R.id.detail_programme_title)
+    private val detailTimeRange: TextView = root.findViewById(R.id.detail_time_range)
+    private val detailNext: TextView = root.findViewById(R.id.detail_next)
+    private val detailProgress: View = root.findViewById(R.id.detail_progress)
+
     private val chanAdapter = ChannelAdapter()
 
-    /* Tiny LRU + background decoder for channel logos.  We can't
-       pull in Glide/Coil from this layer (they balloon the APK by
-       ~500 KB each), so a 16-entry in-memory bitmap cache is the
-       cheapest thing that works on the HK1's slow disk. */
-    private val logoCache = androidx.collection.LruCache<String, android.graphics.Bitmap>(48)
+    /* Logo cache (used by both the channel list and the detail card). */
+    private val logoCache = androidx.collection.LruCache<String, android.graphics.Bitmap>(64)
     private val logoExecutor = java.util.concurrent.Executors.newFixedThreadPool(2)
 
     init {
-        catRv.layoutManager = LinearLayoutManager(activity)
-        catRv.adapter = catAdapter
         chanRv.layoutManager = LinearLayoutManager(activity)
         chanRv.adapter = chanAdapter
     }
 
-    /** Set the channel that's currently playing — used so the overlay
-     *  can mark it with the "ON NOW" pill and highlight its row. */
     fun setCurrentPlayingChannel(streamId: String?) {
         currentChannelStreamId = streamId
     }
 
-    /** Show the overlay.  Loads data lazily on first open + every
-     *  subsequent open (so freshly-pushed channel lists from the
-     *  WebView take effect without a player restart). */
+    fun isOpen(): Boolean = root.visibility == View.VISIBLE
+
+    /**
+     * Show the overlay with a left-edge slide-in animation.  The
+     * panel is the only thing that animates — the scrim and detail
+     * card cross-fade.  Total in-time ~240ms which feels snappy
+     * without being abrupt.
+     */
     fun open() {
         loadFromPreferences()
         if (channels.isEmpty()) {
             empty.visibility = View.VISIBLE
-            catRv.visibility = View.GONE
             chanRv.visibility = View.GONE
+            categoryPillRow.visibility = View.GONE
             subtitle.text = ""
         } else {
             empty.visibility = View.GONE
-            catRv.visibility = View.VISIBLE
             chanRv.visibility = View.VISIBLE
-            /* Default to the currently-playing channel's category if
-               we know it; otherwise the first category in the list. */
+            categoryPillRow.visibility = View.VISIBLE
+            /* Default category = the currently-playing channel's
+               category if known, else "All channels". */
             val current = channels.firstOrNull { it.streamId == currentChannelStreamId }
-            selectedCategoryId = current?.categoryId ?: categories.firstOrNull()?.id
+            selectedCategoryId = current?.categoryId
+            renderCategoryPills()
             rebuildVisibleChannels()
             subtitle.text = "${channels.size} channels · ${categories.size} categories"
         }
-        catAdapter.notifyDataSetChanged()
-        chanAdapter.notifyDataSetChanged()
+
         root.visibility = View.VISIBLE
-        root.alpha = 0f
-        root.animate().alpha(1f).setDuration(180).start()
-        /* Focus the currently-playing channel if visible, else the
-           first channel row. */
+
+        /* Animate the scrim (cross-fade) and the panel (slide-in).
+           Initial state set explicitly because the previous open
+           may have left them mid-animation. */
+        scrim.alpha = 0f
+        scrim.animate().alpha(1f).setDuration(240).start()
+
+        panel.translationX = -panel.width.toFloat().let { if (it == 0f) -460f else it }
+        panel.animate()
+            .translationX(0f)
+            .setDuration(280)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+
+        /* Auto-focus the currently-playing channel so the user can
+           D-pad-OK to refresh / re-tune.  Falls back to row 0. */
         chanRv.post {
             val idx = visibleChannels.indexOfFirst { it.streamId == currentChannelStreamId }
             val target = if (idx >= 0) idx else 0
-            val vh = chanRv.findViewHolderForAdapterPosition(target)
-            vh?.itemView?.requestFocus() ?: run {
-                /* Layout may not have completed yet — retry. */
-                chanRv.postDelayed({
-                    chanRv.findViewHolderForAdapterPosition(target)
-                        ?.itemView?.requestFocus()
-                }, 80)
-            }
+            chanRv.scrollToPosition(target)
+            chanRv.postDelayed({
+                val vh = chanRv.findViewHolderForAdapterPosition(target)
+                vh?.itemView?.requestFocus()
+                /* Populate the detail card for the auto-focused
+                   channel so the right-side card isn't empty on
+                   first open. */
+                visibleChannels.getOrNull(target)?.let { renderDetail(it) }
+            }, 80)
         }
     }
 
     fun close() {
-        root.animate().alpha(0f).setDuration(140).withEndAction {
-            root.visibility = View.GONE
-        }.start()
+        if (root.visibility != View.VISIBLE) return
+        scrim.animate().alpha(0f).setDuration(180).start()
+        panel.animate()
+            .translationX(-panel.width.toFloat())
+            .setDuration(220)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction { root.visibility = View.GONE }
+            .start()
+        detailCard.animate().alpha(0f).setDuration(140).start()
     }
 
-    fun isOpen(): Boolean = root.visibility == View.VISIBLE
-
-    /** Returns true if the key was consumed by the overlay (so the
-     *  Activity should NOT fall through to its own back-handler). */
     fun onBackPressed(): Boolean {
         if (!isOpen()) return false
         close()
         return true
     }
 
-    /** Reload the channel/category/EPG payload that LiveTV.jsx
-     *  pushed into SharedPreferences via setLiveGuide. */
+    // ───────────────────────── Data load ──────────────────────────
+
     private fun loadFromPreferences() {
         val prefs = activity.getSharedPreferences(
             "live_guide", Context.MODE_PRIVATE
@@ -175,15 +197,24 @@ class LiveGuideController(
 
     private fun parseChannels(raw: String): List<Channel> = try {
         val arr = JSONArray(raw)
+        /* Pre-compute per-category running index for the row number
+           badge.  Order in the JSON IS the order the user expects to
+           see, so we just increment within each category. */
+        val countByCat = HashMap<String, Int>()
         (0 until arr.length()).mapNotNull { i ->
             val o = arr.getJSONObject(i)
             val sid = o.optString("stream_id", "")
             val url = o.optString("stream_url", "")
-            if (sid.isBlank() || url.isBlank()) null else Channel(
+            val catId = o.optString("category_id", "")
+            if (sid.isBlank() || url.isBlank()) return@mapNotNull null
+            val n = (countByCat[catId] ?: 0) + 1
+            countByCat[catId] = n
+            Channel(
                 streamId = sid,
+                number = n,
                 name = o.optString("name", "Channel $sid"),
                 logo = o.optString("logo", ""),
-                categoryId = o.optString("category_id", ""),
+                categoryId = catId,
                 epgChannelId = o.optString("epg_channel_id", ""),
                 streamUrl = url,
             )
@@ -215,8 +246,6 @@ class LiveGuideController(
 
     private fun rebuildVisibleChannels() {
         visibleChannels.clear()
-        val cat = categories.firstOrNull { it.id == selectedCategoryId }
-        categoryLabel.text = cat?.name?.uppercase() ?: "ALL CHANNELS"
         val target = selectedCategoryId
         channels.forEach {
             if (target == null || it.categoryId == target) visibleChannels.add(it)
@@ -224,56 +253,35 @@ class LiveGuideController(
         chanAdapter.notifyDataSetChanged()
     }
 
-    // ───────────────────────── Category adapter ─────────────────────────
+    // ───────────────────────── Category pills ─────────────────────
 
-    private inner class CategoryAdapter :
-        RecyclerView.Adapter<CategoryAdapter.VH>() {
-
-        inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            val root: View = itemView.findViewById(R.id.row_root)
-            val accent: View = itemView.findViewById(R.id.row_accent)
-            val label: TextView = itemView.findViewById(R.id.row_label)
-            val count: TextView = itemView.findViewById(R.id.row_count)
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(
-            LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_guide_category, parent, false)
-        )
-
-        override fun getItemCount() = categories.size
-
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val cat = categories[position]
-            holder.label.text = cat.name
-            holder.count.text = if (cat.count > 0) "${cat.count}" else ""
-            val isSelected = cat.id == selectedCategoryId
-            holder.accent.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
-            holder.label.setTextColor(
-                if (isSelected) 0xFFFFFFFF.toInt() else 0xFFC7CFDB.toInt()
-            )
-            /* Focus → make this category the selected one and
-               update the channel list.  This means the user can
-               just D-pad up/down the categories rail and watch the
-               channel list change in real-time.  Pressing OK in
-               addition then focuses across to the channel list. */
-            holder.root.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus && selectedCategoryId != cat.id) {
-                    selectedCategoryId = cat.id
-                    rebuildVisibleChannels()
-                    notifyDataSetChanged()
-                }
-            }
-            holder.root.setOnClickListener {
-                /* OK on a category jumps focus into the channel list. */
-                chanRv.requestFocus()
-                chanRv.findViewHolderForAdapterPosition(0)
-                    ?.itemView?.requestFocus()
-            }
+    private fun renderCategoryPills() {
+        categoryPillRow.removeAllViews()
+        /* First pill: ALL ("clear the filter"). */
+        addPill("All · ${channels.size}", null, selectedCategoryId == null)
+        categories.forEach { cat ->
+            addPill(cat.name.uppercase(), cat.id, selectedCategoryId == cat.id)
         }
     }
 
-    // ───────────────────────── Channel adapter ─────────────────────────
+    private fun addPill(label: String, catId: String?, active: Boolean) {
+        val tv = LayoutInflater.from(activity)
+            .inflate(R.layout.item_guide_category_pill, categoryPillRow, false) as TextView
+        tv.text = label
+        tv.isSelected = active
+        tv.setOnClickListener {
+            selectedCategoryId = catId
+            renderCategoryPills()
+            rebuildVisibleChannels()
+            chanRv.post {
+                chanRv.scrollToPosition(0)
+                visibleChannels.firstOrNull()?.let { renderDetail(it) }
+            }
+        }
+        categoryPillRow.addView(tv)
+    }
+
+    // ───────────────────────── Channel adapter ────────────────────
 
     private inner class ChannelAdapter :
         RecyclerView.Adapter<ChannelAdapter.VH>() {
@@ -283,8 +291,8 @@ class LiveGuideController(
             val logo: ImageView = itemView.findViewById(R.id.row_logo)
             val name: TextView = itemView.findViewById(R.id.row_name)
             val now: TextView = itemView.findViewById(R.id.row_now)
-            val next: TextView = itemView.findViewById(R.id.row_next)
             val progress: View = itemView.findViewById(R.id.row_progress)
+            val number: TextView = itemView.findViewById(R.id.row_number)
             val playingPill: TextView = itemView.findViewById(R.id.row_playing_pill)
         }
 
@@ -298,22 +306,17 @@ class LiveGuideController(
         override fun onBindViewHolder(holder: VH, position: Int) {
             val ch = visibleChannels[position]
             holder.name.text = ch.name
+            holder.number.text = String.format("%03d", ch.number)
 
-            /* Programme info — Now + Next + progress. */
             val nowSec = System.currentTimeMillis() / 1000
             val list = epg[ch.streamId].orEmpty()
             val nowProg = list.firstOrNull { it.startTs <= nowSec && it.stopTs > nowSec }
-            val nextProg = if (nowProg != null) {
-                list.firstOrNull { it.startTs >= nowProg.stopTs }
-            } else list.firstOrNull { it.startTs > nowSec }
 
             if (nowProg != null) {
                 holder.now.text = nowProg.title
-                /* Width of progress = container width × elapsed/total. */
                 val total = (nowProg.stopTs - nowProg.startTs).coerceAtLeast(1L)
                 val elapsed = (nowSec - nowProg.startTs).coerceIn(0L, total)
                 val ratio = elapsed.toFloat() / total.toFloat()
-                /* Defer measurement to post so we know the parent width. */
                 holder.progress.post {
                     val parentW = (holder.progress.parent as? View)?.width ?: 0
                     val lp = holder.progress.layoutParams
@@ -329,15 +332,9 @@ class LiveGuideController(
                 }
             }
 
-            holder.next.text = if (nextProg != null) {
-                "NEXT · ${formatTime(nextProg.startTs)} · ${nextProg.title}"
-            } else ""
-
             holder.playingPill.visibility =
                 if (ch.streamId == currentChannelStreamId) View.VISIBLE else View.GONE
 
-            /* Logo loading.  Async, cached, gracefully falls back to
-               a tinted initial letter on failure / no URL. */
             holder.logo.tag = ch.logo
             holder.logo.setImageDrawable(null)
             if (ch.logo.isBlank()) {
@@ -354,18 +351,17 @@ class LiveGuideController(
                             val bm = loadBitmap(url) ?: return@execute
                             logoCache.put(url, bm)
                             holder.logo.post {
-                                /* Ensure the row hasn't been recycled
-                                   into a different channel before we
-                                   apply the bitmap. */
-                                if (holder.logo.tag == url) {
-                                    holder.logo.setImageBitmap(bm)
-                                }
+                                if (holder.logo.tag == url) holder.logo.setImageBitmap(bm)
                             }
                         } catch (_: Throwable) { /* swallow */ }
                     }
                 }
             }
 
+            /* Focus → live-refresh the detail card to this channel. */
+            holder.root.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) renderDetail(ch)
+            }
             holder.root.setOnClickListener {
                 activity.swapChannel(ch.streamUrl, ch.name, ch.logo, ch.streamId)
                 close()
@@ -377,7 +373,109 @@ class LiveGuideController(
         }
     }
 
-    // ───────────────────────── Helpers ─────────────────────────
+    // ───────────────────────── Detail card ────────────────────────
+
+    /**
+     * Refresh the bottom-right detail card to reflect the given
+     * channel — channel logo + name, currently-airing programme
+     * title, time range, progress bar, and the next programme
+     * preview.
+     *
+     * Fades the card in (alpha 0→1) on the first call after the
+     * overlay opens — subsequent calls update content in place
+     * without re-animating, so D-padding through the list feels
+     * fluid.
+     */
+    private fun renderDetail(ch: Channel) {
+        detailChannelName.text = ch.name.uppercase()
+
+        val list = epg[ch.streamId].orEmpty()
+        val nowSec = System.currentTimeMillis() / 1000
+        val nowProg = list.firstOrNull { it.startTs <= nowSec && it.stopTs > nowSec }
+        val nextProg = if (nowProg != null) {
+            list.firstOrNull { it.startTs >= nowProg.stopTs }
+        } else list.firstOrNull { it.startTs > nowSec }
+
+        detailProgrammeTitle.text =
+            nowProg?.title?.ifBlank { ch.name } ?: ch.name
+        detailTimeRange.text = if (nowProg != null) {
+            "${formatTime(nowProg.startTs)} – ${formatTime(nowProg.stopTs)}"
+        } else {
+            "Schedule unavailable"
+        }
+        detailNext.text = if (nextProg != null) {
+            "NEXT · ${formatTime(nextProg.startTs)} · ${nextProg.title}"
+        } else { "" }
+
+        /* Progress bar width on the detail card.  Same calc as the
+           row, defers measure until layout pass completes. */
+        val total = nowProg?.let { (it.stopTs - it.startTs).coerceAtLeast(1L) } ?: 1L
+        val elapsed = nowProg?.let { (nowSec - it.startTs).coerceIn(0L, total) } ?: 0L
+        val ratio = if (nowProg != null) elapsed.toFloat() / total.toFloat() else 0f
+        detailProgress.post {
+            val parentW = (detailProgress.parent as? View)?.width ?: 0
+            val lp = detailProgress.layoutParams
+            lp.width = if (ratio == 0f) 0 else (parentW * ratio).toInt().coerceAtLeast(2)
+            detailProgress.layoutParams = lp
+        }
+
+        /* Channel logo on glass plate. */
+        detailLogo.tag = ch.logo
+        if (ch.logo.isBlank()) {
+            detailLogo.setImageDrawable(makeInitialDrawable(ch.name))
+        } else {
+            val cached = logoCache.get(ch.logo)
+            if (cached != null) {
+                detailLogo.setImageBitmap(cached)
+            } else {
+                detailLogo.setImageDrawable(makeInitialDrawable(ch.name))
+                logoExecutor.execute {
+                    try {
+                        val bm = loadBitmap(ch.logo) ?: return@execute
+                        logoCache.put(ch.logo, bm)
+                        detailLogo.post {
+                            if (detailLogo.tag == ch.logo) detailLogo.setImageBitmap(bm)
+                        }
+                    } catch (_: Throwable) { /* swallow */ }
+                }
+            }
+        }
+
+        /* Backdrop image — same as the logo for now (most providers
+           ship one art asset per channel).  Future: programme-art
+           lookup via TMDB when EPG title matches a known title. */
+        detailBackdrop.tag = ch.logo
+        if (ch.logo.isBlank()) {
+            detailBackdrop.setImageDrawable(null)
+        } else {
+            val cached = logoCache.get(ch.logo)
+            if (cached != null) {
+                detailBackdrop.setImageBitmap(cached)
+            } else {
+                detailBackdrop.setImageDrawable(null)
+                logoExecutor.execute {
+                    try {
+                        val bm = loadBitmap(ch.logo) ?: return@execute
+                        logoCache.put(ch.logo, bm)
+                        detailBackdrop.post {
+                            if (detailBackdrop.tag == ch.logo) detailBackdrop.setImageBitmap(bm)
+                        }
+                    } catch (_: Throwable) { /* swallow */ }
+                }
+            }
+        }
+
+        /* Fade-in on first show.  Idempotent. */
+        if (detailCard.alpha < 1f) {
+            detailCard.animate()
+                .alpha(1f)
+                .setStartDelay(120)
+                .setDuration(240)
+                .start()
+        }
+    }
+
+    // ───────────────────────── Helpers ────────────────────────────
 
     private fun formatTime(ts: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = ts * 1000 }
@@ -405,8 +503,8 @@ class LiveGuideController(
         return InitialDrawable(letter)
     }
 
-    /** Lightweight initial-letter avatar — drawn directly via Canvas
-     *  so we don't need a Bitmap allocation per row. */
+    /** Inexpensive Canvas-drawn placeholder — used both inside the
+     *  channel logos AND the detail card while real artwork loads. */
     private inner class InitialDrawable(private val letter: String) :
         android.graphics.drawable.Drawable() {
         private val bgPaint = android.graphics.Paint().apply {

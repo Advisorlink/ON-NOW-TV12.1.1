@@ -227,6 +227,31 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.2 — Premium Live TV overlay redesign**
+            - 🎨 NEW: Beautiful premium Live Guide overlay.  Drop
+              the old full-screen design — the new one is a 460dp
+              edge panel that **slides in from the LEFT** with the
+              video still playing fully visible to the right.
+            - 📺 Slide-in shortcuts: press **D-pad LEFT** anywhere
+              while watching (no controls visible) → guide slides
+              in.  GUIDE / CHANNEL_UP / TV_INPUT remote keys still
+              work.
+            - 🃏 Floating programme detail card in the bottom-right
+              corner: backdrop image, channel logo on glass plate,
+              red LIVE pill, programme title, time range, neon-cyan
+              progress bar, and Next-on preview.  Updates in real-
+              time as you D-pad through the channel list.
+            - 🏷️ Category filter pills at the top of the panel
+              (horizontal scroll) instead of the old categories
+              column — channel list gets all the vertical space.
+            - 🎯 Premium aesthetic: dark glass + cyan accent +
+              monospace eyebrows.  No traditional player buttons
+              anywhere in the overlay.
+            - 🔢 Each channel row shows its **per-category channel
+              number** as a monospace badge (e.g. 003), matching
+              the reference IPTV designs you sent.
+            - ⚡ Same in-place stream swap — sub-second tune-in.
+
             **v2.6.1 — Bug-fix batch + Cast reveal pattern**
             - 🐛 Home: removed the **duplicate focus border** on tiles
               (Chrome's default `:focus-visible` outline was rendering
