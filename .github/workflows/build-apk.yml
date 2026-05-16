@@ -227,6 +227,23 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.17 — Actor focus: in-place hero swap with biography**
+            - 🎭 NEW: when an actor card in the Cast row receives
+              focus, the Detail page hero now swaps IN-PLACE to:
+              • the actor's B&W portrait as the backdrop
+              • their name as the giant title
+              • "As <Character>" eyebrow
+              • their age + place of birth on the meta line
+              • their TMDB biography (capped at 6 lines) where the
+                synopsis used to be
+            - 🎯 The page does NOT navigate — just the hero content
+              swaps.  The Play button position is stable so D-pad
+              navigation feels grounded.  Pushing Down again from
+              Cast row goes to the Recommendations row as before.
+            - 🗂️ Bios are lazy-fetched from /api/tmdb/person/{id}
+              and cached per-session so sweeping focus L/R between
+              actors is instant on the second pass.
+
             **v2.6.16 — Centered rows have proper breathing room**
             - 🎯 ACTUAL ROOT CAUSE: shelves-region was 475 px tall
               but each shelf section was 437 px tall, leaving only

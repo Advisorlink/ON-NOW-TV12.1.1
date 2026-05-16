@@ -192,6 +192,54 @@ export default function Detail() {
        backdrop with their name as the giant title.  Setting back
        to null restores the title's regular hero. */
     const [focusedActor, setFocusedActor] = useState(null);
+    /* Bio cache so we don't refetch the same person whenever focus
+     * sweeps left/right.  Keyed by TMDB person id. */
+    const actorBioCacheRef = React.useRef(new Map());
+    const [focusedBio, setFocusedBio] = useState('');
+    const [focusedAge, setFocusedAge] = useState('');
+    const [focusedBirthplace, setFocusedBirthplace] = useState('');
+
+    useEffect(() => {
+        if (!focusedActor || !focusedActor.id) {
+            setFocusedBio('');
+            setFocusedAge('');
+            setFocusedBirthplace('');
+            return undefined;
+        }
+        const cache = actorBioCacheRef.current;
+        const personId = focusedActor.id;
+        if (cache.has(personId)) {
+            const cached = cache.get(personId);
+            setFocusedBio(cached.bio);
+            setFocusedAge(cached.age);
+            setFocusedBirthplace(cached.birthplace);
+            return undefined;
+        }
+        let cancel = false;
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/person/${personId}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (cancel) return;
+                const entry = {
+                    bio: (data?.biography || '').trim(),
+                    age: data?.age != null ? String(data.age) : '',
+                    birthplace: data?.place_of_birth || '',
+                };
+                cache.set(personId, entry);
+                if (focusedActor && focusedActor.id === personId) {
+                    setFocusedBio(entry.bio);
+                    setFocusedAge(entry.age);
+                    setFocusedBirthplace(entry.birthplace);
+                }
+            } catch { /* ignore — bio just stays empty */ }
+        })();
+        return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusedActor?.id]);
 
     useEffect(() => {
         if (type === 'series') {
@@ -868,19 +916,35 @@ export default function Detail() {
                     </h1>
 
                     {focusedActor ? (
-                        <div
-                            className="vesper-mono mt-2"
-                            style={{
-                                fontSize: 14, letterSpacing: '0.18em',
-                                color: 'var(--vesper-blue)',
-                                textTransform: 'uppercase',
-                                fontWeight: 700,
-                            }}
-                        >
-                            {focusedActor.character
-                                ? `As ${focusedActor.character}`
-                                : 'Cast'}
-                        </div>
+                        <>
+                            <div
+                                className="vesper-mono mt-2"
+                                style={{
+                                    fontSize: 14, letterSpacing: '0.18em',
+                                    color: 'var(--vesper-blue)',
+                                    textTransform: 'uppercase',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {focusedActor.character
+                                    ? `As ${focusedActor.character}`
+                                    : 'Cast'}
+                            </div>
+                            {(focusedAge || focusedBirthplace) && (
+                                <div
+                                    className="flex items-center gap-3 mt-3 vesper-meta flex-wrap"
+                                    style={{ fontSize: 16, color: 'var(--vesper-text-2)' }}
+                                >
+                                    {focusedAge && (
+                                        <span>{focusedAge} years old</span>
+                                    )}
+                                    {focusedAge && focusedBirthplace && <Bullet />}
+                                    {focusedBirthplace && (
+                                        <span>{focusedBirthplace}</span>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
                     <div
                         className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
@@ -902,7 +966,30 @@ export default function Detail() {
                     </div>
                     )}
 
-                    {meta.description && (
+                    {/* Synopsis OR actor bio (when an actor card is focused
+                        in the Cast row).  We swap them in-place so the
+                        hero panel never re-layouts — only the text content
+                        changes, keeping the Play button position stable. */}
+                    {focusedActor ? (
+                        <p
+                            data-testid="actor-bio"
+                            className="mt-6 max-w-[58ch]"
+                            style={{
+                                fontSize: 18,
+                                lineHeight: 1.6,
+                                color: 'var(--vesper-text-2)',
+                                /* Cap to ~6 lines so a long Wikipedia
+                                 * import doesn't push the cast row
+                                 * off-screen. */
+                                display: '-webkit-box',
+                                WebkitLineClamp: 6,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            {focusedBio || 'Loading biography…'}
+                        </p>
+                    ) : meta.description ? (
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
@@ -913,7 +1000,7 @@ export default function Detail() {
                         >
                             {meta.description}
                         </p>
-                    )}
+                    ) : null}
 
                     {/* AUTOPLAY MODE — when on, show a big Play
                         button that fires the same ?autoplay=1 flow
