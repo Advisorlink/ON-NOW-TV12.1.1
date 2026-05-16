@@ -1002,7 +1002,13 @@ async def app_latest_version():
                     "apk_url":      None,
                     "html_url":     None,
                 }
-                await cache.set(cache_key, empty, 300)
+                # ⚠️ Short TTL on negative responses — if GitHub is
+                # temporarily unavailable, the repo was just made
+                # public, or the release hasn't been published yet,
+                # we don't want to lock in the null answer for the
+                # full 5 min positive-response window.  60 s keeps
+                # the chain self-healing without hammering GitHub.
+                await cache.set(cache_key, empty, 60)
                 return {"cached": False, **empty}
             r.raise_for_status()
             data = r.json()
