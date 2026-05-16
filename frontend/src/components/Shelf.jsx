@@ -65,6 +65,19 @@ export default function Shelf({ shelf, onSelect }) {
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     paddingTop: 'clamp(14px, 1.4vw, 22px)',
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
+                    // GPU-accelerated horizontal scrolling on the
+                    // WebView — same recipe as PosterTile but at the
+                    // row level.  `contain: content` lets the WebView
+                    // skip off-screen rows entirely once they've been
+                    // virtualised by content-visibility on the tiles.
+                    contain: 'content',
+                    transform: 'translateZ(0)',
+                    willChange: 'scroll-position',
+                    // Use scroll-snap so D-pad left/right anchors
+                    // tiles to a consistent X — kills the slight
+                    // drift the user sees inside long rows.
+                    scrollSnapType: 'x proximity',
+                    overscrollBehavior: 'contain',
                 }}
             >
                 {shelf.items.map((item) => (

@@ -31,6 +31,24 @@ import UpdateGate from '@/components/UpdateGate';
 import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
+import { pushNativeGuideFromCache } from '@/lib/nativeGuideBoot';
+
+/* On app boot, immediately push any cached Live TV channels +
+   EPG to the native Kotlin player so the in-player Live Guide
+   overlay has data the moment the user opens it — even if they
+   launched a channel from Continue Watching / Home / Hero
+   without visiting the Live TV page first.  Retries every 2s
+   for the first 10s in case the cache fills in slightly after
+   boot. */
+if (typeof window !== 'undefined') {
+    setTimeout(() => pushNativeGuideFromCache(), 200);
+    let n = 0;
+    const id = setInterval(() => {
+        pushNativeGuideFromCache();
+        n += 1;
+        if (n >= 5) clearInterval(id);
+    }, 2000);
+}
 
 /* Warm the DiceBear avatar HTTP cache on app boot.  Runs once at
    module load — the 48 character-portrait PNGs (~11 KB each) are

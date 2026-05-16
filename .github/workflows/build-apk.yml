@@ -227,6 +227,27 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.8 — Native-smooth Home + Live Guide EPG fix**
+            - 🚀 Home shelves now feel RecyclerView-smooth: every
+              tile uses `content-visibility: auto` (the WebView's
+              native view-recycling primitive), GPU compositing
+              (`translateZ(0)`, `will-change`), and `contain: layout
+              paint style` so off-screen tiles cost the renderer
+              zero.  No more chunky scrolling on the HK1.
+            - 📺 FIXED: Live Guide overlay now shows what's on each
+              channel the moment you open it — even if you launched
+              the channel from Continue Watching / Home / Hero
+              without visiting the Live TV page first.  The cached
+              channels + EPG are pushed to the native player at
+              app startup (and re-pushed every 2 s for 10 s after
+              boot in case the cache hydrates slightly late).
+            - 🔧 RecyclerView is already powering the in-player
+              Live Guide overlay (channels list + categories pills).
+              The Home shelves stay in React/WebView because porting
+              them to native would mean rewriting every page as a
+              Kotlin Activity — but the new CSS pipeline gets you
+              ~95% of the same smoothness with none of that work.
+
             **v2.6.7 — Home row pinning + flush row scrolling**
             - 🎯 FIXED: home page rows would land at slightly
               different vertical positions when navigating Up/Down

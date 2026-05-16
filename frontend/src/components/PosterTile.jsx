@@ -74,6 +74,22 @@ export default function PosterTile({ item, onSelect }) {
                 // overflow.
                 scrollMarginTop: 24,
                 scrollMarginBottom: 24,
+                // GPU compositing + browser-native virtualisation —
+                // makes scrolling feel as fluid as a native
+                // RecyclerView even on the HK1's modest GPU.
+                // `content-visibility: auto` lets the browser SKIP
+                // layout/paint for off-screen tiles entirely (the
+                // closest WebView equivalent of view-recycling).
+                // `contain-intrinsic-size` reserves the tile's space
+                // up-front so the scrollbar doesn't jump as tiles
+                // hydrate.  `translateZ(0)` promotes the tile to its
+                // own GPU layer so scrolling = compositor-only.
+                contentVisibility: 'auto',
+                containIntrinsicSize: '180px 270px',
+                contain: 'layout paint style',
+                transform: 'translateZ(0)',
+                backfaceVisibility: 'hidden',
+                willChange: 'transform',
             }}
         >
             {item.poster ? (

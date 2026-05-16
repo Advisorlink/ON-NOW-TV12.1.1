@@ -34,6 +34,19 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 92 — Feb 16, 2026)
+### v2.6.8 — Native-smooth Home + Live Guide overlay EPG fix
+- **🐛 User reported**: home shelves felt "chunky", asked why the in-player Live Guide overlay uses RecyclerView but the Home/Live TV pages don't. Also: the slide-in Live Guide overlay shows channel names but no EPG ("what's on now").
+- **🔬 Architecture answer**: The in-player Live Guide overlay IS pure native Kotlin RecyclerView because it draws OUTSIDE the WebView, directly on top of the VLC SurfaceView. The Home / Live TV / Movies pages live INSIDE the WebView (React) — porting them to native would mean rewriting every page as a Kotlin Activity. Multi-week project. Instead, applied modern CSS-native virtualisation to get ~95% of the smoothness for ~5% of the effort.
+- **🚀 Smoothness pass on Home shelves**:
+  - `PosterTile.jsx`: every tile now uses `content-visibility: auto` (browser-native view-recycling — off-screen tiles skip layout/paint entirely), `contain: layout paint style`, `containIntrinsicSize` so the scrollbar doesn't jump as off-screen tiles hydrate, plus `transform: translateZ(0)` + `will-change: transform` to promote each tile to its own GPU compositor layer.
+  - `Shelf.jsx` (horizontal scroller): `contain: content`, GPU compositing, `will-change: scroll-position`, `scroll-snap-type: x proximity`, `overscroll-behavior: contain` so a stray gesture can't rubber-band the whole page.
+  - `Home.jsx` shelves-region (vertical scroller): same GPU stack so vertical scrolling is also compositor-only.
+- **📺 Live Guide overlay EPG fix**:
+  - Root cause: `pushLiveGuideToNative()` was ONLY called inside `LiveTV.jsx` (on channel-load + XMLTV merge). If the user launched a channel from Continue Watching / Home / Hero billboard without ever visiting the Live TV page during the session, the native overlay's SharedPreferences EPG map stayed empty → overlay rendered "No EPG data" on every row.
+  - Fix: new `lib/nativeGuideBoot.js` reads cached channels + EPG from localStorage (already persisted by previous LiveTV visits via `liveCache.js`) and pushes them to the native bridge. Wired into `App.js` to fire 200 ms after boot AND re-fire every 2 s for 10 s in case the cache hydrates slightly late.
+- **Manifest v2.6.8 (versionCode 78).**
+
 ## Implemented (Iteration 91 — Feb 16, 2026)
 ### v2.6.6 — THE real Watch Together root cause (HashRouter query-string bug)
 - **🐛 User reported (5th recurrence)** on v2.6.5: "Start Party still opens the manual stream picker with Play 1080p on both screens."

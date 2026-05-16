@@ -345,6 +345,18 @@ export default function Home() {
                             // identical Y.  Same trick CSS scroll-snap
                             // uses, but driven manually here.
                             scrollPaddingTop: 26,
+                            // GPU-accelerated vertical scrolling.
+                            // `contain: content` lets the WebView
+                            // skip layout/paint for shelves that
+                            // aren't currently in view (combined with
+                            // content-visibility on each PosterTile).
+                            // `overscrollBehavior: contain` prevents
+                            // a stray scroll gesture from bubbling
+                            // up and rubber-banding the whole page.
+                            contain: 'content',
+                            transform: 'translateZ(0)',
+                            willChange: 'scroll-position',
+                            overscrollBehavior: 'contain',
                         }}
                     >
                         <ContinueWatchingShelf />
