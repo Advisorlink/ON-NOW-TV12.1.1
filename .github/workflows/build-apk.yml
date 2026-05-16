@@ -227,6 +227,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.13 — TV episode-end UX (return to picker + Up Next pill)**
+            - 📺 NEW: when a TV episode ends, the player now returns
+              to the **episode picker on the Detail page**, scrolled
+              to and focused on the NEXT episode — exactly where
+              you'd want to be to pick what to watch next.  Works
+              for any episode launched from any entry point (Home,
+              Continue Watching, Hero, Search, etc.).
+            - ✨ NEW: premium **"Up Next · S2 · E4"** glass-pill
+              button appears in the bottom-right during the last
+              30 seconds of every TV episode.  Tap it to instantly
+              autoplay the next episode without waiting for the
+              credits.  Translucent dark glass with a cyan border;
+              fills solid cyan on focus.  Hides itself if the
+              episode runs past the 30-second window.
+            - 🔌 Native handoff: VlcPlayerActivity persists the
+              "next intent" to SharedPreferences, MainActivity reads
+              it on resume and navigates the WebView via hash route.
+              Stale intents (>30 s old) are discarded so a closed
+              app can't replay yesterday's episode-end.
+            - 📐 Detail.jsx now supports two new query params for
+              the native handoff: `episodeAutoplay=1&season=S&episode=E`
+              (autoplay path) and `focusSeason=S&focusEpisode=E`
+              (picker focus path).
+
             **v2.6.12 — Slightly bigger poster covers**
             - 📐 Bumped poster cover width by 10% across all rows:
               clamp(120 → 132, 10.5vw → 11.5vw, 180 → 198) px.

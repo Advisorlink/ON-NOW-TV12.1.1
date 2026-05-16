@@ -71,7 +71,7 @@ const fmtDate = (iso) => {
     }
 };
 
-export default function SeriesEpisodes({ meta, parentId }) {
+export default function SeriesEpisodes({ meta, parentId, initialSeason, highlightEpisode }) {
     const navigate = useNavigate();
     const videos = useMemo(() => {
         const list = Array.isArray(meta?.videos) ? meta.videos : [];
@@ -98,7 +98,7 @@ export default function SeriesEpisodes({ meta, parentId }) {
     }, [videos]);
 
     const [activeSeason, setActiveSeason] = useState(
-        () => seasons[0]?.season ?? 1
+        () => initialSeason || seasons[0]?.season || 1
     );
     useEffect(() => {
         // Reset when meta changes
@@ -107,6 +107,35 @@ export default function SeriesEpisodes({ meta, parentId }) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [seasons]);
+
+    /* When the native player tells us to focus a specific episode
+     * (e.g., after EndReached fires for the previous episode), set
+     * the season + scroll the episode into view + give it focus.
+     * Runs once when the season's episodes have hydrated. */
+    useEffect(() => {
+        if (!initialSeason || !highlightEpisode) return;
+        if (!seasons.length) return;
+        if (activeSeason !== initialSeason) {
+            setActiveSeason(initialSeason);
+            return;  // re-runs on next render after the season change
+        }
+        // Defer one frame so SeriesEpisodes has rendered the new
+        // season's episode list before we try to focus an episode
+        // inside it.
+        const t = setTimeout(() => {
+            const id = `ep-card-${initialSeason}-${highlightEpisode}`;
+            const el = document.querySelector(`[data-episode-id="${id}"]`);
+            if (el) {
+                try {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus({ preventScroll: true });
+                    el.setAttribute('data-focused', 'true');
+                } catch { /* ignore */ }
+            }
+        }, 250);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialSeason, highlightEpisode, seasons, activeSeason]);
 
     const currentSeason = seasons.find((s) => s.season === activeSeason);
 
@@ -486,6 +515,7 @@ function EpisodeCard({
         >
             <button
                 data-testid={`episode-${ep.season}-${ep.episode}`}
+                data-episode-id={`ep-card-${ep.season}-${ep.episode}`}
                 data-focusable="true"
                 data-focus-style="quiet"
                 tabIndex={0}

@@ -85,6 +85,9 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var skipBackBtn: ImageButton
     private lateinit var skipFwdBtn: ImageButton
     private lateinit var skipIntroBtn: Button
+    private lateinit var nextEpBtn: android.widget.LinearLayout
+    private var nextEpShown: Boolean = false
+    private var nextEpDismissed: Boolean = false
     private lateinit var titleTv: TextView
     private lateinit var positionTv: TextView
     private lateinit var durationTv: TextView
@@ -236,6 +239,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         skipBackBtn = findViewById(R.id.btn_skip_back)
         skipFwdBtn = findViewById(R.id.btn_skip_fwd)
         skipIntroBtn = findViewById(R.id.btn_skip_intro)
+        nextEpBtn = findViewById(R.id.btn_next_episode)
         titleTv = findViewById(R.id.tv_title)
         positionTv = findViewById(R.id.tv_position)
         durationTv = findViewById(R.id.tv_duration)
@@ -338,6 +342,14 @@ class VlcPlayerActivity : AppCompatActivity() {
             // the button afterwards so it doesn't keep tempting clicks.
             seekBy(85_000)
             hideSkipIntro()
+        }
+        nextEpBtn.setOnClickListener {
+            /* User pressed "Next Episode" — save the next-episode
+             * intent (with autoplay) and finish the player.  The
+             * MainActivity's onResume hook reads the intent and
+             * navigates the WebView to launch the next episode. */
+            saveNextEpisodeIntent(autoplay = true)
+            finish()
         }
         btnSubs.setOnClickListener { lastFocusedControl = btnSubs; openSubtitlePicker() }
         btnAudio.setOnClickListener { lastFocusedControl = btnAudio; openAudioPicker() }
@@ -810,6 +822,15 @@ class VlcPlayerActivity : AppCompatActivity() {
                     loadingView.visibility = View.GONE
                 }
                 MediaPlayer.Event.EndReached -> {
+                    /* If this was a TV episode, save a "next-episode"
+                     * intent so MainActivity can navigate the WebView
+                     * back to the series page when we finish.  This
+                     * lands the user on the episode picker scrolled
+                     * to the next episode — exactly where they'd go
+                     * to choose what to watch next. */
+                    if (isSeries) {
+                        saveNextEpisodeIntent(autoplay = false)
+                    }
                     finish()
                 }
             }
@@ -922,6 +943,7 @@ class VlcPlayerActivity : AppCompatActivity() {
             positionTv.text = formatMillis(time)
         }
         maybeToggleSkipIntro(time)
+        maybeShowNextEpisode(time, length)
         maybePersistProgress(time, length)
     }
 
@@ -976,6 +998,84 @@ class VlcPlayerActivity : AppCompatActivity() {
             .setDuration(220)
             .withEndAction { skipIntroBtn.visibility = View.GONE }
             .start()
+    }
+
+    /**
+     * "Up Next" pill.  Shows during the last 30 s of a TV episode so
+     * the user can one-tap skip to the next episode without waiting
+     * for the credits.  When clicked, saves a next-episode intent
+     * and finishes the player; MainActivity reads the intent on
+     * resume and navigates the WebView to autoplay the new episode.
+     */
+    private fun maybeShowNextEpisode(timeMs: Long, lengthMs: Long) {
+        if (!isSeries || nextEpDismissed) return
+        if (lengthMs <= 0) return
+        if (computeNextEpisode() == null) return  // no next episode info
+        val remainingMs = lengthMs - timeMs
+        val inWindow = remainingMs in 1_000..30_000
+        if (inWindow && !nextEpShown) {
+            nextEpShown = true
+            // Update the secondary line to show e.g. "S2 · E4"
+            try {
+                val titleTv = findViewById<android.widget.TextView>(R.id.next_ep_title)
+                val parts = computeNextEpisode()
+                if (parts != null) {
+                    val (s, e) = parts
+                    titleTv?.text = "S${s} · E${e}"
+                } else {
+                    titleTv?.text = "Next Episode"
+                }
+            } catch (_: Throwable) { /* fall back to default text */ }
+            nextEpBtn.alpha = 0f
+            nextEpBtn.visibility = View.VISIBLE
+            nextEpBtn.animate().alpha(1f).setDuration(280).start()
+        } else if (!inWindow && nextEpShown) {
+            hideNextEpisode()
+        }
+    }
+
+    private fun hideNextEpisode() {
+        nextEpShown = false
+        nextEpBtn.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .withEndAction { nextEpBtn.visibility = View.GONE }
+            .start()
+    }
+
+    /** Parse the next (season, episode) pair from cwId of form
+     *  "imdb:season:episode".  Returns null for movies / unknown. */
+    private fun computeNextEpisode(): Pair<Int, Int>? {
+        if (!isSeries) return null
+        val id = cwId ?: return null
+        val parts = id.split(":")
+        if (parts.size < 3) return null
+        val s = parts[1].toIntOrNull() ?: return null
+        val e = parts[2].toIntOrNull() ?: return null
+        return Pair(s, e + 1)
+    }
+
+    /** Persist the next-episode intent to SharedPreferences so the
+     *  MainActivity (which hosts the WebView) can read it on resume
+     *  and navigate the React app to either the episode picker
+     *  (autoplay = false) or to autoplay the next episode directly
+     *  (autoplay = true).  Cleared by MainActivity after consumption. */
+    private fun saveNextEpisodeIntent(autoplay: Boolean) {
+        val id = cwId ?: return
+        val parts = id.split(":")
+        if (parts.size < 3) return
+        val imdb = parts[0]
+        val next = computeNextEpisode() ?: return
+        try {
+            getSharedPreferences("onnowtv_next_intent", MODE_PRIVATE).edit()
+                .putString("kind", "series")
+                .putString("imdb_id", imdb)
+                .putInt("season", next.first)
+                .putInt("episode", next.second)
+                .putBoolean("autoplay", autoplay)
+                .putLong("ts", System.currentTimeMillis())
+                .apply()
+        } catch (_: Throwable) { /* best-effort */ }
     }
 
     // -----------------------------------------------------------------

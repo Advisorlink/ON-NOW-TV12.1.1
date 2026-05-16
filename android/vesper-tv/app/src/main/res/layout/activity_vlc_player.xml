@@ -185,6 +185,66 @@
         app:layout_constraintBottom_toBottomOf="parent" />
 
     <!-- ============================================================
+         NEXT EPISODE PILL (bottom-right, last 30s of TV episodes).
+         Premium glass-style pill with a left play icon + label.
+         Sits one slot above the skip-intro pill so they never
+         overlap (Skip Intro is already gone by 30 s mark anyway).
+         ============================================================ -->
+    <LinearLayout
+        android:id="@+id/btn_next_episode"
+        android:layout_width="wrap_content"
+        android:layout_height="64dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="180dp"
+        android:paddingStart="22dp"
+        android:paddingEnd="32dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:background="@drawable/btn_next_episode"
+        android:visibility="gone"
+        android:elevation="22dp"
+        android:focusable="true"
+        android:clickable="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginEnd="14dp"
+            android:src="@drawable/ic_play"
+            android:tint="#FFFFFF"
+            android:contentDescription="Play next episode" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/next_ep_eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="UP NEXT"
+                android:textColor="#5DC8FF"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.32"
+                android:fontFamily="monospace" />
+
+            <TextView
+                android:id="@+id/next_ep_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Next Episode"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ============================================================
          CONTROLS OVERLAY
          ============================================================ -->
     <FrameLayout

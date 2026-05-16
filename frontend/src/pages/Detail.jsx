@@ -109,6 +109,25 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('episode') || '',
         [location.search]
     );
+    /* Episode autoplay (NON-party flow) — set when the native
+     * player pings us via SharedPreferences after a "Next Episode"
+     * tap.  Triggers the same series autoplay path as Watch
+     * Together but without WebSocket / party context. */
+    const episodeAutoplayRequested = useMemo(
+        () => new URLSearchParams(location.search).get('episodeAutoplay') === '1',
+        [location.search]
+    );
+    /* Episode focus (NON-party flow) — set when the native player
+     * pings us after EndReached so the user lands on the episode
+     * picker scrolled to the next episode.  No autoplay. */
+    const focusSeason = useMemo(
+        () => new URLSearchParams(location.search).get('focusSeason') || '',
+        [location.search]
+    );
+    const focusEpisode = useMemo(
+        () => new URLSearchParams(location.search).get('focusEpisode') || '',
+        [location.search]
+    );
 
     const [meta, setMeta] = useState(null);
     const [streams, setStreams] = useState([]);
@@ -477,15 +496,26 @@ export default function Detail() {
     useEffect(() => {
         if (seriesPartyFiredRef.current) return;
         if (autoplayFiredRef.current) return;
-        if (!partyCode) return;
-        if (!autoplayRequested) return;
+        // Trigger if EITHER party autoplay OR direct episode autoplay
+        // is requested.  Both flows need the same behaviour: pick the
+        // best stream for a specific season+episode and play it.
+        const isParty = !!partyCode && autoplayRequested;
+        const isDirect = episodeAutoplayRequested && !partyCode;
+        if (!isParty && !isDirect) return;
         if (type !== 'series') return;
+        const season = isParty ? partySeason : focusSeason;  // direct path also supplies via focusSeason but we use ?season= as a separate param? wait — we pass season=&episode= in the direct path too
+        // The native MainActivity sends `?episodeAutoplay=1&season=&episode=`
+        // — same param names as the party path, so partySeason /
+        // partyEpisode are the source of truth in BOTH cases.
         if (!partySeason || !partyEpisode) return;
         if (!meta) return; // wait for the show metadata so the CW entry is rich
         seriesPartyFiredRef.current = true;
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
-        partyBreadcrumb('series-party-autoplay:fire', { partyCode, s: partySeason, e: partyEpisode });
+        partyBreadcrumb('series-autoplay:fire', {
+            party: !!partyCode,
+            s: partySeason, e: partyEpisode,
+        });
         (async () => {
             const videoId = `${id}:${partySeason}:${partyEpisode}`;
             try {
@@ -523,7 +553,7 @@ export default function Detail() {
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [partyCode, autoplayRequested, type, partySeason, partyEpisode, id, meta]);
+    }, [partyCode, autoplayRequested, episodeAutoplayRequested, type, partySeason, partyEpisode, id, meta]);
 
     const playStream = async (stream, episodeOverride = null) => {
         const mode = streamMode(stream);
@@ -965,7 +995,12 @@ export default function Detail() {
 
                     {/* Stream picker (movies) / Episode browser (series) */}
                     {type === 'series' ? (
-                        <SeriesEpisodes meta={meta} parentId={id} />
+                        <SeriesEpisodes
+                            meta={meta}
+                            parentId={id}
+                            initialSeason={focusSeason ? Number(focusSeason) : undefined}
+                            highlightEpisode={focusEpisode ? Number(focusEpisode) : undefined}
+                        />
                     ) : autoplayEnabled && autoplayCandidate ? (
                         // Autoplay is on AND we have a 1080p candidate
                         // → hide the manual stream picker entirely.

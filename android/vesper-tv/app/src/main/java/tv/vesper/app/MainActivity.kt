@@ -289,6 +289,47 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         applyImmersiveMode()
         if (webViewReady) webView.onResume()
+        consumeNextEpisodeIntent()
+    }
+
+    /**
+     * If `VlcPlayerActivity` saved a "next-episode" intent before
+     * finishing (either user pressed "Next Episode" or the episode
+     * ended naturally), navigate the WebView to the series page so
+     * the user lands on either:
+     *   - the episode picker scrolled to the next episode (autoplay=false)
+     *   - the next episode auto-playing (autoplay=true)
+     *
+     * Cleared after consumption so a stale intent never re-fires.
+     * Older than 30 s also cleared (defensive).
+     */
+    private fun consumeNextEpisodeIntent() {
+        if (!webViewReady) return
+        val sp = getSharedPreferences("onnowtv_next_intent", MODE_PRIVATE)
+        val ts = sp.getLong("ts", 0L)
+        if (ts == 0L) return
+        // Read every field before clearing.
+        val imdb = sp.getString("imdb_id", null)
+        val s = sp.getInt("season", 0)
+        val e = sp.getInt("episode", 0)
+        val autoplay = sp.getBoolean("autoplay", false)
+        sp.edit().clear().apply()
+        if (imdb.isNullOrBlank()) return
+        if (System.currentTimeMillis() - ts > 30_000L) return
+        // Build the target URL.  Detail.jsx supports
+        // `episodeAutoplay=1&season=&episode=` (added in v2.6.13)
+        // for direct autoplay of a specific episode without going
+        // through the manual picker.  When autoplay=false we just
+        // show the episode picker focused on the next episode.
+        val hash = if (autoplay) {
+            "#/title/series/${imdb}?episodeAutoplay=1&season=${s}&episode=${e}"
+        } else {
+            "#/title/series/${imdb}?focusSeason=${s}&focusEpisode=${e}"
+        }
+        val js = "window.location.hash = '${hash}';"
+        webView.post {
+            try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
     }
 
     override fun onPause() {
