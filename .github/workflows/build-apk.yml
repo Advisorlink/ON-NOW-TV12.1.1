@@ -227,6 +227,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.10 — Fix focused poster bottom clipping**
+            - 🎯 FIXED: focused poster's scale(1.08) animation was
+              getting clipped at the bottom edge.  Root cause:
+              `content-visibility: auto` from v2.6.8 implicitly
+              applies `contain: size` which reserves the tile's
+              box at its un-scaled size and clips anything painted
+              past that boundary, INCLUDING the focus animation.
+            - ✅ Removed `content-visibility` + `contain-intrinsic-
+              size` + `contain: layout paint style` from PosterTile.
+              Kept the pure GPU compositing (`translateZ(0)`,
+              `will-change`).  Scrolling still feels much smoother
+              than v2.6.7 thanks to compositor promotion — without
+              breaking the focus scale.
+
             **v2.6.9 — Row pinning sits higher (no more bottom clip)**
             - 🎯 FIXED: focused poster rows were landing a touch
               too far down on 1080p, clipping the bottom edge of
