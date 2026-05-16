@@ -13,12 +13,15 @@
  * Outside an Android WebView (`window.__APP_VERSION__` undefined) the
  * gate stays hidden so the web build remains usable.
  *
- * Outside the WebView OR while the version-check API returns null /
- * fails, the gate is a no-op — we never want a transient backend
- * blip to lock a user out of the app.
+ * Native bridge (added v2.6.4):
+ *   - window.OnNowTV.installApk(url)  — downloads + invokes the
+ *     PackageInstaller silently.  Sends progress callbacks via
+ *     `window.__onUpdateEvent(stage, info)`.
+ *   - window.OnNowTV.openExternal(url) — open in the system browser
+ *     as a fallback.
  */
 import React, { useEffect, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -42,6 +45,8 @@ function compareSemver(a, b) {
 export default function UpdateGate() {
     const [info, setInfo] = useState(null);
     const [busy, setBusy] = useState(false);
+    const [stage, setStage] = useState('idle');      // idle | started | progress | downloaded | error
+    const [progress, setProgress] = useState(-1);
     const [dlError, setDlError] = useState(null);
 
     // The running APK exposes its versionName at boot.  Outside the
@@ -54,9 +59,6 @@ export default function UpdateGate() {
         let cancel = false;
 
         const check = async (force = false) => {
-            // Use the cached payload first (avoids GitHub's 60-req/hour
-            // rate limit when the user re-launches the app in quick
-            // succession).
             try {
                 if (!force) {
                     const cached = localStorage.getItem(CACHE_KEY);
@@ -94,36 +96,105 @@ export default function UpdateGate() {
         };
     }, [running]);
 
+    /* Native progress / lifecycle callbacks from WebAppInterface.
+     * We install a global handler on window so the Kotlin side can
+     * call us via `window.__onUpdateEvent(stage, info)`.  Cleared on
+     * unmount in case the gate ever gets remounted (StrictMode dev). */
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        window.__onUpdateEvent = (s, payload) => {
+            switch (s) {
+                case 'started':
+                    setStage('started');
+                    setProgress(-1);
+                    break;
+                case 'progress': {
+                    const pct = parseInt(payload, 10);
+                    setStage('progress');
+                    setProgress(Number.isFinite(pct) ? pct : -1);
+                    break;
+                }
+                case 'downloaded':
+                    setStage('downloaded');
+                    setProgress(100);
+                    break;
+                case 'error':
+                    setStage('error');
+                    setBusy(false);
+                    setDlError(payload || 'Install failed — try the manual link below.');
+                    break;
+                default:
+                    break;
+            }
+        };
+        return () => { delete window.__onUpdateEvent; };
+    }, []);
+
     if (!running) return null;
     if (!info || !info.version || !info.apk_url) return null;
     if (compareSemver(running, info.version) >= 0) return null;
 
-    const handleInstall = async () => {
+    const handleInstall = () => {
         setBusy(true);
         setDlError(null);
+        setStage('started');
+        setProgress(-1);
         try {
-            // Two paths for installing the APK:
-            // 1. Native bridge — if MainActivity registered
-            //    `window.OnNowTV.installApk(url)`, it can download +
-            //    invoke the PackageInstaller silently (next build).
-            // 2. Fallback — open the APK URL.  The WebView fires the
-            //    OS download manager, which then prompts the user to
-            //    install.  Works on every Android since 7.
             if (window.OnNowTV?.installApk) {
                 window.OnNowTV.installApk(info.apk_url);
-            } else if (window.OnNowTV?.openExternal) {
-                window.OnNowTV.openExternal(info.apk_url);
-            } else {
-                // WebView's <a download> typically triggers the OS
-                // download manager.  Use top-level navigation so the
-                // download survives even if we close this view.
-                window.location.href = info.apk_url;
+                return;
             }
-        } catch (e) {
-            setDlError(e?.message || 'Could not start the download.');
+            if (window.OnNowTV?.openExternal) {
+                window.OnNowTV.openExternal(info.apk_url);
+                setStage('downloaded');
+                setBusy(false);
+                return;
+            }
+            // No native bridge available — typical for v2.6.2 and
+            // older builds that don't have installApk yet.  We
+            // surface a clear instruction + a copy-to-clipboard
+            // helper so the user can sideload manually.
+            setStage('error');
             setBusy(false);
+            setDlError(
+                'This older version of the app cannot install updates ' +
+                'automatically. Tap "Open in browser" below to download ' +
+                'the new APK and install it manually — just this once.'
+            );
+        } catch (e) {
+            setStage('error');
+            setBusy(false);
+            setDlError(e?.message || 'Could not start the download.');
         }
     };
+
+    const openExternal = () => {
+        try {
+            if (window.OnNowTV?.openExternal) {
+                window.OnNowTV.openExternal(info.apk_url);
+            } else {
+                window.open(info.apk_url, '_blank');
+            }
+        } catch (_) { /* ignore */ }
+    };
+
+    const copyApkUrl = async () => {
+        try {
+            await navigator.clipboard.writeText(info.apk_url);
+            setDlError('Copied! Paste it into your browser or Downloader app.');
+        } catch {
+            setDlError('Copy failed — open the link manually: ' + info.apk_url);
+        }
+    };
+
+    const statusLabel = (() => {
+        if (stage === 'started') return 'Starting download…';
+        if (stage === 'progress')
+            return progress >= 0 ? `Downloading… ${progress}%` : 'Downloading…';
+        if (stage === 'downloaded') return 'Opening installer…';
+        if (busy) return 'Downloading…';
+        return 'Download and install';
+    })();
 
     return (
         <div
@@ -131,16 +202,32 @@ export default function UpdateGate() {
             style={{
                 position: 'fixed',
                 inset: 0,
-                background: 'radial-gradient(ellipse at top, rgba(93,200,255,0.15) 0%, rgba(6,8,15,0.95) 50%, #06080F 100%)',
-                zIndex: 9999,
+                /* Solid base layer so nothing behind us bleeds
+                 * through — fixes the profile-picker-showing-up
+                 * issue reported on v2.6.2. */
+                background: '#06080F',
+                zIndex: 99999,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '32px 24px',
+                overflowY: 'auto',
             }}
         >
+            {/* Glow accent layer on top of the solid base. */}
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background:
+                        'radial-gradient(ellipse 90% 60% at 50% -10%, rgba(93,200,255,0.22) 0%, rgba(93,200,255,0.05) 35%, transparent 70%)',
+                    pointerEvents: 'none',
+                }}
+            />
             <div
                 style={{
+                    position: 'relative',
                     maxWidth: 540,
                     width: '100%',
                     display: 'flex',
@@ -216,10 +303,32 @@ export default function UpdateGate() {
                     </div>
                 )}
 
+                {/* Progress bar — visible while downloading. */}
+                {busy && progress >= 0 && (
+                    <div
+                        data-testid="update-gate-progress"
+                        style={{
+                            width: '100%',
+                            height: 6,
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,0.08)',
+                            overflow: 'hidden',
+                            marginTop: 6,
+                        }}
+                    >
+                        <div style={{
+                            width: `${Math.max(0, Math.min(100, progress))}%`,
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #5DC8FF, #7FE5FF)',
+                            transition: 'width 240ms ease-out',
+                        }} />
+                    </div>
+                )}
+
                 <button
                     data-testid="update-gate-install"
                     onClick={handleInstall}
-                    disabled={busy}
+                    disabled={busy && stage !== 'error'}
                     style={{
                         marginTop: 18,
                         height: 56,
@@ -236,22 +345,63 @@ export default function UpdateGate() {
                         alignItems: 'center',
                         gap: 10,
                         cursor: busy ? 'progress' : 'pointer',
-                        opacity: busy ? 0.7 : 1,
+                        opacity: busy && stage !== 'error' ? 0.85 : 1,
                         WebkitTapHighlightColor: 'transparent',
                     }}
                 >
-                    {busy ? (
+                    {busy && stage !== 'error' ? (
                         <>
                             <RefreshCw size={18} className="vesper-spin" />
-                            Downloading…
+                            {statusLabel}
                         </>
                     ) : (
                         <>
                             <Download size={18} />
-                            Download and install
+                            {statusLabel}
                         </>
                     )}
                 </button>
+
+                {/* Always-visible fallback row (Open in browser / Copy
+                 * link) so the user is NEVER stuck if the native
+                 * installer fails — this is how v2.6.2 users will
+                 * sideload v2.6.3 manually for the one-time
+                 * bootstrap. */}
+                <div style={{
+                    display: 'flex', flexDirection: 'row', gap: 10,
+                    marginTop: 4, flexWrap: 'wrap', justifyContent: 'center',
+                }}>
+                    <button
+                        data-testid="update-gate-open-browser"
+                        onClick={openExternal}
+                        style={{
+                            height: 40, padding: '0 18px', borderRadius: 999,
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.22)',
+                            color: '#C7CFDB', fontSize: 12,
+                            letterSpacing: '0.08em', textTransform: 'uppercase',
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <ExternalLink size={14} />
+                        Open in browser
+                    </button>
+                    <button
+                        data-testid="update-gate-copy-url"
+                        onClick={copyApkUrl}
+                        style={{
+                            height: 40, padding: '0 18px', borderRadius: 999,
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.22)',
+                            color: '#C7CFDB', fontSize: 12,
+                            letterSpacing: '0.08em', textTransform: 'uppercase',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Copy download link
+                    </button>
+                </div>
 
                 {dlError && (
                     <div
@@ -260,6 +410,8 @@ export default function UpdateGate() {
                             marginTop: 10,
                             fontSize: 12,
                             color: '#FCA5A5',
+                            lineHeight: 1.5,
+                            maxWidth: 460,
                         }}
                     >
                         {dlError}
@@ -272,6 +424,8 @@ export default function UpdateGate() {
                         fontSize: 12,
                         color: 'var(--vesper-text-3, #6B7587)',
                         letterSpacing: '0.04em',
+                        lineHeight: 1.5,
+                        textAlign: 'center',
                     }}
                 >
                     The app will reopen automatically once the update finishes installing.

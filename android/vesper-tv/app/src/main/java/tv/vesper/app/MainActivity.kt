@@ -28,6 +28,12 @@ import androidx.webkit.WebViewFeature
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    /* Public accessor used by [WebAppInterface] when it needs to
+     * post update-progress events back into the page via
+     * `evaluateJavascript`.  Returns null until the WebView has
+     * been instantiated by `onCreate`. */
+    internal fun webViewOrNull(): WebView? =
+        if (this::webView.isInitialized) webView else null
     /** Set to true the moment WebView creation succeeds — prevents
      *  lifecycle methods from crashing if WebView init failed
      *  (e.g. a phone without Android System WebView installed). */

@@ -34,6 +34,29 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 89 — Feb 16, 2026)
+### Working APK auto-update installer + Update Gate fixes (v2.6.4)
+- **🐛 User reported:** "DOWNLOADING…" spinner stuck forever on the v2.6.2 gate; profile picker bled through the gate's background.
+- **🔬 Root causes:**
+  1. **Install path was a no-op.** `UpdateGate.jsx` fell through to `window.location.href = apk_url` because `WebAppInterface.kt` had no `installApk` or `openExternal` methods. Android WebView with no `DownloadListener` set just tries to render the binary as a page and silently stalls.
+  2. **Background was 15% transparent at the top-center** (`radial-gradient(... rgba(93,200,255,0.15) 0%, ...)`) on a transparent base layer, so anything underneath leaked through.
+- **🛠️ Fixes shipped:**
+  - **AndroidManifest.xml**: added `REQUEST_INSTALL_PACKAGES` permission + a `FileProvider` with authority `${applicationId}.fileprovider` pointing at `external-cache-path/updates/` for handing APK files to the system PackageInstaller via a `content://` URI (file:// is forbidden on API 24+).
+  - **res/xml/file_paths.xml**: new — declares the `updates/` external-cache path.
+  - **WebAppInterface.kt + MainActivity.kt**: new native bridges:
+    - `OnNowTV.installApk(url)` — uses `DownloadManager` to fetch the APK (system notification, retries, etc.), polls status every 600 ms, posts progress events back to JS via `window.__onUpdateEvent(stage, info)`, then launches the system installer with `Intent.ACTION_VIEW` + the FileProvider `content://` URI.
+    - `OnNowTV.openExternal(url)` — falls back to the system browser / Downloader app for cases where the install path fails.
+    - On `SecurityException` (Android 8+ unknown-sources still gated) the bridge auto-redirects to `Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES` so the user can grant once.
+    - `MainActivity.kt`: exposed `internal fun webViewOrNull(): WebView?` so the bridge can `evaluateJavascript` cleanly without forcing a layout XML id.
+  - **UpdateGate.jsx** rewrite:
+    - **Opaque base layer** (`#06080F`) + glow as separate `pointer-events:none` overlay → no more bleed-through.
+    - Wired to the new `OnNowTV.installApk(url)` and reflects live progress (0–100 %).
+    - **Always-visible fallback row**: "Open in browser" + "Copy download link" buttons so the user is NEVER stranded — critical for v2.6.2 users who don't have the native bridge yet.
+    - When the bridge is missing, the gate now shows a clear instruction ("This older version cannot auto-install. Tap Open in browser to install manually — just this once.") instead of pretending to download.
+    - Progress bar component renders during download.
+- **🧪 Verified** via Playwright preview repro — gate fires correctly at v2.6.2 < v2.6.3, all 3 buttons present, fully opaque.
+- **Manifest v2.6.4 (versionCode 74).** Once the user installs this build manually one time, every future update will be one-tap from the gate.
+
 ## Implemented (Iteration 88 — Feb 16, 2026)
 ### Watch Together — bulletproof autoplay + diagnostic breadcrumbs (v2.6.3)
 - **🐛 User reported AGAIN** (3rd recurrence): "I clicked Start Party → it took her to the manual stream selection and me the manual stream selection as well. Then I clicked Start and mine started and hers just didn't do anything."

@@ -399,4 +399,191 @@ class WebAppInterface(private val activity: Activity) {
             // Guide overlay will just be empty until the next call.
         }
     }
+
+    /**
+     * Download the new APK and hand it to the system installer.
+     *
+     * Called by `UpdateGate.jsx` when the user clicks "Download and
+     * install" while running an outdated version.  Uses Android's
+     * `DownloadManager` (which shows the standard system download
+     * notification + handles retries / WebView-independent resume),
+     * then fires an ACTION_VIEW intent with the APK mime type so the
+     * platform PackageInstaller takes over.
+     *
+     * On Android 8+ the user is prompted to allow ON NOW TV to
+     * install unknown apps; once they do (and tap "OK") the install
+     * proceeds and Android automatically reopens our app afterwards.
+     *
+     * Progress callbacks are routed back to the WebView so the JS
+     * gate can show "Downloading … 47 %" instead of an indefinite
+     * spinner.
+     */
+    @JavascriptInterface
+    fun installApk(apkUrl: String) {
+        if (apkUrl.isBlank()) {
+            postUpdateEvent("error", "URL is empty")
+            return
+        }
+        activity.runOnUiThread {
+            try {
+                val ctx = activity.applicationContext
+                val cacheDir = java.io.File(ctx.externalCacheDir, "updates")
+                if (!cacheDir.exists()) cacheDir.mkdirs()
+                // Always overwrite — we never want a stale half-download
+                // sitting around eating disk + tricking us.
+                val apkFile = java.io.File(cacheDir, "onnowtv-update.apk")
+                if (apkFile.exists()) apkFile.delete()
+
+                postUpdateEvent("started", apkUrl)
+
+                val dm = ctx.getSystemService(android.content.Context.DOWNLOAD_SERVICE)
+                        as android.app.DownloadManager
+                val req = android.app.DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                    setTitle("ON NOW TV update")
+                    setDescription("Downloading the new version…")
+                    setMimeType("application/vnd.android.package-archive")
+                    setDestinationUri(Uri.fromFile(apkFile))
+                    setNotificationVisibility(
+                        android.app.DownloadManager.Request
+                            .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                    )
+                    setAllowedOverMetered(true)
+                    setAllowedOverRoaming(true)
+                }
+                val downloadId = dm.enqueue(req)
+
+                // Poll the DownloadManager every 600 ms so the gate
+                // shows real progress.  Stops when the download
+                // succeeds, fails, or the app is destroyed.
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                val poll = object : Runnable {
+                    override fun run() {
+                        val q = android.app.DownloadManager.Query().setFilterById(downloadId)
+                        val cur = dm.query(q)
+                        if (cur != null && cur.moveToFirst()) {
+                            val status = cur.getInt(
+                                cur.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)
+                            )
+                            val downloaded = cur.getLong(
+                                cur.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                            )
+                            val total = cur.getLong(
+                                cur.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                            )
+                            cur.close()
+                            when (status) {
+                                android.app.DownloadManager.STATUS_RUNNING,
+                                android.app.DownloadManager.STATUS_PAUSED,
+                                android.app.DownloadManager.STATUS_PENDING -> {
+                                    val pct = if (total > 0) (downloaded * 100 / total).toInt() else -1
+                                    postUpdateEvent("progress", pct.toString())
+                                    handler.postDelayed(this, 600)
+                                }
+                                android.app.DownloadManager.STATUS_SUCCESSFUL -> {
+                                    postUpdateEvent("downloaded", apkFile.absolutePath)
+                                    launchInstaller(apkFile)
+                                }
+                                android.app.DownloadManager.STATUS_FAILED -> {
+                                    postUpdateEvent("error", "Download failed (status=$status)")
+                                }
+                                else -> {
+                                    handler.postDelayed(this, 600)
+                                }
+                            }
+                        } else {
+                            // No row yet — keep polling briefly.
+                            handler.postDelayed(this, 600)
+                        }
+                    }
+                }
+                handler.post(poll)
+            } catch (e: Throwable) {
+                postUpdateEvent("error", e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** Launch the system package installer for a freshly-downloaded
+     *  APK.  Routed through a FileProvider content:// URI because
+     *  file:// URIs have been forbidden on Android 7+ since 2017. */
+    private fun launchInstaller(apkFile: java.io.File) {
+        try {
+            val ctx = activity.applicationContext
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                ctx,
+                ctx.packageName + ".fileprovider",
+                apkFile,
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            activity.startActivity(intent)
+        } catch (e: android.content.ActivityNotFoundException) {
+            // Pre-Oreo or stripped TV ROMs without a PackageInstaller
+            // — fall back to a chooser.
+            postUpdateEvent("error", "No installer found on this device. Sideload manually.")
+        } catch (e: SecurityException) {
+            // Android 8+ blocks installs from apps that don't have
+            // REQUEST_INSTALL_PACKAGES granted yet — funnel the user
+            // to the settings page so they can enable it once.
+            try {
+                val settings = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + activity.packageName)
+                )
+                activity.startActivity(settings)
+                postUpdateEvent(
+                    "error",
+                    "Please tap 'Allow' so ON NOW TV can install updates."
+                )
+            } catch (_: Throwable) {
+                postUpdateEvent("error", "Install blocked: " + (e.message ?: "SecurityException"))
+            }
+        } catch (e: Throwable) {
+            postUpdateEvent("error", e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /** Post an update-lifecycle event back to the WebView so the JS
+     *  gate can render progress.  Routed via the global hook
+     *  `window.__onUpdateEvent(stage, info)`. */
+    private fun postUpdateEvent(stage: String, info: String) {
+        try {
+            val main = activity as? MainActivity ?: return
+            val webView = main.webViewOrNull() ?: return
+            val safeInfo = info.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+            val js = "if(window.__onUpdateEvent)window.__onUpdateEvent('" + stage + "','" + safeInfo + "');"
+            webView.post { webView.evaluateJavascript(js, null) }
+        } catch (_: Throwable) {
+            /* WebView gone — silent. */
+        }
+    }
+
+    /** Generic "open this URL in the system browser / Downloader app"
+     *  helper.  Used by UpdateGate as a fallback when the native
+     *  installer fails for any reason, and could be used elsewhere
+     *  for external links (e.g., support pages). */
+    @JavascriptInterface
+    fun openExternal(url: String) {
+        if (url.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    Uri.parse(url),
+                )
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(intent)
+            } catch (e: Throwable) {
+                Toast.makeText(
+                    activity,
+                    "Could not open browser: " + (e.message ?: ""),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 }

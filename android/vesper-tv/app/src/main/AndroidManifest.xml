@@ -4,6 +4,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Required so the in-app Update Gate can launch the APK
+         installer for the freshly-downloaded onnowtv-v2-debug.apk.
+         On Android 8+ the user is prompted once to allow our app
+         to install unknown apps — handled by the gate UI which
+         falls through to ACTION_MANAGE_UNKNOWN_APP_SOURCES when
+         the install Intent fails. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Voice search via RecognizerIntent — needs mic at runtime
          only when the user actually taps the mic.  Declared here so
          older AOSP ROMs that pre-grant permissions don't choke. -->
@@ -99,5 +106,18 @@
             android:launchMode="singleTop"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.Vesper.Fullscreen" />
+
+        <!-- FileProvider so we can hand the freshly-downloaded APK
+             over to the system PackageInstaller via a content:// URI
+             (file:// URIs are forbidden from API 24+). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

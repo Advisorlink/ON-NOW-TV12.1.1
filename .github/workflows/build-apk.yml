@@ -227,6 +227,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.4 — Working auto-update installer + gate fixes**
+            - 🔧 FIXED: The in-app update gate's "Download and install"
+              button is now actually wired through to a native
+              installer.  Previous builds fell through to a naked
+              `window.location.href = apk_url` which silently stalled
+              the WebView with no download ever starting.
+            - 📥 New native bridge `OnNowTV.installApk(url)`: uses
+              Android's `DownloadManager` to fetch the APK with the
+              standard system notification + retry handling, then
+              hands the file to the platform PackageInstaller via a
+              FileProvider content:// URI.
+            - 📊 Live progress: the gate now shows a progress bar +
+              percentage as the APK downloads, sourced from real
+              `DownloadManager` events.
+            - 🌐 Fallback row: "Open in browser" + "Copy download
+              link" buttons are always visible so you're NEVER
+              stranded — even if the native installer hits a snag,
+              you can grab the URL and install manually.
+            - 🖤 Z-index fix: the gate now has an opaque base layer
+              behind its radial glow, so the profile picker no
+              longer bleeds through at the top of the screen.
+            - 🔒 Manifest: REQUEST_INSTALL_PACKAGES permission added;
+              when Android prompts you to allow installs from
+              unknown sources, tap **Allow** once and the gate
+              becomes fully automatic going forward.
+
             **v2.6.3 — Watch Together bulletproof autoplay + diagnostics**
             - 🛡️ FIXED (3rd recurrence): "Start Party → both end on the
               manual stream picker, host plays solo, guest does nothing."
