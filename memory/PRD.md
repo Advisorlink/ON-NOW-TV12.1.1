@@ -34,6 +34,27 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 88 — Feb 16, 2026)
+### Watch Together — bulletproof autoplay + diagnostic breadcrumbs (v2.6.3)
+- **🐛 User reported AGAIN** (3rd recurrence): "I clicked Start Party → it took her to the manual stream selection and me the manual stream selection as well. Then I clicked Start and mine started and hers just didn't do anything."
+- **🔬 Verified the backend is solid** via direct WS scripted repro: host's `play` → server flips `status='loading'` → both members get the state.  Preview test of `/title/movie/X?party=…&autoplay=1` confirmed the JS autoplay logic was firing correctly when triggered.  So the bug was on the client side, where one or more silent failure modes left the user on the picker.
+- **🛡️ Hybrid REF + STATE autoplay guard** (`pages/Detail.jsx`):
+  - Previous impl used `autoplayFiredRef` only — React doesn't watch refs so the JOINING WATCH PARTY overlay didn't always hide on a successful fire, leaving the user staring at the picker behind the overlay.
+  - First attempted state-only impl caused a self-cancelling cleanup: setting `autoplayFired = true` triggered the useEffect's cleanup which `clearTimeout`'d the very `playStream` that was about to launch.
+  - **Final fix**: synchronous REF guard for the "already fired" check (no re-render race) PLUS a STATE flag for the overlay render.  `window.setTimeout` (un-tracked) for the deferred `playStream` so it can't be killed by its own state-update.
+- **🦮 Autoplay watchdog**: separate `useEffect` with a 5-second timer that re-attempts the pick + `playStream` if autoplay hasn't fired by then.  Catches React batching edge-cases, stale closures, hot-reload weirdness — anything that could leave the party member stranded on the picker.
+- **🧷 WS-open-aware lobby send** (`pages/WatchTogether.jsx`):
+  - Old `send(msg)` silently dropped `play` if the WebSocket wasn't OPEN yet (race after `setView('room')`).  If the host's Start Party click arrived before `ws.onopen`, the server never saw `play`, never flipped to `loading`, and BOTH members hung in the lobby with no navigation triggered.
+  - **New** `sendReliable(msg, timeoutMs=2500)`: polls `readyState` every 80 ms up to 2.5 s, sends as soon as the socket is open.  Returns boolean success.  Wired into both `pick` and `play` callbacks.
+- **🌀 Start Party button feedback**: disables while sending + while server status is `loading` / `countdown`; shows spinner; surfaces "Connection still warming up — try again in a second." on failure.  User now has a clear signal something is happening instead of clicking into the void.
+- **🍞 Diagnostic breadcrumb trail** (`localStorage["vesper-party-breadcrumbs"]`, last 80 events):
+  - Lobby: `lobby:ws-connect`, `lobby:ws-open`, `lobby:joined`, `lobby:send-start`, `lobby:send-ok` / `lobby:send-timeout` / `lobby:send-error`, `lobby:navigate`, `lobby:ws-close`, `lobby:ws-error`.
+  - Detail: `streams:fetch-start`, `streams:fetch-done` (with count), `streams:fetch-error`, `party-autoplay:fire`, `party-autoplay:watchdog-fire`, `series-party-autoplay:fire`, `playStream:invoke` (mode/role/memberId/wsUrl presence), `playStream:native-launched` / `playStream:web-fallback`.
+  - All breadcrumbs also `console.log`'d so `adb logcat` + remote debug show them live.
+  - Excluded from profile backup (`vesper-party-breadcrumbs` prefix in `EXCLUDE_PREFIXES`).
+- **🧪 Verified**: backend 16/16 watch-party tests still pass.  Preview repro of `/title/movie/tt0816692?party=…&autoplay=1&at_ms=0&position_ms=0` now reliably navigates to `/play?url=…&party=…` within 1.5 s every time, with full breadcrumb trail for post-mortem inspection.
+- **Manifest v2.6.3 (versionCode 73)** — GitHub Actions auto-builds & publishes.
+
 ## Implemented (Iteration 87 — Feb 16, 2026)
 ### Premium Live TV overlay redesign + Update Gate live config
 - **🗝️ Update Gate live**: `APK_GITHUB_REPO=Advisorlink/ON-NOW-TV12.1.1` set in `backend/.env`.  Once the GitHub workflow publishes a v2.6.2+ release with the `apk-latest` tag, every install older than that will show the forced-update screen on next launch.

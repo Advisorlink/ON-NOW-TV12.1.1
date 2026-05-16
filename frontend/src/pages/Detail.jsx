@@ -30,6 +30,23 @@ const streamMode = (s) => {
     return 'unknown';
 };
 
+/* Watch Together diagnostic breadcrumbs.  Keep a short rolling log
+ * in localStorage so we can inspect AFTER the user reports a bug.
+ * Console.log is also called so the WebView Inspector + Android
+ * `adb logcat` see them in real time.  No PII written. */
+function partyBreadcrumb(event, info = {}) {
+    try {
+        // eslint-disable-next-line no-console
+        console.log('[watch-party]', event, info);
+        const key = 'vesper-party-breadcrumbs';
+        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+        arr.push({ t: Date.now(), event, info });
+        // Keep last 80 entries (~last 2 watch-party attempts).
+        while (arr.length > 80) arr.shift();
+        localStorage.setItem(key, JSON.stringify(arr));
+    } catch { /* ignore */ }
+}
+
 const buildMagnet = (s, fallbackName = '') => {
     if (!s?.infoHash) return null;
     const name = s.name || s.title || fallbackName || 'video';
@@ -165,16 +182,23 @@ export default function Detail() {
         let cancel = false;
         (async () => {
             setStreamLoading(true);
+            if (partyCode) partyBreadcrumb('streams:fetch-start', { type, id });
             try {
                 const s = await Vesper.getStreams(type, id);
                 if (!cancel) {
                     setStreams(s?.streams || []);
                     setDiagnostics(s?.diagnostics || []);
+                    if (partyCode) {
+                        partyBreadcrumb('streams:fetch-done', {
+                            count: (s?.streams || []).length,
+                        });
+                    }
                 }
-            } catch {
+            } catch (e) {
                 if (!cancel) {
                     setStreams([]);
                     setDiagnostics([]);
+                    if (partyCode) partyBreadcrumb('streams:fetch-error', { err: String(e).slice(0, 200) });
                 }
             } finally {
                 if (!cancel) setStreamLoading(false);
@@ -183,7 +207,7 @@ export default function Detail() {
         return () => {
             cancel = true;
         };
-    }, [type, id]);
+    }, [type, id, partyCode]);
 
     // When streams arrive, land focus on the first stream so that
     // pressing Down on the D-pad selects the next stream (not the
@@ -336,7 +360,18 @@ export default function Detail() {
     // no 1080p candidate is found.  In PARTY mode the fallback is
     // more aggressive: pick whatever streams are available so the
     // party doesn't desync on the picker.
+    //
+    // Hybrid ref+state pattern.  The REF is the synchronous "already
+    // fired" guard — it doesn't trigger re-renders or cleanup races,
+    // so the setTimeout(playStream, 30) inside the effect can never
+    // be cancelled by its own state-update.  The STATE drives the
+    // JOINING-WATCH-PARTY overlay render so React always knows when
+    // to hide it.  Previously a ref-only impl would leave the
+    // overlay visible because React doesn't watch refs, and a
+    // state-only impl would cancel its own pending playStream via
+    // cleanup as soon as `setAutoplayFired(true)` ran.
     const autoplayFiredRef = React.useRef(false);
+    const [autoplayFired, setAutoplayFired] = useState(false);
 
     // ---------- PARTY AUTOPLAY (the bulletproof path) ----------
     // The dedicated useEffect for parties.  Watches for:
@@ -370,11 +405,47 @@ export default function Detail() {
             pool.find((s) => streamMode(s) === 'torrent') ||
             pool[0];
         if (!pick) return;
+        partyBreadcrumb('party-autoplay:fire', { partyCode, mode: streamMode(pick), name: pick.name });
         autoplayFiredRef.current = true;
+        setAutoplayFired(true);
         // Defer one tick so React has time to commit the streams list
-        // before we navigate / launch the native player.
-        const t = setTimeout(() => playStream(pick), 30);
-        return () => clearTimeout(t);
+        // before we navigate / launch the native player.  Use a
+        // window timer (not a cleanup-tracked timeout) so a state
+        // change triggered by setAutoplayFired can't cancel it.
+        window.setTimeout(() => playStream(pick), 30);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partyCode, autoplayRequested, streams, streamLoading, type]);
+
+    // ---------- PARTY AUTOPLAY WATCHDOG ----------
+    // Safety net: if for ANY reason the partyAutoplay useEffect above
+    // didn't run within 5 seconds of streams loading (React batching
+    // edge case, stale-closure, hot-reload, etc.), re-attempt the
+    // pick + playStream here.  This is the difference between "guest
+    // sat on the picker waiting" and "guest's player launched".
+    useEffect(() => {
+        if (autoplayFiredRef.current) return;
+        if (!partyCode) return;
+        if (!autoplayRequested) return;
+        if (type === 'series') return;
+        if (streamLoading) return;
+        if (!streams || streams.length === 0) return;
+        const watchdog = setTimeout(() => {
+            if (autoplayFiredRef.current) return;
+            const non4k = streams.filter((s) => !is4K(s));
+            const pool = non4k.length > 0 ? non4k : streams;
+            const pick =
+                pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+                pool.find((s) => is1080p(s)) ||
+                pool.find((s) => streamMode(s) === 'direct') ||
+                pool.find((s) => streamMode(s) === 'torrent') ||
+                pool[0];
+            if (!pick) return;
+            partyBreadcrumb('party-autoplay:watchdog-fire', { partyCode });
+            autoplayFiredRef.current = true;
+            setAutoplayFired(true);
+            playStream(pick);
+        }, 5000);
+        return () => clearTimeout(watchdog);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [partyCode, autoplayRequested, streams, streamLoading, type]);
 
@@ -389,8 +460,8 @@ export default function Detail() {
         if (!getAutoplay1080p()) return;
         if (!autoplayCandidate) return;
         autoplayFiredRef.current = true;
-        const t = setTimeout(() => playStream(autoplayCandidate), 0);
-        return () => clearTimeout(t);
+        setAutoplayFired(true);
+        window.setTimeout(() => playStream(autoplayCandidate), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
@@ -412,6 +483,8 @@ export default function Detail() {
         if (!meta) return; // wait for the show metadata so the CW entry is rich
         seriesPartyFiredRef.current = true;
         autoplayFiredRef.current = true;
+        setAutoplayFired(true);
+        partyBreadcrumb('series-party-autoplay:fire', { partyCode, s: partySeason, e: partyEpisode });
         (async () => {
             const videoId = `${id}:${partySeason}:${partyEpisode}`;
             try {
@@ -420,6 +493,7 @@ export default function Detail() {
                 if (list.length === 0) {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
+                    setAutoplayFired(false);
                     return;
                 }
                 const non4k = list.filter((s) => !is4K(s));
@@ -433,6 +507,7 @@ export default function Detail() {
                 if (!pick) {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
+                    setAutoplayFired(false);
                     return;
                 }
                 await playStream(pick, {
@@ -443,6 +518,7 @@ export default function Detail() {
             } catch (_e) {
                 seriesPartyFiredRef.current = false;
                 autoplayFiredRef.current = false;
+                setAutoplayFired(false);
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,6 +607,14 @@ export default function Detail() {
             const playTitle = episodeOverride
                 ? `${meta?.name || ''} · ${episodeLabel}`
                 : (meta?.name || '');
+            if (partyCode) {
+                partyBreadcrumb('playStream:invoke', {
+                    mode,
+                    role: partyRole || '(none)',
+                    memberId: partyMemberId ? 'present' : 'missing',
+                    wsUrl: partyWsUrl ? 'present' : 'missing',
+                });
+            }
             if (
                 Host.playVideo({
                     url: playUrl,
@@ -554,6 +638,7 @@ export default function Detail() {
                     partyWsUrl: partyWsUrl || undefined,
                 })
             ) {
+                if (partyCode) partyBreadcrumb('playStream:native-launched', {});
                 return;
             }
             // WebView fallback (preview / non-Android) — keep the
@@ -561,6 +646,7 @@ export default function Detail() {
             const partyQuery = partyCode
                 ? `&party=${encodeURIComponent(partyCode)}&at_ms=${encodeURIComponent(partyAtMs)}&position_ms=${encodeURIComponent(partyPositionMs)}`
                 : '';
+            if (partyCode) partyBreadcrumb('playStream:web-fallback', {});
             navigate(
                 `/play?url=${encodeURIComponent(
                     playUrl
@@ -642,7 +728,7 @@ export default function Detail() {
                 stream is still being picked.  Gives the user clear
                 feedback that the party autoplay is in flight (rather
                 than the picker / Play 1080p button confusing them). */}
-            {partyCode && !autoplayFiredRef.current && (
+            {partyCode && !autoplayFired && (
                 <div
                     data-testid="party-joining-overlay"
                     style={{

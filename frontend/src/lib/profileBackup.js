@@ -56,6 +56,7 @@ const EXCLUDE_PREFIXES = [
     'vesper-recent-',
     'vesper-poster-',
     'vesper-backdrop-',
+    'vesper-party-breadcrumbs', // diagnostic log, regenerates per session
 ];
 
 /* Cap per-key size.  Even if a key wasn't explicitly excluded, drop

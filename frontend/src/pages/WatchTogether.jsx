@@ -31,6 +31,21 @@ import useBackHandler from '@/hooks/useBackHandler';
 
 /** WebSocket URL derived from REACT_APP_BACKEND_URL.  Falls back
  *  to wss:// when the page is loaded over https://. */
+/* Watch Together diagnostic breadcrumbs.  Keep a short rolling log
+ * in localStorage so we can inspect AFTER the user reports a bug.
+ * Mirrored from Detail.jsx — same key, same shape. */
+function partyBreadcrumb(event, info = {}) {
+    try {
+        // eslint-disable-next-line no-console
+        console.log('[watch-party]', event, info);
+        const key = 'vesper-party-breadcrumbs';
+        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+        arr.push({ t: Date.now(), event, info });
+        while (arr.length > 80) arr.shift();
+        localStorage.setItem(key, JSON.stringify(arr));
+    } catch { /* ignore */ }
+}
+
 function wsUrlFor(code) {
     const base = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
         .replace(/^http/, 'ws');
@@ -54,11 +69,13 @@ export default function WatchTogether() {
     /** Open the websocket for the chosen code & role.  Idempotent
      *  while we're still mounted. */
     const connect = (code, role) => {
+        partyBreadcrumb('lobby:ws-connect', { code, role });
         const ws = new WebSocket(wsUrlFor(code));
         wsRef.current = ws;
         // Track navigation so we only fire it once per countdown.
         let navigated = false;
         ws.onopen = () => {
+            partyBreadcrumb('lobby:ws-open', { code, role });
             ws.send(JSON.stringify({
                 type: 'hello',
                 role,
@@ -71,6 +88,7 @@ export default function WatchTogether() {
             try { payload = JSON.parse(e.data); } catch { return; }
             if (payload.type === 'joined') {
                 myMemberIdRef.current = payload.member_id;
+                partyBreadcrumb('lobby:joined', { mid: payload.member_id });
                 // Stash so the Player can rejoin the same party
                 // socket as the same member (host vs guest).
                 try {
@@ -82,6 +100,11 @@ export default function WatchTogether() {
                 setPartyState(payload);
                 if (!navigated && (payload.status === 'loading' || payload.status === 'countdown' || payload.status === 'playing') && payload.movie) {
                     navigated = true;
+                    partyBreadcrumb('lobby:navigate', {
+                        status: payload.status,
+                        media: payload.movie?.media_type,
+                        title: payload.movie?.title,
+                    });
                     const target = payload.movie;
                     // Close the lobby socket — Player will reopen it
                     // (we can only have one socket per member at a
@@ -110,7 +133,11 @@ export default function WatchTogether() {
             }
         };
         ws.onclose = () => {
+            partyBreadcrumb('lobby:ws-close', { code });
             if (wsRef.current === ws) wsRef.current = null;
+        };
+        ws.onerror = () => {
+            partyBreadcrumb('lobby:ws-error', { code });
         };
     };
 
@@ -121,7 +148,41 @@ export default function WatchTogether() {
     const send = (msg) => {
         if (wsRef.current && wsRef.current.readyState === 1) {
             wsRef.current.send(JSON.stringify(msg));
+            return true;
         }
+        return false;
+    };
+
+    /**
+     * Reliable send that waits up to `timeoutMs` for the WebSocket
+     * to reach OPEN before transmitting.  Without this, a host who
+     * clicks Start Party milliseconds after the lobby has loaded
+     * silently drops the `play` message — the server never flips
+     * to `loading`, so neither member navigates and the party hangs.
+     * The user has reported this exact symptom multiple times.
+     */
+    const sendReliable = async (msg, timeoutMs = 2500) => {
+        const deadline = Date.now() + timeoutMs;
+        partyBreadcrumb('lobby:send-start', { type: msg.type });
+        while (Date.now() < deadline) {
+            const ws = wsRef.current;
+            if (ws && ws.readyState === 1) {
+                try {
+                    ws.send(JSON.stringify(msg));
+                    partyBreadcrumb('lobby:send-ok', { type: msg.type });
+                    return true;
+                } catch (e) {
+                    partyBreadcrumb('lobby:send-error', { type: msg.type, err: String(e).slice(0, 120) });
+                    return false;
+                }
+            }
+            await new Promise((r) => setTimeout(r, 80));
+        }
+        partyBreadcrumb('lobby:send-timeout', {
+            type: msg.type,
+            wsState: wsRef.current ? wsRef.current.readyState : 'no-ws',
+        });
+        return false;
     };
 
     // Re-entrancy guard — prevents a double-click (or React.StrictMode
@@ -189,8 +250,8 @@ export default function WatchTogether() {
                         code={partyCode}
                         state={partyState}
                         myMemberId={myMemberIdRef.current}
-                        onPickMovie={(movie) => send({ type: 'pick', payload: movie })}
-                        onStart={() => send({ type: 'play', lead_ms: 3000 })}
+                        onPickMovie={(movie) => sendReliable({ type: 'pick', payload: movie })}
+                        onStart={() => sendReliable({ type: 'play', lead_ms: 3000 })}
                         onBack={() => {
                             if (wsRef.current) try { wsRef.current.close(); } catch { /* ignore */ }
                             setPartyCode(null);
@@ -953,6 +1014,16 @@ function EpisodePicker({ show, onBack, onPick }) {
 
 function MoviePreview({ movie, status, iAmHost, onStart }) {
     const startBtnRef = React.useRef(null);
+    const [starting, setStarting] = React.useState(false);
+    const [startError, setStartError] = React.useState('');
+    /* Reset the error / starting flag whenever the server-reported
+     * status moves out of 'lobby' (party kicked off OK) so the
+     * button reflects reality. */
+    React.useEffect(() => {
+        if (status !== 'lobby') {
+            setStartError('');
+        }
+    }, [status]);
     /* For TV shows, surface which episode the host queued up so
        guests know exactly what they're about to watch. */
     const episodeTag = movie?.media_type === 'tv' && movie?.season != null && movie?.episode != null
@@ -1025,17 +1096,59 @@ function MoviePreview({ movie, status, iAmHost, onStart }) {
                         data-focusable="true"
                         data-initial-focus="true"
                         tabIndex={0}
-                        onClick={onStart}
+                        disabled={starting || status === 'loading' || status === 'countdown'}
+                        onClick={async () => {
+                            if (starting) return;
+                            setStarting(true);
+                            try {
+                                const ok = await onStart();
+                                if (!ok) {
+                                    setStartError('Connection still warming up — try again in a second.');
+                                    setStarting(false);
+                                }
+                                // On success we keep `starting` true so the
+                                // button stays disabled until the state
+                                // transitions to 'loading' (server flip).
+                            } catch (e) {
+                                setStartError('Could not start the party. Try again.');
+                                setStarting(false);
+                            }
+                        }}
                         className="flex items-center gap-2 rounded-full font-sans font-semibold self-start"
                         style={{
                             height: 56, padding: '0 32px', fontSize: 16,
                             background: 'var(--vesper-blue)', color: 'var(--vesper-bg-0)',
                             border: 'none', boxShadow: '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                            opacity: (starting || status === 'loading' || status === 'countdown') ? 0.7 : 1,
+                            cursor: (starting || status === 'loading' || status === 'countdown') ? 'wait' : 'pointer',
                         }}
                     >
-                        <Play size={18} strokeWidth={2.5} fill="currentColor" />
-                        Start the party
+                        {(status === 'loading' || status === 'countdown') ? (
+                            <Loader2 className="vesper-spin" size={18} />
+                        ) : starting ? (
+                            <Loader2 className="vesper-spin" size={18} />
+                        ) : (
+                            <Play size={18} strokeWidth={2.5} fill="currentColor" />
+                        )}
+                        {status === 'loading' ? 'Starting party…'
+                            : status === 'countdown' ? 'Get ready…'
+                            : starting ? 'Sending…'
+                            : 'Start the party'}
                     </button>
+                )}
+                {startError && (
+                    <div
+                        data-testid="watch-together-start-error"
+                        style={{
+                            color: '#FFB5B5', fontSize: 13,
+                            background: 'rgba(255,99,99,0.08)',
+                            border: '1px solid rgba(255,99,99,0.35)',
+                            padding: '8px 14px', borderRadius: 10,
+                            alignSelf: 'flex-start',
+                        }}
+                    >
+                        {startError}
+                    </div>
                 )}
             </div>
         </div>
