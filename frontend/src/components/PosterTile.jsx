@@ -61,7 +61,7 @@ export default function PosterTile({ item, onSelect }) {
             {...press}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                width: 'clamp(120px, 10.5vw, 180px)',
+                width: 'clamp(132px, 11.5vw, 198px)',
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',

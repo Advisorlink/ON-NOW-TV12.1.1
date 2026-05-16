@@ -227,6 +227,13 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.12 — Slightly bigger poster covers**
+            - 📐 Bumped poster cover width by 10% across all rows:
+              clamp(120 → 132, 10.5vw → 11.5vw, 180 → 198) px.
+              Aspect ratio + row pinning unchanged so the perfect
+              v2.6.10 layout is preserved — just slightly more
+              presence on screen.
+
             **v2.6.11 — "Add to My List" OK button works again**
             - 🐛 FIXED: long-pressing OK on a poster opened the
               "Add to My List" modal correctly, but pressing OK on
