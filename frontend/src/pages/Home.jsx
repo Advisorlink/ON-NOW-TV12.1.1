@@ -332,25 +332,21 @@ export default function Home() {
                         className="flex-1 overflow-y-auto"
                         style={{
                             scrollBehavior: 'auto',
-                            // Just enough top padding for the focus
-                            // ring not to clip into the hero above.
-                            // Reduced from 26 → 8 in v2.6.9 because
-                            // 26 was pushing the pinned row down too
-                            // far, causing the posters' bottom edge
-                            // to clip against the shelves-region's
-                            // bottom boundary on 1080p.  Mirrors the
-                            // scrollPaddingTop below so every snapped
-                            // row lands at the same Y.
-                            paddingTop: 8,
-                            // ROW PINNING — when our keyboard handler
-                            // calls scrollIntoView({block:'start'})
-                            // on a shelf section, this scroll-padding
-                            // pushes the section's top down by the
-                            // same offset so the focus ring isn't
-                            // clipped AND every snapped row lands at
-                            // identical Y.  Same trick CSS scroll-snap
-                            // uses, but driven manually here.
-                            scrollPaddingTop: 8,
+                            // Generous top + bottom padding so the
+                            // FIRST and LAST shelves can still be
+                            // perfectly centered by `block: 'center'`
+                            // (otherwise the viewport runs out of
+                            // scroll room and the row sticks to the
+                            // top/bottom edge, where the focus scale
+                            // animation gets clipped by the
+                            // shelves-region's `overflow-y: auto`).
+                            // 60 px on each side comfortably exceeds
+                            // the 12-14 px focus-scale overflow on
+                            // the largest poster size.
+                            paddingTop: 60,
+                            paddingBottom: 60,
+                            scrollPaddingTop: 60,
+                            scrollPaddingBottom: 60,
                             // GPU-accelerated vertical scrolling.
                             // NOTE: do NOT add `contain: content` —
                             // it would clip the focused tile's

@@ -227,6 +227,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.16 — Centered rows have proper breathing room**
+            - 🎯 ACTUAL ROOT CAUSE: shelves-region was 475 px tall
+              but each shelf section was 437 px tall, leaving only
+              ~38 px of breathing room TOTAL.  When `block: 'center'`
+              tried to center a row, the browser had no scroll-room
+              at the top/bottom of the viewport, so rows stuck to
+              the edges where the focus scale clipped against the
+              shelves-region's `overflow-y: auto` boundary.
+            - ✅ Added 60 px paddingTop AND paddingBottom to the
+              shelves-region (plus matching scroll-padding).  The
+              shelves-region's content is now taller than its
+              viewport, so `block: 'center'` always has scroll-room
+              to actually center.  Focus scale never reaches an
+              overflow boundary.
+
             **v2.6.15 — THE actual bottom-clipping fix (paint containment)**
             - 🎯 ROOT CAUSE finally found.  CSS `contain: paint` on
               `.vesper-shelf` and `.vesper-shelf-section` was acting
