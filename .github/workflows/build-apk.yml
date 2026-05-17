@@ -21,7 +21,12 @@ env:
   # production JS bundle, so the sideloaded app keeps fetching real
   # TMDB and addon data without any preview-URL dependency on the
   # frontend side.
-  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
+  # The APK ships with this URL baked into the React bundle.
+  # MUST be the PRODUCTION backend (not the preview pod) so the
+  # app keeps working when the preview sandbox sleeps / is torn
+  # down.  Emergent assigns a free `*.emergent.host` domain on
+  # deploy — that's what we point to here.
+  REACT_APP_BACKEND_URL: https://rebrand-app-5.emergent.host
 
 jobs:
   build:
@@ -226,6 +231,15 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.28 — APK points to PRODUCTION backend (deploy day!)**
+            - 🚀 The APK now bakes in the production backend URL
+              (`rebrand-app-5.emergent.host`) instead of the
+              preview pod.  Means the app on the box no longer
+              depends on the preview sandbox staying alive —
+              it's a fully standalone deployment now.
+            - All other Detail-page polish + no-scroll row nav
+              from v2.6.27 carried forward.
 
             **v2.6.27 — Detail page: no-scroll row navigation**
             - 🎯 Pressing Down/Up on the Detail page (Play → Cast →
