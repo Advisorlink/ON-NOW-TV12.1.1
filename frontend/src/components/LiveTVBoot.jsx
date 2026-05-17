@@ -341,7 +341,7 @@ function BrandHeader() {
                 textAlign: 'center', maxWidth: 520, lineHeight: 1.55,
             }}>
                 We're warming up your channels and the next 12 hours of
-                programming. Zapping will be instant once we're done — and
+                programming. Zapping will be instant once we're done, and
                 the rest keeps filling in while you watch.
             </p>
         </div>

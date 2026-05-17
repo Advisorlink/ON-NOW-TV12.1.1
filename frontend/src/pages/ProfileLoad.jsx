@@ -150,7 +150,7 @@ export default function ProfileLoad() {
                             Restoring your profile…
                         </div>
                         <div style={{ fontSize: 14, color: '#9DA5B5' }}>
-                            One moment — the app will reopen automatically.
+                            One moment. The app will reopen automatically.
                         </div>
                     </div>
                 )}

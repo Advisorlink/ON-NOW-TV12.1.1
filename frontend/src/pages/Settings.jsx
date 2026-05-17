@@ -219,7 +219,7 @@ export default function Settings() {
                 }}
             >
                 Pick the colour that suits your room.  Every theme keeps
-                the same cinematic, TV-tuned layout — only the accent
+                the same cinematic, TV-tuned layout; only the accent
                 changes.  Your choice is saved instantly.
             </p>
 
@@ -409,7 +409,7 @@ export default function Settings() {
                         Replay welcome tour
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
-                        Walk through every feature again — D-pad controls, library, calendar, watch together and more.
+                        Walk through every feature again: D-pad controls, library, calendar, watch together and more.
                     </div>
                 </div>
                 <button
@@ -578,7 +578,7 @@ function BackupPanel() {
                         Lock in everything: your profiles, Continue Watching,
                         libraries, favourites, Live TV setup, reminders, theme.
                         You get a 6-character code locked with a 4-digit PIN.
-                        Re-install the app or set up a new TV box — just enter
+                        Re-install the app or set up a new TV box, just enter
                         the code and PIN to get everything back exactly how you
                         left it.
                     </div>
@@ -596,7 +596,7 @@ function BackupPanel() {
             {mode === 'save-pin' && (
                 <PinStep
                     title="Choose a 4-digit PIN"
-                    subtitle="You'll need this PIN to restore later.  Pick something you can remember — there's no way to recover a forgotten PIN."
+                    subtitle="You'll need this PIN to restore later.  Pick something you can remember; there's no way to recover a forgotten PIN."
                     pin={pin}
                     setPin={setPin}
                     onComplete={onPinComplete}
@@ -897,7 +897,7 @@ function CodeStep({ code, setCode, onNext, onCancel, err }) {
 }
 
 function RestoreConfirm({ preview, onConfirm, onCancel }) {
-    const created = preview?.created_at?.slice(0, 10) || '—';
+    const created = preview?.created_at?.slice(0, 10) || '–';
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -908,7 +908,7 @@ function RestoreConfirm({ preview, onConfirm, onCancel }) {
                             marginBottom: 20, maxWidth: 640 }}>
                 Created on <strong style={{ color: '#FFFFFF' }}>{created}</strong>.
                 Restoring will overwrite this device's current profiles,
-                Continue Watching, libraries, themes — everything.  The app
+                Continue Watching, libraries, themes, everything.  The app
                 will reload once the restore is applied.
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -983,7 +983,7 @@ function DeveloperPanel() {
                     Switch the app to load the live preview URL
                     instead of the bundled offline copy.  Same
                     fullscreen experience, same D-pad, same native
-                    bridges — just always running the very latest
+                    bridges, just always running the very latest
                     build straight from the web.  Tap the pink{' '}
                     <b style={{ color: '#FF6BCB' }}>DEV · Exit</b>{' '}
                     badge in the top-right at any time to return to
@@ -1034,7 +1034,7 @@ function DeveloperPanel() {
                         color: 'var(--vesper-text-3)',
                     }}
                 >
-                    (Native bridge not detected — this control only
+                    (Native bridge not detected; this control only
                     persists across launches inside the Android app.)
                 </div>
             )}
@@ -1619,7 +1619,7 @@ function SavedToast({ trigger }) {
             }}
         >
             <Check size={16} strokeWidth={3} />
-            Saved — Kids home updated
+            Saved · Kids home updated
         </div>
     );
 }

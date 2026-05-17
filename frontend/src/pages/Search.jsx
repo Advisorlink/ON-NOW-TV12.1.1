@@ -165,7 +165,7 @@ export default function Search() {
                 setVoiceError('Voice search not available on this device.');
             else if (msg === 'empty')
                 setVoiceError("Sorry, I didn't catch that.");
-            else setVoiceError("Couldn't hear you — try again.");
+            else setVoiceError("Couldn't hear you, try again.");
         } finally {
             setListening(false);
         }
@@ -442,7 +442,7 @@ export default function Search() {
                                                 strokeWidth={2.4}
                                                 className="vesper-pulse"
                                             />
-                                            Listening — say a movie or show…
+                                            Listening, say a movie or show…
                                         </>
                                     ) : (
                                         <>

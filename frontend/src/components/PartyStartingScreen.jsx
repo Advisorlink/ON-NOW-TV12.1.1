@@ -48,11 +48,11 @@ export default function PartyStartingScreen({
 
     const subline =
         phase === 'countdown'
-            ? 'Sit back — the show is about to begin.'
+            ? 'Sit back, the show is about to begin.'
             : phase === 'waiting'
             ? role === 'host'
                 ? "We're waiting on your guests to buffer.  Playback will begin the instant everyone's ready."
-                : 'Hang tight — we sync with the host so every frame lands in lock-step.'
+                : 'Hang tight, we sync with the host so every frame lands in lock-step.'
             : role === 'host'
             ? 'Loading the stream on every screen at the same time…'
             : "You're joining a Watch Party.  Loading the same stream the host picked…";

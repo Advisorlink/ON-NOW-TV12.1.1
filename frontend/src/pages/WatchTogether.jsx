@@ -1083,10 +1083,10 @@ function MoviePreview({ movie, status, iAmHost, onStart }) {
                 <div style={{ color: 'var(--vesper-text-2)', maxWidth: '60ch' }}>
                     {status === 'lobby'
                         ? (iAmHost
-                            ? `When everyone is ready, hit Start — your party will see a 3-2-1 countdown then the ${movie.media_type === 'tv' ? 'episode' : 'movie'} will play in sync.`
+                            ? `When everyone is ready, hit Start.  Your party will see a 3-2-1 countdown then the ${movie.media_type === 'tv' ? 'episode' : 'movie'} will play in sync.`
                             : `Your host will start the ${movie.media_type === 'tv' ? 'episode' : 'movie'} shortly.  Hang tight!`)
                         : status === 'countdown'
-                        ? 'Get ready — the party is starting in 3, 2, 1…'
+                        ? 'Get ready, the party is starting in 3, 2, 1…'
                         : 'Playing now.'}
                 </div>
                 {iAmHost && status !== 'playing' && (
@@ -1103,7 +1103,7 @@ function MoviePreview({ movie, status, iAmHost, onStart }) {
                             try {
                                 const ok = await onStart();
                                 if (!ok) {
-                                    setStartError('Connection still warming up — try again in a second.');
+                                    setStartError('Connection still warming up, try again in a second.');
                                     setStarting(false);
                                 }
                                 // On success we keep `starting` true so the

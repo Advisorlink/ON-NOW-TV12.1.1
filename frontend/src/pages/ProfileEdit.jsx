@@ -206,7 +206,7 @@ export default function ProfileEdit() {
                                     fontSize: 15,
                                 }}
                             >
-                                Pick an avatar — we&apos;ll ask before
+                                Pick an avatar. We&apos;ll ask before
                                 we save it.
                             </div>
                         )}
@@ -218,7 +218,7 @@ export default function ProfileEdit() {
                                     fontSize: 15,
                                 }}
                             >
-                                Pick a colour that suits your room — you can
+                                Pick a colour that suits your room. You can
                                 change it any time from Settings.
                             </div>
                         )}
@@ -230,7 +230,7 @@ export default function ProfileEdit() {
                                     fontSize: 15,
                                 }}
                             >
-                                Tell us what you love watching — we&apos;ll fill
+                                Tell us what you love watching. We&apos;ll fill
                                 your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail with fresh picks.
                             </div>
                         )}
@@ -928,7 +928,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             maxWidth: '70ch',
                         }}
                     >
-                        Tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genre</strong> on the left to see its top 20 most-watched titles, then tap the <strong style={{ color: 'var(--vesper-blue-bright)' }}>movies</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV shows</strong> you love — we&apos;ll add them to your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Skip if you&apos;d rather decide later.
+                        Tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genre</strong> on the left to see its top 20 most-watched titles, then tap the <strong style={{ color: 'var(--vesper-blue-bright)' }}>movies</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV shows</strong> you love and we&apos;ll add them to your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Skip if you&apos;d rather decide later.
                     </div>
                 </div>
             </div>
@@ -1001,7 +1001,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             <Sparkles size={26} strokeWidth={1.6} />
                             <div style={{ fontSize: 15, maxWidth: 280 }}>
                                 Pick a genre on the left to see the top 20
-                                most-watched titles in it — tap any to add it to
+                                most-watched titles in it. Tap any to add it to
                                 your For You rail.
                             </div>
                         </div>
@@ -2018,7 +2018,7 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
                             lineHeight: 1.45,
                         }}
                     >
-                        Use the <strong style={{ color: 'var(--vesper-blue-bright)' }}>D-pad</strong> to walk the option chips below — hair, eyes, mouth, glasses, the works.  Each tap updates the preview instantly.  Hit
+                        Use the <strong style={{ color: 'var(--vesper-blue-bright)' }}>D-pad</strong> to walk the option chips below: hair, eyes, mouth, glasses, the works.  Each tap updates the preview instantly.  Hit
                         <strong style={{ color: 'var(--vesper-blue-bright)' }}> Save</strong> when you&apos;re happy.
                     </div>
                 </div>

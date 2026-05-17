@@ -29,7 +29,7 @@ export default function PartyJoiningScreen({
         ? "Couldn't find a stream"
         : loading
             ? 'Loading stream from your sources…'
-            : 'Almost there — handing off to the player…';
+            : 'Almost there, handing off to the player…';
 
     const tagText = noStreams ? 'PARTY · NO STREAM' : 'PARTY · LOADING';
     const tagColor = noStreams ? '#FCA5A5' : '#5DC8FF';

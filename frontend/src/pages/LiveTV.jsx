@@ -662,7 +662,7 @@ function Grid({ provider, onLogout }) {
                     /* eslint-disable-next-line no-console */
                     console.debug('XMLTV fast-path failed; will use per-channel loop.', xmltvErr);
                     setStage('epg', 'active',
-                        `XMLTV failed (${xmltvErr?.message?.slice(0, 60) || 'error'}) — using fallback…`);
+                        `XMLTV failed (${xmltvErr?.message?.slice(0, 60) || 'error'}), using fallback…`);
                 }
 
                 if (xmltvOK) {
@@ -1509,7 +1509,7 @@ const SearchRow = React.memo(function SearchRow({ query, onChange, resultCount, 
                 type="text"
                 value={query}
                 onChange={(e) => onChange(e.target.value)}
-                placeholder="Search channels & guide — e.g. “Toronto Raptors”, “BBC News”"
+                placeholder="Search channels & guide, e.g. “Toronto Raptors”, “BBC News”"
                 style={{
                     flex: 1, minWidth: 0,
                     background: 'transparent', border: 'none', outline: 'none',
@@ -1601,7 +1601,7 @@ const GuideHeader = React.memo(function GuideHeader({ channelName }) {
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 flex: 1, minWidth: 0,
             }}>
-                {channelName || '—'}
+                {channelName || '–'}
             </span>
         </div>
     );

@@ -365,7 +365,7 @@ export default function SportsGuide() {
                         SPORTS GUIDE
                     </div>
                     <span style={{ fontSize: 13, color: '#7d8493' }}>
-                        Fixtures, scores &amp; where to watch — across the world.
+                        Fixtures, scores &amp; where to watch, across the world.
                     </span>
                     {data?.fetched_at && (
                         <span style={{ marginLeft: 'auto',
@@ -651,7 +651,7 @@ const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay,
                                 opacity: 0.55,
                                 margin: '0 12px',
                                 fontWeight: 600,
-                            }}>—</span>
+                            }}>–</span>
                             {fixture.awayScore || '0'}
                         </div>
                         <div style={{
@@ -1067,7 +1067,7 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
                         lineHeight: 1,
                         textShadow: showLiveScore ? `0 0 16px ${accent}66` : 'none',
                     }}>
-                        {showScore ? '—' : 'VS'}
+                        {showScore ? '–' : 'VS'}
                     </div>
                     <TeamRow side="away" name={fixture.away} badge={fixture.awayBadge}
                               score={showScore ? fixture.awayScore : ''} accent={accent} live={showLiveScore} />
@@ -1396,7 +1396,7 @@ function EmptyBlock() {
                 NOTHING IN THIS WINDOW
             </div>
             <div style={{ fontSize: 12, textAlign: 'center', maxWidth: 360, lineHeight: 1.5 }}>
-                Try “All Sports”, switch to another day, or come back later — fixtures refresh every 30 minutes.
+                Try “All Sports”, switch to another day, or come back later. Fixtures refresh every 30 minutes.
             </div>
         </div>
     );

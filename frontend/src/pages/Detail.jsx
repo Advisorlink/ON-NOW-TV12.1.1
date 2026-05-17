@@ -1363,7 +1363,7 @@ export default function Detail() {
                                             configure a debrid service
                                             (Real-Debrid, AllDebrid,
                                             Premiumize) inside your Torrentio
-                                            URL — Torrentio will then return
+                                            URL. Torrentio will then return
                                             direct HTTP streams that play
                                             here.
                                         </div>

@@ -121,7 +121,7 @@ export default function UpdateGate() {
                 case 'error':
                     setStage('error');
                     setBusy(false);
-                    setDlError(payload || 'Install failed — try the manual link below.');
+                    setDlError(payload || 'Install failed. Try the manual link below.');
                     break;
                 default:
                     break;
@@ -168,7 +168,7 @@ export default function UpdateGate() {
             setDlError(
                 'This older version of the app cannot install updates ' +
                 'automatically. Tap "Open in browser" below to download ' +
-                'the new APK and install it manually — just this once.'
+                'the new APK and install it manually, just this once.'
             );
         } catch (e) {
             setStage('error');
@@ -192,7 +192,7 @@ export default function UpdateGate() {
             await navigator.clipboard.writeText(info.apk_url);
             setDlError('Copied! Paste it into your browser or Downloader app.');
         } catch {
-            setDlError('Copy failed — open the link manually: ' + info.apk_url);
+            setDlError('Copy failed. Open the link manually: ' + info.apk_url);
         }
     };
 

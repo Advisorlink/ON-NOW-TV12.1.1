@@ -41,7 +41,7 @@ export default function Sources() {
                     ? e.message
                     : e?.response?.data?.detail ||
                           e?.message ||
-                          'Install failed — check the URL'
+                          'Install failed, check the URL'
             );
         } finally {
             setBusy(false);
@@ -224,7 +224,7 @@ export default function Sources() {
                                             className="mt-3 text-[16px]"
                                             style={{ color: 'var(--vesper-text-2)' }}
                                         >
-                                            {a.description || '—'}
+                                            {a.description || '–'}
                                         </p>
                                         <div
                                             className="mt-3 vesper-mono truncate"

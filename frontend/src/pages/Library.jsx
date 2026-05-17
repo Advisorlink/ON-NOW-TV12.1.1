@@ -316,7 +316,7 @@ function TvEmptyState() {
                         press &amp; hold the OK button
                     </span>{' '}
                     (or click &amp; hold) on its poster. A confirm card pops
-                    up — tap{' '}
+                    up. Tap{' '}
                     <span
                         style={{
                             color: 'var(--vesper-blue-bright)',

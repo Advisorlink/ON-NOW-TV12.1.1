@@ -184,7 +184,7 @@ export default function Player() {
             setError(
                 'Torrent streams (magnet links) need the Android TV ' +
                 'box to play.  On a phone, please pick a "Direct" ' +
-                'stream from the streams list — those work everywhere.'
+                'stream from the streams list; those work everywhere.'
             );
             setLoading(false);
             return undefined;
