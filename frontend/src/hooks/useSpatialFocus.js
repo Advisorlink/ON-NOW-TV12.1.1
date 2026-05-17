@@ -384,6 +384,15 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
+            // Opt-out: containers marked with `data-no-row-snap` skip
+            // the vertical row-pin scroll entirely.  Used by the
+            // Detail page (Cast row, Recommendations row) where the
+            // user wants the page to stay perfectly still and only
+            // the focus state / backdrop swap on row change.
+            const skipRowPin =
+                el.closest('[data-no-row-snap="true"]') ||
+                vs.closest?.('[data-no-row-snap="true"]');
+            if (skipRowPin) return;
             // Pin the TOP edge of the focused row roughly a fifth of
             // the way down so the shelf eyebrow + title above it is
             // always visible AND the focus ring isn't clipped.

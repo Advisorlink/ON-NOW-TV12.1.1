@@ -964,6 +964,7 @@ export default function Detail() {
 
             <main
                 className="relative z-10 w-full h-full overflow-y-auto"
+                data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
                 <div className="flex items-center gap-3 mb-5">
@@ -1118,13 +1119,15 @@ export default function Detail() {
                                 onClick={triggerAutoplay}
                                 onKeyDown={(e) => {
                                     /* Snap-to-cast: pressing Down on
-                                     * the Play CTA jumps focus
-                                     * straight to the first cast
-                                     * card — bypassing the meta /
-                                     * synopsis paragraphs in between.
-                                     * Mirrors the snappy "Play →
-                                     * actors" feel of the home shelves
-                                     * the user asked for. */
+                                     * the Play CTA moves FOCUS to
+                                     * the first cast card without
+                                     * scrolling the page at all.
+                                     * The user explicitly wants the
+                                     * hero to stay still — only the
+                                     * focused element changes (which
+                                     * triggers the backdrop blackout
+                                     * via the actor onFocus handler).
+                                     */
                                     if (e.key === 'ArrowDown') {
                                         const first = document.querySelector(
                                             '[data-testid^="cast-actor-"]'
@@ -1133,11 +1136,7 @@ export default function Detail() {
                                             e.preventDefault();
                                             e.stopPropagation();
                                             try {
-                                                first.scrollIntoView({
-                                                    behavior: 'smooth',
-                                                    block: 'center',
-                                                });
-                                                first.focus();
+                                                first.focus({ preventScroll: true });
                                                 first.setAttribute('data-focused', 'true');
                                                 document.querySelectorAll('[data-focused="true"]').forEach((el) => {
                                                     if (el !== first) el.removeAttribute('data-focused');

@@ -227,6 +227,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.27 — Detail page: no-scroll row navigation**
+            - 🎯 Pressing Down/Up on the Detail page (Play → Cast →
+              Recommendations) no longer scrolls the page at all.
+              The hero stays perfectly still — only the focus
+              state changes, which means the backdrop swap (movie
+              backdrop → pitch black actor → recommendations row
+              context) happens in place with no movement.  Matches
+              the "snap, don't scroll" feel the user requested.
+            - 🛠️ Implementation: new `data-no-row-snap="true"`
+              attribute on the Detail `<main>` element makes the
+              global spatial-focus hook skip its row-pin scroll
+              for any descendant focusable.  Home shelves keep
+              their natural row-pinning behaviour untouched.
+
             **v2.6.26 — Minimum-version gate (older installs stay silent)**
             - 🔒 The auto-update gate now honours a `min_version`
               field from the backend.  Devices running below
