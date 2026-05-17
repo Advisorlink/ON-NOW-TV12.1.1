@@ -34,6 +34,25 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 94 — Feb 17, 2026)
+### Welcome tour onboarding (3D D-pad walkthrough)
+- **🎯 User**: "Once the client is logged in and they've opened their profile, then it needs to have a sort of onboarding guiding them how to use everything. I really want it to have a 3D directional D-pad that glows when you push enter. Skip button + replay from Settings."
+- **🆕 Component** `/app/frontend/src/components/Onboarding.jsx`:
+  - **14-step deck** covering every non-Live-TV feature: welcome → D-pad navigation → OK to open → hold-OK to save → TV → Movies → Library → Calendar → Search → Watch Together → Profiles → Sources → Settings → wrap-up.
+  - **3D circular D-pad illustration** rendered as inline SVG with radial body gradient, top sheen ellipse, drop-shadow filter for depth, glow filter for active buttons, and individual UP/DOWN/LEFT/RIGHT arrow pills, central OK button, and a BACK pill — each one glows cyan when the current step references it.
+  - Real keyboard bindings: D-pad arrows navigate steps, OK/Right advance, Left goes back, Escape/Backspace finishes — so users literally practise the buttons while the tour explains them.
+  - **Skip pill** top-right (`SkipForward` icon), `Step N of 14` counter, gradient progress bar.
+  - Self-contained keyframes (`vesperOnbFade`, `vesperOnbGlow`, `vesperOnbPulse`) so no global CSS surgery.
+- **🚪 Auto-show gate** in `App.js` (`OnboardingGate` wrapper):
+  - Fires once per device when an adult profile is active AND `localStorage["vesper-onboarding-seen-v1"]` is unset AND the user isn't on `/profiles*` / `/kids/*` routes.
+  - Kids profiles skip the tour entirely (it'd confuse them).
+  - Listens for `vesper:onboarding-replay` event so the Settings replay button reopens the overlay on demand.
+- **🔁 Settings → Help → "Replay welcome tour"** row added (`pages/Settings.jsx`):
+  - Glass card with Sparkles icon + headline + "Replay" button.
+  - Clicking it clears the `vesper-onboarding-seen-v1` flag and dispatches the replay event.
+- **🧪 Verified** via Playwright: overlay mounts on first non-kids profile load, Right/Enter advance correctly, Skip dismisses + sets seen flag, Settings → Replay re-opens it. Five screenshots captured (welcome step, Right glow, OK glow, calendar mid-step, replay re-mount).
+
+
 ## Implemented (Iteration 93 — Feb 17, 2026)
 ### Instant Live TV bundle — zero-config EPG on first login
 - **🎯 User**: "I really want the TV guide to be instant. As soon as they log in… Is there any way that we could load the TV guide somewhere else so it's all ready to go?"

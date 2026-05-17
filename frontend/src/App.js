@@ -28,6 +28,7 @@ import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import UpdateGate from '@/components/UpdateGate';
+import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
@@ -269,6 +270,48 @@ function KidsExitPill() {
     );
 }
 
+/**
+ * Gates the welcome tour: shows it once after a non-kids profile
+ * is active and the user hasn't seen it yet.  Also listens for a
+ * `vesper:onboarding-replay` event so the Settings → "Replay
+ * welcome tour" button can re-open it on demand.
+ */
+function OnboardingGate() {
+    const location = useLocation();
+    const [open, setOpen] = React.useState(false);
+
+    React.useEffect(() => {
+        const check = () => {
+            const profile = getActiveProfile();
+            // Don't run on the profile picker / edit screens — wait
+            // until the user has actually entered the app.  Kids
+            // profiles skip the tour entirely (it'd confuse the
+            // wee ones).
+            if (!profile) return;
+            if (profile.kids) return;
+            const onProfilesRoute =
+                location.pathname.startsWith('/profiles') ||
+                location.pathname.startsWith('/kids/');
+            if (onProfilesRoute) return;
+            if (hasSeenOnboarding()) return;
+            setOpen(true);
+        };
+        // First check (next tick so React Router has resolved).
+        const t = setTimeout(check, 250);
+        const onReplay = () => setOpen(true);
+        const onProfileChange = () => setTimeout(check, 250);
+        window.addEventListener('vesper:onboarding-replay', onReplay);
+        window.addEventListener('vesper:profile-change', onProfileChange);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('vesper:onboarding-replay', onReplay);
+            window.removeEventListener('vesper:profile-change', onProfileChange);
+        };
+    }, [location.pathname]);
+
+    return <Onboarding open={open} onClose={() => setOpen(false)} />;
+}
+
 function App() {
     return (
         <div className="App">
@@ -311,6 +354,7 @@ function App() {
                                 keystore (bootstrap-keystore workflow)
                                 future upgrades install in-place. */}
                             <UpdateGate />
+                            <OnboardingGate />
                         </MobilePlatformRoot>
                     </Router>
                 </ThemeProvider>

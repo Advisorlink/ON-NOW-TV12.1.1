@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
+    Sparkles,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -20,6 +21,7 @@ import {
     applyBackupPayload,
     fmtBytes,
 } from '@/lib/profileBackup';
+import { replayOnboarding } from '@/components/Onboarding';
 
 /**
  * Settings → Appearance → Theme picker + Playback toggles.
@@ -379,6 +381,60 @@ export default function Settings() {
                 ]}
                 onChange={(v) => updateKids({ maxRatingSeries: v })}
             />
+
+            {/* ---- WELCOME TOUR ---- */}
+            <SectionHeader
+                eyebrow="Settings · Help"
+                title="Welcome tour"
+                icon={Sparkles}
+            />
+            <div
+                data-testid="onboarding-replay-row"
+                className="vesper-glass rounded-2xl flex items-center gap-4"
+                style={{ padding: '18px 22px', marginBottom: 18 }}
+            >
+                <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                        width: 44, height: 44, borderRadius: '50%',
+                        background:
+                            'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)',
+                        border: '1px solid rgba(93,200,255,0.45)',
+                    }}
+                >
+                    <Sparkles size={20} style={{ color: 'var(--vesper-blue-bright)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                        Replay welcome tour
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
+                        Walk through every feature again — D-pad controls, library, calendar, watch together and more.
+                    </div>
+                </div>
+                <button
+                    data-testid="settings-replay-onboarding"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => replayOnboarding()}
+                    className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                    style={{
+                        padding: '10px 22px',
+                        background:
+                            'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
+                        color: '#06080F',
+                        border: 'none',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 6px 18px rgba(93,200,255,0.35)',
+                    }}
+                >
+                    <Sparkles size={15} />
+                    Replay
+                </button>
+            </div>
 
             {/* ---- BACKUP & RESTORE ---- */}
             <SectionHeader
