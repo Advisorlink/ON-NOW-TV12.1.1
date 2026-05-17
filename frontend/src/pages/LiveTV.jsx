@@ -62,6 +62,7 @@ import {
     loadEpg,
     mergeAndSaveEpg,
 } from '@/lib/liveCache';
+import { bootInstantBundle } from '@/lib/instantBundle';
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import useBackHandler from '@/hooks/useBackHandler';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -484,17 +485,83 @@ function Grid({ provider, onLogout }) {
 
     useEffect(() => {
         let cancel = false;
-        /* Threshold: dismiss the boot splash once the first
-         * BOOT_TARGET_CHANNELS channels have their EPG cached (or all
-         * channels, whichever is smaller).  500 is the sweet spot —
-         * fast enough to feel snappy on the HK1 box, slow enough that
-         * a meaningful chunk of NOW/NEXT is ready before the user
-         * lands in the grid. */
-        const BOOT_TARGET_CHANNELS = 500;
+        /* The legacy per-channel EPG fetch was used when no
+         * server-side bundle existed.  Now that the backend
+         * pre-warms a 2,338-channel / 72-hour EPG bundle and
+         * `instantBundle.js` seeds it into our cache on app boot,
+         * we use a tiny threshold (50 channels) instead of the
+         * old 500.  The bundle should populate the cache before
+         * anyone navigates here; this number only kicks in as a
+         * last-resort fallback if the bundle endpoint is down. */
+        const BOOT_TARGET_CHANNELS = 50;
         (async () => {
             setSyncing(true);
             try {
-                /* AUTH */
+                /* INSTANT BUNDLE — short-circuit the entire boot
+                 * flow when the backend has a pre-warmed snapshot.
+                 * If our local cache is empty, try fetching the
+                 * bundle once (10 s budget) before falling back to
+                 * per-channel Xtream calls.  When the bundle lands,
+                 * it writes through to localStorage; we then re-
+                 * read into the in-memory refs and dismiss the
+                 * boot splash immediately. */
+                const cacheEmpty =
+                    cats.current.length === 0
+                    || channelsByCat.current.size === 0
+                    || epg.current.size === 0;
+                if (cacheEmpty) {
+                    try {
+                        const applied = await Promise.race([
+                            bootInstantBundle(),
+                            new Promise((r) => setTimeout(() => r(false), 10000)),
+                        ]);
+                        if (cancel) return;
+                        if (applied) {
+                            /* Re-seed the in-memory refs from
+                             * the just-populated localStorage. */
+                            const c  = loadCategories(provider.id) || [];
+                            const ch = loadChannels(provider.id) || {};
+                            const e  = loadEpg(provider.id) || {};
+                            cats.current = c;
+                            channelsByCat.current.clear();
+                            for (const k in ch) channelsByCat.current.set(k, ch[k]);
+                            epg.current.clear();
+                            for (const sid in e) {
+                                const arr = e[sid];
+                                if (Array.isArray(arr) && arr.length) {
+                                    epg.current.set(Number(sid) || sid, arr);
+                                }
+                            }
+                            setStage('auth',       'done', 'Instant bundle');
+                            setStage('categories', 'done', `${c.length} categories`);
+                            const totalChans = Object.values(ch).reduce(
+                                (n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0,
+                            );
+                            setStage('channels',   'done', `${totalChans} channels`);
+                            setStage('epg',        'done', `${epg.current.size} channels with EPG`);
+                            setBootCounters({
+                                categoriesDone:  c.length,
+                                categoriesTotal: c.length,
+                                channelsCount:   totalChans,
+                                epgDone:         epg.current.size,
+                                epgTotal:        epg.current.size,
+                            });
+                            setBootBlocked(false);
+                            rerender();
+                            // Hand off to the native overlay so
+                            // the box's guide is also fully ready.
+                            try { pushLiveGuideToNative(); } catch { /* ignore */ }
+                            return; // we're done — skip the legacy flow
+                        }
+                    } catch (exc) {
+                        // bundle path failed; fall through to legacy
+                        // eslint-disable-next-line no-console
+                        console.debug('instant_bundle fallback:', exc);
+                    }
+                }
+
+                /* AUTH (legacy fallback path — only runs if the
+                 * bundle was unreachable or empty). */
                 setStage('auth', 'active', '');
                 await authenticate(provider);
                 if (cancel) return;
@@ -1079,7 +1146,7 @@ function Grid({ provider, onLogout }) {
             <LiveTVBoot
                 stages={bootStages}
                 counters={bootCounters}
-                bootTarget={500}
+                bootTarget={50}
                 onSkip={() => setBootBlocked(false)}
             />
         );

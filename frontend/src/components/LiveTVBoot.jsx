@@ -41,17 +41,17 @@ const STAGE_FRACTION = {
         ? Math.min(1, c.categoriesDone / c.categoriesTotal) : 0,
     channels:   (c) => c.categoriesTotal
         ? Math.min(1, c.categoriesDone / c.categoriesTotal) : 0,
-    /* EPG fraction is measured against the BOOT TARGET (e.g. 500), not
+    /* EPG fraction is measured against the BOOT TARGET (e.g. 50), not
      * the full channel count.  Otherwise on a 14 000-channel provider
      * the user would stare at "3 %" for ages even though we're nearly
      * ready to dismiss the splash. */
     epg:        (c, target) => {
-        const t = Math.min(target || 500, c.epgTotal || 0) || 1;
+        const t = Math.min(target || 50, c.epgTotal || 0) || 1;
         return Math.min(1, (c.epgDone || 0) / t);
     },
 };
 
-export default function LiveTVBoot({ stages, counters, bootTarget = 500, onSkip }) {
+export default function LiveTVBoot({ stages, counters, bootTarget = 50, onSkip }) {
     const activeStage = stages.find((s) => s.status === 'active')
                      || stages.find((s) => s.status === 'failed')
                      || stages.find((s) => s.status === 'pending')
@@ -195,7 +195,7 @@ export default function LiveTVBoot({ stages, counters, bootTarget = 500, onSkip 
                     label="TV GUIDE"
                     value={counters.epgDone}
                     /* Cap the visible divisor at the boot target —
-                     * "237 / 500" reads cleaner than "237 / 14 273". */
+                     * "32 / 50" reads cleaner than "32 / 14 273". */
                     total={Math.min(bootTarget, counters.epgTotal || bootTarget)}
                     active={activeStage?.id === 'epg'}
                 />

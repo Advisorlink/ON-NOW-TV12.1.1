@@ -238,6 +238,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.36 — Live TV loads instantly (no more 500-channel wait)**
+            - ⚡ The 500-channel EPG loading screen is GONE.  Live TV
+              now consumes the server-side **instant bundle**
+              (2,338 channels with 72 h of EPG, ~173 k programmes)
+              directly as a fast-path on launch.  When the bundle
+              is reachable (~normal): the Live TV page mounts
+              already populated, no progress arc, instant zap.
+            - 🛟 The legacy per-channel EPG fetch still runs if the
+              bundle endpoint is unreachable, but the target dropped
+              from **500 channels → 50 channels** so even the
+              fallback flow dismisses 10× faster than before.
+            - 🧠 Both code paths write through to the same localStorage,
+              so subsequent app launches are instant from the cache.
+
             **v2.6.35 — Premium cinematic player overlay (no more ugly browser controls)**
             - 🎬 The default `<video controls>` browser chrome
               (centred pause button, basic seek bar, ugly bottom
