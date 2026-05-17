@@ -895,12 +895,14 @@ export default function Detail() {
                     data-testid="actor-hero-portrait"
                     style={{
                         position: 'absolute',
-                        // Smaller portrait, anchored at the TOP of
-                        // the page (was full-height, top-right).
-                        top: 30,
-                        right: '4%',
-                        width: '42%',
-                        height: '62%',
+                        // Anchor flush to the top + right edges so
+                        // the portrait extends all the way to the
+                        // screen boundary on the right.  Width bumped
+                        // to ~48% so the photo has more presence.
+                        top: 0,
+                        right: 0,
+                        width: '48%',
+                        height: '72%',
                         zIndex: 5,
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
@@ -935,13 +937,15 @@ export default function Detail() {
                                 'rgba(0,0,0,0.7) 38%, ' +
                                 'rgba(0,0,0,0.25) 55%, ' +
                                 'rgba(0,0,0,0) 75%)',
-                                /* RIGHT — heavy, kills the photo's
-                                   right edge. */
+                                /* RIGHT — now flush against the
+                                   screen edge, so very light fade
+                                   to soften the cut.  Lets the
+                                   photo actually reach the right
+                                   side of the screen. */
                                 'linear-gradient(270deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,0.85) 12%, ' +
-                                'rgba(0,0,0,0.4) 28%, ' +
-                                'rgba(0,0,0,0) 50%)',
+                                'rgba(0,0,0,0.4) 0%, ' +
+                                'rgba(0,0,0,0.1) 6%, ' +
+                                'rgba(0,0,0,0) 15%)',
                                 /* TOP — wider, eases top of head
                                    into pure black. */
                                 'linear-gradient(180deg, ' +
@@ -1071,16 +1075,19 @@ export default function Detail() {
                     {focusedActor ? (
                         <p
                             data-testid="actor-bio"
-                            className="mt-6 max-w-[58ch]"
+                            className="mt-4 max-w-[48ch]"
                             style={{
-                                fontSize: 18,
-                                lineHeight: 1.6,
+                                fontSize: 15,
+                                lineHeight: 1.5,
                                 color: 'var(--vesper-text-2)',
-                                /* Cap to ~6 lines so a long Wikipedia
-                                 * import doesn't push the cast row
-                                 * off-screen. */
+                                /* Cap to ~4 lines so the cast row
+                                 * underneath always stays fully
+                                 * visible on a 1080p box.  Tighter
+                                 * font + smaller max-width keeps
+                                 * the bio readable without pushing
+                                 * the row off-screen. */
                                 display: '-webkit-box',
-                                WebkitLineClamp: 6,
+                                WebkitLineClamp: 4,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden',
                             }}

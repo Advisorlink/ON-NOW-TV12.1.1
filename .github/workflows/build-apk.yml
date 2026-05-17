@@ -232,6 +232,15 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.31 — Actor portrait flush-right + tighter bio**
+            - 🖼️ Portrait now sits FLUSH against the right edge of
+              the screen (was 4% inset).  Width bumped 42% → 48%
+              for more presence.  Right-edge fade dialled way
+              down so the photo actually reaches the screen edge.
+            - ✂️ Actor bio: 6 lines → 4 lines, font 18 → 15 px,
+              max-width 58ch → 48ch.  Cast row + More like this
+              are no longer pushed off-screen on 1080p boxes.
+
             **v2.6.30 — 72-hour EPG horizon, no per-channel cap**
             - 📅 Bundle now ships 3 FULL DAYS of EPG per channel
               (up from 12 h).
