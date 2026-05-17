@@ -863,6 +863,53 @@ function Grid({ provider, onLogout }) {
                 return;
             }
 
+            /* When focus is currently INSIDE the SideNav (the user
+             * just pressed LEFT at the categories column to surface
+             * it), intercept arrow keys here so the menu is fully
+             * navigable without leaning on the spatial-focus engine
+             * (which isn't mounted on this page). */
+            const activeNav = document.activeElement?.closest?.('[data-testid="side-nav"]');
+            if (activeNav) {
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const items = Array.from(
+                        activeNav.querySelectorAll('[data-focusable="true"]'),
+                    );
+                    const i = items.indexOf(document.activeElement);
+                    if (i < 0) return;
+                    const next = e.key === 'ArrowDown'
+                        ? Math.min(items.length - 1, i + 1)
+                        : Math.max(0, i - 1);
+                    if (next === i) return;
+                    const target = items[next];
+                    items.forEach((el) => el.removeAttribute('data-focused'));
+                    target.setAttribute('data-focused', 'true');
+                    try { target.focus({ preventScroll: true }); }
+                    catch { target.focus(); }
+                    return;
+                }
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    /* Return to the LiveTV grid — drop the focus
+                     * ring on the SideNav and put native focus back
+                     * on the page so the next keydown re-enters the
+                     * grid-handling branch below. */
+                    document
+                        .querySelectorAll('[data-testid="side-nav"] [data-focused="true"]')
+                        .forEach((el) => el.removeAttribute('data-focused'));
+                    try { document.activeElement.blur(); } catch { /* ignore */ }
+                    setSel((s) => ({ ...s, col: 0 }));
+                    return;
+                }
+                /* ArrowLeft / Enter / Space at the SideNav: leave
+                 * the default behaviour to the button (Enter fires
+                 * onClick) and don't fall through into the grid
+                 * handler. */
+                return;
+            }
+
             const key = e.key;
             if (key !== 'ArrowUp' && key !== 'ArrowDown' &&
                 key !== 'ArrowLeft' && key !== 'ArrowRight' &&
@@ -896,8 +943,25 @@ function Grid({ provider, onLogout }) {
             setSel((s) => {
                 if (key === 'ArrowLeft') {
                     if (s.col === 0) {
+                        /* Hand focus over to the SideNav.  On Chrome 52
+                         * (HK1 box) `:focus-visible` doesn't fire on
+                         * programmatic focus, so the nav button stays
+                         * visually unfocused even though it owns
+                         * native focus.  Mirror the spatial focus
+                         * engine's contract: also stamp
+                         * `data-focused="true"` (CSS hooks that), and
+                         * clear it from any other element. */
                         const nav = document.querySelector('[data-testid="side-nav"] [data-focusable="true"]');
-                        nav?.focus();
+                        if (nav) {
+                            document
+                                .querySelectorAll('[data-focused="true"]')
+                                .forEach((el) => {
+                                    if (el !== nav) el.removeAttribute('data-focused');
+                                });
+                            nav.setAttribute('data-focused', 'true');
+                            try { nav.focus({ preventScroll: true }); }
+                            catch { nav.focus(); }
+                        }
                         return s;
                     }
                     return { ...s, col: s.col - 1 };
