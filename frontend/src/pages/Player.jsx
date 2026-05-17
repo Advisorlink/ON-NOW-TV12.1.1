@@ -20,6 +20,7 @@ import PartyStartingScreen from '@/components/PartyStartingScreen';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
+import { getAvatar } from '@/lib/avatars';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
 function srtToVtt(srt) {
@@ -496,6 +497,28 @@ export default function Player() {
     const [partyPhase, setPartyPhase] = useState('buffering');
     const [partyMembers, setPartyMembers] = useState([]);
 
+    /* Chrome (top bar + "watching with" pill) — hidden during
+     * playback so the screen stays clean.  Revealed on any user
+     * activity (move/click/touch/key) and auto-hidden after 3 s of
+     * idle.  Always visible while a picker is open OR while the
+     * party takeover is up (so the BACK button stays reachable). */
+    const [chromeVisible, setChromeVisible] = useState(true);
+    useEffect(() => {
+        let idleTimer = null;
+        const reveal = () => {
+            setChromeVisible(true);
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => setChromeVisible(false), 3000);
+        };
+        reveal();
+        const events = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'wheel'];
+        events.forEach((ev) => window.addEventListener(ev, reveal, { passive: true }));
+        return () => {
+            if (idleTimer) clearTimeout(idleTimer);
+            events.forEach((ev) => window.removeEventListener(ev, reveal));
+        };
+    }, []);
+
     // Floating emoji reactions during party playback.  Reactions are
     // added by spawnReaction() (called from WS onmessage OR locally by
     // usePartyReactions) and auto-removed after the float animation
@@ -838,12 +861,18 @@ export default function Player() {
                 button remains pressable.  pointer-events: none. */}
             {partyCode && <PartyReactions reactions={partyReactions} />}
 
-            {/* Top bar */}
+            {/* Top bar — auto-hides during playback so the screen
+                stays cinematic clean.  Forced visible while a
+                picker is open or the party takeover is up. */}
             <div
                 className="absolute top-0 left-0 right-0 z-10 flex items-center gap-4 p-6"
                 style={{
                     background:
                         'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%)',
+                    opacity: (chromeVisible || pickerOpen || partyTakeoverVisible) ? 1 : 0,
+                    pointerEvents:
+                        (chromeVisible || pickerOpen || partyTakeoverVisible) ? 'auto' : 'none',
+                    transition: 'opacity 280ms ease',
                 }}
             >
                 <button
@@ -880,30 +909,12 @@ export default function Player() {
                     </div>
                 </div>
                 {partyCode && (
-                    <div
-                        data-testid="player-party-badge"
-                        className="ml-auto flex items-center gap-2 rounded-full"
-                        style={{
-                            padding: '6px 14px',
-                            background: 'rgba(var(--vesper-blue-rgb),0.18)',
-                            border: '1px solid rgba(var(--vesper-blue-rgb),0.5)',
-                            color: 'var(--vesper-blue-bright)',
-                            fontSize: 12,
-                            letterSpacing: '0.18em',
-                            textTransform: 'uppercase',
-                            fontWeight: 700,
-                        }}
-                    >
-                        <span style={{
-                            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                            background: partyStatus === 'connected' ? '#3ee07a' : '#f7c948',
-                            boxShadow: '0 0 8px currentColor',
-                        }} />
-                        Party · {partyCode}
-                        <span style={{ color: 'var(--vesper-text-2)', fontWeight: 500, letterSpacing: '0.12em', marginLeft: 4 }}>
-                            {partyRoleRef.current === 'host' ? 'HOST' : 'GUEST'}
-                        </span>
-                    </div>
+                    <WatchingWithCard
+                        partyCode={partyCode}
+                        myMemberId={partyMemberIdRef.current}
+                        members={partyMembers}
+                        connected={partyStatus === 'connected'}
+                    />
                 )}
             </div>
 
@@ -1401,6 +1412,157 @@ export default function Player() {
         </div>
     );
 }
+
+/**
+ * Top-right "Watching together with…" card shown in the player's
+ * auto-hiding top bar when a Watch Party is active.  Lists the
+ * OTHER members (not the local viewer) with their avatar circle.
+ * Falls back to initial-letter discs if avatar lookup misses.
+ */
+function WatchingWithCard({ partyCode, myMemberId, members, connected }) {
+    const others = (members || []).filter((m) => m.id && m.id !== myMemberId);
+    const headline = others.length === 0
+        ? 'Watching alone'
+        : others.length === 1
+        ? `Watching with ${others[0].name || 'a friend'}`
+        : `Watching with ${others.length} friends`;
+    return (
+        <div
+            data-testid="watching-with-card"
+            className="ml-auto flex items-center gap-3 rounded-2xl"
+            style={{
+                padding: '8px 14px 8px 10px',
+                background: 'rgba(8, 11, 20, 0.78)',
+                border: '1px solid rgba(var(--vesper-blue-rgb), 0.35)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            }}
+        >
+            {/* Avatar stack — overlapping circles up to 3 then a +N pill */}
+            {others.length > 0 && (
+                <div className="flex items-center" style={{ marginRight: 2 }}>
+                    {others.slice(0, 3).map((m, idx) => (
+                        <MiniAvatar
+                            key={m.id}
+                            member={m}
+                            style={{ marginLeft: idx === 0 ? 0 : -10, zIndex: 10 - idx }}
+                        />
+                    ))}
+                    {others.length > 3 && (
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                marginLeft: -10,
+                                width: 30,
+                                height: 30,
+                                borderRadius: '50%',
+                                background: 'rgba(var(--vesper-blue-rgb), 0.22)',
+                                border: '2px solid rgba(8, 11, 20, 0.78)',
+                                color: 'var(--vesper-blue-bright)',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 5,
+                            }}
+                        >
+                            +{others.length - 3}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="flex flex-col" style={{ minWidth: 0, maxWidth: 220 }}>
+                <span
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 9,
+                        letterSpacing: '0.26em',
+                        textTransform: 'uppercase',
+                        color: 'var(--vesper-blue-bright)',
+                        marginBottom: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                    }}
+                >
+                    <span
+                        style={{
+                            display: 'inline-block',
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: connected ? '#3ee07a' : '#f7c948',
+                            boxShadow: '0 0 6px currentColor',
+                        }}
+                    />
+                    Watch Party · {partyCode}
+                </span>
+                <span
+                    className="font-sans"
+                    style={{
+                        fontSize: 13,
+                        color: '#fff',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
+                    {headline}
+                </span>
+            </div>
+        </div>
+    );
+}
+
+function MiniAvatar({ member, style }) {
+    const av = member?.avatar ? getAvatar(member.avatar) : null;
+    const src = av?.src || '';
+    const initial = (member?.name || '?').trim()[0] || '?';
+    return (
+        <div
+            style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                position: 'relative',
+                border: '2px solid rgba(8, 11, 20, 0.78)',
+                background:
+                    'linear-gradient(135deg, rgba(93,200,255,0.35) 0%, rgba(93,200,255,0.1) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...style,
+            }}
+        >
+            {src ? (
+                <img
+                    src={src}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+            ) : (
+                <span
+                    className="vesper-display"
+                    style={{
+                        fontSize: 13,
+                        color: 'var(--vesper-blue-bright)',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    {initial}
+                </span>
+            )}
+        </div>
+    );
+}
+
+
 
 const SubRow = ({ testId, active, title, detail, onClick }) => (
     <button
