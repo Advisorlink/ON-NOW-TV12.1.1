@@ -111,7 +111,7 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                 className="vesper-shelf"
                 style={{
                     display: 'flex',
-                    gap: 18,
+                    gap: 12,
                     overflowX: 'auto',
                     overflowY: 'hidden',
                     paddingBottom: 16,

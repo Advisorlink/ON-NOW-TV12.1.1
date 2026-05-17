@@ -834,19 +834,18 @@ export default function Detail() {
         >
             <FullscreenButton />
 
-            {/* Backdrop — when an actor is focused in the Cast row,
-                swap to a B&W portrait of them.  Otherwise show the
-                title's regular backdrop. */}
+            {/* Backdrop — ALWAYS the title's own backdrop.  We used
+                to swap to a full-bleed B&W portrait when an actor
+                was focused but the user found that too dramatic;
+                the focused actor now appears as a small portrait
+                card in the top-right corner instead (see below). */}
             <div
                 className="absolute inset-0"
                 style={{
-                    backgroundImage: `url(${focusedActor?.profile || meta.background || meta.poster || ''})`,
+                    backgroundImage: `url(${meta.background || meta.poster || ''})`,
                     backgroundSize: 'cover',
-                    backgroundPosition: focusedActor ? 'center top' : 'center',
-                    filter: focusedActor
-                        ? 'grayscale(1) contrast(1.08) brightness(0.55)'
-                        : 'brightness(0.6) saturate(1.1)',
-                    transition: 'filter 240ms ease, background-image 240ms ease',
+                    backgroundPosition: 'center',
+                    filter: 'brightness(0.6) saturate(1.1)',
                 }}
             />
             <div
@@ -869,6 +868,48 @@ export default function Detail() {
                         rgba(6,8,15,0) 100%)`,
                 }}
             />
+
+            {/* FOCUSED-ACTOR PORTRAIT CARD — appears in the top-right
+                when an actor is focused on the Cast row.  Smaller
+                framed portrait, B&W with a soft vignette / radial
+                fade so the edges blend into the dark background,
+                preserving the title's own backdrop. */}
+            {focusedActor?.profile && (
+                <div
+                    data-testid="actor-hero-portrait"
+                    style={{
+                        position: 'absolute',
+                        top: 40,
+                        right: 60,
+                        width: 280,
+                        height: 380,
+                        zIndex: 5,
+                        // Mask edges so they fade into the page bg.
+                        // Combined with grayscale + low brightness
+                        // this looks like a slightly out-of-camera
+                        // portrait card rather than a hard cutout.
+                        WebkitMaskImage:
+                            'radial-gradient(ellipse 70% 70% at center, ' +
+                            'rgba(0,0,0,1) 35%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0) 100%)',
+                        maskImage:
+                            'radial-gradient(ellipse 70% 70% at center, ' +
+                            'rgba(0,0,0,1) 35%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0) 100%)',
+                        pointerEvents: 'none',
+                        transition: 'opacity 240ms ease',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            backgroundImage: `url(${focusedActor.profile})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center top',
+                            filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
+                        }}
+                    />
+                </div>
+            )}
 
             <main
                 className="relative z-10 w-full h-full overflow-y-auto"

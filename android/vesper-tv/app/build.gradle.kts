@@ -17,8 +17,8 @@ android {
         // realistic floor.
         minSdk = 19
         targetSdk = 34
-        versionCode = 88
-        versionName = "2.6.18"
+        versionCode = 89
+        versionName = "2.6.19"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -41,6 +41,28 @@ android {
             enableV1Signing = true
             enableV2Signing = true
             enableV3Signing = true
+
+            // STABLE DEBUG KEYSTORE for upgrade-safe APKs across CI
+            // builds.  Without this, GitHub Actions' fresh runner
+            // auto-generates a brand-new debug keystore every run,
+            // so users see "the application can't be installed
+            // because it conflicts with the existing one" when they
+            // try to upgrade from build N to build N+1.
+            //
+            // The keystore is generated once by the
+            // `bootstrap-keystore.yml` workflow and committed to the
+            // repo at android/vesper-tv/app/onnowtv-stable-debug.keystore.
+            // We only override the default debug-signing config when
+            // that file is present so a fresh clone (without the
+            // committed keystore) still builds with the standard
+            // Gradle-managed debug key.
+            val stableKs = file("onnowtv-stable-debug.keystore")
+            if (stableKs.exists()) {
+                storeFile = stableKs
+                storePassword = "onnowtv-debug"
+                keyAlias = "onnowtv-debug"
+                keyPassword = "onnowtv-debug"
+            }
         }
     }
 

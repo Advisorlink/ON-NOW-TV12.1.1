@@ -227,6 +227,29 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.19 — Cast row tighter + corner portrait + auto-update off**
+            - 🛑 In-app Update Gate DISABLED.  Your test users won't
+              get auto-update prompts.  Re-enable by uncommenting
+              `<UpdateGate />` in App.js when you're ready for
+              public release.
+            - 🔑 Stable debug keystore: kicked off a one-time
+              `bootstrap-keystore` workflow in the Actions tab —
+              click "Run workflow" ONCE.  It generates a committed
+              keystore so every future APK signs with the same
+              cert.  Eliminates "the application can't be installed
+              because it conflicts with the existing one" upgrade
+              errors going forward.
+            - 🎭 Cast row now fits ~12 actor cards on a 1920px
+              screen (was 6).  Cards shrunk 132 → 108 px wide,
+              cards 196 → 162 px tall, gap 18 → 12 px.
+            - 🖼️ On actor focus the portrait now appears as a
+              SMALL framed card in the top-right corner of the
+              hero, B&W with a soft radial vignette so edges fade
+              into the title's own backdrop.  Title backdrop is
+              preserved (no more full-bleed B&W).  Title, "AS
+              <character>", age, birthplace, and bio still display
+              on the left.
+
             **v2.6.18 — Detail page: long titles fit on one line**
             - 🎯 FIXED: long movie titles (e.g. "The Punisher: One
               Last Kill") wrapped to 2 lines at the old 92 px max

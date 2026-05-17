@@ -27,7 +27,7 @@ import { getActiveProfile, isKidsActive } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
-import UpdateGate from '@/components/UpdateGate';
+// import UpdateGate from '@/components/UpdateGate';  // disabled v2.6.19
 import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
@@ -270,7 +270,15 @@ function App() {
                                 <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
                                 <Route path="/person/:tmdbId" element={<RequireProfile><Person /></RequireProfile>} />
                             </Routes>
-                            <UpdateGate />
+                            {/* UpdateGate intentionally disabled in
+                                v2.6.19 — the user is distributing
+                                early-access APKs to a few testers
+                                and doesn't want a forced auto-update
+                                prompt firing on their devices.  Keep
+                                the import + component intact so we
+                                can re-enable once the public release
+                                channel is ready. */}
+                            {/* <UpdateGate /> */}
                         </MobilePlatformRoot>
                     </Router>
                 </ThemeProvider>
