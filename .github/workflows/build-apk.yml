@@ -227,6 +227,29 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.20 — Live Guide overlay: Favourites pill + cinematic preview card**
+            - ⭐ Favourites pill at the head of the categories row.
+              Filters the channel list down to just the channels
+              you've starred via the LiveTV page.  Auto-shown only
+              when you have at least one favourite.
+            - 🎬 Cinematic preview redesign on the right side:
+              • 240 dp backdrop (was 214 dp), title pulled UP onto
+                the backdrop with a soft drop shadow for that
+                "Netflix billboard" feel.
+              • Meta chip row underneath: S·E badge, year, rating,
+                and EPG category — only the chips with data show up,
+                so the row stays clean.
+              • Big body-copy DESCRIPTION (up to 5 lines) of the
+                currently-airing programme — sourced from your EPG.
+              • Subtle hairline divider + "UP NEXT · time · title"
+                row at the bottom so you always know what's coming.
+              • Detail card widened 380 → 420 dp.
+            - 🔌 Native bridge `setLiveGuide(...)` now accepts an
+              extra `favoritesJson` argument and the EPG payload
+              carries `desc`, `season`, `episode`, `episodeTitle`,
+              `year`, `rating`, `category` — used by the new chips
+              and description.
+
             **v2.6.19 — Cast row tighter + corner portrait + auto-update off**
             - 🛑 In-app Update Gate DISABLED.  Your test users won't
               get auto-update prompts.  Re-enable by uncommenting

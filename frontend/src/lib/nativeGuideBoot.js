@@ -18,6 +18,7 @@
  */
 import { getActiveProvider } from './xtream';
 import { loadCategories, loadChannels, loadEpg } from './liveCache';
+import { getFavorites } from './liveFavorites';
 
 export function pushNativeGuideFromCache() {
     if (typeof window === 'undefined') return;
@@ -63,8 +64,9 @@ export function pushNativeGuideFromCache() {
             }
         }
 
-        // Trim EPG to next 6 hours, top 4 entries per channel — same
-        // budget as LiveTV.jsx so SharedPreferences stays small.
+        // EPG includes the FULL programme metadata (description,
+        // episode title, season/ep, year) when available — the
+        // native overlay uses these to render a rich preview card.
         const epgPayload = {};
         const nowSec = Math.floor(Date.now() / 1000);
         const horizon = nowSec + 6 * 3600;
@@ -76,6 +78,13 @@ export function pushNativeGuideFromCache() {
                 if (Number(it.startTimestamp || 0) > horizon) break;
                 trimmed.push({
                     title: it.title || '',
+                    desc: it.desc || it.description || '',
+                    season: it.season || '',
+                    episode: it.episode || '',
+                    episodeTitle: it.episodeTitle || it.sub_title || '',
+                    year: it.year || '',
+                    rating: it.rating || '',
+                    category: it.category || '',
                     startTimestamp: it.startTimestamp || 0,
                     stopTimestamp: it.stopTimestamp || 0,
                 });
@@ -84,11 +93,18 @@ export function pushNativeGuideFromCache() {
             if (trimmed.length) epgPayload[sid] = trimmed;
         }
 
+        /* Favorites — array of stream_id strings the user has
+         * starred via the LiveTV page.  The native overlay uses
+         * this to render a "★ Favourites" pill that filters the
+         * channel list down to just starred channels. */
+        const favs = (getFavorites(provider.id) || []).map((s) => String(s));
+
         bridge.setLiveGuide(
             String(provider.id || ''),
             JSON.stringify(categoriesPayload),
             JSON.stringify(channelsPayload),
             JSON.stringify(epgPayload),
+            JSON.stringify(favs),
         );
     } catch {
         /* silent — overlay will just be empty until next LiveTV visit */

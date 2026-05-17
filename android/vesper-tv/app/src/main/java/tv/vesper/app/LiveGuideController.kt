@@ -50,14 +50,27 @@ class LiveGuideController(
         val epgChannelId: String,
         val streamUrl: String,
     )
-    data class Programme(val title: String, val startTs: Long, val stopTs: Long)
+    data class Programme(
+        val title: String,
+        val desc: String,
+        val startTs: Long,
+        val stopTs: Long,
+        val season: String,
+        val episode: String,
+        val episodeTitle: String,
+        val year: String,
+        val rating: String,
+        val category: String,
+    )
 
     private var categories: List<Category> = emptyList()
     private var channels: List<Channel> = emptyList()
     private var epg: Map<String, List<Programme>> = emptyMap()
+    private var favorites: Set<String> = emptySet()
 
     /* UI state */
     private var selectedCategoryId: String? = null
+    private var favoritesActive: Boolean = false  // "★ Favourites" pill selected
     private var currentChannelStreamId: String? = null
     private val visibleChannels: MutableList<Channel> = mutableListOf()
 
@@ -78,6 +91,12 @@ class LiveGuideController(
     private val detailTimeRange: TextView = root.findViewById(R.id.detail_time_range)
     private val detailNext: TextView = root.findViewById(R.id.detail_next)
     private val detailProgress: View = root.findViewById(R.id.detail_progress)
+    private val detailDescription: TextView = root.findViewById(R.id.detail_description)
+    private val detailChipEpisode: TextView = root.findViewById(R.id.detail_chip_episode)
+    private val detailChipYear: TextView = root.findViewById(R.id.detail_chip_year)
+    private val detailChipRating: TextView = root.findViewById(R.id.detail_chip_rating)
+    private val detailChipCategory: TextView = root.findViewById(R.id.detail_chip_category)
+    private val detailDivider: View = root.findViewById(R.id.detail_divider)
 
     private val chanAdapter = ChannelAdapter()
 
@@ -181,7 +200,13 @@ class LiveGuideController(
         categories = parseCategories(prefs.getString("categories", "[]") ?: "[]")
         channels = parseChannels(prefs.getString("channels", "[]") ?: "[]")
         epg = parseEpg(prefs.getString("epg", "{}") ?: "{}")
+        favorites = parseFavorites(prefs.getString("favorites", "[]") ?: "[]")
     }
+
+    private fun parseFavorites(raw: String): Set<String> = try {
+        val arr = JSONArray(raw)
+        (0 until arr.length()).map { arr.getString(it) }.toSet()
+    } catch (_: Throwable) { emptySet() }
 
     private fun parseCategories(raw: String): List<Category> = try {
         val arr = JSONArray(raw)
@@ -233,9 +258,16 @@ class LiveGuideController(
                 val p = arr.getJSONObject(i)
                 list.add(
                     Programme(
-                        title = p.optString("title", ""),
-                        startTs = p.optLong("startTimestamp", 0L),
-                        stopTs  = p.optLong("stopTimestamp", 0L),
+                        title       = p.optString("title", ""),
+                        desc        = p.optString("desc", ""),
+                        startTs     = p.optLong("startTimestamp", 0L),
+                        stopTs      = p.optLong("stopTimestamp", 0L),
+                        season      = p.optString("season", ""),
+                        episode     = p.optString("episode", ""),
+                        episodeTitle= p.optString("episodeTitle", ""),
+                        year        = p.optString("year", ""),
+                        rating      = p.optString("rating", ""),
+                        category    = p.optString("category", ""),
                     )
                 )
             }
@@ -247,8 +279,12 @@ class LiveGuideController(
     private fun rebuildVisibleChannels() {
         visibleChannels.clear()
         val target = selectedCategoryId
-        channels.forEach {
-            if (target == null || it.categoryId == target) visibleChannels.add(it)
+        channels.forEach { ch ->
+            if (favoritesActive) {
+                if (ch.streamId in favorites) visibleChannels.add(ch)
+            } else if (target == null || ch.categoryId == target) {
+                visibleChannels.add(ch)
+            }
         }
         chanAdapter.notifyDataSetChanged()
     }
@@ -257,20 +293,52 @@ class LiveGuideController(
 
     private fun renderCategoryPills() {
         categoryPillRow.removeAllViews()
-        /* First pill: ALL ("clear the filter"). */
-        addPill("All · ${channels.size}", null, selectedCategoryId == null)
+        /* Favourites pill FIRST so it's always one D-pad tap away.
+           Only shown when the user actually has at least one favourite. */
+        if (favorites.isNotEmpty()) {
+            addPill(
+                "★ FAVOURITES · ${favorites.size}",
+                catId = null,
+                active = favoritesActive,
+                isFavorites = true,
+            )
+        }
+        /* Then "All" — clears both the category filter AND the
+           favourites filter. */
+        addPill(
+            "ALL · ${channels.size}",
+            catId = null,
+            active = !favoritesActive && selectedCategoryId == null,
+            isFavorites = false,
+        )
         categories.forEach { cat ->
-            addPill(cat.name.uppercase(), cat.id, selectedCategoryId == cat.id)
+            addPill(
+                cat.name.uppercase(),
+                catId = cat.id,
+                active = !favoritesActive && selectedCategoryId == cat.id,
+                isFavorites = false,
+            )
         }
     }
 
-    private fun addPill(label: String, catId: String?, active: Boolean) {
+    private fun addPill(
+        label: String,
+        catId: String?,
+        active: Boolean,
+        isFavorites: Boolean,
+    ) {
         val tv = LayoutInflater.from(activity)
             .inflate(R.layout.item_guide_category_pill, categoryPillRow, false) as TextView
         tv.text = label
         tv.isSelected = active
         tv.setOnClickListener {
-            selectedCategoryId = catId
+            if (isFavorites) {
+                favoritesActive = true
+                selectedCategoryId = null
+            } else {
+                favoritesActive = false
+                selectedCategoryId = catId
+            }
             renderCategoryPills()
             rebuildVisibleChannels()
             chanRv.post {
@@ -404,8 +472,42 @@ class LiveGuideController(
             "Schedule unavailable"
         }
         detailNext.text = if (nextProg != null) {
-            "NEXT · ${formatTime(nextProg.startTs)} · ${nextProg.title}"
+            "UP NEXT · ${formatTime(nextProg.startTs)} · ${nextProg.title}"
         } else { "" }
+        detailDivider.visibility =
+            if (nextProg != null) View.VISIBLE else View.GONE
+
+        /* Description — large body copy under the progress bar.
+           Hidden cleanly when we have no description. */
+        val desc = nowProg?.desc?.trim().orEmpty()
+        if (desc.isNotEmpty()) {
+            detailDescription.text = desc
+            detailDescription.visibility = View.VISIBLE
+        } else {
+            detailDescription.text = ""
+            detailDescription.visibility = View.GONE
+        }
+
+        /* Meta chips — episode badge, year, content rating, EPG
+           category.  Each chip hides itself when the data is empty. */
+        fun applyChip(tv: TextView, text: String) {
+            if (text.isBlank()) {
+                tv.visibility = View.GONE
+            } else {
+                tv.text = text
+                tv.visibility = View.VISIBLE
+            }
+        }
+        val epLabel = when {
+            nowProg?.season?.isNotBlank() == true && nowProg.episode.isNotBlank() ->
+                "S${nowProg.season} · E${nowProg.episode}"
+            nowProg?.episode?.isNotBlank() == true -> "E${nowProg.episode}"
+            else -> ""
+        }
+        applyChip(detailChipEpisode, epLabel)
+        applyChip(detailChipYear, nowProg?.year ?: "")
+        applyChip(detailChipRating, nowProg?.rating?.uppercase() ?: "")
+        applyChip(detailChipCategory, nowProg?.category?.uppercase() ?: "")
 
         /* Progress bar width on the detail card.  Same calc as the
            row, defers measure until layout pass completes. */

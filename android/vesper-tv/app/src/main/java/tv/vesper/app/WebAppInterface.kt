@@ -383,7 +383,8 @@ class WebAppInterface(private val activity: Activity) {
         providerId: String?,
         categoriesJson: String?,
         channelsJson: String?,
-        epgJson: String?
+        epgJson: String?,
+        favoritesJson: String? = null
     ) {
         try {
             val prefs = activity.getSharedPreferences("live_guide", android.content.Context.MODE_PRIVATE)
@@ -392,6 +393,7 @@ class WebAppInterface(private val activity: Activity) {
                 .putString("categories", categoriesJson ?: "[]")
                 .putString("channels",   channelsJson   ?: "[]")
                 .putString("epg",        epgJson        ?: "{}")
+                .putString("favorites",  favoritesJson  ?: "[]")
                 .putLong  ("updated_at", System.currentTimeMillis())
                 .apply()
         } catch (e: Throwable) {

@@ -446,6 +446,13 @@ function Grid({ provider, onLogout }) {
                     if (it.startTimestamp > horizonSec) break;
                     trimmed.push({
                         title: it.title || '',
+                        desc: it.desc || it.description || '',
+                        season: it.season || '',
+                        episode: it.episode || '',
+                        episodeTitle: it.episodeTitle || it.sub_title || '',
+                        year: it.year || '',
+                        rating: it.rating || '',
+                        category: it.category || '',
                         startTimestamp: it.startTimestamp || 0,
                         stopTimestamp: it.stopTimestamp || 0,
                     });
@@ -456,11 +463,16 @@ function Grid({ provider, onLogout }) {
                 }
             }
 
+            /* Favourites array (stream IDs starred by the user) so
+             * the native overlay can show a "★ Favourites" pill. */
+            const favs = (getFavList(provider.id) || []).map((s) => String(s));
+
             bridge.setLiveGuide(
                 String(provider.id || ''),
                 JSON.stringify(categoriesPayload),
                 JSON.stringify(channelsPayload),
                 JSON.stringify(epgPayload),
+                JSON.stringify(favs),
             );
         } catch (e) {
             /* Bridge errors are silent — the overlay will just be

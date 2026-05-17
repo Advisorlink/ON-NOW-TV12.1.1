@@ -775,7 +775,7 @@
              D-pads through the channel list. -->
         <FrameLayout
             android:id="@+id/guide_detail"
-            android:layout_width="380dp"
+            android:layout_width="420dp"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_marginEnd="36dp"
@@ -793,13 +793,13 @@
                 <ImageView
                     android:id="@+id/detail_backdrop"
                     android:layout_width="match_parent"
-                    android:layout_height="214dp"
+                    android:layout_height="240dp"
                     android:scaleType="centerCrop"
                     android:adjustViewBounds="true"
                     android:contentDescription="@null" />
                 <View
                     android:layout_width="match_parent"
-                    android:layout_height="214dp"
+                    android:layout_height="240dp"
                     android:background="@drawable/guide_detail_gradient" />
 
                 <!-- Top-left LIVE pill + channel name -->
@@ -846,9 +846,48 @@
                         android:scaleType="fitCenter"
                         android:contentDescription="@null" />
                 </FrameLayout>
+
+                <!-- Bottom-left over-backdrop title block.  Pull the
+                     headline UP onto the backdrop so the description
+                     can breathe below.  Cinematic feel. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|start"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="14dp">
+
+                    <TextView
+                        android:id="@+id/detail_channel_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="#5DC8FF"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.28"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/detail_programme_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="#FFFFFF"
+                        android:textSize="26sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.02"
+                        android:maxLines="2"
+                        android:ellipsize="end"
+                        android:shadowColor="#CC000000"
+                        android:shadowDx="0"
+                        android:shadowDy="2"
+                        android:shadowRadius="6" />
+                </LinearLayout>
             </FrameLayout>
 
-            <!-- Programme info -->
+            <!-- Lower info area — chips, time/progress, description -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -858,33 +897,86 @@
                 android:paddingTop="14dp"
                 android:paddingBottom="22dp">
 
-                <TextView
-                    android:id="@+id/detail_channel_name"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="#5DC8FF"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.28"
-                    android:fontFamily="monospace"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/detail_programme_title"
+                <!-- Meta chips row: episode badge / year / rating / category -->
+                <LinearLayout
+                    android:id="@+id/detail_chip_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="-0.015"
-                    android:maxLines="2"
-                    android:ellipsize="end" />
+                    android:orientation="horizontal"
+                    android:gravity="start|center_vertical">
+
+                    <TextView
+                        android:id="@+id/detail_chip_episode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:background="@drawable/guide_chip_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:layout_marginEnd="6dp"
+                        android:textColor="#7FE5FF"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.10" />
+
+                    <TextView
+                        android:id="@+id/detail_chip_year"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:background="@drawable/guide_chip_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:layout_marginEnd="6dp"
+                        android:textColor="#C7CFDB"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.10" />
+
+                    <TextView
+                        android:id="@+id/detail_chip_rating"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:background="@drawable/guide_chip_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:layout_marginEnd="6dp"
+                        android:textColor="#C7CFDB"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.10" />
+
+                    <TextView
+                        android:id="@+id/detail_chip_category"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:background="@drawable/guide_chip_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:textColor="#C7CFDB"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:letterSpacing="0.10" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/detail_time_range"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="10dp"
                     android:textColor="#9DA5B5"
                     android:textSize="12sp"
                     android:fontFamily="monospace"
@@ -893,7 +985,7 @@
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="3dp"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:background="#1FFFFFFF">
                     <View
                         android:id="@+id/detail_progress"
@@ -903,14 +995,32 @@
                 </FrameLayout>
 
                 <TextView
+                    android:id="@+id/detail_description"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:textColor="#C7CFDB"
+                    android:textSize="13sp"
+                    android:lineSpacingMultiplier="1.35"
+                    android:maxLines="5"
+                    android:ellipsize="end" />
+
+                <View
+                    android:id="@+id/detail_divider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1AFFFFFF" />
+
+                <TextView
                     android:id="@+id/detail_next"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:textColor="#7d8493"
+                    android:layout_marginTop="12dp"
+                    android:textColor="#9DA5B5"
                     android:textSize="11sp"
                     android:fontFamily="monospace"
-                    android:letterSpacing="0.06"
+                    android:letterSpacing="0.10"
                     android:maxLines="1"
                     android:ellipsize="end" />
             </LinearLayout>
