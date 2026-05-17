@@ -26,7 +26,13 @@ env:
   # app keeps working when the preview sandbox sleeps / is torn
   # down.  Emergent assigns a free `*.emergent.host` domain on
   # deploy — that's what we point to here.
-  REACT_APP_BACKEND_URL: https://rebrand-app-5.emergent.host
+  #
+  # TEMPORARY (v2.6.33): pointing back at the preview pod while
+  # the Contabo VPS migration is in flight.  The .emergent.host
+  # production deploy has been flapping (502/520) so we've moved
+  # back to the rock-solid preview pod for testing.  Will switch
+  # to the Contabo domain once the VPS is provisioned.
+  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
 
 jobs:
   build:
@@ -231,6 +237,15 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.33 — Pointed at the rock-solid preview backend**
+            - 🛟 The `*.emergent.host` production deployment has been
+              flapping (HTTP 502/520 errors under modest load), so
+              this build switches the APK's baked-in backend URL
+              back to the preview pod
+              (`rebrand-app-5.preview.emergentagent.com`) which has
+              been stable throughout the session.  Will switch to a
+              dedicated Contabo VPS once that's provisioned.
 
             **v2.6.32 — Welcome tour + cleaner player + zero-config Live TV**
             - 🎓 NEW: 14-step Welcome Tour on first profile login.  A
