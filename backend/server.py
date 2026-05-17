@@ -2106,6 +2106,9 @@ app.include_router(sportsdb_router)
 from backup import router as backup_router  # noqa: E402
 app.include_router(backup_router)
 
+from instant_bundle import router as instant_bundle_router  # noqa: E402
+app.include_router(instant_bundle_router)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -2139,3 +2142,17 @@ async def _start_epg_scheduler():
         epg_cache.start_scheduler(scheduler_refresh)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to start EPG scheduler: %s", exc)
+
+
+@app.on_event("startup")
+async def _start_instant_bundle() -> None:
+    """Boot the Instant-Bundle scheduler that keeps the Live TV
+    channels/categories/EPG warm and ready to serve in one gzipped
+    payload.  Reads the managed Xtream provider from `.env` (the
+    `LIVETV_*` keys) — clients never need to enter credentials."""
+    try:
+        import instant_bundle
+        instant_bundle.attach_collection(db["xtream_bundle"])
+        instant_bundle.start_scheduler()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to start instant_bundle scheduler: %s", exc)

@@ -32,6 +32,38 @@ import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 import { pushNativeGuideFromCache } from '@/lib/nativeGuideBoot';
+import { bootInstantBundle, fetchInstantBundleMeta } from '@/lib/instantBundle';
+
+/* INSTANT BUNDLE bootstrap — fetch the backend-managed Live TV
+ * channels + categories + EPG and seed them into the same
+ * localStorage caches the legacy LiveTV page already reads from.
+ * Runs once on app boot AND every 30 min after that so the EPG
+ * stays fresh even on long-lived browser sessions.  No-op when the
+ * backend doesn't have the managed provider configured. */
+if (typeof window !== 'undefined') {
+    setTimeout(() => {
+        bootInstantBundle().then((ok) => {
+            if (ok) {
+                /* After the bundle is applied, push the (new) data
+                 * straight to the native overlay so the Live Guide
+                 * inside the player updates immediately. */
+                try { pushNativeGuideFromCache(); } catch { /* ignore */ }
+            }
+        });
+    }, 100);
+    setInterval(async () => {
+        const meta = await fetchInstantBundleMeta();
+        if (!meta) return;
+        let cached = {};
+        try {
+            cached = JSON.parse(localStorage.getItem('onnowtv-instant-bundle-meta') || '{}');
+        } catch { /* ignore */ }
+        if ((meta.generated_at || 0) > (cached.generated_at || 0)) {
+            const ok = await bootInstantBundle();
+            if (ok) { try { pushNativeGuideFromCache(); } catch { /* ignore */ } }
+        }
+    }, 30 * 60 * 1000);
+}
 
 /* On app boot, immediately push any cached Live TV channels +
    EPG to the native Kotlin player so the in-player Live Guide

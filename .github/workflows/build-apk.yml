@@ -232,6 +232,31 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.29 — Instant Live TV: server-side pre-warmed bundle**
+            - ⚡ INSTANT Live TV guide.  On app boot the client now
+              fetches a single gzipped bundle from
+              `/api/xtream/instant-bundle` containing:
+                • all categories
+                • all channels (with pre-built stream URLs)
+                • next 12 h of EPG, trimmed + sorted
+              and seeds them into localStorage in one shot.  Live
+              TV opens fully populated — no per-client Xtream
+              round-trip, no 30-second wait.
+            - 🔒 Clients never see Xtream credentials.  The backend
+              builds stream URLs server-side and ships them inside
+              the bundle's channel records.
+            - 🔄 Backend keeps the bundle warm: channels refresh
+              every 6 h, EPG every 2 h.  Restart-safe — bundle is
+              persisted to MongoDB so a backend restart serves the
+              last-known good state immediately.
+            - 🎛️ Admin: `POST /api/xtream/instant-bundle/refresh
+              ?token=<XTREAM_ADMIN_TOKEN>&target=all|channels|epg`
+              forces a refresh on demand.
+            - 🛡️ Backwards compatible: clients who already have
+              their own Xtream provider configured (Advanced
+              Settings) keep working — the bundle just adds a new
+              "managed" provider on top.
+
             **v2.6.28 — APK points to PRODUCTION backend (deploy day!)**
             - 🚀 The APK now bakes in the production backend URL
               (`rebrand-app-5.emergent.host`) instead of the
