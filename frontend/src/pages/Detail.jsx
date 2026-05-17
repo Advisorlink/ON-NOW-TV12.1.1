@@ -847,7 +847,12 @@ export default function Detail() {
                     backgroundImage: focusedActor
                         ? 'none'
                         : `url(${meta.background || meta.poster || ''})`,
-                    backgroundColor: focusedActor ? '#000' : 'transparent',
+                    /* PURE black (not the bluish #06080F page-bg)
+                       when an actor is focused, so the portrait's
+                       fade-edges blend into a true #000.  Old
+                       value left a faint blue tint visible behind
+                       the dissolved edges. */
+                    backgroundColor: focusedActor ? '#000000' : 'transparent',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     filter: focusedActor ? 'none' : 'brightness(0.6) saturate(1.1)',
@@ -890,10 +895,12 @@ export default function Detail() {
                     data-testid="actor-hero-portrait"
                     style={{
                         position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        width: '70%',
-                        height: '110%',
+                        // Smaller portrait, anchored at the TOP of
+                        // the page (was full-height, top-right).
+                        top: 30,
+                        right: '4%',
+                        width: '42%',
+                        height: '62%',
                         zIndex: 5,
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
@@ -907,49 +914,48 @@ export default function Detail() {
                             backgroundImage: `url(${focusedActor.profile})`,
                             backgroundSize: 'contain',
                             backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center 32%',
+                            backgroundPosition: 'center top',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
                         }}
                     />
-                    {/* Four-directional fade overlay.  Strips of
-                        page-bg (#06080F) along each edge, fading
-                        from solid → transparent into the centre.
-                        This blends the portrait's hard rectangular
-                        edges into the surrounding black on every
-                        side simultaneously — no CSS-mask quirks,
-                        works in every WebView. */}
+                    {/* Four-directional fade overlay — pure BLACK
+                        (#000000), no blue tint.  Wider taper on
+                        every edge so no hard line survives. */}
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
                             background: [
-                                /* LEFT — strongest because the bio
-                                   text sits there.  Solid to ~58%. */
+                                /* LEFT — heavy.  The bio text starts
+                                   on the left so the photo must be
+                                   fully black there. */
                                 'linear-gradient(90deg, ' +
-                                'rgba(6,8,15,1) 0%, ' +
-                                'rgba(6,8,15,1) 22%, ' +
-                                'rgba(6,8,15,0.55) 45%, ' +
-                                'rgba(6,8,15,0) 70%)',
-                                /* RIGHT — beefier so the photo's
-                                   right-edge dissolves completely. */
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,1) 20%, ' +
+                                'rgba(0,0,0,0.7) 38%, ' +
+                                'rgba(0,0,0,0.25) 55%, ' +
+                                'rgba(0,0,0,0) 75%)',
+                                /* RIGHT — heavy, kills the photo's
+                                   right edge. */
                                 'linear-gradient(270deg, ' +
-                                'rgba(6,8,15,1) 0%, ' +
-                                'rgba(6,8,15,0.85) 8%, ' +
-                                'rgba(6,8,15,0.3) 22%, ' +
-                                'rgba(6,8,15,0) 38%)',
-                                /* TOP — wider so the top of the
-                                   head dissolves into the page. */
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,0.85) 12%, ' +
+                                'rgba(0,0,0,0.4) 28%, ' +
+                                'rgba(0,0,0,0) 50%)',
+                                /* TOP — wider, eases top of head
+                                   into pure black. */
                                 'linear-gradient(180deg, ' +
-                                'rgba(6,8,15,1) 0%, ' +
-                                'rgba(6,8,15,0.85) 6%, ' +
-                                'rgba(6,8,15,0.4) 18%, ' +
-                                'rgba(6,8,15,0) 32%)',
-                                /* BOTTOM — softer, eases into the
-                                   cast row underneath. */
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,0.85) 8%, ' +
+                                'rgba(0,0,0,0.45) 22%, ' +
+                                'rgba(0,0,0,0) 40%)',
+                                /* BOTTOM — heaviest, blends into the
+                                   black space above the cast row. */
                                 'linear-gradient(0deg, ' +
-                                'rgba(6,8,15,1) 0%, ' +
-                                'rgba(6,8,15,0.6) 12%, ' +
-                                'rgba(6,8,15,0) 30%)',
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,0.85) 12%, ' +
+                                'rgba(0,0,0,0.45) 28%, ' +
+                                'rgba(0,0,0,0) 50%)',
                             ].join(', '),
                         }}
                     />

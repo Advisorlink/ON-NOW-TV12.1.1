@@ -227,6 +227,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.25 — Smaller top-anchored actor portrait + pure black**
+            - 📐 Portrait shrunk to 42% × 62% (was 70% × 110%) and
+              anchored at the TOP-right (30 dp from top, 4% from
+              right) so the WHOLE face/head is visible without
+              dominating the screen.
+            - ⚫ Background switched from #06080F (faint blue tint
+              that was visible behind the dissolved edges) to PURE
+              #000000.  The four-directional fade strips now use
+              rgba(0,0,0,...) instead of rgba(6,8,15,...) for the
+              same reason — the photo dissolves into TRUE black.
+            - 🌫️ Fade taper made wider and stronger on every edge,
+              so any remaining hard line from the source photo
+              washes out long before reaching the canvas boundary.
+
             **v2.6.24 — Actor portrait dissolves on all four edges**
             - 🌫️ Replaced the single CSS-mask approach (which left
               a hard rectangle on older WebView builds) with a
