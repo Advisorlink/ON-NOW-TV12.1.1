@@ -66,7 +66,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import gzip
 import hashlib
+import json
 import logging
 import os
 import time
@@ -244,11 +246,23 @@ async def save_payload(key: str, payload: Dict[str, Any]) -> None:
 
     `payload` is the same dict shape returned by xtream.full_epg —
     {epg, channel_count, programme_count, size_bytes, fetched_at}.
+
+    The raw JSON of a 200-channel EPG can easily exceed MongoDB's
+    16 MB single-document hard cap.  We gzip the JSON before
+    writing so the on-disk doc is typically 5-10x smaller (XML/JSON
+    schedule data compresses extremely well).
     """
     db = _get_db()
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    gz = gzip.compress(raw, compresslevel=6)
     doc = {
         "_id": key,
-        "payload": payload,
+        # Legacy field kept blank so old readers don't crash;
+        # new readers prefer `payload_gz`.
+        "payload": None,
+        "payload_gz": gz,
+        "payload_size_raw": len(raw),
+        "payload_size_gz":  len(gz),
         "updated_at": int(time.time()),
     }
     await db[_COLL_CACHE].replace_one({"_id": key}, doc, upsert=True)
@@ -257,12 +271,27 @@ async def save_payload(key: str, payload: Dict[str, Any]) -> None:
 async def load_payload(key: str) -> Optional[Dict[str, Any]]:
     """Return the most recently persisted EPG for this provider, or
     None if we've never fetched one.  Excludes `_id` so MongoDB
-    ObjectId never leaks into the JSON response."""
+    ObjectId never leaks into the JSON response.
+
+    Supports BOTH the new gzipped format (`payload_gz`) and the
+    legacy plain-dict format (`payload`) so a deployment can roll
+    forward without dropping existing cache entries."""
     db = _get_db()
     doc = await db[_COLL_CACHE].find_one({"_id": key}, {"_id": 0})
     if not doc:
         return None
-    payload = doc.get("payload")
+
+    # Prefer the new gzipped column.
+    gz = doc.get("payload_gz")
+    if gz:
+        try:
+            payload = json.loads(gzip.decompress(gz).decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("epg_cache: failed to decode payload_gz for %s: %s", key[:8], exc)
+            return None
+    else:
+        payload = doc.get("payload")
+
     if not isinstance(payload, dict):
         return None
     payload["_persisted_at"] = doc.get("updated_at", 0)

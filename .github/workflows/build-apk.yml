@@ -238,6 +238,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.34 — EPG schedule data fully populated (huge fix)**
+            - 🐛 ROOT CAUSE FOUND: the EPG bundle reported `0` programmes
+              across all 14,220 channels because the XMLTV timestamp
+              parser was hard-coded for the "20260517 091500 +0000"
+              format with a space between date and time.  The
+              upstream provider actually ships timestamps in the
+              "20260516010000 +0100" format (no space between date
+              and time).  Every programme got `startTimestamp = 0`
+              and got trimmed out of the 72-hour horizon window.
+            - ✅ Parser now handles BOTH formats AND uses the
+              `start_timestamp` / `stop_timestamp` direct unix-time
+              attributes when the provider includes them (faster + bulletproof).
+              **Result: 2,338 channels with EPG, ~173,357 programmes
+              over the next 72 hours.**
+            - 🛟 SECONDARY BUG: MongoDB has a 16 MB hard cap per
+              document.  The bundle was trying to persist channels +
+              EPG as one raw document and silently failing once the
+              EPG populated, wiping out the warm cache on restart.
+              Now each heavy column (categories / channels / EPG) is
+              gzipped before write — typical compressed payload is
+              ~2-3 MB vs ~50 MB raw.  Persist now bullet-proof.
+            - 🛡️ Same gzip pattern applied to the legacy
+              `epg_cache` collection (which had the same 16 MB blow-
+              up surfacing in the logs as `'update' command document
+              too large`).  Both EPG paths now survive on the largest
+              providers without write errors.
+
             **v2.6.33 — Pointed at the rock-solid preview backend**
             - 🛟 The `*.emergent.host` production deployment has been
               flapping (HTTP 502/520 errors under modest load), so

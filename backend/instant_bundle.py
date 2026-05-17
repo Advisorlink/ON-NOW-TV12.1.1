@@ -152,18 +152,61 @@ def attach_collection(col: AsyncIOMotorCollection) -> None:
 
 
 async def _persist() -> None:
+    """Persist the current bundle to MongoDB.
+
+    Channels + EPG together can be > 16 MB raw (the MongoDB single-
+    document hard cap), so we gzip the heavy payload columns
+    individually.  Compression ratio on schedule/JSON data is
+    typically 5-10x so the on-disk doc lands comfortably under
+    the limit.
+    """
     if _collection is None:
         return
+    chans_blob = gzip.compress(
+        json.dumps(_state["channels"], separators=(",", ":")).encode("utf-8"),
+        compresslevel=6,
+    )
+    epg_blob = gzip.compress(
+        json.dumps(_state["epg"], separators=(",", ":")).encode("utf-8"),
+        compresslevel=6,
+    )
+    cats_blob = gzip.compress(
+        json.dumps(_state["categories"], separators=(",", ":")).encode("utf-8"),
+        compresslevel=6,
+    )
     doc = {
         "_id":                  "v1",
-        "categories":           _state["categories"],
-        "channels":             _state["channels"],
-        "epg":                  _state["epg"],
+        # Gzipped columns (the new path).
+        "categories_gz":        cats_blob,
+        "channels_gz":          chans_blob,
+        "epg_gz":               epg_blob,
+        # Legacy keys cleared so old readers fall through to the
+        # _gz path.  We don't write the plain dicts any more.
+        "categories":           [],
+        "channels":             [],
+        "epg":                  {},
         "generated_at":         _state["generated_at"],
         "channels_fetched_at":  _state["channels_fetched_at"],
         "epg_fetched_at":       _state["epg_fetched_at"],
     }
-    await _collection.replace_one({"_id": "v1"}, doc, upsert=True)
+    try:
+        await _collection.replace_one({"_id": "v1"}, doc, upsert=True)
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "instant_bundle: persist failed (cats_gz=%dKB chans_gz=%dKB epg_gz=%dKB): %s",
+            len(cats_blob) // 1024, len(chans_blob) // 1024, len(epg_blob) // 1024, exc,
+        )
+
+
+def _maybe_decode(doc: Dict[str, Any], key: str, default: Any) -> Any:
+    """Return `doc[key + '_gz']` decoded if present, else `doc[key]`."""
+    gz = doc.get(key + "_gz")
+    if gz:
+        try:
+            return json.loads(gzip.decompress(gz).decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("instant_bundle: failed to decode %s_gz: %s", key, exc)
+    return doc.get(key) or default
 
 
 async def _restore_from_db() -> None:
@@ -177,9 +220,9 @@ async def _restore_from_db() -> None:
     if not doc:
         return
     async with _state_lock:
-        _state["categories"]          = doc.get("categories") or []
-        _state["channels"]            = doc.get("channels")   or []
-        _state["epg"]                 = doc.get("epg")        or {}
+        _state["categories"]          = _maybe_decode(doc, "categories", [])
+        _state["channels"]            = _maybe_decode(doc, "channels",   [])
+        _state["epg"]                 = _maybe_decode(doc, "epg",        {})
         _state["generated_at"]        = int(doc.get("generated_at")        or 0)
         _state["channels_fetched_at"] = int(doc.get("channels_fetched_at") or 0)
         _state["epg_fetched_at"]      = int(doc.get("epg_fetched_at")      or 0)
@@ -252,18 +295,47 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
     from io import BytesIO
 
     def _parse_ts(s: str) -> int:
-        # XMLTV timestamps look like '20260517 091500 +0000'
+        """Parse a single XMLTV timestamp attribute into a unix
+        timestamp.  Handles BOTH common formats:
+          • '20260517 091500 +0000'   (date space time space tz)
+          • '20260516010000 +0100'    (date+time joined, then space tz)
+        Returns 0 if the timestamp can't be parsed.
+        """
         if not s:
             return 0
-        try:
-            dt = datetime.strptime(s.strip(), "%Y%m%d %H%M%S %z")
-        except ValueError:
+        s = s.strip()
+        # 1. Joined-format with timezone: 'YYYYMMDDHHMMSS ±ZZZZ'
+        if len(s) >= 14 and " " in s and s[:14].isdigit():
+            head, _, tz = s.partition(" ")
             try:
-                dt = datetime.strptime(s.strip().split(" ", 2)[0] + " " + s.strip().split(" ", 2)[1], "%Y%m%d %H%M%S")
+                dt = datetime.strptime(head + " " + tz, "%Y%m%d%H%M%S %z")
+                return int(dt.timestamp())
+            except ValueError:
+                pass
+        # 2. Spaced-format with timezone: 'YYYYMMDD HHMMSS ±ZZZZ'
+        try:
+            dt = datetime.strptime(s, "%Y%m%d %H%M%S %z")
+            return int(dt.timestamp())
+        except ValueError:
+            pass
+        # 3. Spaced-format without timezone, assume UTC.
+        try:
+            parts = s.split(" ")
+            if len(parts) >= 2:
+                dt = datetime.strptime(parts[0] + " " + parts[1], "%Y%m%d %H%M%S")
                 dt = dt.replace(tzinfo=timezone.utc)
-            except (ValueError, IndexError):
-                return 0
-        return int(dt.timestamp())
+                return int(dt.timestamp())
+        except (ValueError, IndexError):
+            pass
+        # 4. Joined-format without timezone, assume UTC.
+        if len(s) >= 14 and s[:14].isdigit():
+            try:
+                dt = datetime.strptime(s[:14], "%Y%m%d%H%M%S")
+                dt = dt.replace(tzinfo=timezone.utc)
+                return int(dt.timestamp())
+            except ValueError:
+                pass
+        return 0
 
     try:
         for _event, el in ET.iterparse(BytesIO(raw), events=("end",)):
@@ -273,8 +345,21 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
             if not ch:
                 el.clear()
                 continue
-            start_ts = _parse_ts(el.attrib.get("start", ""))
-            stop_ts  = _parse_ts(el.attrib.get("stop", ""))
+            # Many providers (including ours) include direct
+            # unix-timestamp attributes alongside the human
+            # timestamps.  Prefer those — they're parse-free.
+            ts_raw_start = el.attrib.get("start_timestamp")
+            ts_raw_stop  = el.attrib.get("stop_timestamp")
+            if ts_raw_start and ts_raw_stop:
+                try:
+                    start_ts = int(ts_raw_start)
+                    stop_ts  = int(ts_raw_stop)
+                except (TypeError, ValueError):
+                    start_ts = _parse_ts(el.attrib.get("start", ""))
+                    stop_ts  = _parse_ts(el.attrib.get("stop", ""))
+            else:
+                start_ts = _parse_ts(el.attrib.get("start", ""))
+                stop_ts  = _parse_ts(el.attrib.get("stop", ""))
             title_el = el.find("title")
             desc_el  = el.find("desc")
             cat_el   = el.find("category")
