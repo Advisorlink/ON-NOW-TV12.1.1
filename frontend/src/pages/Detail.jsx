@@ -892,23 +892,14 @@ export default function Detail() {
                         position: 'absolute',
                         top: 0,
                         right: 0,
-                        width: '55%',
-                        height: '78%',
+                        width: '70%',
+                        height: '110%',
                         zIndex: 5,
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
                     }}
                 >
-                    {/* Whole-face portrait.  Two-layer approach so
-                        the user always sees the actor's COMPLETE
-                        head and torso, never cropped:
-                        - Outer layer: `background-size: contain` so
-                          the full portrait fits inside the canvas
-                          without cropping.
-                        - `background-position` is biased upward
-                          (centre 22%) so the face sits in the upper
-                          third of the canvas, leaving the bottom
-                          free for the soft fade-out into black. */}
+                    {/* Base portrait — unmasked, B&W. */}
                     <div
                         style={{
                             position: 'absolute',
@@ -916,43 +907,50 @@ export default function Detail() {
                             backgroundImage: `url(${focusedActor.profile})`,
                             backgroundSize: 'contain',
                             backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center 22%',
+                            backgroundPosition: 'center 32%',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
-                            // Multi-stop mask: fades the portrait
-                            // horizontally into the left side of
-                            // the screen (so the bio + title stay
-                            // legible) and vertically into the
-                            // bottom (so the cast row has no hard
-                            // line above it).  The two gradients
-                            // are composited via `mask-composite`
-                            // so the LEAST opaque value wins,
-                            // producing a perfect billboard fade.
-                            WebkitMaskImage:
+                        }}
+                    />
+                    {/* Four-directional fade overlay.  Strips of
+                        page-bg (#06080F) along each edge, fading
+                        from solid → transparent into the centre.
+                        This blends the portrait's hard rectangular
+                        edges into the surrounding black on every
+                        side simultaneously — no CSS-mask quirks,
+                        works in every WebView. */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: [
+                                /* LEFT — strongest because the bio
+                                   text sits there.  Solid to ~58%. */
                                 'linear-gradient(90deg, ' +
-                                'rgba(0,0,0,0) 0%, ' +
-                                'rgba(0,0,0,0.15) 22%, ' +
-                                'rgba(0,0,0,0.9) 50%, ' +
-                                'rgba(0,0,0,1) 78%, ' +
-                                'rgba(0,0,0,0.85) 100%), ' +
+                                'rgba(6,8,15,1) 0%, ' +
+                                'rgba(6,8,15,1) 22%, ' +
+                                'rgba(6,8,15,0.55) 45%, ' +
+                                'rgba(6,8,15,0) 70%)',
+                                /* RIGHT — beefier so the photo's
+                                   right-edge dissolves completely. */
+                                'linear-gradient(270deg, ' +
+                                'rgba(6,8,15,1) 0%, ' +
+                                'rgba(6,8,15,0.85) 8%, ' +
+                                'rgba(6,8,15,0.3) 22%, ' +
+                                'rgba(6,8,15,0) 38%)',
+                                /* TOP — wider so the top of the
+                                   head dissolves into the page. */
                                 'linear-gradient(180deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,1) 55%, ' +
-                                'rgba(0,0,0,0.4) 88%, ' +
-                                'rgba(0,0,0,0) 100%)',
-                            WebkitMaskComposite: 'source-in',
-                            maskImage:
-                                'linear-gradient(90deg, ' +
-                                'rgba(0,0,0,0) 0%, ' +
-                                'rgba(0,0,0,0.15) 22%, ' +
-                                'rgba(0,0,0,0.9) 50%, ' +
-                                'rgba(0,0,0,1) 78%, ' +
-                                'rgba(0,0,0,0.85) 100%), ' +
-                                'linear-gradient(180deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,1) 55%, ' +
-                                'rgba(0,0,0,0.4) 88%, ' +
-                                'rgba(0,0,0,0) 100%)',
-                            maskComposite: 'intersect',
+                                'rgba(6,8,15,1) 0%, ' +
+                                'rgba(6,8,15,0.85) 6%, ' +
+                                'rgba(6,8,15,0.4) 18%, ' +
+                                'rgba(6,8,15,0) 32%)',
+                                /* BOTTOM — softer, eases into the
+                                   cast row underneath. */
+                                'linear-gradient(0deg, ' +
+                                'rgba(6,8,15,1) 0%, ' +
+                                'rgba(6,8,15,0.6) 12%, ' +
+                                'rgba(6,8,15,0) 30%)',
+                            ].join(', '),
                         }}
                     />
                 </div>

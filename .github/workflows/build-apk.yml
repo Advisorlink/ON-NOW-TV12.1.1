@@ -227,6 +227,15 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.24 — Actor portrait dissolves on all four edges**
+            - 🌫️ Replaced the single CSS-mask approach (which left
+              a hard rectangle on older WebView builds) with a
+              four-directional overlay strategy: LEFT / RIGHT / TOP
+              / BOTTOM each have their own black → transparent
+              linear-gradient strip layered over the portrait.
+              Every edge of the photo dissolves organically into
+              the pitch-black backdrop with zero visible rectangle.
+
             **v2.6.23 — Actor focus blacks out the movie backdrop**
             - 🎭 When an actor card is focused on the Cast row, the
               movie's hero backdrop now turns PITCH BLACK and all
