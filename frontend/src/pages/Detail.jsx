@@ -834,38 +834,48 @@ export default function Detail() {
         >
             <FullscreenButton />
 
-            {/* Backdrop — ALWAYS the title's own backdrop.  We used
-                to swap to a full-bleed B&W portrait when an actor
-                was focused but the user found that too dramatic;
-                the focused actor now appears as a small portrait
-                card in the top-right corner instead (see below). */}
+            {/* Backdrop — the title's own backdrop normally fills
+                the hero.  When an actor card is focused on the Cast
+                row, we BLACK OUT the backdrop entirely so the
+                actor portrait floats on a pure black canvas.  The
+                fade-out on the portrait's edges then bleeds into
+                that black, putting all the visual emphasis on the
+                actor exactly like the user requested. */}
             <div
                 className="absolute inset-0"
                 style={{
-                    backgroundImage: `url(${meta.background || meta.poster || ''})`,
+                    backgroundImage: focusedActor
+                        ? 'none'
+                        : `url(${meta.background || meta.poster || ''})`,
+                    backgroundColor: focusedActor ? '#000' : 'transparent',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    filter: 'brightness(0.6) saturate(1.1)',
+                    filter: focusedActor ? 'none' : 'brightness(0.6) saturate(1.1)',
+                    transition: 'background-color 240ms ease',
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
-                    background: `linear-gradient(180deg,
-                        rgba(6,8,15,0.55) 0%,
-                        rgba(6,8,15,0.4) 30%,
-                        rgba(6,8,15,0.85) 70%,
-                        var(--vesper-bg-0) 100%)`,
+                    background: focusedActor
+                        ? 'transparent'
+                        : `linear-gradient(180deg,
+                              rgba(6,8,15,0.55) 0%,
+                              rgba(6,8,15,0.4) 30%,
+                              rgba(6,8,15,0.85) 70%,
+                              var(--vesper-bg-0) 100%)`,
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
-                    background: `linear-gradient(90deg,
-                        rgba(6,8,15,0.92) 0%,
-                        rgba(6,8,15,0.65) 35%,
-                        rgba(6,8,15,0.1) 70%,
-                        rgba(6,8,15,0) 100%)`,
+                    background: focusedActor
+                        ? 'transparent'
+                        : `linear-gradient(90deg,
+                              rgba(6,8,15,0.92) 0%,
+                              rgba(6,8,15,0.65) 35%,
+                              rgba(6,8,15,0.1) 70%,
+                              rgba(6,8,15,0) 100%)`,
                 }}
             />
 

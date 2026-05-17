@@ -227,6 +227,18 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.23 — Actor focus blacks out the movie backdrop**
+            - 🎭 When an actor card is focused on the Cast row, the
+              movie's hero backdrop now turns PITCH BLACK and all
+              the dark overlay gradients disappear with it.  The
+              actor portrait floats on pure black, fading softly
+              into the black on the left (where the bio + Play CTA
+              sit) and at the bottom (where the cast row lives).
+              The whole frame really does feel "about" that actor
+              now — exactly as the user described.  240 ms transition
+              so the switch from movie backdrop ↔ black is smooth,
+              never jarring.
+
             **v2.6.22 — Whole-face actor portrait + auto-update re-enabled**
             - 🎭 Actor portrait now uses `background-size: contain`
               with a centered bias 22% from top, so the actor's
