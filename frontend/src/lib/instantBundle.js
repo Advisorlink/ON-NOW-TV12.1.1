@@ -16,31 +16,44 @@
  *
  * This module fetches that payload on app boot and writes it into
  * the same localStorage shape the existing LiveTV page already
- * reads — so the Live TV grid paints fully-populated the moment
- * the user opens it, with zero per-client Xtream round-trips.
+ * reads — keyed under the user's ACTIVE Xtream provider id so the
+ * grid paints fully-populated the moment the user opens it, with
+ * zero per-client Xtream round-trips.
  *
- * The xtream auto-seed in `lib/xtream.js` still runs as a fallback
- * for clients that can't reach the backend (offline, dev, etc.) —
- * but when the bundle responds, it wins.
+ * The xtream auto-seed in `lib/xtream.js` already seeds the
+ * `default-njala` provider with real creds (so playback works);
+ * this module just pre-warms its category/channel/EPG caches so
+ * the EPG loop on Live TV launch is skipped entirely.
  */
 import { saveCategories, saveChannels, mergeAndSaveEpg } from './liveCache';
-import { getFavorites } from './liveFavorites';
+import { getActiveProvider, listProviders } from './xtream';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const PROVIDERS_KEY = 'onnowtv-xtream-providers-v1';
-const ACTIVE_KEY    = 'onnowtv-active-xtream-provider-v1';
+const META_KEY = 'onnowtv-instant-bundle-meta';
 
-/* The bundle's "managed-XXX" provider ID maps directly to the
- * provider record we seed into localStorage so the existing LiveTV
- * page treats it like any user-configured provider. */
-function getProviders() {
-    try {
-        const raw = localStorage.getItem(PROVIDERS_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-}
-function setProviders(list) {
-    try { localStorage.setItem(PROVIDERS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+/**
+ * Pick the provider whose cache the bundle should seed.  The
+ * bundle is built from the SAME Xtream creds that `auto-seed`'s
+ * `default-njala` provider has, so we seed under whichever
+ * provider points at our managed host (`njala.ddns.me` /
+ * `LIVETV_HOST` in backend `.env`) so playback URLs match.
+ *
+ * Falls back to the active provider, then the first provider in
+ * the list, then null (no-op).
+ */
+function pickSeedProviderId(bundleHost) {
+    const host = String(bundleHost || '').toLowerCase();
+    const all = listProviders();
+    if (host) {
+        const match = all.find(
+            (p) => String(p.host || '').toLowerCase() === host,
+        );
+        if (match) return match.id;
+    }
+    const active = getActiveProvider();
+    if (active) return active.id;
+    if (all.length) return all[0].id;
+    return null;
 }
 
 /**
@@ -63,40 +76,30 @@ export async function bootInstantBundle() {
     if (!bundle || !bundle.provider || !Array.isArray(bundle.channels)) {
         return false;
     }
-
-    /* 1. Register the managed provider in localStorage so the
-     *    LiveTV page can find it.  We add the username/password
-     *    fields as empty strings — they're not needed because each
-     *    channel record already ships with its full `stream_url`. */
-    const provider = {
-        id:         bundle.provider.id,
-        name:       bundle.provider.name || 'On Now TV',
-        scheme:     bundle.provider.scheme || 'https',
-        host:       bundle.provider.host,
-        port:       bundle.provider.port || '443',
-        username:   '__managed__',
-        password:   '__managed__',
-        managed:    true,
-        addedAt:    Date.now(),
-    };
-    const existing = getProviders();
-    const filtered = existing.filter((p) => p && p.id !== provider.id);
-    setProviders([provider, ...filtered]);
-    if (!localStorage.getItem(ACTIVE_KEY)) {
-        try { localStorage.setItem(ACTIVE_KEY, provider.id); } catch { /* ignore */ }
+    if (bundle.channels.length === 0) {
+        /* Backend not warmed up yet — first-boot race on the
+         * production pod.  Skip so we don't clobber any existing
+         * locally-cached EPG with empty data. */
+        return false;
     }
 
-    /* 2. Categories — shape matches what `liveCache.saveCategories`
-     *    expects from the legacy LiveTV.jsx loader. */
+    /* Decide which provider id this bundle should seed under. */
+    const seedId = pickSeedProviderId(bundle.provider?.host);
+    if (!seedId) return false;
+
+    /* 1. Categories — shape matches what LiveTV.jsx reads via
+     *    `loadCategories(provider.id)` from liveCache.js. */
     const cats = bundle.categories.map((c) => ({
         category_id:   c.id,
         category_name: c.name,
     }));
-    saveCategories(provider.id, cats);
+    saveCategories(seedId, cats);
 
-    /* 3. Channels — bucketed per category_id so the LiveTV grid
+    /* 2. Channels — bucketed per category_id so the LiveTV grid
      *    can render category-by-category without filtering on
-     *    every render. */
+     *    every render.  We store the pre-built `stream_url` on
+     *    `direct_source` so the player can also use it if the
+     *    user's local creds ever stop working. */
     const byCat = {};
     for (const ch of bundle.channels) {
         const cat = String(ch.category_id || '');
@@ -107,35 +110,32 @@ export async function bootInstantBundle() {
             stream_icon:    ch.logo,
             epg_channel_id: ch.epg_channel_id,
             tv_archive:     ch.tv_archive || 0,
-            /* Pre-built stream URL — the client just plays this.
-             * Means clients never need to know the Xtream creds. */
             direct_source:  ch.stream_url,
         });
     }
-    saveChannels(provider.id, byCat);
+    saveChannels(seedId, byCat);
 
-    /* 4. EPG — merge into the existing cache (keeps anything we
+    /* 3. EPG — merge into the existing cache (keeps anything we
      *    already had for channels the backend doesn't yet cover). */
-    mergeAndSaveEpg(provider.id, bundle.epg || {});
+    if (bundle.epg && typeof bundle.epg === 'object') {
+        mergeAndSaveEpg(seedId, bundle.epg);
+    }
 
-    /* 5. Stamp the bundle metadata so the LiveTV page can show a
-     *    "last refreshed N min ago" hint if we want it later. */
+    /* 4. Stamp the bundle metadata so the LiveTV page (or a future
+     *    "last refreshed N min ago" hint) can read it. */
     try {
         localStorage.setItem(
-            'onnowtv-instant-bundle-meta',
+            META_KEY,
             JSON.stringify({
                 generated_at:        bundle.generated_at,
                 channels_fetched_at: bundle.channels_fetched_at,
                 epg_fetched_at:      bundle.epg_fetched_at,
                 applied_at:          Date.now(),
                 channel_count:       bundle.channels.length,
+                provider_id_seeded:  seedId,
             }),
         );
     } catch { /* ignore */ }
-
-    // Touch favorites to keep the helper happy (and we already
-    // import it so tree-shaking can drop it cleanly).
-    void getFavorites(provider.id);
 
     return true;
 }

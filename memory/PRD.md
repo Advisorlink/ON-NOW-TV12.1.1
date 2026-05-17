@@ -34,6 +34,24 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
 
+## Implemented (Iteration 93 — Feb 17, 2026)
+### Instant Live TV bundle — zero-config EPG on first login
+- **🎯 User**: "I really want the TV guide to be instant. As soon as they log in… Is there any way that we could load the TV guide somewhere else so it's all ready to go?"
+- **🆕 Backend** (`/app/backend/instant_bundle.py`): pre-warmed server-side cache. Pulls categories, channels, and the next **72 h of EPG** from the managed Xtream provider on a background scheduler (channels every 6 h, EPG every 2 h). Persists to MongoDB collection `xtream_bundle` so the cache survives backend restarts.
+  - `GET /api/xtream/instant-bundle` → gzipped JSON with `provider` (id + host + port + scheme — NO username/password leak), `categories`, `channels` (each with pre-built `stream_url` so the client never needs creds), and `epg` (programmes per `epg_channel_id`, trimmed to next 72 h).
+  - `GET /api/xtream/instant-bundle/meta` → lightweight counts + timestamps; used by clients to decide whether to re-pull.
+  - `POST /api/xtream/instant-bundle/refresh?token=…` → admin-forced refresh (token in `XTREAM_ADMIN_TOKEN` env).
+- **🛠️ Frontend** (`/app/frontend/src/lib/instantBundle.js`):
+  - `bootInstantBundle()` fetches the bundle on app boot and writes it through to the SAME `liveCache.js` localStorage keys the existing LiveTV page already reads from — keyed under the user's ACTIVE Xtream provider id (`default-njala`) so playback URLs built from local creds still match. No new "managed" provider entry is added, no active-key juggling — completely transparent to the existing flow.
+  - Periodic refresh: app polls `/instant-bundle/meta` every 30 min and re-pulls the full bundle only if `generated_at` advanced.
+  - Wired in `App.js` boot path; safely no-ops when the backend hasn't warmed up yet (empty `channels[]` → skip seed, never clobber the local cache).
+- **🐛 Bugs fixed during wiring**:
+  - Previous draft used `'onnowtv-active-xtream-provider-v1'` for the active-provider key but `xtream.js` reads `'onnowtv-xtream-active-id'` → seeded provider was never actually active. Now bypasses the active-key entirely by seeding under the active provider's existing id.
+  - Previous draft added a stub "managed" provider with `__managed__` placeholder creds. Removed entirely — `getStreamUrl()` builds working URLs from the existing `default-njala` creds.
+- **🧪 Verified**: backend unit test seeded `_state` and confirmed gzipped endpoint returns the right shape (provider has NO creds, channels include `stream_url`, epg keyed by `epg_channel_id`). Frontend Playwright smoke with a mocked bundle response confirmed `localStorage` now contains `onnowtv-livecache-v1:default-njala:cats` (2 cats), `:chans` (1 cat / 1 channel), and `onnowtv-instant-bundle-meta` with `provider_id_seeded: default-njala`.
+- **Production note**: preview pod has egress restrictions and can't reach `njala.ddns.me`, so the scheduler logs "channels refresh failed" on this env — expected and harmless. Production pod has full egress and will warm the cache on startup, serving every client an instant TV guide on first login.
+
+
 ## Implemented (Iteration 92 — Feb 16, 2026)
 ### v2.6.8 — Native-smooth Home + Live Guide overlay EPG fix
 - **🐛 User reported**: home shelves felt "chunky", asked why the in-player Live Guide overlay uses RecyclerView but the Home/Live TV pages don't. Also: the slide-in Live Guide overlay shows channel names but no EPG ("what's on now").
