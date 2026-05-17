@@ -16,6 +16,7 @@ import {
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
 import PartyReactions from '@/components/PartyReactions';
+import PartyStartingScreen from '@/components/PartyStartingScreen';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -127,6 +128,16 @@ export default function Player() {
     const partyReadySentRef = useRef(false);
     useEffect(() => { partyReadySentRef.current = false; }, [url]);
 
+    /* Whenever we mount a fresh party stream, snap the takeover
+     * back to the "buffering" phase.  This guarantees a clean
+     * sequence buffering → waiting → countdown → playing every
+     * time the host picks a new movie. */
+    useEffect(() => {
+        if (!partyCode) return;
+        setPartyPhase('buffering');
+        setPartyCountdown(0);
+    }, [url, partyCode]);
+
     const startPlayback = async () => {
         const v = videoRef.current;
         if (!v) return;
@@ -188,7 +199,11 @@ export default function Player() {
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 setLoading(false);
                 setStreamReady(true);
-                startPlayback();
+                /* In a party we DON'T autoplay — the countdown
+                 * handler will trigger v.play() so all members
+                 * unpause in lock-step.  Outside a party we play
+                 * immediately. */
+                if (!partyCode) startPlayback();
             });
             hls.on(Hls.Events.ERROR, (_, data) => {
                 if (data.fatal) {
@@ -202,7 +217,7 @@ export default function Player() {
             const onLoaded = () => {
                 setLoading(false);
                 setStreamReady(true);
-                startPlayback();
+                if (!partyCode) startPlayback();
             };
             const onErr = () => {
                 setError('Could not load this stream.');
@@ -471,6 +486,16 @@ export default function Player() {
     const [partyStatus, setPartyStatus] = useState('connecting');
     const [partyCountdown, setPartyCountdown] = useState(0);
 
+    /* Phase machine controlling the full-screen takeover overlay.
+     *   buffering  → just mounted, loading the stream
+     *   waiting    → our <video> is ready, server is waiting on other members
+     *   countdown  → 3-2-1 in progress
+     *   playing    → actual playback running (overlay hidden)
+     * Only meaningful when `partyCode` is set; otherwise the
+     * regular player UI shows. */
+    const [partyPhase, setPartyPhase] = useState('buffering');
+    const [partyMembers, setPartyMembers] = useState([]);
+
     // Floating emoji reactions during party playback.  Reactions are
     // added by spawnReaction() (called from WS onmessage OR locally by
     // usePartyReactions) and auto-removed after the float animation
@@ -558,11 +583,32 @@ export default function Player() {
             const v = videoRef.current;
             if (!v) return;
 
+            /* Mirror the server's member roster (with `ready` flag)
+             * onto the takeover overlay so guests can see who's
+             * still buffering.  Server payload uses `members`
+             * but historically also `member_list` — accept both. */
+            const rosterFromServer = Array.isArray(msg.members)
+                ? msg.members
+                : Array.isArray(msg.member_list)
+                ? msg.member_list
+                : null;
+            if (rosterFromServer) {
+                setPartyMembers(
+                    rosterFromServer.map((m) => ({
+                        id:     m.id || m.member_id || '',
+                        name:   m.name || 'Guest',
+                        avatar: m.avatar || '',
+                        ready:  !!m.ready,
+                    })),
+                );
+            }
+
             // Show a "preparing party…" overlay while server is in
             // `loading` (waiting for every member's <video> to buffer
             // enough to fire `ready`).
             if (msg.status === 'loading') {
                 setPartyCountdown(0);
+                setPartyPhase('waiting');
                 return;
             }
 
@@ -572,6 +618,7 @@ export default function Player() {
             if (msg.status === 'countdown' && msg.at_ms) {
                 const remaining = Math.max(0, msg.at_ms - Date.now());
                 setPartyCountdown(Math.ceil(remaining / 1000));
+                setPartyPhase('countdown');
                 if (role === 'guest') {
                     // Guests seek to host's anchor point now so the
                     // first frame after countdown is in sync.
@@ -584,6 +631,21 @@ export default function Player() {
                         partyArmedRef.current = false;
                         v.play().catch(() => {});
                         setPartyCountdown(0);
+                        setPartyPhase('playing');
+                    };
+                    if (remaining <= 0) fire();
+                    else setTimeout(fire, remaining);
+                } else if (role === 'host') {
+                    /* Host also waits for the countdown — its
+                     * <video> was held paused while members buffered.
+                     * Schedule v.play() at the same wallclock so the
+                     * host's first frame lines up with every guest's
+                     * first frame. */
+                    const fire = () => {
+                        partyArmedRef.current = false;
+                        v.play().catch(() => {});
+                        setPartyCountdown(0);
+                        setPartyPhase('playing');
                     };
                     if (remaining <= 0) fire();
                     else setTimeout(fire, remaining);
@@ -592,6 +654,13 @@ export default function Player() {
             }
 
             setPartyCountdown(0);
+
+            /* Anything other than loading/countdown means playback
+             * is in progress (or paused mid-stream) — hide the
+             * takeover overlay. */
+            if (msg.status === 'playing' || msg.status === 'paused') {
+                setPartyPhase('playing');
+            }
 
             if (role === 'guest') {
                 if (msg.status === 'paused') {
@@ -699,6 +768,10 @@ export default function Player() {
         try {
             ws.send(JSON.stringify({ type: 'ready', member_id: partyMemberIdRef.current }));
         } catch { /* ignore */ }
+        /* We're locally ready — bump the takeover overlay into
+         * "waiting on other members" mode.  Stays until the server
+         * sends a `countdown` (everyone ready) or `playing` state. */
+        setPartyPhase((p) => (p === 'buffering' ? 'waiting' : p));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamReady, partyCode, url]);
 
@@ -724,6 +797,11 @@ export default function Player() {
         );
     }
 
+    /* While a party is forming, the dedicated PartyStartingScreen
+     * fully replaces the cinematic preview to avoid showing two
+     * loading screens stacked. */
+    const partyTakeoverVisible = !!partyCode && partyPhase !== 'playing';
+
     return (
         <div
             data-testid="player-page"
@@ -737,6 +815,22 @@ export default function Player() {
                 playsInline
                 crossOrigin="anonymous"
                 className="absolute inset-0 w-full h-full object-contain"
+            />
+
+            {/* Watch-party full-screen takeover.  Hides every other
+                player surface (top bar, controls, preview, etc.)
+                while the party is buffering / waiting on members /
+                counting down.  Disappears once the server flips
+                status to `playing`. */}
+            <PartyStartingScreen
+                visible={partyTakeoverVisible}
+                phase={partyPhase}
+                countdown={partyCountdown}
+                role={partyRoleRef.current}
+                partyCode={partyCode}
+                title={title}
+                previewMeta={previewMeta}
+                members={partyMembers}
             />
 
             {/* Watch-party floating emoji reactions overlay.  Sits
@@ -815,7 +909,12 @@ export default function Player() {
 
             {/* Watch-Together countdown overlay — every member sees
                 this in their browser when the host hits Start. */}
-            {partyCode && partyCountdown > 0 && (
+            {/* Watch-Together countdown overlay — every member sees
+                this in their browser when the host hits Start.
+                Suppressed while the new full-screen takeover is
+                visible (the takeover renders the countdown number
+                inside its own central icon). */}
+            {partyCode && partyCountdown > 0 && !partyTakeoverVisible && (
                 <div
                     data-testid="player-party-countdown"
                     className="absolute inset-0 z-40 flex flex-col items-center justify-center"
@@ -848,8 +947,10 @@ export default function Player() {
                 </div>
             )}
 
-            {/* Cinematic preview / loading screen */}
-            {showPreview && (
+            {/* Cinematic preview / loading screen.  Hidden when a
+                party takeover is active so the user only ever sees
+                ONE loading screen at a time. */}
+            {showPreview && !partyTakeoverVisible && (
                 <div
                     data-testid="player-preview"
                     className="absolute inset-0 z-30"
