@@ -1043,6 +1043,15 @@ async def app_latest_version():
         if m:
             semver = m.group(1)
 
+    # Minimum-version gate.  When a device's installed versionName
+    # is BELOW `min_version`, the UpdateGate silently stays off —
+    # older test devices won't get an auto-update prompt for
+    # v2.6.25+ because their installed build was signed with a
+    # different keystore and can't be upgraded in-place anyway.
+    # Set via `APK_MIN_AUTO_UPDATE` env var; defaults to v2.6.25
+    # (the first build with the stable keystore + working installer
+    # baseline).
+    min_version = os.environ.get("APK_MIN_AUTO_UPDATE", "2.6.25")
     out = {
         "version":      semver,
         "tag_name":     data.get("tag_name"),
@@ -1051,6 +1060,7 @@ async def app_latest_version():
         "notes":        body,
         "apk_url":      apk_url,
         "html_url":     data.get("html_url"),
+        "min_version":  min_version,
     }
     await cache.set(cache_key, out, 300)
     return {"cached": False, **out}

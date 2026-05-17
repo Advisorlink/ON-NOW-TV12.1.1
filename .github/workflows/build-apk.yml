@@ -227,6 +227,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.26 — Minimum-version gate (older installs stay silent)**
+            - 🔒 The auto-update gate now honours a `min_version`
+              field from the backend.  Devices running below
+              v2.6.25 (the first build with the stable keystore +
+              working installer baseline) will silently NOT see
+              the update prompt — saves your test users on older
+              builds from clicking "Install" only to hit the
+              "conflicts with existing application" error.
+            - ✅ v2.6.25+ devices: auto-update prompts work
+              normally for every future release.
+            - 🛠️ Server: `/api/app/latest-version` now returns
+              `min_version` (defaults to "2.6.25", override with
+              the `APK_MIN_AUTO_UPDATE` backend env var if you
+              ever need to raise the floor).
+
             **v2.6.25 — Smaller top-anchored actor portrait + pure black**
             - 📐 Portrait shrunk to 42% × 62% (was 70% × 110%) and
               anchored at the TOP-right (30 dp from top, 4% from

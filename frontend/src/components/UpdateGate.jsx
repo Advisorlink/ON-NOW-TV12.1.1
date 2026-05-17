@@ -132,6 +132,15 @@ export default function UpdateGate() {
 
     if (!running) return null;
     if (!info || !info.version || !info.apk_url) return null;
+    /* Minimum-version gate.  Older builds (pre-v2.6.25) were signed
+     * with a different debug keystore and can't be upgraded in-place
+     * — the system installer rejects them with "the application
+     * can't be installed because it conflicts with the existing
+     * one".  To avoid prompting those test devices with an install
+     * that's guaranteed to fail, we silently hide the gate when
+     * `running < min_version`.  Server sets min_version via the
+     * APK_MIN_AUTO_UPDATE env var. */
+    if (info.min_version && compareSemver(running, info.min_version) < 0) return null;
     if (compareSemver(running, info.version) >= 0) return null;
 
     const handleInstall = () => {
