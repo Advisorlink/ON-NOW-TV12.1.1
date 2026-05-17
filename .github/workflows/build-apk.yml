@@ -232,6 +232,53 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.32 — Welcome tour + cleaner player + zero-config Live TV**
+            - 🎓 NEW: 14-step Welcome Tour on first profile login.  A
+              gorgeous 3D circular D-pad sits on the right side and
+              the relevant button GLOWS in step with the lesson
+              (Right arrow when teaching navigation, OK when teaching
+              hold-to-save, etc.).  Every feature step is illustrated
+              with a real-looking mockup: a Movies/TV poster shelf,
+              a Library tabs view, a February episode calendar with
+              "Tonight · The Bear S3 E5" highlighted, a search box
+              with a blinking cursor, a Watch Party with party code
+              + avatars + floating heart, a Profiles row with a
+              Kids-mode pill, a Kids Only step with Bluey/Paw Patrol/
+              Mario tiles + green KID-SAFE shield + PIN dots + rating
+              chips, and a Settings panel with the theme picker.  Skip
+              pill top-right, Step N of 14 counter, gradient progress
+              bar.  Replay any time from Settings → Welcome tour.
+            - 🎬 NEW: Watch Party "Get ready to watch" full-screen
+              takeover.  Once the host hits Start, neither host nor
+              guest sees the player chrome.  A cinematic overlay
+              takes over with the title, party code, pulsing icon,
+              and member chips (Buffering ⟶ Ready).  Host's video
+              now stays paused under the overlay until every guest
+              is ready — playback unpauses in lock-step on the
+              shared countdown.
+            - 🎯 NEW: "Watching with…" pill in the player top-bar
+              replaces the old "Party · CODE" badge.  Stacked
+              avatar circles (up to 3 with a +N pill beyond) of the
+              OTHER members, a connection dot, and the party code.
+              Top bar auto-hides after 3 s of idle and reveals on
+              any click / move / keypress — screen stays cinematic
+              clean while the movie plays.
+            - 📺 FIXED: pressing LEFT at the categories column of
+              the Live TV grid now properly focuses the Home button
+              in the SideNav with the full cyan focus ring (was
+              fading behind it).  UP/DOWN inside the SideNav move
+              between nav items; RIGHT returns to the LiveTV grid.
+            - ⚡ Live TV "instant bundle" wiring: client now pulls a
+              pre-warmed server-side bundle on boot and seeds the
+              EPG cache under the active provider's id, so the TV
+              guide paints fully populated the moment the user
+              opens it.  Zero per-client Xtream round-trips.
+            - ✨ Polish: removed every em-dash (—) from user-visible
+              copy across the entire app (toasts, placeholders,
+              error messages, onboarding) and replaced them with
+              periods / commas / colons as appropriate.  Cleaner
+              reading on TV-distance type.
+
             **v2.6.31 — Actor portrait flush-right + tighter bio**
             - 🖼️ Portrait now sits FLUSH against the right edge of
               the screen (was 4% inset).  Width bumped 42% → 48%

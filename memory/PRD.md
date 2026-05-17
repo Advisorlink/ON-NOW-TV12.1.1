@@ -33,6 +33,28 @@ box** that supports **Stremio addons + Plex + Jellyfin**.
   backdrop-blur on huge surfaces, prefer gradients + transforms.
 - 5% overscan-safe margin.
 - Single-user mode for v1 (no auth).
+## ⚙️ Operational rule — ALWAYS auto-bump APK version per session
+
+User has explicitly requested: **every time the agent ships meaningful
+changes that will reach the box, ALSO bump these two lines** in
+`/app/android/vesper-tv/app/build.gradle.kts`:
+
+  - `versionCode` → +1
+  - `versionName` → +1 patch (e.g. `2.6.31` → `2.6.32`)
+
+Also append a `**v{newVersion} — short headline**` block at the TOP
+of the release-notes body in `/app/.github/workflows/build-apk.yml`
+so the in-app UpdateGate surfaces what's new to the user's testers.
+
+Why: the UpdateGate compares the box's current version to the
+backend's `/api/app/latest-version` response (which mirrors the
+GitHub `apk-latest` tag).  Without a bump, no prompt fires, and
+the user doesn't know there's anything new on the box.
+
+Do this BEFORE calling finish on any session that touched
+frontend/backend/Android code that the box would see.
+
+
 
 ## Implemented (Iteration 94 — Feb 17, 2026)
 ### Welcome tour onboarding (3D D-pad walkthrough)
