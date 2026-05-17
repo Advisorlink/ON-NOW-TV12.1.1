@@ -115,6 +115,11 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                     overflowX: 'auto',
                     overflowY: 'hidden',
                     paddingBottom: 16,
+                    /* Tail padding so the LAST card's focus glow
+                     * isn't clipped by the page's right edge as
+                     * the user scrolls it into view. */
+                    paddingRight: 80,
+                    scrollPaddingRight: 80,
                     scrollbarWidth: isMobile ? 'thin' : 'none',
                 }}
             >

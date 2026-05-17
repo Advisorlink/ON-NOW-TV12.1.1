@@ -238,6 +238,17 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.37 — Cast row no longer clips on the right edge**
+            - 🐛 Actor portraits in the right half of the Cast strip
+              were getting cut off by the parent text column's 68vw
+              cap.  The CastRow + RecommendationsRow now break OUT
+              of that column (negative right margin pinned to the
+              page's 80 px right padding) so the strip spans the
+              full visible width.
+            - ✨ Added `paddingRight: 80` + `scrollPaddingRight: 80`
+              to the cast strip so the last card's focus glow
+              never hits the page's right edge.
+
             **v2.6.36 — Live TV loads instantly (no more 500-channel wait)**
             - ⚡ The 500-channel EPG loading screen is GONE.  Live TV
               now consumes the server-side **instant bundle**

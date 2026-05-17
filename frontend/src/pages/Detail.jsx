@@ -1681,9 +1681,24 @@ export default function Detail() {
                     )}
 
                     {/* Cast row + "More like this" — only when we
-                        successfully resolved the title's TMDB id. */}
+                        successfully resolved the title's TMDB id.
+
+                        BREAKOUT: these rows must span the FULL page
+                        width (not the 68vw text column the hero
+                        sits in) so actor portraits on the right
+                        edge don't get clipped when the user scrolls
+                        them into view.  We undo the parent column's
+                        68vw cap with a negative right margin pinned
+                        to the page's 80px right padding. */}
                     {tmdbInfo?.tmdb_id && (
-                        <>
+                        <div
+                            style={{
+                                /* Burst out of the 68vw column to the
+                                 * full available content width. */
+                                marginRight: 'calc(-1 * (100vw - 68vw - 160px))',
+                                maxWidth: 'none',
+                            }}
+                        >
                             <CastRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
@@ -1693,7 +1708,7 @@ export default function Detail() {
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                             />
-                        </>
+                        </div>
                     )}
                 </div>
             </main>
