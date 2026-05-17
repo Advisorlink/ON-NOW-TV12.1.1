@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Hls from 'hls.js';
 import {
@@ -17,6 +17,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
 import PartyReactions from '@/components/PartyReactions';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
+import PlayerOverlay from '@/components/PlayerOverlay';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -117,6 +118,16 @@ export default function Player() {
     const [previewMeta, setPreviewMeta] = useState(null);
     const [streamReady, setStreamReady] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
+
+    /* Live playback state mirrored from the <video> element so the
+     * custom PlayerOverlay can render the scrubber / play-pause /
+     * time labels without owning the video itself.  Updated by the
+     * timeupdate / play / pause / loadedmetadata / progress events
+     * wired below. */
+    const [vidPaused,   setVidPaused]   = useState(true);
+    const [vidCurrent,  setVidCurrent]  = useState(0);
+    const [vidDuration, setVidDuration] = useState(0);
+    const [vidBuffered, setVidBuffered] = useState(0);
 
     // Mirror streamReady into a ref so the watch-party WebSocket
     // open-handler can read the LATEST value (state closures would
@@ -798,6 +809,65 @@ export default function Player() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamReady, partyCode, url]);
 
+    /* Wire video element events → React state so the custom
+     * PlayerOverlay scrubber + play/pause icon stay in sync with
+     * the real <video> playback at all times.  Re-binds whenever
+     * a new stream URL is mounted. */
+    useEffect(() => {
+        const v = videoRef.current;
+        if (!v) return undefined;
+        const onPlay   = () => setVidPaused(false);
+        const onPause  = () => setVidPaused(true);
+        const onTime   = () => setVidCurrent(v.currentTime || 0);
+        const onMeta   = () => setVidDuration(v.duration || 0);
+        const onProg   = () => {
+            try {
+                if (v.buffered && v.buffered.length > 0) {
+                    setVidBuffered(v.buffered.end(v.buffered.length - 1));
+                }
+            } catch { /* ignore */ }
+        };
+        v.addEventListener('play',           onPlay);
+        v.addEventListener('pause',          onPause);
+        v.addEventListener('timeupdate',     onTime);
+        v.addEventListener('loadedmetadata', onMeta);
+        v.addEventListener('durationchange', onMeta);
+        v.addEventListener('progress',       onProg);
+        // Snapshot once on mount in case events already fired
+        // before we attached (race on hot-reload).
+        setVidPaused(!!v.paused);
+        setVidCurrent(v.currentTime || 0);
+        setVidDuration(v.duration || 0);
+        return () => {
+            v.removeEventListener('play',           onPlay);
+            v.removeEventListener('pause',          onPause);
+            v.removeEventListener('timeupdate',     onTime);
+            v.removeEventListener('loadedmetadata', onMeta);
+            v.removeEventListener('durationchange', onMeta);
+            v.removeEventListener('progress',       onProg);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [url]);
+
+    /* Imperative helpers passed to PlayerOverlay. */
+    const handlePlayPause = useCallback(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        if (v.paused) { v.play().catch(() => {}); }
+        else          { v.pause(); }
+    }, []);
+    const handleSeekRel = useCallback((delta) => {
+        const v = videoRef.current;
+        if (!v) return;
+        const dur = v.duration || 0;
+        v.currentTime = Math.max(0, Math.min(dur || v.currentTime + delta, (v.currentTime || 0) + delta));
+    }, []);
+    const handleSeekAbs = useCallback((sec) => {
+        const v = videoRef.current;
+        if (!v) return;
+        try { v.currentTime = Math.max(0, sec); } catch { /* ignore */ }
+    }, []);
+
     if (!url) {
         return (
             <CenterMsg>
@@ -834,11 +904,35 @@ export default function Player() {
             <video
                 ref={videoRef}
                 data-testid="player-video"
-                controls
                 playsInline
                 crossOrigin="anonymous"
+                onClick={handlePlayPause}
                 className="absolute inset-0 w-full h-full object-contain"
+                style={{ cursor: 'pointer' }}
             />
+
+            {/* Premium movie playback overlay — replaces the
+                browser-default `<video controls>` chrome with our
+                cinematic info card (title, meta chips, synopsis on
+                pause) + custom scrubber + play/pause/skip controls.
+                Auto-hides with the rest of the chrome during
+                playback, always visible while paused.  Suppressed
+                during the party takeover and during the loading
+                preview. */}
+            {!partyTakeoverVisible && !showPreview && (
+                <PlayerOverlay
+                    visible={chromeVisible || pickerOpen}
+                    paused={vidPaused}
+                    currentTime={vidCurrent}
+                    duration={vidDuration}
+                    buffered={vidBuffered}
+                    title={title}
+                    previewMeta={previewMeta}
+                    onPlayPause={handlePlayPause}
+                    onSeek={handleSeekRel}
+                    onSeekTo={handleSeekAbs}
+                />
+            )}
 
             {/* Watch-party full-screen takeover.  Hides every other
                 player surface (top bar, controls, preview, etc.)

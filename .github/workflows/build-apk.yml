@@ -238,6 +238,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.35 — Premium cinematic player overlay (no more ugly browser controls)**
+            - 🎬 The default `<video controls>` browser chrome
+              (centred pause button, basic seek bar, ugly bottom
+              menu) is gone.  Replaced with a fully custom
+              cinematic overlay that matches the rest of the app:
+              • Bottom-left INFO CARD with `● PAUSED / NOW PLAYING ·
+                ON NOW TV` eyebrow (yellow when paused, green
+                when playing), giant Vesper-display title, meta
+                chips (year · runtime · ★ rating · genres) and a
+                3-line synopsis revealed only when paused.
+              • Custom premium SCRUBBER (cyan gradient fill,
+                white thumb with cyan glow ring, dim white buffered-
+                ahead bar, monospace time labels).
+              • Three big premium control buttons centred at the
+                bottom: skip-back-10s, BIG glowing cyan play/pause
+                (76 px, gradient + cyan glow), skip-forward-30s.
+              • Auto-hides with the rest of the chrome after 3 s of
+                idle, always visible while paused so you can read
+                what you're watching.
+              • Tap anywhere on the video toggles play/pause.
+              • Click the scrubber anywhere to seek to that point.
+            - 🧠 Live `<video>` state mirrored into React (paused,
+              currentTime, duration, buffered) so the overlay
+              stays pixel-accurate with what the player is doing
+              at all times.
+
             **v2.6.34 — EPG schedule data fully populated (huge fix)**
             - 🐛 ROOT CAUSE FOUND: the EPG bundle reported `0` programmes
               across all 14,220 channels because the XMLTV timestamp
