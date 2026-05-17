@@ -1102,7 +1102,7 @@ function SceneWatchTogether() {
                 <div className="flex items-center justify-center gap-4" style={{ marginTop: 8 }}>
                     {[
                         { name: 'You',  color: '#5dc8ff', initial: 'Y' },
-                        { name: 'Sarah', color: '#f7c948', initial: 'S' },
+                        { name: 'Guest', color: '#f7c948', initial: 'G' },
                     ].map((p, i) => (
                         <div
                             key={p.name}
@@ -1172,7 +1172,7 @@ function SceneWatchTogether() {
 function SceneProfiles() {
     const profiles = [
         { name: 'Brother', color: '#5dc8ff', focused: true },
-        { name: 'Sarah',   color: '#f7c948' },
+        { name: 'Guest',   color: '#f7c948' },
         { name: 'Lily',    color: '#3ee07a', kids: true },
     ];
     return (
