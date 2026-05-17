@@ -869,43 +869,80 @@ export default function Detail() {
                 }}
             />
 
-            {/* FOCUSED-ACTOR PORTRAIT CARD — appears in the top-right
-                when an actor is focused on the Cast row.  Smaller
-                framed portrait, B&W with a soft vignette / radial
-                fade so the edges blend into the dark background,
-                preserving the title's own backdrop. */}
+            {/* FOCUSED-ACTOR PORTRAIT — bigger, sits top-centre-right
+                with a wide soft black fade that extends across the
+                ENTIRE screen.  Combined with the regular dark
+                gradients above, the whole frame visually becomes
+                "about" that actor without losing the title backdrop
+                entirely. */}
             {focusedActor?.profile && (
                 <div
                     data-testid="actor-hero-portrait"
                     style={{
                         position: 'absolute',
-                        top: 40,
-                        right: 60,
-                        width: 280,
-                        height: 380,
+                        top: 0,
+                        right: 0,
+                        // Width matches a comfortable ~55% of the
+                        // viewport so the fade can extend across
+                        // the screen.  Height fills the hero so
+                        // there's no hard bottom edge.
+                        width: '55%',
+                        height: '78%',
                         zIndex: 5,
-                        // Mask edges so they fade into the page bg.
-                        // Combined with grayscale + low brightness
-                        // this looks like a slightly out-of-camera
-                        // portrait card rather than a hard cutout.
-                        WebkitMaskImage:
-                            'radial-gradient(ellipse 70% 70% at center, ' +
-                            'rgba(0,0,0,1) 35%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0) 100%)',
-                        maskImage:
-                            'radial-gradient(ellipse 70% 70% at center, ' +
-                            'rgba(0,0,0,1) 35%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0) 100%)',
                         pointerEvents: 'none',
-                        transition: 'opacity 240ms ease',
+                        transition: 'opacity 220ms ease',
                     }}
                 >
+                    {/* Actor portrait — slightly right-of-centre on
+                        this 55%-wide canvas, with a wide horizontal
+                        + vertical fade so it never hard-edges. */}
                     <div
                         style={{
-                            width: '100%',
-                            height: '100%',
+                            position: 'absolute',
+                            inset: 0,
                             backgroundImage: `url(${focusedActor.profile})`,
                             backgroundSize: 'cover',
-                            backgroundPosition: 'center top',
+                            // Bias the portrait so the face is
+                            // around the right-of-centre — pull it
+                            // ~5% LEFT from the right edge per the
+                            // user's request.
+                            backgroundPosition: '70% top',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
+                            // Multi-stop mask so the portrait fades
+                            // out:
+                            //   - LEFT edge → fully into the page bg
+                            //     so the title + bio on the left
+                            //     stay perfectly legible.
+                            //   - BOTTOM → into the rest of the page
+                            //     so the cast row underneath has no
+                            //     hard line above it.
+                            //   - Subtle right-edge feather too.
+                            WebkitMaskImage:
+                                'linear-gradient(90deg, ' +
+                                'rgba(0,0,0,0) 0%, ' +
+                                'rgba(0,0,0,0.15) 25%, ' +
+                                'rgba(0,0,0,0.85) 55%, ' +
+                                'rgba(0,0,0,1) 78%, ' +
+                                'rgba(0,0,0,0.9) 100%), ' +
+                                'linear-gradient(180deg, ' +
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,1) 55%, ' +
+                                'rgba(0,0,0,0.4) 88%, ' +
+                                'rgba(0,0,0,0) 100%)',
+                            WebkitMaskComposite: 'source-in',
+                            maskImage:
+                                'linear-gradient(90deg, ' +
+                                'rgba(0,0,0,0) 0%, ' +
+                                'rgba(0,0,0,0.15) 25%, ' +
+                                'rgba(0,0,0,0.85) 55%, ' +
+                                'rgba(0,0,0,1) 78%, ' +
+                                'rgba(0,0,0,0.9) 100%), ' +
+                                'linear-gradient(180deg, ' +
+                                'rgba(0,0,0,1) 0%, ' +
+                                'rgba(0,0,0,1) 55%, ' +
+                                'rgba(0,0,0,0.4) 88%, ' +
+                                'rgba(0,0,0,0) 100%)',
+                            maskComposite: 'intersect',
                         }}
                     />
                 </div>
@@ -920,7 +957,6 @@ export default function Detail() {
                         data-testid="back-button"
                         data-focusable="true"
                         data-focus-style="pill"
-                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={() => navigate(-1)}
                         className="flex items-center gap-2 h-11 px-5 rounded-full vesper-mono"
@@ -1066,10 +1102,40 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
+                                onKeyDown={(e) => {
+                                    /* Snap-to-cast: pressing Down on
+                                     * the Play CTA jumps focus
+                                     * straight to the first cast
+                                     * card — bypassing the meta /
+                                     * synopsis paragraphs in between.
+                                     * Mirrors the snappy "Play →
+                                     * actors" feel of the home shelves
+                                     * the user asked for. */
+                                    if (e.key === 'ArrowDown') {
+                                        const first = document.querySelector(
+                                            '[data-testid^="cast-actor-"]'
+                                        );
+                                        if (first) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            try {
+                                                first.scrollIntoView({
+                                                    behavior: 'smooth',
+                                                    block: 'center',
+                                                });
+                                                first.focus();
+                                                first.setAttribute('data-focused', 'true');
+                                                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                                                    if (el !== first) el.removeAttribute('data-focused');
+                                                });
+                                            } catch { /* ignore */ }
+                                        }
+                                    }
+                                }}
                                 disabled={
                                     streamLoading || autoplayCandidate === null
                                 }
-                                className="flex items-center gap-2.5 rounded-full font-sans font-semibold"
+                                className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',

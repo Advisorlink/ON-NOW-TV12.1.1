@@ -907,6 +907,17 @@ class VlcPlayerActivity : AppCompatActivity() {
         try {
             mediaPlayer.stop()
         } catch (_: Throwable) { /* swallow — first swap may not have started yet */ }
+        /* CRITICAL: re-attach the video output to the SurfaceView.
+         * libVLC silently detaches the video output on `stop()`, so
+         * the next `play()` produces audio-only output unless we
+         * re-bind the views beforehand.  This is the classic "channel
+         * switch only plays audio" bug.  Calling `detachViews()` first
+         * is a defensive no-op when the surface is already
+         * un-attached — keeps the state machine clean. */
+        try {
+            mediaPlayer.detachViews()
+        } catch (_: Throwable) { /* ignore */ }
+        mediaPlayer.attachViews(videoLayout, null, false, false)
         val media = Media(libVlc, Uri.parse(newUrl))
         media.setHWDecoderEnabled(true, false)
         // 1.5 s buffer for live streams — same as the initial path.

@@ -227,6 +227,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.21 — Detail page polish + channel-switch video fix**
+            - 🎯 FIXED: switching channels in the in-player Live
+              Guide overlay played only audio with no video.  Root
+              cause: libVLC silently detaches the video output
+              surface on `mediaPlayer.stop()`.  Solution: explicitly
+              re-attach `videoLayout` with `attachViews()` before
+              the new `play()` call.
+            - 🎭 Actor portrait: redesigned BIG.  When you focus an
+              actor, their B&W portrait now fills ~55% of the
+              hero, biased right-of-centre with a wide gradient
+              fade so it softly blends into the page bg on the
+              left (where the name + bio live) and at the bottom
+              (where the cast row sits).  Dramatic but never hurts
+              legibility.
+            - 💎 Play CTA pulsates: a gentle 1.6 s cyan glow
+              breathes around the Play button while it has focus,
+              so the user always knows where the D-pad is parked
+              when they land on a Detail page.
+            - 🎯 Snappy Down-from-Play: pressing Down on the Play
+              button now snaps focus straight to the first actor
+              in the cast row, bypassing the meta/synopsis text
+              in between.  Mirrors the snappy row-snap feel from
+              the home shelves.
+
             **v2.6.20 — Live Guide overlay: Favourites pill + cinematic preview card**
             - ⭐ Favourites pill at the head of the categories row.
               Filters the channel list down to just the channels

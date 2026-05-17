@@ -106,6 +106,28 @@ body,
     overflow: hidden;
 }
 
+/* Pulsating glow on the hero Play CTA so the user immediately knows
+ * where focus is when they land on a Detail page.  Gentle 1.6 s
+ * breathe; uses two box-shadows so the outer halo is soft cyan
+ * while the inner one is sharper.  Stops on hover / focus to avoid
+ * fighting the standard focus ring. */
+@keyframes vesper-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 0 0 rgba(93, 200, 255, 0.55),
+            0 8px 30px rgba(93, 200, 255, 0.18);
+    }
+    50% {
+        box-shadow:
+            0 0 0 14px rgba(93, 200, 255, 0),
+            0 8px 30px rgba(93, 200, 255, 0.35);
+    }
+}
+.vesper-pulse-cta:not(:hover):not(:focus):not([data-focused="true"]) {
+    animation: vesper-pulse 1.6s ease-in-out infinite;
+}
+
+
 .App {
     width: 100vw;
     height: 100dvh;
