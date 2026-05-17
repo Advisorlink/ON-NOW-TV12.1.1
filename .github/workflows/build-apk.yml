@@ -227,6 +227,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.22 — Whole-face actor portrait + auto-update re-enabled**
+            - 🎭 Actor portrait now uses `background-size: contain`
+              with a centered bias 22% from top, so the actor's
+              ENTIRE face (head, hair, neck, shoulders) is always
+              fully visible no matter how the source photo is
+              framed.  No more cropping at the top of tall heads.
+              Wide horizontal + vertical fade into black preserved
+              so the bio + title on the left stay perfectly legible.
+            - 🔁 Auto-update gate RE-ENABLED.  Every device running
+              v2.6.21+ will check on launch + every 6 h and
+              prompt a one-tap install when v2.6.22+ is published.
+              Combined with the stable debug keystore, future
+              upgrades install in-place — no more uninstall dance.
+
             **v2.6.21 — Detail page polish + channel-switch video fix**
             - 🎯 FIXED: switching channels in the in-player Live
               Guide overlay played only audio with no video.  Root

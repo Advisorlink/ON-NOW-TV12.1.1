@@ -882,10 +882,6 @@ export default function Detail() {
                         position: 'absolute',
                         top: 0,
                         right: 0,
-                        // Width matches a comfortable ~55% of the
-                        // viewport so the fade can extend across
-                        // the screen.  Height fills the hero so
-                        // there's no hard bottom edge.
                         width: '55%',
                         height: '78%',
                         zIndex: 5,
@@ -893,37 +889,41 @@ export default function Detail() {
                         transition: 'opacity 220ms ease',
                     }}
                 >
-                    {/* Actor portrait — slightly right-of-centre on
-                        this 55%-wide canvas, with a wide horizontal
-                        + vertical fade so it never hard-edges. */}
+                    {/* Whole-face portrait.  Two-layer approach so
+                        the user always sees the actor's COMPLETE
+                        head and torso, never cropped:
+                        - Outer layer: `background-size: contain` so
+                          the full portrait fits inside the canvas
+                          without cropping.
+                        - `background-position` is biased upward
+                          (centre 22%) so the face sits in the upper
+                          third of the canvas, leaving the bottom
+                          free for the soft fade-out into black. */}
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
                             backgroundImage: `url(${focusedActor.profile})`,
-                            backgroundSize: 'cover',
-                            // Bias the portrait so the face is
-                            // around the right-of-centre — pull it
-                            // ~5% LEFT from the right edge per the
-                            // user's request.
-                            backgroundPosition: '70% top',
+                            backgroundSize: 'contain',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center 22%',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
-                            // Multi-stop mask so the portrait fades
-                            // out:
-                            //   - LEFT edge → fully into the page bg
-                            //     so the title + bio on the left
-                            //     stay perfectly legible.
-                            //   - BOTTOM → into the rest of the page
-                            //     so the cast row underneath has no
-                            //     hard line above it.
-                            //   - Subtle right-edge feather too.
+                            // Multi-stop mask: fades the portrait
+                            // horizontally into the left side of
+                            // the screen (so the bio + title stay
+                            // legible) and vertically into the
+                            // bottom (so the cast row has no hard
+                            // line above it).  The two gradients
+                            // are composited via `mask-composite`
+                            // so the LEAST opaque value wins,
+                            // producing a perfect billboard fade.
                             WebkitMaskImage:
                                 'linear-gradient(90deg, ' +
                                 'rgba(0,0,0,0) 0%, ' +
-                                'rgba(0,0,0,0.15) 25%, ' +
-                                'rgba(0,0,0,0.85) 55%, ' +
+                                'rgba(0,0,0,0.15) 22%, ' +
+                                'rgba(0,0,0,0.9) 50%, ' +
                                 'rgba(0,0,0,1) 78%, ' +
-                                'rgba(0,0,0,0.9) 100%), ' +
+                                'rgba(0,0,0,0.85) 100%), ' +
                                 'linear-gradient(180deg, ' +
                                 'rgba(0,0,0,1) 0%, ' +
                                 'rgba(0,0,0,1) 55%, ' +
@@ -933,10 +933,10 @@ export default function Detail() {
                             maskImage:
                                 'linear-gradient(90deg, ' +
                                 'rgba(0,0,0,0) 0%, ' +
-                                'rgba(0,0,0,0.15) 25%, ' +
-                                'rgba(0,0,0,0.85) 55%, ' +
+                                'rgba(0,0,0,0.15) 22%, ' +
+                                'rgba(0,0,0,0.9) 50%, ' +
                                 'rgba(0,0,0,1) 78%, ' +
-                                'rgba(0,0,0,0.9) 100%), ' +
+                                'rgba(0,0,0,0.85) 100%), ' +
                                 'linear-gradient(180deg, ' +
                                 'rgba(0,0,0,1) 0%, ' +
                                 'rgba(0,0,0,1) 55%, ' +
