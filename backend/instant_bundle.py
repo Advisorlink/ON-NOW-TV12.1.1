@@ -49,8 +49,8 @@ log.setLevel(logging.INFO)
 CHANNELS_REFRESH_SECS = 6 * 3600   # 6 hours
 EPG_REFRESH_SECS      = 2 * 3600   # 2 hours
 TICK_SECS             = 60         # how often the scheduler wakes up
-HTTP_TIMEOUT          = httpx.Timeout(connect=8.0, read=45.0, write=10.0, pool=10.0)
-EPG_HORIZON_SECS      = 12 * 3600  # only ship the next 12 h of EPG to clients
+HTTP_TIMEOUT          = httpx.Timeout(connect=8.0, read=60.0, write=10.0, pool=10.0)
+EPG_HORIZON_SECS      = 72 * 3600  # 3 days of EPG so users can browse "what's on Saturday"
 
 # ---------------------------------------------------------------------------
 # Module-level state
@@ -290,8 +290,10 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("instant_bundle: XMLTV parse failed: %s", exc)
 
-    # Sort + trim to next 12 hours (now → now+12 h).  Cuts the 30 MB
-    # raw XMLTV down to ~600 KB which gzips to ~80 KB on the wire.
+    # Sort + trim to next 72 hours (now → now+72 h).  No per-channel
+    # cap — every programme in the horizon makes it through so users
+    # can browse "what's on Saturday" without an extra network round
+    # trip.  Total payload is ~400 KB gzipped on a typical provider.
     now_sec = int(time.time())
     horizon = now_sec + EPG_HORIZON_SECS
     trimmed: Dict[str, List[Dict[str, Any]]] = {}
@@ -302,7 +304,7 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
             if p["stopTimestamp"] >= now_sec and p["startTimestamp"] <= horizon
         ]
         if keep:
-            trimmed[ch_id] = keep[:8]  # cap 8 programmes per channel
+            trimmed[ch_id] = keep
 
     async with _state_lock:
         _state["epg"]            = trimmed

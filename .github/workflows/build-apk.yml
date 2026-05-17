@@ -232,6 +232,17 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.30 — 72-hour EPG horizon, no per-channel cap**
+            - 📅 Bundle now ships 3 FULL DAYS of EPG per channel
+              (up from 12 h).
+            - 🗒️ Per-channel programme cap LIFTED — every scheduled
+              show in the 72-hour window flows through, so news
+              channels with 24 brief slots and movie channels with
+              4 long slots are both fully represented.
+            - 📦 Payload size: ~400 KB gzipped on a typical 200-
+              channel provider (was ~80 KB).  Still light enough
+              to feel instant on any home network.
+
             **v2.6.29 — Instant Live TV: server-side pre-warmed bundle**
             - ⚡ INSTANT Live TV guide.  On app boot the client now
               fetches a single gzipped bundle from
