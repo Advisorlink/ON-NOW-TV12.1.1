@@ -420,6 +420,87 @@ export default function Detail() {
         return () => window.removeEventListener('keydown', onKey, true);
     }, []);
 
+    /* RESET ON NAVIGATION — when the user navigates from a
+       filmography / similar card into a brand-new title's
+       detail page, the same Detail component stays mounted
+       (React Router just swaps params).  We need to:
+        1. Clear focused-actor / focused-movie state so the hero
+           doesn't show a stale actor/film from the previous
+           page.
+        2. Re-focus the Autoplay button so the user is back at
+           the top of the navigation flow.
+       Runs whenever `id` changes (initial mount included). */
+    useEffect(() => {
+        setFocusedActor(null);
+        setFocusedMovie(null);
+        setCastView('cast');
+
+        let cancelled = false;
+        let preferredHit = false;
+        let retries = 60;       // ~6 s — enough for slow remote titles
+
+        const findCandidates = () => [
+            document.querySelector('[data-testid^="detail-play-"]:not([disabled])'),
+            document.querySelector('[data-focusable="true"][data-initial-focus="true"]'),
+            document.querySelector('[data-testid^="season-pill-"]'),
+            Array.from(document.querySelectorAll('[data-focusable="true"]'))
+                .find((el) =>
+                    !el.disabled &&
+                    !el.closest('[data-testid="side-nav"]') &&
+                    !el.closest('[data-testid="kids-side-nav"]') &&
+                    el.getBoundingClientRect().width > 0
+                ),
+        ];
+        const tryFocus = () => {
+            if (cancelled) return;
+            const target = findCandidates().find(Boolean);
+            if (target) {
+                try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+                target.setAttribute('data-focused', 'true');
+                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+                /* Don't bail on the first hit — the Autoplay button
+                 * may mount AFTER an earlier focusable (e.g. BACK
+                 * pill).  Keep trying for ~2 more seconds and prefer
+                 * the Autoplay button if it shows up. */
+                if (target.matches('[data-testid^="detail-play-"]')) {
+                    preferredHit = true;
+                    return;
+                }
+            }
+            if (--retries > 0) setTimeout(tryFocus, 100);
+        };
+        const start = setTimeout(tryFocus, 60);
+
+        /* Late-arrival watcher: if the Autoplay button mounts AFTER
+         * we've already settled on a fallback (BACK pill, etc.),
+         * promote focus to it as soon as it appears.  Stops after
+         * 4 s. */
+        const watcher = setInterval(() => {
+            if (cancelled || preferredHit) return;
+            const play = document.querySelector(
+                '[data-testid^="detail-play-"]:not([disabled])'
+            );
+            if (play) {
+                try { play.focus({ preventScroll: true }); } catch { /* ignore */ }
+                play.setAttribute('data-focused', 'true');
+                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                    if (el !== play) el.removeAttribute('data-focused');
+                });
+                preferredHit = true;
+            }
+        }, 200);
+        const stopWatcher = setTimeout(() => clearInterval(watcher), 4000);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(start);
+            clearInterval(watcher);
+            clearTimeout(stopWatcher);
+        };
+    }, [id]);
+
     // ---------- AUTOPLAY 1080p — derived state ----------
     // `autoplayEnabled` reflects the live preference.  We read it
     // through state so a toggle from the side-nav re-renders Detail
@@ -1684,25 +1765,22 @@ export default function Detail() {
                         position: 'absolute',
                         left: 0, right: 0, bottom: 0,
                         zIndex: 15,
-                        /* No horizontal padding here — the heading
-                         * and the scroll strip inside CastRow
-                         * manage their own 80 px gutter so the
-                         * strip's scroll context can hold the
-                         * first / last card's scale animation
-                         * without clipping. */
                         padding: '0 0 32px 0',
                     }}
                 >
+                    {/* Subtle bottom-edge backdrop fade.  Only kicks
+                        in just above the lane header so the
+                        Autoplay button (sitting much higher) never
+                        gets dimmed by it. */}
                     <div
                         style={{
                             position: 'absolute',
-                            inset: '-100px 0 0 0',
+                            inset: '-40px 0 0 0',
                             background:
                                 'linear-gradient(180deg, ' +
                                 'rgba(6,8,15,0) 0%, ' +
-                                'rgba(6,8,15,0.92) 25%, ' +
-                                '#06080F 50%, ' +
-                                '#06080F 100%)',
+                                'rgba(6,8,15,0.7) 70%, ' +
+                                'rgba(6,8,15,0.9) 100%)',
                             pointerEvents: 'none',
                         }}
                     />

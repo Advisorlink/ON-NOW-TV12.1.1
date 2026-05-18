@@ -396,33 +396,36 @@ function LevelIndicator({ view, hasSimilar }) {
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 14,
+                gap: 18,
                 pointerEvents: 'none',
             }}
         >
             <span
-                className="vesper-mono"
                 style={{
-                    fontSize: 10,
-                    letterSpacing: '0.24em',
-                    textTransform: 'uppercase',
-                    color: 'var(--vesper-text-3)',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                    color: 'var(--vesper-text)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 8,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.6)',
                 }}
             >
                 {onSimilar ? (
                     <>
-                        <span>↑ Cast</span>
+                        <ArrowGlyph dir="up" />
+                        <span>Back to Cast</span>
                     </>
                 ) : view === 'filmography' ? (
                     <>
-                        <span>↑ Autoplay · ↓ Just like this</span>
+                        <ArrowGlyph dir="down" />
+                        <span>Just like this</span>
                     </>
                 ) : (
                     <>
-                        <span>↓ Just like this</span>
+                        <ArrowGlyph dir="down" />
+                        <span>Just like this</span>
                     </>
                 )}
             </span>
@@ -430,7 +433,7 @@ function LevelIndicator({ view, hasSimilar }) {
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 6,
+                    gap: 8,
                     alignItems: 'center',
                 }}
             >
@@ -441,17 +444,40 @@ function LevelIndicator({ view, hasSimilar }) {
     );
 }
 
+function ArrowGlyph({ dir }) {
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                background: 'rgba(93,200,255,0.18)',
+                color: 'var(--vesper-blue-bright)',
+                fontSize: 16,
+                fontWeight: 700,
+                lineHeight: 1,
+                border: '1px solid rgba(93,200,255,0.35)',
+            }}
+        >
+            {dir === 'up' ? '↑' : '↓'}
+        </span>
+    );
+}
+
 function Dot({ active }) {
     return (
         <span
             style={{
-                width: active ? 9 : 6,
-                height: active ? 9 : 6,
+                width: active ? 11 : 7,
+                height: active ? 11 : 7,
                 borderRadius: '50%',
                 background: active
                     ? 'var(--vesper-blue-bright)'
-                    : 'rgba(255,255,255,0.28)',
-                boxShadow: active ? '0 0 10px rgba(93,200,255,0.5)' : 'none',
+                    : 'rgba(255,255,255,0.32)',
+                boxShadow: active ? '0 0 12px rgba(93,200,255,0.6)' : 'none',
                 transition: 'all 160ms ease',
             }}
         />

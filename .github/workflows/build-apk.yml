@@ -238,6 +238,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.55 — Polish pass: lighter overlay, auto-focus, bigger hint**
+            - 🌫️ Removed the dark overlay sitting on top of the
+              Autoplay button.  The cast-lane backdrop fade now
+              only kicks in 40 px above the lane header (was
+              100 px) and stays subtle (max 0.9 opacity), so the
+              Autoplay button reads clean and crisp.
+            - 🎯 NEW: navigating to a fresh detail page (from
+              filmography or "Just like this") now auto-focuses
+              the Autoplay button.  Works for movies (Autoplay),
+              TV series (Season 1 pill), and any other detail
+              page via a 4-step fallback chain.  6-second retry
+              window so it works even on slow remote titles.
+            - 🧹 Stale focused-actor / focused-movie state is now
+              cleared on each new title load, so the hero shows
+              the new movie's info immediately — no actor bio or
+              filmography leftover from the previous page.
+            - 📢 The "↓ Just like this" / "↑ Cast" affordance is
+              MUCH bigger and easier to read from across the room:
+              font 10 → 15 px, weight 400 → 600, light-on-dark
+              text with subtle shadow, arrow now sits inside a
+              cyan-bordered 26 px tile so it pops.
+            - 📍 Level dots also bumped 9 px → 11 px when active
+              with a fatter glow.
+
             **v2.6.54 — "Autoplay" + Just-like-this row + level indicator**
             - 🔘 Play 1080p button renamed to **Autoplay** (also
               "Finding 1080p…" → "Finding stream…" and "No 1080p
