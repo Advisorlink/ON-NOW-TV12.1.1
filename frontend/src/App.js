@@ -29,6 +29,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import UpdateGate from '@/components/UpdateGate';
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
+import BootSplash from '@/components/BootSplash';
 import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
@@ -50,6 +51,9 @@ if (typeof window !== 'undefined') {
                  * inside the player updates immediately. */
                 try { pushNativeGuideFromCache(); } catch { /* ignore */ }
             }
+            try {
+                window.dispatchEvent(new CustomEvent('vesper:bundle-ready'));
+            } catch { /* ignore */ }
         });
     }, 100);
     setInterval(async () => {
@@ -355,6 +359,7 @@ function App() {
                                 future upgrades install in-place. */}
                             <UpdateGate />
                             <OnboardingGate />
+                            <BootSplash />
                         </MobilePlatformRoot>
                     </Router>
                 </ThemeProvider>

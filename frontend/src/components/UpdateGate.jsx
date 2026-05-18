@@ -21,7 +21,8 @@
  *     as a fallback.
  */
 import React, { useEffect, useState } from 'react';
-import { Download, RefreshCw, ExternalLink } from 'lucide-react';
+import { Download, RefreshCw, ExternalLink, Tv2, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -48,6 +49,10 @@ export default function UpdateGate() {
     const [stage, setStage] = useState('idle');      // idle | started | progress | downloaded | error
     const [progress, setProgress] = useState(-1);
     const [dlError, setDlError] = useState(null);
+    /* Dismissed-for-this-session flag — once the user hits Skip,
+     * we hide the popup until next app launch. */
+    const [snoozed, setSnoozed] = useState(false);
+    const location = useLocation();
 
     // The running APK exposes its versionName at boot.  Outside the
     // WebView this is undefined, which means we should NEVER show the
@@ -132,16 +137,23 @@ export default function UpdateGate() {
 
     if (!running) return null;
     if (!info || !info.version || !info.apk_url) return null;
-    /* Minimum-version gate.  Older builds (pre-v2.6.25) were signed
-     * with a different debug keystore and can't be upgraded in-place
-     * — the system installer rejects them with "the application
-     * can't be installed because it conflicts with the existing
-     * one".  To avoid prompting those test devices with an install
-     * that's guaranteed to fail, we silently hide the gate when
-     * `running < min_version`.  Server sets min_version via the
-     * APK_MIN_AUTO_UPDATE env var. */
     if (info.min_version && compareSemver(running, info.min_version) < 0) return null;
     if (compareSemver(running, info.version) >= 0) return null;
+    /* HOLD the popup until the user is INSIDE the app (i.e. has
+     * picked a profile + isn't on the profile-picker / kids-PIN /
+     * pre-onboarding routes).  Also stay hidden while the user
+     * has SKIPPED it this session.  And NEVER show during
+     * fullscreen player. */
+    const path = location?.pathname || '/';
+    const onPreEntry =
+        path === '/profile' ||
+        path.startsWith('/profile/') ||
+        path === '/kids-exit-pin' ||
+        path === '/auth';
+    const onPlayer = path.startsWith('/play');
+    if (snoozed) return null;
+    if (onPreEntry) return null;
+    if (onPlayer) return null;
 
     const handleInstall = () => {
         setBusy(true);
@@ -211,77 +223,142 @@ export default function UpdateGate() {
             style={{
                 position: 'fixed',
                 inset: 0,
-                /* Solid base layer so nothing behind us bleeds
-                 * through — fixes the profile-picker-showing-up
-                 * issue reported on v2.6.2. */
-                background: '#06080F',
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
                 zIndex: 99999,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '32px 24px',
-                overflowY: 'auto',
+                padding: 24,
+                animation: 'vesper-update-gate-fade 240ms ease-out',
             }}
         >
-            {/* Glow accent layer on top of the solid base. */}
+            <style>{`
+                @keyframes vesper-update-gate-fade {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                @keyframes vesper-update-card-rise {
+                    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
             <div
-                aria-hidden="true"
-                style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background:
-                        'radial-gradient(ellipse 90% 60% at 50% -10%, rgba(93,200,255,0.22) 0%, rgba(93,200,255,0.05) 35%, transparent 70%)',
-                    pointerEvents: 'none',
-                }}
-            />
-            <div
+                data-testid="update-gate-card"
                 style={{
                     position: 'relative',
-                    maxWidth: 540,
                     width: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    textAlign: 'center',
-                    gap: 18,
+                    maxWidth: 480,
+                    maxHeight: 'calc(100vh - 64px)',
+                    overflowY: 'auto',
+                    background:
+                        'linear-gradient(180deg, #0F1830 0%, #07101F 100%)',
+                    border: '1px solid rgba(93,200,255,0.28)',
+                    borderRadius: 20,
+                    padding: '28px 28px 24px',
+                    boxShadow:
+                        '0 30px 70px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px rgba(93,200,255,0.18)',
+                    animation: 'vesper-update-card-rise 280ms cubic-bezier(.2,.7,.2,1) both',
                 }}
             >
+                {/* SKIP — top-right X.  Only meaningful when NOT
+                    actively downloading. */}
+                {!busy && (
+                    <button
+                        data-testid="update-gate-skip"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => setSnoozed(true)}
+                        aria-label="Skip update"
+                        style={{
+                            position: 'absolute',
+                            top: 14, right: 14,
+                            width: 32, height: 32,
+                            borderRadius: '50%',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: '#9DA5B5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            zIndex: 2,
+                        }}
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+
+                {/* LOGO */}
                 <div
                     style={{
-                        width: 72, height: 72, borderRadius: 22,
-                        background: 'rgba(93,200,255,0.12)',
-                        border: '1px solid rgba(93,200,255,0.55)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        marginBottom: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        marginBottom: 18,
                     }}
                 >
-                    <Download size={32} color="#5DC8FF" strokeWidth={2.4} />
+                    <div
+                        style={{
+                            width: 44, height: 44, borderRadius: 12,
+                            background:
+                                'linear-gradient(135deg, rgba(93,200,255,0.25), rgba(93,200,255,0.05))',
+                            border: '1px solid rgba(93,200,255,0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Tv2 size={20} color="#5DC8FF" strokeWidth={2} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 9,
+                                letterSpacing: '0.28em',
+                                color: '#5DC8FF',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                            }}
+                        >
+                            ON NOW TV V2
+                        </span>
+                        <span
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: '#fff',
+                                letterSpacing: '-0.01em',
+                            }}
+                        >
+                            Update available
+                        </span>
+                    </div>
                 </div>
 
-                <div className="vesper-mono" style={{
-                    fontSize: 11, letterSpacing: '0.34em',
-                    color: '#5DC8FF', fontWeight: 700,
-                }}>
-                    UPDATE REQUIRED
-                </div>
                 <h1
                     className="vesper-display"
                     style={{
-                        fontSize: 'clamp(30px, 5vw, 44px)',
+                        fontSize: 24,
                         letterSpacing: '-0.02em',
-                        lineHeight: 1.1,
+                        lineHeight: 1.15,
                         color: '#fff',
                         margin: 0,
                     }}
                 >
-                    A new version of ON&nbsp;NOW&nbsp;TV V2 is available.
+                    A new version is ready to install.
                 </h1>
 
                 <div
                     className="vesper-mono"
                     style={{
-                        fontSize: 13, letterSpacing: '0.16em',
-                        color: '#9DA5B5', marginTop: 6,
+                        fontSize: 11, letterSpacing: '0.14em',
+                        color: '#9DA5B5',
+                        marginTop: 10,
+                        textTransform: 'uppercase',
                     }}
                 >
                     YOU HAVE&nbsp;<strong style={{ color: '#fff' }}>v{running}</strong>
@@ -293,36 +370,34 @@ export default function UpdateGate() {
                         data-testid="update-gate-notes"
                         style={{
                             marginTop: 14,
-                            padding: '16px 18px',
+                            padding: '12px 14px',
                             background: 'rgba(255,255,255,0.03)',
                             border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 14,
-                            fontSize: 13,
+                            borderRadius: 10,
+                            fontSize: 12,
                             lineHeight: 1.55,
                             color: '#C7CFDB',
                             textAlign: 'left',
-                            maxHeight: 220,
+                            maxHeight: 160,
                             overflowY: 'auto',
                             whiteSpace: 'pre-wrap',
                             fontFamily: 'monospace',
-                            width: '100%',
                         }}
                     >
                         {trimNotes(info.notes)}
                     </div>
                 )}
 
-                {/* Progress bar — visible while downloading. */}
                 {busy && progress >= 0 && (
                     <div
                         data-testid="update-gate-progress"
                         style={{
                             width: '100%',
-                            height: 6,
+                            height: 5,
                             borderRadius: 999,
                             background: 'rgba(255,255,255,0.08)',
                             overflow: 'hidden',
-                            marginTop: 6,
+                            marginTop: 14,
                         }}
                     >
                         <div style={{
@@ -334,81 +409,117 @@ export default function UpdateGate() {
                     </div>
                 )}
 
-                <button
-                    data-testid="update-gate-install"
-                    onClick={handleInstall}
-                    disabled={busy && stage !== 'error'}
+                <div
                     style={{
                         marginTop: 18,
-                        height: 56,
-                        padding: '0 32px',
-                        borderRadius: 999,
-                        background: 'var(--vesper-blue, #5DC8FF)',
-                        border: 'none',
-                        color: '#06080F',
-                        fontSize: 15,
-                        fontWeight: 800,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        display: 'inline-flex',
-                        alignItems: 'center',
+                        display: 'flex',
                         gap: 10,
-                        cursor: busy ? 'progress' : 'pointer',
-                        opacity: busy && stage !== 'error' ? 0.85 : 1,
-                        WebkitTapHighlightColor: 'transparent',
+                        alignItems: 'center',
                     }}
                 >
-                    {busy && stage !== 'error' ? (
-                        <>
-                            <RefreshCw size={18} className="vesper-spin" />
-                            {statusLabel}
-                        </>
-                    ) : (
-                        <>
-                            <Download size={18} />
-                            {statusLabel}
-                        </>
+                    <button
+                        data-testid="update-gate-install"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={handleInstall}
+                        disabled={busy && stage !== 'error'}
+                        style={{
+                            flex: 1,
+                            height: 46,
+                            padding: '0 22px',
+                            borderRadius: 999,
+                            background: 'var(--vesper-blue, #5DC8FF)',
+                            border: 'none',
+                            color: '#06080F',
+                            fontSize: 13,
+                            fontWeight: 800,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            cursor: busy ? 'progress' : 'pointer',
+                            opacity: busy && stage !== 'error' ? 0.85 : 1,
+                            WebkitTapHighlightColor: 'transparent',
+                        }}
+                    >
+                        {busy && stage !== 'error' ? (
+                            <>
+                                <RefreshCw size={16} className="vesper-spin" />
+                                {statusLabel}
+                            </>
+                        ) : (
+                            <>
+                                <Download size={16} />
+                                Download
+                            </>
+                        )}
+                    </button>
+                    {!busy && (
+                        <button
+                            data-testid="update-gate-skip-btn"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => setSnoozed(true)}
+                            style={{
+                                height: 46,
+                                padding: '0 22px',
+                                borderRadius: 999,
+                                background: 'transparent',
+                                border: '1px solid rgba(255,255,255,0.22)',
+                                color: '#C7CFDB',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Skip
+                        </button>
                     )}
-                </button>
+                </div>
 
-                {/* Always-visible fallback row (Open in browser / Copy
-                 * link) so the user is NEVER stuck if the native
-                 * installer fails — this is how v2.6.2 users will
-                 * sideload v2.6.3 manually for the one-time
-                 * bootstrap. */}
+                {/* Fallback row (manual link / copy URL) — kept
+                    smaller now that the install flow is the
+                    primary CTA. */}
                 <div style={{
-                    display: 'flex', flexDirection: 'row', gap: 10,
-                    marginTop: 4, flexWrap: 'wrap', justifyContent: 'center',
+                    display: 'flex', flexDirection: 'row', gap: 8,
+                    marginTop: 10, flexWrap: 'wrap', justifyContent: 'flex-start',
                 }}>
                     <button
                         data-testid="update-gate-open-browser"
                         onClick={openExternal}
                         style={{
-                            height: 40, padding: '0 18px', borderRadius: 999,
+                            height: 32, padding: '0 12px', borderRadius: 999,
                             background: 'transparent',
-                            border: '1px solid rgba(255,255,255,0.22)',
-                            color: '#C7CFDB', fontSize: 12,
-                            letterSpacing: '0.08em', textTransform: 'uppercase',
-                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            color: '#9DA5B5', fontSize: 10,
+                            letterSpacing: '0.1em', textTransform: 'uppercase',
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
                             cursor: 'pointer',
                         }}
                     >
-                        <ExternalLink size={14} />
+                        <ExternalLink size={11} />
                         Open in browser
                     </button>
                     <button
                         data-testid="update-gate-copy-url"
                         onClick={copyApkUrl}
                         style={{
-                            height: 40, padding: '0 18px', borderRadius: 999,
+                            height: 32, padding: '0 12px', borderRadius: 999,
                             background: 'transparent',
-                            border: '1px solid rgba(255,255,255,0.22)',
-                            color: '#C7CFDB', fontSize: 12,
-                            letterSpacing: '0.08em', textTransform: 'uppercase',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            color: '#9DA5B5', fontSize: 10,
+                            letterSpacing: '0.1em', textTransform: 'uppercase',
                             cursor: 'pointer',
                         }}
                     >
-                        Copy download link
+                        Copy link
                     </button>
                 </div>
 
@@ -417,28 +528,14 @@ export default function UpdateGate() {
                         data-testid="update-gate-error"
                         style={{
                             marginTop: 10,
-                            fontSize: 12,
+                            fontSize: 11,
                             color: '#FCA5A5',
                             lineHeight: 1.5,
-                            maxWidth: 460,
                         }}
                     >
                         {dlError}
                     </div>
                 )}
-
-                <div
-                    style={{
-                        marginTop: 14,
-                        fontSize: 12,
-                        color: 'var(--vesper-text-3, #6B7587)',
-                        letterSpacing: '0.04em',
-                        lineHeight: 1.5,
-                        textAlign: 'center',
-                    }}
-                >
-                    The app will reopen automatically once the update finishes installing.
-                </div>
             </div>
         </div>
     );

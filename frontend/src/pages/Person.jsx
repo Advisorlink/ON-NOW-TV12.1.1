@@ -203,7 +203,7 @@ function PersonContent({ data, tmdbId, navigate }) {
                         padding: '24px 56px 28px 56px',
                         height: '100%',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0,1fr) 260px',
+                        gridTemplateColumns: 'minmax(0,1fr) 300px',
                         gap: 32,
                         alignItems: 'stretch',
                     }}
@@ -309,38 +309,47 @@ function PersonContent({ data, tmdbId, navigate }) {
                         </div>
                     </div>
 
-                    {/* RIGHT — B&W portrait that fades into the
-                        hero background on every edge.  No card
-                        frame, no shadow — looks like the actor is
-                        simply standing in the dark. */}
+                    {/* RIGHT — B&W portrait with strong soft-edge
+                        fade.  Three layered masks (radial → top
+                        gradient → bottom gradient) make the photo
+                        dissolve into pure black on every side.
+                        No card frame, no shadow — the actor
+                        appears to simply stand in the dark. */}
                     {profile && (
                         <div
                             data-testid="person-portrait-card"
                             style={{
-                                width: 260,
+                                width: 300,
                                 aspectRatio: '2 / 3',
                                 position: 'relative',
                                 alignSelf: 'center',
                                 pointerEvents: 'none',
-                                /* Radial soft-edge mask: fully
-                                 * opaque in the centre, fades to 0
-                                 * at the corners so the portrait
-                                 * dissolves into the dark page
-                                 * background on all sides. */
+                                /* Combined radial + linear masks
+                                 * (composited with mask-composite:
+                                 * intersect).  Each side fades
+                                 * out before the bounding box so
+                                 * there's never a visible edge or
+                                 * corner. */
                                 WebkitMaskImage:
-                                    'radial-gradient(ellipse 90% 88% at 50% 45%, ' +
-                                    '#000 30%, ' +
-                                    'rgba(0,0,0,0.85) 55%, ' +
-                                    'rgba(0,0,0,0.45) 75%, ' +
-                                    'rgba(0,0,0,0.15) 90%, ' +
-                                    'transparent 100%)',
+                                    'radial-gradient(ellipse 75% 78% at 50% 45%, ' +
+                                    '#000 12%, ' +
+                                    'rgba(0,0,0,0.85) 45%, ' +
+                                    'rgba(0,0,0,0.45) 68%, ' +
+                                    'rgba(0,0,0,0.12) 86%, ' +
+                                    'transparent 100%), ' +
+                                    'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%), ' +
+                                    'linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+                                WebkitMaskComposite: 'source-in',
                                 maskImage:
-                                    'radial-gradient(ellipse 90% 88% at 50% 45%, ' +
-                                    '#000 30%, ' +
-                                    'rgba(0,0,0,0.85) 55%, ' +
-                                    'rgba(0,0,0,0.45) 75%, ' +
-                                    'rgba(0,0,0,0.15) 90%, ' +
-                                    'transparent 100%)',
+                                    'radial-gradient(ellipse 75% 78% at 50% 45%, ' +
+                                    '#000 12%, ' +
+                                    'rgba(0,0,0,0.85) 45%, ' +
+                                    'rgba(0,0,0,0.45) 68%, ' +
+                                    'rgba(0,0,0,0.12) 86%, ' +
+                                    'transparent 100%), ' +
+                                    'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%), ' +
+                                    'linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+                                maskComposite: 'intersect',
                             }}
                         >
                             <img

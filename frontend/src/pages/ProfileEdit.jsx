@@ -782,8 +782,12 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
     const [movieGenres, setMovieGenres] = React.useState([]);
     const [tvGenres, setTvGenres] = React.useState([]);
     const [loadingGenres, setLoadingGenres] = React.useState(true);
-    const [activeGenre, setActiveGenre] = React.useState(null); // {id, name, media}
-    const [genreItems, setGenreItems] = React.useState({}); // keyed by `${media}:${id}`
+    /* Which media tab the right-panel is currently showing.
+     * 'movie' (default) or 'tv'.  Set by tapping ANY genre in
+     * that section. */
+    const [activeMedia, setActiveMedia] = React.useState('movie');
+    /* Combined top-50 lists keyed by `${media}:${sortedGenreIds}`. */
+    const [comboItems, setComboItems] = React.useState({});
     const [loadingItems, setLoadingItems] = React.useState(false);
 
     React.useEffect(() => {
@@ -805,23 +809,38 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
         return () => { cancel = true; };
     }, []);
 
-    const openGenre = async (g, media) => {
-        setActiveGenre({ ...g, media });
-        const key = `${media}:${g.id}`;
-        if (genreItems[key]) return;
-        setLoadingItems(true);
-        try {
-            const r = await fetch(
-                `${API}/tmdb/by-genre/${media}/${g.id}?limit=20`
-            );
-            const j = await r.json();
-            setGenreItems((prev) => ({ ...prev, [key]: j?.data || [] }));
-        } catch { /* ignore */ } finally {
-            setLoadingItems(false);
-        }
-    };
+    /* Whenever the user's selected genre set changes for the
+     * active media tab, refetch the combined top-50. */
+    const selectedIds = (activeMedia === 'movie' ? value.movieGenres : value.tvGenres) || [];
+    const sortedKey = [...selectedIds].sort((a, b) => a - b).join(',');
+    const cacheKey = `${activeMedia}:${sortedKey}`;
 
+    React.useEffect(() => {
+        if (!sortedKey) return;
+        if (comboItems[cacheKey]) return;
+        let cancel = false;
+        setLoadingItems(true);
+        (async () => {
+            try {
+                const r = await fetch(
+                    `${API}/tmdb/by-genres/${activeMedia}` +
+                    `?genre_ids=${encodeURIComponent(sortedKey)}&limit=50`
+                );
+                const j = await r.json();
+                if (!cancel) {
+                    setComboItems((prev) => ({ ...prev, [cacheKey]: j?.data || [] }));
+                }
+            } catch { /* ignore */ } finally {
+                if (!cancel) setLoadingItems(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [cacheKey, sortedKey, activeMedia, comboItems]);
+
+    /* Clicking a genre TOGGLES it AND swaps the right-panel to
+     * its media tab.  Multi-select is now first-class. */
     const toggleGenre = (g, media) => {
+        setActiveMedia(media);
         const arr = media === 'movie' ? value.movieGenres : value.tvGenres;
         const has = arr.includes(g.id);
         const nextArr = has ? arr.filter((x) => x !== g.id) : [...arr, g.id];
@@ -854,8 +873,10 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
         onChange({ ...value, items: nextItems });
     };
 
-    const activeKey = activeGenre ? `${activeGenre.media}:${activeGenre.id}` : null;
-    const activeList = activeKey ? genreItems[activeKey] || [] : [];
+    const activeList = comboItems[cacheKey] || [];
+    const activeGenresForLabel = (activeMedia === 'movie' ? movieGenres : tvGenres)
+        .filter((g) => selectedIds.includes(g.id))
+        .map((g) => g.name);
 
     const totalPicks =
         value.movieGenres.length + value.tvGenres.length + value.items.length;
@@ -958,10 +979,8 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         media="movie"
                         loading={loadingGenres}
                         selected={value.movieGenres}
-                        activeId={
-                            activeGenre?.media === 'movie' ? activeGenre.id : null
-                        }
-                        onOpen={(g) => openGenre(g, 'movie')}
+                        activeId={null}
+                        onOpen={(g) => toggleGenre(g, 'movie')}
                         onToggle={(g) => toggleGenre(g, 'movie')}
                     />
                     <GenreSection
@@ -970,15 +989,14 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         media="tv"
                         loading={loadingGenres}
                         selected={value.tvGenres}
-                        activeId={
-                            activeGenre?.media === 'tv' ? activeGenre.id : null
-                        }
-                        onOpen={(g) => openGenre(g, 'tv')}
+                        activeId={null}
+                        onOpen={(g) => toggleGenre(g, 'tv')}
                         onToggle={(g) => toggleGenre(g, 'tv')}
                     />
                 </div>
 
-                {/* RIGHT — Top 10 in the selected genre */}
+                {/* RIGHT — Combined top-50 across all selected
+                    genres for the current media tab. */}
                 <div
                     data-testid="viewing-style-titles"
                     style={{
@@ -989,7 +1007,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         minHeight: 460,
                     }}
                 >
-                    {!activeGenre ? (
+                    {selectedIds.length === 0 ? (
                         <div
                             className="flex flex-col items-center justify-center text-center"
                             style={{
@@ -1000,9 +1018,10 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         >
                             <Sparkles size={26} strokeWidth={1.6} />
                             <div style={{ fontSize: 15, maxWidth: 280 }}>
-                                Pick a genre on the left to see the top 20
-                                most-watched titles in it. Tap any to add it to
-                                your For You rail.
+                                Pick any genres on the left.  Tap as many as you
+                                like — we'll combine the top 50 most-watched
+                                titles across them and put them in your For You
+                                rail.
                             </div>
                         </div>
                     ) : (
@@ -1015,7 +1034,10 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                     marginBottom: 4,
                                 }}
                             >
-                                Top 20 in {activeGenre.name}
+                                Top 50 in {activeGenresForLabel.slice(0, 3).join(', ')}
+                                {activeGenresForLabel.length > 3
+                                    ? ` +${activeGenresForLabel.length - 3} more`
+                                    : ''}
                             </div>
                             <div
                                 className="vesper-mono"
@@ -1027,7 +1049,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                     textTransform: 'uppercase',
                                 }}
                             >
-                                {activeGenre.media === 'movie' ? 'Movies' : 'TV Shows'}
+                                {activeMedia === 'movie' ? 'Movies' : 'TV Shows'}
                             </div>
                             {loadingItems ? (
                                 <div
@@ -1054,19 +1076,19 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                             (x) =>
                                                 x.tmdb_id === it.tmdb_id &&
                                                 x.type ===
-                                                    (activeGenre.media === 'movie'
+                                                    (activeMedia === 'movie'
                                                         ? 'movie'
                                                         : 'series')
                                         );
                                         return (
                                             <button
-                                                key={`${activeGenre.media}-${it.tmdb_id}`}
+                                                key={`${activeMedia}-${it.tmdb_id}`}
                                                 data-testid={`viewing-style-item-${it.tmdb_id}`}
                                                 data-focusable="true"
                                                 data-focus-style="tile"
                                                 tabIndex={0}
                                                 onClick={() =>
-                                                    toggleItem(it, activeGenre.media)
+                                                    toggleItem(it, activeMedia)
                                                 }
                                                 className="relative overflow-hidden text-left"
                                                 style={{

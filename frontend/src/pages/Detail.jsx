@@ -479,11 +479,16 @@ export default function Detail() {
                 document.querySelectorAll('[data-focused="true"]').forEach((el) => {
                     if (el !== target) el.removeAttribute('data-focused');
                 });
-                /* Don't bail on the first hit — the Autoplay button
-                 * may mount AFTER an earlier focusable (e.g. BACK
-                 * pill).  Keep trying for ~2 more seconds and prefer
-                 * the Autoplay button if it shows up. */
                 if (target.matches('[data-testid^="detail-play-"]')) {
+                    preferredHit = true;
+                    return;
+                }
+                /* For TV series (no Autoplay button) we settle
+                 * on the season pill and STOP retrying.  This
+                 * prevents the late-arrival watcher (or further
+                 * retries) from stealing focus back to the
+                 * season pill while the user is mid-navigation. */
+                if (target.matches('[data-testid^="season-"]')) {
                     preferredHit = true;
                     return;
                 }
@@ -492,12 +497,27 @@ export default function Detail() {
         };
         const start = setTimeout(tryFocus, 60);
 
-        /* Late-arrival watcher: if the Autoplay button mounts AFTER
-         * we've already settled on a fallback (BACK pill, etc.),
-         * promote focus to it as soon as it appears.  Stops after
-         * 4 s. */
+        /* Late-arrival watcher: only relevant for MOVIE pages
+         * where the Autoplay button mounts asynchronously after
+         * streams resolve.  We additionally check that focus has
+         * NOT moved to a user-driven target (cast actor, episode,
+         * similar card etc.) — if it has, we let the user keep
+         * their place and stop watching. */
         const watcher = setInterval(() => {
             if (cancelled || preferredHit) return;
+            const ae = document.activeElement;
+            const userMoved =
+                ae && (
+                    ae.matches('[data-testid^="cast-actor-"]') ||
+                    ae.matches('[data-testid^="cast-film-"]') ||
+                    ae.matches('[data-testid^="cast-similar-"]') ||
+                    ae.matches('[data-testid^="episode-"]') ||
+                    ae.matches('[data-testid^="season-"]')
+                );
+            if (userMoved) {
+                preferredHit = true;
+                return;
+            }
             const play = document.querySelector(
                 '[data-testid^="detail-play-"]:not([disabled])'
             );
@@ -1036,7 +1056,14 @@ export default function Detail() {
             />
 
             <main
-                className="relative z-10 w-full h-full overflow-hidden"
+                className={`relative z-10 w-full h-full ${
+                    /* Hide overflow on movies + initial TV view
+                     * (where Cast row is bottom-anchored).  Allow
+                     * scrolling once the user has revealed
+                     * episodes so they can reach every episode
+                     * in a long season. */
+                    seriesEpisodesShown ? 'overflow-y-auto' : 'overflow-hidden'
+                }`}
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >

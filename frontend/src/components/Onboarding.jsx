@@ -261,7 +261,7 @@ export default function Onboarding({ open, onClose }) {
                 onClick={finish}
                 className="absolute flex items-center gap-2 rounded-full vesper-mono"
                 style={{
-                    top: 'clamp(20px, 2vw, 36px)', right: 'clamp(20px, 2vw, 36px)',
+                    top: 'clamp(28px, 2.4vw, 44px)', right: 'clamp(28px, 2.4vw, 44px)',
                     padding: '10px 18px', background: 'rgba(255,255,255,0.06)',
                     color: 'rgba(255,255,255,0.85)',
                     border: '1px solid rgba(255,255,255,0.12)',
@@ -292,13 +292,14 @@ export default function Onboarding({ open, onClose }) {
             <div
                 className="relative flex items-center"
                 style={{
-                    gap: 'clamp(40px, 5vw, 80px)',
-                    padding: '0 clamp(40px, 4vw, 96px)',
-                    maxWidth: 1480, width: '100%',
+                    gap: 'clamp(48px, 5vw, 88px)',
+                    padding: '0 clamp(56px, 5vw, 96px)',
+                    maxWidth: 1560, width: '100%',
+                    justifyContent: 'center',
                 }}
             >
                 {/* LEFT: copy */}
-                <div className="flex-1" style={{ minWidth: 0, maxWidth: 640 }}>
+                <div className="flex-1" style={{ minWidth: 0, maxWidth: 680 }}>
                     <div
                         className="flex items-center gap-3 mb-4"
                         style={{

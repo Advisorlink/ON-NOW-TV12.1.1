@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import logging
+import math
 import time
 import uuid
 import io
@@ -843,7 +844,7 @@ async def tmdb_person(person_id: int):
     The filmography is sorted by popularity descending so the most
     recognisable roles surface first.  Cached for 7 days.
     """
-    cache_key = f"person:{person_id}:v3"
+    cache_key = f"person:{person_id}:v4"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -927,7 +928,7 @@ async def tmdb_person(person_id: int):
             "backdrop":   f"{TMDB_IMG}/w1280{backdrop}" if backdrop else "",
             "popularity": popularity,
         }
-    filmography = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))[:60]
+    filmography = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))
 
     out = {
         "id":                   data.get("id"),
@@ -1669,36 +1670,103 @@ async def tmdb_genres(media: str):
 async def tmdb_by_genre(
     media: str,
     genre_id: int,
-    limit: int = Query(10, ge=1, le=40),
+    limit: int = Query(10, ge=1, le=100),
 ):
     """Top popular titles in a genre — used by the viewing-style
     picker to show the top N movies / TV shows once the user picks
-    a genre tile."""
+    a genre tile.  Pulls multiple pages from TMDB when `limit` is
+    larger than a single page can return (20 results per page)."""
     if media not in ("movie", "tv"):
         raise HTTPException(400, "media must be 'movie' or 'tv'")
-    cache_key = f"tmdb_by_genre:{media}:{genre_id}:{limit}"
+    cache_key = f"tmdb_by_genre:{media}:{genre_id}:{limit}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
-    data = await _tmdb_get(
-        f"/discover/{media}",
-        {
-            "with_genres": str(genre_id),
-            "sort_by": "popularity.desc",
-            "include_adult": "false",
-            "vote_count.gte": "200",
-            "page": "1",
-        },
-    )
     out: List[Dict[str, Any]] = []
-    for item in (data.get("results") or []):
-        shaped = _shape_tmdb_item(item, media)
-        if shaped:
-            out.append(shaped)
-        if len(out) >= limit:
+    page = 1
+    max_pages = 5            # safety net (5 × 20 = 100)
+    while len(out) < limit and page <= max_pages:
+        data = await _tmdb_get(
+            f"/discover/{media}",
+            {
+                "with_genres": str(genre_id),
+                "sort_by": "popularity.desc",
+                "include_adult": "false",
+                "vote_count.gte": "200",
+                "page": str(page),
+            },
+        )
+        results = data.get("results") or []
+        if not results:
             break
-    await cache.set(cache_key, out, 60 * 60 * 6)  # 6 h
+        for item in results:
+            shaped = _shape_tmdb_item(item, media)
+            if shaped:
+                out.append(shaped)
+            if len(out) >= limit:
+                break
+        page += 1
+    await cache.set(cache_key, out, 60 * 60 * 6)
     return {"cached": False, "data": out}
+
+
+@api.get("/tmdb/by-genres/{media}")
+async def tmdb_by_genres(
+    media: str,
+    genre_ids: str = Query("", description="Comma-separated TMDB genre IDs"),
+    limit: int = Query(50, ge=1, le=100),
+):
+    """Combined top popular titles across MULTIPLE genres.  Used
+    by the viewing-style picker once the user has selected a set
+    of genres — we union the most popular results across all of
+    them, dedupe, and return the top `limit` by overall popularity."""
+    if media not in ("movie", "tv"):
+        raise HTTPException(400, "media must be 'movie' or 'tv'")
+    ids = [g.strip() for g in (genre_ids or "").split(",") if g.strip().isdigit()]
+    if not ids:
+        return {"cached": False, "data": []}
+    key = ",".join(sorted(ids))
+    cache_key = f"tmdb_by_genres:{media}:{key}:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+    seen: Dict[Any, Dict[str, Any]] = {}
+    # Pull a few pages PER GENRE in parallel so we have enough
+    # candidate titles to dedupe + sort.
+    async def _pull(genre_id: str, page: int):
+        return await _tmdb_get(
+            f"/discover/{media}",
+            {
+                "with_genres": genre_id,
+                "sort_by": "popularity.desc",
+                "include_adult": "false",
+                "vote_count.gte": "200",
+                "page": str(page),
+            },
+        )
+    pages_per_genre = max(1, math.ceil(limit / 20))
+    tasks = [
+        _pull(gid, p)
+        for gid in ids
+        for p in range(1, pages_per_genre + 1)
+    ]
+    pages = await asyncio.gather(*tasks, return_exceptions=True)
+    for resp in pages:
+        if isinstance(resp, Exception) or not resp:
+            continue
+        for item in (resp.get("results") or []):
+            shaped = _shape_tmdb_item(item, media)
+            if not shaped:
+                continue
+            key2 = (shaped.get("type"), shaped.get("tmdb_id"))
+            if key2 in seen:
+                continue
+            seen[key2] = {**shaped, "popularity": item.get("popularity") or 0}
+    ranked = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))[:limit]
+    for r in ranked:
+        r.pop("popularity", None)
+    await cache.set(cache_key, ranked, 60 * 60 * 6)
+    return {"cached": False, "data": ranked}
 
 
 @api.get("/tmdb/for-you")

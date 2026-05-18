@@ -68,8 +68,15 @@ export default function SideNav() {
     }, [location.pathname, location.search, navigatingAway]);
 
     const handleNavClick = (path) => {
-        setExpanded(false);
         clearDwell();
+        const samePath = location.pathname === path;
+        if (samePath) {
+            /* Same-page click — don't collapse, just let focus
+             * settle.  Avoids the flicker the user sees when they
+             * land back on the page they're already on. */
+            return;
+        }
+        setExpanded(false);
         setNavigatingAway(true);
         // Drop focus off the SideNav button so onFocus doesn't
         // immediately re-expand the rail on the next paint.

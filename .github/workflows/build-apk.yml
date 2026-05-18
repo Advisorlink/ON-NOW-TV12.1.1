@@ -238,6 +238,50 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.60 — Quality-of-life pass (8 fixes)**
+            - 🆕 NEW: Boot splash — beautiful "ON NOW TV 2 ·
+              Loading guide…" screen with pulsing logo + sliding
+              progress, shown for the first 1.8–6 s of every app
+              session OR until the Instant EPG bundle is hydrated.
+              No more chunky profile setup while EPG is loading.
+            - 🪟 In-app Update popup redesigned: now a 480 px
+              centered modal (not fullscreen) with logo, version
+              row, release notes, **Download** + **Skip**
+              buttons, plus an X close in the top-right.  Holds
+              UNTIL the user is inside the app (after profile
+              picker).  Skip dismisses for the rest of the
+              session.  Stays hidden inside the player.
+            - 🎬 Genre picker overhaul (profile onboarding):
+              clicking a genre now TOGGLES it, multi-select
+              first-class.  Right panel shows the combined
+              **top 50** most-popular titles across all your
+              selected genres (was top-20 of one genre).
+              Works for Movies AND TV Shows independently.
+            - 🎯 Onboarding tour centered better: skip pill +
+              brand mark padding equalised, content container
+              widened 1480→1560 px, content max-width 640→680 px,
+              gap clamp 40→48 px.
+            - 📺 TV series focus loop fixed: late-arrival
+              auto-focus watcher no longer steals focus back to
+              the season pill while the user is mid-navigation.
+              Season pill ⇄ Cast ⇄ Just-like-this works smoothly
+              now.
+            - 📜 TV series episode scroll fixed: when episodes
+              are revealed, `<main>` is now `overflow-y-auto`
+              (was `overflow-hidden`).  All episodes in any
+              season are reachable.
+            - 🎭 Actor filmography uncapped: removed the 60-title
+              cap on `/api/tmdb/person/:id`.  Tom Hanks now
+              returns all 91 titles (was 60).
+            - 🖼️ Person portrait: width 260→300 px.  Three-layer
+              soft-edge mask (radial + top + bottom + left +
+              right gradients composited) so every corner and
+              edge fades cleanly into pure black.  No visible
+              lines anywhere.
+            - 🧭 SideNav stops folding back unexpectedly: same-
+              page OK no longer triggers a collapse+re-expand
+              flicker.
+
             **v2.6.59 — Actor search + portrait polish**
             - 🔎 Search now surfaces **actor profiles** when you
               type a name.  TMDB people are merged into the
