@@ -63,6 +63,12 @@ _state: Dict[str, Any] = {
     "channels_fetched_at": 0,
     "epg_fetched_at":      0,
     "last_error":          None,
+    # Pre-built gzipped response payload, rebuilt once per
+    # refresh.  Saves an OOM-inducing ~50 MB allocation churn
+    # on every /instant-bundle request when many clients hit
+    # the endpoint at once.
+    "cached_payload_gz":   None,
+    "cached_payload_at":   0,
 }
 _state_lock = asyncio.Lock()
 _collection: Optional[AsyncIOMotorCollection] = None
@@ -151,6 +157,42 @@ def attach_collection(col: AsyncIOMotorCollection) -> None:
     _collection = col
 
 
+async def _rebuild_cached_payload() -> None:
+    """Serialise the current `_state` to gzipped JSON and stash it on
+    `_state["cached_payload_gz"]`.  Called at the end of every
+    refresh (channels + EPG) so the /instant-bundle GET endpoint
+    can just stream the bytes — never allocating multi-MB Python
+    structures per request.
+
+    Must run under `_state_lock` for atomicity."""
+    p = _provider_from_env() or {}
+    payload = {
+        "provider": {
+            "id":     p.get("id", "managed"),
+            "name":   "On Now TV",
+            "host":   p.get("host", ""),
+            "port":   p.get("port", ""),
+            "scheme": p.get("scheme", "https"),
+        },
+        "categories":          _state["categories"],
+        "channels":            _state["channels"],
+        "epg":                 _state["epg"],
+        "generated_at":        _state["generated_at"],
+        "channels_fetched_at": _state["channels_fetched_at"],
+        "epg_fetched_at":      _state["epg_fetched_at"],
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    gz = gzip.compress(body, compresslevel=6)
+    _state["cached_payload_gz"] = gz
+    _state["cached_payload_at"] = int(time.time())
+    log.info(
+        "instant_bundle: cached payload built (gz=%d KB, raw=%d KB)",
+        len(gz) // 1024, len(body) // 1024,
+    )
+    # Body bytes go out of scope here; only the gz bytes (and the
+    # underlying _state dicts) remain in memory.
+
+
 async def _persist() -> None:
     """Persist the current bundle to MongoDB.
 
@@ -226,6 +268,11 @@ async def _restore_from_db() -> None:
         _state["generated_at"]        = int(doc.get("generated_at")        or 0)
         _state["channels_fetched_at"] = int(doc.get("channels_fetched_at") or 0)
         _state["epg_fetched_at"]      = int(doc.get("epg_fetched_at")      or 0)
+        # Build the gzipped response cache once now so the very
+        # first /instant-bundle request after a backend restart
+        # doesn't have to do it on the request thread.
+        if _state["channels"]:
+            await _rebuild_cached_payload()
     log.info(
         "instant_bundle: warm-started from MongoDB (channels=%d categories=%d epg=%d)",
         len(_state["channels"]), len(_state["categories"]), len(_state["epg"]),
@@ -270,6 +317,10 @@ async def _refresh_channels(p: Dict[str, Any]) -> None:
         _state["channels_fetched_at"] = int(time.time())
         _state["generated_at"]        = int(time.time())
         _state["last_error"]          = None
+        # Invalidate the cached gz payload — the channel list
+        # just changed.  Rebuild it eagerly so the next request
+        # streams straight from the cache.
+        await _rebuild_cached_payload()
     await _persist()
     log.info(
         "instant_bundle: channels OK (%d channels in %d categories)",
@@ -278,21 +329,19 @@ async def _refresh_channels(p: Dict[str, Any]) -> None:
 
 
 async def _refresh_epg(p: Dict[str, Any]) -> None:
-    """Fetch the XMLTV EPG and trim it to the next 12 hours per channel."""
+    """Fetch the XMLTV EPG and trim it to the next 72 hours per channel.
+
+    Streams the response straight to a temp file so we don't hold
+    the entire 150 MB XMLTV blob in RAM — that single allocation
+    was a major contributor to the production pod OOM-kills."""
     log.info("instant_bundle: refreshing EPG…")
     url = f"{_base_url(p)}/xmltv.php"
     params = {"username": p["username"], "password": p["password"]}
-    resp = await _http().get(url, params=params)
-    resp.raise_for_status()
-    raw = resp.content
 
-    # Parse XMLTV → epg map keyed by epg_channel_id, each value is a list
-    # of programmes sorted by start.  Uses a one-pass iter parser so we
-    # don't load the whole DOM (huge providers ship 30+ MB XMLTV).
-    epg_by_channel: Dict[str, List[Dict[str, Any]]] = {}
+    import tempfile
+    import os as _os
     import xml.etree.ElementTree as ET
     from datetime import datetime, timezone
-    from io import BytesIO
 
     def _parse_ts(s: str) -> int:
         """Parse a single XMLTV timestamp attribute into a unix
@@ -304,7 +353,6 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         if not s:
             return 0
         s = s.strip()
-        # 1. Joined-format with timezone: 'YYYYMMDDHHMMSS ±ZZZZ'
         if len(s) >= 14 and " " in s and s[:14].isdigit():
             head, _, tz = s.partition(" ")
             try:
@@ -312,13 +360,11 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 return int(dt.timestamp())
             except ValueError:
                 pass
-        # 2. Spaced-format with timezone: 'YYYYMMDD HHMMSS ±ZZZZ'
         try:
             dt = datetime.strptime(s, "%Y%m%d %H%M%S %z")
             return int(dt.timestamp())
         except ValueError:
             pass
-        # 3. Spaced-format without timezone, assume UTC.
         try:
             parts = s.split(" ")
             if len(parts) >= 2:
@@ -327,7 +373,6 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 return int(dt.timestamp())
         except (ValueError, IndexError):
             pass
-        # 4. Joined-format without timezone, assume UTC.
         if len(s) >= 14 and s[:14].isdigit():
             try:
                 dt = datetime.strptime(s[:14], "%Y%m%d%H%M%S")
@@ -337,48 +382,69 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 pass
         return 0
 
+    epg_by_channel: Dict[str, List[Dict[str, Any]]] = {}
+
+    tmp = tempfile.NamedTemporaryFile(prefix="vesper-epg-", suffix=".xml", delete=False)
+    tmp_path = tmp.name
     try:
-        for _event, el in ET.iterparse(BytesIO(raw), events=("end",)):
-            if el.tag != "programme":
-                continue
-            ch = (el.attrib.get("channel") or "").strip()
-            if not ch:
-                el.clear()
-                continue
-            # Many providers (including ours) include direct
-            # unix-timestamp attributes alongside the human
-            # timestamps.  Prefer those — they're parse-free.
-            ts_raw_start = el.attrib.get("start_timestamp")
-            ts_raw_stop  = el.attrib.get("stop_timestamp")
-            if ts_raw_start and ts_raw_stop:
-                try:
-                    start_ts = int(ts_raw_start)
-                    stop_ts  = int(ts_raw_stop)
-                except (TypeError, ValueError):
+        # Stream the download to disk — 150 MB XMLTV payloads no
+        # longer hit RAM all at once.
+        async with _http().stream("GET", url, params=params) as resp:
+            resp.raise_for_status()
+            async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                tmp.write(chunk)
+        tmp.flush()
+        tmp.close()
+
+        # One-pass iter parser straight off the temp file — peak
+        # memory is one programme element at a time, not the whole
+        # DOM.
+        try:
+            for _event, el in ET.iterparse(tmp_path, events=("end",)):
+                if el.tag != "programme":
+                    continue
+                ch = (el.attrib.get("channel") or "").strip()
+                if not ch:
+                    el.clear()
+                    continue
+                # Many providers (including ours) include direct
+                # unix-timestamp attributes alongside the human
+                # timestamps.  Prefer those — they're parse-free.
+                ts_raw_start = el.attrib.get("start_timestamp")
+                ts_raw_stop  = el.attrib.get("stop_timestamp")
+                if ts_raw_start and ts_raw_stop:
+                    try:
+                        start_ts = int(ts_raw_start)
+                        stop_ts  = int(ts_raw_stop)
+                    except (TypeError, ValueError):
+                        start_ts = _parse_ts(el.attrib.get("start", ""))
+                        stop_ts  = _parse_ts(el.attrib.get("stop", ""))
+                else:
                     start_ts = _parse_ts(el.attrib.get("start", ""))
                     stop_ts  = _parse_ts(el.attrib.get("stop", ""))
-            else:
-                start_ts = _parse_ts(el.attrib.get("start", ""))
-                stop_ts  = _parse_ts(el.attrib.get("stop", ""))
-            title_el = el.find("title")
-            desc_el  = el.find("desc")
-            cat_el   = el.find("category")
-            programme = {
-                "title":           (title_el.text or "").strip() if title_el is not None else "",
-                "desc":            (desc_el.text or "").strip() if desc_el is not None else "",
-                "category":        (cat_el.text or "").strip() if cat_el is not None else "",
-                "startTimestamp":  start_ts,
-                "stopTimestamp":   stop_ts,
-            }
-            epg_by_channel.setdefault(ch, []).append(programme)
-            el.clear()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("instant_bundle: XMLTV parse failed: %s", exc)
+                title_el = el.find("title")
+                desc_el  = el.find("desc")
+                cat_el   = el.find("category")
+                programme = {
+                    "title":           (title_el.text or "").strip() if title_el is not None else "",
+                    "desc":            (desc_el.text or "").strip() if desc_el is not None else "",
+                    "category":        (cat_el.text or "").strip() if cat_el is not None else "",
+                    "startTimestamp":  start_ts,
+                    "stopTimestamp":   stop_ts,
+                }
+                epg_by_channel.setdefault(ch, []).append(programme)
+                el.clear()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("instant_bundle: XMLTV parse failed: %s", exc)
+    finally:
+        # The temp XMLTV file is no longer needed; remove it so
+        # we don't fill /tmp on long-running pods.
+        try:
+            _os.unlink(tmp_path)
+        except Exception:  # noqa: BLE001
+            pass
 
-    # Sort + trim to next 72 hours (now → now+72 h).  No per-channel
-    # cap — every programme in the horizon makes it through so users
-    # can browse "what's on Saturday" without an extra network round
-    # trip.  Total payload is ~400 KB gzipped on a typical provider.
+    # Sort + trim to next 72 hours (now → now+72 h).
     now_sec = int(time.time())
     horizon = now_sec + EPG_HORIZON_SECS
     trimmed: Dict[str, List[Dict[str, Any]]] = {}
@@ -396,6 +462,10 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         _state["epg_fetched_at"] = int(time.time())
         _state["generated_at"]   = int(time.time())
         _state["last_error"]     = None
+        # Rebuild the cached gz payload now (atomically under the
+        # lock) so the next /instant-bundle request streams the
+        # fresh data without re-allocating 30+ MB.
+        await _rebuild_cached_payload()
     await _persist()
     log.info(
         "instant_bundle: EPG OK (%d channels with EPG, ~%d programmes total)",
@@ -454,36 +524,33 @@ async def instant_bundle() -> Response:
 
     Clients call this on app boot to populate Live TV with no
     per-device Xtream round-trip.  Includes ALL channels +
-    categories + the next 12 h of EPG with pre-built stream URLs."""
+    categories + the next 72 h of EPG with pre-built stream URLs.
+
+    The gzipped payload is built once per refresh and cached on
+    `_state["cached_payload_gz"]` so every request just streams
+    the bytes.  This was the OOM-inducing endpoint in production
+    (each request used to allocate ~50 MB of transient Python
+    objects to re-serialise the bundle from scratch)."""
     p = _provider_from_env()
     if not p:
         raise HTTPException(503, "Managed Xtream provider not configured on backend.")
-    # If the channels haven't been fetched yet (first boot), do a sync
-    # fetch so the client doesn't get an empty bundle on first request.
+
+    # First boot — fetch channels synchronously so the client
+    # doesn't get an empty bundle on the very first request.
     if not _state["channels"]:
         try:
             await _refresh_channels(p)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Provider unreachable: {exc}") from None
-    payload = {
-        "provider": {
-            "id":     p["id"],
-            "name":   "On Now TV",
-            "host":   p["host"],
-            "port":   p["port"],
-            "scheme": p["scheme"],
-            # NOTE: deliberately NO username / password — client uses
-            # the pre-built stream_url on each channel record.
-        },
-        "categories":           _state["categories"],
-        "channels":             _state["channels"],
-        "epg":                  _state["epg"],
-        "generated_at":         _state["generated_at"],
-        "channels_fetched_at":  _state["channels_fetched_at"],
-        "epg_fetched_at":       _state["epg_fetched_at"],
-    }
-    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    gz = gzip.compress(body, compresslevel=6)
+
+    # If the cache wasn't built yet (or got invalidated), build it
+    # now under the lock.
+    if not _state.get("cached_payload_gz"):
+        async with _state_lock:
+            if not _state.get("cached_payload_gz"):
+                await _rebuild_cached_payload()
+
+    gz = _state["cached_payload_gz"]
     return Response(
         content=gz,
         media_type="application/json",

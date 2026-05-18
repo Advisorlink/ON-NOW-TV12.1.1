@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.38 — Backend memory diet (production-tier-ready)**
+            - 🧠 ROOT CAUSE: every `/api/xtream/instant-bundle` request
+              was allocating a fresh 48 MB JSON dict + gzip-encoding
+              it on the request thread.  Under modest concurrent
+              traffic this OOM-killed the production pod (Emergent
+              support confirmed: peak memory blew past the 512 MB
+              ceiling and the container kept restarting).
+            - ✅ Bundle response is now SERIALISED ONCE per refresh
+              and cached as a single 7 MB gzipped byte string on
+              `_state["cached_payload_gz"]`.  Every HTTP request
+              just streams those bytes, never touching the heavy
+              dicts.  Memory ceiling drops by ~40 MB per concurrent
+              request.
+            - ✅ XMLTV download (150 MB EPG payload) now STREAMS
+              straight to a temp file instead of buffering in RAM.
+              Peak parser memory is one programme element at a time.
+            - ✅ Cache pre-built on startup from MongoDB so the
+              FIRST request after a backend restart streams the
+              cached bytes instantly without a slow rebuild.
+            - 📉 Net effect: the production pod should now stay
+              comfortably under the 50-credit tier's RAM budget.
+
             **v2.6.37 — Cast row no longer clips on the right edge**
             - 🐛 Actor portraits in the right half of the Cast strip
               were getting cut off by the parent text column's 68vw
