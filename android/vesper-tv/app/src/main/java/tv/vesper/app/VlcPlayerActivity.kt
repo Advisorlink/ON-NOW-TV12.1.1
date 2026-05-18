@@ -202,6 +202,88 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var partyBadge: TextView? = null
 
     // -----------------------------------------------------------------
+    //  Watch Together — clock-offset measurement (NTP-style)
+    // -----------------------------------------------------------------
+    //
+    // The HK1 box and the guest's phone each have their own
+    // independent system clocks (NTP-synced but not necessarily in
+    // exact agreement — drift of 200 ms-1 s is normal).  Without
+    // correction, the host's heartbeat carries a `position_ms` that
+    // the guest projects forward using `nowMs - serverMs`, which
+    // is silently off by the clock skew.  Result: guest seeks to a
+    // position that's permanently lagging the host by the skew
+    // amount, and drift detection never fires because the guest is
+    // "correctly" at its (skewed) target.
+    //
+    // We measure the offset Cristian-style: client sends `ping{t1}`,
+    // server replies `pong{t1, server_ms}`, client records t3 on
+    // receipt.  Offset = ((server_ms - t1) + (server_ms - t3)) / 2.
+    // We collect 5 samples on connect (200 ms apart) and use the
+    // sample with the lowest RTT (most accurate).
+    private var partyClockOffsetMs: Long = 0L
+    private var partyClockOffsetReady: Boolean = false
+    /** map of t1 -> sample start time so we can compute RTT on pong */
+    private val partyPingPending: MutableMap<Long, Long> = mutableMapOf()
+    /** best (lowest-RTT) sample so far — pair(offset, rtt) */
+    private var partyBestSample: Pair<Long, Long>? = null
+    private val partyClockHandler = Handler(Looper.getMainLooper())
+
+    private fun partySendPing() {
+        val ws = partyWs ?: return
+        val t1 = System.currentTimeMillis()
+        partyPingPending[t1] = t1
+        try {
+            ws.send(JSONObject().apply {
+                put("type", "ping")
+                put("t1", t1)
+            }.toString())
+        } catch (_: Exception) { /* ignore */ }
+    }
+
+    private fun handlePartyPong(msg: JSONObject) {
+        val t1 = msg.optLong("t1", 0L)
+        val serverMs = msg.optLong("server_ms", 0L)
+        if (t1 <= 0L || serverMs <= 0L) return
+        val t3 = System.currentTimeMillis()
+        val rtt = t3 - t1
+        if (rtt < 0L || rtt > 5_000L) return  // drop garbage
+        // Cristian's algorithm assumes equal upstream/downstream
+        // latencies.  offset = server_ms - (t1 + rtt/2).  Equivalent
+        // to ((server_ms - t1) + (server_ms - t3)) / 2.
+        val offset = ((serverMs - t1) + (serverMs - t3)) / 2L
+        // Keep the sample with the smallest RTT (least noisy).
+        val best = partyBestSample
+        if (best == null || rtt < best.second) {
+            partyBestSample = Pair(offset, rtt)
+        }
+        partyClockOffsetMs = partyBestSample!!.first
+        partyClockOffsetReady = true
+        partyPingPending.remove(t1)
+        Log.d(TAG, "clock-sync: sample rtt=${rtt}ms offset=${offset}ms best_offset=${partyClockOffsetMs}ms")
+    }
+
+    /** Schedule 5 fast pings to converge quickly on connect, then a
+     *  slow re-ping every 30 s for drift compensation. */
+    private fun startPartyClockSync() {
+        for (i in 0 until 5) {
+            partyClockHandler.postDelayed({ partySendPing() }, (i * 220L))
+        }
+        // Slow re-ping every 30 s while the WS is alive
+        val rePing = object : Runnable {
+            override fun run() {
+                partySendPing()
+                partyClockHandler.postDelayed(this, 30_000L)
+            }
+        }
+        partyClockHandler.postDelayed(rePing, 30_000L)
+    }
+
+    /** Server's wallclock as estimated from MY clock + measured offset. */
+    private fun serverNowMs(): Long {
+        return System.currentTimeMillis() + partyClockOffsetMs
+    }
+
+    // -----------------------------------------------------------------
     //  Watch Together — emoji reactions (D-pad hold 2 seconds)
     //  ArrowUp → ❤️  ArrowDown → 😱  ArrowLeft → 😂  ArrowRight → 😭
     // -----------------------------------------------------------------
@@ -638,6 +720,13 @@ class VlcPlayerActivity : AppCompatActivity() {
                         put("avatar", "a1")
                     }
                     webSocket.send(hello.toString())
+                    // Fire the clock-offset measurement immediately
+                    // after hello — bursts 5 pings 200 ms apart so we
+                    // converge on the offset before playback even
+                    // starts.  Without this, the first ~5 s of party
+                    // playback runs with offset=0 and is therefore
+                    // subject to clock-skew drift.
+                    mainHandler.post { startPartyClockSync() }
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -677,6 +766,10 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (!this::mediaPlayer.isInitialized) return
         val msg = try { JSONObject(raw) } catch (_: Exception) { return }
         val ttype = msg.optString("type")
+        if (ttype == "pong") {
+            handlePartyPong(msg)
+            return
+        }
         if (ttype == "joined") {
             val mid = msg.optString("member_id", "")
             if (mid.isNotBlank()) partyMemberId = mid
@@ -706,7 +799,15 @@ class VlcPlayerActivity : AppCompatActivity() {
            to reach us.  Without this we're permanently ~heartbeat
            interval + RTT behind the host. */
         val serverMs = msg.optLong("server_ms", 0L)
-        val nowMs = System.currentTimeMillis()
+        // Apply the measured clock-offset.  Without offset, the host
+        // and guest clocks could differ by 200 ms-1 s due to
+        // independent NTP sync, silently producing a permanent
+        // playback lag that drift detection can't see (the guest
+        // would converge to a stale target).  serverNowMs() returns
+        // OUR best estimate of the server's current wallclock, so
+        // (myNow - serverMs) is the REAL transit time of this state
+        // broadcast.
+        val nowMs = if (partyClockOffsetReady) serverNowMs() else System.currentTimeMillis()
         val targetMs = if (status == "playing" && serverMs > 0L) {
             /* Clamp the projection to a reasonable upper bound
                (5 s) so a temporarily-stalled host doesn't make us
@@ -753,7 +854,13 @@ class VlcPlayerActivity : AppCompatActivity() {
                     if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > DRIFT_TOLERANCE_MS) {
                         mediaPlayer.time = targetMs
                     }
-                    val remaining = atMs - System.currentTimeMillis()
+                    // Server stamps `at_ms` in its own wallclock.  We
+                    // need to fire at the same server-wallclock
+                    // instant as everyone else, so we convert atMs
+                    // back to our local clock by subtracting the
+                    // offset before computing `remaining`.
+                    val localFireMs = atMs - partyClockOffsetMs
+                    val remaining = localFireMs - System.currentTimeMillis()
                     partyBadge?.text = "PARTY · ${partyCode} · STARTING"
                     val fire = Runnable {
                         partyArmed = false
@@ -772,7 +879,8 @@ class VlcPlayerActivity : AppCompatActivity() {
                fires the countdown so the host's experience is
                seamless. */
             if (status == "countdown") {
-                val remaining = atMs - System.currentTimeMillis()
+                val localFireMs = atMs - partyClockOffsetMs
+                val remaining = localFireMs - System.currentTimeMillis()
                 partyBadge?.text = "PARTY · ${partyCode} · STARTING"
                 val fire = Runnable {
                     partyArmed = false
@@ -818,6 +926,11 @@ class VlcPlayerActivity : AppCompatActivity() {
 
     private fun partyShutdown() {
         partyHandler.removeCallbacksAndMessages(null)
+        partyClockHandler.removeCallbacksAndMessages(null)
+        partyClockOffsetReady = false
+        partyClockOffsetMs = 0L
+        partyBestSample = null
+        partyPingPending.clear()
         try { partyWs?.close(1000, "bye") } catch (_: Exception) {}
         partyWs = null
         try { partyOkHttp?.dispatcher?.executorService?.shutdown() } catch (_: Exception) {}
@@ -1089,6 +1202,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         val url = streamUrl ?: return
         val isMagnet = url.startsWith("magnet:", ignoreCase = true)
                 || url.endsWith(".torrent", ignoreCase = true)
+        val isTrailer = contentType == "trailer"
         val media = Media(libVlc, Uri.parse(url))
         media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=1500")
@@ -1100,6 +1214,24 @@ class VlcPlayerActivity : AppCompatActivity() {
             // Larger cache for torrents since we have to wait for
             // peers + pieces before any frame can decode.
             media.addOption(":network-caching=6000")
+        }
+        if (isTrailer) {
+            // Trailers stream from googlevideo with separate video+audio
+            // tracks merged via input-slave.  This pipeline is sensitive
+            // to network jitter — burst tighter buffering options to
+            // eliminate frame-skipping the user reported on the HK1 box.
+            media.addOption(":network-caching=3500")
+            media.addOption(":live-caching=3500")
+            media.addOption(":clock-jitter=0")          // strict A/V sync
+            media.addOption(":clock-synchro=0")         // sync to system clock
+            media.addOption(":avcodec-threads=2")       // limit decode threads on weak ARM
+            media.addOption(":avcodec-skiploopfilter=4")  // skip-loop-filter all to save cycles
+            media.addOption(":avcodec-hw=any")          // accept any hardware acceleration
+            // Drop late frames instead of stalling the pipeline —
+            // a single skipped frame is invisible at 24-30 fps,
+            // whereas a stall is jarring.
+            media.addOption(":drop-late-frames")
+            media.addOption(":skip-frames")
         }
         mediaPlayer.media = media
         media.release()

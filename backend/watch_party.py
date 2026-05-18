@@ -283,6 +283,30 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                 continue
             mtype = msg.get("type")
 
+            if mtype == "ping":
+                # Lightweight NTP-style clock-offset handshake.  The
+                # client sends its local clock at t1.  We echo it back
+                # along with the server's wallclock at the time we
+                # process the message — the client then computes its
+                # local-to-server offset as
+                #     ((server_ms - t1) + (server_ms - t3)) / 2
+                # where t3 is the client's local clock when the pong
+                # arrives.  Used to correct host/guest clock skew so
+                # watch-party drift correction lands on the right
+                # target position (otherwise a 1 s clock skew
+                # silently translates to a permanent 1 s playback lag
+                # that drift detection can't see).
+                t1 = msg.get("t1", 0)
+                try:
+                    await websocket.send_text(json.dumps({
+                        "type": "pong",
+                        "t1": t1,
+                        "server_ms": int(time.time() * 1000),
+                    }))
+                except Exception:                                # noqa: BLE001
+                    pass
+                continue
+
             if mtype == "hello":
                 # First message from a connecting client.  Registers
                 # the member into the party and broadcasts the state.

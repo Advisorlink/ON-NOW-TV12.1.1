@@ -56,6 +56,34 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 100 — Feb 18, 2026) — v2.6.67
+### NTP-style clock sync + Trailer 720p + Preview banner killed
+- **🕐 Watch Together CLOCK SYNC (the real fix)**:
+  - **🐛 User reported (3rd time)**: "Host is playing 1 second AHEAD of the guest. We need to fix that."
+  - **🔬 RCA (deep)**: Previous fixes narrowed drift detection (threshold 350 ms) but didn't address the *cause*. Host's box and guest's device each have their OWN NTP-synced clocks. They can easily differ by 200 ms-1 s. The drift projection (`targetMs = positionMs + (nowMs - serverMs)`) silently uses the LOCAL clock — if it's skewed by 1 s, the projection is off by 1 s, the guest "correctly" converges to its (skewed) target, and drift detection NEVER fires because the guest is at its computed target. Result: permanent playback lag the drift detector can't see.
+  - **✅ Fix in `backend/watch_party.py` + `VlcPlayerActivity.kt`**:
+    - Backend: new `ping`/`pong` WS handler. Client sends `{type:"ping", t1: my_clock}`. Server replies `{type:"pong", t1, server_ms: server_clock}`.
+    - Client (Kotlin): on WS open, bursts **5 pings 200 ms apart**, takes the sample with the lowest RTT, computes `offset = ((server_ms - t1) + (server_ms - t3)) / 2` (Cristian's algorithm). Re-pings every 30 s for drift compensation.
+    - `serverNowMs() = System.currentTimeMillis() + offset` — every timing comparison (drift projection AND countdown firing) now uses this offset-corrected server-time estimate.
+    - Countdown: `remaining = (atMs - offset) - nowMs` so host & guest fire `mediaPlayer.play()` at the EXACT same server-wallclock instant regardless of local clock skew.
+  - **🧪 Tests**: `/app/backend/tests/test_watch_party_clock_sync.py` — 2/2 pass. Full regression: 20/20 backend tests still pass.
+  - **Expected real-world sync: ±100 ms** (down from 1 s).
+
+- **🎞 Trailer frame skipping FIXED on HK1 box**:
+  - **🐛 User reported**: "The trailer works great. But on my box it's got like, a bit of a frame rate skipping situation."
+  - **✅ Two-pronged fix**:
+    1. **Backend**: trailer-stream endpoint now caps height at **720p** (was 1080p) — frees the HK1's modest decoder headroom for the input-slave audio merge.
+    2. **libVLC**: trailer-specific options (`--network-caching=3500`, `--live-caching=3500`, `--clock-jitter=0`, `--avcodec-threads=2`, `--avcodec-skiploopfilter=4`, `--avcodec-hw=any`, `--drop-late-frames`, `--skip-frames`). Network blips drop a frame instead of stalling the pipeline.
+
+- **📺 "Redo your preview" banner killed**:
+  - **🐛 User reported**: "It just cut out and said I need to redo my preview screen. It shouldn't be doing that."
+  - **🔬 RCA**: The source `index.html` included `<script src="…assets.emergent.sh/scripts/emergent-main.js">` which is the Emergent platform's dev banner injector. The build-time regex strip removed `<script ...></script>` tags but the inline posthog/badge scripts were also vulnerable to regex edge-cases.
+  - **✅ Fix**: Removed `emergent-main.js`, the "Made with Emergent" badge anchor, and the inline posthog telemetry init from the source `index.html` ENTIRELY. The build-time strip is now a safety net, not the primary defence — the banner cannot possibly load on the user's TV box.
+
+- **🆙 APK bumped to v2.6.67 (versionCode 137).** Release notes added.
+
+
+
 ## Implemented (Iteration 99 — Feb 18, 2026) — v2.6.66
 ### Watch Together: sub-second sync · No-mouse onboarding refined
 - **🎉 User feedback after testing v2.6.65 on her HK1 box**: "The Watch Together worked. It worked REALLY, REALLY WELL! BUT … the host is playing 1 second ahead of the guest. If we could fix that it would be absolutely perfect." Also requested: refine the no-mouse slide (it's the *air mouse* on the remote, not a separate mouse) — remove the cross over the secondary mouse icon, remove the white background, make the remote look "part of the actual thing" not "a sticker".

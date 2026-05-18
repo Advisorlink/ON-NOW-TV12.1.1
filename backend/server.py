@@ -1771,7 +1771,7 @@ async def trailer_stream(youtube_id: str):
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
     if not safe_id:
         raise HTTPException(400, "invalid youtube_id")
-    cache_key = f"trailer_stream:{safe_id}:v2"
+    cache_key = f"trailer_stream:{safe_id}:v3"  # v3: 720p cap for HK1 smoothness
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -1779,14 +1779,19 @@ async def trailer_stream(youtube_id: str):
 
     def _extract():
         from yt_dlp import YoutubeDL
-        # Strategy: ask for "bestvideo[≤1080] + bestaudio" — yt-dlp
-        # returns BOTH formats which we can serve as a pair.  Fall
-        # back to a single progressive stream if no HD is available.
+        # Strategy: ask for "bestvideo[≤720] + bestaudio".  We
+        # deliberately cap at 720p (not 1080p) for trailers — the
+        # HK1 Android TV box's H.264 hardware decoder + the
+        # input-slave audio pairing leaves limited headroom, and the
+        # user reported frame-skipping at 1080p.  720p plays
+        # smoothly while still looking great on a 1080p TV (and is
+        # essentially indistinguishable on the 10-foot UI).  Falls
+        # back to combined progressive 360p if no 720p available.
         ydl_opts = {
             "format": (
-                "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
-                "best[ext=mp4][height<=1080]/"
-                "best[height<=1080]/best"
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+                "best[ext=mp4][height<=720]/"
+                "best[height<=720]/best"
             ),
             "noplaylist": True,
             "quiet": True,

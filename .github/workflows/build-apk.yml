@@ -238,6 +238,39 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.67 — Watch Together CLOCK-SYNC (sub-100 ms sync) · Trailer 720p smooth · Preview banner killed**
+            - 🕐 **Watch Together clock-sync via NTP-style ping/pong.**
+              Last fix narrowed drift detection but didn't address
+              the *cause* — the host's box and the guest's device
+              each have independent NTP-synced clocks that can
+              easily differ by 200 ms-1 s, silently producing a
+              permanent playback lag the drift detector couldn't
+              see (the guest correctly converged to its *skewed*
+              target).  Now on WS connect each member bursts 5
+              pings 200 ms apart to measure its local-clock-to-
+              server offset (Cristian's algorithm, lowest-RTT
+              sample wins).  All timing math — drift projection,
+              countdown firing — uses the offset.  Host and guest
+              now fire `mediaPlayer.play()` at the SAME server-
+              wallclock instant, and ongoing drift is measured
+              against the same reference.  Expected sync: ±100 ms.
+            - 🎞 **Trailers now smooth on the HK1 box.**  Capped the
+              extracted format at 720p (was 1080p) — frees decoder
+              headroom for the input-slave audio merge.  Plus
+              libVLC tuning for the trailer pipeline: 3.5 s network
+              cache, strict clock-jitter, hardware decode hint,
+              avcodec thread cap, drop-late-frames + skip-frames so
+              network blips drop a frame instead of stalling the
+              whole pipeline.
+            - 📺 **"Redo your preview" banner banished from the APK.**
+              Removed the `<script src="…assets.emergent.sh/scripts/emergent-main.js">`
+              tag, the "Made with Emergent" badge anchor, and the
+              posthog telemetry init from the source `index.html`
+              entirely.  Build-time strip is now a safety net,
+              not the primary defence — the dev banner cannot
+              possibly load on your TV box.
+            - 🆙 APK bumped to **v2.6.67** (versionCode 137).
+
             **v2.6.66 — Watch Together: sub-second sync · Onboarding slide refined**
             - 🎯 **Watch-Together host/guest now sub-second in sync.**
               Previously the drift tolerance was 1500 ms so a 1 s
