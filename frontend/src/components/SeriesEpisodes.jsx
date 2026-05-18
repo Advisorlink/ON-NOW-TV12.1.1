@@ -71,7 +71,13 @@ const fmtDate = (iso) => {
     }
 };
 
-export default function SeriesEpisodes({ meta, parentId, initialSeason, highlightEpisode }) {
+export default function SeriesEpisodes({
+    meta,
+    parentId,
+    initialSeason,
+    highlightEpisode,
+    onEpisodesShownChange,
+}) {
     const navigate = useNavigate();
     const videos = useMemo(() => {
         const list = Array.isArray(meta?.videos) ? meta.videos : [];
@@ -100,6 +106,16 @@ export default function SeriesEpisodes({ meta, parentId, initialSeason, highligh
     const [activeSeason, setActiveSeason] = useState(
         () => initialSeason || seasons[0]?.season || 1
     );
+    /* Episodes are HIDDEN by default — the user lands on the
+     * series page and just sees season pills + Cast row below.
+     * Pressing OK on a season pill reveals that season's
+     * episodes AND tells the parent to hide the Cast row. */
+    const [episodesShown, setEpisodesShown] = useState(
+        () => !!(initialSeason && highlightEpisode)
+    );
+    useEffect(() => {
+        if (onEpisodesShownChange) onEpisodesShownChange(episodesShown);
+    }, [episodesShown, onEpisodesShownChange]);
     useEffect(() => {
         // Reset when meta changes
         if (seasons.length && !seasons.find((s) => s.season === activeSeason)) {
@@ -361,32 +377,37 @@ export default function SeriesEpisodes({ meta, parentId, initialSeason, highligh
 
     return (
         <section data-testid="series-episodes" className="mt-10">
-            {/* Season picker */}
-            <div className="flex items-baseline justify-between mb-6 flex-wrap gap-4">
-                <h3
-                    className="vesper-display"
-                    style={{
-                        fontSize: 'clamp(20px, 1.8vw, 28px)',
-                        letterSpacing: '-0.02em',
-                    }}
-                >
-                    Seasons & episodes
-                </h3>
-                <div
-                    className="vesper-mono"
-                    style={{
-                        fontSize: 11,
-                        letterSpacing: '0.22em',
-                        textTransform: 'uppercase',
-                        color: 'var(--vesper-text-3)',
-                    }}
-                >
-                    {seasons.length} season{seasons.length === 1 ? '' : 's'} ·{' '}
-                    {currentSeason?.eps.length || 0} episode
-                    {(currentSeason?.eps.length || 0) === 1 ? '' : 's'} this
-                    season
+            {/* Season picker — heading + count line hidden when
+                episodes aren't yet shown (the user is still in the
+                "browse seasons + cast" stage and we want a clean
+                Autoplay-style hero look). */}
+            {episodesShown && (
+                <div className="flex items-baseline justify-between mb-6 flex-wrap gap-4">
+                    <h3
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(20px, 1.8vw, 28px)',
+                            letterSpacing: '-0.02em',
+                        }}
+                    >
+                        Seasons & episodes
+                    </h3>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-3)',
+                        }}
+                    >
+                        {seasons.length} season{seasons.length === 1 ? '' : 's'} ·{' '}
+                        {currentSeason?.eps.length || 0} episode
+                        {(currentSeason?.eps.length || 0) === 1 ? '' : 's'} this
+                        season
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div
                 data-testid="season-picker"
@@ -403,8 +424,19 @@ export default function SeriesEpisodes({ meta, parentId, initialSeason, highligh
                             data-testid={`season-${season}`}
                             data-focusable="true"
                             data-focus-style="pill"
+                            data-initial-focus={season === activeSeason && !episodesShown ? 'true' : undefined}
                             tabIndex={0}
-                            onClick={() => setActiveSeason(season)}
+                            onClick={() => {
+                                if (episodesShown && season === activeSeason) {
+                                    /* Toggling the same active season
+                                       collapses the episode list and
+                                       brings the Cast row back. */
+                                    setEpisodesShown(false);
+                                } else {
+                                    setActiveSeason(season);
+                                    setEpisodesShown(true);
+                                }
+                            }}
                             className="font-sans font-semibold rounded-full"
                             style={{
                                 height: 'clamp(36px, 3vw, 44px)',
@@ -430,7 +462,9 @@ export default function SeriesEpisodes({ meta, parentId, initialSeason, highligh
                 })}
             </div>
 
-            {/* Episode list */}
+            {/* Episode list — gated.  When user is browsing
+                seasons + cast (initial state), this stays hidden. */}
+            {!episodesShown ? null : (
             <ul
                 data-testid="episode-list"
                 className="flex flex-col"
@@ -456,6 +490,7 @@ export default function SeriesEpisodes({ meta, parentId, initialSeason, highligh
                     );
                 })}
             </ul>
+            )}
         </section>
     );
 }

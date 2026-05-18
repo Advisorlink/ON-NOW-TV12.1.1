@@ -238,6 +238,31 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.56 — TV seasons + cast, long-press to save**
+            - 📺 NEW TV series layout: landing on a TV show now
+              shows just the SEASON pills + Cast row underneath
+              (same pattern as movies).  No more wall of episodes
+              on first load.  Pressing OK on a season pill reveals
+              that season's episodes AND hides the Cast row.
+              Pressing OK on the same season again collapses
+              episodes and brings the Cast row back.
+            - 🎯 D-pad on TV series: Season pill ⇄ DOWN/UP ⇄ Cast
+              actor.  Episode list takes over when a season is
+              activated.  All snap navigation is consistent with
+              movies.
+            - ⭐ NEW: Long-press OK (press & hold) on any actor
+              card → "Save this actor?" modal with their photo +
+              role.  Confirm to add them to your personal
+              **My Actors** library.
+            - ⭐ NEW: Long-press OK on any "Just like this" or
+              filmography poster → "Add to Watch Later / My List"
+              modal (resolves IMDB on the fly, then opens the
+              same modal you get from anywhere else in the app).
+            - 🗂️ NEW Library section: **My Actors** — appears
+              between TV Shows and Watch Later when you've saved
+              at least one actor.  Long-press on a card to remove
+              the actor.
+
             **v2.6.55 — Polish pass: lighter overlay, auto-focus, bigger hint**
             - 🌫️ Removed the dark overlay sitting on top of the
               Autoplay button.  The cast-lane backdrop fade now

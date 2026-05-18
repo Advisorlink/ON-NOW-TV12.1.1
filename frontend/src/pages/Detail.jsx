@@ -193,6 +193,9 @@ export default function Detail() {
     /* CastRow's current view — 'cast' | 'filmography' | 'similar'.
        Drives the Play-button-area hint + back-nav. */
     const [castView, setCastView] = useState('cast');
+    /* For TV series: true once user has revealed episodes (OK on
+       a season pill).  When true we hide the Cast row. */
+    const [seriesEpisodesShown, setSeriesEpisodesShown] = useState(false);
     /* Bio cache so we don't refetch the same person when focus
      * sweeps left/right.  Keyed by TMDB person id. */
     const actorBioCacheRef = useRef(new Map());
@@ -375,7 +378,13 @@ export default function Detail() {
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 let retries = 16;
                 const tryFocus = () => {
-                    const target = document.querySelector('[data-testid^="detail-play-"]');
+                    /* Movies → Autoplay CTA.  TV series → active
+                     * season pill (which becomes the "top of the
+                     * page" focus target since there's no Autoplay
+                     * button on series). */
+                    const target =
+                        document.querySelector('[data-testid^="detail-play-"]') ||
+                        document.querySelector('[data-testid^="season-"][data-focusable="true"]');
                     if (target) {
                         try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
                         target.setAttribute('data-focused', 'true');
@@ -402,9 +411,18 @@ export default function Detail() {
             const active = document.activeElement;
             if (!active) return;
             const onPlay = active.matches('[data-testid^="detail-play-"]');
+            const onSeasonPill = active.matches('[data-testid^="season-"][data-focusable="true"]');
             const onCast = active.matches('[data-testid^="cast-actor-"]');
 
-            if (e.key === 'ArrowDown' && onPlay) {
+            if (e.key === 'ArrowDown' && (onPlay || onSeasonPill)) {
+                /* DOWN from Autoplay (movies) OR from any season
+                 * pill (series) → focus first cast actor — but
+                 * only if the cast row is currently mounted.  On
+                 * the series "episodes shown" view the cast row
+                 * is hidden, so we let the default spatial-focus
+                 * handler route DOWN to the episode list. */
+                const firstActor = document.querySelector('[data-testid^="cast-actor-"]');
+                if (!firstActor) return;
                 e.preventDefault();
                 e.stopPropagation();
                 focusFirstActor();
@@ -434,6 +452,7 @@ export default function Detail() {
         setFocusedActor(null);
         setFocusedMovie(null);
         setCastView('cast');
+        setSeriesEpisodesShown(false);
 
         let cancelled = false;
         let preferredHit = false;
@@ -1290,6 +1309,7 @@ export default function Detail() {
                             parentId={id}
                             initialSeason={focusSeason ? Number(focusSeason) : undefined}
                             highlightEpisode={focusEpisode ? Number(focusEpisode) : undefined}
+                            onEpisodesShownChange={setSeriesEpisodesShown}
                         />
                     ) : autoplayEnabled && autoplayCandidate ? (
                         // Autoplay is on AND we have a 1080p candidate
@@ -1758,7 +1778,7 @@ export default function Detail() {
                  stays anchored at the top, cast row stays anchored
                  at the bottom.  Page itself never scrolls.  Solid
                  backdrop ensures the hero never bleeds through. */}
-            {tmdbInfo?.tmdb_id && (
+            {tmdbInfo?.tmdb_id && !seriesEpisodesShown && (
                 <div
                     data-testid="detail-cast-lane"
                     style={{

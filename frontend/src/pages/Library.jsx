@@ -9,6 +9,7 @@ import {
     Maximize2,
     X,
     CalendarDays,
+    Users,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useLongPress from '@/hooks/useLongPress';
@@ -16,6 +17,7 @@ import {
     listFavouritesByType,
     listWatchLater,
     removeFromWatchLater,
+    listActors,
 } from '@/lib/library';
 import LibraryCalendar from '@/components/LibraryCalendar';
 
@@ -37,6 +39,7 @@ export default function Library() {
     useSpatialFocus();
     const [tv, setTv] = useState(listFavouritesByType('series'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
+    const [actors, setActors] = useState(listActors());
     const [expanded, setExpanded] = useState(false);
     const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -44,6 +47,7 @@ export default function Library() {
         const sync = () => {
             setTv(listFavouritesByType('series'));
             setWatchLater(listWatchLater());
+            setActors(listActors());
         };
         window.addEventListener('vesper:library-change', sync);
         return () => window.removeEventListener('vesper:library-change', sync);
@@ -132,6 +136,16 @@ export default function Library() {
                     <FavouriteGrid items={tv} type="series" />
                 )}
             </Section>
+
+            {actors.length > 0 && (
+                <Section
+                    icon={Users}
+                    eyebrow="My library · Actors"
+                    title="My Actors"
+                >
+                    <ActorGrid items={actors} />
+                </Section>
+            )}
 
             <WatchLaterBlock
                 items={watchLater}
@@ -584,6 +598,104 @@ function FavouriteCard({ item, type }) {
                         {item.meta.year}
                     </div>
                 )}
+            </div>
+        </button>
+    );
+}
+
+/* --------------------------- Actor grid --------------------------- */
+
+function ActorGrid({ items }) {
+    return (
+        <div
+            className="grid"
+            style={{
+                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                gap: 12,
+            }}
+        >
+            {items.map((a) => (
+                <ActorCard key={a.id} actor={a} />
+            ))}
+        </div>
+    );
+}
+
+function ActorCard({ actor }) {
+    const onTap = () => {
+        /* No detail page for actors yet — long-press to remove
+         * is the primary interaction.  Tapping does nothing for
+         * now; could navigate to a filmography view in the
+         * future. */
+    };
+    const onLongPress = () => {
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id: actor.id,
+                    type: 'actor',
+                    title: actor.name,
+                    poster: actor.profile || null,
+                },
+            })
+        );
+    };
+    const press = useLongPress(onLongPress, onTap);
+    return (
+        <button
+            data-testid={`actor-${actor.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            {...press}
+            className="block relative overflow-hidden text-left"
+            style={{
+                aspectRatio: '2 / 3',
+                borderRadius: 10,
+                padding: 0,
+                border: 'none',
+                background: actor.profile
+                    ? '#1a1f2e'
+                    : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.2), rgba(10,14,26,0.9))',
+            }}
+        >
+            {actor.profile ? (
+                <img
+                    src={actor.profile}
+                    alt={actor.name}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                />
+            ) : (
+                <div
+                    className="absolute inset-0 flex items-center justify-center vesper-display"
+                    style={{
+                        color: 'var(--vesper-blue-bright)',
+                        fontSize: 56,
+                        fontWeight: 700,
+                    }}
+                >
+                    {(actor.name || '?')[0]?.toUpperCase()}
+                </div>
+            )}
+            <div
+                className="absolute left-0 right-0 bottom-0"
+                style={{
+                    padding: '8px 9px 9px',
+                    background:
+                        'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.92) 100%)',
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: 'var(--vesper-text)',
+                        lineHeight: 1.2,
+                    }}
+                >
+                    {actor.name}
+                </div>
             </div>
         </button>
     );

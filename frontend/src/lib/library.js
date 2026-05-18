@@ -1,5 +1,5 @@
 /**
- * My Library — per-profile favourites + Watch-Later queue.
+ * My Library — per-profile favourites + Watch-Later queue + Actors.
  *
  * Storage shape (one key per profile, via profileScope):
  *
@@ -13,17 +13,15 @@
  *       },
  *       ...
  *     },
- *     watchLater: [
- *       {
- *         id: "tt1234567",        // show id
- *         type: "series",
- *         episode: { season, number, name, aired },
+ *     watchLater: [ … ],
+ *     actors: {
+ *       "31": {                   // TMDB person id (string)
+ *         name: "Tom Hanks",
+ *         profile: "https://image.tmdb.org/…",
  *         addedAt: ISO,
- *         showMeta: { name, poster }
- *       }
- *     ],
- *     // notifications that have been shown / dismissed so we
- *     // don't re-fire them every page load
+ *       },
+ *       ...
+ *     },
  *     dismissed: { "tt1234567:S3E5": ISO }
  *   }
  */
@@ -32,7 +30,7 @@ import { readScopedString, writeScopedString } from './profileScope';
 
 const KEY = 'vesper-library';
 
-const EMPTY = { favorites: {}, watchLater: [], dismissed: {} };
+const EMPTY = { favorites: {}, watchLater: [], actors: {}, dismissed: {} };
 
 function read() {
     try {
@@ -42,6 +40,7 @@ function read() {
         return {
             favorites: parsed.favorites || {},
             watchLater: Array.isArray(parsed.watchLater) ? parsed.watchLater : [],
+            actors: parsed.actors || {},
             dismissed: parsed.dismissed || {},
         };
     } catch {
@@ -200,4 +199,41 @@ export function dismissEpisode(id, season, number) {
     const s = read();
     s.dismissed[`${id}:S${season}E${number}`] = new Date().toISOString();
     write(s);
+}
+
+/* --------------------- Actors --------------------- */
+
+export function isActorInLibrary(personId) {
+    if (personId == null) return false;
+    const s = read();
+    return !!s.actors[String(personId)];
+}
+
+export function addActorToLibrary({ id, name, profile }) {
+    if (id == null || !name) return;
+    const s = read();
+    const key = String(id);
+    if (s.actors[key]) return;
+    s.actors[key] = {
+        name,
+        profile: profile || '',
+        addedAt: new Date().toISOString(),
+    };
+    write(s);
+}
+
+export function removeActorFromLibrary(personId) {
+    if (personId == null) return;
+    const s = read();
+    const key = String(personId);
+    if (!s.actors[key]) return;
+    delete s.actors[key];
+    write(s);
+}
+
+export function listActors() {
+    const s = read();
+    return Object.entries(s.actors)
+        .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
 }

@@ -33,6 +33,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import useLongPress from '@/hooks/useLongPress';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -489,17 +490,45 @@ function Dot({ active }) {
 function ActorCard({ actor, onFocus, onBlur, onActivate }) {
     const fallback = actor.name?.charAt(0)?.toUpperCase() || '?';
     const [focused, setFocused] = useState(false);
+
+    const onLongPress = () => {
+        if (actor.id == null) return;
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id: actor.id,
+                    type: 'actor',
+                    title: actor.name,
+                    poster: actor.profile || null,
+                    year: '',
+                    synopsis: actor.character
+                        ? `Plays ${actor.character} in this title.`
+                        : '',
+                },
+            })
+        );
+    };
+    const onTap = () => onActivate?.();
+    const press = useLongPress(onLongPress, onTap);
+
     return (
         <button
             data-testid={`cast-actor-${actor.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
+            {...press}
             onFocus={(e) => { setFocused(true); onFocus?.(e); }}
             onBlur={(e) => { setFocused(false); onBlur?.(e); }}
             onMouseEnter={(e) => { setFocused(true); onFocus?.(e); }}
-            onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
-            onClick={() => onActivate?.()}
+            onMouseLeave={(e) => {
+                setFocused(false);
+                /* useLongPress' onMouseLeave cancels any in-flight
+                 * hold timer.  Call it BEFORE our blur callback so
+                 * the hold timer fizzles cleanly. */
+                press.onMouseLeave?.(e);
+                onBlur?.(e);
+            }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
                 width: 'clamp(116px, 9.4vw, 172px)',
@@ -599,17 +628,51 @@ function ActorCard({ actor, onFocus, onBlur, onActivate }) {
  * ActorCard so the row swaps content with zero layout shift.
  */
 function TitleCard({ item, testIdPrefix, onActivate, onFocus, onBlur }) {
+    /* On long-press, resolve TMDB id → IMDB id, then dispatch the
+     * Watch Later / My List modal request.  Short tap continues to
+     * navigate (via onActivate).  Hold ≥ 700 ms shows the modal. */
+    const onLongPress = async () => {
+        try {
+            const { data } = await axios.get(
+                `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
+                { timeout: 8000 }
+            );
+            const imdb = data?.imdb_id;
+            if (!imdb) return;
+            window.dispatchEvent(
+                new CustomEvent('vesper:request-add-to-list', {
+                    detail: {
+                        id: imdb,
+                        type: item.media_type === 'tv' ? 'series' : 'movie',
+                        title: item.title,
+                        poster: item.poster,
+                        background: item.backdrop,
+                        year: item.year,
+                        synopsis: item.overview,
+                    },
+                })
+            );
+        } catch {
+            /* swallow */
+        }
+    };
+    const onTap = () => onActivate?.();
+    const press = useLongPress(onLongPress, onTap);
+
     return (
         <button
             data-testid={`${testIdPrefix}-${item.media_type}-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
+            {...press}
             onFocus={(e) => onFocus?.(e)}
             onBlur={(e) => onBlur?.(e)}
             onMouseEnter={(e) => onFocus?.(e)}
-            onMouseLeave={(e) => onBlur?.(e)}
-            onClick={() => onActivate?.()}
+            onMouseLeave={(e) => {
+                press.onMouseLeave?.(e);
+                onBlur?.(e);
+            }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
                 width: 'clamp(116px, 9.4vw, 172px)',

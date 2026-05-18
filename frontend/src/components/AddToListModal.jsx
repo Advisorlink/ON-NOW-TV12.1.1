@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Check, X, Plus, Trash2, Bookmark } from 'lucide-react';
+import { Check, X, Plus, Trash2, Bookmark, User } from 'lucide-react';
 import {
     isInLibrary,
     addToLibrary,
@@ -7,6 +7,9 @@ import {
     isMovieInWatchLater,
     addToWatchLater,
     removeFromWatchLater,
+    isActorInLibrary,
+    addActorToLibrary,
+    removeActorFromLibrary,
 } from '@/lib/library';
 
 /**
@@ -178,14 +181,28 @@ export default function AddToListModal() {
     if (!payload) return null;
 
     const isMovie = payload.type === 'movie';
-    // For series: "Add/Remove from My List".
-    // For movies: "Add/Remove from Watch Later".
-    const isActive = isMovie
+    const isActor = payload.type === 'actor';
+    // For series:  "Add/Remove from My List".
+    // For movies:  "Add/Remove from Watch Later".
+    // For actors:  "Add/Remove from My Actors".
+    const isActive = isActor
+        ? isActorInLibrary(payload.id)
+        : isMovie
         ? isMovieInWatchLater(payload.id)
         : isInLibrary(payload.id);
 
     const onConfirm = () => {
-        if (isMovie) {
+        if (isActor) {
+            if (isActive) {
+                removeActorFromLibrary(payload.id);
+            } else {
+                addActorToLibrary({
+                    id: payload.id,
+                    name: payload.title,
+                    profile: payload.poster,
+                });
+            }
+        } else if (isMovie) {
             if (isActive) {
                 removeFromWatchLater({ id: payload.id });
             } else {
@@ -243,6 +260,7 @@ export default function AddToListModal() {
                 <ModalCard
                     payload={payload}
                     isMovie={isMovie}
+                    isActor={isActor}
                     isActive={isActive}
                     confirmBtnRef={confirmBtnRef}
                     onConfirm={onConfirm}
@@ -253,7 +271,7 @@ export default function AddToListModal() {
     );
 }
 
-function ModalCard({ payload, isMovie, isActive, confirmBtnRef, onConfirm, onCancel }) {
+function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfirm, onCancel }) {
     const { title, poster, year, genres, synopsis, type } = payload;
 
     // Wording matrix:
@@ -261,11 +279,18 @@ function ModalCard({ payload, isMovie, isActive, confirmBtnRef, onConfirm, onCan
     //   movie  +  active → "Remove from Watch Later"
     //   series + !active → "Add to My List"
     //   series +  active → "Remove from My List"
+    //   actor  + !active → "Add to My Actors"
+    //   actor  +  active → "Remove from My Actors"
     let eyebrow;
     let bigHeading;
     let confirmLabel;
     let ConfirmIcon;
-    if (isMovie) {
+    if (isActor) {
+        eyebrow = isActive ? 'Remove from My Actors' : 'Add to My Actors';
+        bigHeading = isActive ? 'Remove this actor?' : 'Save this actor?';
+        confirmLabel = isActive ? 'Remove' : 'Add to My Actors';
+        ConfirmIcon = isActive ? Trash2 : User;
+    } else if (isMovie) {
         eyebrow = isActive ? 'Remove from Watch Later' : 'Add to Watch Later';
         bigHeading = isActive ? 'Remove this?' : 'Watch later?';
         confirmLabel = isActive ? 'Remove' : 'Add to Watch Later';
