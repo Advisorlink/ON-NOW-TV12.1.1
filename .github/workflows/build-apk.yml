@@ -238,6 +238,17 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.50 — Smaller cast cards fit cleanly below Play**
+            - 📐 Cast cards: clamp(132→198) → clamp(88→128).
+              Cards now 128×192 (vs 198×297).  Heading + gap
+              tightened.  Whole lane is 274 px tall instead of
+              ~380 px — sits well below the Play button with
+              ~300 px of breathing room.
+            - 📝 Card text scaled down to match smaller card:
+              name 11→13 px, character 9 px fixed.
+            - 🎨 Same focus animation + B&W → color filter
+              preserved.
+
             **v2.6.49 — Cast cards match home screen visuals**
             - 🎬 Actor cards now use the same skeleton as the home
               screen `<PosterTile/>`: 2/3 portrait aspect, 12 px

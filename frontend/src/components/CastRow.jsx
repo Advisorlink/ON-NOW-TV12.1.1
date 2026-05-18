@@ -73,16 +73,16 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
             <h3
                 className="vesper-display"
                 style={{
-                    fontSize: 22,
+                    fontSize: 18,
                     letterSpacing: '-0.02em',
-                    marginBottom: 14,
+                    marginBottom: 10,
                 }}
             >
                 Cast
                 <span
                     className="ml-3 vesper-mono"
                     style={{
-                        fontSize: 11,
+                        fontSize: 10,
                         color: 'var(--vesper-text-3)',
                         letterSpacing: '0.22em',
                         textTransform: 'uppercase',
@@ -97,11 +97,11 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                 className="vesper-shelf"
                 style={{
                     display: 'flex',
-                    gap: 18,
+                    gap: 14,
                     overflowX: 'auto',
                     overflowY: 'visible',
-                    paddingTop: 12,
-                    paddingBottom: 16,
+                    paddingTop: 10,
+                    paddingBottom: 12,
                     paddingRight: 80,
                     scrollPaddingRight: 80,
                     scrollbarWidth: 'none',
@@ -148,12 +148,11 @@ function ActorCard({ actor, onFocus, onBlur }) {
             onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                /* Match PosterTile sizing convention — fluid
-                 * clamp keeps the strip identical to home-screen
-                 * rows at any viewport.  Aspect-ratio 2/3 mirrors
-                 * a portrait poster so a profile photo crops
-                 * cleanly. */
-                width: 'clamp(132px, 11.5vw, 198px)',
+                /* Smaller than home-screen poster tiles so the
+                 * whole cast row fits cleanly UNDER the Play
+                 * button.  Same 2/3 aspect + global focus animation
+                 * as poster tiles, just shrunk for the cast lane. */
+                width: 'clamp(88px, 7vw, 128px)',
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
@@ -209,27 +208,35 @@ function ActorCard({ actor, onFocus, onBlur }) {
                 }}
             />
 
-            <div className="absolute inset-x-0 bottom-0 p-4">
+            <div className="absolute inset-x-0 bottom-0 p-2.5">
                 <div
                     className="font-sans"
                     style={{
-                        fontSize: 'clamp(13px, 1vw, 17px)',
+                        fontSize: 'clamp(11px, 0.72vw, 13px)',
                         fontWeight: 600,
                         letterSpacing: '-0.015em',
                         lineHeight: 1.15,
                         color: 'var(--vesper-text)',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: 'vertical',
                     }}
                 >
                     {actor.name}
                 </div>
                 {actor.character && (
                     <div
-                        className="vesper-mono mt-1.5"
+                        className="vesper-mono mt-1"
                         style={{
-                            fontSize: 'clamp(9px, 0.62vw, 11px)',
-                            letterSpacing: '0.18em',
+                            fontSize: 9,
+                            letterSpacing: '0.16em',
                             textTransform: 'uppercase',
                             color: 'var(--vesper-text-2)',
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 1,
+                            WebkitBoxOrient: 'vertical',
                         }}
                     >
                         as {actor.character}
