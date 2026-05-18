@@ -64,16 +64,18 @@ const STEPS = [
     {
         // NEW (v2.6.65) — surfaces the fact that the entire app is
         // designed around the remote, so the user never needs to
-        // wake the mouse cursor on their TV box.  Renders an actual
-        // photo of the user's remote next to a "no mouse" icon.
+        // engage the AIR MOUSE built into the remote (the gyro
+        // pointer mode triggered by the mouse button).  Renders
+        // an actual photo of the user's remote with a subtle hint
+        // pointing at the air-mouse button.
         id: 'no-mouse',
         glow: 'center',
         scene: 'no-mouse',
         icon: KeyRound,
-        eyebrow: 'Designed for the remote',
-        title: 'No more need for that pesky mouse',
+        eyebrow: 'Designed for the D-pad',
+        title: 'No more pesky air mouse',
         body:
-            "Every screen, every list, every popup is built around the four arrows + OK on your remote.  Hold OK to save, press BACK to step back, and the in-app voice search means you'll basically never need to wake the mouse cursor again.",
+            "Every screen, list, and popup is built around the four arrows + OK on your remote.  Hold OK to save, press BACK to step back — you'll basically never need to flick the air mouse cursor on again.",
     },
     {
         id: 'navigation',
@@ -477,7 +479,13 @@ export default function Onboarding({ open, onClose }) {
 /* ---------------------------------------------------------------- */
 function SceneSwitcher({ step }) {
     const scene = step.scene || 'dpad';
-    const compact = scene !== 'dpad';
+    /* `compact` triggers the small floating-D-pad reminder in the
+       bottom-right of the panel for every scene except the welcome
+       D-pad demo.  We also hide it on the `no-mouse` scene because
+       the whole slide IS already a D-pad demo (the user's actual
+       remote with the OK button highlighted), so a second floating
+       mini-D-pad is visually duplicative. */
+    const compact = scene !== 'dpad' && scene !== 'no-mouse';
     return (
         <div
             style={{
@@ -674,218 +682,159 @@ function ScenePanel({ children, eyebrow, height = 360 }) {
     );
 }
 
-/* === SceneNoMouse — photo of the user's actual remote next to a
-   "no mouse" icon, hammering home that the entire app is built
-   around the D-pad and they'll basically never need to wake the
-   cursor on their TV box. === */
+/* === SceneNoMouse — the user's actual remote, integrated into the
+   panel (no white card background — the PNG has been pre-processed
+   with PIL to make near-white pixels transparent).  An animated cyan
+   OK glow draws the eye to the D-pad centre; a subtle red strike on
+   the air-mouse button drives the point home that this is the one
+   button you'll never need to press again. === */
 function SceneNoMouse() {
     return (
-        <ScenePanel eyebrow="Built for your remote" height={420}>
+        <ScenePanel eyebrow="Designed for the D-pad" height={420}>
             <div
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto 1fr',
-                    alignItems: 'center',
-                    gap: 24,
+                    position: 'relative',
                     height: '100%',
-                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 36,
+                    padding: '4px 8px',
                 }}
             >
-                {/* LEFT — actual photo of the user's remote, cyan glow */}
+                {/* Soft cyan halo wrapping the whole remote */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: 520,
+                        height: 520,
+                        marginTop: -260,
+                        marginLeft: -260,
+                        borderRadius: 999,
+                        background:
+                            'radial-gradient(circle at center, rgba(93,200,255,0.16) 0%, rgba(93,200,255,0) 60%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+
+                {/* REMOTE PHOTO — transparent background blends into
+                    the dark panel.  Slight float animation gives it
+                    a subtle floating-in-space feel. */}
                 <div
                     style={{
                         position: 'relative',
+                        height: 380,
                         display: 'flex',
-                        justifyContent: 'flex-end',
                         alignItems: 'center',
                     }}
                 >
+                    <img
+                        src="/onboarding/remote.png"
+                        alt="Your remote"
+                        style={{
+                            height: 380,
+                            width: 'auto',
+                            objectFit: 'contain',
+                            // Lift slightly off the panel + give the
+                            // edges a subtle cyan rim light to match
+                            // the rest of the app's neon aesthetic.
+                            filter:
+                                'drop-shadow(0 22px 36px rgba(0,0,0,0.55)) drop-shadow(0 0 12px rgba(93,200,255,0.18))',
+                            animation: 'vesperOnbFloat 4.2s ease-in-out infinite',
+                        }}
+                    />
+                    {/* Cyan glow ring centred on the OK / D-pad cluster.
+                        The PNG is 938 × 2222 — the OK button sits at
+                        approximately (0.50, 0.48) in normalized coords
+                        for this particular remote. */}
                     <div
                         style={{
-                            position: 'relative',
-                            padding: 18,
-                            borderRadius: 28,
-                            background:
-                                'radial-gradient(circle at center, rgba(93,200,255,0.22) 0%, rgba(93,200,255,0) 70%)',
+                            position: 'absolute',
+                            top: '48%',
+                            left: '50%',
+                            width: 70,
+                            height: 70,
+                            marginTop: -35,
+                            marginLeft: -35,
+                            borderRadius: 999,
+                            border: '2px solid rgba(93,200,255,0.6)',
+                            boxShadow:
+                                '0 0 18px rgba(93,200,255,0.45), inset 0 0 14px rgba(93,200,255,0.25)',
+                            animation: 'vesperOnbRingPulse 2.0s ease-out infinite',
+                            pointerEvents: 'none',
+                        }}
+                    />
+
+                    {/* OK callout label */}
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            top: '40%',
+                            right: '-100px',
+                            transform: 'translateY(-50%)',
+                            fontSize: 10,
+                            letterSpacing: '0.3em',
+                            color: 'rgba(93,200,255,0.95)',
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                            textShadow: '0 0 12px rgba(93,200,255,0.4)',
                         }}
                     >
-                        <img
-                            src="/onboarding/remote.png"
-                            alt="Your remote"
-                            style={{
-                                height: 320,
-                                width: 'auto',
-                                filter: 'drop-shadow(0 18px 40px rgba(0,0,0,0.5))',
-                                animation: 'vesperOnbFloat 4.2s ease-in-out infinite',
-                            }}
-                        />
-                        {/* OK glow ring drawn over the centre of the remote */}
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: '47%',
-                                left: '50%',
-                                width: 84,
-                                height: 84,
-                                marginTop: -42,
-                                marginLeft: -42,
-                                borderRadius: 999,
-                                border: '2px solid rgba(93,200,255,0.55)',
-                                boxShadow: '0 0 24px rgba(93,200,255,0.35)',
-                                animation: 'vesperOnbRingPulse 2.0s ease-out infinite',
-                                pointerEvents: 'none',
-                            }}
-                        />
-                        <div
-                            className="vesper-mono"
-                            style={{
-                                position: 'absolute',
-                                bottom: -8,
-                                left: 0, right: 0,
-                                textAlign: 'center',
-                                fontSize: 9,
-                                letterSpacing: '0.32em',
-                                color: 'rgba(93,200,255,0.9)',
-                                textTransform: 'uppercase',
-                            }}
-                        >
-                            Your remote
-                        </div>
+                        ← OK · this<br/>is all you need
                     </div>
-                </div>
 
-                {/* MIDDLE — chunky arrow indicating the switch */}
-                <div
-                    style={{
-                        fontSize: 32,
-                        color: 'rgba(255,255,255,0.45)',
-                        fontFamily: 'monospace',
-                        userSelect: 'none',
-                    }}
-                >
-                    →
-                </div>
-
-                {/* RIGHT — mouse icon with a red ✕ through it */}
-                <div
-                    style={{
-                        position: 'relative',
-                        display: 'flex',
-                        justifyContent: 'flex-start',
-                        alignItems: 'center',
-                    }}
-                >
+                    {/* Air-mouse strike — small subtle ✕ over the
+                        gyro / mouse-mode button at the top of the
+                        remote (around 0.50, 0.07 for this model). */}
                     <div
                         style={{
-                            position: 'relative',
-                            width: 220,
-                            height: 220,
-                            borderRadius: 28,
-                            background:
-                                'radial-gradient(circle at center, rgba(255,81,81,0.16) 0%, rgba(255,81,81,0) 70%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            position: 'absolute',
+                            top: '6%',
+                            left: '50%',
+                            width: 46,
+                            height: 46,
+                            marginLeft: -23,
+                            pointerEvents: 'none',
                         }}
                     >
-                        {/* Mouse SVG — neutral grey so the red cross
-                            stands out. */}
-                        <svg
-                            width="140"
-                            height="180"
-                            viewBox="0 0 140 180"
-                            style={{
-                                opacity: 0.55,
-                                filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.45))',
-                            }}
-                        >
-                            <defs>
-                                <linearGradient id="mouseBody" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#2a2f3a" />
-                                    <stop offset="100%" stopColor="#0e121b" />
-                                </linearGradient>
-                            </defs>
-                            <path
-                                d="M70 6c-32 0-58 24-58 58v50c0 32 26 60 58 60s58-28 58-60V64c0-34-26-58-58-58z"
-                                fill="url(#mouseBody)"
-                                stroke="rgba(255,255,255,0.18)"
-                                strokeWidth="2"
-                            />
-                            {/* Scroll wheel */}
-                            <rect
-                                x="64"
-                                y="36"
-                                width="12"
-                                height="28"
-                                rx="6"
-                                fill="rgba(255,255,255,0.22)"
-                            />
-                            {/* Vertical seam */}
+                        <svg width="46" height="46" viewBox="0 0 46 46">
                             <line
-                                x1="70" y1="6" x2="70" y2="36"
-                                stroke="rgba(255,255,255,0.12)"
-                                strokeWidth="2"
+                                x1="9" y1="9" x2="37" y2="37"
+                                stroke="#ff5d5d"
+                                strokeWidth="3.4"
+                                strokeLinecap="round"
+                                style={{ filter: 'drop-shadow(0 0 6px rgba(255,93,93,0.55))' }}
                             />
                             <line
-                                x1="70" y1="64" x2="70" y2="124"
-                                stroke="rgba(255,255,255,0.10)"
-                                strokeWidth="1.4"
-                            />
-                            {/* Tail / cable */}
-                            <path
-                                d="M70 6 C 70 -6, 80 -10, 86 -16"
-                                fill="none"
-                                stroke="rgba(255,255,255,0.18)"
-                                strokeWidth="2"
+                                x1="37" y1="9" x2="9" y2="37"
+                                stroke="#ff5d5d"
+                                strokeWidth="3.4"
+                                strokeLinecap="round"
+                                style={{ filter: 'drop-shadow(0 0 6px rgba(255,93,93,0.55))' }}
                             />
                         </svg>
+                    </div>
 
-                        {/* Big red ✕ overlay */}
-                        <svg
-                            width="220"
-                            height="220"
-                            viewBox="0 0 220 220"
-                            style={{
-                                position: 'absolute',
-                                inset: 0,
-                                pointerEvents: 'none',
-                            }}
-                        >
-                            <line
-                                x1="36" y1="36" x2="184" y2="184"
-                                stroke="#ff4d4d"
-                                strokeWidth="11"
-                                strokeLinecap="round"
-                                style={{
-                                    filter: 'drop-shadow(0 0 14px rgba(255,77,77,0.55))',
-                                }}
-                            />
-                            <line
-                                x1="184" y1="36" x2="36" y2="184"
-                                stroke="#ff4d4d"
-                                strokeWidth="11"
-                                strokeLinecap="round"
-                                style={{
-                                    filter: 'drop-shadow(0 0 14px rgba(255,77,77,0.55))',
-                                }}
-                            />
-                        </svg>
-
-                        <div
-                            className="vesper-mono"
-                            style={{
-                                position: 'absolute',
-                                bottom: -8,
-                                left: 0, right: 0,
-                                textAlign: 'center',
-                                fontSize: 9,
-                                letterSpacing: '0.32em',
-                                color: 'rgba(255,107,107,0.92)',
-                                textTransform: 'uppercase',
-                            }}
-                        >
-                            No mouse needed
-                        </div>
+                    {/* Air-mouse callout label */}
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            top: '4%',
+                            left: '-140px',
+                            fontSize: 10,
+                            letterSpacing: '0.28em',
+                            color: 'rgba(255,107,107,0.95)',
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                            textAlign: 'right',
+                            textShadow: '0 0 10px rgba(255,77,77,0.35)',
+                        }}
+                    >
+                        Air-mouse<br/>not needed →
                     </div>
                 </div>
             </div>

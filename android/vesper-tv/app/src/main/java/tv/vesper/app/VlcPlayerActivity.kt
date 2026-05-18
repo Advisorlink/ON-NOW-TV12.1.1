@@ -189,11 +189,14 @@ class VlcPlayerActivity : AppCompatActivity() {
                     })
                 }
             }
-            /* 1-second cadence (was 2 s).  Guests use these
+            /* 500 ms cadence (was 1 s).  Guests use these
                broadcasts to detect drift; a faster heartbeat means
-               the perceived host-vs-guest delay is bounded by ~1 s
-               + RTT instead of ~2 s + RTT. */
-            partyHandler.postDelayed(this, 1_000L)
+               the perceived host-vs-guest delay is bounded by ~500 ms
+               + RTT.  Combined with the new 350 ms drift threshold
+               in handlePartyMessage, this keeps every member within
+               half a second of the host.  The bandwidth cost is
+               negligible (~80 bytes / s). */
+            partyHandler.postDelayed(this, 500L)
         }
     }
     private var partyBadge: TextView? = null
@@ -715,9 +718,19 @@ class VlcPlayerActivity : AppCompatActivity() {
         }
 
         if (partyRole == "guest") {
+            /* Drift tolerance: 350 ms (was 1500 ms).  The user
+               reported the host playing ~1 s ahead of the guest
+               and it never being corrected; 1500 ms was too lax.
+               350 ms catches that case while still absorbing normal
+               HLS / RTT jitter (typical network round-trips are
+               40-150 ms; libVLC's frame-time precision is ~40 ms).
+               If the seek fires too aggressively, audio glitches; in
+               practice the host's heartbeat advances monotonically
+               so we only correct once per drift episode. */
+            val DRIFT_TOLERANCE_MS = 350L
             when (status) {
                 "paused" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > DRIFT_TOLERANCE_MS) {
                         mediaPlayer.time = targetMs
                     }
                     if (mediaPlayer.isPlaying) {
@@ -726,7 +739,9 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                 }
                 "playing" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                    val drift = mediaPlayer.time - targetMs   // positive = ahead, negative = behind
+                    if (mediaPlayer.length > 0 && Math.abs(drift) > DRIFT_TOLERANCE_MS) {
+                        Log.d(TAG, "drift-correct: guest=${mediaPlayer.time}ms host_target=${targetMs}ms drift=${drift}ms")
                         mediaPlayer.time = targetMs
                     }
                     if (!mediaPlayer.isPlaying) {
@@ -735,7 +750,7 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                 }
                 "countdown" -> {
-                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > 1500) {
+                    if (mediaPlayer.length > 0 && Math.abs(mediaPlayer.time - targetMs) > DRIFT_TOLERANCE_MS) {
                         mediaPlayer.time = targetMs
                     }
                     val remaining = atMs - System.currentTimeMillis()

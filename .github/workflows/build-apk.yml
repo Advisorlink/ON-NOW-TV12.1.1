@@ -238,6 +238,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.66 — Watch Together: sub-second sync · Onboarding slide refined**
+            - 🎯 **Watch-Together host/guest now sub-second in sync.**
+              Previously the drift tolerance was 1500 ms so a 1 s
+              host-ahead-of-guest lag would never trigger a
+              correction.  Two changes:
+              • Host heartbeat cadence 1000 ms → **500 ms** so
+                guests get fresher host position twice per second.
+              • Guest drift threshold 1500 ms → **350 ms** so any
+                lag over ~⅓ s now triggers an automatic seek to
+                catch up.  Combined effect: any startup-latency
+                drift is corrected within ~500 ms of the host's
+                next heartbeat — host and guest end up within a
+                couple frames of each other.
+            - 🎮 **No-mouse onboarding slide refined.**
+              • Removed the secondary mouse icon — the slide now
+                shows just your remote, integrated cleanly into
+                the dark panel (no more "sticker on white card").
+              • Pre-processed the remote PNG to make near-white
+                pixels transparent + cropped to the remote's
+                bounding box.
+              • Updated copy: "**No more pesky air mouse**" with a
+                small red ✕ over the air-mouse button (the gyro
+                pointer toggle at the top of the remote), cyan OK
+                glow ring + label "← OK · THIS IS ALL YOU NEED".
+              • Hidden the duplicate floating-D-pad reminder for
+                this scene only — the user's actual remote is the
+                hint.
+            - 🆙 APK bumped to **v2.6.66** (versionCode 136).
+
             **v2.6.65 — Trailer plays in HD · No-mouse onboarding · Focus trap · Update gate fix**
             - 🎬 **Trailers FINALLY play in HD!** The YouTube iframe
               approach was hitting walls on Android WebView (couldn't

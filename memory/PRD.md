@@ -56,6 +56,24 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 99 — Feb 18, 2026) — v2.6.66
+### Watch Together: sub-second sync · No-mouse onboarding refined
+- **🎉 User feedback after testing v2.6.65 on her HK1 box**: "The Watch Together worked. It worked REALLY, REALLY WELL! BUT … the host is playing 1 second ahead of the guest. If we could fix that it would be absolutely perfect." Also requested: refine the no-mouse slide (it's the *air mouse* on the remote, not a separate mouse) — remove the cross over the secondary mouse icon, remove the white background, make the remote look "part of the actual thing" not "a sticker".
+- **🎯 Sub-second sync fix in `VlcPlayerActivity.kt`**:
+  - **Heartbeat cadence: 1000 ms → 500 ms.** Host now broadcasts its position twice per second so guests get fresher data.
+  - **Drift tolerance: 1500 ms → 350 ms.** Previously a 1 s host-ahead lag fell BELOW the tolerance so no correction ever fired — the guest was permanently 1 s behind. New threshold catches any drift > ⅓ s and seeks to the host's authoritative position. Combined with the faster heartbeat, drift is corrected within ~500 ms of detection.
+  - Logged drift events for debug (`Log.d(TAG, "drift-correct: …")`).
+- **🎮 No-mouse onboarding slide refined**:
+  - **Removed the separate mouse icon entirely** (the user said "no more pesky AIR mouse" — it's the gyro pointer button on the remote, not a separate mouse).
+  - **Pre-processed `remote.png`** with PIL to make near-white pixels (>215 brightness) fully transparent and 180-215 brightness softly faded, then cropped to bounding box. Result: the remote now blends into the dark panel cleanly with a subtle cyan rim-light, no more "sticker on white card" feel.
+  - **Updated copy**: title "No more pesky air mouse" + body emphasising the gyro pointer button.
+  - Small red ✕ overlaid on the air-mouse button (top of the remote, ~6% from top) with a callout label "AIR-MOUSE NOT NEEDED →".
+  - Cyan glow ring on the OK button with label "← OK · THIS IS ALL YOU NEED".
+  - Hidden the duplicate floating-D-pad reminder for this scene (the user's actual remote IS the hint).
+- **🆙 APK bumped to v2.6.66 (versionCode 136).** Release notes added.
+
+
+
 ## Implemented (Iteration 98 — Feb 18, 2026) — v2.6.65
 ### Four high-impact fixes: HD trailers · focus trap · update gate · no-mouse onboarding slide
 - **🎬 Trailers play in HD on the HK1 box** (FINALLY)
