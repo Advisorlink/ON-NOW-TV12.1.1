@@ -76,6 +76,7 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                     fontSize: 18,
                     letterSpacing: '-0.02em',
                     marginBottom: 10,
+                    paddingLeft: 80,
                 }}
             >
                 Cast
@@ -100,9 +101,19 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                     gap: 14,
                     overflowX: 'auto',
                     overflowY: 'visible',
-                    paddingTop: 10,
-                    paddingBottom: 12,
+                    /* Buffer space INSIDE the scroll container on
+                     * BOTH sides so the first / last card's
+                     * scale(1.08) focus animation never gets
+                     * clipped by the strip's scroll edge.  The
+                     * heading + page chrome already sit inside
+                     * an 80 px lane margin, so 80 px buffer here
+                     * keeps the visible card alignment identical
+                     * to that gutter. */
+                    paddingLeft: 80,
                     paddingRight: 80,
+                    paddingTop: 12,
+                    paddingBottom: 14,
+                    scrollPaddingLeft: 80,
                     scrollPaddingRight: 80,
                     scrollbarWidth: 'none',
                 }}
@@ -148,11 +159,11 @@ function ActorCard({ actor, onFocus, onBlur }) {
             onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                /* Smaller than home-screen poster tiles so the
-                 * whole cast row fits cleanly UNDER the Play
-                 * button.  Same 2/3 aspect + global focus animation
-                 * as poster tiles, just shrunk for the cast lane. */
-                width: 'clamp(88px, 7vw, 128px)',
+                /* Slightly bigger than the previous tight cards
+                 * but still smaller than home-screen tiles so the
+                 * row sits cleanly under the Play CTA on a 1080p
+                 * box.  Same 2/3 portrait aspect. */
+                width: 'clamp(104px, 8.4vw, 152px)',
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',

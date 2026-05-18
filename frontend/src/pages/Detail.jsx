@@ -890,25 +890,26 @@ export default function Detail() {
             <FullscreenButton />
 
             {/* Backdrop — the title's own backdrop fills the hero.
-                Simple darkened image with a vertical gradient so
-                the title + synopsis read cleanly on top. */}
+                Brighter on the right side so the wallpaper shows
+                through; darker left + bottom to keep the title /
+                synopsis / Play CTA readable. */}
             <div
                 className="absolute inset-0"
                 style={{
                     backgroundImage: `url(${meta.background || meta.poster || ''})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    filter: 'brightness(0.6) saturate(1.1)',
+                    filter: 'brightness(0.85) saturate(1.1)',
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
                     background: `linear-gradient(180deg,
-                          rgba(6,8,15,0.55) 0%,
-                          rgba(6,8,15,0.4) 30%,
-                          rgba(6,8,15,0.85) 70%,
-                          var(--vesper-bg-0) 100%)`,
+                          rgba(6,8,15,0.45) 0%,
+                          rgba(6,8,15,0.2) 30%,
+                          rgba(6,8,15,0.35) 70%,
+                          rgba(6,8,15,0.65) 100%)`,
                 }}
             />
             <div
@@ -916,9 +917,9 @@ export default function Detail() {
                 style={{
                     background: `linear-gradient(90deg,
                           rgba(6,8,15,0.92) 0%,
-                          rgba(6,8,15,0.65) 35%,
-                          rgba(6,8,15,0.1) 70%,
-                          rgba(6,8,15,0) 100%)`,
+                          rgba(6,8,15,0.7) 30%,
+                          rgba(6,8,15,0.2) 55%,
+                          rgba(6,8,15,0) 75%)`,
                 }}
             />
 
@@ -1610,7 +1611,13 @@ export default function Detail() {
                         position: 'absolute',
                         left: 0, right: 0, bottom: 0,
                         zIndex: 15,
-                        padding: '0 80px 32px 80px',
+                        /* No horizontal padding here — the heading
+                         * and the scroll strip inside CastRow
+                         * manage their own 80 px gutter so the
+                         * strip's scroll context can hold the
+                         * first / last card's scale animation
+                         * without clipping. */
+                        padding: '0 0 32px 0',
                     }}
                 >
                     <div

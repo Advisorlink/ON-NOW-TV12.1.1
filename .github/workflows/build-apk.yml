@@ -238,6 +238,20 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.51 — Cast tweaks + brighter wallpaper**
+            - 📐 Cast cards: clamp(88→128) → clamp(104→152).
+              ~19 % bigger.
+            - 🛟 First card's focus ring is no longer clipped on
+              the left edge.  The horizontal-scroll strip now
+              owns the 80 px lane gutter as paddingLeft +
+              paddingRight, so the scale(1.08) focus animation
+              has room to grow on both ends.
+            - ☀️ Wallpaper brighter: filter brightness 0.6 → 0.85,
+              horizontal darkening on the right fades to
+              transparent by 55 % (was 70 %), vertical overlay
+              top/mid lightened.  The right side of the page now
+              shows the original backdrop image clearly.
+
             **v2.6.50 — Smaller cast cards fit cleanly below Play**
             - 📐 Cast cards: clamp(132→198) → clamp(88→128).
               Cards now 128×192 (vs 198×297).  Heading + gap
