@@ -379,24 +379,35 @@ export default function Detail() {
     const requestSnap = useCallback((idx) => {
         // 0 = hero (Play focused), 1 = cast lane, 2 = recs lane
         setSnapIdx(idx);
-        if (idx === 0)      setBottomLane('cast');
-        else if (idx === 1) setBottomLane('cast');
-        else if (idx === 2) setBottomLane('recs');
+        if (idx === 0)      { setBottomLane('cast'); setFocusedActor(null); setFocusedRec(null); }
+        else if (idx === 1) { setBottomLane('cast'); setFocusedRec(null); }
+        else if (idx === 2) { setBottomLane('recs'); setFocusedActor(null); }
 
         requestAnimationFrame(() => requestAnimationFrame(() => {
-            let sel = '[data-testid^="detail-play-"]';
-            if (idx === 1) sel = '[data-testid^="cast-actor-"]';
-            else if (idx === 2) sel = '[data-testid^="recommendation-"]';
+            /* When going to the Cast lane (idx 1) try the regular
+             * actor cards first; if the lane is currently in
+             * "filmography" mode (user revealed an actor's films)
+             * fall back to the film cards so the user isn't
+             * stranded with nothing focusable.  Same applies for
+             * Recs (the row may take a moment to mount). */
+            const selectors =
+                idx === 0
+                    ? ['[data-testid^="detail-play-"]']
+                    : idx === 1
+                    ? ['[data-testid^="cast-actor-"]', '[data-testid^="cast-film-"]']
+                    : ['[data-testid^="recommendation-"]'];
             let retries = 16;
             const tryFocus = () => {
-                const target = document.querySelector(sel);
-                if (target) {
-                    try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
-                    target.setAttribute('data-focused', 'true');
-                    document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                        if (el !== target) el.removeAttribute('data-focused');
-                    });
-                    return;
+                for (const sel of selectors) {
+                    const target = document.querySelector(sel);
+                    if (target) {
+                        try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+                        target.setAttribute('data-focused', 'true');
+                        document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                            if (el !== target) el.removeAttribute('data-focused');
+                        });
+                        return;
+                    }
                 }
                 if (--retries > 0) setTimeout(tryFocus, 50);
             };
@@ -412,6 +423,7 @@ export default function Detail() {
 
             const onPlay = active.matches('[data-testid^="detail-play-"]');
             const onCast = active.matches('[data-testid^="cast-actor-"]');
+            const onFilm = active.matches('[data-testid^="cast-film-"]');
             const onRecs = active.matches('[data-testid^="recommendation-"]') ||
                            !!active.closest('[data-testid="recommendations-row"]');
 
@@ -421,7 +433,7 @@ export default function Detail() {
                     requestSnap(1);
                     return;
                 }
-                if (onCast) {
+                if (onCast || onFilm) {
                     e.preventDefault(); e.stopPropagation();
                     requestSnap(2);
                     return;
@@ -431,11 +443,22 @@ export default function Detail() {
             if (e.key === 'ArrowUp') {
                 if (onRecs) {
                     e.preventDefault(); e.stopPropagation();
+                    /* Clear focused-rec so the rec backdrop fades
+                       away and the original hero re-appears before
+                       Cast re-focuses below. */
+                    setFocusedRec(null);
                     requestSnap(1);
                     return;
                 }
-                if (onCast) {
+                if (onCast || onFilm) {
                     e.preventDefault(); e.stopPropagation();
+                    /* CRITICAL — clear focusedActor BEFORE
+                       requestSnap so the Play button re-renders
+                       (it's conditionally hidden while an actor is
+                       focused).  Without this, requestSnap fails
+                       to find `[data-testid^="detail-play-"]` and
+                       the user gets stuck. */
+                    setFocusedActor(null);
                     requestSnap(0);
                 }
             }
@@ -1891,24 +1914,24 @@ export default function Detail() {
                         padding: '0 80px 32px 80px',
                     }}
                 >
-                    {/* Solid bottom-edge backdrop so the lane
-                        cleanly masks anything overflowing from the
-                        hero above (e.g. the SeriesEpisodes picker
-                        on a TV show detail page that can be very
-                        tall on small viewports).  Reaches solid
-                        opacity well before the Cast row heading so
-                        the hero's Play button can NEVER bleed
-                        through behind "Cast · N actors". */}
+                    {/* Solid bottom-edge backdrop — fully opaque so
+                        nothing from the hero (Play button, focused
+                        actor portrait, focused-rec backdrop image)
+                        EVER bleeds through into the lane.  Slight
+                        feather at the very top so the transition
+                        from hero to lane isn't a hard line.  Lane's
+                        own content (CastRow / RecommendationsRow)
+                        sits above this on `position: relative`. */}
                     <div
                         style={{
                             position: 'absolute',
-                            inset: '-120px 0 0 0',
+                            inset: '-140px 0 0 0',
                             background:
                                 'linear-gradient(180deg, ' +
                                 'rgba(6,8,15,0) 0%, ' +
-                                'rgba(6,8,15,0.7) 20%, ' +
-                                'rgba(6,8,15,0.98) 40%, ' +
-                                '#06080F 60%)',
+                                'rgba(6,8,15,0.85) 15%, ' +
+                                '#06080F 30%, ' +
+                                '#06080F 100%)',
                             pointerEvents: 'none',
                         }}
                     />

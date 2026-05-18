@@ -98,10 +98,17 @@ export default function RecommendationsRow({ tmdbId, mediaType, onFocus, testId 
                 className="vesper-shelf"
                 style={{
                     display: 'flex',
-                    gap: 18,
+                    gap: 12,
                     overflowX: 'auto',
                     overflowY: 'hidden',
                     paddingBottom: 16,
+                    /* Tail padding so the LAST card's focus glow
+                     * isn't clipped by the page's right edge as
+                     * the user scrolls it into view.  Matches the
+                     * CastRow strip exactly so visual rhythm is
+                     * preserved when the lane swaps Cast ↔ Recs. */
+                    paddingRight: 80,
+                    scrollPaddingRight: 80,
                 }}
             >
                 {items.map((item) => (
@@ -132,7 +139,12 @@ function RecCard({ item, onPick, onFocus: onFocusProp }) {
             onMouseLeave={() => { setFocused(false); onFocusProp?.(null); }}
             style={{
                 flexShrink: 0,
-                width: 152,
+                /* Match CastRow card width exactly so the lane has
+                 * identical vertical geometry when it swaps Cast ↔
+                 * Recs.  Previous 152px poster pushed the lane
+                 * 70px taller than the Cast lane, overflowing the
+                 * hero's reserved space. */
+                width: 108,
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
@@ -145,18 +157,18 @@ function RecCard({ item, onPick, onFocus: onFocusProp }) {
         >
             <div
                 style={{
-                    width: 152,
-                    height: 228,
-                    borderRadius: 14,
+                    width: 108,
+                    height: 162,
+                    borderRadius: 12,
                     overflow: 'hidden',
                     position: 'relative',
                     background: 'rgba(255,255,255,0.05)',
                     border: focused
-                        ? '2px solid var(--vesper-blue)'
+                        ? '3px solid var(--vesper-blue)'
                         : '1px solid rgba(255,255,255,0.08)',
                     transform: focused ? 'translateY(-4px)' : 'translateY(0)',
                     boxShadow: focused
-                        ? '0 18px 36px rgba(93,200,255,0.18), 0 4px 12px rgba(0,0,0,0.5)'
+                        ? '0 18px 36px rgba(93,200,255,0.35), 0 4px 12px rgba(0,0,0,0.5)'
                         : '0 2px 8px rgba(0,0,0,0.3)',
                     transition: 'transform 160ms ease, box-shadow 160ms ease, border 120ms ease',
                 }}

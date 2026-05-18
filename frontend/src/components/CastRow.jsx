@@ -269,9 +269,13 @@ function ActorCard({ actor, onFocus, onBlur, onPick }) {
                     position: 'relative',
                     background: 'rgba(255,255,255,0.05)',
                     border: focused
-                        ? '2px solid var(--vesper-blue)'
+                        ? '3px solid var(--vesper-blue)'
                         : '1px solid rgba(255,255,255,0.08)',
-                    transition: 'border 120ms ease',
+                    boxShadow: focused
+                        ? '0 16px 32px rgba(93,200,255,0.35), 0 4px 12px rgba(0,0,0,0.45)'
+                        : 'none',
+                    transform: focused ? 'translateY(-4px)' : 'translateY(0)',
+                    transition: 'border 120ms ease, transform 160ms ease, box-shadow 160ms ease',
                 }}
             >
                 {actor.profile ? (
@@ -447,11 +451,11 @@ function FilmCard({ film, onPick }) {
                     position: 'relative',
                     background: 'rgba(255,255,255,0.05)',
                     border: focused
-                        ? '2px solid var(--vesper-blue)'
+                        ? '3px solid var(--vesper-blue)'
                         : '1px solid rgba(255,255,255,0.08)',
                     transform: focused ? 'translateY(-4px)' : 'translateY(0)',
                     boxShadow: focused
-                        ? '0 16px 32px rgba(93,200,255,0.18), 0 4px 12px rgba(0,0,0,0.45)'
+                        ? '0 16px 32px rgba(93,200,255,0.35), 0 4px 12px rgba(0,0,0,0.45)'
                         : '0 2px 8px rgba(0,0,0,0.3)',
                     transition: 'transform 160ms ease, box-shadow 160ms ease, border 120ms ease',
                 }}

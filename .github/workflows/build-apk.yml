@@ -238,6 +238,39 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.47 — Detail page UX overhaul (stuck-on-actor fix)**
+            - 🐛 BIG FIX: After focusing a Cast actor, pressing UP
+              left users stranded — Play button stayed hidden and
+              the focus engine had nothing to land on.  Now we
+              clear `focusedActor` BEFORE the snap so the Play CTA
+              re-renders, and focus lands on it cleanly.
+            - 🐛 FIX: D-pad UP from an actor's filmography (cast-film-*)
+              now also returns to Play.  Previously only the
+              actor-card selector was handled, leaving the user
+              stuck inside an actor's films with no escape.
+            - 🐛 FIX: Bottom lane fully opaque now (no gradient
+              fade) — solid #06080F reaches by 30% of the fade
+              instead of 100%, so the hero's Play button, focused
+              actor portrait, and focused-rec backdrop CANNOT bleed
+              through behind the Cast / More-like-this rows
+              anymore.  The ghostly faces the user saw behind the
+              "More like this" row are gone.
+            - 📐 "More like this" rec cards downsized from 152×228
+              to 108×162 to match the Cast row exactly — the recs
+              lane now occupies the same vertical space as the
+              Cast lane, so the hero never overflows on lane swap.
+            - 📐 "More like this" strip now has paddingRight: 80px
+              (matching the Cast strip), so the last poster's focus
+              glow + the card itself are never cut off at the
+              right edge.
+            - 🎯 Focus states beefed up across CastRow + Recs:
+              2 px → 3 px border, glow opacity 0.18 → 0.35.
+              Clearly readable from 6–10 ft on a TV.
+            - 🛡️ requestSnap now falls back from `cast-actor-*` to
+              `cast-film-*` when the cast lane is currently in
+              filmography-reveal mode, so DOWN from Play never
+              misses its target.
+
             **v2.6.46 — Cast row collision fix on Detail page**
             - 🐛 FIX: When a Cast actor was focused, the "Play 1080p" CTA
               + "AUTOPLAY ON · TURN OFF…" caption + stream picker were

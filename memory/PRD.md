@@ -56,6 +56,32 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 96 — Feb 18, 2026)
+### Detail page UX overhaul — user couldn't escape the cast view (video reproduction)
+- **🐛 User reported with video**: After my Iteration 95 fix, user shot a video of their HK1 box showing the actual user experience: (1) ghostly faces visible behind the "More like this" row (focused-rec backdrop bleeding through the gradient mask), (2) **stuck on actor view** — when they focused a cast actor and tried to navigate back to Play, the screen froze with the actor still showing, (3) "More like this" cards were huge and the last one was cut off at the right edge, (4) focus indicators were not clearly visible from 6-10 ft viewing distance.
+- **🔬 RCA**:
+  1. **Stuck-on-actor**: My iter-95 fix hid the Play button when `focusedActor` was truthy. When the user pressed UP from a cast actor, `requestSnap(0)` tried to focus `[data-testid^="detail-play-"]` but the Play CTA hadn't re-rendered yet (because `focusedActor` was still set). The retry loop ran 800 ms with no luck and the user stayed stuck.
+  2. **Filmography trap**: D-pad UP handler only matched `cast-actor-*`, not `cast-film-*`. When user revealed an actor's filmography (clicked OK), UP did nothing.
+  3. **Hero bleed**: The gradient mask faded to opacity 0.92 at 55% and didn't reach solid until 100%. The focused-rec backdrop (z-index 2, full viewport) was bleeding through the lane at z-index 15.
+  4. **Recs lane was 70 px taller than the Cast lane**: rec cards were 152×228, cast cards 108×162. So when the lane swapped from Cast to Recs, the bottom lane geometry pushed UP into the hero area.
+  5. **Right-edge cutoff** on rec strip: no `paddingRight`.
+- **✅ Comprehensive fix** in `/app/frontend/src/`:
+  - `pages/Detail.jsx`:
+    - **`requestSnap` now clears `focusedActor` + `focusedRec` BEFORE focusing** — so the Play button re-renders before the focus engine queries for it.
+    - **`requestSnap` selector fallback**: when targeting the Cast lane (idx=1), tries `cast-actor-*` first, falls back to `cast-film-*` so the user is never stranded when the lane is in filmography-reveal mode.
+    - **ArrowUp keyboard handler now catches `cast-film-*`** in addition to `cast-actor-*` → user can escape filmography back to Play.
+    - **ArrowDown from cast-film-* now also navigates to Recs** (parity with ArrowDown from cast-actor).
+    - **Bottom-lane backdrop hardened to solid `#06080F` by 30 % of the fade height** (was 100 %). Inset bumped from -120 px to -140 px. Hero content (Play button, actor portrait, focused-rec backdrop) CANNOT bleed through anymore.
+  - `components/RecommendationsRow.jsx`:
+    - **Rec card dimensions**: 152×228 → 108×162 (matching Cast card exactly).
+    - **Strip paddingRight: 80 + scrollPaddingRight: 80** — last poster's focus glow no longer cut off at the right edge.
+    - **Focus state border**: 2 px → 3 px, glow opacity 0.18 → 0.35 for better 10-ft TV legibility.
+  - `components/CastRow.jsx`:
+    - **Focus state border on ActorCard and FilmCard**: 2 px → 3 px, added box-shadow glow (was missing on ActorCard), glow opacity 0.18 → 0.35.
+- **✅ Verified via Playwright** at 1920×1080: all 6 navigation scenarios pass (default → focus cast → UP back to Play; DOWN → cast → DOWN → recs → UP → cast → UP → play; OK on actor → filmography → UP from film card → Play). Focus indicator computed style confirms 3 px cyan border + 35 % glow.
+- **🆙** APK bumped to **v2.6.47 (versionCode 117)**. Release notes added to `.github/workflows/build-apk.yml`.
+
+
 ## Implemented (Iteration 95 — Feb 18, 2026)
 ### Detail page: hide Play CTA + autoplay caption when a Cast actor is focused
 - **🐛 User reported** (with photo of the TV showing the bug): "This is still happening" — the Sally Field actor view on the Detail page still showed the **"Play 1080p" button + "AUTOPLAY ON · TURN OFF IN SIDE MENU FOR PICKER" caption** rendered on top of the "Cast · 20 actors" heading at the bottom lane. Layout collision was visible at 1080p TV viewport (the user's HK1 box).
