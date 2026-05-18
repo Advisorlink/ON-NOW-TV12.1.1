@@ -56,6 +56,33 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 98 — Feb 18, 2026) — v2.6.65
+### Four high-impact fixes: HD trailers · focus trap · update gate · no-mouse onboarding slide
+- **🎬 Trailers play in HD on the HK1 box** (FINALLY)
+  - **🐛 User reported**: "The video player thing didn't play at all." (Trailer modal — YouTube iframe wasn't rendering on the HK1 box; previous attempt at native playback was 360p/chunky.)
+  - **🔬 RCA**: YouTube only serves combined audio+video MP4 up to 360p. For HD (1080p) they use DASH with separate video-only + audio-only streams. The iframe approach hit WebView compatibility walls, and the previous yt-dlp call only fetched combined progressive (capped at 360p).
+  - **✅ Fix**: Enhanced `/api/trailer-stream/{id}` to extract BOTH the 1080p video-only URL AND the matching m4a audio URL (via yt-dlp format selector `bestvideo[≤1080]+bestaudio`). Added `EXTRA_AUDIO_URL` + `playTrailer` bridge + `Media.addSlave(SLAVE_TYPE_AUDIO, ...)` in `VlcPlayerActivity.kt` so libVLC merges the two streams on the fly. `TrailerModal.jsx` now detects the native bridge and hands off to the native player with both URLs — HD, hardware-decoded, no iframe, no YouTube app intent.
+  - **🧪 Test**: `/app/backend/tests/test_trailer_stream.py` — verified Interstellar trailer (`LY19rHKAaAg`) returns `height=1080`, `is_hd_pair=true`, both `video_url` and `audio_url` populated.
+
+- **🔒 Long-press save dialog now traps focus** 
+  - **🐛 User reported**: "If you push left or one of the arrows at the wrong time, the focus jumps out of the popup box and into the background somewhere. You can never actually get back on without turning the mouse on."
+  - **✅ Fix** in `AddToListModal.jsx`: Added capture-phase `keydown` handler that intercepts ArrowLeft / ArrowRight / ArrowUp / ArrowDown when the modal is open. LEFT/RIGHT bounce focus between Confirm ↔ Cancel; UP/DOWN do nothing. Also added a `focusin` capture watchdog that rubber-bands focus back to the confirm button if it somehow escapes the modal (belt + braces).
+  - **🧪 Test**: Playwright validation confirmed ArrowLeft moves Confirm → Cancel inside the modal, second ArrowLeft stays, 2× ArrowDown stays inside.
+
+- **🔄 Update gate now triggers on every relaunch**
+  - **🐛 User reported**: "It's still not giving me the update inside once you open it up. I have to fully close the app and then clear the data for it to show."
+  - **🔬 RCA**: `UpdateGate.jsx` returned early from the version check whenever the cached info was younger than 6 h. So if the user opened the app within 6 h of installing the previous version, the gate never re-checked the server — stale "you're up to date" state persisted until they cleared app data.
+  - **✅ Fix**: Cache is now only used for instant-paint placeholder; the `/api/app/latest-version` call ALWAYS fires on mount AND on `visibilitychange` / `focus` (so backing out and reopening the app picks up new releases immediately, no clear-data required).
+
+- **🎮 New onboarding slide: "No more need for that pesky mouse"**
+  - **User request**: "Add a slide that says 'no more need for that pesky mouse'. I'll send you a photo of my remote."
+  - **✅ Implementation**: Added `id: 'no-mouse'` step right after the welcome slide (now step 2 of 15). New `SceneNoMouse` component renders the user's actual remote photo (`/public/onboarding/remote.png`) with an animated cyan OK glow ring on the OK button, an arrow pointing right to a mouse SVG with a big red ✕ through it. Headline copy: "No more need for that pesky mouse".
+  - **Verified** via screenshot: slide renders cleanly on `/` after profile selection.
+
+- **🆙 APK bumped to v2.6.65 (versionCode 135).** Release notes added.
+
+
+
 ## Implemented (Iteration 97 — Feb 18, 2026) — v2.6.64
 ### Watch Together — THE definitive fix for "both members spin forever"
 - **🐛 User reported (5th+ time, extremely frustrated)**: She and her friend tried Watch Together again — both saw the loading screen, the picker briefly flashed on her side (couldn't click), both got to the player but both spun infinite buffering wheels and never played. Emoji reactions also didn't work. "I need you to think deep, double-triple-quadruple check every option to make this work."

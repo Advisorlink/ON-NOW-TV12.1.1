@@ -238,6 +238,34 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.65 — Trailer plays in HD · No-mouse onboarding · Focus trap · Update gate fix**
+            - 🎬 **Trailers FINALLY play in HD!** The YouTube iframe
+              approach was hitting walls on Android WebView (couldn't
+              get past 360p, occasionally just blank).  We now extract
+              the trailer's 1080p video-only + matching m4a audio
+              streams server-side via yt-dlp, then play them in the
+              **native libVLC player** with audio as an input-slave.
+              Result: HD, smooth, hardware-decoded, no Android intent
+              redirect to the YouTube app, no chunky 360p.
+            - 🔒 **Long-press save dialog now traps focus** — pressing
+              LEFT/RIGHT bounces between Confirm/Cancel; UP/DOWN does
+              nothing.  If focus somehow drifts to a tile behind the
+              modal, we rubber-band it back to the confirm button.
+              You can never accidentally fall through to the
+              background again.
+            - 🔄 **Update gate now triggers on every app launch** —
+              previously a 6 h client cache short-circuited the
+              version check so re-opening the app within 6 h after a
+              release wouldn't show the gate.  Now we ALWAYS fetch
+              the latest version on mount AND on visibilitychange
+              (Android Activity resume), so closing/reopening the
+              app picks up new releases immediately.
+            - 🎮 **New onboarding slide: "No more need for that pesky
+              mouse"** — features your actual remote photo with an
+              animated OK glow ring, next to a mouse icon with a big
+              red ✕ through it.  Surfaces upfront that the entire app
+              is built around the D-pad.
+
             **v2.6.64 — Watch Together: host & guest now watch the SAME file**
             - 🔧 **THE root cause of "stuck spinning":** host & guest
               each ran their OWN stream resolution → could pick

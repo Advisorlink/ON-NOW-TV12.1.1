@@ -1747,19 +1747,31 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
 
 @api.get("/trailer-stream/{youtube_id}")
 async def trailer_stream(youtube_id: str):
-    """Extract a direct, playable MP4 URL for a YouTube video so the
-    frontend can play it with a native <video> tag — no embedded
-    YouTube iframe, no Android intent redirect to the YouTube app.
+    """Extract a direct, playable URL for a YouTube video so the
+    frontend can play it natively — no embedded YouTube iframe, no
+    Android intent redirect to the YouTube app.
 
-    The googlevideo.com URLs returned here are signed with a TTL
-    (~6 hours) and are CORS-friendly for normal cross-origin
-    consumption.  We cache the resolved URL for 1 h to absorb
-    repeat playback within the same session.
+    YouTube serves combined audio+video MP4 only up to 360p.  For HD
+    they use DASH (separate video-only + audio-only streams).  To
+    deliver HD trailers we therefore return BOTH:
+
+        - `url`            the BEST progressive MP4 we can find
+                           (combined audio+video, ≤ 360p typically)
+        - `video_url`      a 1080p video-only stream  (only if HD)
+        - `audio_url`      the matching m4a audio track (only if HD)
+
+    Native players (libVLC on Android) can play the HD pair via
+    `Media.addSlave(SLAVE_TYPE_AUDIO, audio_url)` and merge them on
+    the fly.  Web players that don't support input slaves fall back
+    to the combined progressive URL.
+
+    Googlevideo URLs are signed with a ~6 h TTL.  We cache for 1 h
+    to absorb repeat playback within the same session.
     """
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
     if not safe_id:
         raise HTTPException(400, "invalid youtube_id")
-    cache_key = f"trailer_stream:{safe_id}:v1"
+    cache_key = f"trailer_stream:{safe_id}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -1767,18 +1779,19 @@ async def trailer_stream(youtube_id: str):
 
     def _extract():
         from yt_dlp import YoutubeDL
+        # Strategy: ask for "bestvideo[≤1080] + bestaudio" — yt-dlp
+        # returns BOTH formats which we can serve as a pair.  Fall
+        # back to a single progressive stream if no HD is available.
         ydl_opts = {
-            # Prefer a single combined-stream MP4 so we don't need
-            # MSE / DASH on the client.  Cap height at 1080p to
-            # keep the trailer fast to start and avoid 4K bombs.
-            "format":
-                "best[ext=mp4][height<=1080]/best[height<=1080]/best",
+            "format": (
+                "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
+                "best[ext=mp4][height<=1080]/"
+                "best[height<=1080]/best"
+            ),
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
-            # Looks like a recent desktop browser → yields direct
-            # progressive MP4 URLs more reliably than the default.
             "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -1798,31 +1811,68 @@ async def trailer_stream(youtube_id: str):
         logger.exception("yt-dlp extract failed: %s", e)
         raise HTTPException(502, f"trailer_extract_failed: {e}")
 
-    url = info.get("url")
-    if not url:
-        # Pick the best format manually if no top-level URL.
+    # Walk the requested_formats / formats arrays to find what we
+    # actually got.  When yt-dlp resolves a `videoFmt+audioFmt`
+    # selector it populates `requested_formats` with the two
+    # half-streams.  Otherwise it returns a single progressive
+    # `formats[0]`.
+    video_url = None
+    audio_url = None
+    progressive_url = info.get("url") if (
+        info.get("acodec") and info.get("acodec") != "none"
+    ) else None
+    height = info.get("height") or 0
+
+    requested = info.get("requested_formats") or []
+    for fmt in requested:
+        vcodec = fmt.get("vcodec") or "none"
+        acodec = fmt.get("acodec") or "none"
+        url = fmt.get("url")
+        if not url:
+            continue
+        if vcodec != "none" and acodec == "none":
+            video_url = url
+            height = fmt.get("height") or height
+        elif acodec != "none" and vcodec == "none":
+            audio_url = url
+
+    # If we got HD video+audio pair, that's our preferred output.
+    # Otherwise look through all formats for the best progressive
+    # MP4 (combined a/v) as a fallback for clients that can't merge.
+    if not (video_url and audio_url) and not progressive_url:
         formats = info.get("formats") or []
         progressive = [
             f for f in formats
             if f.get("vcodec") and f.get("vcodec") != "none"
             and f.get("acodec") and f.get("acodec") != "none"
             and f.get("ext") == "mp4"
+            and f.get("url")
         ]
         progressive.sort(key=lambda f: f.get("height") or 0, reverse=True)
         if progressive:
-            url = progressive[0].get("url")
-    if not url:
-        raise HTTPException(502, "trailer_no_progressive_format")
+            progressive_url = progressive[0].get("url")
+            height = progressive[0].get("height") or height
+
+    # The `url` field is what older clients have been reading.
+    # Prefer the HD video stream if available so native players that
+    # CAN merge get HD; the progressive URL stays available for web
+    # fallback.
+    primary_url = video_url or progressive_url
+    if not primary_url:
+        raise HTTPException(502, "trailer_no_playable_format")
 
     out = {
-        "url": url,
+        "url": primary_url,
+        "video_url": video_url or "",
+        "audio_url": audio_url or "",
+        "progressive_url": progressive_url or "",
+        "is_hd_pair": bool(video_url and audio_url),
         "title": info.get("title") or "",
         "duration": info.get("duration"),
         "thumbnail": info.get("thumbnail"),
-        "height": info.get("height"),
-        "ext": info.get("ext"),
+        "height": height,
+        "ext": info.get("ext") or "mp4",
     }
-    # Short cache — googlevideo URLs expire quickly.
     await cache.set(cache_key, out, 60 * 60)
     return {"cached": False, **out}
 

@@ -139,6 +139,10 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var streamUrl: String? = null
     private var streamTitle: String? = null
     private var subUrl: String? = null
+    // YouTube HD trailers serve video-only + audio-only as separate
+    // streams.  We attach the audio track as a libVLC input-slave so
+    // playback merges them into one continuous A/V experience.
+    private var audioUrl: String? = null
     private var posterUrl: String? = null
     private var backdropUrl: String? = null
     private var synopsisText: String? = null
@@ -236,6 +240,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         streamUrl = intent.getStringExtra(EXTRA_URL)
         streamTitle = intent.getStringExtra(EXTRA_TITLE)
         subUrl = intent.getStringExtra(EXTRA_SUB_URL)
+        audioUrl = intent.getStringExtra(EXTRA_AUDIO_URL)
         posterUrl = intent.getStringExtra(EXTRA_POSTER)
         backdropUrl = intent.getStringExtra(EXTRA_BACKDROP)
         synopsisText = intent.getStringExtra(EXTRA_SYNOPSIS)
@@ -1085,6 +1090,35 @@ class VlcPlayerActivity : AppCompatActivity() {
         media.release()
         mediaPlayer.play()
 
+        // Attach the YouTube HD audio track as an input slave.  This
+        // is critical for trailers: YouTube only serves combined
+        // audio+video MP4 up to 360p, so for HD we play the
+        // video-only stream AND attach the matching m4a as a slave.
+        // Without this, the HD trailer plays silently.
+        audioUrl?.takeIf { it.isNotBlank() }?.let { aUrl ->
+            val handler = Handler(Looper.getMainLooper())
+            val maxAttempts = 8
+            val attempt = intArrayOf(0)
+            lateinit var tryAdd: Runnable
+            tryAdd = Runnable {
+                @Suppress("DEPRECATION")
+                val ok = mediaPlayer.addSlave(
+                    IMedia.Slave.Type.Audio,
+                    Uri.parse(aUrl),
+                    true
+                )
+                if (!ok && attempt[0] < maxAttempts) {
+                    attempt[0]++
+                    handler.postDelayed(tryAdd, 500L)
+                } else if (ok) {
+                    Log.i(TAG, "audio slave attached: $aUrl")
+                }
+            }
+            // Slightly delayed first attempt so the media is fully
+            // parsed before we attach the slave.
+            handler.postDelayed(tryAdd, 600L)
+        }
+
         // Attach a remote subtitle track if we were given one
         subUrl?.takeIf { it.isNotBlank() }?.let { url ->
             val handler = Handler(Looper.getMainLooper())
@@ -1702,5 +1736,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_PARTY_ROLE = "partyRole"
         const val EXTRA_PARTY_MEMBER_ID = "partyMemberId"
         const val EXTRA_PARTY_WS_URL = "partyWsUrl"
+        const val EXTRA_AUDIO_URL = "audioUrl"  // YouTube HD audio slave
     }
 }

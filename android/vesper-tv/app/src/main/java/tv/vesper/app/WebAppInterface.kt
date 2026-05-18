@@ -186,6 +186,45 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /**
+     * Trailer-specific variant.  Accepts an OPTIONAL `audioUrl`
+     * which gets attached to the player as an audio slave so we can
+     * play YouTube's HD video-only stream and the matching audio
+     * stream together as a single playback session.  YouTube only
+     * serves combined audio+video MP4 up to 360p; HD is DASH (split
+     * streams).  Without the slave, the trailer is silent.
+     */
+    @JavascriptInterface
+    fun playTrailer(
+        url: String,
+        audioUrl: String?,
+        title: String?,
+        poster: String?,
+        backdrop: String?
+    ) {
+        if (url.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                    putExtra(VlcPlayerActivity.EXTRA_AUDIO_URL, audioUrl ?: "")
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title ?: "Trailer")
+                    putExtra(VlcPlayerActivity.EXTRA_POSTER, poster ?: "")
+                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop ?: "")
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, "trailer")
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(
+                    activity,
+                    "Could not start trailer: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     @JavascriptInterface
     fun playExternal(url: String, title: String?, mime: String?) {
         // Opt-in path: hand to system video player (VLC stand-alone,

@@ -65,15 +65,27 @@ export default function UpdateGate() {
 
         const check = async (force = false) => {
             try {
+                // Use cached info as an INSTANT placeholder so we
+                // don't render a blank state during the network
+                // round-trip — but ALWAYS fire the live request too
+                // so we pick up newly-published versions on every
+                // app launch.  Previously we returned early when
+                // the cache was younger than 6 h, which meant if a
+                // user opened the app twice within 6 h after we
+                // released a new APK, the second launch would
+                // silently keep the stale "you're up to date" state
+                // and the user had to clear app data to see the
+                // update gate.  Always-fetch fixes that.
                 if (!force) {
-                    const cached = localStorage.getItem(CACHE_KEY);
-                    if (cached) {
-                        const parsed = JSON.parse(cached);
-                        if (parsed && Date.now() - parsed.ts < CHECK_INTERVAL_MS) {
-                            if (!cancel) setInfo(parsed.data);
-                            return;
+                    try {
+                        const cached = localStorage.getItem(CACHE_KEY);
+                        if (cached) {
+                            const parsed = JSON.parse(cached);
+                            if (parsed && parsed.data && !cancel) {
+                                setInfo(parsed.data);
+                            }
                         }
-                    }
+                    } catch { /* ignore */ }
                 }
                 const { data } = await axios.get(`${API}/app/latest-version`, {
                     timeout: 8000,
@@ -95,9 +107,20 @@ export default function UpdateGate() {
 
         check(false);
         const id = setInterval(() => check(true), CHECK_INTERVAL_MS);
+        // Also re-check whenever the WebView becomes visible again
+        // (user navigated back into the app after closing it).
+        // On Android WebView, `visibilitychange` fires on
+        // pause/resume of the host Activity.
+        const onVisible = () => {
+            if (!document.hidden) check(true);
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
         return () => {
             cancel = true;
             clearInterval(id);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
         };
     }, [running]);
 

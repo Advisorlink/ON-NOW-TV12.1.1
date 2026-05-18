@@ -118,6 +118,15 @@ export default function AddToListModal() {
     // focused button — otherwise the user can't actually confirm
     // the action they wanted to take.  Earlier versions ate EVERY
     // keyup which broke "Add to My List" entirely.
+    //
+    // ALSO: trap D-pad arrow keys.  Without this, an unlucky press
+    // of LEFT/RIGHT/UP/DOWN while the modal is open lets the global
+    // spatial-focus engine move focus to an element OUTSIDE the
+    // modal (a poster behind the backdrop, the SideNav, etc.) and
+    // the user is suddenly driving the page behind the dim layer
+    // with no way back except a mouse.  We instead bounce focus
+    // between Confirm ↔ Cancel for LEFT/RIGHT, and swallow UP/DOWN
+    // entirely.
     useEffect(() => {
         if (!payload) return;
         const onKeyDownCapture = (e) => {
@@ -129,6 +138,47 @@ export default function AddToListModal() {
                 // long-press — eat it.
                 e.preventDefault();
                 e.stopPropagation();
+                return;
+            }
+            // D-pad arrow trap: never let focus escape the modal.
+            if (
+                e.key === 'ArrowLeft' ||
+                e.key === 'ArrowRight' ||
+                e.key === 'ArrowUp' ||
+                e.key === 'ArrowDown'
+            ) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Move focus between Confirm and Cancel for
+                // horizontal arrows; vertical arrows do nothing (no
+                // third element to navigate to).
+                const root = document.querySelector(
+                    '[data-testid="add-to-list-modal"]'
+                );
+                if (!root) return;
+                const confirm = root.querySelector('[data-testid="modal-confirm"]');
+                const cancel = root.querySelector('[data-testid="modal-cancel"]');
+                if (!confirm || !cancel) return;
+                const focused = document.activeElement;
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    const target = focused === confirm ? cancel : confirm;
+                    try {
+                        // Clear any lingering data-focused outside the modal.
+                        document
+                            .querySelectorAll('[data-focused="true"]')
+                            .forEach((el) => {
+                                if (!root.contains(el)) {
+                                    el.removeAttribute('data-focused');
+                                }
+                            });
+                        // Strip data-focused from BOTH buttons before re-applying
+                        // so the visual focus indicator never duplicates.
+                        confirm.removeAttribute('data-focused');
+                        cancel.removeAttribute('data-focused');
+                        target.focus({ preventScroll: true });
+                        target.setAttribute('data-focused', 'true');
+                    } catch { /* ignore */ }
+                }
             }
         };
         const onKeyUpCapture = (e) => {
@@ -154,13 +204,29 @@ export default function AddToListModal() {
                 armedRef.current = true;
             }
         };
+        // Also: if focus drifts out of the modal (e.g. a tile in the
+        // background managed to grab it before our arrow trap could
+        // veto), rubber-band it back to the confirm button.  This is
+        // the belt + braces for the focus trap.
+        const onFocusInCapture = (e) => {
+            const root = document.querySelector(
+                '[data-testid="add-to-list-modal"]'
+            );
+            if (!root) return;
+            if (e.target && !root.contains(e.target)) {
+                const confirm = root.querySelector('[data-testid="modal-confirm"]');
+                try { confirm?.focus({ preventScroll: true }); } catch { /* ignore */ }
+            }
+        };
         document.addEventListener('keydown', onKeyDownCapture, true);
         document.addEventListener('keyup', onKeyUpCapture, true);
         document.addEventListener('mouseup', onMouseUpCapture, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
         return () => {
             document.removeEventListener('keydown', onKeyDownCapture, true);
             document.removeEventListener('keyup', onKeyUpCapture, true);
             document.removeEventListener('mouseup', onMouseUpCapture, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
         };
     }, [payload]);
 

@@ -2181,10 +2181,13 @@ export default function Detail() {
                 </div>
             )}
 
-            {/* YouTube trailer popup (windowed → fullscreen). */}
+            {/* YouTube trailer popup (native VLC HD on Android,
+                iframe fallback for desktop / preview). */}
             <TrailerModal
                 youtubeKey={trailerKey}
                 title={focusedMovie?.title || meta?.name}
+                poster={meta?.poster || ''}
+                backdrop={meta?.background || meta?.poster || ''}
                 onClose={() => setTrailerKey(null)}
             />
         </div>

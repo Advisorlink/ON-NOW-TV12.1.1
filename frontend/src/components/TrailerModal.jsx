@@ -1,21 +1,78 @@
 /**
  * <TrailerModal/> — popup trailer player.
  *
- * Plays the YouTube trailer using the YouTube IFrame embed.  In
- * Android WebView we block YouTube's `intent://` redirects in
- * `VesperWebViewClient`, so the iframe never escapes to the
- * YouTube app — it plays HD in-page.
+ * Behaviour depends on platform:
  *
- * Open state is driven by `youtubeKey` (truthy = open).  Renders
- * a centered 16:9 player.  Can be expanded to fullscreen via the
- * expand button; the BACK button (hardware or virtual) closes it.
+ *   • Android WebView (HK1 box) — we hand the trailer to the NATIVE
+ *     libVLC player via `window.OnNowTV.playTrailer(...)`.  The
+ *     backend extracts BOTH a 1080p video-only URL and a matching
+ *     m4a audio URL from YouTube (since YT only serves combined
+ *     audio+video MP4 up to 360p) and the native player merges them
+ *     via an input slave.  Result: HD trailer playback, no iframe,
+ *     no YouTube app redirect, no chunky 360p, no surprise nags.
+ *
+ *   • Desktop / preview (no native bridge) — we render the
+ *     YouTube iframe in a centered 16:9 modal so trailers still work
+ *     when developing on a laptop.
+ *
+ * In both cases the user can close with Escape / Backspace / the X.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function TrailerModal({ youtubeKey, title, onClose }) {
+export default function TrailerModal({ youtubeKey, title, poster, backdrop, onClose }) {
     const [fullscreen, setFullscreen] = useState(false);
+    const [resolving, setResolving] = useState(false);
+    const [resolveError, setResolveError] = useState(null);
     const cardRef = useRef(null);
+    const nativeLaunchedRef = useRef(false);
+
+    /* ----- Native-VLC path (Android WebView) ---------------------
+     * On the HK1 box, we'd rather hand the trailer to libVLC than
+     * fight the iframe.  As soon as we get a youtubeKey, fetch the
+     * extracted stream URLs from the backend and launch the native
+     * player.  If the bridge isn't available (web preview), fall
+     * through to the iframe path below. */
+    useEffect(() => {
+        if (!youtubeKey) return undefined;
+        if (nativeLaunchedRef.current) return undefined;
+        const hasNative = typeof window !== 'undefined'
+            && window.OnNowTV
+            && typeof window.OnNowTV.playTrailer === 'function';
+        if (!hasNative) return undefined;
+        let cancel = false;
+        (async () => {
+            try {
+                setResolving(true);
+                setResolveError(null);
+                const r = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer-stream/${encodeURIComponent(youtubeKey)}`
+                );
+                if (!r.ok) throw new Error(`extract failed (${r.status})`);
+                const j = await r.json();
+                if (cancel) return;
+                const url = j?.url || j?.progressive_url;
+                if (!url) throw new Error('no playable URL');
+                nativeLaunchedRef.current = true;
+                window.OnNowTV.playTrailer(
+                    url,
+                    j?.audio_url || '',
+                    title || 'Trailer',
+                    poster || '',
+                    backdrop || ''
+                );
+                // The native player overlays the WebView immediately.
+                // Close our modal so the WebView returns to a clean
+                // state behind it.
+                setTimeout(() => onClose?.(), 80);
+            } catch (e) {
+                if (cancel) return;
+                setResolveError(e?.message || 'Could not extract trailer.');
+                setResolving(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [youtubeKey, title, poster, backdrop, onClose]);
 
     /* Hardware back / Escape → close (fullscreen ↘ windowed; then
      * windowed ↘ closed). */
@@ -52,6 +109,57 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
     }, [youtubeKey]);
 
     if (!youtubeKey) return null;
+
+    // If we're handing off to the native player, render a minimal
+    // overlay while we wait.  Once nativeLaunchedRef flips and we
+    // call onClose() this disappears entirely.
+    const nativeHandoff = typeof window !== 'undefined'
+        && window.OnNowTV
+        && typeof window.OnNowTV.playTrailer === 'function';
+    if (nativeHandoff && !resolveError) {
+        return (
+            <div
+                data-testid="trailer-modal"
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 200,
+                    background: 'rgba(6,8,15,0.92)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: 18,
+                    color: '#fff',
+                }}
+            >
+                <div
+                    style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 999,
+                        border: '3px solid rgba(255,255,255,0.18)',
+                        borderTopColor: 'var(--vesper-blue, #5DC8FF)',
+                        animation: 'vesper-spin 0.9s linear infinite',
+                    }}
+                />
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: 'rgba(255,255,255,0.7)',
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    {resolving ? 'Loading trailer in HD…' : 'Opening trailer…'}
+                </div>
+                <style>{`@keyframes vesper-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
 
     const params = new URLSearchParams({
         autoplay: '1',
