@@ -238,6 +238,41 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.64 — Watch Together: host & guest now watch the SAME file**
+            - 🔧 **THE root cause of "stuck spinning":** host & guest
+              each ran their OWN stream resolution → could pick
+              different URLs (Plex direct on one side, slow torrent
+              on the other).  If either member's stream couldn't
+              buffer, the server hung in `loading` waiting for a
+              `ready` that never came — and BOTH members spun
+              forever.
+            - 🤝 **New contract**: host's Detail page now broadcasts
+              its chosen stream URL via the party WS (`stream`
+              message).  Guest's Detail page sits on the joining
+              screen waiting for that URL — no independent stream
+              picking, no desync, no hangs.
+            - 🛡️ **Server-side loading watchdog (25 s)** — if not
+              every member reports `ready` within 25 s, the
+              server force-advances to `countdown` anyway.  Slow
+              members catch up via the regular drift-correction.
+              The party is no longer hostage to one bad stream.
+            - 🛡️ **Native player force-ready (20 s)** — if libVLC
+              still hasn't reached `Playing` after 20 s of party
+              prep, we send `ready` anyway so the other party
+              members aren't held up by our slow stream.
+            - 🩹 **Picker flash fixed** — the joining screen now
+              stays mounted all the way through to navigation.
+              Previously `setAutoplayFired(true)` unmounted the
+              joining screen 30 ms before navigate() actually fired,
+              exposing the picker for one frame.
+            - 😱 **Emoji reactions in the native player** — hold
+              D-pad UP for 2 s for ❤️, DOWN for 😱, LEFT for 😂,
+              RIGHT for 😭.  Renders floating bubble locally AND
+              broadcasts to every other party member.
+            - 🚨 **`stream_error` broadcast** — if the host can't
+              find any streams, the guest sees a clean error
+              message instead of spinning indefinitely.
+
             **v2.6.63 — Production stability: no more uninstall-reinstall**
             - 🛡️ **Top-level ErrorBoundary upgraded**:  Reset &
               Reload now ALSO clears `onnowtv-*` / `vesper-*` /

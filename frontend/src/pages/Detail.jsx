@@ -139,6 +139,88 @@ export default function Detail() {
     const [err, setErr] = useState(null);
     const [copied, setCopied] = useState(null);
 
+    /* ------------------------------------------------------------------
+     * WATCH-TOGETHER · ROLE + WS COORDINATION (Detail page)
+     *
+     * The party WS *also* opens here in Detail (not just in Player /
+     * VlcPlayerActivity) for one critical reason: HOST and GUEST must
+     * watch the EXACT same file URL.
+     *
+     * Without this:
+     *   host fetched streams → picked URL A (Plex direct).
+     *   guest fetched streams → picked URL B (slow torrent).
+     *   guest's libVLC could never reach `ready` → server hangs in
+     *   `loading` forever → BOTH members spin a buffering wheel
+     *   indefinitely.
+     *
+     * The new contract:
+     *   HOST  — picks the best stream from the resolved list, sends
+     *           a `stream` message over THIS Detail WS, then launches
+     *           the native / web player.
+     *   GUEST — skips its own stream fetch.  Sits on the joining
+     *           screen.  Waits for an inbound `state` payload with
+     *           `stream.url` set, then launches the player using
+     *           the HOST's URL.
+     * ------------------------------------------------------------------ */
+    const partyRole = useMemo(() => {
+        if (!partyCode) return '';
+        try {
+            return sessionStorage.getItem('vesper-party-role') || 'guest';
+        } catch { return 'guest'; }
+    }, [partyCode]);
+    const isPartyHost = !!partyCode && partyRole === 'host';
+    const isPartyGuest = !!partyCode && partyRole === 'guest';
+
+    const partyDetailWsRef = useRef(null);
+    const [partyDetailState, setPartyDetailState] = useState(null);
+
+    useEffect(() => {
+        if (!partyCode) return undefined;
+        let memberId = '';
+        try { memberId = sessionStorage.getItem('vesper-party-member-id') || ''; }
+        catch { /* private mode */ }
+        const wsBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
+            .replace(/^http/, 'ws');
+        const ws = new WebSocket(`${wsBase}/api/watch-party/ws/${partyCode}`);
+        partyDetailWsRef.current = ws;
+        partyBreadcrumb('detail:ws-connect', { partyCode, role: partyRole });
+        ws.onopen = () => {
+            partyBreadcrumb('detail:ws-open', { partyCode, role: partyRole });
+            try {
+                ws.send(JSON.stringify({
+                    type: 'hello',
+                    role: partyRole,
+                    member_id: memberId || undefined,
+                    name: 'Detail',
+                    avatar: 'a1',
+                }));
+            } catch { /* ignore */ }
+        };
+        ws.onmessage = (e) => {
+            let msg; try { msg = JSON.parse(e.data); } catch { return; }
+            if (msg.type === 'joined') {
+                if (msg.member_id) {
+                    try { sessionStorage.setItem('vesper-party-member-id', msg.member_id); }
+                    catch { /* ignore */ }
+                }
+                return;
+            }
+            if (msg.type === 'state') {
+                setPartyDetailState(msg);
+            }
+        };
+        ws.onclose = () => {
+            partyBreadcrumb('detail:ws-close', { partyCode });
+        };
+        ws.onerror = () => {
+            partyBreadcrumb('detail:ws-error', { partyCode });
+        };
+        return () => {
+            try { ws.close(); } catch { /* ignore */ }
+            partyDetailWsRef.current = null;
+        };
+    }, [partyCode, partyRole]);
+
     useEffect(() => {
         let cancel = false;
         (async () => {
@@ -281,6 +363,15 @@ export default function Detail() {
             setStreamLoading(false);
             return;
         }
+        if (isPartyGuest) {
+            // Guest never fetches its own streams — it uses the
+            // host's chosen URL broadcast via the party WS.  This
+            // prevents host/guest desync from picking different
+            // streams (the #1 cause of stuck-loading hangs).
+            setStreamLoading(false);
+            setStreams([]);
+            return;
+        }
         let cancel = false;
         (async () => {
             setStreamLoading(true);
@@ -294,6 +385,21 @@ export default function Detail() {
                         partyBreadcrumb('streams:fetch-done', {
                             count: (s?.streams || []).length,
                         });
+                    }
+                    /* HOST: if no streams found at all, broadcast
+                       `stream_error` so the guest doesn't spin
+                       on the joining screen forever. */
+                    if (isPartyHost && (s?.streams || []).length === 0 && type === 'movie') {
+                        const ws = partyDetailWsRef.current;
+                        if (ws && ws.readyState === 1) {
+                            try {
+                                ws.send(JSON.stringify({
+                                    type: 'stream_error',
+                                    reason: 'no_streams',
+                                }));
+                                partyBreadcrumb('host:sent-stream-error', { reason: 'no_streams' });
+                            } catch { /* ignore */ }
+                        }
                     }
                 }
             } catch (e) {
@@ -309,7 +415,7 @@ export default function Detail() {
         return () => {
             cancel = true;
         };
-    }, [type, id, partyCode]);
+    }, [type, id, partyCode, isPartyGuest, isPartyHost]);
 
     // When streams arrive, land focus on the first stream so that
     // pressing Down on the D-pad selects the next stream (not the
@@ -664,9 +770,14 @@ export default function Detail() {
     // desyncs the room.  Runs in addition to the regular autoplay
     // useEffect so the older path still works for non-party uses;
     // the autoplayFiredRef guard prevents double-firing.
+    //
+    // NOTE: Guests skip this entirely — they wait for the host's
+    // stream URL to arrive over the party WS instead (see the
+    // guest-stream-receiver useEffect below).
     useEffect(() => {
         if (autoplayFiredRef.current) return;
         if (!partyCode) return;
+        if (!isPartyHost) return; // guests don't pick — they wait
         if (!autoplayRequested) return;
         if (type === 'series') return; // series still uses per-episode flow
         if (streamLoading) return;
@@ -687,14 +798,18 @@ export default function Detail() {
         if (!pick) return;
         partyBreadcrumb('party-autoplay:fire', { partyCode, mode: streamMode(pick), name: pick.name });
         autoplayFiredRef.current = true;
-        setAutoplayFired(true);
         // Defer one tick so React has time to commit the streams list
         // before we navigate / launch the native player.  Use a
         // window timer (not a cleanup-tracked timeout) so a state
         // change triggered by setAutoplayFired can't cancel it.
+        // NOTE: We do NOT call setAutoplayFired(true) before navigate
+        // anymore — doing so would unmount the joining screen for
+        // ~30ms revealing the picker (the "split-second flash" the
+        // user reported).  Instead the joining screen stays mounted
+        // until the page itself unmounts on navigate.
         window.setTimeout(() => playStream(pick), 30);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [partyCode, autoplayRequested, streams, streamLoading, type]);
+    }, [partyCode, isPartyHost, autoplayRequested, streams, streamLoading, type]);
 
     // ---------- PARTY AUTOPLAY WATCHDOG ----------
     // Safety net: if for ANY reason the partyAutoplay useEffect above
@@ -705,6 +820,7 @@ export default function Detail() {
     useEffect(() => {
         if (autoplayFiredRef.current) return;
         if (!partyCode) return;
+        if (!isPartyHost) return; // guests are handled separately
         if (!autoplayRequested) return;
         if (type === 'series') return;
         if (streamLoading) return;
@@ -722,12 +838,77 @@ export default function Detail() {
             if (!pick) return;
             partyBreadcrumb('party-autoplay:watchdog-fire', { partyCode });
             autoplayFiredRef.current = true;
-            setAutoplayFired(true);
             playStream(pick);
         }, 5000);
         return () => clearTimeout(watchdog);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [partyCode, autoplayRequested, streams, streamLoading, type]);
+    }, [partyCode, isPartyHost, autoplayRequested, streams, streamLoading, type]);
+
+    // ---------- PARTY GUEST · STREAM RECEIVER ----------
+    // Critical: this is what eliminates the "host & guest played
+    // different files" desync.  Guests don't fetch streams.  They
+    // sit on the joining screen and wait for the HOST to broadcast
+    // its chosen `stream.url` over the party WS.  Once received,
+    // guest launches its player with the SAME url.
+    useEffect(() => {
+        if (autoplayFiredRef.current) return;
+        if (!isPartyGuest) return;
+        const stream = partyDetailState?.stream;
+        if (!stream || !stream.url) return;
+        // Wait for meta so we can pass title/poster/etc to player.
+        // If meta hasn't arrived in 6s, fall through anyway — better
+        // a less-polished launch than an infinite wait.
+        autoplayFiredRef.current = true;
+        partyBreadcrumb('guest:received-stream', {
+            urlPrefix: String(stream.url).slice(0, 50),
+            title: stream.title,
+            type: stream.type,
+        });
+        const playTitle = stream.title || meta?.name || 'Now Playing';
+        const playType = stream.type || type;
+        const playImdb = stream.imdb_id || stream.cw_id || id;
+        const positionMs = Number(stream.position_ms) || Number(partyPositionMs) || 0;
+        const wsBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
+            .replace(/^http/, 'ws');
+        const partyWsUrl = `${wsBase}/api/watch-party/ws/${partyCode}`;
+        let memberId = '';
+        try { memberId = sessionStorage.getItem('vesper-party-member-id') || ''; }
+        catch { /* ignore */ }
+        // Try native libVLC player first (HK1 box).  Falls through
+        // to JS Player.jsx in the WebView for preview / desktop.
+        if (Host.playVideo({
+            url: stream.url,
+            title: playTitle,
+            type: playType,
+            subtitleUrl: stream.subtitle_url || '',
+            poster: stream.poster || meta?.poster || '',
+            backdrop: stream.backdrop || meta?.background || meta?.poster || '',
+            synopsis: stream.synopsis || meta?.description || '',
+            year: stream.year || meta?.releaseInfo || '',
+            rating: stream.rating || meta?.imdbRating || '',
+            runtime: stream.runtime || meta?.runtime || '',
+            genres: meta?.genres || [],
+            startAtMs: positionMs,
+            cwId: playImdb,
+            partyCode,
+            partyRole: 'guest',
+            partyMemberId: memberId || undefined,
+            partyWsUrl,
+        })) {
+            partyBreadcrumb('guest:native-launched', {});
+            return;
+        }
+        // Web fallback
+        const partyQuery = `&party=${encodeURIComponent(partyCode)}&at_ms=${encodeURIComponent(partyAtMs)}&position_ms=${positionMs}`;
+        partyBreadcrumb('guest:web-fallback', {});
+        navigate(
+            `/play?url=${encodeURIComponent(stream.url)}` +
+            `&title=${encodeURIComponent(playTitle)}` +
+            `&type=${encodeURIComponent(playType)}` +
+            `&imdbId=${encodeURIComponent(playImdb)}${partyQuery}`
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPartyGuest, partyDetailState, meta, type, id, partyCode, partyAtMs, partyPositionMs, navigate]);
 
     useEffect(() => {
         if (autoplayFiredRef.current) return;
@@ -762,6 +943,8 @@ export default function Detail() {
         const isParty = !!partyCode && autoplayRequested;
         const isDirect = episodeAutoplayRequested && !partyCode;
         if (!isParty && !isDirect) return;
+        // Guests don't fetch streams; they wait for host's URL.
+        if (isPartyGuest) return;
         if (type !== 'series') return;
         const season = isParty ? partySeason : focusSeason;  // direct path also supplies via focusSeason but we use ?season= as a separate param? wait — we pass season=&episode= in the direct path too
         // The native MainActivity sends `?episodeAutoplay=1&season=&episode=`
@@ -785,6 +968,18 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
+                    // Tell the guests the host couldn't find streams.
+                    if (isPartyHost) {
+                        const ws = partyDetailWsRef.current;
+                        if (ws && ws.readyState === 1) {
+                            try {
+                                ws.send(JSON.stringify({
+                                    type: 'stream_error',
+                                    reason: 'no_streams_for_episode',
+                                }));
+                            } catch { /* ignore */ }
+                        }
+                    }
                     return;
                 }
                 const non4k = list.filter((s) => !is4K(s));
@@ -889,7 +1084,7 @@ export default function Detail() {
             const partyWsUrl = partyCode
                 ? `${(process.env.REACT_APP_BACKEND_URL || window.location.origin).replace(/^http/, 'ws')}/api/watch-party/ws/${partyCode}`
                 : '';
-            const partyRole = partyCode
+            const partyRoleLocal = partyCode
                 ? (sessionStorage.getItem('vesper-party-role') || 'guest')
                 : '';
             const partyMemberId = partyCode
@@ -901,10 +1096,78 @@ export default function Detail() {
             if (partyCode) {
                 partyBreadcrumb('playStream:invoke', {
                     mode,
-                    role: partyRole || '(none)',
+                    role: partyRoleLocal || '(none)',
                     memberId: partyMemberId ? 'present' : 'missing',
                     wsUrl: partyWsUrl ? 'present' : 'missing',
                 });
+            }
+            // ----- WATCH-TOGETHER · HOST BROADCASTS THE STREAM URL -----
+            // Critical: send the chosen stream URL to every party
+            // member via the Detail WS BEFORE we navigate ourselves
+            // away.  The server stashes it in `party.stream` and
+            // broadcasts to the guest, whose Detail page is sitting
+            // on the joining screen waiting for exactly this.
+            //
+            // Without this, the guest would have to run its own
+            // stream resolution and might pick a different URL,
+            // causing host/guest desync that hangs both members.
+            if (partyCode && partyRoleLocal === 'host') {
+                // Wait up to 3 s for the WS to reach OPEN state.
+                // The host's Detail WS opens asynchronously on
+                // mount; by the time streams have resolved it
+                // usually already is, but the watchdog autoplay
+                // path can fire before WS is settled.
+                const waitForWsOpen = async () => {
+                    const deadline = Date.now() + 3000;
+                    while (Date.now() < deadline) {
+                        const w = partyDetailWsRef.current;
+                        if (w && w.readyState === 1) return w;
+                        await new Promise((r) => setTimeout(r, 80));
+                    }
+                    return null;
+                };
+                const ws = await waitForWsOpen();
+                if (ws) {
+                    try {
+                        ws.send(JSON.stringify({
+                            type: 'stream',
+                            payload: {
+                                url: playUrl,
+                                title: playTitle,
+                                type,
+                                imdb_id: playId,
+                                cw_id: playId,
+                                subtitle_url: subtitleUrl,
+                                poster: meta?.poster || '',
+                                backdrop: meta?.background || meta?.poster || '',
+                                synopsis: meta?.description || '',
+                                year: meta?.releaseInfo || meta?.year || '',
+                                rating: meta?.imdbRating || '',
+                                runtime: meta?.runtime || '',
+                                season: episodeOverride?.season,
+                                episode: episodeOverride?.episode,
+                                episode_title: episodeOverride?.episode_title || '',
+                                position_ms: Number(partyPositionMs) || startAtMs || 0,
+                            },
+                        }));
+                        partyBreadcrumb('host:sent-stream', {
+                            urlPrefix: String(playUrl).slice(0, 50),
+                            title: playTitle,
+                        });
+                    } catch (e) {
+                        partyBreadcrumb('host:sent-stream-error', {
+                            err: String(e).slice(0, 120),
+                        });
+                    }
+                    // Yield to the event loop so the WS send buffer
+                    // actually flushes to the network before the
+                    // page unmounts and the socket closes.  Without
+                    // this, the close handshake can race the data
+                    // frame and the guest never sees the stream URL.
+                    await new Promise((r) => setTimeout(r, 150));
+                } else {
+                    partyBreadcrumb('host:stream-ws-timeout', { partyCode });
+                }
             }
             if (
                 Host.playVideo({
@@ -924,7 +1187,7 @@ export default function Detail() {
                         : startAtMs,
                     cwId: playId,
                     partyCode: partyCode || undefined,
-                    partyRole: partyRole || undefined,
+                    partyRole: partyRoleLocal || undefined,
                     partyMemberId: partyMemberId || undefined,
                     partyWsUrl: partyWsUrl || undefined,
                 })
@@ -977,17 +1240,31 @@ export default function Detail() {
     // BEFORE the `loading` / `err / !meta` checks so the user sees
     // the joining screen from the very first paint instead of a
     // plain "Loading metadata…" fragment.
-    if (partyCode && !autoplayFired) {
+    //
+    // The check is `partyCode` (not `partyCode && !autoplayFired`)
+    // so the joining screen stays mounted from the very first
+    // paint right through to navigation.  This eliminates the
+    // 30ms picker flash the user saw on the previous build —
+    // setAutoplayFired(true) used to unmount the joining screen
+    // before window.setTimeout(playStream, 30) actually navigated
+    // away, exposing the picker for one frame.
+    if (partyCode) {
         const seriesLabel = (type === 'series' && partySeason && partyEpisode)
             ? ` · S${String(partySeason).padStart(2, '0')}E${String(partyEpisode).padStart(2, '0')}`
             : '';
-        const noStreams = !streamLoading && streams.length === 0 && type !== 'series';
+        const serverStreamError = partyDetailState?.stream_error || '';
+        const hostNoStreams = isPartyHost
+            && !streamLoading
+            && streams.length === 0
+            && type !== 'series';
+        const guestNoStreams = isPartyGuest && !!serverStreamError;
+        const noStreams = hostNoStreams || guestNoStreams;
         return (
             <PartyJoiningScreen
                 title={meta ? (meta.name || '') + seriesLabel : 'Your watch party is starting'}
                 poster={meta?.poster}
                 backdrop={meta?.background || meta?.poster}
-                loading={loading || streamLoading}
+                loading={loading || streamLoading || (isPartyGuest && !partyDetailState?.stream)}
                 noStreams={noStreams}
                 onCancel={() => navigate('/watch-together')}
                 onRetry={() => {

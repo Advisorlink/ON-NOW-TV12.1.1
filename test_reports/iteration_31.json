@@ -1,0 +1,40 @@
+{
+  "summary": "Iter 31 — v2.6.64 Watch-Together host/guest stream-URL sharing fix. Comprehensive backend regression: ALL 22 watch-party WS+REST tests PASS (16 in test_watch_party.py + 3 in test_watch_party_stream_url.py + 3 in test_watch_party_e2e_stream_share.py — including both 25s watchdog tests). Frontend smoke check on /watch-together: landing renders cleanly with zero console errors, data-testids present and interactive.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_watch_party.py",
+    "/app/backend/tests/test_watch_party_stream_url.py",
+    "/app/backend/tests/test_watch_party_e2e_stream_share.py",
+    "/app/test_reports/pytest/iter31_watchparty.xml",
+    "/app/test_reports/pytest/iter31_watchdog.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "watch_party.py: New `stream` message handler correctly stashes payload onto Party.stream and broadcasts via _broadcast_state — guest receives it via the standard state broadcast. Status auto-flips lobby→loading on stream (test_host_stream_broadcast_reaches_guest verified).",
+    "watch_party.py: `_LOADING_TIMEOUT_SEC=25` watchdog confirmed working in production — both slow tests (test_loading_watchdog_force_advances ~26s + test_loading_advances_with_only_host_ready_after_timeout ~25s) PASS against the live preview backend. All members force-marked ready in the broadcast.",
+    "watch_party.py: pick reset semantics verified — test_new_pick_resets_stream confirms party.stream→None, status→lobby on subsequent pick.",
+    "watch_party.py: stream_error broadcast verified — test_stream_error_broadcasts confirms state.stream_error='no_streams' propagates to guest.",
+    "Detail.jsx: NOT directly tested via 2-browser flow per the brief, but landing smoke is clean (zero JS errors).",
+    "MINOR: test_watch_party_stream_url.py default fallback `http://localhost:8001` would silently bypass preview ingress if env vars aren't set — both tests rely on env override. Acceptable since CI always sets REACT_APP_BACKEND_URL_FOR_TEST. Same pattern in test_watch_party_e2e_stream_share.py.",
+    "MINOR: `@pytest.mark.slow` is used without registration — emits PytestUnknownMarkWarning. Register the mark in pyproject.toml/pytest.ini for cleaner output (cosmetic only)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% — 22/22 watch-party tests PASS (16 fast + 3 stream-URL + 3 e2e-stream-share; both 25s watchdog tests PASS)",
+    "frontend": "100% — /watch-together landing renders with watch-together-landing/host/join testids present, zero console errors"
+  },
+  "test_credentials": "None. Seeded profile via add_init_script: onnowtv-profiles-v1 + onnowtv-active-profile-v1='p1'.",
+  "seed_data_creation": "Ephemeral watch-party rooms (server-side, auto-expire). No cleanup required.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run with: cd /app && BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d '=' -f2) && export REACT_APP_BACKEND_URL=$BACKEND_URL && export REACT_APP_BACKEND_URL_FOR_TEST=$BACKEND_URL && python -m pytest backend/tests/test_watch_party.py backend/tests/test_watch_party_stream_url.py backend/tests/test_watch_party_e2e_stream_share.py -v. Note: 2 of the watchdog tests wait ~25s each against the LIVE backend (no monkey-patch possible), so full run ~73s. To run fast tests only, deselect test_loading_watchdog_force_advances and test_loading_advances_with_only_host_ready_after_timeout. App uses BrowserRouter (NOT HashRouter) — navigate to /watch-together (no `#`). Welcome tour overlay appears on first load — either set localStorage onnowtv-welcome-tour-seen='1' OR click 'SKIP TOUR' then re-navigate to /watch-together (skip redirects to /).",
+  "rca of the issue": "Original v2.6.63 bug RCA was correct: host & guest each fetched their own streams → could mismatch → server hung in `loading` forever. v2.6.64 fix verified end-to-end: (1) Host's `stream` WS message stashes URL on Party.stream and broadcasts to all members (guest gets HOST's URL via state.stream.url — test_full_watch_party_flow). (2) Server-side `_LOADING_TIMEOUT_SEC=25` watchdog force-flips loading→countdown even when only host sends ready (test_loading_advances_with_only_host_ready_after_timeout PASS, all members marked ready). (3) Re-pick correctly resets party.stream to null + status to lobby (test_new_pick_resets_stream). (4) stream_error propagates with stream_error field on state broadcast. The architectural fix is sound: single source of truth (host's chosen URL) shared via WS broadcast eliminates the per-member URL drift that caused infinite buffering."
+}

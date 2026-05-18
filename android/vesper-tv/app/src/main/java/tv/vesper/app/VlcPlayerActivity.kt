@@ -194,6 +194,23 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
     private var partyBadge: TextView? = null
 
+    // -----------------------------------------------------------------
+    //  Watch Together — emoji reactions (D-pad hold 2 seconds)
+    //  ArrowUp → ❤️  ArrowDown → 😱  ArrowLeft → 😂  ArrowRight → 😭
+    // -----------------------------------------------------------------
+    private val reactionEmojiByKey: Map<Int, String> = mapOf(
+        KeyEvent.KEYCODE_DPAD_UP    to "\u2764\ufe0f",
+        KeyEvent.KEYCODE_DPAD_DOWN  to "\uD83D\uDE31",
+        KeyEvent.KEYCODE_DPAD_LEFT  to "\uD83D\uDE06",
+        KeyEvent.KEYCODE_DPAD_RIGHT to "\uD83D\uDE2D",
+    )
+    private val reactionHoldMs: Long = 2_000L
+    private val reactionCooldownMs: Long = 1_000L
+    private val reactionPressStart: MutableMap<Int, Long> = mutableMapOf()
+    private var lastReactionFireMs: Long = 0L
+    private var reactionOverlay: FrameLayout? = null
+    private val reactionsHandler = Handler(Looper.getMainLooper())
+
     private val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
     private var currentSpeed = 1.0f
     private val aspectOptions = listOf(
@@ -438,8 +455,23 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (!partyCode.isNullOrBlank() && !partyWsUrl.isNullOrBlank()) {
             partyPreparing = true   // arm the pre-buffer handshake
             initPartyBadge()
+            initReactionsOverlay()
             connectPartySocket()
             partyHandler.postDelayed(partyHeartbeat, 2_000L)
+            // Safety net — if libVLC has not reached Playing within
+            // 20 seconds (slow/broken stream), send `ready` anyway
+            // so the party doesn't stay in `loading` forever waiting
+            // for us.  The server's own watchdog (25 s) backs this
+            // up if even this fails.
+            partyHandler.postDelayed({
+                if (partyPreparing && partyWs != null) {
+                    partyPreparing = false
+                    try {
+                        partySend(JSONObject().apply { put("type", "ready") })
+                        Log.w(TAG, "party: force-ready after 20s prep timeout")
+                    } catch (_: Exception) { /* ignore */ }
+                }
+            }, 20_000L)
         }
     }
 
@@ -476,6 +508,105 @@ class VlcPlayerActivity : AppCompatActivity() {
             (findViewById<View>(android.R.id.content) as? ViewGroup)?.addView(tv, lp)
             partyBadge = tv
         } catch (_: Exception) { /* badge is best-effort */ }
+    }
+
+    // -----------------------------------------------------------------
+    //  Watch Together — emoji reaction overlay
+    // -----------------------------------------------------------------
+
+    /**
+     * Mount a full-screen transparent FrameLayout above the video
+     * surface where floating emoji TextViews will animate.  Set
+     * pointer-events to none-equivalent (no click listener) so D-pad
+     * focus still passes through to the player controls.
+     */
+    private fun initReactionsOverlay() {
+        try {
+            val fl = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                // Don't intercept any touch / key events.
+                isClickable = false
+                isFocusable = false
+                isFocusableInTouchMode = false
+                elevation = 24f  // float above the video controls
+            }
+            (findViewById<View>(android.R.id.content) as? ViewGroup)?.addView(fl)
+            reactionOverlay = fl
+        } catch (_: Exception) { /* overlay is best-effort */ }
+    }
+
+    /**
+     * Render a floating emoji at the bottom-right of the screen,
+     * animate it upward + fade out over 2.6 s.  Called both for
+     * locally-fired reactions AND for inbound `reaction` messages
+     * from other party members.
+     */
+    private fun showFloatingEmoji(emoji: String) {
+        val overlay = reactionOverlay ?: return
+        try {
+            val tv = TextView(this).apply {
+                text = emoji
+                textSize = 64f
+                setTextColor(0xFFFFFFFF.toInt())
+                // Add a soft shadow so the emoji pops over busy video
+                setShadowLayer(20f, 0f, 4f, 0xAA000000.toInt())
+            }
+            val lp = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                // Distribute emoji along the right column with a
+                // random vertical jitter so multiple reactions don't
+                // stack on top of each other.
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                rightMargin = 60 + (Math.random() * 180).toInt()
+                bottomMargin = 120 + (Math.random() * 80).toInt()
+            }
+            overlay.addView(tv, lp)
+            // Float up + fade out animation.
+            tv.alpha = 0f
+            tv.scaleX = 0.5f
+            tv.scaleY = 0.5f
+            tv.animate()
+                .alpha(1f)
+                .scaleX(1f).scaleY(1f)
+                .translationYBy(-40f)
+                .setDuration(180L)
+                .withEndAction {
+                    tv.animate()
+                        .translationYBy(-340f)
+                        .alpha(0f)
+                        .setDuration(2_200L)
+                        .withEndAction {
+                            try { overlay.removeView(tv) } catch (_: Exception) {}
+                        }
+                        .start()
+                }
+                .start()
+        } catch (_: Exception) { /* best-effort animation */ }
+    }
+
+    /**
+     * Fire a reaction: render locally + send via party WS.  Called
+     * from the D-pad-hold detection in dispatchKeyEvent.
+     */
+    private fun fireReaction(emoji: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastReactionFireMs < reactionCooldownMs) return
+        lastReactionFireMs = now
+        showFloatingEmoji(emoji)
+        val ws = partyWs
+        if (ws != null) {
+            try {
+                ws.send(JSONObject().apply {
+                    put("type", "reaction")
+                    put("emoji", emoji)
+                }.toString())
+            } catch (_: Exception) { /* ignore */ }
+        }
     }
 
     private fun connectPartySocket() {
@@ -541,6 +672,18 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (ttype == "joined") {
             val mid = msg.optString("member_id", "")
             if (mid.isNotBlank()) partyMemberId = mid
+            return
+        }
+        if (ttype == "reaction") {
+            // Floating emoji from any party member.  We ignore our
+            // own echoed back from the server (local renders are
+            // handled synchronously in fireReaction).
+            val emoji = msg.optString("emoji", "")
+            if (emoji.isBlank()) return
+            val member = msg.optJSONObject("member")
+            val senderId = member?.optString("id", "") ?: ""
+            if (senderId.isNotBlank() && senderId == (partyMemberId ?: "")) return
+            showFloatingEmoji(emoji)
             return
         }
         if (ttype != "state") return
@@ -1393,7 +1536,44 @@ class VlcPlayerActivity : AppCompatActivity() {
         scheduleHide()
     }
 
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        // Watch-Together reactions: clear the hold timer on release.
+        if (reactionEmojiByKey.containsKey(keyCode)) {
+            reactionPressStart.remove(keyCode)
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Watch-Together: track D-pad hold timings to fire emoji
+        // reactions after a 2-second hold.  We track here (not in
+        // dispatchKeyEvent) so we don't double-handle when Android's
+        // focus engine consumes the same event.  Crucially we still
+        // call through to the normal player-control handling below.
+        if (!partyCode.isNullOrBlank()
+            && event != null
+            && reactionEmojiByKey.containsKey(keyCode)
+            && !isPickerOpen()
+            && liveGuide?.isOpen() != true
+        ) {
+            // Only register the START of a press (filter auto-repeats).
+            val isFirst = !reactionPressStart.containsKey(keyCode)
+            if (isFirst) {
+                reactionPressStart[keyCode] = System.currentTimeMillis()
+            }
+            // Check whether the user has held this key long enough.
+            val start = reactionPressStart[keyCode] ?: 0L
+            val elapsed = System.currentTimeMillis() - start
+            if (elapsed >= reactionHoldMs && start > 0L) {
+                // Mark consumed so we don't re-fire while held.
+                reactionPressStart[keyCode] = -1L
+                val emoji = reactionEmojiByKey[keyCode]
+                if (emoji != null) fireReaction(emoji)
+                // Consume this event so the focus engine doesn't
+                // also act on it (no jumping focus while reacting).
+                return true
+            }
+        }
         // BACK closes the Live Guide overlay first (it has higher
         // visual priority than the track picker).
         if (keyCode == KeyEvent.KEYCODE_BACK && liveGuide?.onBackPressed() == true) {
