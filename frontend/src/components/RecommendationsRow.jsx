@@ -22,7 +22,7 @@ import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-export default function RecommendationsRow({ tmdbId, mediaType, testId = 'recommendations-row' }) {
+export default function RecommendationsRow({ tmdbId, mediaType, onFocus, testId = 'recommendations-row' }) {
     const [items, setItems] = useState([]);
     const [busy, setBusy] = useState(true);
     const navigate = useNavigate();
@@ -109,6 +109,7 @@ export default function RecommendationsRow({ tmdbId, mediaType, testId = 'recomm
                         key={`${item.media_type}-${item.tmdb_id}`}
                         item={item}
                         onPick={() => handlePick(item)}
+                        onFocus={onFocus}
                     />
                 ))}
             </div>
@@ -116,7 +117,7 @@ export default function RecommendationsRow({ tmdbId, mediaType, testId = 'recomm
     );
 }
 
-function RecCard({ item, onPick }) {
+function RecCard({ item, onPick, onFocus: onFocusProp }) {
     const [focused, setFocused] = useState(false);
     return (
         <button
@@ -125,10 +126,10 @@ function RecCard({ item, onPick }) {
             data-focus-style="poster"
             tabIndex={0}
             onClick={onPick}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            onMouseEnter={() => setFocused(true)}
-            onMouseLeave={() => setFocused(false)}
+            onFocus={() => { setFocused(true); onFocusProp?.(item); }}
+            onBlur={() => { setFocused(false); onFocusProp?.(null); }}
+            onMouseEnter={() => { setFocused(true); onFocusProp?.(item); }}
+            onMouseLeave={() => { setFocused(false); onFocusProp?.(null); }}
             style={{
                 flexShrink: 0,
                 width: 152,

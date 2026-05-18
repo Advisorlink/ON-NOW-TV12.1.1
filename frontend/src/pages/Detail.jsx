@@ -192,6 +192,7 @@ export default function Detail() {
        backdrop with their name as the giant title.  Setting back
        to null restores the title's regular hero. */
     const [focusedActor, setFocusedActor] = useState(null);
+    const [focusedRec, setFocusedRec] = useState(null);
     const mainScrollRef = useRef(null);
     /* Bio cache so we don't refetch the same person whenever focus
      * sweeps left/right.  Keyed by TMDB person id. */
@@ -359,30 +360,28 @@ export default function Detail() {
         return () => window.removeEventListener('keydown', onKey, true);
     }, []);
 
-    /* Snap nav between Hero → Cast → Recommendations.
+    /* Snap navigation between sections.
      *
-     * The DOM is single-page (no scrolling) — only the BOTTOM
-     * LANE swaps based on `snapIdx`.  So snap nav is purely an
-     * index change + focus handoff:
+     *  Play  ─DOWN→  first Cast card  ─DOWN→  first Recommendation
+     *  Hero ←UP─    Cast card        ←UP─    Recommendation
      *
-     *   snapIdx 0  →  hero focused (Play CTA)
-     *   snapIdx 1  →  cast lane mounted, first actor focused
-     *   snapIdx 2  →  recs lane mounted, first rec tile focused
-     *
-     * The cast/recs rows mount asynchronously, so after we bump
-     * `snapIdx` we wait one RAF for the lane to render, then move
-     * focus.  The focus stamp also drives the right-rail dots.
+     * Cast and Recs are ALWAYS rendered in the normal flow.  This
+     * handler just moves focus + scrolls the focused row into a
+     * sweet-spot in the viewport (18% from the top).  Background
+     * swaps happen via the focused element's own onFocus prop.
      */
     const requestSnap = useCallback((idx) => {
         setSnapIdx(idx);
-        // Wait two RAFs so the lane has not just mounted but also
-        // its child cards have been laid out (CastRow lazy-fetches).
         requestAnimationFrame(() => requestAnimationFrame(() => {
             let sel = '[data-testid^="detail-play-"]';
-            if (idx === 1) sel = '[data-testid^="cast-actor-"]';
-            else if (idx === 2) sel = '[data-testid^="recommendation-"]';
-            // CastRow data may not be ready yet on the first DOWN
-            // press — retry up to 800 ms.
+            let rowSel = null;
+            if (idx === 1) {
+                sel = '[data-testid^="cast-actor-"]';
+                rowSel = '[data-testid="cast-row"]';
+            } else if (idx === 2) {
+                sel = '[data-testid^="recommendation-"]';
+                rowSel = '[data-testid="recommendations-row"]';
+            }
             let retries = 16;
             const tryFocus = () => {
                 const target = document.querySelector(sel);
@@ -392,6 +391,25 @@ export default function Detail() {
                     document.querySelectorAll('[data-focused="true"]').forEach((el) => {
                         if (el !== target) el.removeAttribute('data-focused');
                     });
+                    // Scroll the row's heading into the upper third
+                    // of the <main> container.
+                    if (rowSel) {
+                        const main = mainScrollRef.current;
+                        const row  = document.querySelector(rowSel);
+                        if (main && row) {
+                            const delta = row.getBoundingClientRect().top
+                                        - main.getBoundingClientRect().top
+                                        - Math.round(main.clientHeight * 0.18);
+                            main.scrollTo({
+                                top: Math.max(0, main.scrollTop + delta),
+                                behavior: 'smooth',
+                            });
+                        }
+                    } else if (idx === 0) {
+                        // Returning to hero — scroll to the top.
+                        const main = mainScrollRef.current;
+                        if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
                     return;
                 }
                 if (--retries > 0) setTimeout(tryFocus, 50);
@@ -1039,76 +1057,101 @@ export default function Detail() {
                         position: 'absolute',
                         // Anchor flush to the top + right edges so
                         // the portrait extends all the way to the
-                        // screen boundary on the right.  Width bumped
-                        // to ~48% so the photo has more presence.
+                        // screen boundary on the right.  Bumped wider
+                        // (55%) and taller (88%) per user request.
                         top: 0,
                         right: 0,
-                        width: '48%',
-                        height: '72%',
+                        width: '55%',
+                        height: '88%',
                         zIndex: 5,
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
+                        // Soft elliptical mask cropped flush to the
+                        // right edge so the head isn't a hard square
+                        // any more (the visible "line going straight
+                        // down" the user reported). 95%-tall ellipse
+                        // anchored right-center fades to transparent
+                        // on every visible side.
+                        WebkitMaskImage:
+                            'radial-gradient(ellipse 95% 88% at 90% 38%, ' +
+                            '#000 28%, #000 50%, rgba(0,0,0,0.55) 70%, transparent 92%)',
+                        maskImage:
+                            'radial-gradient(ellipse 95% 88% at 90% 38%, ' +
+                            '#000 28%, #000 50%, rgba(0,0,0,0.55) 70%, transparent 92%)',
                     }}
                 >
-                    {/* Base portrait — unmasked, B&W.  Anchored
-                        flush to the RIGHT edge of the screen and
-                        scaled to the full column height so the
-                        portrait spans from the top of the page all
-                        the way to the right margin without any
-                        empty gap.  The 4-edge fade overlay below
-                        handles the soft taper into the backdrop. */}
+                    {/* Base portrait — unmasked, B&W.  Sized so the
+                        face fills the visible mask area.  We allow
+                        the image to OVERFLOW the column on the
+                        right so the head isn't truncated by the
+                        right edge of the viewport (the user's
+                        "cut off as a square" complaint). */}
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
                             backgroundImage: `url(${focusedActor.profile})`,
-                            backgroundSize: 'auto 100%',
+                            backgroundSize: 'cover',
                             backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right top',
+                            backgroundPosition: 'center top',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
                         }}
                     />
                     {/* Four-directional fade overlay — pure BLACK
-                        (#000000), no blue tint.  Wider taper on
-                        every edge so no hard line survives. */}
+                        (#000000), no blue tint.  LEFT fade carries
+                        the heaviest weight because the bio text
+                        sits there.  Top / bottom / right are now
+                        handled by the radial mask above so this
+                        only needs to push extra darkness on the
+                        LEFT side. */}
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
-                            background: [
-                                /* LEFT — heavy.  The bio text starts
-                                   on the left so the photo must be
-                                   fully black there. */
+                            background:
                                 'linear-gradient(90deg, ' +
                                 'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,1) 20%, ' +
-                                'rgba(0,0,0,0.7) 38%, ' +
-                                'rgba(0,0,0,0.25) 55%, ' +
-                                'rgba(0,0,0,0) 75%)',
-                                /* RIGHT — now flush against the
-                                   screen edge, so very light fade
-                                   to soften the cut.  Lets the
-                                   photo actually reach the right
-                                   side of the screen. */
-                                'linear-gradient(270deg, ' +
-                                'rgba(0,0,0,0.4) 0%, ' +
-                                'rgba(0,0,0,0.1) 6%, ' +
-                                'rgba(0,0,0,0) 15%)',
-                                /* TOP — wider, eases top of head
-                                   into pure black. */
+                                'rgba(0,0,0,1) 22%, ' +
+                                'rgba(0,0,0,0.7) 40%, ' +
+                                'rgba(0,0,0,0.25) 58%, ' +
+                                'rgba(0,0,0,0) 80%)',
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* FOCUSED-RECOMMENDATION BACKDROP — when the user
+                focuses a "More like this" tile, the page backdrop
+                cross-fades to that title's backdrop so they get a
+                preview of where they're about to navigate.  Fades
+                back to the original title's backdrop on blur. */}
+            {focusedRec?.backdrop && (
+                <div
+                    data-testid="rec-hero-backdrop"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        zIndex: 2,
+                        backgroundImage: `url(${focusedRec.backdrop})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center center',
+                        opacity: 1,
+                        transition: 'opacity 420ms ease',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    {/* Inherit the same vignette + bottom-gradient
+                        treatment as the original backdrop so the
+                        page reads consistently. */}
+                    <div
+                        style={{
+                            position: 'absolute', inset: 0,
+                            background:
                                 'linear-gradient(180deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,0.85) 8%, ' +
-                                'rgba(0,0,0,0.45) 22%, ' +
-                                'rgba(0,0,0,0) 40%)',
-                                /* BOTTOM — heaviest, blends into the
-                                   black space above the cast row. */
-                                'linear-gradient(0deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,0.85) 12%, ' +
-                                'rgba(0,0,0,0.45) 28%, ' +
-                                'rgba(0,0,0,0) 50%)',
-                            ].join(', '),
+                                'rgba(6,8,15,0.55) 0%, ' +
+                                'rgba(6,8,15,0.7) 40%, ' +
+                                'rgba(6,8,15,0.92) 85%, ' +
+                                'rgba(6,8,15,1) 100%)',
                         }}
                     />
                 </div>
@@ -1116,7 +1159,7 @@ export default function Detail() {
 
             <main
                 ref={mainScrollRef}
-                className="relative z-10 w-full h-full overflow-hidden"
+                className="relative z-10 w-full h-full overflow-y-auto"
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
@@ -1813,65 +1856,35 @@ export default function Detail() {
                     </section>
                     )}
 
-                    {/* The Cast row + Recommendations row are
-                        rendered OUT of `<main>` as a fixed-bottom
-                        "lane" so the hero (title, synopsis, Play
-                        CTA) stays anchored in place and ONLY the
-                        background + lane swap as the user navigates
-                        DOWN.  See the lane block right after
-                        `</main>` below for the implementation. */}
-                </div>
-            </main>
-
-            {/* ── BOTTOM LANE — only one row is mounted at a time.
-                 Hidden entirely when the user is on the hero so
-                 the background is uninterrupted.  Slides in from
-                 the bottom edge when they press DOWN to reach the
-                 Cast or Recommendations rows. */}
-            {tmdbInfo?.tmdb_id && (
-                <div
-                    data-testid="detail-bottom-lane"
-                    style={{
-                        position: 'absolute',
-                        left: 0, right: 0, bottom: 0,
-                        zIndex: 15,
-                        padding: '0 80px 32px 80px',
-                        pointerEvents: snapIdx === 0 ? 'none' : 'auto',
-                        opacity: snapIdx === 0 ? 0 : 1,
-                        transform: snapIdx === 0
-                            ? 'translateY(20px)'
-                            : 'translateY(0)',
-                        transition: 'opacity 320ms ease, transform 320ms ease',
-                    }}
-                >
-                    {/* Soft gradient behind the lane so the row
-                        reads cleanly against any backdrop. */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: '-40px 0 0 0',
-                            background:
-                                'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 35%, rgba(0,0,0,0.95) 100%)',
-                            pointerEvents: 'none',
-                        }}
-                    />
-                    <div style={{ position: 'relative' }}>
-                        {snapIdx === 1 && (
+                    {/* Cast row + "More like this" — always
+                        visible.  Break out of the parent's 68vw
+                        text column with a negative right margin so
+                        actor portraits on the right edge don't get
+                        clipped.  D-pad navigation moves focus
+                        between Play → Cast → Recs and scrolls the
+                        focused row into view smoothly. */}
+                    {tmdbInfo?.tmdb_id && (
+                        <div
+                            style={{
+                                marginRight: 'calc(-1 * (100vw - 68vw - 160px))',
+                                maxWidth: 'none',
+                                marginTop: 28,
+                            }}
+                        >
                             <CastRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                                 onFocus={setFocusedActor}
                             />
-                        )}
-                        {snapIdx === 2 && (
                             <RecommendationsRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
+                                onFocus={setFocusedRec}
                             />
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-            )}
+            </main>
         </div>
     );
 }

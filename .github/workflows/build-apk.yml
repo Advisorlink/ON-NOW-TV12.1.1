@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.41 — Detail page final design: live backdrop swap**
+            - 🎯 Cast row + "More like this" are ALWAYS visible
+              underneath the Play CTA (Netflix-style stacked
+              layout).  No hidden lane any more.
+            - 🎬 BACKGROUND now swaps live based on what's focused:
+              • On Play (initial state): the title's own backdrop
+              • On a Cast card: pitch-black canvas with the actor's
+                B&W portrait pinned flush right
+              • On a "More like this" tile: that recommendation's
+                backdrop fades in, so you get a preview of where
+                you'd be heading if you pressed OK
+            - 🖼️ Actor portrait now BIGGER (55 % × 88 % of viewport)
+              and shaped with a soft radial mask so the visible
+              "square cut-off" on the right is gone.  Combined with
+              the heavy left fade the bio text reads cleanly and
+              the head feels organically embedded in the page.
+            - ⚡ D-pad: DOWN on Play snaps focus to first actor card
+              and scrolls the cast row into the upper third of the
+              viewport.  DOWN again does the same for "More like
+              this".  UP unwinds the chain back to Play.
+            - 🔵 Right-rail dots track which section is focused.
+
             **v2.6.40 — Detail page redesigned: Netflix-style hero with snap lane**
             - 🖼️ The whole page no longer SCROLLS.  The hero
               (title, synopsis, meta chips, Play CTA, BACK pill)
