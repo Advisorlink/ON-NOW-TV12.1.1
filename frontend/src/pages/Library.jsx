@@ -622,11 +622,9 @@ function ActorGrid({ items }) {
 }
 
 function ActorCard({ actor }) {
+    const navigate = useNavigate();
     const onTap = () => {
-        /* No detail page for actors yet — long-press to remove
-         * is the primary interaction.  Tapping does nothing for
-         * now; could navigate to a filmography view in the
-         * future. */
+        if (actor.id != null) navigate(`/person/${actor.id}`);
     };
     const onLongPress = () => {
         window.dispatchEvent(

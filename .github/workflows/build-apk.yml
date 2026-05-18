@@ -238,6 +238,36 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.57 — Beautiful Actor page**
+            - 🎭 NEW actor profile page (`/person/:tmdb_id`):
+              tapping an actor card in **My Actors** (Library)
+              now opens a full-screen page with the actor's
+              portrait, bio, age, birthplace, total titles, and
+              every movie + TV show they've been in.
+            - 🖼️ Hero layout: split into a left text column
+              (eyebrow + giant name + meta + 5-line bio + save
+              toggle) and a right portrait card (framed photo
+              with depth shadow).  Background is a blurred,
+              dimmed version of the same portrait so the page
+              feels cohesive without dominating the text.
+            - 🎞️ Filmography split into two clear sections:
+              **Movies** and **TV Shows**, each with a title +
+              count.  Auto-fill grid (responsive 150 px min) so
+              you see ~8 posters per row at 1080p.  Each card
+              shows poster, title, type · year · ★ rating, and
+              "as <character>" — same focus animation as the
+              home screen.
+            - ❤️ Quick "Add / Remove from My Actors" toggle pill
+              right under the bio.  Tap to save, tap again to
+              remove.
+            - 🐛 FIX: previous Person page mapped TMDB raw paths
+              (`poster_path`) when the backend already returns
+              fully-resolved URLs (`poster`).  Posters now load.
+            - 🔗 OK on any film card → resolves IMDB and opens
+              that title's detail page.  Long-press → "Add to
+              Watch Later / My List" modal (resolves IMDB on
+              the fly).
+
             **v2.6.56 — TV seasons + cast, long-press to save**
             - 📺 NEW TV series layout: landing on a TV show now
               shows just the SEASON pills + Cast row underneath
