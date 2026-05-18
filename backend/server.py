@@ -1761,11 +1761,12 @@ async def tmdb_for_you(
 
 @api.get("/tmdb/search")
 async def tmdb_search(q: str = Query("", min_length=1)):
-    """Plain multi-search wrapper used by Watch Together's movie
-    picker — returns shaped movie + tv items, no kids filtering."""
+    """Plain multi-search wrapper — returns shaped movie + tv items
+    plus PEOPLE so a viewer searching "Tom Hanks" sees his actor
+    card first and can jump straight to the Person page."""
     if not q.strip():
         return {"data": []}
-    cache_key = f"tmdb_search:{q.lower()}"
+    cache_key = f"tmdb_search:{q.lower()}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1775,11 +1776,32 @@ async def tmdb_search(q: str = Query("", min_length=1)):
     out: List[Dict[str, Any]] = []
     for it in data.get("results") or []:
         mt = it.get("media_type")
-        if mt not in ("movie", "tv"):
-            continue
-        shaped = _shape_tmdb_item(it, mt)
-        if shaped:
-            out.append(shaped)
+        if mt in ("movie", "tv"):
+            shaped = _shape_tmdb_item(it, mt)
+            if shaped:
+                out.append(shaped)
+        elif mt == "person":
+            profile = it.get("profile_path")
+            name = (it.get("name") or "").strip()
+            if not name:
+                continue
+            # Pull one known_for poster for fallback context.
+            known_for = it.get("known_for") or []
+            known_titles = [
+                (k.get("title") or k.get("name") or "").strip()
+                for k in known_for
+            ]
+            known_titles = [t for t in known_titles if t][:2]
+            out.append({
+                "id": it.get("id"),
+                "media_type": "person",
+                "name": name,
+                "title": name,
+                "profile": f"{TMDB_IMG}/w342{profile}" if profile else "",
+                "poster":  f"{TMDB_IMG}/w342{profile}" if profile else "",
+                "known_for": ", ".join(known_titles),
+                "popularity": it.get("popularity") or 0,
+            })
     await cache.set(cache_key, out, 60 * 60)
     return {"cached": False, "data": out}
 

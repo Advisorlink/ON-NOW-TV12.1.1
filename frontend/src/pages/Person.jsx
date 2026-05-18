@@ -20,7 +20,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, Loader2, Heart, HeartOff } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useBackHandler from '@/hooks/useBackHandler';
 import useLongPress from '@/hooks/useLongPress';
@@ -140,6 +140,9 @@ function PersonContent({ data, tmdbId, navigate }) {
     }, [filmography]);
 
     const [saved, setSaved] = useState(() => isActorInLibrary(tmdbId));
+    // Save toggle removed from the UI — long-press OK on the
+    // actor card handles add/remove.  We keep the state alive
+    // anyway so future UI (e.g. a heart badge) can hook into it.
     const toggleSaved = () => {
         if (saved) {
             removeActorFromLibrary(tmdbId);
@@ -149,6 +152,9 @@ function PersonContent({ data, tmdbId, navigate }) {
             setSaved(true);
         }
     };
+    // Silence unused-variable lint — toggleSaved is reserved for
+    // future use (long-press alternative, contextual menus, etc.).
+    void toggleSaved;
 
     return (
         <>
@@ -197,8 +203,8 @@ function PersonContent({ data, tmdbId, navigate }) {
                         padding: '24px 56px 28px 56px',
                         height: '100%',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0,1fr) 200px',
-                        gap: 40,
+                        gridTemplateColumns: 'minmax(0,1fr) 260px',
+                        gap: 32,
                         alignItems: 'stretch',
                     }}
                 >
@@ -297,50 +303,44 @@ function PersonContent({ data, tmdbId, navigate }) {
                         </div>
 
                         <div style={{ marginTop: 'auto' }}>
-                            <button
-                                data-testid="person-save-toggle"
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                tabIndex={0}
-                                onClick={toggleSaved}
-                                className="flex items-center gap-2 rounded-full font-sans font-semibold"
-                                style={{
-                                    height: 38,
-                                    paddingLeft: 16,
-                                    paddingRight: 18,
-                                    background: saved
-                                        ? 'rgba(255,93,109,0.14)'
-                                        : 'rgba(93,200,255,0.16)',
-                                    color: saved
-                                        ? '#ff5d6d'
-                                        : 'var(--vesper-blue-bright)',
-                                    border: saved
-                                        ? '1px solid rgba(255,93,109,0.35)'
-                                        : '1px solid rgba(93,200,255,0.35)',
-                                    fontSize: 12,
-                                    letterSpacing: '0.02em',
-                                }}
-                            >
-                                {saved ? <HeartOff size={14} /> : <Heart size={14} />}
-                                {saved ? 'Remove from My Actors' : 'Add to My Actors'}
-                            </button>
+                            {/* Save toggle removed per user request —
+                                long-press OK on the actor card adds /
+                                removes them from My Actors. */}
                         </div>
                     </div>
 
-                    {/* RIGHT — portrait */}
+                    {/* RIGHT — B&W portrait that fades into the
+                        hero background on every edge.  No card
+                        frame, no shadow — looks like the actor is
+                        simply standing in the dark. */}
                     {profile && (
                         <div
                             data-testid="person-portrait-card"
                             style={{
-                                width: 200,
+                                width: 260,
                                 aspectRatio: '2 / 3',
-                                borderRadius: 14,
-                                overflow: 'hidden',
-                                background: 'rgba(255,255,255,0.04)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                boxShadow:
-                                    '0 24px 48px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)',
+                                position: 'relative',
                                 alignSelf: 'center',
+                                pointerEvents: 'none',
+                                /* Radial soft-edge mask: fully
+                                 * opaque in the centre, fades to 0
+                                 * at the corners so the portrait
+                                 * dissolves into the dark page
+                                 * background on all sides. */
+                                WebkitMaskImage:
+                                    'radial-gradient(ellipse 90% 88% at 50% 45%, ' +
+                                    '#000 30%, ' +
+                                    'rgba(0,0,0,0.85) 55%, ' +
+                                    'rgba(0,0,0,0.45) 75%, ' +
+                                    'rgba(0,0,0,0.15) 90%, ' +
+                                    'transparent 100%)',
+                                maskImage:
+                                    'radial-gradient(ellipse 90% 88% at 50% 45%, ' +
+                                    '#000 30%, ' +
+                                    'rgba(0,0,0,0.85) 55%, ' +
+                                    'rgba(0,0,0,0.45) 75%, ' +
+                                    'rgba(0,0,0,0.15) 90%, ' +
+                                    'transparent 100%)',
                             }}
                         >
                             <img
@@ -350,7 +350,10 @@ function PersonContent({ data, tmdbId, navigate }) {
                                     width: '100%',
                                     height: '100%',
                                     objectFit: 'cover',
+                                    objectPosition: 'center top',
                                     display: 'block',
+                                    filter:
+                                        'grayscale(1) contrast(1.08) brightness(0.95)',
                                 }}
                             />
                         </div>

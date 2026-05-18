@@ -124,15 +124,60 @@ export default function Search() {
         return out;
     };
 
+    /* People search via TMDB.  Returns actor cards that route to
+       the /person/:tmdbId profile page.  Merged with movie/TV
+       results so a query like "Tom Hanks" surfaces him directly. */
+    const doPersonSearch = async (query) => {
+        try {
+            const r = await fetch(
+                `${API}/tmdb/search?q=${encodeURIComponent(query)}`
+            );
+            if (!r.ok) return [];
+            const json = await r.json();
+            const data = json?.data || [];
+            return data
+                .filter((it) => it.media_type === 'person')
+                .slice(0, 12)
+                .map((it) => ({
+                    id: `person-${it.id}`,
+                    type: 'person',
+                    title: it.name,
+                    sub: it.known_for || 'Actor',
+                    poster: it.profile || it.poster || null,
+                    posterShape: 'portrait',
+                    routePath: `/person/${it.id}`,
+                }));
+        } catch {
+            return [];
+        }
+    };
+
     const doSearch = async (raw) => {
         const query = (raw ?? q).trim();
         if (query.length < 2) return;
         setBusy(true);
         setSearched(true);
         setLastQuery(query);
-        const out = kids
-            ? await doKidSearch(query)
-            : await doAddonSearch(query);
+        let out;
+        if (kids) {
+            out = await doKidSearch(query);
+        } else {
+            const [media, people] = await Promise.all([
+                doAddonSearch(query),
+                doPersonSearch(query),
+            ]);
+            /* Put people FIRST when the query looks like a name
+               (capitalised, ≥2 words, or matches an exact actor
+               name): better discovery for "Search actors".  When
+               the query is clearly a title we leave people right
+               after a couple of media matches. */
+            const looksLikeName =
+                /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$/.test(query) ||
+                people.some(
+                    (p) => p.title?.toLowerCase() === query.toLowerCase()
+                );
+            out = looksLikeName ? [...people, ...media] : [...media, ...people];
+        }
         setResults(out);
         setBusy(false);
     };
