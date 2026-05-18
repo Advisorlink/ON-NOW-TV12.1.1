@@ -30,11 +30,25 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 6000 }) {
 
         /* If the bundle was already applied before this mount
          * (e.g. fast localStorage hit), the event has fired
-         * already.  Check the meta flag once at mount. */
+         * already.  Check the meta flag once at mount.  All
+         * branches are wrapped in try/catch so a corrupted blob
+         * can NEVER prevent the splash from eventually closing. */
         try {
             const raw = localStorage.getItem('onnowtv-instant-bundle-meta');
-            if (raw && JSON.parse(raw)?.generated_at) setBundleReady(true);
-        } catch { /* ignore */ }
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (
+                parsed &&
+                typeof parsed === 'object' &&
+                !Array.isArray(parsed) &&
+                parsed.generated_at
+            ) {
+                setBundleReady(true);
+            }
+        } catch {
+            /* ignore — boot splash will close on the min-elapsed
+             * timer regardless. */
+        }
 
         return () => {
             window.removeEventListener('vesper:bundle-ready', onReady);

@@ -69,14 +69,21 @@ function writeJSON(key, value) {
 // ---------- Profiles ----------
 
 export function listProfiles() {
-    const all = readJSON(KEY_PROFILES, []);
-    // Inject the immutable Kids profile at the end.
-    const hasKids = all.some((p) => p.id === 'kids');
+    const raw = readJSON(KEY_PROFILES, []);
+    /* Defensive: if a previous version stored profiles as an
+     * object / null / something else, fall back to an empty
+     * array rather than crashing on `.some()`.  We never want
+     * a bad localStorage blob to brick the entire app. */
+    const all = Array.isArray(raw) ? raw : [];
+    const hasKids = all.some((p) => p && p.id === 'kids');
     return hasKids ? all : [...all, KIDS_PROFILE];
 }
 
 export function saveProfile(partial) {
-    const list = readJSON(KEY_PROFILES, []).filter((p) => p.id !== 'kids');
+    const raw = readJSON(KEY_PROFILES, []);
+    const list = (Array.isArray(raw) ? raw : []).filter(
+        (p) => p && p.id !== 'kids'
+    );
     const id = partial.id || uuid();
     const isNew = !partial.id;
     const next = {

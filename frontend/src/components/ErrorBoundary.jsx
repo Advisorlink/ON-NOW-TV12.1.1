@@ -53,20 +53,50 @@ export default class ErrorBoundary extends React.Component {
     }
 
     handleWindowError(e) {
-        // Resource load errors (img/script with `error` event) fire
-        // here too — those don't justify replacing the UI.  We only
-        // catch genuine top-level script exceptions.
         if (!e || !e.error) return;
         // eslint-disable-next-line no-console
         console.error('[ErrorBoundary] window error:', e.error);
-        // We DON'T switch to the boundary UI for these — they're
-        // usually recoverable.  But we still log them so a future
-        // bug report can pinpoint the source.
+        const msg = String(e.error?.message || e.error || '').toLowerCase();
+        /* Escalate to the recovery UI for top-level boot failures
+         * that mean React can't have mounted (or did mount and is
+         * now in a half-broken state).  Common signals are
+         * SyntaxError / TypeError thrown synchronously from a
+         * bundle import or a corrupted JSON parse.  Resource load
+         * errors (img/script with `error` event) have no `.error`
+         * payload so they don't reach here. */
+        if (
+            msg.includes('chunk') ||
+            msg.includes('module') ||
+            msg.includes('cannot read') ||
+            msg.includes('is not a function') ||
+            msg.includes('json') ||
+            msg.includes('parse')
+        ) {
+            this.setState({
+                error: e.error,
+                errorInfo: { componentStack: '(window error)' },
+            });
+        }
     }
 
     handleRejection(e) {
         // eslint-disable-next-line no-console
         console.error('[ErrorBoundary] unhandled rejection:', e?.reason);
+        /* Don't escalate every rejection — only "looks like the boot
+         * path is broken" ones.  Network/abort errors are common and
+         * shouldn't replace the UI. */
+        const r = e?.reason;
+        const msg = String(r?.message || r || '').toLowerCase();
+        if (
+            msg.includes('quotaexceeded') ||
+            msg.includes('chunkloaderror') ||
+            msg.includes('loading chunk')
+        ) {
+            this.setState({
+                error: r instanceof Error ? r : new Error(String(r)),
+                errorInfo: { componentStack: '(unhandled rejection)' },
+            });
+        }
     }
 
     handleTryAgain = () => {
@@ -74,9 +104,18 @@ export default class ErrorBoundary extends React.Component {
     };
 
     handleResetAndReload = () => {
-        // Wipe sessionStorage entirely (catalogue caches), plus
-        // any cache-* / shelves: / tab: keys we own in localStorage.
-        // Profiles, library, watch-progress are preserved.
+        // Wipe sessionStorage entirely (catalogue caches).  In
+        // localStorage we wipe BOTH the legacy ephemeral caches
+        // (shelves:, cache.*, etc.) AND the structured app state
+        // (onnowtv-*, vesper-*).  Critically, if the user got
+        // here because of a corrupted profile / library / EPG
+        // blob, we must clear THAT — otherwise the reload
+        // re-hydrates the same bad state and re-crashes.  This is
+        // the "in-app uninstall replacement" so end users never
+        // need to clear data via Android settings or uninstall.
+        //
+        // Profiles get re-created when the user picks one anyway,
+        // so wiping them is safe — far better than a black screen.
         try {
             sessionStorage.clear();
         } catch (err) {
@@ -90,6 +129,10 @@ export default class ErrorBoundary extends React.Component {
                 'networks:',
                 'addons',
                 'cache.',
+                'onnowtv-',
+                'onnowtv:',
+                'vesper-',
+                'vesper:',
             ];
             for (const k of Object.keys(localStorage)) {
                 if (PREFIXES.some((p) => k.indexOf(p) === 0)) {

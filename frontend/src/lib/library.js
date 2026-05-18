@@ -37,11 +37,20 @@ function read() {
         const raw = readScopedString(KEY);
         if (!raw) return { ...EMPTY };
         const parsed = JSON.parse(raw);
+        /* Defend against null / primitives / arrays — JSON.parse
+         * is happy to return any of these, but we treat anything
+         * that's not a plain object as a corrupted blob. */
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return { ...EMPTY };
+        }
         return {
-            favorites: parsed.favorites || {},
+            favorites: parsed.favorites && typeof parsed.favorites === 'object'
+                ? parsed.favorites : {},
             watchLater: Array.isArray(parsed.watchLater) ? parsed.watchLater : [],
-            actors: parsed.actors || {},
-            dismissed: parsed.dismissed || {},
+            actors: parsed.actors && typeof parsed.actors === 'object'
+                ? parsed.actors : {},
+            dismissed: parsed.dismissed && typeof parsed.dismissed === 'object'
+                ? parsed.dismissed : {},
         };
     } catch {
         return { ...EMPTY };

@@ -238,6 +238,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.63 — Production stability: no more uninstall-reinstall**
+            - 🛡️ **Top-level ErrorBoundary upgraded**:  Reset &
+              Reload now ALSO clears `onnowtv-*` / `vesper-*` /
+              `vesper:*` localStorage keys (it previously only
+              touched ephemeral caches).  This is the in-app
+              equivalent of "Clear app data" — users never need
+              to uninstall the APK to recover from a corrupted
+              state.
+            - 🚨 ErrorBoundary now ESCALATES top-level boot errors
+              (chunk load failure, ParseError, "Cannot read
+              property", quota exceeded) into the recovery UI
+              instead of silently logging them.  If anything
+              throws in the boot path, users see the friendly
+              Reset & Reload card — never a black screen.
+            - 🪖 **Defensive parsers** in 3 critical store
+              modules:
+              • `listProfiles()` now tolerates the profile blob
+                being `null` / an object / a non-array — coerces
+                to `[]` instead of throwing.
+              • `library.read()` rejects non-object JSON.parse
+                results and per-field type-checks favorites /
+                actors / dismissed.
+              • `BootSplash` ignores non-object bundle meta and
+                relies on the min-elapsed timer as a backstop.
+            - 🎯 Bottom line: a single bad localStorage blob can
+              no longer brick the app.  Worst case is the user
+              taps **Reset & Reload** and lands back on the
+              profile picker.
+
             **v2.6.62 — In-app HD trailers, no YouTube redirect**
             - 🔒 **Native Android fix**: the WebView client now
               SWALLOWS YouTube `intent://`, `youtube://` and
