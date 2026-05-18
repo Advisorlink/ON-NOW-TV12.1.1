@@ -350,16 +350,17 @@ export default function Detail() {
             e.preventDefault();
             e.stopPropagation();
             const next = items[nextIdx];
-            try { next.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
+            try { next.focus({ preventScroll: true }); } catch (err) { /* ignore */ }
             next.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
                 .forEach((el) => {
                     if (el !== next) el.removeAttribute('data-focused');
                 });
-            try {
-                next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (err) { /* ignore */ }
+            /* No scrollIntoView call here — the Detail page is
+             * fixed-layout (hero locked, single bottom lane).
+             * Moving focus between cast tiles must NEVER trigger
+             * any scrolling on the page itself. */
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
@@ -1048,11 +1049,21 @@ export default function Detail() {
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
                         WebkitMaskImage:
-                            'radial-gradient(ellipse 85% 80% at 85% 38%, ' +
-                            '#000 22%, #000 45%, rgba(0,0,0,0.6) 68%, transparent 92%)',
+                            'radial-gradient(ellipse 95% 90% at 80% 40%, ' +
+                            '#000 8%, ' +
+                            'rgba(0,0,0,0.95) 25%, ' +
+                            'rgba(0,0,0,0.7) 45%, ' +
+                            'rgba(0,0,0,0.35) 62%, ' +
+                            'rgba(0,0,0,0.12) 78%, ' +
+                            'transparent 100%)',
                         maskImage:
-                            'radial-gradient(ellipse 85% 80% at 85% 38%, ' +
-                            '#000 22%, #000 45%, rgba(0,0,0,0.6) 68%, transparent 92%)',
+                            'radial-gradient(ellipse 95% 90% at 80% 40%, ' +
+                            '#000 8%, ' +
+                            'rgba(0,0,0,0.95) 25%, ' +
+                            'rgba(0,0,0,0.7) 45%, ' +
+                            'rgba(0,0,0,0.35) 62%, ' +
+                            'rgba(0,0,0,0.12) 78%, ' +
+                            'transparent 100%)',
                     }}
                 >
                     <div
@@ -1150,7 +1161,22 @@ export default function Detail() {
                     <LibraryStatusPill id={id} />
                 </div>
 
-                <div className="max-w-[68vw] vesper-fade-up">
+                <div
+                    className="max-w-[68vw] vesper-fade-up"
+                    style={{
+                        /* Cap the hero column to the space ABOVE the
+                         * bottom lane.  Lane = poster row (180px) +
+                         * heading (~24px) + lane padding (~64px) +
+                         * mask gradient (40px) ≈ 320px.  Anything
+                         * longer than what fits in this height gets
+                         * clamped or ellipsised inside its own
+                         * element; the column itself is `overflow:
+                         * hidden` so nothing can EVER push into or
+                         * past the lane regardless of viewport. */
+                        maxHeight: 'calc(100vh - 320px)',
+                        overflow: 'hidden',
+                    }}
+                >
                     {meta.imdb_id && (
                         <div className="vesper-eyebrow mb-3">
                             {type} · {meta.imdb_id}

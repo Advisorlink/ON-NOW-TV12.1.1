@@ -238,6 +238,24 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.45 — Detail page robustness pass (per Emergent review)**
+            - 🔒 Hero column now has a STRICT max-height
+              (`calc(100vh - 320px)`) + `overflow: hidden` so it
+              and the bottom lane always fit within 100 vh
+              together at every TV viewport (verified at 720 p
+              and 1080 p).  Nothing can EVER overflow the hero
+              into the lane area regardless of synopsis length.
+            - 🚫 Removed the leftover `scrollIntoView()` call on
+              the cast-row keyboard handler.  Combined with the
+              `<main>` switch to `overflow: hidden`, the page now
+              has ZERO scroll paths.  Hero stays anchored, focus
+              moves between cast tiles without any page shift.
+            - 🌫️ Actor portrait mask softened: 6 gradient stops
+              (8 / 25 / 45 / 62 / 78 / 100 %) instead of 4, with
+              wider transparent zone.  No visible "square cut-off"
+              edge on the right — portrait now feathers organically
+              into the black background.
+
             **v2.6.44 — Cinematic pause card on the native player (movies + TV)**
             - 🎬 NEW: when the user pauses a movie or TV episode on
               the box, a cinematic info card now fades in (300 ms)
