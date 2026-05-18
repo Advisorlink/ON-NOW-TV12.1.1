@@ -238,6 +238,15 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.53 — Synopsis 2-line cap + filmography in color**
+            - ✂️ All hero synopsis variants now cap at exactly
+              2 lines (movie description, actor bio, focused
+              filmography overview).  Long synopses get
+              "…" ellipsised at the 2nd line.
+            - 🎨 Filmography posters now display in full color
+              (no B&W filter).  Only the cast / actor cards
+              keep the B&W → color on-focus animation.
+
             **v2.6.52 — Filmography drill-in + OK hint**
             - 📐 Cast cards a touch bigger:
               clamp(104→152) → clamp(116→172).

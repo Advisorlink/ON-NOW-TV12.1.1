@@ -1068,7 +1068,7 @@ export default function Detail() {
                                     lineHeight: 1.55,
                                     color: 'var(--vesper-text-2)',
                                     display: '-webkit-box',
-                                    WebkitLineClamp: 5,
+                                    WebkitLineClamp: 2,
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden',
                                 }}
@@ -1085,7 +1085,7 @@ export default function Detail() {
                                 lineHeight: 1.5,
                                 color: 'var(--vesper-text-2)',
                                 display: '-webkit-box',
-                                WebkitLineClamp: 5,
+                                WebkitLineClamp: 2,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden',
                             }}
@@ -1099,6 +1099,10 @@ export default function Detail() {
                                 fontSize: 17,
                                 lineHeight: 1.55,
                                 color: 'var(--vesper-text-2)',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
                             }}
                         >
                             {meta.description}

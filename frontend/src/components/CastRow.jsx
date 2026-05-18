@@ -442,12 +442,6 @@ function FilmCard({ film, onActivate, onFocus, onBlur }) {
                     loading="lazy"
                     decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
-                    style={{
-                        filter: focused
-                            ? 'grayscale(0) contrast(1.02)'
-                            : 'grayscale(1) contrast(1.02) brightness(0.92)',
-                        transition: 'filter 200ms ease',
-                    }}
                 />
             ) : (
                 <div
