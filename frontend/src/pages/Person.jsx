@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
+import PosterTile from '@/components/PosterTile';
 import useBackHandler from '@/hooks/useBackHandler';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -259,19 +260,40 @@ function PersonContent({ data, navigate }) {
                     </span>
                 </h2>
 
+                {/* Horizontal shelf of posters — same component the
+                    home-page Shelf uses, so the tile size, focus
+                    ring, scale animation, hold-to-save behaviour are
+                    100% consistent.  Films are resolved to IMDB on
+                    pick via the existing /api/tmdb/imdb endpoint
+                    inside `goToTitle` below. */}
                 <div
-                    data-testid="person-grid"
+                    data-testid="person-shelf"
+                    className="vesper-shelf"
                     style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-                        gap: 24,
+                        display: 'flex',
+                        gap: 18,
+                        overflowX: 'auto',
+                        overflowY: 'visible',
+                        paddingTop: 8,
+                        paddingBottom: 32,
+                        paddingRight: 80,
+                        scrollPaddingRight: 80,
+                        scrollbarWidth: 'none',
                     }}
                 >
                     {(filmography || []).map((film) => (
-                        <FilmCard
+                        <PosterTile
                             key={`${film.media_type}-${film.tmdb_id}`}
-                            film={film}
-                            onPick={async () => {
+                            item={{
+                                id:       `person-film-${film.media_type}-${film.tmdb_id}`,
+                                type:     film.media_type === 'tv' ? 'series' : 'movie',
+                                title:    film.title || film.name,
+                                poster:   film.poster_path,
+                                background: film.backdrop_path,
+                                year:     (film.release_date || film.first_air_date || '').slice(0, 4),
+                                description: film.overview,
+                            }}
+                            onSelect={async () => {
                                 try {
                                     const { data: imdb } = await axios.get(
                                         `${API}/tmdb/imdb/${film.media_type}/${film.tmdb_id}`,
@@ -280,9 +302,7 @@ function PersonContent({ data, navigate }) {
                                     if (imdb?.imdb_id) {
                                         navigate(`/title/${film.media_type === 'tv' ? 'series' : 'movie'}/${imdb.imdb_id}`);
                                     }
-                                } catch {
-                                    /* swallow */
-                                }
+                                } catch { /* swallow */ }
                             }}
                         />
                     ))}

@@ -120,7 +120,7 @@ function RecCard({ item, onPick }) {
     const [focused, setFocused] = useState(false);
     return (
         <button
-            data-testid={`rec-${item.media_type}-${item.tmdb_id}`}
+            data-testid={`recommendation-${item.media_type}-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="poster"
             tabIndex={0}

@@ -238,6 +238,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.39 — Detail page snap navigation + actor portrait fix + Person page redesign**
+            - 🖼️ Actor portrait now flush-right.  The big B&W
+              backdrop image was using `contain` + `center top` so
+              it never reached the right edge of the screen.  Now
+              uses `auto 100%` + `right top` so the full-height
+              portrait pins flush to the right margin with the
+              4-edge fade overlay still bleeding into the black.
+            - ⚡ Snap navigation: pressing DOWN on the Play CTA
+              snaps the page to the Cast row (heading at ~18 vh
+              from the top, focus on the first actor card).
+              Pressing DOWN on a cast card snaps to the
+              Recommendations row.  Pressing UP on a recommendation
+              snaps back to Cast; pressing UP on Cast snaps back
+              to the top (Play CTA).  Smooth 18 vh framing every
+              time so the focused row is beautifully centred.
+            - 🔵 Right-rail position indicator: three vertical dots
+              (Hero / Cast / Recommendations) showing which page of
+              the Detail layout you're on.  Active dot pulses cyan
+              with a soft glow.
+            - 🎬 Person page (tap an actor → see their movies)
+              redesigned: replaced the bespoke FilmCard grid with
+              the SAME `PosterTile` component the home shelves use.
+              Same focus ring, same scale animation, same hold-to-
+              save gesture, same fluid horizontal scroll.  All
+              filmography fits in one wide shelf instead of an
+              unbounded grid.
+
             **v2.6.38 — Backend memory diet (production-tier-ready)**
             - 🧠 ROOT CAUSE: every `/api/xtream/instant-bundle` request
               was allocating a fresh 48 MB JSON dict + gzip-encoding
