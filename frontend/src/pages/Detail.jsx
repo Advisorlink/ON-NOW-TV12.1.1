@@ -1165,15 +1165,17 @@ export default function Detail() {
                     className="max-w-[68vw] vesper-fade-up"
                     style={{
                         /* Cap the hero column to the space ABOVE the
-                         * bottom lane.  Lane = poster row (180px) +
-                         * heading (~24px) + lane padding (~64px) +
-                         * mask gradient (40px) ≈ 320px.  Anything
-                         * longer than what fits in this height gets
-                         * clamped or ellipsised inside its own
-                         * element; the column itself is `overflow:
+                         * bottom lane.  Lane = poster row (162px) +
+                         * name/character (~32px) + heading h3 (~30px) +
+                         * mt-10 above heading (40px) + mb-5 below
+                         * heading (20px) + paddingBottom 16 + lane
+                         * paddingBottom 32 + safety = ~360px.
+                         * Anything longer than what fits in this
+                         * height gets clamped or ellipsised inside its
+                         * own element; the column itself is `overflow:
                          * hidden` so nothing can EVER push into or
                          * past the lane regardless of viewport. */
-                        maxHeight: 'calc(100vh - 320px)',
+                        maxHeight: 'calc(100vh - 360px)',
                         overflow: 'hidden',
                     }}
                 >
@@ -1306,8 +1308,14 @@ export default function Detail() {
                         either turns Autoplay off (from the sidebar)
                         or no 1080p stream is available, in which
                         case the streams list reappears as a manual
-                        fallback. */}
-                    {type === 'movie' && autoplayEnabled && (
+                        fallback.
+                        IMPORTANT: when a Cast actor is focused we
+                        hide the Play CTA + autoplay caption so they
+                        never collide with the Cast row heading
+                        below.  The user is exploring the cast at
+                        this point — not the movie itself — so the
+                        Play button has no business being there. */}
+                    {type === 'movie' && autoplayEnabled && !focusedActor && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-play-autoplay"
@@ -1389,8 +1397,10 @@ export default function Detail() {
                         </div>
                     )}
 
-                    {/* Stream picker (movies) / Episode browser (series) */}
-                    {type === 'series' ? (
+                    {/* Stream picker (movies) / Episode browser (series).
+                        Hidden when a cast actor is focused — see same
+                        rationale as the Play CTA above. */}
+                    {focusedActor ? null : type === 'series' ? (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -1885,17 +1895,20 @@ export default function Detail() {
                         cleanly masks anything overflowing from the
                         hero above (e.g. the SeriesEpisodes picker
                         on a TV show detail page that can be very
-                        tall on small viewports). */}
+                        tall on small viewports).  Reaches solid
+                        opacity well before the Cast row heading so
+                        the hero's Play button can NEVER bleed
+                        through behind "Cast · N actors". */}
                     <div
                         style={{
                             position: 'absolute',
-                            inset: '-80px 0 0 0',
+                            inset: '-120px 0 0 0',
                             background:
                                 'linear-gradient(180deg, ' +
                                 'rgba(6,8,15,0) 0%, ' +
-                                'rgba(6,8,15,0.55) 25%, ' +
-                                'rgba(6,8,15,0.92) 55%, ' +
-                                '#06080F 100%)',
+                                'rgba(6,8,15,0.7) 20%, ' +
+                                'rgba(6,8,15,0.98) 40%, ' +
+                                '#06080F 60%)',
                             pointerEvents: 'none',
                         }}
                     />

@@ -238,6 +238,23 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.46 — Cast row collision fix on Detail page**
+            - 🐛 FIX: When a Cast actor was focused, the "Play 1080p" CTA
+              + "AUTOPLAY ON · TURN OFF…" caption + stream picker were
+              still rendered behind the actor's bio, colliding with the
+              "Cast · N actors" heading right below the hero.  Now
+              completely hidden whenever a Cast card has focus — the
+              hero cleanly shows ONLY the actor's portrait + bio while
+              you're exploring the cast row.
+            - 📐 Hero column max-height bumped from `100vh - 320px` to
+              `100vh - 360px` to give the Cast heading + portraits
+              breathing room on tighter 1080p viewports.
+            - 🌫️ Bottom-lane gradient mask strengthened: starts higher
+              (120 px instead of 80 px) and reaches solid opacity by
+              60 % of the fade instead of 100 %, so any tail-end of
+              the hero is hidden well before it can bleed through
+              the Cast row heading.
+
             **v2.6.45 — Detail page robustness pass (per Emergent review)**
             - 🔒 Hero column now has a STRICT max-height
               (`calc(100vh - 320px)`) + `overflow: hidden` so it

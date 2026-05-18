@@ -56,6 +56,22 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 95 — Feb 18, 2026)
+### Detail page: hide Play CTA + autoplay caption when a Cast actor is focused
+- **🐛 User reported** (with photo of the TV showing the bug): "This is still happening" — the Sally Field actor view on the Detail page still showed the **"Play 1080p" button + "AUTOPLAY ON · TURN OFF IN SIDE MENU FOR PICKER" caption** rendered on top of the "Cast · 20 actors" heading at the bottom lane. Layout collision was visible at 1080p TV viewport (the user's HK1 box).
+- **🔬 RCA**: The hero column has `maxHeight: calc(100vh - 320px)` reserving 320 px for the bottom lane. The actual CastRow geometry is **~340 px** (mt-10 + h3 + mb-5 + 162 px portrait + name/character + paddingBottom + lane paddingBottom = 340 px). So the bottom of the hero (containing the Play CTA when no actor is focused, AND when an actor IS focused too because the Play CTA was unconditionally rendered) was geometrically overlapping the top of the Cast row by ~20 px. The bottom-lane gradient mask (extending only 80 px UP, fading to opacity 0.55 at 25 % and 0.92 at 55 %) was not opaque enough at the Cast heading position to fully mask the hero behind it.
+- **✅ Fix** in `/app/frontend/src/pages/Detail.jsx`:
+  1. **Play CTA + autoplay caption now hidden when `focusedActor` is truthy** (line 1310). User has D-padded INTO the Cast row at this point — the Play button has no business being there. The hero cleanly shows ONLY the actor's name + character + age + birthplace + bio.
+  2. **Stream picker also hidden when `focusedActor` is truthy** (line 1392). Same rationale as above.
+  3. **Hero column max-height bumped from `100vh - 320px` to `100vh - 360px`** (line 1176). Gives the Cast heading + portraits the 40 px of breathing room they needed.
+  4. **Bottom-lane gradient mask strengthened** (line 1889):
+     - Inset bumped from `-80px` to `-120px` (gradient starts 40 px higher).
+     - Opacity ramp tightened: `0% → 20% → 40% → 60%` instead of `0% → 25% → 55% → 100%`. Solid `#06080F` is now reached by 60 % of the fade height (was 100 %), so the area where the Cast heading renders is at ~98 % opacity, fully masking anything in the hero above.
+- **✅ Verified via Playwright screenshot tool** at both 1920×800 AND 1920×1080:
+  - **Cast actor focused** (Sally Field): hero shows "Sally Field" + "AS TOVA SULLIVAN" + age + birthplace + bio + portrait. `play_btn count: 0, visible: False`. Cast row heading + portraits render cleanly below — zero visual collision.
+  - **No actor focused** (default): hero shows "Remarkably Bright Creatures" + 2026 · 114 min · ★ 7.8 · Comedy · Drama + synopsis + Play 1080p button + AUTOPLAY caption. Cast row heading + portraits render cleanly below — zero visual collision.
+- **🆙** APK bumped to **v2.6.46 (versionCode 116)**. Release notes added to `.github/workflows/build-apk.yml` so the in-app UpdateGate prompts the user on their TV.
+
 ## Implemented (Iteration 94 — Feb 17, 2026)
 ### Welcome tour onboarding (3D D-pad walkthrough)
 - **🎯 User**: "Once the client is logged in and they've opened their profile, then it needs to have a sort of onboarding guiding them how to use everything. I really want it to have a 3D directional D-pad that glows when you push enter. Skip button + replay from Settings."
