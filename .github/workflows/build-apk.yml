@@ -238,6 +238,26 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.48 — Clean Cast row on Detail page (per user spec)**
+            - 🎬 Cast row added to the bottom of the Detail page,
+              fixed-position horizontal strip of B&W actor portraits.
+            - 🎨 Actor cards are B&W by default; turn full color
+              when focused.
+            - ⬇️ Press DOWN once from Play → focus jumps to first
+              actor.  Play button disappears.  Movie title +
+              synopsis swap to actor name + age + birthplace +
+              biography in-place.
+            - ⬆️ Press UP from any actor → Play button returns,
+              hero restores to movie info, focus lands cleanly on
+              Play.
+            - 🔒 Page never scrolls.  Hero stays anchored at top,
+              cast row stays anchored at bottom.  Same fixed
+              navigation as the home screen.
+            - ❌ Removed: "More like this" row, snap dots, actor
+              portrait hero swap, filmography reveal, snap
+              navigation indicators.  Clean minimal interaction
+              focused on what the user actually asked for.
+
             **v2.6.47 — Detail page UX overhaul (stuck-on-actor fix)**
             - 🐛 BIG FIX: After focusing a Cast actor, pressing UP
               left users stranded — Play button stayed hidden and

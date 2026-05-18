@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
+import CastRow from '@/components/CastRow';
 import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -154,9 +155,85 @@ export default function Detail() {
         };
     }, [type, id]);
 
-    /* Resolve the IMDB id → TMDB id removed — no longer needed
-       now that Cast row / Recommendations row are gone.  We
-       kept the rest of the streaming flow intact. */
+    /* Resolve IMDB id → TMDB id so the Cast row can hit TMDB. */
+    const [tmdbInfo, setTmdbInfo] = useState(null);
+    useEffect(() => {
+        let cancel = false;
+        if (!id || !id.startsWith('tt')) {
+            setTmdbInfo(null);
+            return undefined;
+        }
+        (async () => {
+            try {
+                const r = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/find-by-imdb/${id}`,
+                    { cache: 'force-cache' }
+                );
+                const data = await r.json();
+                if (!cancel && data?.tmdb_id) {
+                    setTmdbInfo({
+                        tmdb_id: data.tmdb_id,
+                        media_type: data.media_type,
+                    });
+                }
+            } catch {
+                /* swallow — Cast row stays hidden if tmdbInfo is null. */
+            }
+        })();
+        return () => { cancel = true; };
+    }, [id]);
+
+    /* Focused actor (Cast row) — when an actor card is focused, the
+       hero swaps from movie title + synopsis to actor name + bio. */
+    const [focusedActor, setFocusedActor] = useState(null);
+    /* Bio cache so we don't refetch the same person when focus
+     * sweeps left/right.  Keyed by TMDB person id. */
+    const actorBioCacheRef = useRef(new Map());
+    const [focusedBio, setFocusedBio] = useState('');
+    const [focusedAge, setFocusedAge] = useState('');
+    const [focusedBirthplace, setFocusedBirthplace] = useState('');
+
+    useEffect(() => {
+        if (!focusedActor || !focusedActor.id) {
+            setFocusedBio('');
+            setFocusedAge('');
+            setFocusedBirthplace('');
+            return undefined;
+        }
+        const cache = actorBioCacheRef.current;
+        const personId = focusedActor.id;
+        if (cache.has(personId)) {
+            const cached = cache.get(personId);
+            setFocusedBio(cached.bio);
+            setFocusedAge(cached.age);
+            setFocusedBirthplace(cached.birthplace);
+            return undefined;
+        }
+        let cancel = false;
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/person/${personId}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (cancel) return;
+                const entry = {
+                    bio: (data?.biography || '').trim(),
+                    age: data?.age != null ? String(data.age) : '',
+                    birthplace: data?.place_of_birth || '',
+                };
+                cache.set(personId, entry);
+                if (focusedActor && focusedActor.id === personId) {
+                    setFocusedBio(entry.bio);
+                    setFocusedAge(entry.age);
+                    setFocusedBirthplace(entry.birthplace);
+                }
+            } catch { /* ignore — bio stays empty */ }
+        })();
+        return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusedActor?.id]);
 
     useEffect(() => {
         if (type === 'series') {
@@ -271,6 +348,66 @@ export default function Detail() {
              * fixed-layout (hero locked, single bottom lane).
              * Moving focus between cast tiles must NEVER trigger
              * any scrolling on the page itself. */
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
+
+    /* D-pad navigation between Play CTA ↔ Cast row.
+     *
+     *  Play ─DOWN→ first cast actor (focusedActor set → hero swap)
+     *  Cast actor ─UP→ Play CTA (focusedActor cleared → hero restored)
+     *
+     * Page never scrolls.  Hero stays anchored.  Cast row stays
+     * anchored at the bottom.  Same pattern as the home screen. */
+    useEffect(() => {
+        const focusPlay = () => {
+            // Clear focusedActor FIRST so the Play CTA re-renders
+            // (it's conditionally hidden while an actor is focused).
+            setFocusedActor(null);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                let retries = 16;
+                const tryFocus = () => {
+                    const target = document.querySelector('[data-testid^="detail-play-"]');
+                    if (target) {
+                        try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+                        target.setAttribute('data-focused', 'true');
+                        document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                            if (el !== target) el.removeAttribute('data-focused');
+                        });
+                        return;
+                    }
+                    if (--retries > 0) setTimeout(tryFocus, 50);
+                };
+                tryFocus();
+            }));
+        };
+        const focusFirstActor = () => {
+            requestAnimationFrame(() => {
+                const target = document.querySelector('[data-testid^="cast-actor-"]');
+                if (target) {
+                    try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+                }
+            });
+        };
+        const onKey = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const active = document.activeElement;
+            if (!active) return;
+            const onPlay = active.matches('[data-testid^="detail-play-"]');
+            const onCast = active.matches('[data-testid^="cast-actor-"]');
+
+            if (e.key === 'ArrowDown' && onPlay) {
+                e.preventDefault();
+                e.stopPropagation();
+                focusFirstActor();
+                return;
+            }
+            if (e.key === 'ArrowUp' && onCast) {
+                e.preventDefault();
+                e.stopPropagation();
+                focusPlay();
+            }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
@@ -786,7 +923,7 @@ export default function Detail() {
             />
 
             <main
-                className="relative z-10 w-full h-full overflow-y-auto"
+                className="relative z-10 w-full h-full overflow-hidden"
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
@@ -827,31 +964,81 @@ export default function Detail() {
                             fontSize: 'clamp(44px, 4.6vw, 72px)',
                             letterSpacing: '-0.035em',
                             lineHeight: 1.05,
+                            transition: 'opacity 220ms ease',
                         }}
                     >
-                        {meta.name}
+                        {focusedActor?.name || meta.name}
                     </h1>
 
-                    <div
-                        className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
-                        style={{ fontSize: 18 }}
-                    >
-                        {meta.releaseInfo && (
-                            <span style={{ color: 'var(--vesper-blue)' }}>
-                                {meta.releaseInfo}
-                            </span>
-                        )}
-                        {meta.runtime && <Bullet />}
-                        {meta.runtime && <span>{meta.runtime}</span>}
-                        {meta.imdbRating && <Bullet />}
-                        {meta.imdbRating && <span>★ {meta.imdbRating}</span>}
-                        {meta.genres?.length > 0 && <Bullet />}
-                        {meta.genres?.length > 0 && (
-                            <span>{meta.genres.slice(0, 3).join(' · ')}</span>
-                        )}
-                    </div>
+                    {focusedActor ? (
+                        <>
+                            <div
+                                className="vesper-mono mt-2"
+                                style={{
+                                    fontSize: 14, letterSpacing: '0.18em',
+                                    color: 'var(--vesper-blue)',
+                                    textTransform: 'uppercase',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {focusedActor.character
+                                    ? `As ${focusedActor.character}`
+                                    : 'Cast'}
+                            </div>
+                            {(focusedAge || focusedBirthplace) && (
+                                <div
+                                    className="flex items-center gap-3 mt-3 vesper-meta flex-wrap"
+                                    style={{ fontSize: 16, color: 'var(--vesper-text-2)' }}
+                                >
+                                    {focusedAge && (
+                                        <span>{focusedAge} years old</span>
+                                    )}
+                                    {focusedAge && focusedBirthplace && <Bullet />}
+                                    {focusedBirthplace && (
+                                        <span>{focusedBirthplace}</span>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div
+                            className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
+                            style={{ fontSize: 18 }}
+                        >
+                            {meta.releaseInfo && (
+                                <span style={{ color: 'var(--vesper-blue)' }}>
+                                    {meta.releaseInfo}
+                                </span>
+                            )}
+                            {meta.runtime && <Bullet />}
+                            {meta.runtime && <span>{meta.runtime}</span>}
+                            {meta.imdbRating && <Bullet />}
+                            {meta.imdbRating && <span>★ {meta.imdbRating}</span>}
+                            {meta.genres?.length > 0 && <Bullet />}
+                            {meta.genres?.length > 0 && (
+                                <span>{meta.genres.slice(0, 3).join(' · ')}</span>
+                            )}
+                        </div>
+                    )}
 
-                    {meta.description ? (
+                    {/* Synopsis OR actor bio (when an actor is focused). */}
+                    {focusedActor ? (
+                        <p
+                            data-testid="actor-bio"
+                            className="mt-4 max-w-[58ch]"
+                            style={{
+                                fontSize: 16,
+                                lineHeight: 1.5,
+                                color: 'var(--vesper-text-2)',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 5,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            {focusedBio || 'Loading biography…'}
+                        </p>
+                    ) : meta.description ? (
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
@@ -866,8 +1053,10 @@ export default function Detail() {
 
                     {/* AUTOPLAY MODE — when on, show a big Play
                         button that fires the same ?autoplay=1 flow
-                        (auto-pick first 1080p direct stream). */}
-                    {type === 'movie' && autoplayEnabled && (
+                        (auto-pick first 1080p direct stream).
+                        Hidden when a cast actor is focused — the
+                        hero is showing the actor's info instead. */}
+                    {type === 'movie' && autoplayEnabled && !focusedActor && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-play-autoplay"
@@ -937,8 +1126,10 @@ export default function Detail() {
                         </div>
                     )}
 
-                    {/* Stream picker (movies) / Episode browser (series). */}
-                    {type === 'series' ? (
+                    {/* Stream picker (movies) / Episode browser (series).
+                        Hidden when an actor is focused — hero is
+                        showing actor info instead. */}
+                    {focusedActor ? null : type === 'series' ? (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -1406,6 +1597,44 @@ export default function Detail() {
 
                 </div>
             </main>
+
+            {/* ── CAST ROW — fixed at the bottom of the page.
+                 Horizontal scrolling strip of actor cards.  Hero
+                 stays anchored at the top, cast row stays anchored
+                 at the bottom.  Page itself never scrolls.  Solid
+                 backdrop ensures the hero never bleeds through. */}
+            {tmdbInfo?.tmdb_id && (
+                <div
+                    data-testid="detail-cast-lane"
+                    style={{
+                        position: 'absolute',
+                        left: 0, right: 0, bottom: 0,
+                        zIndex: 15,
+                        padding: '0 80px 32px 80px',
+                    }}
+                >
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: '-100px 0 0 0',
+                            background:
+                                'linear-gradient(180deg, ' +
+                                'rgba(6,8,15,0) 0%, ' +
+                                'rgba(6,8,15,0.92) 25%, ' +
+                                '#06080F 50%, ' +
+                                '#06080F 100%)',
+                            pointerEvents: 'none',
+                        }}
+                    />
+                    <div style={{ position: 'relative' }}>
+                        <CastRow
+                            tmdbId={tmdbInfo.tmdb_id}
+                            mediaType={tmdbInfo.media_type}
+                            onFocus={setFocusedActor}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
