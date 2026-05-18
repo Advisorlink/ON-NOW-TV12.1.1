@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.52 — Filmography drill-in + OK hint**
+            - 📐 Cast cards a touch bigger:
+              clamp(104→152) → clamp(116→172).
+            - 💡 NEW: a glass "OK · See <name>'s filmography" hint
+              appears where the Play button used to live, the
+              moment you land on the Cast row.  Subtle, on-brand,
+              and tells the user exactly what OK will do.
+            - 🎬 NEW: pressing OK on an actor swaps the SAME cast
+              row in-place into that actor's filmography — same
+              card size, same position, zero layout shift.  The
+              heading swaps to "<name>'s work · N titles".
+            - 🌌 Each focused film in the filmography mode swaps:
+              • the page backdrop wallpaper → that film's backdrop
+              • the hero title → that film's name
+              • the hero meta → year + rating + character
+              • the hero body → that film's overview / synopsis
+            - 🔗 OK on a filmography card resolves IMDB id and
+              navigates to that title's detail page.
+            - ⬆️ UP from a filmography card cleanly exits back to
+              the same actor card you drilled in from (no doom
+              loop).
+
             **v2.6.51 — Cast tweaks + brighter wallpaper**
             - 📐 Cast cards: clamp(88→128) → clamp(104→152).
               ~19 % bigger.

@@ -842,7 +842,7 @@ async def tmdb_person(person_id: int):
     The filmography is sorted by popularity descending so the most
     recognisable roles surface first.  Cached for 7 days.
     """
-    cache_key = f"person:{person_id}:v2"
+    cache_key = f"person:{person_id}:v3"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -913,6 +913,7 @@ async def tmdb_person(person_id: int):
         if prev and prev.get("popularity", 0) >= popularity:
             continue
         poster = r.get("poster_path")
+        backdrop = r.get("backdrop_path")
         seen[key] = {
             "tmdb_id":    r.get("id"),
             "media_type": mt,
@@ -920,7 +921,9 @@ async def tmdb_person(person_id: int):
             "character":  r.get("character") or "",
             "year":       (r.get("release_date") or r.get("first_air_date") or "")[:4],
             "rating":     round(r.get("vote_average") or 0, 1) or None,
+            "overview":   (r.get("overview") or "").strip(),
             "poster":     f"{TMDB_IMG}/w342{poster}" if poster else "",
+            "backdrop":   f"{TMDB_IMG}/w1280{backdrop}" if backdrop else "",
             "popularity": popularity,
         }
     filmography = sorted(seen.values(), key=lambda r: -r.get("popularity", 0))[:60]

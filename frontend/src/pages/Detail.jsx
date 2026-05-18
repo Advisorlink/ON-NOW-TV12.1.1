@@ -186,6 +186,13 @@ export default function Detail() {
     /* Focused actor (Cast row) — when an actor card is focused, the
        hero swaps from movie title + synopsis to actor name + bio. */
     const [focusedActor, setFocusedActor] = useState(null);
+    /* Focused FILMOGRAPHY item — when the user has drilled into an
+       actor's other work and is browsing it, this holds the focused
+       film/TV title.  Hero + backdrop swap to that title. */
+    const [focusedMovie, setFocusedMovie] = useState(null);
+    /* CastRow's current mode — 'cast' (default) or 'filmography'
+       (after OK on an actor).  Drives the Play-button-area hint. */
+    const [castMode, setCastMode] = useState('cast');
     /* Bio cache so we don't refetch the same person when focus
      * sweeps left/right.  Keyed by TMDB person id. */
     const actorBioCacheRef = useRef(new Map());
@@ -889,17 +896,22 @@ export default function Detail() {
         >
             <FullscreenButton />
 
-            {/* Backdrop — the title's own backdrop fills the hero.
-                Brighter on the right side so the wallpaper shows
-                through; darker left + bottom to keep the title /
-                synopsis / Play CTA readable. */}
+            {/* Backdrop — defaults to the title's own backdrop, but
+                when the user is browsing an actor's filmography
+                and a specific film is focused, we cross-fade to
+                THAT film's backdrop so the page feels alive. */}
             <div
                 className="absolute inset-0"
                 style={{
-                    backgroundImage: `url(${meta.background || meta.poster || ''})`,
+                    backgroundImage: `url(${
+                        focusedMovie?.backdrop ||
+                        meta.background ||
+                        meta.poster || ''
+                    })`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     filter: 'brightness(0.85) saturate(1.1)',
+                    transition: 'background-image 300ms ease',
                 }}
             />
             <div
@@ -955,7 +967,7 @@ export default function Detail() {
                 >
                     {meta.imdb_id && (
                         <div className="vesper-eyebrow mb-3">
-                            {type} · {meta.imdb_id}
+                            {focusedMovie ? focusedMovie.media_type : type} · {meta.imdb_id}
                         </div>
                     )}
                     <h1
@@ -968,10 +980,33 @@ export default function Detail() {
                             transition: 'opacity 220ms ease',
                         }}
                     >
-                        {focusedActor?.name || meta.name}
+                        {focusedMovie?.title || focusedActor?.name || meta.name}
                     </h1>
 
-                    {focusedActor ? (
+                    {focusedMovie ? (
+                        <div
+                            className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
+                            style={{ fontSize: 18 }}
+                        >
+                            {focusedMovie.year && (
+                                <span style={{ color: 'var(--vesper-blue)' }}>
+                                    {focusedMovie.year}
+                                </span>
+                            )}
+                            {focusedMovie.rating != null && (
+                                <>
+                                    <Bullet />
+                                    <span>★ {focusedMovie.rating}</span>
+                                </>
+                            )}
+                            {focusedMovie.character && (
+                                <>
+                                    <Bullet />
+                                    <span>as {focusedMovie.character}</span>
+                                </>
+                            )}
+                        </div>
+                    ) : focusedActor ? (
                         <>
                             <div
                                 className="vesper-mono mt-2"
@@ -1022,8 +1057,26 @@ export default function Detail() {
                         </div>
                     )}
 
-                    {/* Synopsis OR actor bio (when an actor is focused). */}
-                    {focusedActor ? (
+                    {/* Hero body text — three states. */}
+                    {focusedMovie ? (
+                        focusedMovie.overview ? (
+                            <p
+                                data-testid="film-overview"
+                                className="mt-6 max-w-[58ch]"
+                                style={{
+                                    fontSize: 16,
+                                    lineHeight: 1.55,
+                                    color: 'var(--vesper-text-2)',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 5,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {focusedMovie.overview}
+                            </p>
+                        ) : null
+                    ) : focusedActor ? (
                         <p
                             data-testid="actor-bio"
                             className="mt-4 max-w-[58ch]"
@@ -1052,12 +1105,28 @@ export default function Detail() {
                         </p>
                     ) : null}
 
-                    {/* AUTOPLAY MODE — when on, show a big Play
-                        button that fires the same ?autoplay=1 flow
-                        (auto-pick first 1080p direct stream).
-                        Hidden when a cast actor is focused — the
-                        hero is showing the actor's info instead. */}
-                    {type === 'movie' && autoplayEnabled && !focusedActor && (
+                    {/* CTA AREA — three states.
+                        1. No actor focused → Play CTA + autoplay
+                           caption (normal movie watching flow).
+                        2. Cast mode + actor focused → hint inviting
+                           the user to press OK to see the actor's
+                           other work.
+                        3. Filmography mode + film focused → hint
+                           inviting the user to press OK to open
+                           that title's page. */}
+                    {focusedMovie ? (
+                        <CastHint
+                            line1="Press OK"
+                            line2={`Open ${focusedMovie.title}`}
+                        />
+                    ) : focusedActor ? (
+                        <CastHint
+                            line1="Press OK"
+                            line2={`See ${
+                                focusedActor.name?.split(' ')[0] || 'their'
+                            }'s filmography`}
+                        />
+                    ) : type === 'movie' && autoplayEnabled && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-play-autoplay"
@@ -1128,9 +1197,9 @@ export default function Detail() {
                     )}
 
                     {/* Stream picker (movies) / Episode browser (series).
-                        Hidden when an actor is focused — hero is
-                        showing actor info instead. */}
-                    {focusedActor ? null : type === 'series' ? (
+                        Hidden when actor OR a filmography movie is
+                        focused — hero is showing that info instead. */}
+                    {(focusedActor || focusedMovie) ? null : type === 'series' ? (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -1638,6 +1707,8 @@ export default function Detail() {
                             tmdbId={tmdbInfo.tmdb_id}
                             mediaType={tmdbInfo.media_type}
                             onFocus={setFocusedActor}
+                            onMovieFocus={setFocusedMovie}
+                            onModeChange={setCastMode}
                         />
                     </div>
                 </div>
@@ -1652,6 +1723,79 @@ const Bullet = () => (
         style={{ background: 'rgba(255,255,255,0.32)' }}
     />
 );
+
+/**
+ * <CastHint/> — soft glass-pill that appears where the Play CTA
+ * normally lives, inviting the user to press OK while they're
+ * browsing the cast / filmography row.  Decorative only — never
+ * focusable, never takes interactivity, just a friendly nudge.
+ */
+function CastHint({ line1, line2 }) {
+    return (
+        <div
+            data-testid="cast-hint"
+            className="mt-8 vesper-fade-up flex items-center gap-3"
+            style={{ pointerEvents: 'none' }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 18px 10px 14px',
+                    borderRadius: 9999,
+                    background: 'rgba(13,18,28,0.6)',
+                    border: '1px solid rgba(93,200,255,0.22)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                    boxShadow: '0 0 24px rgba(93,200,255,0.08)',
+                }}
+            >
+                <span
+                    style={{
+                        width: 32, height: 32,
+                        borderRadius: '50%',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(93,200,255,0.16)',
+                        color: 'var(--vesper-blue-bright)',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        fontFamily: 'inherit',
+                    }}
+                >
+                    OK
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 10,
+                            letterSpacing: '0.22em',
+                            color: 'var(--vesper-blue-bright)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        {line1}
+                    </span>
+                    <span
+                        style={{
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: 'var(--vesper-text)',
+                            letterSpacing: '-0.005em',
+                            lineHeight: 1.2,
+                        }}
+                    >
+                        {line2}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 /**
  * "In My List" indicator pill — non-interactive status badge that
