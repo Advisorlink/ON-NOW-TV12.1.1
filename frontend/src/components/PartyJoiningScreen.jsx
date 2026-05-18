@@ -24,6 +24,7 @@ export default function PartyJoiningScreen({
     noStreams,
     onCancel,
     onRetry,
+    role,                  // 'host' | 'guest'  — controls visual treatment
 }) {
     const stage = noStreams
         ? "Couldn't find a stream"
@@ -34,6 +35,166 @@ export default function PartyJoiningScreen({
     const tagText = noStreams ? 'PARTY · NO STREAM' : 'PARTY · LOADING';
     const tagColor = noStreams ? '#FCA5A5' : '#5DC8FF';
 
+    /* --- GUEST: popcorn cinematic loading screen ------------------
+     *
+     * The user designed this themselves — full-bleed popcorn-bowl
+     * artwork with the cinema spotlight, "Get your popcorn ready,
+     * your WATCH PARTY is about to begin!" copy, and a remote
+     * showing the long-press emoji directions.  It replaces the
+     * standard joining screen for GUESTS only.  Hosts still see the
+     * regular poster-blurred screen with loading status (because
+     * they need to see "Loading stream from your sources" while
+     * their Detail page resolves the URL).
+     *
+     * When status flips from `loading` → handed off to the player,
+     * we keep the popcorn artwork up so the guest never sees a
+     * flash of black / poster before the video starts.  When the
+     * party errors (`noStreams`), we show the same artwork with an
+     * overlaid error chip and the Leave button.
+     * ------------------------------------------------------------ */
+    if (role === 'guest') {
+        return (
+            <div
+                data-testid="party-joining-screen"
+                style={{
+                    position: 'fixed', inset: 0, zIndex: 50,
+                    background: '#020610',
+                    overflow: 'hidden',
+                    color: '#E6EAF2',
+                }}
+            >
+                {/* Full-bleed popcorn artwork.
+                    Object-fit: cover scales it edge-to-edge on TV
+                    1080p and on phones.  The artwork already has the
+                    "your watch party is about to begin" copy + remote
+                    + emoji hint baked in, so we don't overlay any
+                    extra text in normal loading mode. */}
+                <img
+                    src="/party/popcorn-loading.jpg"
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                    }}
+                />
+
+                {/* Bottom-edge gradient so the action chip stays
+                    legible whatever the artwork does at the bottom. */}
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0, left: 0, right: 0,
+                        height: '32%',
+                        background:
+                            'linear-gradient(to top, rgba(2,6,16,0.92) 0%, rgba(2,6,16,0) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+
+                {/* No-stream error overlay (only when host couldn't
+                    find anything to play).  Kept tight + central so
+                    the lovely artwork still reads underneath. */}
+                {noStreams && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            padding: '18px 24px',
+                            borderRadius: 14,
+                            background: 'rgba(180, 30, 40, 0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: '1px solid rgba(255,200,200,0.35)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {tagText}: the host couldn't find a stream.
+                    </div>
+                )}
+
+                {/* Tiny status chip — only visible while really still
+                    loading (the artwork itself says "about to begin"
+                    so the chip just adds a discreet pulse so users
+                    know nothing's frozen). */}
+                {!noStreams && (
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            bottom: 'clamp(24px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.6)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(93,200,255,0.35)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 700,
+                        }}
+                    >
+                        <Loader2
+                            className="vesper-spin"
+                            size={12}
+                            style={{ color: '#5DC8FF' }}
+                        />
+                        WAITING FOR HOST
+                    </div>
+                )}
+
+                {/* Leave button (always available).  Bottom-right so
+                    it doesn't clash with the artwork composition. */}
+                <button
+                    data-testid="party-joining-cancel"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    style={{
+                        position: 'absolute',
+                        bottom: 'clamp(20px, 3vh, 32px)',
+                        right: 'clamp(20px, 3vw, 32px)',
+                        height: 44,
+                        padding: '0 18px',
+                        borderRadius: 999,
+                        background: 'rgba(2,6,16,0.55)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        color: '#E6EAF2',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <X size={14} />
+                    Leave
+                </button>
+            </div>
+        );
+    }
+
+    /* --- HOST (and anything else): legacy poster-blur layout -- */
     return (
         <div
             data-testid="party-joining-screen"

@@ -238,6 +238,31 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.68 — GUEST view-only player · Popcorn cinematic loading screen**
+            - 🎟️ **Guest player is now VIEW-ONLY.**  Reported issue:
+              "If you're trying to push and hold an arrow to send an
+              emoji, focus chases all the different parts of the
+              player."  Fix in `VlcPlayerActivity.kt`:
+              • Guests can NO LONGER pause, seek, rewind, fast-fwd,
+                use channel keys, or open the player controls strip.
+              • The control strip itself never even mounts for the
+                guest — `showControls()` is a no-op when partyRole
+                is guest, so focus has nowhere to wander.
+              • All D-pad arrow presses are consumed silently → no
+                more focus chasing during long-press emoji reactions.
+              • Allowed actions: BACK (leave party), OK (open
+                subtitles picker only — tap screen also opens it),
+                D-pad arrow long-press (emoji reactions still work).
+            - 🍿 **Brand-new GUEST loading screen — your popcorn art!**
+              Replaced the standard joining UI for GUESTS with your
+              hand-designed "Get your POPCORN ready, your WATCH
+              PARTY is about to begin!" artwork.  Full-bleed image,
+              subtle "WAITING FOR HOST" chip pulsing at the bottom,
+              "Leave" button bottom-right.  Hosts still see the
+              poster-blurred loading screen so they can monitor
+              stream resolution progress.
+            - 🆙 APK bumped to **v2.6.68** (versionCode 138).
+
             **v2.6.67 — Watch Together CLOCK-SYNC (sub-100 ms sync) · Trailer 720p smooth · Preview banner killed**
             - 🕐 **Watch Together clock-sync via NTP-style ping/pong.**
               Last fix narrowed drift detection but didn't address

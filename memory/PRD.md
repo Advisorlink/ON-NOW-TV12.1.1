@@ -56,6 +56,24 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 101 — Feb 18, 2026) — v2.6.68
+### Guest view-only player + popcorn cinematic loading screen
+- **🎟️ Guest player is now VIEW-ONLY** (`VlcPlayerActivity.kt`)
+  - **🐛 User reported**: "If you're pushing and holding an arrow to send an emoji, focus chases all the different parts of the player. Right now it's going all over the place." Plus: "I want the guest to ONLY be able to view, send emojis, and change subtitles. They shouldn't be able to pause, seek, or open the controls."
+  - **✅ Fix**:
+    - At the top of `onKeyDown`, after the emoji-detection block (which `return true`s on long-press), there's now a **guest-only filter**: BACK → `finish()` (leave party), DPAD_CENTER/Enter → `openSubtitlePicker()` only, everything else → `return true` (silently consumed). D-pad arrows can no longer reveal/move the controls strip.
+    - `showControls()` is now a **no-op for guests** — belt-and-braces backstop so unintended call paths can't expose the strip.
+    - `videoLayout.setOnClickListener` short-circuits for guests to `openSubtitlePicker()` only (air-mouse tap → subtitles, never pause).
+    - Net effect: focus has nowhere to wander inside the player; the long-press emoji workflow is silky-smooth.
+- **🍿 Popcorn cinematic loading screen** (`PartyJoiningScreen.jsx`)
+  - User designed the artwork herself and uploaded it. Saved to `/app/frontend/public/party/popcorn-loading.jpg`.
+  - `PartyJoiningScreen` now branches on `role` prop: GUESTS see the full-bleed popcorn artwork (with a subtle "WAITING FOR HOST" chip pulsing at the bottom and a small "LEAVE" button bottom-right). HOSTS still see the poster-blurred loading screen with stream-resolution status (they need to see "Loading stream from your sources" progress).
+  - `Detail.jsx` passes `role={isPartyHost ? 'host' : 'guest'}` through.
+- **🆙 APK bumped to v2.6.68 (versionCode 138).** Release notes added.
+- **🧪 Full regression**: 20/20 backend tests pass (no break).
+
+
+
 ## Implemented (Iteration 100 — Feb 18, 2026) — v2.6.67
 ### NTP-style clock sync + Trailer 720p + Preview banner killed
 - **🕐 Watch Together CLOCK SYNC (the real fix)**:

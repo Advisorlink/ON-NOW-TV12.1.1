@@ -1266,6 +1266,7 @@ export default function Detail() {
                 backdrop={meta?.background || meta?.poster}
                 loading={loading || streamLoading || (isPartyGuest && !partyDetailState?.stream)}
                 noStreams={noStreams}
+                role={isPartyHost ? 'host' : 'guest'}
                 onCancel={() => navigate('/watch-together')}
                 onRetry={() => {
                     partyBreadcrumb('party-joining:user-retry', { partyCode });

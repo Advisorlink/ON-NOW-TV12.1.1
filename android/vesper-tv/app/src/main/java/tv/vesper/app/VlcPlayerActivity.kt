@@ -484,6 +484,18 @@ class VlcPlayerActivity : AppCompatActivity() {
         pickerRoot.setOnClickListener { closePicker() }
 
         videoLayout.setOnClickListener {
+            // Watch-party GUESTS are view-only — a tap (or D-pad
+            // OK while controls are hidden) opens the SUBTITLES
+            // picker, period.  No play/pause, no seek, no controls
+            // strip.  This is what stops the focus from "chasing
+            // all the different parts" of the player while the user
+            // holds an arrow to send an emoji reaction (the prior
+            // implementation revealed the full controls on any
+            // press, which then snatched focus from the surface).
+            if (partyRole == "guest") {
+                if (!isPickerOpen()) openSubtitlePicker()
+                return@setOnClickListener
+            }
             if (controlsVisible) {
                 val wasPlaying = mediaPlayer.isPlaying
                 togglePlayPause()
@@ -1682,6 +1694,12 @@ class VlcPlayerActivity : AppCompatActivity() {
     // -----------------------------------------------------------------
 
     private fun showControls() {
+        // Watch-Together guests are view-only — never expose the
+        // control strip.  This is the belt-and-braces backstop in
+        // case some unanticipated code path (an unintended
+        // setOnClickListener fallback, a third-party libVLC event)
+        // calls showControls(); the function simply no-ops for guests.
+        if (partyRole == "guest") return
         rootControls.animate()
             .alpha(1f).setDuration(180)
             .withStartAction { rootControls.visibility = View.VISIBLE }
@@ -1755,6 +1773,47 @@ class VlcPlayerActivity : AppCompatActivity() {
                 return true
             }
         }
+
+        // ----- WATCH-PARTY GUEST · VIEW-ONLY MODE -----
+        // The guest cannot pause, seek, or open the controls strip
+        // (per user request, after they reported focus "chasing all
+        // the different parts" when trying to hold an arrow for an
+        // emoji reaction).  Allowed actions for guests:
+        //   • BACK         — leave the party (finishes the Activity)
+        //   • DPAD_CENTER  — open the SUBTITLES picker only
+        //   • Long-press D-pad arrows — emoji reactions (handled
+        //                    above; they return true before we reach
+        //                    this block)
+        // Everything else is consumed so the focus engine doesn't
+        // wander into the controls strip.
+        if (partyRole == "guest"
+            && !isPickerOpen()
+            && liveGuide?.isOpen() != true
+        ) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_BACK -> {
+                    // Default Activity finish() — leaves the party.
+                    finish()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    openSubtitlePicker()
+                    return true
+                }
+                else -> {
+                    // Block: D-pad arrows (would reveal/move
+                    // controls), MEDIA_PLAY_PAUSE / REWIND / FAST_
+                    // FORWARD (would pause the host's playback),
+                    // channel keys, etc.  Returning true here means
+                    // the key is consumed; the controls strip is
+                    // never shown, focus never lands inside it.
+                    return true
+                }
+            }
+        }
+
         // BACK closes the Live Guide overlay first (it has higher
         // visual priority than the track picker).
         if (keyCode == KeyEvent.KEYCODE_BACK && liveGuide?.onBackPressed() == true) {
