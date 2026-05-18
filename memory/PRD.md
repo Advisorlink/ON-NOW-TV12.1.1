@@ -56,6 +56,40 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 102 — Feb 18, 2026) — v2.6.69
+### Host Party Menu · Avatar reactions on every screen · Popcorn image fix
+- **🍿 POPCORN IMAGE FIX (highest priority — user reported broken image on box)**
+  - **🐛 RCA**: `<img src="/party/popcorn-loading.jpg">` was resolving to the device filesystem root under `file:///android_asset/web/index.html`. Same problem for `<img src="/onboarding/remote.png">`.
+  - **✅ Fix**: Switched both to `Host.publicAsset('party/popcorn-loading.jpg')` (and `onboarding/remote.png`) — resolves relative to `document.baseURI` under `file://` and stays as `/foo` in normal HTTP. The `publicAsset` helper already existed in `lib/host.js` exactly for this.
+
+- **🎛 HOST PARTY MENU** (per explicit user spec)
+  - **User wanted**: "Host clicks OK to bring up host controls. Pause, skip into it, Catch Up button (timestamp syncing), Lock the screen, Subtitles. That's it. Once locked, nothing else happens. Click OK to bring up the menu again."
+  - **✅ Implementation in `VlcPlayerActivity.kt`**:
+    - New `initHostMenu()` mounts a 5-button bottom-center bar (⏸ PAUSE | ⏩ SKIP +30s | ⟳ CATCH UP | 🔒 LOCK | 💬 SUBS).
+    - `onKeyDown` for host-in-party mode: OK → `showHostMenu()`. LEFT/RIGHT navigate menu. OK on a button fires the action. BACK hides menu.
+    - All OTHER keys are silently consumed when the menu is hidden → no more "stray UP arrow restarts the stream".
+    - **PAUSE/RESUME**: pauses/resumes the party for everyone via existing `pause`/`resume` WS msgs. Button label flips between ⏸ PAUSE and ▶ RESUME based on player state.
+    - **SKIP +30s**: scrubs +30s and broadcasts `play{position_ms}` so guests follow.
+    - **CATCH UP**: re-broadcasts host's current position with `lead_ms=1500` → forces all guests to re-seek and resume in lock-step. Toast: "Re-syncing party…".
+    - **LOCK**: disables all keys except long-press OK (2 s) for unlock and long-press D-pad arrows for emoji. Toast: "Locked — hold OK 2 s to unlock".
+    - **SUBS**: opens the existing subtitle picker.
+    - Menu auto-hides after 6 s of inactivity.
+
+- **😱 REACTIONS NOW SHOW AVATARS ON EVERY SCREEN**
+  - **User reported**: "When someone sends an emoji, their avatar pops up. At the moment it's only showing up on the person who's sending it's screen."
+  - **✅ Fix**:
+    - Backend `reaction` broadcast now includes `member.avatar_emoji` (string from sender's profile).
+    - `host.js` `playVideo()` accepts `partyAvatarEmoji` + `partyDisplayName`; `WebAppInterface.kt` `playInternalParty` accepts the two new args.
+    - `VlcPlayerActivity.kt` `partyAvatarEmoji` is read from intent and used:
+      - Local `fireReaction()` renders the bubble with MY avatar emoji immediately for instant feedback.
+      - `handlePartyMessage` reaction branch renders incoming reactions with the sender's avatar emoji bubble next to the reaction emoji.
+    - `Detail.jsx` looks up the active profile's avatar via new `avatarEmojiById()` helper in `lib/avatars.jsx` and passes it through both host and guest `Host.playVideo` calls.
+
+- **🆙 APK bumped to v2.6.69 (versionCode 139).** Release notes added.
+- **🧪 Regression**: 16/16 watch-party backend tests pass.
+
+
+
 ## Implemented (Iteration 101 — Feb 18, 2026) — v2.6.68
 ### Guest view-only player + popcorn cinematic loading screen
 - **🎟️ Guest player is now VIEW-ONLY** (`VlcPlayerActivity.kt`)

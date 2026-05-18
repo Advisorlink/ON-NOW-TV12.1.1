@@ -238,6 +238,44 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.69 — Host menu · Avatar reactions · Popcorn image fix**
+            - 🍿 **POPCORN LOADING IMAGE NOW LOADS** on the sideloaded
+              APK.  Previously the guest joining screen showed a
+              broken-image icon because `<img src="/party/popcorn-loading.jpg">`
+              resolves to the device filesystem root under
+              `file:///android_asset/web/index.html`.  Switched to
+              `Host.publicAsset('party/popcorn-loading.jpg')` which
+              resolves relative to `document.baseURI`.  Same fix
+              applied to the no-mouse onboarding remote image.
+            - 🎛 **HOST PARTY MENU.**  OK press while in a party
+              brings up a focused 5-button bar:
+              **⏸  PAUSE   ⏩  SKIP +30s   ⟳  CATCH UP   🔒  LOCK   💬  SUBS**
+              D-pad LEFT/RIGHT to navigate, OK to select.  The
+              legacy controls strip is **never** shown for the host
+              in party mode → the stray UP arrow that "restarted
+              the stream" can't happen again.
+              • **PAUSE / RESUME** — pauses/resumes the party for
+                EVERYONE via the existing `pause`/`resume` WS.
+              • **SKIP +30s** — host scrubs +30s and broadcasts a
+                `play{position_ms}` so every guest seeks with them.
+              • **CATCH UP** — re-broadcasts the host's exact
+                current position.  Toast: "Re-syncing party…".
+              • **LOCK** — disables ALL keys except long-press OK
+                (2 s) for unlock and long-press D-pad arrows for
+                emoji reactions.  The host can now enjoy the show
+                without accidental scrubs / pauses.
+              • **SUBS** — opens the existing subtitle picker.
+              Menu auto-hides after 6 s of inactivity.
+            - 😱 **REACTIONS NOW SHOW AVATARS ON EVERY SCREEN.**
+              Previously only the sender's screen rendered the
+              emoji, and there was no attribution.  Now: each
+              member's player launches with their profile's avatar
+              emoji baked into the intent; when they fire a
+              reaction, their avatar bubble flies up alongside the
+              emoji on EVERY party member's screen.  Backend
+              `reaction` broadcast now carries `avatar_emoji`.
+            - 🆙 APK bumped to **v2.6.69** (versionCode 139).
+
             **v2.6.68 — GUEST view-only player · Popcorn cinematic loading screen**
             - 🎟️ **Guest player is now VIEW-ONLY.**  Reported issue:
               "If you're trying to push and hold an arrow to send an

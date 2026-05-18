@@ -15,6 +15,7 @@
  */
 import React from 'react';
 import { Loader2, X, RefreshCw } from 'lucide-react';
+import Host from '@/lib/host';
 
 export default function PartyJoiningScreen({
     title,
@@ -68,9 +69,17 @@ export default function PartyJoiningScreen({
                     1080p and on phones.  The artwork already has the
                     "your watch party is about to begin" copy + remote
                     + emoji hint baked in, so we don't overlay any
-                    extra text in normal loading mode. */}
+                    extra text in normal loading mode.
+
+                    CRITICAL: must use Host.publicAsset() not a raw
+                    '/party/...' path.  In the sideloaded APK the
+                    WebView runs under `file:///android_asset/web/`
+                    so an absolute '/party/...' resolves to the
+                    device filesystem root and 404s — the user saw
+                    a broken-image icon.  publicAsset() resolves
+                    relative to document.baseURI under file://. */}
                 <img
-                    src="/party/popcorn-loading.jpg"
+                    src={Host.publicAsset('party/popcorn-loading.jpg')}
                     alt=""
                     aria-hidden="true"
                     style={{

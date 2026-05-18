@@ -40,6 +40,7 @@ import {
     ShieldCheck,
     KeyRound,
 } from 'lucide-react';
+import Host from '@/lib/host';
 
 const STORAGE_KEY = 'vesper-onboarding-seen-v1';
 
@@ -731,7 +732,7 @@ function SceneNoMouse() {
                     }}
                 >
                     <img
-                        src="/onboarding/remote.png"
+                        src={Host.publicAsset('onboarding/remote.png')}
                         alt="Your remote"
                         style={{
                             height: 380,

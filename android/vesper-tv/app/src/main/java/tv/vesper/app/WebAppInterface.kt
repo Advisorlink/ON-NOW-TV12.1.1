@@ -150,7 +150,13 @@ class WebAppInterface(private val activity: Activity) {
         partyCode: String,
         partyRole: String,
         partyMemberId: String?,
-        partyWsUrl: String
+        partyWsUrl: String,
+        // v2.6.69: avatar emoji + display name so the native player
+        // can render avatar bubbles next to reactions and identify
+        // who in the party is reacting.  Optional — if blank, the
+        // player falls back to "🎬" + role-suffixed labels.
+        partyAvatarEmoji: String?,
+        partyDisplayName: String?
     ) {
         if (url.isBlank()) return
         activity.runOnUiThread {
@@ -173,6 +179,8 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_ROLE, partyRole)
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_MEMBER_ID, partyMemberId)
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL, partyWsUrl)
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI, partyAvatarEmoji ?: "")
+                    putExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME, partyDisplayName ?: "")
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 activity.startActivity(intent)

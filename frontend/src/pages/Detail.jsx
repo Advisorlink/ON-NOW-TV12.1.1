@@ -22,7 +22,8 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
-import { isKidsActive } from '@/lib/profiles';
+import { isKidsActive, getActiveProfile } from '@/lib/profiles';
+import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { isInLibrary } from '@/lib/library';
 
@@ -876,6 +877,8 @@ export default function Detail() {
         catch { /* ignore */ }
         // Try native libVLC player first (HK1 box).  Falls through
         // to JS Player.jsx in the WebView for preview / desktop.
+        const _profile = getActiveProfile() || {};
+        const _avatarEmoji = avatarEmojiById(_profile.avatarId);
         if (Host.playVideo({
             url: stream.url,
             title: playTitle,
@@ -894,6 +897,8 @@ export default function Detail() {
             partyRole: 'guest',
             partyMemberId: memberId || undefined,
             partyWsUrl,
+            partyAvatarEmoji: _avatarEmoji,
+            partyDisplayName: _profile.name || 'Guest',
         })) {
             partyBreadcrumb('guest:native-launched', {});
             return;
@@ -1190,6 +1195,12 @@ export default function Detail() {
                     partyRole: partyRoleLocal || undefined,
                     partyMemberId: partyMemberId || undefined,
                     partyWsUrl: partyWsUrl || undefined,
+                    partyAvatarEmoji: partyCode
+                        ? avatarEmojiById((getActiveProfile() || {}).avatarId)
+                        : undefined,
+                    partyDisplayName: partyCode
+                        ? ((getActiveProfile() || {}).name || (partyRoleLocal === 'host' ? 'Host' : 'Guest'))
+                        : undefined,
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});

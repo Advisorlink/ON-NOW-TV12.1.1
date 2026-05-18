@@ -51,6 +51,8 @@ const Host = (() => {
         partyRole,
         partyMemberId,
         partyWsUrl,
+        partyAvatarEmoji,  // single emoji char ('🦁') used for reactions
+        partyDisplayName,  // 'Mum', 'Test', etc.
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
@@ -78,7 +80,9 @@ const Host = (() => {
                     partyCode,
                     partyRole || 'guest',
                     partyMemberId || '',
-                    partyWsUrl || ''
+                    partyWsUrl || '',
+                    partyAvatarEmoji || '',
+                    partyDisplayName || ''
                 );
                 return true;
             } catch {

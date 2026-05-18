@@ -290,6 +290,20 @@ export const AVATAR_CATEGORIES = [
 /* Flat list of every avatar.  Order matches AVATAR_CATEGORIES. */
 export const AVATARS = AVATAR_CATEGORIES.flatMap((c) => c.items);
 
+/**
+ * Look up a single avatar emoji character by id (e.g. 'a1' → '🦁').
+ * Returns '🎬' if no match (rare — only happens for legacy / custom
+ * DiceBear avatars).  Used by Watch-Together so reactions can render
+ * the sender's avatar alongside their emoji on every party member's
+ * screen.
+ */
+export function avatarEmojiById(id) {
+    if (!id) return '🎬';
+    const av = AVATARS.find((a) => a.id === id);
+    if (av && av.e) return av.e;
+    return '🎬';
+}
+
 /* Synthetic Kids profile avatar (hidden from picker). */
 const KIDS_AVATAR = {
     id: 'kids-default',

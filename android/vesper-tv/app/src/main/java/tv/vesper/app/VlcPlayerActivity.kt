@@ -168,6 +168,23 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var partyRole: String = "guest"        // 'host' | 'guest'
     private var partyMemberId: String? = null
     private var partyWsUrl: String? = null
+    // My avatar emoji + display name (used to render local reactions
+    // with my own avatar and to identify reactions broadcast from
+    // me).  Both come from the launching intent and default to
+    // sensible fallbacks if absent.
+    private var partyAvatarEmoji: String = "\uD83C\uDFAC"  // 🎬
+    private var partyDisplayName: String = "Member"
+    // Host-only watch-party menu state.  When the host presses OK
+    // while their video is playing in party mode, we mount a 5-button
+    // menu (Pause, Skip+10, Catch Up, Lock, Subtitles) instead of the
+    // legacy controls strip.  Locked state silently consumes all
+    // keys until the host long-presses OK for 2 s to unlock.
+    private var hostMenuVisible: Boolean = false
+    private var hostLocked: Boolean = false
+    private var hostUnlockHoldStart: Long = 0L
+    private var hostMenuRoot: android.widget.LinearLayout? = null
+    private val hostMenuButtons: MutableList<android.widget.TextView> = mutableListOf()
+    private var hostMenuFocusIdx: Int = 0
     private var partyWs: WebSocket? = null
     private var partyOkHttp: OkHttpClient? = null
     private var partyArmed: Boolean = false  // suppresses initial play echo
@@ -341,6 +358,12 @@ class VlcPlayerActivity : AppCompatActivity() {
         partyRole = intent.getStringExtra(EXTRA_PARTY_ROLE) ?: "guest"
         partyMemberId = intent.getStringExtra(EXTRA_PARTY_MEMBER_ID)
         partyWsUrl = intent.getStringExtra(EXTRA_PARTY_WS_URL)
+        partyAvatarEmoji = intent.getStringExtra(EXTRA_PARTY_AVATAR_EMOJI)
+            ?.takeIf { it.isNotBlank() }
+            ?: "\uD83C\uDFAC"  // 🎬 fallback
+        partyDisplayName = intent.getStringExtra(EXTRA_PARTY_DISPLAY_NAME)
+            ?.takeIf { it.isNotBlank() }
+            ?: partyRole.replaceFirstChar { it.titlecase() }
 
         if (streamUrl.isNullOrBlank()) {
             finish()
@@ -558,6 +581,7 @@ class VlcPlayerActivity : AppCompatActivity() {
             partyPreparing = true   // arm the pre-buffer handshake
             initPartyBadge()
             initReactionsOverlay()
+            if (partyRole == "host") initHostMenu()
             connectPartySocket()
             partyHandler.postDelayed(partyHeartbeat, 2_000L)
             // Safety net — if libVLC has not reached Playing within
@@ -640,50 +664,262 @@ class VlcPlayerActivity : AppCompatActivity() {
         } catch (_: Exception) { /* overlay is best-effort */ }
     }
 
+    // -----------------------------------------------------------------
+    //  HOST PARTY MENU — appears on OK press for HOSTS in a party
+    // -----------------------------------------------------------------
+    //
+    // Per user request, hosts in a watch-party shouldn't see the full
+    // controls strip — they get a focused 5-button menu instead:
+    //
+    //   ⏸  PAUSE       ⏩ SKIP +30s      ⟳ CATCH UP       🔒 LOCK       💬 SUBS
+    //
+    // Pause / Resume         — pauses/resumes the party for EVERYONE.
+    // Skip +30s              — host scrubs forward 30 s; broadcast as
+    //                          a `play` with new position so guests
+    //                          re-buffer to the same spot.
+    // Catch Up               — re-broadcast the host's current
+    //                          position to force guests to seek and
+    //                          resume in lock-step.  Useful if any
+    //                          drift accumulates over a long session.
+    // Lock                   — disables ALL key input on the host's
+    //                          remote so the host can enjoy the show
+    //                          without accidental presses.  Unlock by
+    //                          long-pressing OK for 2 seconds.
+    // Subtitles              — opens the host's local subtitle picker.
+    //
+    // The menu replaces the legacy controls strip in party-host mode;
+    // the legacy strip is never shown.  For non-party host mode the
+    // existing showControls() flow is unchanged.
+
+    private fun initHostMenu() {
+        try {
+            val root = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+                setBackgroundColor(0xC0060A18.toInt())
+                setPadding(36, 24, 36, 24)
+                visibility = View.GONE
+                elevation = 30f
+            }
+            val labels = listOf(
+                "⏸  PAUSE"      to "pause",
+                "⏩  SKIP +30s"  to "skip",
+                "⟳  CATCH UP"   to "catchup",
+                "🔒  LOCK"       to "lock",
+                "💬  SUBS"      to "subs"
+            )
+            hostMenuButtons.clear()
+            for ((label, key) in labels) {
+                val btn = android.widget.TextView(this).apply {
+                    text = label
+                    textSize = 14f
+                    setPadding(28, 18, 28, 18)
+                    letterSpacing = 0.16f
+                    setTextColor(0xFFE6EAF2.toInt())
+                    val bg = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = 14f
+                        setColor(0xFF0D1322.toInt())
+                        setStroke(2, 0x335DC8FF.toInt())
+                    }
+                    background = bg
+                    isFocusable = true
+                    isFocusableInTouchMode = true
+                    tag = key
+                    setOnClickListener { handleHostMenuPick(key) }
+                }
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(8, 0, 8, 0) }
+                root.addView(btn, lp)
+                hostMenuButtons.add(btn)
+            }
+            val parentLp = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                bottomMargin = 80
+            }
+            (findViewById<View>(android.R.id.content) as? ViewGroup)?.addView(root, parentLp)
+            hostMenuRoot = root
+        } catch (_: Exception) { /* best-effort */ }
+    }
+
+    private fun renderHostMenuFocus() {
+        for ((i, btn) in hostMenuButtons.withIndex()) {
+            val focused = i == hostMenuFocusIdx
+            val bg = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 14f
+                setColor(if (focused) 0xFF5DC8FF.toInt() else 0xFF0D1322.toInt())
+                setStroke(2, if (focused) 0xFF5DC8FF.toInt() else 0x335DC8FF.toInt())
+            }
+            btn.background = bg
+            btn.setTextColor(if (focused) 0xFF0A0E1A.toInt() else 0xFFE6EAF2.toInt())
+            btn.scaleX = if (focused) 1.06f else 1.0f
+            btn.scaleY = if (focused) 1.06f else 1.0f
+        }
+    }
+
+    private fun showHostMenu() {
+        if (hostLocked) return
+        val root = hostMenuRoot ?: return
+        // Reset pause/resume label based on current player state
+        hostMenuButtons.firstOrNull { it.tag == "pause" }?.text =
+            if (this::mediaPlayer.isInitialized && mediaPlayer.isPlaying) "⏸  PAUSE" else "▶  RESUME"
+        hostMenuFocusIdx = 0
+        renderHostMenuFocus()
+        root.visibility = View.VISIBLE
+        root.alpha = 0f
+        root.animate().alpha(1f).setDuration(160).start()
+        hostMenuVisible = true
+        // Auto-hide after 6 s of inactivity
+        partyHandler.removeCallbacks(hostMenuHide)
+        partyHandler.postDelayed(hostMenuHide, 6_000L)
+    }
+
+    private fun hideHostMenu() {
+        val root = hostMenuRoot ?: return
+        root.animate().alpha(0f).setDuration(140)
+            .withEndAction { root.visibility = View.GONE }
+            .start()
+        hostMenuVisible = false
+        partyHandler.removeCallbacks(hostMenuHide)
+    }
+
+    private val hostMenuHide = Runnable { hideHostMenu() }
+
+    private fun handleHostMenuPick(key: String) {
+        when (key) {
+            "pause" -> {
+                if (!this::mediaPlayer.isInitialized) return
+                if (mediaPlayer.isPlaying) {
+                    mediaPlayer.pause()
+                    partySend(JSONObject().apply {
+                        put("type", "pause")
+                        put("position_ms", mediaPlayer.time)
+                    })
+                } else {
+                    mediaPlayer.play()
+                    partySend(JSONObject().apply {
+                        put("type", "resume")
+                        put("position_ms", mediaPlayer.time)
+                        put("lead_ms", 800)
+                    })
+                }
+                hideHostMenu()
+            }
+            "skip" -> {
+                if (!this::mediaPlayer.isInitialized) return
+                val target = (mediaPlayer.time + 30_000L)
+                    .coerceAtMost((mediaPlayer.length - 1000).coerceAtLeast(0))
+                mediaPlayer.time = target
+                // Bring guests with us
+                partySend(JSONObject().apply {
+                    put("type", "play")
+                    put("position_ms", target)
+                    put("lead_ms", 1200)
+                })
+                hideHostMenu()
+            }
+            "catchup" -> {
+                // Re-broadcast host's current position so guests
+                // re-seek and resume in sync.  This is the user's
+                // explicit "fix any drift right now" button.
+                if (!this::mediaPlayer.isInitialized) return
+                partySend(JSONObject().apply {
+                    put("type", "play")
+                    put("position_ms", mediaPlayer.time)
+                    put("lead_ms", 1500)
+                })
+                hideHostMenu()
+                android.widget.Toast.makeText(
+                    this, "Re-syncing party…", android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+            "lock" -> {
+                hostLocked = true
+                hideHostMenu()
+                android.widget.Toast.makeText(
+                    this,
+                    "Locked — hold OK 2 s to unlock",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+            "subs" -> {
+                hideHostMenu()
+                openSubtitlePicker()
+            }
+        }
+    }
+
     /**
-     * Render a floating emoji at the bottom-right of the screen,
-     * animate it upward + fade out over 2.6 s.  Called both for
-     * locally-fired reactions AND for inbound `reaction` messages
-     * from other party members.
+     * Render a floating reaction at the bottom-right of the screen.
+     * Shows the SENDER'S AVATAR EMOJI alongside the reaction emoji
+     * so every party member can see WHO sent the reaction (was
+     * critical user feedback — previously only the reaction emoji
+     * was rendered with no attribution).  Animates upward + fades.
+     *
+     * Called both for locally-fired reactions AND for inbound
+     * `reaction` messages from other party members.
      */
-    private fun showFloatingEmoji(emoji: String) {
+    private fun showFloatingEmoji(emoji: String, avatarEmoji: String = "") {
         val overlay = reactionOverlay ?: return
         try {
-            val tv = TextView(this).apply {
-                text = emoji
-                textSize = 64f
-                setTextColor(0xFFFFFFFF.toInt())
-                // Add a soft shadow so the emoji pops over busy video
-                setShadowLayer(20f, 0f, 4f, 0xAA000000.toInt())
+            val container = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(20, 12, 20, 12)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 38f
+                    setColor(0xAA060A18.toInt())
+                    setStroke(2, 0x555DC8FF.toInt())
+                }
+                elevation = 12f
             }
+            // Avatar bubble on the left — small TextView with the
+            // sender's avatar emoji.  Skip if not provided.
+            if (avatarEmoji.isNotBlank()) {
+                val avatarView = android.widget.TextView(this).apply {
+                    text = avatarEmoji
+                    textSize = 28f
+                    setPadding(0, 0, 14, 0)
+                }
+                container.addView(avatarView)
+            }
+            // Reaction emoji on the right — chunkier
+            val reactionView = android.widget.TextView(this).apply {
+                text = emoji
+                textSize = 44f
+                setShadowLayer(18f, 0f, 4f, 0xAA000000.toInt())
+            }
+            container.addView(reactionView)
+
             val lp = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // Distribute emoji along the right column with a
-                // random vertical jitter so multiple reactions don't
-                // stack on top of each other.
                 gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
                 rightMargin = 60 + (Math.random() * 180).toInt()
                 bottomMargin = 120 + (Math.random() * 80).toInt()
             }
-            overlay.addView(tv, lp)
+            overlay.addView(container, lp)
             // Float up + fade out animation.
-            tv.alpha = 0f
-            tv.scaleX = 0.5f
-            tv.scaleY = 0.5f
-            tv.animate()
+            container.alpha = 0f
+            container.scaleX = 0.5f
+            container.scaleY = 0.5f
+            container.animate()
                 .alpha(1f)
                 .scaleX(1f).scaleY(1f)
                 .translationYBy(-40f)
                 .setDuration(180L)
                 .withEndAction {
-                    tv.animate()
+                    container.animate()
                         .translationYBy(-340f)
                         .alpha(0f)
                         .setDuration(2_200L)
                         .withEndAction {
-                            try { overlay.removeView(tv) } catch (_: Exception) {}
+                            try { overlay.removeView(container) } catch (_: Exception) {}
                         }
                         .start()
                 }
@@ -692,20 +928,27 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * Fire a reaction: render locally + send via party WS.  Called
-     * from the D-pad-hold detection in dispatchKeyEvent.
+     * Fire a reaction: render locally with MY avatar + send via
+     * party WS including avatar emoji so other members can render
+     * the same bubble.  Rate-limit cooldown is 1 s per reaction.
      */
     private fun fireReaction(emoji: String) {
         val now = System.currentTimeMillis()
         if (now - lastReactionFireMs < reactionCooldownMs) return
         lastReactionFireMs = now
-        showFloatingEmoji(emoji)
+        // Local rendering uses our own avatar emoji so the user gets
+        // immediate visual feedback.  The server will also echo our
+        // reaction back to us (no longer filtered) so everyone sees
+        // a consistent stream; we just dedupe in handlePartyMessage
+        // via the per-message id to avoid a double-render here.
+        showFloatingEmoji(emoji, partyAvatarEmoji)
         val ws = partyWs
         if (ws != null) {
             try {
                 ws.send(JSONObject().apply {
                     put("type", "reaction")
                     put("emoji", emoji)
+                    put("avatar_emoji", partyAvatarEmoji)
                 }.toString())
             } catch (_: Exception) { /* ignore */ }
         }
@@ -788,15 +1031,19 @@ class VlcPlayerActivity : AppCompatActivity() {
             return
         }
         if (ttype == "reaction") {
-            // Floating emoji from any party member.  We ignore our
-            // own echoed back from the server (local renders are
-            // handled synchronously in fireReaction).
+            // Floating reaction from any party member.  Show the
+            // SENDER'S avatar emoji alongside the reaction so everyone
+            // can see WHO sent it.  We DON'T render the server's
+            // echo of our OWN reaction here — fireReaction() already
+            // rendered it locally (so the user gets instant haptic-
+            // like feedback without WS round-trip latency).
             val emoji = msg.optString("emoji", "")
             if (emoji.isBlank()) return
             val member = msg.optJSONObject("member")
             val senderId = member?.optString("id", "") ?: ""
             if (senderId.isNotBlank() && senderId == (partyMemberId ?: "")) return
-            showFloatingEmoji(emoji)
+            val senderAvatar = member?.optString("avatar_emoji", "") ?: ""
+            showFloatingEmoji(emoji, senderAvatar)
             return
         }
         if (ttype != "state") return
@@ -1740,6 +1987,14 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (reactionEmojiByKey.containsKey(keyCode)) {
             reactionPressStart.remove(keyCode)
         }
+        // Host unlock: clear the OK-hold timer on release so a
+        // partial hold doesn't accidentally unlock on the next press.
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+            || keyCode == KeyEvent.KEYCODE_ENTER
+            || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+        ) {
+            hostUnlockHoldStart = 0L
+        }
         return super.onKeyUp(keyCode, event)
     }
 
@@ -1810,6 +2065,107 @@ class VlcPlayerActivity : AppCompatActivity() {
                     // the key is consumed; the controls strip is
                     // never shown, focus never lands inside it.
                     return true
+                }
+            }
+        }
+
+        // ----- WATCH-PARTY HOST · UNLOCK + MENU -----
+        // The host's player has a dedicated 5-button menu (Pause,
+        // Skip+30s, Catch Up, Lock, Subs) that appears on OK press.
+        // When locked, ALL keys are silently consumed except a 2 s
+        // long-press of OK which unlocks the screen.  Reactions
+        // continue to work via long-press D-pad arrows.
+        if (partyRole == "host"
+            && !partyCode.isNullOrBlank()
+            && !isPickerOpen()
+            && liveGuide?.isOpen() != true
+        ) {
+            // Locked: only unlock-on-OK-hold is permitted (plus the
+            // emoji long-press above, which already returned).
+            if (hostLocked) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                    || keyCode == KeyEvent.KEYCODE_ENTER
+                    || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                ) {
+                    if (hostUnlockHoldStart == 0L) {
+                        hostUnlockHoldStart = System.currentTimeMillis()
+                    } else if (System.currentTimeMillis() - hostUnlockHoldStart >= 2_000L) {
+                        hostLocked = false
+                        hostUnlockHoldStart = 0L
+                        android.widget.Toast.makeText(
+                            this, "Screen unlocked", android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                return true
+            }
+            // Not locked: OK toggles the host menu.  If the menu is
+            // already up, OK on a focused button activates that button
+            // (handled by setOnClickListener which fires the picked
+            // action).  Arrow keys move focus inside the menu.  BACK
+            // hides the menu.
+            if (hostMenuVisible) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        hostMenuFocusIdx = (hostMenuFocusIdx - 1 + hostMenuButtons.size) % hostMenuButtons.size
+                        renderHostMenuFocus()
+                        partyHandler.removeCallbacks(hostMenuHide)
+                        partyHandler.postDelayed(hostMenuHide, 6_000L)
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        hostMenuFocusIdx = (hostMenuFocusIdx + 1) % hostMenuButtons.size
+                        renderHostMenuFocus()
+                        partyHandler.removeCallbacks(hostMenuHide)
+                        partyHandler.postDelayed(hostMenuHide, 6_000L)
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                        val btn = hostMenuButtons.getOrNull(hostMenuFocusIdx) ?: return true
+                        handleHostMenuPick(btn.tag as? String ?: "")
+                        return true
+                    }
+                    KeyEvent.KEYCODE_BACK -> {
+                        hideHostMenu()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_UP,
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        // Vertical arrows on the menu do nothing — but
+                        // we still consume them so the focus engine
+                        // doesn't wander out of the menu.
+                        return true
+                    }
+                }
+            } else {
+                // Menu hidden: OK opens it.  All other keys (except
+                // BACK + media keys + emoji long-press handled above)
+                // are silently consumed so the legacy controls strip
+                // never shows for the host in party mode.
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                        showHostMenu()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_BACK -> {
+                        // Fall through so BACK behaviour (exit player)
+                        // still works for the host.
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                        handleHostMenuPick("pause")
+                        return true
+                    }
+                    else -> {
+                        // Block legacy controls revealing on stray
+                        // arrows.  (Long-press arrows for emoji are
+                        // handled at the top and have already
+                        // returned by now.)
+                        return true
+                    }
                 }
             }
         }
@@ -1942,6 +2298,8 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_PARTY_ROLE = "partyRole"
         const val EXTRA_PARTY_MEMBER_ID = "partyMemberId"
         const val EXTRA_PARTY_WS_URL = "partyWsUrl"
+        const val EXTRA_PARTY_AVATAR_EMOJI = "partyAvatarEmoji"
+        const val EXTRA_PARTY_DISPLAY_NAME = "partyDisplayName"
         const val EXTRA_AUDIO_URL = "audioUrl"  // YouTube HD audio slave
     }
 }

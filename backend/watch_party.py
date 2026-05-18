@@ -510,6 +510,11 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                 if now_ts - (member.last_reaction_at or 0) < 0.8:
                     continue
                 member.last_reaction_at = now_ts
+                # Frontend sends `avatar_emoji` so receivers can render
+                # the sender's actual avatar character (lion, fox,
+                # alien, etc.) alongside the reaction.  Cap at 6 chars
+                # so a stray "weird-text-here" doesn't make it through.
+                sender_avatar_emoji = str(msg.get("avatar_emoji") or "")[:6]
                 await hub.broadcast(
                     party,
                     {
@@ -519,6 +524,7 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                             "id": member.id,
                             "name": member.name,
                             "avatar": member.avatar,
+                            "avatar_emoji": sender_avatar_emoji,
                         },
                         "ts": int(now_ts * 1000),
                     },
