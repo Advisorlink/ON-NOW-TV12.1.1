@@ -193,6 +193,11 @@ export default function Detail() {
        to null restores the title's regular hero. */
     const [focusedActor, setFocusedActor] = useState(null);
     const [focusedRec, setFocusedRec] = useState(null);
+    /* Which row is currently shown in the bottom lane:
+     *   'cast' (default) → CastRow
+     *   'recs'           → RecommendationsRow
+     * The lane vertical position is fixed; only the content swaps. */
+    const [bottomLane, setBottomLane] = useState('cast');
     const mainScrollRef = useRef(null);
     /* Bio cache so we don't refetch the same person whenever focus
      * sweeps left/right.  Keyed by TMDB person id. */
@@ -362,26 +367,25 @@ export default function Detail() {
 
     /* Snap navigation between sections.
      *
-     *  Play  ─DOWN→  first Cast card  ─DOWN→  first Recommendation
-     *  Hero ←UP─    Cast card        ←UP─    Recommendation
+     *  Play       ─DOWN→  first Cast card
+     *  Cast card  ─DOWN→  swap lane to "More like this", focus first
+     *  Rec card   ─UP→    swap lane back to "Cast", focus first
+     *  Cast card  ─UP→    focus the Play CTA
      *
-     * Cast and Recs are ALWAYS rendered in the normal flow.  This
-     * handler just moves focus + scrolls the focused row into a
-     * sweet-spot in the viewport (18% from the top).  Background
-     * swaps happen via the focused element's own onFocus prop.
+     * The bottom lane stays in the same VERTICAL position; its
+     * content swaps between Cast and Recs.  No page scroll ever.
      */
     const requestSnap = useCallback((idx) => {
+        // 0 = hero (Play focused), 1 = cast lane, 2 = recs lane
         setSnapIdx(idx);
+        if (idx === 0)      setBottomLane('cast');
+        else if (idx === 1) setBottomLane('cast');
+        else if (idx === 2) setBottomLane('recs');
+
         requestAnimationFrame(() => requestAnimationFrame(() => {
             let sel = '[data-testid^="detail-play-"]';
-            let rowSel = null;
-            if (idx === 1) {
-                sel = '[data-testid^="cast-actor-"]';
-                rowSel = '[data-testid="cast-row"]';
-            } else if (idx === 2) {
-                sel = '[data-testid^="recommendation-"]';
-                rowSel = '[data-testid="recommendations-row"]';
-            }
+            if (idx === 1) sel = '[data-testid^="cast-actor-"]';
+            else if (idx === 2) sel = '[data-testid^="recommendation-"]';
             let retries = 16;
             const tryFocus = () => {
                 const target = document.querySelector(sel);
@@ -391,25 +395,6 @@ export default function Detail() {
                     document.querySelectorAll('[data-focused="true"]').forEach((el) => {
                         if (el !== target) el.removeAttribute('data-focused');
                     });
-                    // Scroll the row's heading into the upper third
-                    // of the <main> container.
-                    if (rowSel) {
-                        const main = mainScrollRef.current;
-                        const row  = document.querySelector(rowSel);
-                        if (main && row) {
-                            const delta = row.getBoundingClientRect().top
-                                        - main.getBoundingClientRect().top
-                                        - Math.round(main.clientHeight * 0.18);
-                            main.scrollTo({
-                                top: Math.max(0, main.scrollTop + delta),
-                                behavior: 'smooth',
-                            });
-                        }
-                    } else if (idx === 0) {
-                        // Returning to hero — scroll to the top.
-                        const main = mainScrollRef.current;
-                        if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
                     return;
                 }
                 if (--retries > 0) setTimeout(tryFocus, 50);
@@ -1044,66 +1029,46 @@ export default function Detail() {
                 }}
             />
 
-            {/* FOCUSED-ACTOR PORTRAIT — bigger, sits top-centre-right
-                with a wide soft black fade that extends across the
-                ENTIRE screen.  Combined with the regular dark
-                gradients above, the whole frame visually becomes
-                "about" that actor without losing the title backdrop
-                entirely. */}
+            {/* FOCUSED-ACTOR PORTRAIT — bigger than the original
+                small frame but smaller than the previous version
+                so the actor's FACE is visible rather than a tight
+                zoom-in.  Soft radial mask + heavy left fade so the
+                bio text reads cleanly and there's no visible square
+                cut-off line on the right. */}
             {focusedActor?.profile && (
                 <div
                     data-testid="actor-hero-portrait"
                     style={{
                         position: 'absolute',
-                        // Anchor flush to the top + right edges so
-                        // the portrait extends all the way to the
-                        // screen boundary on the right.  Bumped wider
-                        // (55%) and taller (88%) per user request.
                         top: 0,
                         right: 0,
-                        width: '55%',
-                        height: '88%',
+                        width: '45%',
+                        height: '70%',
                         zIndex: 5,
                         pointerEvents: 'none',
                         transition: 'opacity 220ms ease',
-                        // Soft elliptical mask cropped flush to the
-                        // right edge so the head isn't a hard square
-                        // any more (the visible "line going straight
-                        // down" the user reported). 95%-tall ellipse
-                        // anchored right-center fades to transparent
-                        // on every visible side.
                         WebkitMaskImage:
-                            'radial-gradient(ellipse 95% 88% at 90% 38%, ' +
-                            '#000 28%, #000 50%, rgba(0,0,0,0.55) 70%, transparent 92%)',
+                            'radial-gradient(ellipse 85% 80% at 85% 38%, ' +
+                            '#000 22%, #000 45%, rgba(0,0,0,0.6) 68%, transparent 92%)',
                         maskImage:
-                            'radial-gradient(ellipse 95% 88% at 90% 38%, ' +
-                            '#000 28%, #000 50%, rgba(0,0,0,0.55) 70%, transparent 92%)',
+                            'radial-gradient(ellipse 85% 80% at 85% 38%, ' +
+                            '#000 22%, #000 45%, rgba(0,0,0,0.6) 68%, transparent 92%)',
                     }}
                 >
-                    {/* Base portrait — unmasked, B&W.  Sized so the
-                        face fills the visible mask area.  We allow
-                        the image to OVERFLOW the column on the
-                        right so the head isn't truncated by the
-                        right edge of the viewport (the user's
-                        "cut off as a square" complaint). */}
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
                             backgroundImage: `url(${focusedActor.profile})`,
-                            backgroundSize: 'cover',
+                            // `contain` keeps the WHOLE face in view
+                            // (head + shoulders) rather than zooming
+                            // into the cheeks/eyes like `cover` did.
+                            backgroundSize: 'contain',
                             backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center top',
+                            backgroundPosition: 'right top',
                             filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
                         }}
                     />
-                    {/* Four-directional fade overlay — pure BLACK
-                        (#000000), no blue tint.  LEFT fade carries
-                        the heaviest weight because the bio text
-                        sits there.  Top / bottom / right are now
-                        handled by the radial mask above so this
-                        only needs to push extra darkness on the
-                        LEFT side. */}
                     <div
                         style={{
                             position: 'absolute',
@@ -1159,7 +1124,7 @@ export default function Detail() {
 
             <main
                 ref={mainScrollRef}
-                className="relative z-10 w-full h-full overflow-y-auto"
+                className="relative z-10 w-full h-full overflow-hidden"
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
@@ -1290,9 +1255,18 @@ export default function Detail() {
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
-                                fontSize: 18,
-                                lineHeight: 1.6,
+                                fontSize: 17,
+                                lineHeight: 1.55,
                                 color: 'var(--vesper-text-2)',
+                                /* Clamp to 4 lines so the synopsis
+                                 * never pushes the hero CTA + bottom
+                                 * lane off-screen.  The full
+                                 * description is still available via
+                                 * the trailers / overview sections. */
+                                display: '-webkit-box',
+                                WebkitLineClamp: 4,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
                             }}
                         >
                             {meta.description}
@@ -1856,35 +1830,60 @@ export default function Detail() {
                     </section>
                     )}
 
-                    {/* Cast row + "More like this" — always
-                        visible.  Break out of the parent's 68vw
-                        text column with a negative right margin so
-                        actor portraits on the right edge don't get
-                        clipped.  D-pad navigation moves focus
-                        between Play → Cast → Recs and scrolls the
-                        focused row into view smoothly. */}
-                    {tmdbInfo?.tmdb_id && (
-                        <div
-                            style={{
-                                marginRight: 'calc(-1 * (100vw - 68vw - 160px))',
-                                maxWidth: 'none',
-                                marginTop: 28,
-                            }}
-                        >
+                    {/* Cast row + "More like this" — rendered as a
+                        single fixed bottom lane (see right after
+                        `</main>` below) so the hero never moves
+                        no matter what's focused. */}
+                </div>
+            </main>
+
+            {/* ── BOTTOM ROW LANE — always pinned at the bottom of
+                 the page.  Shows ONE row at a time:
+                   • bottomLane === 'cast' → Cast strip (default)
+                   • bottomLane === 'recs' → "More like this" strip
+                 Pressing DOWN on a cast actor swaps to recs; UP on
+                 a rec card swaps back to cast.  The vertical
+                 position of the row is fixed — no scrolling, no
+                 layout shift. */}
+            {tmdbInfo?.tmdb_id && (
+                <div
+                    data-testid="detail-bottom-lane"
+                    style={{
+                        position: 'absolute',
+                        left: 0, right: 0, bottom: 0,
+                        zIndex: 15,
+                        padding: '0 80px 32px 80px',
+                    }}
+                >
+                    {/* Soft gradient behind the lane so the row
+                        reads cleanly against any backdrop. */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: '-40px 0 0 0',
+                            background:
+                                'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.6) 35%, rgba(0,0,0,0.92) 100%)',
+                            pointerEvents: 'none',
+                        }}
+                    />
+                    <div style={{ position: 'relative' }}>
+                        {bottomLane === 'cast' && (
                             <CastRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                                 onFocus={setFocusedActor}
                             />
+                        )}
+                        {bottomLane === 'recs' && (
                             <RecommendationsRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                                 onFocus={setFocusedRec}
                             />
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </main>
+            )}
         </div>
     );
 }

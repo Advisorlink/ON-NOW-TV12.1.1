@@ -238,6 +238,25 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.42 — Detail page: fixed bottom lane, no scrolling, smaller portrait**
+            - 🎯 The hero (title, synopsis, Play CTA) is now LOCKED
+              in place forever.  Nothing scrolls the page any more.
+            - 📍 ONE row sits at a fixed bottom-of-page position.
+              Default is Cast.  Pressing DOWN on a cast card SWAPS
+              that lane to show "More like this".  Pressing UP on a
+              recommendation swaps it back to Cast.  The lane's
+              vertical position never moves, only its content.
+            - 🚫 Synopsis is clamped to 4 lines so a long
+              description can never push the bottom lane off-screen
+              on a tight TV viewport.
+            - 🖼️ Actor portrait sized down (45 % × 70 % w/`contain`)
+              so the FACE is fully visible (forehead to chest, not
+              zoomed-in cheekbones).  Soft radial mask still kills
+              the visible "square cut-off" on the right edge.
+            - 🔄 Recommendation backdrop swap still works — focusing
+              any "More like this" tile fades the page background
+              to that title's backdrop for a beautiful preview.
+
             **v2.6.41 — Detail page final design: live backdrop swap**
             - 🎯 Cast row + "More like this" are ALWAYS visible
               underneath the Play CTA (Netflix-style stacked
