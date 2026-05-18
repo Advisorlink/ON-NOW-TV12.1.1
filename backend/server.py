@@ -792,7 +792,7 @@ async def tmdb_recommendations(type_: str, tmdb_id: int):
     """
     if type_ not in ("tv", "movie"):
         raise HTTPException(400, "type must be 'tv' or 'movie'")
-    cache_key = f"recs:{type_}:{tmdb_id}:v1"
+    cache_key = f"recs:{type_}:{tmdb_id}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "results": cached}
@@ -815,8 +815,9 @@ async def tmdb_recommendations(type_: str, tmdb_id: int):
                 "title":      r.get("title") or r.get("name") or "",
                 "year":       (r.get("release_date") or r.get("first_air_date") or "")[:4],
                 "rating":     round(r.get("vote_average") or 0, 1) or None,
+                "overview":   (r.get("overview") or "").strip(),
                 "poster":     f"{TMDB_IMG}/w342{poster}" if poster else "",
-                "backdrop":   f"{TMDB_IMG}/w780{backdrop}" if backdrop else "",
+                "backdrop":   f"{TMDB_IMG}/w1280{backdrop}" if backdrop else "",
             })
         if results:
             break  # don't bother with /similar if /recommendations had hits

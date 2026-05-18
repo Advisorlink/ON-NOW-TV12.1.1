@@ -1,24 +1,34 @@
 /**
- * <CastRow/> — bottom cast strip on the Detail page.
+ * <CastRow/> — bottom lane on the Detail page.
  *
- * TWO MODES, swapped in-place (no layout shift):
- *   1. Cast (default) — top-billed actors, B&W → color on focus.
- *      OK on an actor card drills into MODE 2.
- *   2. Filmography — same lane, same card size, now shows the
- *      focused actor's combined movie + TV credits.  Focusing a
- *      card swaps the page hero + backdrop wallpaper to that
- *      title (driven by `onMovieFocus`).  OK navigates to that
- *      title's detail page.  UP exits filmography back to cast.
+ * The lane has TWO LEVELS, swapped by D-pad UP/DOWN:
+ *   • Level 1 (default) — "Cast" actors.
+ *   • Level 2           — "Just like this" similar movies/shows.
+ *
+ * Level 1 has a sub-state: pressing OK on an actor drills into
+ * that actor's filmography (still on level 1, same physical row —
+ * just different content).  UP from a filmography card exits back
+ * to the same actor card.
+ *
+ * Navigation summary (all internal to this component):
+ *   Cast actor    DOWN  → Similar (level 2), focus first
+ *   Cast actor    OK    → Filmography (still level 1)
+ *   Filmography   UP    → Cast, focus the actor we drilled in from
+ *   Filmography   DOWN  → Similar (level 2)
+ *   Filmography   OK    → navigate to that title's detail page
+ *   Similar       UP    → Cast (level 1), focus first actor
+ *   Similar       OK    → navigate to that title's detail page
+ *
+ * UP from Cast actor → handled by the parent (Detail.jsx) → focuses
+ * the Autoplay button.  The parent watches `cast-actor-*` only.
  *
  * Props:
- *   tmdbId       — TMDB id of the current title.
- *   mediaType    — 'movie' | 'tv' for the title.
- *   onFocus(p)   — fires when an actor card receives focus
- *                  (cast mode) or null when focus leaves.
- *   onMovieFocus(m) — fires when a filmography card receives
- *                     focus or null when focus leaves.
- *   onModeChange(mode) — fires 'cast' or 'filmography' so the
- *                       parent can swap the "Press OK..." hint.
+ *   tmdbId         — TMDB id of the current title.
+ *   mediaType      — 'movie' | 'tv'.
+ *   onFocus(p)     — actor focus (level 1, cast mode).
+ *   onMovieFocus(m)— film/title focus (filmography OR similar).
+ *   onViewChange(v)— 'cast' | 'filmography' | 'similar' for the
+ *                    parent to update hint text / dot indicator.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
@@ -31,24 +41,29 @@ export default function CastRow({
     mediaType,
     onFocus,
     onMovieFocus,
-    onModeChange,
+    onViewChange,
     testId = 'cast-row',
 }) {
     const navigate = useNavigate();
     const [cast, setCast] = useState([]);
     const [busy, setBusy] = useState(true);
 
-    /* Filmography state.  `filmographyFor` holds the actor whose
-     * films are currently displayed (null when in cast mode).
-     * `films` is the list returned by /api/tmdb/person/:id. */
+    /* Level 1 sub-state: filmography drill-in. */
     const [filmographyFor, setFilmographyFor] = useState(null);
     const [films, setFilms] = useState([]);
     const [filmsBusy, setFilmsBusy] = useState(false);
-    /* Cache by person id so a second drill-in is instant. */
     const filmCacheRef = useRef(new Map());
+
+    /* Level 2 state: similar movies / TV shows. */
+    const [similar, setSimilar] = useState([]);
+    /* Which "level" of the lane is currently in view.  Drives the
+     * 2-dot indicator + the "just like this" affordance up in
+     * Detail.jsx via `onViewChange`. */
+    const [level, setLevel] = useState(1);     // 1 = cast/filmography, 2 = similar
 
     const focusedRef = useRef(null);
 
+    /* ── Fetch cast on mount ── */
     useEffect(() => {
         let cancel = false;
         if (!tmdbId || !mediaType) {
@@ -75,14 +90,37 @@ export default function CastRow({
         return () => { cancel = true; };
     }, [tmdbId, mediaType]);
 
-    /* Tell the parent which mode we're in so it can adjust the
-     * hint text in the Play-button area. */
+    /* ── Fetch similar on mount (level 2 source) ── */
     useEffect(() => {
-        if (onModeChange) onModeChange(filmographyFor ? 'filmography' : 'cast');
-    }, [filmographyFor, onModeChange]);
+        let cancel = false;
+        if (!tmdbId || !mediaType) return undefined;
+        (async () => {
+            try {
+                const { data } = await axios.get(
+                    `${API}/tmdb/recommendations/${mediaType}/${tmdbId}`,
+                    { timeout: 10000 }
+                );
+                if (!cancel) {
+                    setSimilar(Array.isArray(data?.results) ? data.results : []);
+                }
+            } catch {
+                if (!cancel) setSimilar([]);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [tmdbId, mediaType]);
 
-    /* When user enters filmography mode on a fresh actor, fetch
-     * their credits.  Cache hits are instant. */
+    /* Tell parent which view is active. */
+    const currentView = filmographyFor
+        ? 'filmography'
+        : level === 2
+        ? 'similar'
+        : 'cast';
+    useEffect(() => {
+        if (onViewChange) onViewChange(currentView);
+    }, [currentView, onViewChange]);
+
+    /* When user enters filmography mode, fetch credits. */
     useEffect(() => {
         if (!filmographyFor) {
             setFilms([]);
@@ -116,131 +154,185 @@ export default function CastRow({
         return () => { cancel = true; };
     }, [filmographyFor]);
 
+    /* ── Focus reporters ── */
     const handleActorFocus = useCallback((actor) => {
         focusedRef.current = actor;
         if (onFocus) onFocus(actor);
     }, [onFocus]);
-
     const handleActorBlur = useCallback((actor) => {
         if (focusedRef.current?.id === actor?.id) {
             focusedRef.current = null;
             if (onFocus) onFocus(null);
         }
     }, [onFocus]);
-
     const handleMovieFocus = useCallback((movie) => {
         if (onMovieFocus) onMovieFocus(movie);
     }, [onMovieFocus]);
-
     const handleMovieBlur = useCallback(() => {
         if (onMovieFocus) onMovieFocus(null);
     }, [onMovieFocus]);
 
-    /* Drill into an actor's filmography.  Clears the cast-mode
-     * actor focus so the hero can reset, then sets the
-     * filmographyFor actor which triggers a re-render with the
-     * movies list and lands focus on the first movie card. */
+    /* ── State transitions ── */
     const drillIntoActor = useCallback((actor) => {
         if (onFocus) onFocus(null);
         setFilmographyFor(actor);
     }, [onFocus]);
 
-    /* Activate a film card — resolve its IMDB id then navigate
-     * to the detail page.  We hit /api/tmdb/imdb/{type}/{id} for
-     * the lookup (already cached server-side). */
-    const openFilm = useCallback(async (film) => {
+    const enterSimilar = useCallback(() => {
+        if (onFocus) onFocus(null);
+        if (onMovieFocus) onMovieFocus(null);
+        setFilmographyFor(null);
+        setLevel(2);
+    }, [onFocus, onMovieFocus]);
+
+    const exitToCast = useCallback((preferActor) => {
+        if (onMovieFocus) onMovieFocus(null);
+        setFilmographyFor(null);
+        setLevel(1);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const sel = preferActor
+                ? `[data-testid="cast-actor-${preferActor.id}"]`
+                : '[data-testid^="cast-actor-"]';
+            const target = document.querySelector(sel);
+            if (target) {
+                try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            }
+        }));
+    }, [onMovieFocus]);
+
+    /* Activate a film/similar card — resolve IMDB id and navigate. */
+    const openTitle = useCallback(async (item) => {
         try {
             const { data } = await axios.get(
-                `${API}/tmdb/imdb/${film.media_type}/${film.tmdb_id}`,
+                `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
                 { timeout: 8000 }
             );
             const imdb = data?.imdb_id;
             if (imdb) {
-                navigate(`/title/${film.media_type}/${imdb}`);
+                navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`);
             }
         } catch {
             /* swallow — no nav if the lookup fails */
         }
     }, [navigate]);
 
-    /* D-pad UP from a film card → exit filmography back to cast.
-     * Parent's keyboard handler doesn't see film cards, so the
-     * row itself owns this exit path.  Listen with capture so we
-     * intercept before the global spatial-focus code. */
+    /* ── D-pad navigation between the lane sub-views ── */
     useEffect(() => {
-        if (!filmographyFor) return undefined;
         const onKey = (e) => {
-            if (e.key !== 'ArrowUp') return;
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
             const active = document.activeElement;
             if (!active) return;
-            if (!active.matches('[data-testid^="cast-film-"]')) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (onMovieFocus) onMovieFocus(null);
-            const exitingActor = filmographyFor;
-            setFilmographyFor(null);
-            /* After the cast cards re-render, focus the actor we
-             * drilled in from. */
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                const target = document.querySelector(
-                    `[data-testid="cast-actor-${exitingActor.id}"]`
-                );
-                if (target) {
-                    try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            const onActor = active.matches('[data-testid^="cast-actor-"]');
+            const onFilm  = active.matches('[data-testid^="cast-film-"]');
+            const onSimilar = active.matches('[data-testid^="cast-similar-"]');
+
+            if (e.key === 'ArrowDown') {
+                if (onActor) {
+                    if (!similar.length) return;          // no similar → fall through
+                    e.preventDefault(); e.stopPropagation();
+                    enterSimilar();
+                    return;
                 }
-            }));
+                if (onFilm) {
+                    if (!similar.length) return;
+                    e.preventDefault(); e.stopPropagation();
+                    enterSimilar();
+                    return;
+                }
+            }
+
+            if (e.key === 'ArrowUp') {
+                if (onFilm) {
+                    e.preventDefault(); e.stopPropagation();
+                    exitToCast(filmographyFor);          // back to drill-in actor
+                    return;
+                }
+                if (onSimilar) {
+                    e.preventDefault(); e.stopPropagation();
+                    exitToCast(null);                    // back to first cast actor
+                }
+            }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [filmographyFor, onMovieFocus]);
+    }, [filmographyFor, similar.length, enterSimilar, exitToCast]);
 
-    /* Auto-focus the first film card whenever filmography first
-     * loads, so the user doesn't have to press RIGHT just to land
-     * inside the freshly-swapped row. */
+    /* Auto-focus first card whenever view changes to filmography
+     * or similar (so the user lands inside the new content). */
     useEffect(() => {
-        if (!filmographyFor || filmsBusy || films.length === 0) return;
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            const target = document.querySelector('[data-testid^="cast-film-"]');
-            if (target) {
-                try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
-            }
-        }));
-    }, [filmographyFor, filmsBusy, films.length]);
+        if (currentView === 'filmography' && !filmsBusy && films.length > 0) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const t = document.querySelector('[data-testid^="cast-film-"]');
+                if (t) { try { t.focus({ preventScroll: false }); } catch { /* ignore */ } }
+            }));
+        } else if (currentView === 'similar' && similar.length > 0) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const t = document.querySelector('[data-testid^="cast-similar-"]');
+                if (t) { try { t.focus({ preventScroll: false }); } catch { /* ignore */ } }
+            }));
+        }
+    }, [currentView, filmsBusy, films.length, similar.length]);
 
     if (busy || cast.length === 0) return null;
 
-    const inFilmography = !!filmographyFor;
-    const items = inFilmography ? films : cast;
+    const items =
+        currentView === 'filmography' ? films :
+        currentView === 'similar'     ? similar :
+        cast;
 
     return (
         <section
             data-testid={testId}
             style={{ width: '100%' }}
         >
-            <h3
-                className="vesper-display"
+            <div
                 style={{
-                    fontSize: 18,
-                    letterSpacing: '-0.02em',
-                    marginBottom: 10,
                     paddingLeft: 80,
+                    paddingRight: 80,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    marginBottom: 10,
+                    gap: 16,
                 }}
             >
-                {inFilmography ? `${filmographyFor.name}'s work` : 'Cast'}
-                <span
-                    className="ml-3 vesper-mono"
+                <h3
+                    className="vesper-display"
                     style={{
-                        fontSize: 10,
-                        color: 'var(--vesper-text-3)',
-                        letterSpacing: '0.22em',
-                        textTransform: 'uppercase',
+                        fontSize: 18,
+                        letterSpacing: '-0.02em',
+                        margin: 0,
                     }}
                 >
-                    {inFilmography
-                        ? (filmsBusy ? 'loading…' : `${films.length} titles`)
-                        : `${cast.length} actors`}
-                </span>
-            </h3>
+                    {currentView === 'filmography'
+                        ? `${filmographyFor.name}'s work`
+                        : currentView === 'similar'
+                        ? 'Just like this'
+                        : 'Cast'}
+                    <span
+                        className="ml-3 vesper-mono"
+                        style={{
+                            fontSize: 10,
+                            color: 'var(--vesper-text-3)',
+                            letterSpacing: '0.22em',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        {currentView === 'filmography'
+                            ? (filmsBusy ? 'loading…' : `${films.length} titles`)
+                            : currentView === 'similar'
+                            ? `${similar.length} titles`
+                            : `${cast.length} actors`}
+                    </span>
+                </h3>
+
+                {/* RIGHT-SIDE AFFORDANCE — dot stack + level hint.
+                    Cast view : 2 dots (top filled), ↓ JUST LIKE THIS.
+                    Similar   : 2 dots (bottom filled), ↑ CAST.
+                    Filmography: dots stay on top (still level 1),
+                    no hint (user is inside a sub-mode).            */}
+                <LevelIndicator view={currentView} hasSimilar={similar.length > 0} />
+            </div>
 
             <div
                 data-testid={`${testId}-strip`}
@@ -259,31 +351,114 @@ export default function CastRow({
                     scrollbarWidth: 'none',
                 }}
             >
-                {inFilmography
-                    ? items.map((film) => (
-                        <FilmCard
-                            key={`${film.media_type}-${film.tmdb_id}`}
-                            film={film}
-                            onActivate={() => openFilm(film)}
-                            onFocus={() => handleMovieFocus(film)}
-                            onBlur={handleMovieBlur}
-                        />
-                    ))
-                    : items.map((actor) => (
-                        <ActorCard
-                            key={actor.id}
-                            actor={actor}
-                            onFocus={() => handleActorFocus(actor)}
-                            onBlur={() => handleActorBlur(actor)}
-                            onActivate={() => drillIntoActor(actor)}
-                        />
-                    ))}
+                {currentView === 'cast' && items.map((actor) => (
+                    <ActorCard
+                        key={actor.id}
+                        actor={actor}
+                        onFocus={() => handleActorFocus(actor)}
+                        onBlur={() => handleActorBlur(actor)}
+                        onActivate={() => drillIntoActor(actor)}
+                    />
+                ))}
+                {currentView === 'filmography' && items.map((film) => (
+                    <TitleCard
+                        key={`f-${film.media_type}-${film.tmdb_id}`}
+                        item={film}
+                        testIdPrefix="cast-film"
+                        onActivate={() => openTitle(film)}
+                        onFocus={() => handleMovieFocus(film)}
+                        onBlur={handleMovieBlur}
+                    />
+                ))}
+                {currentView === 'similar' && items.map((film) => (
+                    <TitleCard
+                        key={`s-${film.media_type}-${film.tmdb_id}`}
+                        item={film}
+                        testIdPrefix="cast-similar"
+                        onActivate={() => openTitle(film)}
+                        onFocus={() => handleMovieFocus(film)}
+                        onBlur={handleMovieBlur}
+                    />
+                ))}
             </div>
         </section>
     );
 }
 
-/* ───────────────────────── ActorCard ───────────────────────── */
+/* ────────────────────── LevelIndicator ────────────────────── */
+
+function LevelIndicator({ view, hasSimilar }) {
+    if (!hasSimilar) return null;
+    const onSimilar = view === 'similar';
+    return (
+        <div
+            data-testid="cast-level-indicator"
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                pointerEvents: 'none',
+            }}
+        >
+            <span
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.24em',
+                    textTransform: 'uppercase',
+                    color: 'var(--vesper-text-3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                }}
+            >
+                {onSimilar ? (
+                    <>
+                        <span>↑ Cast</span>
+                    </>
+                ) : view === 'filmography' ? (
+                    <>
+                        <span>↑ Autoplay · ↓ Just like this</span>
+                    </>
+                ) : (
+                    <>
+                        <span>↓ Just like this</span>
+                    </>
+                )}
+            </span>
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    alignItems: 'center',
+                }}
+            >
+                <Dot active={!onSimilar} />
+                <Dot active={onSimilar} />
+            </div>
+        </div>
+    );
+}
+
+function Dot({ active }) {
+    return (
+        <span
+            style={{
+                width: active ? 9 : 6,
+                height: active ? 9 : 6,
+                borderRadius: '50%',
+                background: active
+                    ? 'var(--vesper-blue-bright)'
+                    : 'rgba(255,255,255,0.28)',
+                boxShadow: active ? '0 0 10px rgba(93,200,255,0.5)' : 'none',
+                transition: 'all 160ms ease',
+            }}
+        />
+    );
+}
+
+/* ────────────────────── ActorCard ────────────────────── */
 
 function ActorCard({ actor, onFocus, onBlur, onActivate }) {
     const fallback = actor.name?.charAt(0)?.toUpperCase() || '?';
@@ -294,14 +469,8 @@ function ActorCard({ actor, onFocus, onBlur, onActivate }) {
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onFocus={(e) => {
-                setFocused(true);
-                onFocus?.(e);
-            }}
-            onBlur={(e) => {
-                setFocused(false);
-                onBlur?.(e);
-            }}
+            onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+            onBlur={(e) => { setFocused(false); onBlur?.(e); }}
             onMouseEnter={(e) => { setFocused(true); onFocus?.(e); }}
             onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
             onClick={() => onActivate?.()}
@@ -399,31 +568,24 @@ function ActorCard({ actor, onFocus, onBlur, onActivate }) {
     );
 }
 
-/* ───────────────────────── FilmCard ───────────────────────── */
-
-function FilmCard({ film, onActivate, onFocus, onBlur }) {
-    const [focused, setFocused] = useState(false);
+/* ────────────────────── TitleCard ──────────────────────
+ * Shared card for filmography + similar.  Same size as the
+ * ActorCard so the row swaps content with zero layout shift.
+ */
+function TitleCard({ item, testIdPrefix, onActivate, onFocus, onBlur }) {
     return (
         <button
-            data-testid={`cast-film-${film.media_type}-${film.tmdb_id}`}
+            data-testid={`${testIdPrefix}-${item.media_type}-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onFocus={(e) => {
-                setFocused(true);
-                onFocus?.(e);
-            }}
-            onBlur={(e) => {
-                setFocused(false);
-                onBlur?.(e);
-            }}
-            onMouseEnter={(e) => { setFocused(true); onFocus?.(e); }}
-            onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
+            onFocus={(e) => onFocus?.(e)}
+            onBlur={(e) => onBlur?.(e)}
+            onMouseEnter={(e) => onFocus?.(e)}
+            onMouseLeave={(e) => onBlur?.(e)}
             onClick={() => onActivate?.()}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                /* IDENTICAL size to ActorCard so swapping modes is
-                 * visually seamless — no layout shift, no jitter. */
                 width: 'clamp(116px, 9.4vw, 172px)',
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
@@ -435,10 +597,10 @@ function FilmCard({ film, onActivate, onFocus, onBlur }) {
                 willChange: 'transform',
             }}
         >
-            {film.poster ? (
+            {item.poster ? (
                 <img
-                    src={film.poster}
-                    alt={film.title}
+                    src={item.poster}
+                    alt={item.title}
                     loading="lazy"
                     decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
@@ -458,7 +620,7 @@ function FilmCard({ film, onActivate, onFocus, onBlur }) {
                             color: 'rgba(var(--vesper-blue-rgb),0.18)',
                         }}
                     >
-                        {(film.title || '?')[0]}
+                        {(item.title || '?')[0]}
                     </span>
                 </div>
             )}
@@ -486,9 +648,9 @@ function FilmCard({ film, onActivate, onFocus, onBlur }) {
                         WebkitBoxOrient: 'vertical',
                     }}
                 >
-                    {film.title}
+                    {item.title}
                 </div>
-                {(film.year || film.media_type) && (
+                {(item.year || item.media_type) && (
                     <div
                         className="vesper-mono mt-1"
                         style={{
@@ -502,7 +664,7 @@ function FilmCard({ film, onActivate, onFocus, onBlur }) {
                             WebkitBoxOrient: 'vertical',
                         }}
                     >
-                        {[film.media_type === 'tv' ? 'TV' : 'Movie', film.year]
+                        {[item.media_type === 'tv' ? 'TV' : 'Movie', item.year]
                             .filter(Boolean)
                             .join(' · ')}
                     </div>

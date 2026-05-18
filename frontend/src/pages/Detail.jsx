@@ -190,9 +190,9 @@ export default function Detail() {
        actor's other work and is browsing it, this holds the focused
        film/TV title.  Hero + backdrop swap to that title. */
     const [focusedMovie, setFocusedMovie] = useState(null);
-    /* CastRow's current mode — 'cast' (default) or 'filmography'
-       (after OK on an actor).  Drives the Play-button-area hint. */
-    const [castMode, setCastMode] = useState('cast');
+    /* CastRow's current view — 'cast' | 'filmography' | 'similar'.
+       Drives the Play-button-area hint + back-nav. */
+    const [castView, setCastView] = useState('cast');
     /* Bio cache so we don't refetch the same person when focus
      * sweeps left/right.  Keyed by TMDB person id. */
     const actorBioCacheRef = useRef(new Map());
@@ -1171,17 +1171,17 @@ export default function Detail() {
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        Finding 1080p…
+                                        Finding stream…
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>
                                         <Play size={18} fill="currentColor" />
-                                        Play 1080p
+                                        Autoplay
                                     </>
                                 ) : (
                                     <>
                                         <Play size={18} />
-                                        No 1080p stream found
+                                        No stream found
                                     </>
                                 )}
                             </button>
@@ -1712,7 +1712,7 @@ export default function Detail() {
                             mediaType={tmdbInfo.media_type}
                             onFocus={setFocusedActor}
                             onMovieFocus={setFocusedMovie}
-                            onModeChange={setCastMode}
+                            onViewChange={setCastView}
                         />
                     </div>
                 </div>

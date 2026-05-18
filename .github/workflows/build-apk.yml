@@ -238,6 +238,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.54 — "Autoplay" + Just-like-this row + level indicator**
+            - 🔘 Play 1080p button renamed to **Autoplay** (also
+              "Finding 1080p…" → "Finding stream…" and "No 1080p
+              stream found" → "No stream found").
+            - 🎬 Bottom lane now has **TWO levels**:
+              • Level 1 — Cast (with filmography drill-in as
+                a sub-mode).
+              • Level 2 — "Just like this" (TMDB recommendations).
+              Same physical row swaps content in-place — exactly
+              like the home screen rows.  No layout shift.
+            - 📍 Two-dot indicator on the right edge of the lane
+              header — top filled when on Cast/Filmography, bottom
+              filled when on Just-like-this.
+            - 🧭 Right-side hint label tells you what's next:
+              • Cast view: "↓ JUST LIKE THIS"
+              • Filmography: "↑ AUTOPLAY · ↓ JUST LIKE THIS"
+              • Similar view: "↑ CAST"
+            - 🎯 Navigation flow (rock-simple, all internal):
+              Autoplay ⇄ Cast actor ⇄ Just-like-this title.
+              OK on actor enters that actor's filmography.
+              OK on a filmography / similar title navigates to a
+              fresh detail page.
+              BACK takes you back one step (React Router default).
+            - 🌌 Every focused title (filmography or similar)
+              swaps the backdrop wallpaper + hero title + meta +
+              2-line synopsis on the fly.
+
             **v2.6.53 — Synopsis 2-line cap + filmography in color**
             - ✂️ All hero synopsis variants now cap at exactly
               2 lines (movie description, actor bio, focused
