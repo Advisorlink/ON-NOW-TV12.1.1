@@ -20,7 +20,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Home } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useBackHandler from '@/hooks/useBackHandler';
 import useLongPress from '@/hooks/useLongPress';
@@ -203,7 +203,7 @@ function PersonContent({ data, tmdbId, navigate }) {
                         padding: '24px 56px 28px 56px',
                         height: '100%',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0,1fr) 300px',
+                        gridTemplateColumns: 'minmax(0,1fr) 320px',
                         gap: 32,
                         alignItems: 'stretch',
                     }}
@@ -217,29 +217,51 @@ function PersonContent({ data, tmdbId, navigate }) {
                             minWidth: 0,
                         }}
                     >
-                        <button
-                            data-testid="person-back"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            data-initial-focus="true"
-                            tabIndex={0}
-                            onClick={() => navigate(-1)}
-                            className="flex items-center gap-2 rounded-full vesper-mono"
-                            style={{
-                                alignSelf: 'flex-start',
-                                height: 36,
-                                paddingLeft: 14,
-                                paddingRight: 18,
-                                background: 'rgba(17,24,39,0.6)',
-                                color: 'var(--vesper-text-2)',
-                                border: '1px solid rgba(255,255,255,0.12)',
-                                fontSize: 11,
-                                letterSpacing: '0.2em',
-                                textTransform: 'uppercase',
-                            }}
-                        >
-                            <ArrowLeft size={14} /> Back
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                data-testid="person-back"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                data-initial-focus="true"
+                                tabIndex={0}
+                                onClick={() => navigate(-1)}
+                                className="flex items-center gap-2 rounded-full vesper-mono"
+                                style={{
+                                    height: 36,
+                                    paddingLeft: 14,
+                                    paddingRight: 18,
+                                    background: 'rgba(17,24,39,0.6)',
+                                    color: 'var(--vesper-text-2)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    fontSize: 11,
+                                    letterSpacing: '0.2em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                <ArrowLeft size={14} /> Back
+                            </button>
+                            <button
+                                data-testid="person-home"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => navigate('/')}
+                                className="flex items-center gap-2 rounded-full vesper-mono"
+                                style={{
+                                    height: 36,
+                                    paddingLeft: 14,
+                                    paddingRight: 18,
+                                    background: 'rgba(17,24,39,0.6)',
+                                    color: 'var(--vesper-text-2)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    fontSize: 11,
+                                    letterSpacing: '0.2em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                <Home size={14} /> Home
+                            </button>
+                        </div>
 
                         <div style={{ minWidth: 0 }}>
                             <div
@@ -319,35 +341,34 @@ function PersonContent({ data, tmdbId, navigate }) {
                         <div
                             data-testid="person-portrait-card"
                             style={{
-                                width: 300,
-                                aspectRatio: '2 / 3',
+                                width: 320,
+                                aspectRatio: '5 / 8',
                                 position: 'relative',
                                 alignSelf: 'center',
                                 pointerEvents: 'none',
-                                /* Combined radial + linear masks
-                                 * (composited with mask-composite:
-                                 * intersect).  Each side fades
-                                 * out before the bounding box so
-                                 * there's never a visible edge or
-                                 * corner. */
+                                /* Vertical fades are now LIGHTER on
+                                 * the bottom so chins are never
+                                 * masked.  Radial centre shifted UP
+                                 * slightly and ellipse widened so the
+                                 * face + shoulders stay fully visible. */
                                 WebkitMaskImage:
-                                    'radial-gradient(ellipse 75% 78% at 50% 45%, ' +
-                                    '#000 12%, ' +
-                                    'rgba(0,0,0,0.85) 45%, ' +
-                                    'rgba(0,0,0,0.45) 68%, ' +
-                                    'rgba(0,0,0,0.12) 86%, ' +
+                                    'radial-gradient(ellipse 82% 88% at 50% 50%, ' +
+                                    '#000 22%, ' +
+                                    'rgba(0,0,0,0.85) 55%, ' +
+                                    'rgba(0,0,0,0.45) 75%, ' +
+                                    'rgba(0,0,0,0.12) 92%, ' +
                                     'transparent 100%), ' +
-                                    'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%), ' +
+                                    'linear-gradient(180deg, transparent 0%, #000 12%, #000 92%, transparent 100%), ' +
                                     'linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
                                 WebkitMaskComposite: 'source-in',
                                 maskImage:
-                                    'radial-gradient(ellipse 75% 78% at 50% 45%, ' +
-                                    '#000 12%, ' +
-                                    'rgba(0,0,0,0.85) 45%, ' +
-                                    'rgba(0,0,0,0.45) 68%, ' +
-                                    'rgba(0,0,0,0.12) 86%, ' +
+                                    'radial-gradient(ellipse 82% 88% at 50% 50%, ' +
+                                    '#000 22%, ' +
+                                    'rgba(0,0,0,0.85) 55%, ' +
+                                    'rgba(0,0,0,0.45) 75%, ' +
+                                    'rgba(0,0,0,0.12) 92%, ' +
                                     'transparent 100%), ' +
-                                    'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%), ' +
+                                    'linear-gradient(180deg, transparent 0%, #000 12%, #000 92%, transparent 100%), ' +
                                     'linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
                                 maskComposite: 'intersect',
                             }}
@@ -359,7 +380,12 @@ function PersonContent({ data, tmdbId, navigate }) {
                                     width: '100%',
                                     height: '100%',
                                     objectFit: 'cover',
-                                    objectPosition: 'center top',
+                                    /* Keep full head + chin in
+                                     * frame: position 30 % from
+                                     * top of the source photo
+                                     * (most TMDB headshots have
+                                     * the head in the top 60 %). */
+                                    objectPosition: 'center 30%',
                                     display: 'block',
                                     filter:
                                         'grayscale(1) contrast(1.08) brightness(0.95)',

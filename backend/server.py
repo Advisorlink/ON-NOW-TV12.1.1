@@ -1710,6 +1710,40 @@ async def tmdb_by_genre(
     return {"cached": False, "data": out}
 
 
+@api.get("/tmdb/trailer/{type_}/{tmdb_id}")
+async def tmdb_trailer(type_: str, tmdb_id: int):
+    """Return the best YouTube trailer for a movie/series.
+    Picks Trailer > Teaser, Official > anything, newest first."""
+    if type_ not in ("movie", "tv"):
+        raise HTTPException(400, "type must be 'movie' or 'tv'")
+    cache_key = f"trailer:{type_}:{tmdb_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return {"cached": True, "data": cached}
+    data = await _tmdb_get(
+        f"/{type_}/{tmdb_id}/videos", {"language": "en-US"}
+    )
+    videos = data.get("results") or []
+    youtube = [v for v in videos if (v.get("site") or "").lower() == "youtube"]
+    def rank(v):
+        type_score = 3 if v.get("type") == "Trailer" else (2 if v.get("type") == "Teaser" else 1)
+        official = 1 if v.get("official") else 0
+        return (type_score, official, v.get("published_at") or "")
+    youtube.sort(key=rank, reverse=True)
+    if not youtube:
+        await cache.set(cache_key, None, 60 * 60 * 6)
+        return {"cached": False, "data": None}
+    best = youtube[0]
+    out = {
+        "key": best.get("key"),
+        "name": best.get("name") or "Trailer",
+        "site": "YouTube",
+        "type": best.get("type") or "Trailer",
+    }
+    await cache.set(cache_key, out, 60 * 60 * 6)
+    return {"cached": False, "data": out}
+
+
 @api.get("/tmdb/by-genres/{media}")
 async def tmdb_by_genres(
     media: str,

@@ -238,6 +238,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.61 — Trailers, Home button, Person chin, episode scroll**
+            - 🎬 NEW: **Trailer** pill on every movie / TV detail
+              page.  Tap to open a beautiful centered YouTube
+              popup (16:9, 1200 px max).  Hit the maximize icon
+              to go fullscreen, the X (or BACK) to close.
+              Autoplay enabled, no related-videos at the end,
+              modest YouTube branding.  Backend uses TMDB
+              `/videos` and picks Trailer > Teaser > Official
+              newest-first.
+            - 🏠 NEW: **Home** pill next to the **Back** pill on
+              every Detail page AND the Actor (Person) page.  One
+              tap drops you back to Home no matter how many
+              actor / film links deep you've gone.
+            - 🎭 Person portrait fixed: width 300→320 px, aspect
+              ratio 2:3→5:8 (taller), image now `objectPosition:
+              center 30%` so heads aren't cropped at the top.
+              Vertical mask widened to `transparent → #000 at
+              12% → #000 at 92% → transparent` so the chin is
+              fully visible.  No more cut-off chins.
+            - 📜 TV series episode scroll FIXED: when episodes
+              are revealed, `<main>` drops its
+              `data-no-row-snap="true"` so the spatial-focus
+              engine resumes its normal scroll-into-view.  D-pad
+              down through any episode list now scrolls the page
+              up so the focused episode stays in view.
+            - 🧹 Removed the noisy "AUTOPLAY ON · TURN OFF IN
+              SIDE MENU FOR PICKER" caption that was sitting
+              next to the Autoplay button.
+
             **v2.6.60 — Quality-of-life pass (8 fixes)**
             - 🆕 NEW: Boot splash — beautiful "ON NOW TV 2 ·
               Loading guide…" screen with pulsing logo + sliding

@@ -9,11 +9,14 @@ import {
     Magnet,
     Info,
     Check,
+    Film,
+    Home,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
 import CastRow from '@/components/CastRow';
 import PartyJoiningScreen from '@/components/PartyJoiningScreen';
+import TrailerModal from '@/components/TrailerModal';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -196,6 +199,33 @@ export default function Detail() {
     /* For TV series: true once user has revealed episodes (OK on
        a season pill).  When true we hide the Cast row. */
     const [seriesEpisodesShown, setSeriesEpisodesShown] = useState(false);
+
+    /* Trailer popup state — when set, opens the TrailerModal.
+       We fetch only on demand (avoid wasting a TMDB call). */
+    const [trailerKey, setTrailerKey] = useState(null);
+    const [trailerLoading, setTrailerLoading] = useState(false);
+    const trailerCacheRef = useRef({});
+    const openTrailer = useCallback(async () => {
+        if (!tmdbInfo?.tmdb_id) return;
+        const key = `${tmdbInfo.media_type}:${tmdbInfo.tmdb_id}`;
+        if (trailerCacheRef.current[key]) {
+            setTrailerKey(trailerCacheRef.current[key]);
+            return;
+        }
+        try {
+            setTrailerLoading(true);
+            const r = await fetch(
+                `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/trailer/` +
+                `${tmdbInfo.media_type}/${tmdbInfo.tmdb_id}`
+            );
+            const j = await r.json();
+            const k = j?.data?.key;
+            trailerCacheRef.current[key] = k || '';
+            if (k) setTrailerKey(k);
+        } catch { /* swallow */ } finally {
+            setTrailerLoading(false);
+        }
+    }, [tmdbInfo]);
     /* Bio cache so we don't refetch the same person when focus
      * sweeps left/right.  Keyed by TMDB person id. */
     const actorBioCacheRef = useRef(new Map());
@@ -1064,7 +1094,14 @@ export default function Detail() {
                      * in a long season. */
                     seriesEpisodesShown ? 'overflow-y-auto' : 'overflow-hidden'
                 }`}
-                data-no-row-snap="true"
+                /* `data-no-row-snap` disables the spatial-focus
+                 * vertical row-pin scroll so the page stays still
+                 * while the user browses the Cast row.  Once the
+                 * user has REVEALED a season's episodes we want
+                 * normal scroll-into-view behaviour so a long
+                 * episode list is fully reachable — turn the flag
+                 * off in that mode. */
+                data-no-row-snap={seriesEpisodesShown ? undefined : 'true'}
                 style={{ padding: '40px 80px 60px 80px' }}
             >
                 <div className="flex items-center gap-3 mb-5">
@@ -1085,6 +1122,24 @@ export default function Detail() {
                         }}
                     >
                         <ArrowLeft size={16} /> Back
+                    </button>
+                    <button
+                        data-testid="home-button"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => navigate('/')}
+                        className="flex items-center gap-2 h-11 px-5 rounded-full vesper-mono"
+                        style={{
+                            background: 'rgba(17,24,39,0.6)',
+                            color: 'var(--vesper-text-2)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            fontSize: 13,
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        <Home size={16} /> Home
                     </button>
                     <LibraryStatusPill id={id} />
                 </div>
@@ -1312,18 +1367,24 @@ export default function Detail() {
                                     </>
                                 )}
                             </button>
-                            <div
-                                className="vesper-mono"
-                                style={{
-                                    fontSize: 11,
-                                    color: 'var(--vesper-text-3)',
-                                    letterSpacing: '0.18em',
-                                    textTransform: 'uppercase',
-                                    paddingLeft: 8,
-                                }}
-                            >
-                                Autoplay ON · turn off in side menu for picker
-                            </div>
+                            <TrailerPill
+                                onClick={openTrailer}
+                                loading={trailerLoading}
+                            />
+                        </div>
+                    )}
+
+                    {/* For TV SERIES the Trailer button sits on
+                        its own row, above the season picker, so
+                        it doesn't compete with the Autoplay
+                        button (movies only). */}
+                    {type === 'series' && !focusedActor && !focusedMovie && (
+                        <div className="mt-6 flex items-center gap-3 flex-wrap">
+                            <TrailerPill
+                                onClick={openTrailer}
+                                loading={trailerLoading}
+                                primary
+                            />
                         </div>
                     )}
 
@@ -1842,7 +1903,62 @@ export default function Detail() {
                     </div>
                 </div>
             )}
+
+            {/* YouTube trailer popup (windowed → fullscreen). */}
+            <TrailerModal
+                youtubeKey={trailerKey}
+                title={focusedMovie?.title || meta?.name}
+                onClose={() => setTrailerKey(null)}
+            />
         </div>
+    );
+}
+
+/* ─────────────────────── TrailerPill ─────────────────────── */
+function TrailerPill({ onClick, loading, primary }) {
+    return (
+        <button
+            data-testid="detail-trailer"
+            data-focusable="true"
+            data-focus-style="pill"
+            data-initial-focus={primary ? 'true' : undefined}
+            tabIndex={0}
+            onClick={onClick}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-full font-sans font-semibold"
+            style={{
+                height: primary
+                    ? 'clamp(46px, 3.6vw, 56px)'
+                    : 'clamp(44px, 3.4vw, 52px)',
+                paddingLeft: 'clamp(18px, 1.4vw, 24px)',
+                paddingRight: 'clamp(22px, 1.6vw, 28px)',
+                fontSize: primary
+                    ? 'clamp(14px, 1vw, 16px)'
+                    : 'clamp(13px, 0.95vw, 15px)',
+                background: primary
+                    ? 'var(--vesper-blue)'
+                    : 'rgba(93,200,255,0.16)',
+                color: primary ? 'var(--vesper-bg-0)' : 'var(--vesper-blue-bright)',
+                border: primary
+                    ? '1px solid transparent'
+                    : '1px solid rgba(93,200,255,0.32)',
+                letterSpacing: '0.02em',
+                opacity: loading ? 0.7 : 1,
+                cursor: loading ? 'progress' : 'pointer',
+            }}
+        >
+            {loading ? (
+                <>
+                    <Loader2 className="vesper-spin" size={16} />
+                    Loading…
+                </>
+            ) : (
+                <>
+                    <Film size={16} />
+                    Trailer
+                </>
+            )}
+        </button>
     );
 }
 
