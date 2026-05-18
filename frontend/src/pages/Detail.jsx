@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Play,
@@ -361,120 +361,107 @@ export default function Detail() {
 
     /* Snap nav between Hero → Cast → Recommendations.
      *
-     * Each "page" of the Detail layout is a snap-target:
-     *   1. HERO  (Play button)
-     *   2. CAST  (actors row + portrait)
-     *   3. RECS  (more like this)
-     * Cast↔Recs and Cast→Hero get explicit DOWN/UP handlers; the
-     * Play→Cast leg is handled by the onKeyDown on the Play
-     * button itself.  All scroll math operates on the <main>
-     * element (which is the actual overflow container — the page
-     * root is `overflow-hidden h-[100dvh]`).
+     * The DOM is single-page (no scrolling) — only the BOTTOM
+     * LANE swaps based on `snapIdx`.  So snap nav is purely an
+     * index change + focus handoff:
+     *
+     *   snapIdx 0  →  hero focused (Play CTA)
+     *   snapIdx 1  →  cast lane mounted, first actor focused
+     *   snapIdx 2  →  recs lane mounted, first rec tile focused
+     *
+     * The cast/recs rows mount asynchronously, so after we bump
+     * `snapIdx` we wait one RAF for the lane to render, then move
+     * focus.  The focus stamp also drives the right-rail dots.
      */
+    const requestSnap = useCallback((idx) => {
+        setSnapIdx(idx);
+        // Wait two RAFs so the lane has not just mounted but also
+        // its child cards have been laid out (CastRow lazy-fetches).
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            let sel = '[data-testid^="detail-play-"]';
+            if (idx === 1) sel = '[data-testid^="cast-actor-"]';
+            else if (idx === 2) sel = '[data-testid^="recommendation-"]';
+            // CastRow data may not be ready yet on the first DOWN
+            // press — retry up to 800 ms.
+            let retries = 16;
+            const tryFocus = () => {
+                const target = document.querySelector(sel);
+                if (target) {
+                    try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+                    target.setAttribute('data-focused', 'true');
+                    document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                        if (el !== target) el.removeAttribute('data-focused');
+                    });
+                    return;
+                }
+                if (--retries > 0) setTimeout(tryFocus, 50);
+            };
+            tryFocus();
+        }));
+    }, []);
+
     useEffect(() => {
-        const scrollTargetIntoView = (rowSel) => {
-            const main = mainScrollRef.current;
-            const row = document.querySelector(rowSel);
-            if (!main || !row) return;
-            const rowBox  = row.getBoundingClientRect();
-            const mainBox = main.getBoundingClientRect();
-            const delta   = rowBox.top - mainBox.top
-                          - Math.round(main.clientHeight * 0.18);
-            main.scrollTo({ top: main.scrollTop + delta, behavior: 'smooth' });
-        };
         const onKey = (e) => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const active = document.activeElement;
             if (!active) return;
 
-            const inCast = active.matches('[data-testid^="cast-actor-"]');
-            const inRecs = active.matches('[data-testid^="recommendation-"]') ||
+            const onPlay = active.matches('[data-testid^="detail-play-"]');
+            const onCast = active.matches('[data-testid^="cast-actor-"]');
+            const onRecs = active.matches('[data-testid^="recommendation-"]') ||
                            !!active.closest('[data-testid="recommendations-row"]');
 
-            if (e.key === 'ArrowDown' && inCast) {
-                const target = document.querySelector('[data-testid^="recommendation-"]');
-                if (!target) return;
-                e.preventDefault(); e.stopPropagation();
-                try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
-                target.setAttribute('data-focused', 'true');
-                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                    if (el !== target) el.removeAttribute('data-focused');
-                });
-                scrollTargetIntoView('[data-testid="recommendations-row"]');
-                return;
+            if (e.key === 'ArrowDown') {
+                if (onPlay) {
+                    e.preventDefault(); e.stopPropagation();
+                    requestSnap(1);
+                    return;
+                }
+                if (onCast) {
+                    e.preventDefault(); e.stopPropagation();
+                    requestSnap(2);
+                    return;
+                }
             }
 
-            if (e.key === 'ArrowUp' && inRecs) {
-                const target = document.querySelector('[data-testid^="cast-actor-"]');
-                if (!target) return;
-                e.preventDefault(); e.stopPropagation();
-                try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
-                target.setAttribute('data-focused', 'true');
-                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                    if (el !== target) el.removeAttribute('data-focused');
-                });
-                scrollTargetIntoView('[data-testid="cast-row"]');
-                return;
-            }
-
-            if (e.key === 'ArrowUp' && inCast) {
-                const playBtn = document.querySelector('[data-testid="detail-play-btn"]');
-                if (!playBtn) return;
-                e.preventDefault(); e.stopPropagation();
-                try { playBtn.focus({ preventScroll: true }); } catch { /* ignore */ }
-                playBtn.setAttribute('data-focused', 'true');
-                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                    if (el !== playBtn) el.removeAttribute('data-focused');
-                });
-                const main = mainScrollRef.current;
-                if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+            if (e.key === 'ArrowUp') {
+                if (onRecs) {
+                    e.preventDefault(); e.stopPropagation();
+                    requestSnap(1);
+                    return;
+                }
+                if (onCast) {
+                    e.preventDefault(); e.stopPropagation();
+                    requestSnap(0);
+                }
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, []);
+    }, [requestSnap]);
 
     /* Track which "page" of the Detail layout is currently active.
-     * Driven by BOTH scroll position AND focused element so the
-     * dots move the moment the user navigates with the D-pad,
-     * even before the smooth-scroll catches up. */
+     * Now follows focus state because the page itself never
+     * scrolls — `snapIdx` is the single source of truth set by
+     * `requestSnap` above.  This effect only resets it back to 0
+     * if focus jumps somewhere unexpected (e.g. back to the BACK
+     * pill via clicking). */
     const [snapIdx, setSnapIdx] = useState(0);
     useEffect(() => {
-        const main = mainScrollRef.current;
-        if (!main) return undefined;
-        const tick = () => {
-            // Focus takes precedence — instant feedback.
+        const onFocus = () => {
             const a = document.activeElement;
-            if (a) {
-                if (a.matches('[data-testid^="recommendation-"]') ||
-                    a.closest('[data-testid="recommendations-row"]')) {
-                    setSnapIdx(2); return;
-                }
-                if (a.matches('[data-testid^="cast-actor-"]')) {
-                    setSnapIdx(1); return;
-                }
-                if (a.matches('[data-testid="detail-play-btn"]')) {
-                    setSnapIdx(0); return;
-                }
+            if (!a) return;
+            if (a.matches('[data-testid^="recommendation-"]') ||
+                a.closest('[data-testid="recommendations-row"]')) {
+                setSnapIdx((s) => (s === 2 ? s : 2));
+            } else if (a.matches('[data-testid^="cast-actor-"]')) {
+                setSnapIdx((s) => (s === 1 ? s : 1));
+            } else if (a.matches('[data-testid^="detail-play-"]')) {
+                setSnapIdx((s) => (s === 0 ? s : 0));
             }
-            // Fallback to scroll position.
-            const castRow = document.querySelector('[data-testid="cast-row"]');
-            const recsRow = document.querySelector('[data-testid="recommendations-row"]');
-            const top = main.getBoundingClientRect().top;
-            const probe = top + main.clientHeight * 0.3;
-            const castTop = castRow ? castRow.getBoundingClientRect().top : Infinity;
-            const recsTop = recsRow ? recsRow.getBoundingClientRect().top : Infinity;
-            if (probe >= recsTop) setSnapIdx(2);
-            else if (probe >= castTop) setSnapIdx(1);
-            else setSnapIdx(0);
         };
-        main.addEventListener('scroll', tick, { passive: true });
-        document.addEventListener('focusin', tick);
-        tick();
-        return () => {
-            main.removeEventListener('scroll', tick);
-            document.removeEventListener('focusin', tick);
-        };
+        document.addEventListener('focusin', onFocus);
+        return () => document.removeEventListener('focusin', onFocus);
     }, []);
 
     // ---------- AUTOPLAY 1080p — derived state ----------
@@ -1129,7 +1116,7 @@ export default function Detail() {
 
             <main
                 ref={mainScrollRef}
-                className="relative z-10 w-full h-full overflow-y-auto"
+                className="relative z-10 w-full h-full overflow-hidden"
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
@@ -1287,64 +1274,15 @@ export default function Detail() {
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
                                 onKeyDown={(e) => {
-                                    /* Down from Play → SNAP the
-                                     * page to the Cast section.
-                                     * Focuses the first cast card
-                                     * AND scrolls it into the
-                                     * sweet-spot (just below the
-                                     * page header) so the focused
-                                     * actor's full-bleed portrait
-                                     * fills the right side of the
-                                     * screen with no clipping. */
+                                    /* DOWN from Play → swap the
+                                     * bottom lane to show the Cast
+                                     * row.  The lane animates in
+                                     * and focus is handed to the
+                                     * first actor card. */
                                     if (e.key === 'ArrowDown') {
-                                        const first = document.querySelector(
-                                            '[data-testid^="cast-actor-"]'
-                                        );
-                                        if (first) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            try {
-                                                /* Focus without
-                                                 * default scroll
-                                                 * so we control the
-                                                 * scroll target
-                                                 * ourselves. */
-                                                first.focus({ preventScroll: true });
-                                                first.setAttribute('data-focused', 'true');
-                                                document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                                                    if (el !== first) el.removeAttribute('data-focused');
-                                                });
-                                                /* Now SNAP the
-                                                 * whole page so
-                                                 * the cast-row
-                                                 * heading lands a
-                                                 * comfortable
-                                                 * distance below
-                                                 * the top of the
-                                                 * viewport (≈ 18
-                                                 * vh leaves room
-                                                 * for the BACK
-                                                 * pill + a hint of
-                                                 * the hero
-                                                 * above). */
-                                                const castHeading = document.querySelector(
-                                                    '[data-testid="cast-row"]'
-                                                ) || first.closest('[data-testid="cast-row"]');
-                                                if (castHeading) {
-                                                    const main = mainScrollRef.current;
-                                                    if (main) {
-                                                        const targetTop =
-                                                            castHeading.getBoundingClientRect().top
-                                                            - main.getBoundingClientRect().top
-                                                            - Math.round(main.clientHeight * 0.18);
-                                                        main.scrollTo({
-                                                            top: Math.max(0, main.scrollTop + targetTop),
-                                                            behavior: 'smooth',
-                                                        });
-                                                    }
-                                                }
-                                            } catch { /* ignore */ }
-                                        }
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        requestSnap(1);
                                     }
                                 }}
                                 disabled={
@@ -1875,38 +1813,65 @@ export default function Detail() {
                     </section>
                     )}
 
-                    {/* Cast row + "More like this" — only when we
-                        successfully resolved the title's TMDB id.
+                    {/* The Cast row + Recommendations row are
+                        rendered OUT of `<main>` as a fixed-bottom
+                        "lane" so the hero (title, synopsis, Play
+                        CTA) stays anchored in place and ONLY the
+                        background + lane swap as the user navigates
+                        DOWN.  See the lane block right after
+                        `</main>` below for the implementation. */}
+                </div>
+            </main>
 
-                        BREAKOUT: these rows must span the FULL page
-                        width (not the 68vw text column the hero
-                        sits in) so actor portraits on the right
-                        edge don't get clipped when the user scrolls
-                        them into view.  We undo the parent column's
-                        68vw cap with a negative right margin pinned
-                        to the page's 80px right padding. */}
-                    {tmdbInfo?.tmdb_id && (
-                        <div
-                            style={{
-                                /* Burst out of the 68vw column to the
-                                 * full available content width. */
-                                marginRight: 'calc(-1 * (100vw - 68vw - 160px))',
-                                maxWidth: 'none',
-                            }}
-                        >
+            {/* ── BOTTOM LANE — only one row is mounted at a time.
+                 Hidden entirely when the user is on the hero so
+                 the background is uninterrupted.  Slides in from
+                 the bottom edge when they press DOWN to reach the
+                 Cast or Recommendations rows. */}
+            {tmdbInfo?.tmdb_id && (
+                <div
+                    data-testid="detail-bottom-lane"
+                    style={{
+                        position: 'absolute',
+                        left: 0, right: 0, bottom: 0,
+                        zIndex: 15,
+                        padding: '0 80px 32px 80px',
+                        pointerEvents: snapIdx === 0 ? 'none' : 'auto',
+                        opacity: snapIdx === 0 ? 0 : 1,
+                        transform: snapIdx === 0
+                            ? 'translateY(20px)'
+                            : 'translateY(0)',
+                        transition: 'opacity 320ms ease, transform 320ms ease',
+                    }}
+                >
+                    {/* Soft gradient behind the lane so the row
+                        reads cleanly against any backdrop. */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: '-40px 0 0 0',
+                            background:
+                                'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 35%, rgba(0,0,0,0.95) 100%)',
+                            pointerEvents: 'none',
+                        }}
+                    />
+                    <div style={{ position: 'relative' }}>
+                        {snapIdx === 1 && (
                             <CastRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                                 onFocus={setFocusedActor}
                             />
+                        )}
+                        {snapIdx === 2 && (
                             <RecommendationsRow
                                 tmdbId={tmdbInfo.tmdb_id}
                                 mediaType={tmdbInfo.media_type}
                             />
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </main>
+            )}
         </div>
     );
 }

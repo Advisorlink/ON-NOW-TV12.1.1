@@ -238,6 +238,27 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.40 — Detail page redesigned: Netflix-style hero with snap lane**
+            - 🖼️ The whole page no longer SCROLLS.  The hero
+              (title, synopsis, meta chips, Play CTA, BACK pill)
+              stays anchored in place forever.  Only the
+              **BOTTOM LANE** swaps as the user presses DOWN.
+            - 🎬 Press DOWN on Play → bottom lane appears with
+              the **Cast** strip (20 actor portraits).  Hero
+              swaps to show the focused actor's name + role +
+              bio.  Background swaps to a pitch-black canvas
+              with the actor's full-height B&W portrait pinned
+              flush to the right edge.
+            - 🎞️ Press DOWN again → bottom lane swaps to the
+              **More like this** strip.  Same focus ring, same
+              scale animation, same hold-to-save as the home
+              page.
+            - ⬆️ UP unwinds the chain (Recs → Cast → Hero) with
+              the lane fading back out when you reach Play again.
+            - 🔵 Right-rail position dots track the current page
+              (Hero · Cast · Recs) with the active dot pulsing
+              cyan.
+
             **v2.6.39 — Detail page snap navigation + actor portrait fix + Person page redesign**
             - 🖼️ Actor portrait now flush-right.  The big B&W
               backdrop image was using `contain` + `center top` so
