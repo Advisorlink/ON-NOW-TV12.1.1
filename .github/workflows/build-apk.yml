@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.59 — Actor search + portrait polish**
+            - 🔎 Search now surfaces **actor profiles** when you
+              type a name.  TMDB people are merged into the
+              normal addon-search results.  Names like
+              "Tom Hanks" (capitalised, 2+ words) bubble to the
+              top of the list; otherwise people slot in after a
+              couple of movie / TV hits.
+            - 🎭 Each actor result shows a B&W portrait + their
+              top known-for titles as the subtitle.  Clicking
+              navigates straight to the Person profile page.
+            - 🖼️ Person page portrait redesigned:
+              • Moved slightly left and grown 200→260 px wide
+              • Now B&W (`grayscale(1) contrast(1.08)`)
+              • Card frame, border and drop shadow removed
+              • Radial soft-edge mask fades the photo into the
+                dark page on every side — the actor looks like
+                they're simply standing in the dark.
+            - 🧹 Removed the "Add / Remove from My Actors" pill
+              from the Person page hero — long-press OK on any
+              actor card handles add/remove (Library or Cast
+              row).
+
             **v2.6.58 — Actor page: TV-streamlined + D-pad nav**
             - 📐 Hero shrunk from ~670 px to **340 px** (fixed
               height).  Portrait card 420→200 px wide.  Name
