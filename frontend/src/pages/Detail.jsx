@@ -12,8 +12,6 @@ import {
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
-import CastRow from '@/components/CastRow';
-import RecommendationsRow from '@/components/RecommendationsRow';
 import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -156,97 +154,9 @@ export default function Detail() {
         };
     }, [type, id]);
 
-    /* Resolve the IMDB id → TMDB id so the Cast row + "More like
-       this" row can hit TMDB directly.  This is a single cached
-       request on the backend so re-renders are free. */
-    const [tmdbInfo, setTmdbInfo] = useState(null);
-    useEffect(() => {
-        let cancel = false;
-        if (!id || !id.startsWith('tt')) {
-            setTmdbInfo(null);
-            return undefined;
-        }
-        (async () => {
-            try {
-                const r = await fetch(
-                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/find-by-imdb/${id}`,
-                    { cache: 'force-cache' }
-                );
-                const data = await r.json();
-                if (!cancel && data?.tmdb_id) {
-                    setTmdbInfo({
-                        tmdb_id: data.tmdb_id,
-                        media_type: data.media_type,
-                    });
-                }
-            } catch {
-                /* swallow — Cast / Recommendations rows will just
-                   stay hidden when tmdbInfo is null. */
-            }
-        })();
-        return () => { cancel = true; };
-    }, [id]);
-
-    /* Focused-actor hero swap.  When the Cast row tells us an actor
-       is focused, we render their B&W portrait as the page hero
-       backdrop with their name as the giant title.  Setting back
-       to null restores the title's regular hero. */
-    const [focusedActor, setFocusedActor] = useState(null);
-    const [focusedRec, setFocusedRec] = useState(null);
-    /* Which row is currently shown in the bottom lane:
-     *   'cast' (default) → CastRow
-     *   'recs'           → RecommendationsRow
-     * The lane vertical position is fixed; only the content swaps. */
-    const [bottomLane, setBottomLane] = useState('cast');
-    const mainScrollRef = useRef(null);
-    /* Bio cache so we don't refetch the same person whenever focus
-     * sweeps left/right.  Keyed by TMDB person id. */
-    const actorBioCacheRef = React.useRef(new Map());
-    const [focusedBio, setFocusedBio] = useState('');
-    const [focusedAge, setFocusedAge] = useState('');
-    const [focusedBirthplace, setFocusedBirthplace] = useState('');
-
-    useEffect(() => {
-        if (!focusedActor || !focusedActor.id) {
-            setFocusedBio('');
-            setFocusedAge('');
-            setFocusedBirthplace('');
-            return undefined;
-        }
-        const cache = actorBioCacheRef.current;
-        const personId = focusedActor.id;
-        if (cache.has(personId)) {
-            const cached = cache.get(personId);
-            setFocusedBio(cached.bio);
-            setFocusedAge(cached.age);
-            setFocusedBirthplace(cached.birthplace);
-            return undefined;
-        }
-        let cancel = false;
-        (async () => {
-            try {
-                const res = await fetch(
-                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/person/${personId}`
-                );
-                if (!res.ok) return;
-                const data = await res.json();
-                if (cancel) return;
-                const entry = {
-                    bio: (data?.biography || '').trim(),
-                    age: data?.age != null ? String(data.age) : '',
-                    birthplace: data?.place_of_birth || '',
-                };
-                cache.set(personId, entry);
-                if (focusedActor && focusedActor.id === personId) {
-                    setFocusedBio(entry.bio);
-                    setFocusedAge(entry.age);
-                    setFocusedBirthplace(entry.birthplace);
-                }
-            } catch { /* ignore — bio just stays empty */ }
-        })();
-        return () => { cancel = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [focusedActor?.id]);
+    /* Resolve the IMDB id → TMDB id removed — no longer needed
+       now that Cast row / Recommendations row are gone.  We
+       kept the rest of the streaming flow intact. */
 
     useEffect(() => {
         if (type === 'series') {
@@ -364,131 +274,6 @@ export default function Detail() {
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, []);
-
-    /* Snap navigation between sections.
-     *
-     *  Play       ─DOWN→  first Cast card
-     *  Cast card  ─DOWN→  swap lane to "More like this", focus first
-     *  Rec card   ─UP→    swap lane back to "Cast", focus first
-     *  Cast card  ─UP→    focus the Play CTA
-     *
-     * The bottom lane stays in the same VERTICAL position; its
-     * content swaps between Cast and Recs.  No page scroll ever.
-     */
-    const requestSnap = useCallback((idx) => {
-        // 0 = hero (Play focused), 1 = cast lane, 2 = recs lane
-        setSnapIdx(idx);
-        if (idx === 0)      { setBottomLane('cast'); setFocusedActor(null); setFocusedRec(null); }
-        else if (idx === 1) { setBottomLane('cast'); setFocusedRec(null); }
-        else if (idx === 2) { setBottomLane('recs'); setFocusedActor(null); }
-
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            /* When going to the Cast lane (idx 1) try the regular
-             * actor cards first; if the lane is currently in
-             * "filmography" mode (user revealed an actor's films)
-             * fall back to the film cards so the user isn't
-             * stranded with nothing focusable.  Same applies for
-             * Recs (the row may take a moment to mount). */
-            const selectors =
-                idx === 0
-                    ? ['[data-testid^="detail-play-"]']
-                    : idx === 1
-                    ? ['[data-testid^="cast-actor-"]', '[data-testid^="cast-film-"]']
-                    : ['[data-testid^="recommendation-"]'];
-            let retries = 16;
-            const tryFocus = () => {
-                for (const sel of selectors) {
-                    const target = document.querySelector(sel);
-                    if (target) {
-                        try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
-                        target.setAttribute('data-focused', 'true');
-                        document.querySelectorAll('[data-focused="true"]').forEach((el) => {
-                            if (el !== target) el.removeAttribute('data-focused');
-                        });
-                        return;
-                    }
-                }
-                if (--retries > 0) setTimeout(tryFocus, 50);
-            };
-            tryFocus();
-        }));
-    }, []);
-
-    useEffect(() => {
-        const onKey = (e) => {
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-            const active = document.activeElement;
-            if (!active) return;
-
-            const onPlay = active.matches('[data-testid^="detail-play-"]');
-            const onCast = active.matches('[data-testid^="cast-actor-"]');
-            const onFilm = active.matches('[data-testid^="cast-film-"]');
-            const onRecs = active.matches('[data-testid^="recommendation-"]') ||
-                           !!active.closest('[data-testid="recommendations-row"]');
-
-            if (e.key === 'ArrowDown') {
-                if (onPlay) {
-                    e.preventDefault(); e.stopPropagation();
-                    requestSnap(1);
-                    return;
-                }
-                if (onCast || onFilm) {
-                    e.preventDefault(); e.stopPropagation();
-                    requestSnap(2);
-                    return;
-                }
-            }
-
-            if (e.key === 'ArrowUp') {
-                if (onRecs) {
-                    e.preventDefault(); e.stopPropagation();
-                    /* Clear focused-rec so the rec backdrop fades
-                       away and the original hero re-appears before
-                       Cast re-focuses below. */
-                    setFocusedRec(null);
-                    requestSnap(1);
-                    return;
-                }
-                if (onCast || onFilm) {
-                    e.preventDefault(); e.stopPropagation();
-                    /* CRITICAL — clear focusedActor BEFORE
-                       requestSnap so the Play button re-renders
-                       (it's conditionally hidden while an actor is
-                       focused).  Without this, requestSnap fails
-                       to find `[data-testid^="detail-play-"]` and
-                       the user gets stuck. */
-                    setFocusedActor(null);
-                    requestSnap(0);
-                }
-            }
-        };
-        window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
-    }, [requestSnap]);
-
-    /* Track which "page" of the Detail layout is currently active.
-     * Now follows focus state because the page itself never
-     * scrolls — `snapIdx` is the single source of truth set by
-     * `requestSnap` above.  This effect only resets it back to 0
-     * if focus jumps somewhere unexpected (e.g. back to the BACK
-     * pill via clicking). */
-    const [snapIdx, setSnapIdx] = useState(0);
-    useEffect(() => {
-        const onFocus = () => {
-            const a = document.activeElement;
-            if (!a) return;
-            if (a.matches('[data-testid^="recommendation-"]') ||
-                a.closest('[data-testid="recommendations-row"]')) {
-                setSnapIdx((s) => (s === 2 ? s : 2));
-            } else if (a.matches('[data-testid^="cast-actor-"]')) {
-                setSnapIdx((s) => (s === 1 ? s : 1));
-            } else if (a.matches('[data-testid^="detail-play-"]')) {
-                setSnapIdx((s) => (s === 0 ? s : 0));
-            }
-        };
-        document.addEventListener('focusin', onFocus);
-        return () => document.removeEventListener('focusin', onFocus);
     }, []);
 
     // ---------- AUTOPLAY 1080p — derived state ----------
@@ -967,198 +752,41 @@ export default function Detail() {
         >
             <FullscreenButton />
 
-            {/* Right-rail page indicator dots — 3 dots showing
-                which section of the Detail page is in view.  Pure
-                visual cue, doesn't take focus, doesn't move. */}
-            <div
-                data-testid="detail-snap-dots"
-                style={{
-                    position: 'absolute',
-                    right: 28, top: '50%',
-                    transform: 'translateY(-50%)',
-                    zIndex: 25,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    pointerEvents: 'none',
-                }}
-            >
-                {['Hero', 'Cast', 'Recommendations'].map((label, i) => (
-                    <div
-                        key={label}
-                        title={label}
-                        style={{
-                            width: i === snapIdx ? 10 : 6,
-                            height: i === snapIdx ? 10 : 6,
-                            borderRadius: '50%',
-                            background: i === snapIdx
-                                ? 'var(--vesper-blue-bright)'
-                                : 'rgba(255,255,255,0.35)',
-                            boxShadow: i === snapIdx
-                                ? '0 0 12px rgba(93,200,255,0.7)'
-                                : 'none',
-                            transition: 'width 200ms ease, height 200ms ease, background 200ms ease',
-                        }}
-                    />
-                ))}
-            </div>
-
-            {/* Backdrop — the title's own backdrop normally fills
-                the hero.  When an actor card is focused on the Cast
-                row, we BLACK OUT the backdrop entirely so the
-                actor portrait floats on a pure black canvas.  The
-                fade-out on the portrait's edges then bleeds into
-                that black, putting all the visual emphasis on the
-                actor exactly like the user requested. */}
+            {/* Backdrop — the title's own backdrop fills the hero.
+                Simple darkened image with a vertical gradient so
+                the title + synopsis read cleanly on top. */}
             <div
                 className="absolute inset-0"
                 style={{
-                    backgroundImage: focusedActor
-                        ? 'none'
-                        : `url(${meta.background || meta.poster || ''})`,
-                    /* PURE black (not the bluish #06080F page-bg)
-                       when an actor is focused, so the portrait's
-                       fade-edges blend into a true #000.  Old
-                       value left a faint blue tint visible behind
-                       the dissolved edges. */
-                    backgroundColor: focusedActor ? '#000000' : 'transparent',
+                    backgroundImage: `url(${meta.background || meta.poster || ''})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    filter: focusedActor ? 'none' : 'brightness(0.6) saturate(1.1)',
-                    transition: 'background-color 240ms ease',
+                    filter: 'brightness(0.6) saturate(1.1)',
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
-                    background: focusedActor
-                        ? 'transparent'
-                        : `linear-gradient(180deg,
-                              rgba(6,8,15,0.55) 0%,
-                              rgba(6,8,15,0.4) 30%,
-                              rgba(6,8,15,0.85) 70%,
-                              var(--vesper-bg-0) 100%)`,
+                    background: `linear-gradient(180deg,
+                          rgba(6,8,15,0.55) 0%,
+                          rgba(6,8,15,0.4) 30%,
+                          rgba(6,8,15,0.85) 70%,
+                          var(--vesper-bg-0) 100%)`,
                 }}
             />
             <div
                 className="absolute inset-0"
                 style={{
-                    background: focusedActor
-                        ? 'transparent'
-                        : `linear-gradient(90deg,
-                              rgba(6,8,15,0.92) 0%,
-                              rgba(6,8,15,0.65) 35%,
-                              rgba(6,8,15,0.1) 70%,
-                              rgba(6,8,15,0) 100%)`,
+                    background: `linear-gradient(90deg,
+                          rgba(6,8,15,0.92) 0%,
+                          rgba(6,8,15,0.65) 35%,
+                          rgba(6,8,15,0.1) 70%,
+                          rgba(6,8,15,0) 100%)`,
                 }}
             />
-
-            {/* FOCUSED-ACTOR PORTRAIT — bigger than the original
-                small frame but smaller than the previous version
-                so the actor's FACE is visible rather than a tight
-                zoom-in.  Soft radial mask + heavy left fade so the
-                bio text reads cleanly and there's no visible square
-                cut-off line on the right. */}
-            {focusedActor?.profile && (
-                <div
-                    data-testid="actor-hero-portrait"
-                    style={{
-                        position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        width: '45%',
-                        height: '70%',
-                        zIndex: 5,
-                        pointerEvents: 'none',
-                        transition: 'opacity 220ms ease',
-                        WebkitMaskImage:
-                            'radial-gradient(ellipse 95% 90% at 80% 40%, ' +
-                            '#000 8%, ' +
-                            'rgba(0,0,0,0.95) 25%, ' +
-                            'rgba(0,0,0,0.7) 45%, ' +
-                            'rgba(0,0,0,0.35) 62%, ' +
-                            'rgba(0,0,0,0.12) 78%, ' +
-                            'transparent 100%)',
-                        maskImage:
-                            'radial-gradient(ellipse 95% 90% at 80% 40%, ' +
-                            '#000 8%, ' +
-                            'rgba(0,0,0,0.95) 25%, ' +
-                            'rgba(0,0,0,0.7) 45%, ' +
-                            'rgba(0,0,0,0.35) 62%, ' +
-                            'rgba(0,0,0,0.12) 78%, ' +
-                            'transparent 100%)',
-                    }}
-                >
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            backgroundImage: `url(${focusedActor.profile})`,
-                            // `contain` keeps the WHOLE face in view
-                            // (head + shoulders) rather than zooming
-                            // into the cheeks/eyes like `cover` did.
-                            backgroundSize: 'contain',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right top',
-                            filter: 'grayscale(1) contrast(1.05) brightness(0.85)',
-                        }}
-                    />
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            background:
-                                'linear-gradient(90deg, ' +
-                                'rgba(0,0,0,1) 0%, ' +
-                                'rgba(0,0,0,1) 22%, ' +
-                                'rgba(0,0,0,0.7) 40%, ' +
-                                'rgba(0,0,0,0.25) 58%, ' +
-                                'rgba(0,0,0,0) 80%)',
-                        }}
-                    />
-                </div>
-            )}
-
-            {/* FOCUSED-RECOMMENDATION BACKDROP — when the user
-                focuses a "More like this" tile, the page backdrop
-                cross-fades to that title's backdrop so they get a
-                preview of where they're about to navigate.  Fades
-                back to the original title's backdrop on blur. */}
-            {focusedRec?.backdrop && (
-                <div
-                    data-testid="rec-hero-backdrop"
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        zIndex: 2,
-                        backgroundImage: `url(${focusedRec.backdrop})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center center',
-                        opacity: 1,
-                        transition: 'opacity 420ms ease',
-                        pointerEvents: 'none',
-                    }}
-                >
-                    {/* Inherit the same vignette + bottom-gradient
-                        treatment as the original backdrop so the
-                        page reads consistently. */}
-                    <div
-                        style={{
-                            position: 'absolute', inset: 0,
-                            background:
-                                'linear-gradient(180deg, ' +
-                                'rgba(6,8,15,0.55) 0%, ' +
-                                'rgba(6,8,15,0.7) 40%, ' +
-                                'rgba(6,8,15,0.92) 85%, ' +
-                                'rgba(6,8,15,1) 100%)',
-                        }}
-                    />
-                </div>
-            )}
 
             <main
-                ref={mainScrollRef}
-                className="relative z-10 w-full h-full overflow-hidden"
+                className="relative z-10 w-full h-full overflow-y-auto"
                 data-no-row-snap="true"
                 style={{ padding: '40px 80px 60px 80px' }}
             >
@@ -1186,21 +814,6 @@ export default function Detail() {
 
                 <div
                     className="max-w-[68vw] vesper-fade-up"
-                    style={{
-                        /* Cap the hero column to the space ABOVE the
-                         * bottom lane.  Lane = poster row (162px) +
-                         * name/character (~32px) + heading h3 (~30px) +
-                         * mt-10 above heading (40px) + mb-5 below
-                         * heading (20px) + paddingBottom 16 + lane
-                         * paddingBottom 32 + safety = ~360px.
-                         * Anything longer than what fits in this
-                         * height gets clamped or ellipsised inside its
-                         * own element; the column itself is `overflow:
-                         * hidden` so nothing can EVER push into or
-                         * past the lane regardless of viewport. */
-                        maxHeight: 'calc(100vh - 360px)',
-                        overflow: 'hidden',
-                    }}
                 >
                     {meta.imdb_id && (
                         <div className="vesper-eyebrow mb-3">
@@ -1211,51 +824,14 @@ export default function Detail() {
                         className="vesper-display"
                         data-testid="detail-title"
                         style={{
-                            // Smaller cap (was 92 → 72) so long titles
-                            // like "The Punisher: One Last Kill" fit
-                            // on a single line and don't push the
-                            // Cast row off-screen on the box's
-                            // overscan-tight viewport.
                             fontSize: 'clamp(44px, 4.6vw, 72px)',
                             letterSpacing: '-0.035em',
                             lineHeight: 1.05,
-                            transition: 'opacity 220ms ease',
                         }}
                     >
-                        {focusedActor?.name || meta.name}
+                        {meta.name}
                     </h1>
 
-                    {focusedActor ? (
-                        <>
-                            <div
-                                className="vesper-mono mt-2"
-                                style={{
-                                    fontSize: 14, letterSpacing: '0.18em',
-                                    color: 'var(--vesper-blue)',
-                                    textTransform: 'uppercase',
-                                    fontWeight: 700,
-                                }}
-                            >
-                                {focusedActor.character
-                                    ? `As ${focusedActor.character}`
-                                    : 'Cast'}
-                            </div>
-                            {(focusedAge || focusedBirthplace) && (
-                                <div
-                                    className="flex items-center gap-3 mt-3 vesper-meta flex-wrap"
-                                    style={{ fontSize: 16, color: 'var(--vesper-text-2)' }}
-                                >
-                                    {focusedAge && (
-                                        <span>{focusedAge} years old</span>
-                                    )}
-                                    {focusedAge && focusedBirthplace && <Bullet />}
-                                    {focusedBirthplace && (
-                                        <span>{focusedBirthplace}</span>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
                     <div
                         className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
                         style={{ fontSize: 18 }}
@@ -1274,50 +850,14 @@ export default function Detail() {
                             <span>{meta.genres.slice(0, 3).join(' · ')}</span>
                         )}
                     </div>
-                    )}
 
-                    {/* Synopsis OR actor bio (when an actor card is focused
-                        in the Cast row).  We swap them in-place so the
-                        hero panel never re-layouts — only the text content
-                        changes, keeping the Play button position stable. */}
-                    {focusedActor ? (
-                        <p
-                            data-testid="actor-bio"
-                            className="mt-4 max-w-[48ch]"
-                            style={{
-                                fontSize: 15,
-                                lineHeight: 1.5,
-                                color: 'var(--vesper-text-2)',
-                                /* Cap to ~4 lines so the cast row
-                                 * underneath always stays fully
-                                 * visible on a 1080p box.  Tighter
-                                 * font + smaller max-width keeps
-                                 * the bio readable without pushing
-                                 * the row off-screen. */
-                                display: '-webkit-box',
-                                WebkitLineClamp: 4,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                            }}
-                        >
-                            {focusedBio || 'Loading biography…'}
-                        </p>
-                    ) : meta.description ? (
+                    {meta.description ? (
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
                                 fontSize: 17,
                                 lineHeight: 1.55,
                                 color: 'var(--vesper-text-2)',
-                                /* Clamp to 4 lines so the synopsis
-                                 * never pushes the hero CTA + bottom
-                                 * lane off-screen.  The full
-                                 * description is still available via
-                                 * the trailers / overview sections. */
-                                display: '-webkit-box',
-                                WebkitLineClamp: 4,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
                             }}
                         >
                             {meta.description}
@@ -1326,19 +866,8 @@ export default function Detail() {
 
                     {/* AUTOPLAY MODE — when on, show a big Play
                         button that fires the same ?autoplay=1 flow
-                        (auto-pick first 1080p direct stream).  The
-                        streams list stays hidden until the user
-                        either turns Autoplay off (from the sidebar)
-                        or no 1080p stream is available, in which
-                        case the streams list reappears as a manual
-                        fallback.
-                        IMPORTANT: when a Cast actor is focused we
-                        hide the Play CTA + autoplay caption so they
-                        never collide with the Cast row heading
-                        below.  The user is exploring the cast at
-                        this point — not the movie itself — so the
-                        Play button has no business being there. */}
-                    {type === 'movie' && autoplayEnabled && !focusedActor && (
+                        (auto-pick first 1080p direct stream). */}
+                    {type === 'movie' && autoplayEnabled && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-play-autoplay"
@@ -1347,18 +876,6 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
-                                onKeyDown={(e) => {
-                                    /* DOWN from Play → swap the
-                                     * bottom lane to show the Cast
-                                     * row.  The lane animates in
-                                     * and focus is handed to the
-                                     * first actor card. */
-                                    if (e.key === 'ArrowDown') {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        requestSnap(1);
-                                    }
-                                }}
                                 disabled={
                                     streamLoading || autoplayCandidate === null
                                 }
@@ -1420,10 +937,8 @@ export default function Detail() {
                         </div>
                     )}
 
-                    {/* Stream picker (movies) / Episode browser (series).
-                        Hidden when a cast actor is focused — see same
-                        rationale as the Play CTA above. */}
-                    {focusedActor ? null : type === 'series' ? (
+                    {/* Stream picker (movies) / Episode browser (series). */}
+                    {type === 'series' ? (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -1889,70 +1404,8 @@ export default function Detail() {
                     </section>
                     )}
 
-                    {/* Cast row + "More like this" — rendered as a
-                        single fixed bottom lane (see right after
-                        `</main>` below) so the hero never moves
-                        no matter what's focused. */}
                 </div>
             </main>
-
-            {/* ── BOTTOM ROW LANE — always pinned at the bottom of
-                 the page.  Shows ONE row at a time:
-                   • bottomLane === 'cast' → Cast strip (default)
-                   • bottomLane === 'recs' → "More like this" strip
-                 Pressing DOWN on a cast actor swaps to recs; UP on
-                 a rec card swaps back to cast.  The vertical
-                 position of the row is fixed — no scrolling, no
-                 layout shift. */}
-            {tmdbInfo?.tmdb_id && (
-                <div
-                    data-testid="detail-bottom-lane"
-                    style={{
-                        position: 'absolute',
-                        left: 0, right: 0, bottom: 0,
-                        zIndex: 15,
-                        padding: '0 80px 32px 80px',
-                    }}
-                >
-                    {/* Solid bottom-edge backdrop — fully opaque so
-                        nothing from the hero (Play button, focused
-                        actor portrait, focused-rec backdrop image)
-                        EVER bleeds through into the lane.  Slight
-                        feather at the very top so the transition
-                        from hero to lane isn't a hard line.  Lane's
-                        own content (CastRow / RecommendationsRow)
-                        sits above this on `position: relative`. */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: '-140px 0 0 0',
-                            background:
-                                'linear-gradient(180deg, ' +
-                                'rgba(6,8,15,0) 0%, ' +
-                                'rgba(6,8,15,0.85) 15%, ' +
-                                '#06080F 30%, ' +
-                                '#06080F 100%)',
-                            pointerEvents: 'none',
-                        }}
-                    />
-                    <div style={{ position: 'relative' }}>
-                        {bottomLane === 'cast' && (
-                            <CastRow
-                                tmdbId={tmdbInfo.tmdb_id}
-                                mediaType={tmdbInfo.media_type}
-                                onFocus={setFocusedActor}
-                            />
-                        )}
-                        {bottomLane === 'recs' && (
-                            <RecommendationsRow
-                                tmdbId={tmdbInfo.tmdb_id}
-                                mediaType={tmdbInfo.media_type}
-                                onFocus={setFocusedRec}
-                            />
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
