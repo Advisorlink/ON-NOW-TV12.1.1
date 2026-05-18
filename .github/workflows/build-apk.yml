@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.58 — Actor page: TV-streamlined + D-pad nav**
+            - 📐 Hero shrunk from ~670 px to **340 px** (fixed
+              height).  Portrait card 420→200 px wide.  Name
+              font 92→56 px max.  Bio clamped to 3 lines.  Save
+              toggle pinned to the bottom of the hero so the
+              whole strip never feels crowded.
+            - 🎞️ Filmography grid: poster minimum 150→132 px;
+              now renders ~13 columns at 1920×1080 (was ~8).
+              Year + ★ rating under each card.  No more
+              "Movie · " label — type info is implicit in the
+              section heading.
+            - 🎯 D-pad navigation fully wired:
+              BACK (initial focus) → DOWN → Save → DOWN → first
+              film card → LEFT/RIGHT/UP/DOWN around the grid.
+              Tiles have `scroll-margin: 24 px` so the bottom-
+              most row never gets clipped under the viewport.
+            - 💡 Long-press OK on any film opens "Add to Watch
+              Later / My List" as before.  Short tap → opens
+              that title's detail page.
+            - 🌫️ Hero background blur bumped 8→10 px and dimmed
+              further so the text + portrait read crisply.
+
             **v2.6.57 — Beautiful Actor page**
             - 🎭 NEW actor profile page (`/person/:tmdb_id`):
               tapping an actor card in **My Actors** (Library)

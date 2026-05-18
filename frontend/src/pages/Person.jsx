@@ -1,18 +1,21 @@
 /**
  * Actor profile page — `/person/:tmdbId`.
  *
- * Hero:
- *   • Left column — eyebrow + giant name + meta + bio.
- *   • Right column — full-color portrait card with subtle frame
- *     and depth shadow.  Vertical edge fade so the portrait
- *     dissolves into the dark hero.
+ * TV-optimised single-screen layout (1920×1080, 16:9):
+ *   • Compact hero (≈360 px tall) — eyebrow + name + meta + 3-line
+ *     bio + Save toggle on the LEFT, framed portrait (200 px) on
+ *     the RIGHT.  Nothing scrolls inside the hero itself.
+ *   • Filmography area scrolls underneath — two stacked sections
+ *     ("Movies", "TV Shows") of compact poster tiles in a
+ *     responsive grid (~10 columns at 1080p).
  *
- * Filmography:
- *   • Two grouped sections: Movies, TV.  Heading + count for each.
- *   • 6-column responsive grid (auto-fill).  Each poster tile uses
- *     the home-screen card style (2/3 aspect, scale on focus, B&W
- *     fallback letter).  Long-press = "Add to Watch Later / My List".
- *   • OK navigates into that title's Detail page.
+ * D-pad navigation:
+ *   • BACK pill is the initial focus.
+ *   • DOWN from BACK / Save → first film card.
+ *   • RIGHT / LEFT inside a row.
+ *   • UP / DOWN between rows.  Spatial focus auto-scrolls the row
+ *     into view via `scroll-margin`.
+ *   • Long-press OK on any film → Add to Watch Later / My List.
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -21,6 +24,7 @@ import { ArrowLeft, Loader2, Heart, HeartOff } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import useBackHandler from '@/hooks/useBackHandler';
 import useLongPress from '@/hooks/useLongPress';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
     isActorInLibrary,
     addActorToLibrary,
@@ -36,6 +40,7 @@ export default function Person() {
     const [busy, setBusy] = useState(true);
     const [err, setErr] = useState(null);
 
+    useSpatialFocus();
     useBackHandler(() => navigate(-1));
 
     useEffect(() => {
@@ -97,9 +102,6 @@ export default function Person() {
                         style={{ color: 'var(--vesper-text-2)' }}
                     >
                         <p>Couldn't load actor profile.</p>
-                        <p className="vesper-mono" style={{ fontSize: 12 }}>
-                            {err}
-                        </p>
                     </div>
                 )}
                 {!busy && !err && data && (
@@ -126,7 +128,6 @@ function PersonContent({ data, tmdbId, navigate }) {
         filmography = [],
     } = data;
 
-    /* Group filmography by media type, sorted by popularity. */
     const { movies, shows } = useMemo(() => {
         const m = [];
         const s = [];
@@ -151,17 +152,18 @@ function PersonContent({ data, tmdbId, navigate }) {
 
     return (
         <>
-            {/* HERO — split layout: text left, portrait right. */}
+            {/* HERO — compact 340 px tall, hard-capped so the page
+                fits 16:9 at 1080p without inner scroll. */}
             <section
                 data-testid="person-hero"
                 style={{
                     position: 'relative',
                     width: '100%',
-                    minHeight: 'clamp(440px, 62vh, 760px)',
+                    height: 340,
                     overflow: 'hidden',
                 }}
             >
-                {/* Background — desaturated portrait, very dim. */}
+                {/* Background — heavily blurred & dimmed portrait. */}
                 {profile && (
                     <div
                         aria-hidden="true"
@@ -170,9 +172,10 @@ function PersonContent({ data, tmdbId, navigate }) {
                             inset: 0,
                             backgroundImage: `url(${profile})`,
                             backgroundSize: 'cover',
-                            backgroundPosition: 'center 20%',
-                            filter: 'grayscale(1) contrast(1.05) brightness(0.35) blur(8px)',
-                            transform: 'scale(1.15)',
+                            backgroundPosition: 'center 15%',
+                            filter:
+                                'grayscale(1) contrast(1.05) brightness(0.32) blur(10px)',
+                            transform: 'scale(1.18)',
                         }}
                     />
                 )}
@@ -182,8 +185,7 @@ function PersonContent({ data, tmdbId, navigate }) {
                         position: 'absolute', inset: 0,
                         background: `linear-gradient(180deg,
                             rgba(6,8,15,0.55) 0%,
-                            rgba(6,8,15,0.65) 50%,
-                            rgba(6,8,15,0.9) 85%,
+                            rgba(6,8,15,0.7) 70%,
                             var(--vesper-bg-0) 100%)`,
                     }}
                 />
@@ -192,16 +194,23 @@ function PersonContent({ data, tmdbId, navigate }) {
                     style={{
                         position: 'relative',
                         zIndex: 2,
-                        padding: '56px 80px 72px 80px',
+                        padding: '24px 56px 28px 56px',
                         height: '100%',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0,1.4fr) minmax(280px,420px)',
-                        gap: 64,
-                        alignItems: 'end',
+                        gridTemplateColumns: 'minmax(0,1fr) 200px',
+                        gap: 40,
+                        alignItems: 'stretch',
                     }}
                 >
-                    {/* LEFT — back + title + meta + bio */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    {/* LEFT */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 14,
+                            minWidth: 0,
+                        }}
+                    >
                         <button
                             data-testid="person-back"
                             data-focusable="true"
@@ -209,42 +218,50 @@ function PersonContent({ data, tmdbId, navigate }) {
                             data-initial-focus="true"
                             tabIndex={0}
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-2 h-11 rounded-full vesper-mono"
+                            className="flex items-center gap-2 rounded-full vesper-mono"
                             style={{
                                 alignSelf: 'flex-start',
-                                paddingLeft: 18,
-                                paddingRight: 22,
-                                background: 'rgba(17,24,39,0.55)',
+                                height: 36,
+                                paddingLeft: 14,
+                                paddingRight: 18,
+                                background: 'rgba(17,24,39,0.6)',
                                 color: 'var(--vesper-text-2)',
                                 border: '1px solid rgba(255,255,255,0.12)',
-                                fontSize: 12,
-                                letterSpacing: '0.18em',
+                                fontSize: 11,
+                                letterSpacing: '0.2em',
                                 textTransform: 'uppercase',
                             }}
                         >
-                            <ArrowLeft size={16} /> Back
+                            <ArrowLeft size={14} /> Back
                         </button>
 
-                        <div>
-                            <div className="vesper-eyebrow mb-4">
+                        <div style={{ minWidth: 0 }}>
+                            <div
+                                className="vesper-eyebrow"
+                                style={{ marginBottom: 6 }}
+                            >
                                 {known_for_department || 'Actor'} · From TMDB
                             </div>
                             <h1
                                 className="vesper-display"
                                 data-testid="person-name"
                                 style={{
-                                    fontSize: 'clamp(48px, 5.8vw, 92px)',
+                                    fontSize: 'clamp(40px, 3.4vw, 56px)',
                                     letterSpacing: '-0.035em',
-                                    lineHeight: 0.95,
+                                    lineHeight: 1.0,
                                     margin: 0,
+                                    overflow: 'hidden',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 1,
+                                    WebkitBoxOrient: 'vertical',
                                 }}
                             >
                                 {name}
                             </h1>
 
                             <div
-                                className="flex items-center gap-3 mt-5 vesper-meta flex-wrap"
-                                style={{ fontSize: 17 }}
+                                className="flex items-center gap-3 vesper-meta flex-wrap"
+                                style={{ fontSize: 14, marginTop: 10 }}
                             >
                                 {age != null && (
                                     <span style={{ color: 'var(--vesper-blue)' }}>
@@ -262,67 +279,68 @@ function PersonContent({ data, tmdbId, navigate }) {
                             {biography && (
                                 <p
                                     data-testid="person-bio"
-                                    className="mt-6"
                                     style={{
-                                        fontSize: 16,
-                                        lineHeight: 1.6,
+                                        fontSize: 13,
+                                        lineHeight: 1.55,
                                         color: 'var(--vesper-text-2)',
-                                        maxWidth: '60ch',
+                                        maxWidth: '68ch',
                                         display: '-webkit-box',
-                                        WebkitLineClamp: 5,
+                                        WebkitLineClamp: 3,
                                         WebkitBoxOrient: 'vertical',
                                         overflow: 'hidden',
+                                        marginTop: 14,
                                     }}
                                 >
                                     {biography}
                                 </p>
                             )}
+                        </div>
 
-                            {/* Save-actor toggle pill */}
-                            <div className="mt-8">
-                                <button
-                                    data-testid="person-save-toggle"
-                                    data-focusable="true"
-                                    data-focus-style="pill"
-                                    tabIndex={0}
-                                    onClick={toggleSaved}
-                                    className="flex items-center gap-2 h-12 rounded-full font-sans font-semibold"
-                                    style={{
-                                        paddingLeft: 22,
-                                        paddingRight: 24,
-                                        background: saved
-                                            ? 'rgba(255,93,109,0.14)'
-                                            : 'rgba(93,200,255,0.16)',
-                                        color: saved
-                                            ? '#ff5d6d'
-                                            : 'var(--vesper-blue-bright)',
-                                        border: saved
-                                            ? '1px solid rgba(255,93,109,0.35)'
-                                            : '1px solid rgba(93,200,255,0.35)',
-                                        fontSize: 14,
-                                        letterSpacing: '0.02em',
-                                    }}
-                                >
-                                    {saved ? <HeartOff size={16} /> : <Heart size={16} />}
-                                    {saved ? 'Remove from My Actors' : 'Add to My Actors'}
-                                </button>
-                            </div>
+                        <div style={{ marginTop: 'auto' }}>
+                            <button
+                                data-testid="person-save-toggle"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={toggleSaved}
+                                className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                                style={{
+                                    height: 38,
+                                    paddingLeft: 16,
+                                    paddingRight: 18,
+                                    background: saved
+                                        ? 'rgba(255,93,109,0.14)'
+                                        : 'rgba(93,200,255,0.16)',
+                                    color: saved
+                                        ? '#ff5d6d'
+                                        : 'var(--vesper-blue-bright)',
+                                    border: saved
+                                        ? '1px solid rgba(255,93,109,0.35)'
+                                        : '1px solid rgba(93,200,255,0.35)',
+                                    fontSize: 12,
+                                    letterSpacing: '0.02em',
+                                }}
+                            >
+                                {saved ? <HeartOff size={14} /> : <Heart size={14} />}
+                                {saved ? 'Remove from My Actors' : 'Add to My Actors'}
+                            </button>
                         </div>
                     </div>
 
-                    {/* RIGHT — portrait card */}
+                    {/* RIGHT — portrait */}
                     {profile && (
                         <div
                             data-testid="person-portrait-card"
                             style={{
-                                position: 'relative',
+                                width: 200,
                                 aspectRatio: '2 / 3',
-                                borderRadius: 18,
+                                borderRadius: 14,
                                 overflow: 'hidden',
                                 background: 'rgba(255,255,255,0.04)',
                                 border: '1px solid rgba(255,255,255,0.08)',
                                 boxShadow:
-                                    '0 30px 60px rgba(0,0,0,0.55), 0 8px 18px rgba(0,0,0,0.35)',
+                                    '0 24px 48px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)',
+                                alignSelf: 'center',
                             }}
                         >
                             <img
@@ -335,24 +353,15 @@ function PersonContent({ data, tmdbId, navigate }) {
                                     display: 'block',
                                 }}
                             />
-                            <div
-                                aria-hidden="true"
-                                style={{
-                                    position: 'absolute', inset: 0,
-                                    background:
-                                        'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(6,8,15,0.4) 100%)',
-                                    pointerEvents: 'none',
-                                }}
-                            />
                         </div>
                     )}
                 </div>
             </section>
 
-            {/* FILMOGRAPHY — split by Movies / TV. */}
+            {/* FILMOGRAPHY */}
             <section
                 data-testid="person-filmography"
-                style={{ padding: '24px 80px 96px 80px' }}
+                style={{ padding: '16px 56px 80px 56px' }}
             >
                 {movies.length > 0 && (
                     <FilmGroup
@@ -380,17 +389,21 @@ function FilmGroup({ title, items, navigate, testId, topMargin }) {
     return (
         <div
             data-testid={testId}
-            style={{ marginTop: topMargin ? 64 : 0 }}
+            style={{ marginTop: topMargin ? 36 : 0 }}
         >
             <h2
-                className="vesper-display mb-6"
-                style={{ fontSize: 24, letterSpacing: '-0.02em' }}
+                className="vesper-display"
+                style={{
+                    fontSize: 18,
+                    letterSpacing: '-0.02em',
+                    marginBottom: 14,
+                }}
             >
                 {title}
                 <span
                     className="ml-3 vesper-mono"
                     style={{
-                        fontSize: 11,
+                        fontSize: 10,
                         color: 'var(--vesper-text-3)',
                         letterSpacing: '0.22em',
                         textTransform: 'uppercase',
@@ -403,8 +416,9 @@ function FilmGroup({ title, items, navigate, testId, topMargin }) {
             <div
                 className="grid"
                 style={{
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                    gap: 18,
+                    gridTemplateColumns:
+                        'repeat(auto-fill, minmax(132px, 1fr))',
+                    gap: 14,
                 }}
             >
                 {items.map((film) => (
@@ -468,10 +482,15 @@ function FilmCard({ film, navigate }) {
             className="group relative block overflow-hidden text-left"
             style={{
                 aspectRatio: '2 / 3',
-                borderRadius: 12,
+                borderRadius: 10,
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
                 padding: 0,
+                /* Keep tile inside the viewport when D-pad focus
+                 * jumps into it — prevents the bottom-most rows
+                 * being hidden under the page edge. */
+                scrollMarginTop: 24,
+                scrollMarginBottom: 24,
             }}
         >
             {film.poster ? (
@@ -493,7 +512,7 @@ function FilmCard({ film, navigate }) {
                     <span
                         className="vesper-display"
                         style={{
-                            fontSize: 56,
+                            fontSize: 48,
                             color: 'rgba(var(--vesper-blue-rgb),0.18)',
                         }}
                     >
@@ -505,60 +524,47 @@ function FilmCard({ film, navigate }) {
             <div
                 className="absolute inset-x-0 bottom-0 pointer-events-none"
                 style={{
-                    height: '45%',
+                    height: '50%',
                     background:
                         'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.92) 70%, var(--vesper-bg-0) 100%)',
                 }}
             />
 
-            <div className="absolute inset-x-0 bottom-0 p-3">
+            <div
+                className="absolute inset-x-0 bottom-0"
+                style={{ padding: '8px 10px 10px' }}
+            >
                 <div
                     className="font-sans"
                     style={{
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 600,
                         letterSpacing: '-0.015em',
                         lineHeight: 1.2,
                         color: 'var(--vesper-text)',
                         overflow: 'hidden',
                         display: '-webkit-box',
-                        WebkitLineClamp: 2,
+                        WebkitLineClamp: 1,
                         WebkitBoxOrient: 'vertical',
                     }}
                 >
                     {film.title}
                 </div>
                 <div
-                    className="vesper-mono mt-1"
+                    className="vesper-mono"
                     style={{
                         fontSize: 9,
                         letterSpacing: '0.16em',
                         textTransform: 'uppercase',
                         color: 'var(--vesper-text-3)',
+                        marginTop: 2,
                     }}
                 >
                     {[
-                        film.media_type === 'tv' ? 'TV' : 'Movie',
                         film.year,
                         film.rating != null ? `★ ${film.rating}` : null,
                     ].filter(Boolean).join(' · ')}
                 </div>
-                {film.character && (
-                    <div
-                        className="mt-1.5"
-                        style={{
-                            fontSize: 11,
-                            color: 'var(--vesper-text-2)',
-                            lineHeight: 1.25,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 1,
-                            WebkitBoxOrient: 'vertical',
-                        }}
-                    >
-                        as {film.character}
-                    </div>
-                )}
             </div>
         </button>
     );
