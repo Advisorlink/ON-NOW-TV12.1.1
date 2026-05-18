@@ -865,71 +865,85 @@ class VlcPlayerActivity : AppCompatActivity() {
 
     /**
      * Render a floating reaction at the bottom-right of the screen.
-     * Shows the SENDER'S AVATAR EMOJI alongside the reaction emoji
-     * so every party member can see WHO sent the reaction (was
-     * critical user feedback — previously only the reaction emoji
-     * was rendered with no attribution).  Animates upward + fades.
      *
-     * Called both for locally-fired reactions AND for inbound
-     * `reaction` messages from other party members.
+     * v2.6.71 redesign per user request:
+     *   "I don't want it to have a border around it.  Just avatars
+     *    side by side in the bottom-right corner, however many
+     *    there is.  And every time they push it, the emoji comes
+     *    out of the avatar with no border."
+     *
+     * Layout: avatars permanently parked side-by-side in the
+     * bottom-right (one per active member).  Each member's avatar
+     * stays put as a chunky emoji glyph; firing a reaction spawns
+     * a transient emoji that flies UPWARD out of that avatar with
+     * no chrome around it, then fades.
+     *
+     * Implementation: we keep a persistent "avatar dock" view at
+     * the bottom-right, indexed by member id.  Reactions add the
+     * emoji as a sibling positioned above the corresponding avatar.
      */
-    private fun showFloatingEmoji(emoji: String, avatarEmoji: String = "") {
+    private fun showFloatingEmoji(emoji: String, avatarEmoji: String, memberId: String) {
         val overlay = reactionOverlay ?: return
         try {
-            val container = android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                setPadding(20, 12, 20, 12)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 38f
-                    setColor(0xAA060A18.toInt())
-                    setStroke(2, 0x555DC8FF.toInt())
-                }
-                elevation = 12f
-            }
-            // Avatar bubble on the left — small TextView with the
-            // sender's avatar emoji.  Skip if not provided.
-            if (avatarEmoji.isNotBlank()) {
-                val avatarView = android.widget.TextView(this).apply {
-                    text = avatarEmoji
-                    textSize = 28f
-                    setPadding(0, 0, 14, 0)
-                }
-                container.addView(avatarView)
-            }
-            // Reaction emoji on the right — chunkier
-            val reactionView = android.widget.TextView(this).apply {
+            // Find (or create) the avatar dock — a horizontal row
+            // pinned to the bottom-right.
+            val dock = ensureAvatarDock(overlay)
+            // Find (or create) the avatar tile for this member.
+            val avatarTile = ensureAvatarTile(dock, memberId, avatarEmoji)
+            // Render the emoji bubble emerging from above the avatar.
+            val emojiView = android.widget.TextView(this).apply {
                 text = emoji
-                textSize = 44f
-                setShadowLayer(18f, 0f, 4f, 0xAA000000.toInt())
+                textSize = 56f
+                // No border, no background — pure emoji per user spec.
+                setShadowLayer(20f, 0f, 4f, 0xAA000000.toInt())
             }
-            container.addView(reactionView)
-
+            // Position the emoji so it starts ON the avatar (same
+            // bottom-right corner) and animates UPWARD.  We measure
+            // the avatar's screen position so the emoji lines up
+            // perfectly regardless of how many avatars are docked.
+            val loc = IntArray(2)
+            avatarTile.getLocationOnScreen(loc)
+            val overlayLoc = IntArray(2)
+            overlay.getLocationOnScreen(overlayLoc)
+            val avatarX = loc[0] - overlayLoc[0]
+            val avatarY = loc[1] - overlayLoc[1]
             val lp = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
-                rightMargin = 60 + (Math.random() * 180).toInt()
-                bottomMargin = 120 + (Math.random() * 80).toInt()
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                leftMargin = avatarX - 6
+                topMargin = avatarY - 6
             }
-            overlay.addView(container, lp)
-            // Float up + fade out animation.
-            container.alpha = 0f
-            container.scaleX = 0.5f
-            container.scaleY = 0.5f
-            container.animate()
+            overlay.addView(emojiView, lp)
+            // Pulse the avatar too — quick scale-up so the user sees
+            // who reacted, even if they miss the emoji flying up.
+            avatarTile.animate()
+                .scaleX(1.25f).scaleY(1.25f)
+                .setDuration(140L)
+                .withEndAction {
+                    avatarTile.animate()
+                        .scaleX(1.0f).scaleY(1.0f)
+                        .setDuration(180L)
+                        .start()
+                }
+                .start()
+            // Emoji emerges + floats up + fades.
+            emojiView.alpha = 0f
+            emojiView.scaleX = 0.6f
+            emojiView.scaleY = 0.6f
+            emojiView.animate()
                 .alpha(1f)
                 .scaleX(1f).scaleY(1f)
-                .translationYBy(-40f)
-                .setDuration(180L)
+                .translationYBy(-30f)
+                .setDuration(220L)
                 .withEndAction {
-                    container.animate()
-                        .translationYBy(-340f)
+                    emojiView.animate()
+                        .translationYBy(-260f)
                         .alpha(0f)
-                        .setDuration(2_200L)
+                        .setDuration(1_900L)
                         .withEndAction {
-                            try { overlay.removeView(container) } catch (_: Exception) {}
+                            try { overlay.removeView(emojiView) } catch (_: Exception) {}
                         }
                         .start()
                 }
@@ -937,21 +951,65 @@ class VlcPlayerActivity : AppCompatActivity() {
         } catch (_: Exception) { /* best-effort animation */ }
     }
 
+    /** Lazy-create the bottom-right avatar dock (a horizontal LL). */
+    private fun ensureAvatarDock(overlay: FrameLayout): android.widget.LinearLayout {
+        val existing = overlay.findViewWithTag<android.widget.LinearLayout>("avatar-dock")
+        if (existing != null) return existing
+        val dock = android.widget.LinearLayout(this).apply {
+            tag = "avatar-dock"
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+            rightMargin = 36
+            bottomMargin = 36
+        }
+        overlay.addView(dock, lp)
+        return dock
+    }
+
+    /** Find or create the avatar tile for `memberId`. */
+    private fun ensureAvatarTile(
+        dock: android.widget.LinearLayout,
+        memberId: String,
+        avatarEmoji: String
+    ): android.widget.TextView {
+        val tagKey = "avatar:$memberId"
+        val existing = dock.findViewWithTag<android.widget.TextView>(tagKey)
+        if (existing != null) {
+            // Keep avatar refreshed in case profile changed mid-party
+            if (existing.text?.toString() != avatarEmoji) existing.text = avatarEmoji
+            return existing
+        }
+        val avatar = android.widget.TextView(this).apply {
+            tag = tagKey
+            text = avatarEmoji.ifBlank { "\uD83C\uDFAC" }
+            textSize = 36f
+            // No border, no background per user spec.
+            setShadowLayer(16f, 0f, 3f, 0xCC000000.toInt())
+            setPadding(8, 8, 8, 8)
+        }
+        val lp = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(6, 0, 6, 0) }
+        dock.addView(avatar, lp)
+        return avatar
+    }
+
     /**
-     * Fire a reaction: render locally with MY avatar + send via
-     * party WS including avatar emoji so other members can render
-     * the same bubble.  Rate-limit cooldown is 1 s per reaction.
+     * Fire a local reaction: render locally + broadcast.
      */
     private fun fireReaction(emoji: String) {
         val now = System.currentTimeMillis()
         if (now - lastReactionFireMs < reactionCooldownMs) return
         lastReactionFireMs = now
-        // Local rendering uses our own avatar emoji so the user gets
-        // immediate visual feedback.  The server will also echo our
-        // reaction back to us (no longer filtered) so everyone sees
-        // a consistent stream; we just dedupe in handlePartyMessage
-        // via the per-message id to avoid a double-render here.
-        showFloatingEmoji(emoji, partyAvatarEmoji)
+        // Local render uses MY avatar/id so my own avatar pops too.
+        showFloatingEmoji(emoji, partyAvatarEmoji, partyMemberId ?: "self")
         val ws = partyWs
         if (ws != null) {
             try {
@@ -1041,19 +1099,22 @@ class VlcPlayerActivity : AppCompatActivity() {
             return
         }
         if (ttype == "reaction") {
-            // Floating reaction from any party member.  Show the
-            // SENDER'S avatar emoji alongside the reaction so everyone
-            // can see WHO sent it.  We DON'T render the server's
-            // echo of our OWN reaction here — fireReaction() already
-            // rendered it locally (so the user gets instant haptic-
-            // like feedback without WS round-trip latency).
+            // Floating reaction from any party member.  Show their
+            // avatar bubble in the bottom-right and animate the
+            // emoji UP out of it.  No border, no chrome — per user
+            // spec.  Skip our OWN echoes (fireReaction already
+            // rendered them locally for instant feedback).
             val emoji = msg.optString("emoji", "")
             if (emoji.isBlank()) return
             val member = msg.optJSONObject("member")
             val senderId = member?.optString("id", "") ?: ""
             if (senderId.isNotBlank() && senderId == (partyMemberId ?: "")) return
             val senderAvatar = member?.optString("avatar_emoji", "") ?: ""
-            showFloatingEmoji(emoji, senderAvatar)
+            showFloatingEmoji(
+                emoji = emoji,
+                avatarEmoji = senderAvatar,
+                memberId = senderId.ifBlank { "remote" }
+            )
             return
         }
         if (ttype != "state") return

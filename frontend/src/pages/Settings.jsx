@@ -36,6 +36,35 @@ export default function Settings() {
     const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
     const [savedFlash, setSavedFlash] = React.useState(0);
 
+    /* v2.6.71: Update gate's "Back up first" button stashes
+       sessionStorage.vesper-settings-jump-to = 'backup' before
+       navigating here.  On mount we scroll the user straight to the
+       backup section + focus its first action so they can save a
+       backup before installing a new APK. */
+    React.useEffect(() => {
+        let target = '';
+        try { target = sessionStorage.getItem('vesper-settings-jump-to') || ''; }
+        catch { /* private mode */ }
+        if (target !== 'backup') return;
+        try { sessionStorage.removeItem('vesper-settings-jump-to'); }
+        catch { /* ignore */ }
+        // Defer to next frame so the layout has settled.
+        const t = setTimeout(() => {
+            const anchor = document.getElementById('backup-section');
+            if (anchor) {
+                anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Focus the first focusable inside the backup panel
+                // so OK on the remote / mouse activates the save flow
+                // immediately.
+                const focusable = document.querySelector(
+                    '#backup-section ~ * [data-focusable="true"]'
+                ) || document.querySelector('[data-testid="backup-save-btn"]');
+                if (focusable) focusable.focus({ preventScroll: true });
+            }
+        }, 250);
+        return () => clearTimeout(t);
+    }, []);
+
     // ROW-aware vertical navigation override for Settings.
     //
     // The user's spec is dead simple: Down/Up must jump to the
@@ -441,6 +470,7 @@ export default function Settings() {
                 eyebrow="Settings · Account"
                 title="Backup &amp; Restore"
                 icon={ShieldCheck}
+                anchorId="backup-section"
             />
             <BackupPanel />
 
@@ -1170,10 +1200,11 @@ function TestNewEpisodeButton() {
     );
 }
 
-function SectionHeader({ eyebrow, title, icon: Icon }) {
+function SectionHeader({ eyebrow, title, icon: Icon, anchorId }) {
     return (
         <>
             <div
+                id={anchorId}
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
                     fontSize: 10,
@@ -1182,6 +1213,7 @@ function SectionHeader({ eyebrow, title, icon: Icon }) {
                     color: 'var(--theme-accent, var(--vesper-blue))',
                     marginTop: 44,
                     marginBottom: 6,
+                    scrollMarginTop: 80,
                 }}
             >
                 {eyebrow}

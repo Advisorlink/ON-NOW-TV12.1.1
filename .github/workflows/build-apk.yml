@@ -238,6 +238,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.71 — Host button error · No-border avatar reactions · Backup button on update**
+            - 📣 **Host party button errors are now visible.**  The
+              "host party isn't clickable" was actually a silent
+              fetch failure (8-second timeout + network errors not
+              shown).  Now: 8-second timeout, sonner error toast with
+              the failure reason so you know to retry.
+            - 🦊 **Reactions redesigned: NO BORDERS, avatar dock.**
+              Each party member's avatar emoji (🦁/🦊/🛸…) is parked
+              side-by-side in the bottom-right.  When they tap a
+              D-pad direction, the emoji emerges UPWARD from THEIR
+              avatar with no chrome — pure floating emoji.  Their
+              avatar also pulses (1.25x) so you instantly know who
+              reacted.  Avatars persist for the whole session,
+              never go away.
+            - 💾 **"Back up first" button on the update popup.**
+              User feedback: "We need to add a backup accounts
+              button on the update pop up — don't want people
+              losing all their stuff."  New cyan-outlined "BACK UP
+              FIRST" pill next to "Download" / "Skip"; clicking it
+              dismisses the gate and jumps you straight to
+              Settings → Backup & Restore with the panel
+              auto-focused.
+            - 🆙 APK bumped to **v2.6.71** (versionCode 141).
+
             **v2.6.70 — Rapid-fire single-press emojis · Cinematic Live Guide**
             - 👆 **EMOJI REACTIONS = SINGLE PRESS!**  Now that the
               host LOCK SCREEN + guest VIEW-ONLY mode means stray

@@ -56,6 +56,35 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 104 — Feb 18, 2026) — v2.6.71
+### Host button error toast · No-border avatar dock reactions · Backup button on update gate
+- **📣 Host Watch Party button: surfaced silent failures**
+  - **🐛 User reported**: "All of the sudden, the host watch party button isn't clickable. Can't click it on either the mobile phone or on my box."
+  - **🔬 RCA**: The previous `startHost()` had no timeout and silently swallowed network errors. On real-world flaky networks (or with prod Cloudflare returning 520) the fetch would hang or fail and the button would just appear "non-responsive". Confirmed `https://rebrand-app-5.emergent.host/api/watch-party/create` returns Cloudflare 520, while preview URL works fine — so the issue was network-dependent.
+  - **✅ Fix in `WatchTogether.jsx`**: Added `AbortSignal.timeout(8000)`, checked `!r.ok` explicitly, validated `j?.code`, and showed a sonner `toast.error` on failure with the actual reason. The user now sees "Couldn't start party — create failed (520). Try again in a moment." instead of nothing.
+
+- **🦊 Reactions redesigned: bottom-right avatar dock, NO borders**
+  - **🐛 User feedback**: "Have some weird movie cut-scene thing. The avatar should stay there for a couple of seconds and the emoji should form the avatar. I don't want it to have a border around it either. Just the avatars at the bottom-right hand corner, side by side, however many there is. Every time they push it, the emoji comes out of the avatar with no border."
+  - **✅ Implementation in `VlcPlayerActivity.kt`**:
+    - Persistent `ensureAvatarDock()` — a `LinearLayout` horizontal at bottom-right, lazily mounted on first reaction.
+    - `ensureAvatarTile(memberId, avatarEmoji)` creates a 36sp TextView per member with NO background and NO border. Avatars stay docked for the whole session.
+    - `fireReaction()` / `handlePartyMessage` now both call `showFloatingEmoji(emoji, avatar, memberId)`. The reaction emoji is positioned exactly above that member's avatar tile (using `getLocationOnScreen` math), then animates 30px up + scales 0.6→1, then floats 260px up + fades over 1.9s.
+    - Avatar tile itself pulses (scale 1.0 → 1.25 → 1.0) on each fire so attribution is instant even if the user blinks during the emoji's flight.
+    - No borders or chrome anywhere — pure emoji + pure avatar glyphs.
+
+- **💾 "Back up first" button on the Update gate**
+  - **🐛 User feedback**: "We need to add a backup accounts button on the update pop up — don't want people losing all their stuff."
+  - **✅ Implementation**:
+    - New cyan-outlined "BACK UP FIRST" pill in `UpdateGate.jsx` between "Download" and "Skip" (only visible when not actively installing).
+    - Clicking it: stashes `sessionStorage.vesper-settings-jump-to = 'backup'`, dismisses the gate via `setSnoozed(true)`, navigates to `/settings`.
+    - `Settings.jsx` reads the sessionStorage flag on mount, clears it, smoothly scrolls to `#backup-section` anchor, and auto-focuses the first focusable inside the backup panel so OK on the remote activates save immediately.
+    - `SectionHeader` now accepts `anchorId` prop + has `scrollMarginTop: 80` so the scrolled-to header isn't hidden behind any top bar.
+
+- **🆙 APK bumped to v2.6.71 (versionCode 141).** Release notes added.
+- **🧪 Regression**: 16/16 watch-party backend tests pass.
+
+
+
 ## Implemented (Iteration 103 — Feb 18, 2026) — v2.6.70
 ### Single-press emoji reactions + redesigned Live TV Guide
 - **👆 SINGLE-PRESS EMOJI REACTIONS** (`VlcPlayerActivity.kt`)

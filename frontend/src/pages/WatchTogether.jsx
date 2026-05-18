@@ -194,13 +194,35 @@ export default function WatchTogether() {
         if (creatingRef.current) return;
         creatingRef.current = true;
         try {
-            const r = await fetch(`${API}/watch-party/create`, { method: 'POST' });
+            const r = await fetch(`${API}/watch-party/create`, {
+                method: 'POST',
+                // Short timeout so a hung backend doesn't leave the
+                // button silently spinning forever.  AbortController
+                // is the canonical fetch-timeout primitive.
+                signal: AbortSignal.timeout
+                    ? AbortSignal.timeout(8000)
+                    : undefined,
+            });
+            if (!r.ok) {
+                throw new Error(`create failed (${r.status})`);
+            }
             const j = await r.json();
+            if (!j?.code) throw new Error('create returned no code');
             setPartyCode(j.code);
             setView('room');
             connect(j.code, 'host');
         } catch (err) {
+            // v2.6.71: user reported the host button "wasn't clickable"
+            // — turned out to be a silent fetch failure (Cloudflare 520
+            // on prod, network hiccup on preview).  Now we surface the
+            // error so they at least know to retry.
             console.warn('watch-party create failed', err);
+            try {
+                const { toast } = await import('sonner');
+                toast.error(
+                    `Couldn't start party — ${err?.message || 'network error'}. Try again in a moment.`
+                );
+            } catch { /* sonner not loaded yet */ }
         } finally {
             creatingRef.current = false;
         }

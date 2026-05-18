@@ -21,7 +21,7 @@
  *     as a fallback.
  */
 import React, { useEffect, useState } from 'react';
-import { Download, RefreshCw, ExternalLink, Tv2, X } from 'lucide-react';
+import { Download, RefreshCw, ExternalLink, Tv2, X, CloudUpload } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 
@@ -438,6 +438,7 @@ export default function UpdateGate() {
                         display: 'flex',
                         gap: 10,
                         alignItems: 'center',
+                        flexWrap: 'wrap',
                     }}
                 >
                     <button
@@ -450,6 +451,7 @@ export default function UpdateGate() {
                         disabled={busy && stage !== 'error'}
                         style={{
                             flex: 1,
+                            minWidth: 160,
                             height: 46,
                             padding: '0 22px',
                             borderRadius: 999,
@@ -481,6 +483,53 @@ export default function UpdateGate() {
                             </>
                         )}
                     </button>
+                    {!busy && (
+                        <button
+                            data-testid="update-gate-backup-btn"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => {
+                                /* v2.6.71: user asked for a "Backup
+                                   Accounts" button so they don't lose
+                                   profiles / My List / sources when
+                                   reinstalling.  Persists a tiny
+                                   "open the backup section" hint then
+                                   hard-navigates to Settings → the
+                                   user lands directly on the backup
+                                   panel.  We also dismiss the gate
+                                   modal so they can interact with
+                                   Settings unblocked. */
+                                try {
+                                    sessionStorage.setItem(
+                                        'vesper-settings-jump-to',
+                                        'backup',
+                                    );
+                                } catch { /* ignore */ }
+                                setSnoozed(true);
+                                window.location.hash = '#/settings';
+                            }}
+                            style={{
+                                height: 46,
+                                padding: '0 18px',
+                                borderRadius: 999,
+                                background: 'rgba(93,200,255,0.10)',
+                                border: '1px solid rgba(93,200,255,0.45)',
+                                color: '#5DC8FF',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <CloudUpload size={14} />
+                            Back up first
+                        </button>
+                    )}
                     {!busy && (
                         <button
                             data-testid="update-gate-skip-btn"
