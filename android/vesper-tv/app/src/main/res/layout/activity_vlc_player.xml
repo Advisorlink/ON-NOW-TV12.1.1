@@ -713,10 +713,21 @@
         android:visibility="gone"
         android:clipChildren="false">
 
+        <!-- v2.6.70: FULL-SCREEN backdrop layer.  The currently-
+             focused channel's art fills the entire frame and is
+             then darkened by the scrim above.  Replaces the old
+             per-card backdrop so the whole guide feels cinematic
+             instead of "a panel on top of video". -->
+        <ImageView
+            android:id="@+id/detail_backdrop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+
         <!-- Soft scrim under the right edge of the panel so the
-             panel's drop shadow looks lifted off the video.  4 dp
-             gradient with no blur (HK1's Chrome 52 can't handle a
-             real backdrop-filter without dropping frames). -->
+             panel's drop shadow looks lifted off the video.  Also
+             darkens the backdrop so foreground text reads cleanly. -->
         <View
             android:id="@+id/guide_scrim"
             android:layout_width="match_parent"
@@ -858,44 +869,47 @@
         </LinearLayout>
 
         <!-- RIGHT: floating programme detail card.  Sits in the
-             bottom-right corner over the video.  Slides in 200ms
-             after the panel; refreshes its content as the user
-             D-pads through the channel list. -->
-        <FrameLayout
+             center-right area over the dimmed backdrop.  Slides in
+             200ms after the panel; refreshes its content as the user
+             D-pads through the channel list.
+             v2.6.70: enlarged + moved to centered-right per user's
+             design reference, no longer a tiny bottom-right widget.
+             Converted to a vertical LinearLayout so the header card
+             and the body (chips, time, description, up-next) stack
+             cleanly instead of overlapping. -->
+        <LinearLayout
             android:id="@+id/guide_detail"
-            android:layout_width="420dp"
+            android:layout_width="540dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_marginEnd="36dp"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="80dp"
+            android:layout_marginTop="36dp"
             android:layout_marginBottom="36dp"
+            android:orientation="vertical"
             android:alpha="0"
             android:background="@drawable/guide_detail_bg"
-            android:elevation="18dp">
+            android:elevation="18dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
-            <!-- Backdrop poster — programme art or channel logo,
-                 with a dark gradient over the bottom so the text
-                 is readable.  16:9 aspect. -->
+            <!-- Header strip — "LIVE NOW" pill + channel logo on a
+                 deeper-tinted band so it reads as a card.  No backdrop
+                 image inside the card now — it's a full-screen layer
+                 behind the entire guide instead. -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-                <ImageView
-                    android:id="@+id/detail_backdrop"
-                    android:layout_width="match_parent"
-                    android:layout_height="240dp"
-                    android:scaleType="centerCrop"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@null" />
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="240dp"
-                    android:background="@drawable/guide_detail_gradient" />
+                android:layout_height="wrap_content"
+                android:background="@drawable/guide_detail_gradient"
+                android:paddingTop="22dp"
+                android:paddingBottom="14dp"
+                android:paddingStart="22dp"
+                android:paddingEnd="22dp">
 
-                <!-- Top-left LIVE pill + channel name -->
+                <!-- Top-left LIVE pill (red, pulsing dot) -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="top|start"
-                    android:layout_margin="14dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:background="@drawable/guide_live_pill"
@@ -921,38 +935,34 @@
 
                 <!-- Top-right channel logo on glass plate -->
                 <FrameLayout
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
                     android:layout_gravity="top|end"
-                    android:layout_margin="14dp"
                     android:background="@drawable/guide_detail_logo_bg">
                     <ImageView
                         android:id="@+id/detail_channel_logo"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:layout_margin="6dp"
+                        android:layout_margin="8dp"
                         android:scaleType="fitCenter"
                         android:contentDescription="@null" />
                 </FrameLayout>
 
-                <!-- Bottom-left over-backdrop title block.  Pull the
-                     headline UP onto the backdrop so the description
-                     can breathe below.  Cinematic feel. -->
+                <!-- Center title block — channel eyebrow + programme
+                     title.  Pushed below the pill/logo row. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|start"
-                    android:orientation="vertical"
-                    android:paddingStart="20dp"
-                    android:paddingEnd="20dp"
-                    android:paddingBottom="14dp">
+                    android:layout_gravity="top"
+                    android:layout_marginTop="78dp"
+                    android:orientation="vertical">
 
                     <TextView
                         android:id="@+id/detail_channel_name"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="#5DC8FF"
-                        android:textSize="11sp"
+                        android:textSize="12sp"
                         android:letterSpacing="0.28"
                         android:fontFamily="monospace"
                         android:textStyle="bold" />
@@ -961,11 +971,11 @@
                         android:id="@+id/detail_programme_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="6dp"
                         android:textColor="#FFFFFF"
-                        android:textSize="26sp"
+                        android:textSize="34sp"
                         android:textStyle="bold"
-                        android:letterSpacing="-0.02"
+                        android:letterSpacing="-0.025"
                         android:maxLines="2"
                         android:ellipsize="end"
                         android:shadowColor="#CC000000"
@@ -1112,6 +1122,46 @@
                     android:maxLines="1"
                     android:ellipsize="end" />
             </LinearLayout>
-        </FrameLayout>
+        </LinearLayout>
+
+        <!-- v2.6.70: bottom-right BACK hint chip.  User explicitly
+             requested "PRESS BACK TO RETURN TO PLAYER" affordance at
+             the bottom of the guide so they always know how to get
+             back to the show.  Subtle glass chip — doesn't fight
+             the channel list for attention. -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="36dp"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/guide_back_chip_bg"
+            android:paddingStart="14dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:elevation="22dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◀ BACK"
+                android:textColor="#5DC8FF"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:letterSpacing="0.32"
+                android:layout_marginEnd="10dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PRESS BACK TO RETURN TO PLAYER"
+                android:textColor="#C7CFDB"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:letterSpacing="0.24" />
+        </LinearLayout>
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

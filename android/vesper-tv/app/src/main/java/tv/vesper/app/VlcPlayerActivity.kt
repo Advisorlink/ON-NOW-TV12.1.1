@@ -301,8 +301,14 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     // -----------------------------------------------------------------
-    //  Watch Together — emoji reactions (D-pad hold 2 seconds)
+    //  Watch Together — emoji reactions (single D-pad tap, v2.6.70)
     //  ArrowUp → ❤️  ArrowDown → 😱  ArrowLeft → 😂  ArrowRight → 😭
+    //
+    //  v2.6.70: switched from 2-second long-press to a single TAP
+    //  because the new host LOCK SCREEN feature means stray D-pad
+    //  presses can no longer scrub / restart the stream — so we can
+    //  safely make reactions a single-press action, enabling rapid-
+    //  fire emoji spam when something hilarious happens.
     // -----------------------------------------------------------------
     private val reactionEmojiByKey: Map<Int, String> = mapOf(
         KeyEvent.KEYCODE_DPAD_UP    to "\u2764\ufe0f",
@@ -310,9 +316,13 @@ class VlcPlayerActivity : AppCompatActivity() {
         KeyEvent.KEYCODE_DPAD_LEFT  to "\uD83D\uDE06",
         KeyEvent.KEYCODE_DPAD_RIGHT to "\uD83D\uDE2D",
     )
-    private val reactionHoldMs: Long = 2_000L
-    private val reactionCooldownMs: Long = 1_000L
-    private val reactionPressStart: MutableMap<Int, Long> = mutableMapOf()
+    /** Per-key rate-limit so a stuck repeat doesn't spam.  Each
+     *  individual press still counts (no debounce floor), but a
+     *  single PHYSICAL press only fires once via the down-flag below. */
+    private val reactionCooldownMs: Long = 250L
+    /** Track which keys are currently held down so OS auto-repeat
+     *  doesn't fire the same reaction multiple times per press. */
+    private val reactionKeyHeld: MutableSet<Int> = mutableSetOf()
     private var lastReactionFireMs: Long = 0L
     private var reactionOverlay: FrameLayout? = null
     private val reactionsHandler = Handler(Looper.getMainLooper())
@@ -1983,9 +1993,10 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        // Watch-Together reactions: clear the hold timer on release.
+        // Watch-Together reactions: clear the held-key flag on
+        // release so the NEXT physical press fires a new emoji.
         if (reactionEmojiByKey.containsKey(keyCode)) {
-            reactionPressStart.remove(keyCode)
+            reactionKeyHeld.remove(keyCode)
         }
         // Host unlock: clear the OK-hold timer on release so a
         // partial hold doesn't accidentally unlock on the next press.
@@ -1999,34 +2010,33 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Watch-Together: track D-pad hold timings to fire emoji
-        // reactions after a 2-second hold.  We track here (not in
-        // dispatchKeyEvent) so we don't double-handle when Android's
-        // focus engine consumes the same event.  Crucially we still
-        // call through to the normal player-control handling below.
+        // Watch-Together: emoji reactions — single TAP (v2.6.70).
+        // The host's LOCK button + the guest's view-only mode together
+        // mean stray D-pad presses can't affect playback anymore, so
+        // we no longer need the 2-s hold safety net.  Single press
+        // fires immediately, enabling rapid-fire reactions when
+        // something's hilarious.
+        //
+        // We track which keys are HELD via reactionKeyHeld so a single
+        // physical press doesn't fire multiple emojis via Android's
+        // OS-level auto-repeat (which kicks in after ~400ms hold).
         if (!partyCode.isNullOrBlank()
             && event != null
             && reactionEmojiByKey.containsKey(keyCode)
             && !isPickerOpen()
             && liveGuide?.isOpen() != true
         ) {
-            // Only register the START of a press (filter auto-repeats).
-            val isFirst = !reactionPressStart.containsKey(keyCode)
-            if (isFirst) {
-                reactionPressStart[keyCode] = System.currentTimeMillis()
-            }
-            // Check whether the user has held this key long enough.
-            val start = reactionPressStart[keyCode] ?: 0L
-            val elapsed = System.currentTimeMillis() - start
-            if (elapsed >= reactionHoldMs && start > 0L) {
-                // Mark consumed so we don't re-fire while held.
-                reactionPressStart[keyCode] = -1L
+            // First-down for this key (filter OS auto-repeat events).
+            if (!reactionKeyHeld.contains(keyCode)) {
+                reactionKeyHeld.add(keyCode)
                 val emoji = reactionEmojiByKey[keyCode]
                 if (emoji != null) fireReaction(emoji)
-                // Consume this event so the focus engine doesn't
-                // also act on it (no jumping focus while reacting).
+                // Consume so focus engine doesn't also act on the press.
                 return true
             }
+            // Auto-repeat: silently consume so we don't move focus
+            // or fire a duplicate emoji from the same physical press.
+            return true
         }
 
         // ----- WATCH-PARTY GUEST · VIEW-ONLY MODE -----

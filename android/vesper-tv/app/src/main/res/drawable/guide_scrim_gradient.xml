@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Horizontal gradient from solid-ish dark at the LEFT edge to
-     fully transparent at the RIGHT.  Sits behind the panel so the
-     panel feels embedded into a softly-darkened slice of the
-     video without using elevation (which renders unreliably on
-     Android 7.1.2). -->
+<!-- v2.6.70: now used as a FULL-SCREEN dim layer over the channel
+     backdrop (the user's Live TV design reference has the focused
+     channel's art filling the whole frame, dimmed so foreground
+     text reads cleanly).  Still keeps the left edge slightly
+     darker to anchor the channel-list panel. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:type="linear"
         android:angle="0"
-        android:startColor="#9906080F"
-        android:centerColor="#3306080F"
-        android:endColor="#0006080F" />
+        android:startColor="#E606080F"
+        android:centerColor="#A006080F"
+        android:endColor="#8006080F" />
 </shape>

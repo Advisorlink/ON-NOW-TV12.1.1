@@ -56,6 +56,25 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 103 — Feb 18, 2026) — v2.6.70
+### Single-press emoji reactions + redesigned Live TV Guide
+- **👆 SINGLE-PRESS EMOJI REACTIONS** (`VlcPlayerActivity.kt`)
+  - **User feedback**: "I think we should just click it once instead of pushing and holding. Now that we've got the lock screen done, they can just click up/down/left/right once for the emoji. Then they can send multiple emojis quite quickly if it's really funny."
+  - **✅ Fix**: removed `reactionPressStart` (2-second hold tracking) entirely. New `reactionKeyHeld` set tracks which keys are physically held so OS auto-repeat doesn't fire multiple emojis from a single press. First-down fires immediately. `reactionCooldownMs` is 250 ms so rapid-fire spam still works. The host LOCK button + guest VIEW-ONLY mode (added in v2.6.68/69) make this safe — stray D-pad presses can no longer affect playback.
+
+- **📺 LIVE TV GUIDE REDESIGNED** (`activity_vlc_player.xml`)
+  - **User feedback**: "Redo the player in the live TV to look exactly like this so it works this time." (Sent reference screenshot.)
+  - **✅ Three structural changes**:
+    1. **Full-screen backdrop**: `detail_backdrop` ImageView moved OUT of the small bottom-right card and is now a `match_parent` layer at the top of `guide_root`. The focused channel's art now fills the entire frame, dimmed by an enhanced `guide_scrim_gradient` (90 % opacity at left edge, 50 % at right).
+    2. **Larger center-right card**: `guide_detail` is now 540dp wide (was 420dp), vertically centered (was bottom-aligned), and a vertical LinearLayout (was FrameLayout — which was causing the header and body to overlap). Header strip has LIVE NOW pill top-left, channel logo top-right, and a bigger 34sp programme title. Below the header, the existing chips/time/description/up-next sections flow naturally.
+    3. **"◀ BACK · PRESS BACK TO RETURN TO PLAYER"** chip: new bottom-right glass affordance using the new `guide_back_chip_bg.xml` drawable. Always visible while the guide is open.
+  - XML parses clean. No Kotlin changes needed — the LiveGuideController already references the same IDs.
+
+- **🆙 APK bumped to v2.6.70 (versionCode 140).** Release notes added.
+- **🧪 Regression**: 16/16 watch-party backend tests still pass.
+
+
+
 ## Implemented (Iteration 102 — Feb 18, 2026) — v2.6.69
 ### Host Party Menu · Avatar reactions on every screen · Popcorn image fix
 - **🍿 POPCORN IMAGE FIX (highest priority — user reported broken image on box)**

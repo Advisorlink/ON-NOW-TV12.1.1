@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.70 — Rapid-fire single-press emojis · Cinematic Live Guide**
+            - 👆 **EMOJI REACTIONS = SINGLE PRESS!**  Now that the
+              host LOCK SCREEN + guest VIEW-ONLY mode means stray
+              D-pad presses can't affect playback, the 2-second long-
+              press is gone.  Tap UP / DOWN / LEFT / RIGHT once →
+              instant emoji.  250 ms cooldown between fires means
+              rapid-fire spam is fully supported when something's
+              hilarious.
+            - 📺 **LIVE GUIDE REDESIGNED** to match your reference:
+              • **Full-screen backdrop** of the focused channel's
+                art fills the frame, dimmed so foreground reads
+                cleanly (was a tiny image inside the card).
+              • **Detail card is now BIGGER + center-right** (540dp,
+                vertically centered) instead of a small bottom-right
+                widget.  LinearLayout structure so the header,
+                metadata chips, time slot, synopsis and "UP NEXT"
+                stack cleanly instead of overlapping.
+              • **"◀ BACK · PRESS BACK TO RETURN TO PLAYER"** chip
+                in the bottom-right so you always know how to get
+                out of the guide.
+            - 🆙 APK bumped to **v2.6.70** (versionCode 140).
+
             **v2.6.69 — Host menu · Avatar reactions · Popcorn image fix**
             - 🍿 **POPCORN LOADING IMAGE NOW LOADS** on the sideloaded
               APK.  Previously the guest joining screen showed a
