@@ -238,6 +238,14 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.43 — Bottom lane bulletproof masking**
+            - 🛡️ The bottom lane's backdrop gradient now extends 80 px
+              UP from the lane (was 40 px) and ramps from fully
+              transparent down to SOLID `#06080F` at the lane level.
+              Anything in the hero behind the lane (stream picker,
+              episode browser, long synopsis) is cleanly masked
+              instead of leaking through with a partial overlap.
+
             **v2.6.42 — Detail page: fixed bottom lane, no scrolling, smaller portrait**
             - 🎯 The hero (title, synopsis, Play CTA) is now LOCKED
               in place forever.  Nothing scrolls the page any more.

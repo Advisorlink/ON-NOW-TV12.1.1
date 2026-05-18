@@ -1855,14 +1855,21 @@ export default function Detail() {
                         padding: '0 80px 32px 80px',
                     }}
                 >
-                    {/* Soft gradient behind the lane so the row
-                        reads cleanly against any backdrop. */}
+                    {/* Solid bottom-edge backdrop so the lane
+                        cleanly masks anything overflowing from the
+                        hero above (e.g. the SeriesEpisodes picker
+                        on a TV show detail page that can be very
+                        tall on small viewports). */}
                     <div
                         style={{
                             position: 'absolute',
-                            inset: '-40px 0 0 0',
+                            inset: '-80px 0 0 0',
                             background:
-                                'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.6) 35%, rgba(0,0,0,0.92) 100%)',
+                                'linear-gradient(180deg, ' +
+                                'rgba(6,8,15,0) 0%, ' +
+                                'rgba(6,8,15,0.55) 25%, ' +
+                                'rgba(6,8,15,0.92) 55%, ' +
+                                '#06080F 100%)',
                             pointerEvents: 'none',
                         }}
                     />
