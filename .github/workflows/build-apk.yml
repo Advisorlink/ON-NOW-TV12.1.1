@@ -238,6 +238,19 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.49 — Cast cards match home screen visuals**
+            - 🎬 Actor cards now use the same skeleton as the home
+              screen `<PosterTile/>`: 2/3 portrait aspect, 12 px
+              rounded corners, name + character laid over a
+              bottom gradient inside the card (instead of below).
+            - ✨ Focus animation is now identical to home screen:
+              `scale(1.08) translateY(-2px)` with a 3 px solid
+              cyan ring — driven by the global
+              `data-focus-style="tile"` CSS rule.  No more custom
+              per-card animations.
+            - 🎨 B&W → color filter swap on focus preserved
+              (Cast-specific behavior the user wanted).
+
             **v2.6.48 — Clean Cast row on Detail page (per user spec)**
             - 🎬 Cast row added to the bottom of the Detail page,
               fixed-position horizontal strip of B&W actor portraits.

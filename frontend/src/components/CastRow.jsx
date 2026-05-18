@@ -1,22 +1,18 @@
 /**
  * <CastRow/> — horizontal cast strip on the Detail page.
  *
- * Single mode: renders top-billed actors as B&W portrait cards.
+ * Single mode: renders top-billed actors as poster-style cards.
  * Focusing an actor reports up to the parent via `onFocus(actor)`
  * so the page hero swaps the movie title + synopsis to the actor's
- * name + bio.  Cards turn full color on focus.
+ * name + bio.
  *
- * Props:
- *   tmdbId      — TMDB id of the title (current detail page).
- *   mediaType   — 'movie' or 'tv'.
- *   onFocus(p)  — called when an actor card receives focus / is
- *                 hovered; passed the actor or `null` when focus
- *                 leaves the row.
- *   testId      — optional data-testid override.
- *
- * Click is a no-op — the only interaction is focus.  Pressing OK
- * on the remote just keeps focus where it is.  This matches the
- * user's requested behaviour: hero swap is purely focus-driven.
+ * Visuals match the home-screen PosterTile exactly:
+ *   • aspect-ratio 2 / 3, 12 px rounded corners
+ *   • `data-focus-style="tile"` → globally-styled scale(1.08)
+ *     translateY(-2px) + 3 px solid cyan ring on focus
+ *   • Same dark fallback when there's no profile image
+ * One Cast-row-specific behaviour layered on top:
+ *   • B&W filter by default, full color on focus
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
@@ -101,10 +97,11 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
                 className="vesper-shelf"
                 style={{
                     display: 'flex',
-                    gap: 12,
+                    gap: 18,
                     overflowX: 'auto',
-                    overflowY: 'hidden',
-                    paddingBottom: 8,
+                    overflowY: 'visible',
+                    paddingTop: 12,
+                    paddingBottom: 16,
                     paddingRight: 80,
                     scrollPaddingRight: 80,
                     scrollbarWidth: 'none',
@@ -123,16 +120,21 @@ export default function CastRow({ tmdbId, mediaType, onFocus, testId = 'cast-row
     );
 }
 
-/* ───────────────────────── ActorCard ───────────────────────── */
-
+/* ───────────────────────── ActorCard ─────────────────────────
+ * Built on the same skeleton as <PosterTile/> from the home
+ * screen so the focus animation (scale + ring) comes from the
+ * global  `data-focus-style="tile"`  CSS rule instead of
+ * component-level transforms.  The only Cast-specific override
+ * is the B&W → color filter swap.
+ */
 function ActorCard({ actor, onFocus, onBlur }) {
     const fallback = actor.name?.charAt(0)?.toUpperCase() || '?';
-    const [focused, setFocused] = React.useState(false);
+    const [focused, setFocused] = useState(false);
     return (
         <button
             data-testid={`cast-actor-${actor.id}`}
             data-focusable="true"
-            data-focus-style="poster"
+            data-focus-style="tile"
             tabIndex={0}
             onFocus={(e) => {
                 setFocused(true);
@@ -144,97 +146,96 @@ function ActorCard({ actor, onFocus, onBlur }) {
             }}
             onMouseEnter={(e) => { setFocused(true); onFocus?.(e); }}
             onMouseLeave={(e) => { setFocused(false); onBlur?.(e); }}
+            className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                flexShrink: 0,
-                width: 108,
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                textAlign: 'left',
-                color: 'inherit',
-                outline: 'none',
-                WebkitTapHighlightColor: 'transparent',
+                /* Match PosterTile sizing convention — fluid
+                 * clamp keeps the strip identical to home-screen
+                 * rows at any viewport.  Aspect-ratio 2/3 mirrors
+                 * a portrait poster so a profile photo crops
+                 * cleanly. */
+                width: 'clamp(132px, 11.5vw, 198px)',
+                aspectRatio: '2 / 3',
+                background: 'var(--vesper-bg-2)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                scrollMarginTop: 24,
+                scrollMarginBottom: 24,
+                transform: 'translateZ(0)',
+                backfaceVisibility: 'hidden',
+                willChange: 'transform',
             }}
         >
-            <div
-                style={{
-                    width: 108,
-                    height: 162,
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    position: 'relative',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: focused
-                        ? '3px solid var(--vesper-blue)'
-                        : '1px solid rgba(255,255,255,0.08)',
-                    boxShadow: focused
-                        ? '0 16px 32px rgba(93,200,255,0.35), 0 4px 12px rgba(0,0,0,0.45)'
-                        : 'none',
-                    transform: focused ? 'translateY(-4px)' : 'translateY(0)',
-                    transition: 'border 120ms ease, transform 160ms ease, box-shadow 160ms ease',
-                }}
-            >
-                {actor.profile ? (
-                    <img
-                        src={actor.profile}
-                        alt={actor.name}
-                        loading="lazy"
+            {actor.profile ? (
+                <img
+                    src={actor.profile}
+                    alt={actor.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{
+                        filter: focused
+                            ? 'grayscale(0) contrast(1.05)'
+                            : 'grayscale(1) contrast(1.05) brightness(0.92)',
+                        transition: 'filter 200ms ease',
+                    }}
+                />
+            ) : (
+                <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                        background:
+                            'linear-gradient(180deg, var(--vesper-bg-2) 0%, var(--vesper-bg-1) 100%)',
+                    }}
+                >
+                    <span
+                        className="vesper-display"
                         style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            filter: focused
-                                ? 'grayscale(0) contrast(1.05)'
-                                : 'grayscale(1) contrast(1.05) brightness(0.92)',
-                            transition: 'filter 180ms ease',
-                        }}
-                    />
-                ) : (
-                    <div
-                        style={{
-                            width: '100%', height: '100%',
-                            display: 'flex',
-                            alignItems: 'center', justifyContent: 'center',
-                            color: 'var(--vesper-text-3)',
-                            fontSize: 40, fontWeight: 700,
+                            fontSize: 64,
+                            color: 'rgba(var(--vesper-blue-rgb),0.18)',
                         }}
                     >
                         {fallback}
+                    </span>
+                </div>
+            )}
+
+            {/* Bottom-fade gradient identical to PosterTile so
+                the name + character row reads cleanly over any
+                portrait. */}
+            <div
+                className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
+                style={{
+                    background:
+                        'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.93) 78%, var(--vesper-bg-0) 100%)',
+                }}
+            />
+
+            <div className="absolute inset-x-0 bottom-0 p-4">
+                <div
+                    className="font-sans"
+                    style={{
+                        fontSize: 'clamp(13px, 1vw, 17px)',
+                        fontWeight: 600,
+                        letterSpacing: '-0.015em',
+                        lineHeight: 1.15,
+                        color: 'var(--vesper-text)',
+                    }}
+                >
+                    {actor.name}
+                </div>
+                {actor.character && (
+                    <div
+                        className="vesper-mono mt-1.5"
+                        style={{
+                            fontSize: 'clamp(9px, 0.62vw, 11px)',
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-2)',
+                        }}
+                    >
+                        as {actor.character}
                     </div>
                 )}
             </div>
-            <div
-                style={{
-                    marginTop: 8,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: focused ? 'var(--vesper-text)' : 'var(--vesper-text-2)',
-                    lineHeight: 1.25,
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 1,
-                    WebkitBoxOrient: 'vertical',
-                }}
-            >
-                {actor.name}
-            </div>
-            {actor.character && (
-                <div
-                    style={{
-                        marginTop: 2,
-                        fontSize: 11,
-                        color: 'var(--vesper-text-3)',
-                        lineHeight: 1.3,
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 1,
-                        WebkitBoxOrient: 'vertical',
-                    }}
-                >
-                    as {actor.character}
-                </div>
-            )}
         </button>
     );
 }
