@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import logging
 import math
+import re
 import time
 import uuid
 import io
@@ -1742,6 +1743,88 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     }
     await cache.set(cache_key, out, 60 * 60 * 6)
     return {"cached": False, "data": out}
+
+
+@api.get("/trailer-stream/{youtube_id}")
+async def trailer_stream(youtube_id: str):
+    """Extract a direct, playable MP4 URL for a YouTube video so the
+    frontend can play it with a native <video> tag — no embedded
+    YouTube iframe, no Android intent redirect to the YouTube app.
+
+    The googlevideo.com URLs returned here are signed with a TTL
+    (~6 hours) and are CORS-friendly for normal cross-origin
+    consumption.  We cache the resolved URL for 1 h to absorb
+    repeat playback within the same session.
+    """
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
+    if not safe_id:
+        raise HTTPException(400, "invalid youtube_id")
+    cache_key = f"trailer_stream:{safe_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+    loop = asyncio.get_event_loop()
+
+    def _extract():
+        from yt_dlp import YoutubeDL
+        ydl_opts = {
+            # Prefer a single combined-stream MP4 so we don't need
+            # MSE / DASH on the client.  Cap height at 1080p to
+            # keep the trailer fast to start and avoid 4K bombs.
+            "format":
+                "best[ext=mp4][height<=1080]/best[height<=1080]/best",
+            "noplaylist": True,
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            # Looks like a recent desktop browser → yields direct
+            # progressive MP4 URLs more reliably than the default.
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={safe_id}",
+                download=False,
+            )
+        return info
+
+    try:
+        info = await loop.run_in_executor(None, _extract)
+    except Exception as e:                                       # noqa: BLE001
+        logger.exception("yt-dlp extract failed: %s", e)
+        raise HTTPException(502, f"trailer_extract_failed: {e}")
+
+    url = info.get("url")
+    if not url:
+        # Pick the best format manually if no top-level URL.
+        formats = info.get("formats") or []
+        progressive = [
+            f for f in formats
+            if f.get("vcodec") and f.get("vcodec") != "none"
+            and f.get("acodec") and f.get("acodec") != "none"
+            and f.get("ext") == "mp4"
+        ]
+        progressive.sort(key=lambda f: f.get("height") or 0, reverse=True)
+        if progressive:
+            url = progressive[0].get("url")
+    if not url:
+        raise HTTPException(502, "trailer_no_progressive_format")
+
+    out = {
+        "url": url,
+        "title": info.get("title") or "",
+        "duration": info.get("duration"),
+        "thumbnail": info.get("thumbnail"),
+        "height": info.get("height"),
+        "ext": info.get("ext"),
+    }
+    # Short cache — googlevideo URLs expire quickly.
+    await cache.set(cache_key, out, 60 * 60)
+    return {"cached": False, **out}
 
 
 @api.get("/tmdb/by-genres/{media}")

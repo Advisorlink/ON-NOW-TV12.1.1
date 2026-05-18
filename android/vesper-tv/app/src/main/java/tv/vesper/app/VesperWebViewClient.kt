@@ -124,7 +124,19 @@ class VesperWebViewClient : WebViewClient() {
         // through the WebView itself.
         if (url.startsWith("file:///android_asset/")) return false
         if (url.startsWith("https://")) return false
-        // Anything else (intent://, mailto:, market://, magnet:, …)
+        // Intent URLs from the YouTube iframe try to launch the
+        // YouTube app — swallow them silently so the embedded
+        // <video> stays in-page.  Same for any youtube://
+        // / vnd.youtube:// deep links.
+        if (url.startsWith("intent://") ||
+            url.startsWith("youtube://") ||
+            url.startsWith("vnd.youtube:") ||
+            url.contains("scheme=youtube")
+        ) {
+            Log.d("VesperWebView", "Swallowing YouTube app intent: $url")
+            return true
+        }
+        // Anything else (mailto:, market://, magnet:, …)
         // we let Android handle natively.
         return try {
             val intent = android.content.Intent(

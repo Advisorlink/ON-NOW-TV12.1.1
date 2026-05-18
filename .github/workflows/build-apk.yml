@@ -238,6 +238,22 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.62 — In-app HD trailers, no YouTube redirect**
+            - 🔒 **Native Android fix**: the WebView client now
+              SWALLOWS YouTube `intent://`, `youtube://` and
+              `vnd.youtube:` redirects.  These were what caused
+              the iframe to bounce out to the full YouTube app
+              and then awkwardly return.  Result: the embedded
+              trailer plays IN-PAGE, never leaves the app.
+            - 🎬 Trailer modal reverted to YouTube IFrame embed
+              (no more chunky 360p yt-dlp progressive stream).
+              Embed receives `vq=hd1080` so it requests HD by
+              default and steps down only if the connection
+              can't sustain it.
+            - 💨 Removed the chunky native `<video>` fallback
+              (yt-dlp single-stream MP4 was capped at 360p
+              because YouTube's 1080p is DASH-only).
+
             **v2.6.61 — Trailers, Home button, Person chin, episode scroll**
             - 🎬 NEW: **Trailer** pill on every movie / TV detail
               page.  Tap to open a beautiful centered YouTube

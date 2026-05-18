@@ -1,13 +1,14 @@
 /**
- * <TrailerModal/> — popup YouTube trailer player.
+ * <TrailerModal/> — popup trailer player.
+ *
+ * Plays the YouTube trailer using the YouTube IFrame embed.  In
+ * Android WebView we block YouTube's `intent://` redirects in
+ * `VesperWebViewClient`, so the iframe never escapes to the
+ * YouTube app — it plays HD in-page.
  *
  * Open state is driven by `youtubeKey` (truthy = open).  Renders
  * a centered 16:9 player.  Can be expanded to fullscreen via the
  * expand button; the BACK button (hardware or virtual) closes it.
- *
- * Uses YouTube's IFrame embed.  Autoplay is enabled and we ask
- * YouTube to suppress the title bar, related videos at the end,
- * and watch-on-youtube link.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
@@ -16,9 +17,8 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
     const [fullscreen, setFullscreen] = useState(false);
     const cardRef = useRef(null);
 
-    /* Hardware back button → close.  Same hook the rest of the
-     * app uses, but inlined as a window keydown so we don't
-     * have to compose with another back handler. */
+    /* Hardware back / Escape → close (fullscreen ↘ windowed; then
+     * windowed ↘ closed). */
     useEffect(() => {
         if (!youtubeKey) return undefined;
         const onKey = (e) => {
@@ -31,19 +31,16 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
             ) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (fullscreen) {
-                    setFullscreen(false);
-                } else {
-                    onClose?.();
-                }
+                if (fullscreen) setFullscreen(false);
+                else onClose?.();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
     }, [youtubeKey, fullscreen, onClose]);
 
-    /* Auto-focus the close button on open so any subsequent
-     * Enter / OK press dismisses the modal cleanly. */
+    /* Auto-focus the close button on open so any subsequent OK
+     * press dismisses the modal cleanly. */
     useEffect(() => {
         if (!youtubeKey) return;
         const t = setTimeout(() => {
@@ -64,6 +61,7 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
         controls: '1',
         iv_load_policy: '3',
         fs: '0',
+        vq: 'hd1080',                       // request HD by default
         origin: typeof window !== 'undefined' ? window.location.origin : '',
     });
     const src = `https://www.youtube.com/embed/${encodeURIComponent(youtubeKey)}?${params}`;
@@ -118,6 +116,7 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
                 }}
             >
                 <iframe
+                    data-testid="trailer-iframe"
                     title={title || 'Trailer'}
                     src={src}
                     style={{
@@ -173,7 +172,7 @@ export default function TrailerModal({ youtubeKey, title, onClose }) {
                             position: 'absolute',
                             top: 14,
                             left: 16,
-                            paddingRight: 90,
+                            paddingRight: 130,
                             zIndex: 10,
                             pointerEvents: 'none',
                             display: 'flex',
