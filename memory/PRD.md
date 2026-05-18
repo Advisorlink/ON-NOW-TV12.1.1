@@ -56,6 +56,35 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 97 — Feb 18, 2026) — v2.6.64
+### Watch Together — THE definitive fix for "both members spin forever"
+- **🐛 User reported (5th+ time, extremely frustrated)**: She and her friend tried Watch Together again — both saw the loading screen, the picker briefly flashed on her side (couldn't click), both got to the player but both spun infinite buffering wheels and never played. Emoji reactions also didn't work. "I need you to think deep, double-triple-quadruple check every option to make this work."
+- **🔬 ROOT CAUSE (finally found)**: Host and guest each independently fetched streams (Cinemeta/Torrentio/Plex) and picked their OWN preferred URL. Torrentio returns different stream orderings based on IP/region/cache state — host could pick a 1080p direct stream, guest could pick a slow torrent. If either member's stream couldn't buffer (slow torrent, region-locked, dead seeder), their libVLC never reached `Playing` → never sent `ready` → server hung in `loading` waiting → **BOTH members spun forever** with host paused waiting for guest.
+- **✅ Architectural fix (v2.6.64)**:
+  1. **Backend `watch_party.py`**:
+     - Added `Party.stream` field — host's chosen URL stashed and broadcast to ALL members.
+     - New WS message `stream` (host-only) — host's Detail page sends after picking best stream. Server stashes + broadcasts via state.
+     - New WS message `stream_error` — host broadcasts if zero streams found, so guest can bail gracefully.
+     - **`_LOADING_TIMEOUT_SEC = 25` watchdog** — if not every member reports `ready` within 25 s, server force-flips to `countdown` anyway. Slow members catch up via the regular drift-correction. **The party is no longer hostage to one bad stream.**
+     - `playing_now` heartbeat now also cancels the watchdog (status moved past loading).
+     - `pick` reset semantics — host re-picking clears `stream`, `stream_error`, all `member.ready` flags.
+  2. **Frontend `pages/Detail.jsx`**:
+     - **Opens a party WS on mount** when `partyCode` is set (host AND guest).
+     - **HOST flow**: When streams resolve, pick best (1080p direct → any 1080p → first direct → first torrent → first), wait up to 3 s for WS to be OPEN, send `stream` message with chosen URL + metadata, sleep 150 ms for flush, then launch native player / navigate.
+     - **GUEST flow**: Skip own stream fetch entirely. Sit on the joining screen. Wait for inbound `state.stream.url`. When received, navigate to /play (or `Host.playVideo`) with **HOST's exact URL**.
+     - **Picker-flash bug fixed**: render gate changed from `partyCode && !autoplayFired` → `partyCode`. The joining screen now stays mounted until navigation actually fires. Previously `setAutoplayFired(true)` unmounted the joining screen 30 ms before `playStream` navigated away, exposing the picker for one frame.
+  3. **Native `VlcPlayerActivity.kt`**:
+     - **Emoji reactions implemented**: D-pad-hold 2 s fires a reaction. UP→❤️, DOWN→😱, LEFT→😂, RIGHT→😭. Renders floating TextView with translate-up + fade animation on overlay FrameLayout above the video surface. Sends `reaction` WS message and renders received `reaction` messages from other party members.
+     - **20 s force-ready safety net**: if libVLC hasn't reached `Playing` after 20 s of party prep, send `ready` anyway so the rest of the party isn't held up by our slow stream.
+- **🧪 Tests**:
+  - `/app/backend/tests/test_watch_party_stream_url.py` — 3 tests (host→guest stream URL, watchdog force-advance, stream_error broadcast). All PASS.
+  - `/app/backend/tests/test_watch_party_e2e_stream_share.py` — 3 tests (full flow with stream sharing, watchdog with only host ready, pick reset). All PASS.
+  - `/app/backend/tests/test_watch_party_full_production_flow.py` — 1 test simulating 4 WS sockets across all 3 phases (lobby → detail → player). PASSES.
+  - **Full regression: 23/23 watch-party backend tests pass.** Testing agent v3 fork confirmed 100 % success rate, zero JS errors on frontend.
+- **🆙 APK bumped to v2.6.64 (versionCode 134).** Release notes added to `.github/workflows/build-apk.yml`.
+
+
+
 ## Implemented (Iteration 96 — Feb 18, 2026)
 ### Detail page UX overhaul — user couldn't escape the cast view (video reproduction)
 - **🐛 User reported with video**: After my Iteration 95 fix, user shot a video of their HK1 box showing the actual user experience: (1) ghostly faces visible behind the "More like this" row (focused-rec backdrop bleeding through the gradient mask), (2) **stuck on actor view** — when they focused a cast actor and tried to navigate back to Play, the screen froze with the actor still showing, (3) "More like this" cards were huge and the last one was cut off at the right edge, (4) focus indicators were not clearly visible from 6-10 ft viewing distance.
