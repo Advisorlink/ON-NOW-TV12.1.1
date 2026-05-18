@@ -89,6 +89,15 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var nextEpShown: Boolean = false
     private var nextEpDismissed: Boolean = false
     private lateinit var titleTv: TextView
+    // Cinematic info card — shown when the player is paused, hidden
+    // when playing.  Mirrors the web `PlayerOverlay.jsx` design so
+    // movies feel identical between the WebView and native players.
+    private lateinit var infoCard: View
+    private lateinit var infoDot: View
+    private lateinit var infoEyebrow: TextView
+    private lateinit var infoTitle: TextView
+    private lateinit var infoMetaChips: TextView
+    private lateinit var infoSynopsis: TextView
     private lateinit var positionTv: TextView
     private lateinit var durationTv: TextView
     private lateinit var seekBar: SeekBar
@@ -241,6 +250,15 @@ class VlcPlayerActivity : AppCompatActivity() {
         skipIntroBtn = findViewById(R.id.btn_skip_intro)
         nextEpBtn = findViewById(R.id.btn_next_episode)
         titleTv = findViewById(R.id.tv_title)
+        // Info card bindings — these are the pause-screen overlay
+        // (eyebrow + title + meta + synopsis) that mirrors the web
+        // PlayerOverlay design.
+        infoCard      = findViewById(R.id.info_card)
+        infoDot       = findViewById(R.id.info_dot)
+        infoEyebrow   = findViewById(R.id.info_eyebrow)
+        infoTitle     = findViewById(R.id.info_title)
+        infoMetaChips = findViewById(R.id.info_meta_chips)
+        infoSynopsis  = findViewById(R.id.info_synopsis)
         positionTv = findViewById(R.id.tv_position)
         durationTv = findViewById(R.id.tv_duration)
         seekBar = findViewById(R.id.seek_bar)
@@ -666,6 +684,65 @@ class VlcPlayerActivity : AppCompatActivity() {
         // Pull poster + backdrop on a background thread
         loadImageInto(posterUrl, previewPoster)
         loadImageInto(backdropUrl ?: posterUrl, previewBackdrop)
+
+        // Hydrate the info card (pause-screen overlay) with the
+        // same metadata so users see a consistent cinematic
+        // identification of what they're watching whether the
+        // preview is still up or they've paused mid-playback.
+        renderInfoCard()
+    }
+
+    /**
+     * Push the latest title/meta/synopsis values into the info-card
+     * views.  Called once on `renderPreview()` and again whenever
+     * the active episode changes (`updatePlayingNow()`).
+     */
+    private fun renderInfoCard() {
+        if (!::infoTitle.isInitialized) return
+        infoTitle.text = streamTitle ?: ""
+        val parts = mutableListOf<String>()
+        if (!yearText.isNullOrBlank()) parts.add(yearText!!)
+        if (!runtimeText.isNullOrBlank()) parts.add(runtimeText!!)
+        if (!ratingText.isNullOrBlank()) parts.add("★ $ratingText")
+        if (!genresText.isNullOrBlank()) parts.add(genresText!!)
+        infoMetaChips.text = parts.joinToString("  ·  ")
+        infoMetaChips.visibility = if (parts.isEmpty()) View.GONE else View.VISIBLE
+        infoSynopsis.text = synopsisText ?: ""
+        infoSynopsis.visibility =
+            if (synopsisText.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    /**
+     * Animate the info card in/out based on playback state.
+     *
+     *   paused === true  → fade IN, eyebrow flips to "PAUSED · ON NOW TV"
+     *                      with the amber dot.
+     *   paused === false → fade OUT (300 ms) and hide.
+     *
+     * The card only shows during normal playback.  While the preview
+     * splash is still up (loading) we keep it hidden — the preview
+     * already shows the title + synopsis itself, no need to double up.
+     */
+    private fun setInfoCardForPaused(paused: Boolean) {
+        if (!::infoCard.isInitialized) return
+        // Suppress while preview splash is still visible — the splash
+        // already shows title/meta/synopsis, no need to double up.
+        if (::previewRoot.isInitialized && previewRoot.visibility == View.VISIBLE) {
+            infoCard.alpha = 0f
+            infoCard.visibility = View.INVISIBLE
+            return
+        }
+        if (paused) {
+            // Amber dot + "PAUSED" eyebrow.
+            infoDot.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(0xFFF7C948.toInt())
+            infoEyebrow.text = "PAUSED · ON NOW TV"
+            infoCard.visibility = View.VISIBLE
+            infoCard.animate().alpha(1f).setDuration(280L).start()
+        } else {
+            infoCard.animate().alpha(0f).setDuration(280L)
+                .withEndAction { infoCard.visibility = View.INVISIBLE }.start()
+        }
     }
 
     private fun loadImageInto(url: String?, target: ImageView) {
@@ -767,6 +844,9 @@ class VlcPlayerActivity : AppCompatActivity() {
                 MediaPlayer.Event.Playing -> {
                     loadingView.visibility = View.GONE
                     playBtn.setImageResource(R.drawable.ic_pause)
+                    // Hide the cinematic info card — user is back
+                    // in the movie.
+                    setInfoCardForPaused(false)
                     if (partyPreparing) {
                         // Stage-1 party sync: libVLC has buffered to
                         // frame 0.  Pause IMMEDIATELY so we don't
@@ -805,6 +885,11 @@ class VlcPlayerActivity : AppCompatActivity() {
                 }
                 MediaPlayer.Event.Paused -> {
                     playBtn.setImageResource(R.drawable.ic_play)
+                    // Surface the cinematic info card (title, meta,
+                    // synopsis) so the user always knows what
+                    // they're watching when paused — matches the
+                    // web PlayerOverlay design exactly.
+                    setInfoCardForPaused(true)
                 }
                 MediaPlayer.Event.Buffering -> {
                     if (!previewDismissed) {
@@ -935,6 +1020,9 @@ class VlcPlayerActivity : AppCompatActivity() {
         previewRoot.visibility = View.VISIBLE
         previewRoot.alpha = 0f
         previewRoot.animate().alpha(1f).setDuration(160).start()
+        // Sync the cinematic info card with the new title so the
+        // next pause shows the right metadata.
+        renderInfoCard()
         // Hide the preview when the first frame decodes — same path
         // the initial-play uses (see the playing-state event handler).
     }

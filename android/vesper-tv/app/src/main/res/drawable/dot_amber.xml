@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pulsing-style amber/cyan dot used as the status indicator on
+    the cinematic info card (right beside "PAUSED · ON NOW TV" or
+    "NOW PLAYING · ON NOW TV").  Colour tinted from Kotlin via
+    setBackgroundTintList() depending on play/pause state.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+       android:shape="oval">
+    <solid android:color="#F7C948" />
+</shape>

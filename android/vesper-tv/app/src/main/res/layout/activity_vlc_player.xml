@@ -330,6 +330,94 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- ─── INFO CARD ─────────────────────────────────────────
+             Cinematic title + meta chips + synopsis shown when the
+             playback is PAUSED.  Mirrors the web-side PlayerOverlay
+             design so movies feel identical whether the user opens
+             them in the WebView or through the native VLC player.
+             Hidden by default (alpha=0); the activity flips it to
+             alpha=1 when the player reports Paused, back to 0 on
+             Playing. -->
+        <LinearLayout
+            android:id="@+id/info_card"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="48dp"
+            android:layout_marginBottom="320dp"
+            android:orientation="vertical"
+            android:alpha="0"
+            android:visibility="invisible">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginBottom="14dp">
+
+                <View
+                    android:id="@+id/info_dot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/dot_amber"
+                    android:layout_marginEnd="10dp" />
+
+                <TextView
+                    android:id="@+id/info_eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PAUSED · ON NOW TV"
+                    android:textColor="#5DC8FF"
+                    android:textSize="13sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.22"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/info_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="720dp"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF"
+                android:textSize="44sp"
+                android:textStyle="bold"
+                android:letterSpacing="-0.02"
+                android:lineSpacingMultiplier="0.98"
+                android:shadowColor="#A0000000"
+                android:shadowDx="0"
+                android:shadowDy="4"
+                android:shadowRadius="24" />
+
+            <TextView
+                android:id="@+id/info_meta_chips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:maxWidth="720dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#E6FFFFFF"
+                android:textSize="14sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18" />
+
+            <TextView
+                android:id="@+id/info_synopsis"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:maxWidth="720dp"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:textColor="#D9FFFFFF"
+                android:textSize="16sp"
+                android:lineSpacingMultiplier="1.5" />
+        </LinearLayout>
+
         <!-- ─── CENTRE: skip back / play / skip fwd ────────────── -->
         <LinearLayout
             android:layout_width="wrap_content"

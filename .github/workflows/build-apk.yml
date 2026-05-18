@@ -238,6 +238,26 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.44 — Cinematic pause card on the native player (movies + TV)**
+            - 🎬 NEW: when the user pauses a movie or TV episode on
+              the box, a cinematic info card now fades in (300 ms)
+              at the bottom-left of the screen with the same design
+              as the web-side PlayerOverlay:
+                • Amber `●` dot + monospace eyebrow `PAUSED · ON NOW TV`
+                • Big 44 sp title (Vesper-display feel, drop-shadow)
+                • Monospace meta chips: `YEAR · RUNTIME · ★ RATING · GENRES`
+                • 3-line synopsis (ellipsised so it never overflows)
+              On resume it fades out cleanly.  On episode change it
+              re-hydrates so the next pause shows the right title.
+            - 🛟 Suppressed while the cinematic preview splash is
+              still up so the user only ever sees ONE identification
+              surface at a time.
+            - 📺 Live TV native overlay verified: only initialises
+              when `contentType=live`, surfaces the CHANNELS button
+              bottom-right, opens on GUIDE / RED / CH↑↓ / TV-INPUT
+              remote keys OR LEFT D-pad while controls hidden.  All
+              wiring intact from v2.6.20.
+
             **v2.6.43 — Bottom lane bulletproof masking**
             - 🛡️ The bottom lane's backdrop gradient now extends 80 px
               UP from the lane (was 40 px) and ramps from fully
