@@ -1,21 +1,24 @@
 /**
- * <UpcomingMoviesShelf/> — bottom Home row.
+ * <UpcomingMoviesShelf/> — bottom-of-Home rail.
  *
- * Pulls TMDB's next-60-day upcoming movies via the backend
- * `/api/tmdb/upcoming-movies` endpoint and renders them as a
- * horizontal rail of poster tiles.  Tapping a tile navigates to the
- * Detail page (using the resolved IMDB id when available, falling
- * back to TMDB id otherwise) — Detail.jsx already handles the
- * "no streams yet" case with the cinematic StreamUnavailableModal
- * and the trailer pill.
+ * Renders the next-60-day English-language new releases as wide
+ * 16:9 trailer-rectangle cards (NOT poster tiles).  Each card shows
+ * the movie's backdrop with a centred Play overlay; clicking a card
+ * routes to Detail with `?autoplay-trailer=1` so the trailer fires
+ * the moment the page loads.  Hovering on desktop / focusing on TV
+ * fades in the title + release date overlay.
  *
- * Lightweight: one fetch on mount, results live in component state.
- * Empty state renders nothing (the rail just doesn't appear).
+ * Data source: `/api/tmdb/upcoming-movies` (English-only, popularity
+ * sorted, includes a TMDB-resolved YouTube trailer key when known).
+ *
+ * Empty / 404 / error states surface a developer-only diagnostic
+ * banner when localStorage `onnowtv-dev-unlock === '1'` is set
+ * (toggleable from Settings → Unlock for testing).
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import PosterTile from './PosterTile';
+import { Play, Calendar } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -24,16 +27,11 @@ export default function UpcomingMoviesShelf() {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [diag, setDiag] = useState({ status: 'idle', count: 0, err: '' });
-    /* "Unlock (testing)" toggle from Settings — when ON we render a
-     * stub state showing whether the upcoming-movies API call
-     * succeeded, returned empty, or failed.  Lets the user
-     * differentiate "backend missing the endpoint" from "endpoint
-     * returned no upcoming movies".  Watches an event so flipping
-     * the toggle re-renders immediately. */
     const [unlock, setUnlock] = useState(() => {
         try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
         catch { return false; }
     });
+
     useEffect(() => {
         const sync = () => {
             try { setUnlock(localStorage.getItem('onnowtv-dev-unlock') === '1'); }
@@ -53,37 +51,14 @@ export default function UpcomingMoviesShelf() {
             try {
                 const r = await axios.get(
                     `${API}/api/tmdb/upcoming-movies`,
-                    { params: { limit: 20, days: 60 }, timeout: 15_000 }
+                    { params: { limit: 18, days: 60 }, timeout: 15_000 }
                 );
                 if (cancel) return;
                 const data = Array.isArray(r?.data?.data) ? r.data.data : [];
-                setDiag({
-                    status: data.length === 0 ? 'empty' : 'ok',
-                    count: data.length,
-                    err: '',
-                });
-                setItems(
-                    data.map((m) => ({
-                        id: m.imdb_id || `tmdb:${m.tmdb_id}`,
-                        imdbId: m.imdb_id,
-                        tmdbId: m.tmdb_id,
-                        type: 'movie',
-                        title: m.title,
-                        poster: m.poster,
-                        background: m.backdrop,
-                        year: m.year,
-                        sub: m.year,
-                        description: m.synopsis,
-                        routePath: m.imdb_id
-                            ? `/title/movie/${m.imdb_id}`
-                            : null,
-                    }))
-                );
+                setDiag({ status: data.length ? 'ok' : 'empty', count: data.length, err: '' });
+                setItems(data);
             } catch (e) {
                 if (cancel) return;
-                /* Capture HTTP status for the diag banner so the user
-                 * can see "endpoint not deployed" (404) vs network
-                 * error vs server crash without DevTools. */
                 const status = e?.response?.status;
                 setDiag({
                     status: 'error',
@@ -97,11 +72,16 @@ export default function UpcomingMoviesShelf() {
         return () => { cancel = true; };
     }, []);
 
-    /* When the API returns nothing AND the user hasn't enabled the
-     * unlock toggle, hide the row entirely — that's the production
-     * UX.  Unlock mode shows a diagnostic stub instead so the user
-     * can see WHY the row is empty (404, network, etc.). */
     if (!loading && items.length === 0 && !unlock) return null;
+
+    const openItem = (m) => {
+        const q = m.trailer_key ? '?autoplay-trailer=1' : '';
+        if (m.imdb_id) {
+            navigate(`/title/movie/${m.imdb_id}${q}`);
+        } else if (m.tmdb_id) {
+            navigate(`/resolve/movie/${m.tmdb_id}${q}`);
+        }
+    };
 
     return (
         <section
@@ -120,7 +100,7 @@ export default function UpcomingMoviesShelf() {
                 }}
             >
                 <div className="flex items-baseline gap-4 min-w-0">
-                    <span className="vesper-eyebrow truncate">UPCOMING</span>
+                    <span className="vesper-eyebrow truncate">UPCOMING · TRAILERS</span>
                     <h2
                         className="vesper-display truncate"
                         style={{
@@ -141,7 +121,7 @@ export default function UpcomingMoviesShelf() {
                         textTransform: 'uppercase',
                     }}
                 >
-                    Next 60 days
+                    Next 60 days · English
                 </span>
             </header>
 
@@ -155,89 +135,214 @@ export default function UpcomingMoviesShelf() {
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
                     transform: 'translateZ(0)',
                     willChange: 'scroll-position',
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
                     scrollSnapType: 'x proximity',
                     overscrollBehavior: 'contain',
                 }}
             >
                 {loading && items.length === 0 && (
-                    Array.from({ length: 6 }).map((_, i) => (
-                        <UpcomingSkeleton key={i} />
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <TrailerSkeleton key={i} />
                     ))
                 )}
                 {!loading && items.length === 0 && unlock && (
-                    <div
-                        data-testid="upcoming-diag"
-                        style={{
-                            padding: '16px 22px',
-                            background: 'rgba(255,180,60,0.08)',
-                            border: '1px dashed rgba(255,180,60,0.45)',
-                            borderRadius: 12,
-                            color: '#FFD8A1',
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            lineHeight: 1.55,
-                            maxWidth: 700,
-                        }}
-                    >
-                        <div style={{
-                            fontWeight: 800, marginBottom: 6,
-                            letterSpacing: '0.18em', fontSize: 10,
-                        }}>
-                            UNLOCK · UPCOMING-MOVIES DIAGNOSTIC
-                        </div>
-                        <div>status: <b>{diag.status}</b></div>
-                        <div>items returned: <b>{diag.count}</b></div>
-                        {diag.err && <div>error: <b>{diag.err}</b></div>}
-                        <div style={{ marginTop: 8, opacity: 0.8 }}>
-                            Endpoint: <code>{API}/api/tmdb/upcoming-movies</code>
-                        </div>
-                        {diag.err && diag.err.includes('404') && (
-                            <div style={{ marginTop: 8, color: '#FFB069' }}>
-                                ⚠ Backend doesn't have this endpoint yet —
-                                you need to redeploy the FastAPI server
-                                code to your Contabo VPS (the new
-                                `/api/tmdb/upcoming-movies` route ships
-                                in this build's backend folder).
-                            </div>
-                        )}
-                    </div>
+                    <DiagBanner diag={diag} />
                 )}
-                {items.map((item) => (
-                    <PosterTile
-                        key={item.id}
-                        item={item}
-                        onSelect={(it) => {
-                            if (it.routePath) navigate(it.routePath);
-                            else if (it.tmdbId) {
-                                // Fall back to TMDB-id route; Resolve
-                                // page converts TMDB → IMDB and
-                                // forwards to /title/movie/<imdb>.
-                                navigate(`/resolve/movie/${it.tmdbId}`);
-                            }
-                        }}
-                    />
+                {items.map((m) => (
+                    <TrailerCard key={m.tmdb_id} item={m} onOpen={openItem} />
                 ))}
             </div>
         </section>
     );
 }
 
-function UpcomingSkeleton() {
+/* ── 16:9 trailer rectangle card ─────────────────────────────────
+ * Big landscape art, centred Play badge on hover/focus, title +
+ * release date strip at the bottom.  Matches the cinematic feel of
+ * a YouTube-style trailers row. */
+function TrailerCard({ item, onOpen }) {
+    const art = item.backdrop || item.poster;
+    return (
+        <button
+            data-testid={`upcoming-trailer-${item.tmdb_id}`}
+            onClick={() => onOpen(item)}
+            data-focusable="true"
+            tabIndex={0}
+            className="relative shrink-0 group overflow-hidden text-left"
+            style={{
+                width: 'clamp(260px, 22vw, 380px)',
+                aspectRatio: '16 / 9',
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.10)',
+                background: '#0A0F1A',
+                scrollSnapAlign: 'start',
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'transform 240ms cubic-bezier(.16,1,.3,1), box-shadow 240ms',
+            }}
+        >
+            {art && (
+                <img
+                    src={art}
+                    alt={item.title}
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{
+                        opacity: 0.92,
+                        transition: 'transform 480ms cubic-bezier(.16,1,.3,1), opacity 200ms',
+                    }}
+                />
+            )}
+            {/* Bottom gradient + text strip */}
+            <div
+                className="absolute inset-x-0 bottom-0"
+                style={{
+                    background:
+                        'linear-gradient(180deg, rgba(10,15,26,0) 0%, rgba(10,15,26,0.78) 60%, rgba(10,15,26,0.95) 100%)',
+                    padding: '14px 14px 12px 14px',
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#fff',
+                        lineHeight: 1.18,
+                        letterSpacing: '-0.01em',
+                        textShadow: '0 1px 8px rgba(0,0,0,0.55)',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {item.title}
+                </div>
+                <div
+                    style={{
+                        marginTop: 4,
+                        fontSize: 10,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(220,230,255,0.78)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontFamily: 'monospace',
+                    }}
+                >
+                    <Calendar size={10} strokeWidth={2} />
+                    {fmtDate(item.release_date)}
+                </div>
+            </div>
+            {/* Play badge — visible on hover/focus */}
+            <div
+                aria-hidden
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                    background: 'rgba(0,0,0,0.10)',
+                    opacity: 0,
+                    transition: 'opacity 220ms',
+                    pointerEvents: 'none',
+                }}
+                data-play-badge
+            >
+                <span
+                    style={{
+                        width: 54,
+                        height: 54,
+                        borderRadius: '50%',
+                        background: 'var(--vesper-blue, #5DC8FF)',
+                        color: '#0A0F1A',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 12px 32px rgba(0,184,255,0.55)',
+                    }}
+                >
+                    <Play size={22} fill="#0A0F1A" />
+                </span>
+            </div>
+
+            <style>{`
+                [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover [data-play-badge],
+                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus [data-play-badge] {
+                    opacity: 1;
+                }
+                [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover img,
+                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus img {
+                    transform: scale(1.05);
+                }
+                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus {
+                    box-shadow:
+                      0 0 0 2px var(--vesper-blue, #5DC8FF),
+                      0 18px 40px rgba(0,184,255,0.35);
+                    transform: translateY(-2px);
+                }
+            `}</style>
+        </button>
+    );
+}
+
+function TrailerSkeleton() {
     return (
         <div
             aria-hidden="true"
             style={{
-                width: 'clamp(140px, 11vw, 200px)',
-                aspectRatio: '2 / 3',
+                width: 'clamp(260px, 22vw, 380px)',
+                aspectRatio: '16 / 9',
                 borderRadius: 12,
                 background:
-                    'linear-gradient(110deg, rgba(255,255,255,0.04) 30%,' +
-                    ' rgba(255,255,255,0.08) 50%,' +
-                    ' rgba(255,255,255,0.04) 70%)',
+                    'linear-gradient(110deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 70%)',
                 backgroundSize: '200% 100%',
                 animation: 'vesper-shimmer 1.6s linear infinite',
                 flexShrink: 0,
             }}
         />
     );
+}
+
+function DiagBanner({ diag }) {
+    return (
+        <div
+            data-testid="upcoming-diag"
+            style={{
+                padding: '16px 22px',
+                background: 'rgba(255,180,60,0.08)',
+                border: '1px dashed rgba(255,180,60,0.45)',
+                borderRadius: 12,
+                color: '#FFD8A1',
+                fontFamily: 'monospace',
+                fontSize: 12,
+                lineHeight: 1.55,
+                maxWidth: 720,
+            }}
+        >
+            <div style={{ fontWeight: 800, marginBottom: 6, letterSpacing: '0.18em', fontSize: 10 }}>
+                UNLOCK · UPCOMING-MOVIES DIAGNOSTIC
+            </div>
+            <div>status: <b>{diag.status}</b></div>
+            <div>items returned: <b>{diag.count}</b></div>
+            {diag.err && <div>error: <b>{diag.err}</b></div>}
+            <div style={{ marginTop: 8, opacity: 0.8 }}>
+                Endpoint: <code>{API}/api/tmdb/upcoming-movies</code>
+            </div>
+            {diag.err && diag.err.includes('404') && (
+                <div style={{ marginTop: 8, color: '#FFB069' }}>
+                    ⚠ Backend doesn't have this endpoint yet — push your latest
+                    code via "Save to GitHub" and the auto-deploy workflow will
+                    sync the VPS.
+                </div>
+            )}
+        </div>
+    );
+}
+
+function fmtDate(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch { return iso; }
 }

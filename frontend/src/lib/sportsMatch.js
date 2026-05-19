@@ -106,7 +106,38 @@ const ALIAS_LOOKUP = (() => {
 function aliasesFor(teamName) {
     if (!teamName) return [];
     const key = String(teamName).toLowerCase().trim();
-    return ALIAS_LOOKUP.get(key) || [key];
+
+    /* Tier 1: explicit aliases (Premier League, IPL, NRL, etc.). */
+    if (ALIAS_LOOKUP.has(key)) return ALIAS_LOOKUP.get(key);
+
+    /* Tier 2: auto-generated aliases for the long tail of teams
+     * that AREN'T in our alias table (Chinese Super League,
+     * Allsvenskan, KBO baseball, NCAA basketball, etc.).  EPG
+     * providers almost never write the full team name verbatim —
+     * they shorten to nickname / city / mascot.  Generate plausible
+     * aliases by splitting the team name and keeping the
+     * distinctive non-stopword tokens. */
+    const out = new Set([key]);
+    const raw = key.split(/\s+/).filter(Boolean);
+    const distinctive = raw.filter((w) => w.length >= 3 && !STOP.has(w));
+
+    if (distinctive.length >= 1) {
+        // First distinctive word (usually city / first surname)
+        // and last distinctive word (usually mascot/nickname).
+        // For "Manchester United" → "Manchester" survives,
+        // "United" is in STOP so it's filtered (good — too generic).
+        // For "NC State Wolfpack" → "State" + "Wolfpack".
+        // For "Duke Blue Devils" → "Duke" + "Devils".
+        // For "Shenzhen Xinpengcheng" → "Shenzhen" + "Xinpengcheng".
+        out.add(distinctive[0]);
+        out.add(distinctive[distinctive.length - 1]);
+        // First two words together — catches "NC State", "FC Köln".
+        if (raw.length >= 2) {
+            const pair = `${raw[0]} ${raw[1]}`;
+            if (pair.length >= 6) out.add(pair);
+        }
+    }
+    return [...out];
 }
 
 function tokens(text) {
@@ -312,6 +343,23 @@ export function matchFixture(providerId, fixture, { limit = 6, windowSec = 10800
             score = 40 + homeHit + awayHit + leagueHit;
         } else if (titleT.length > 1 && titleT.every((t) => eTokens.has(t))) {
             score = 60;
+        } else if (leagueHit >= 2 || (leagueHit >= 1 && sportHit >= 1)) {
+            /* TIER-4 (lowest-confidence) fallback: the EPG entry
+             * doesn't mention either team, but the league name AND
+             * sport keywords show up.  For obscure / international
+             * fixtures (Chinese Super League, NCAA basketball, KBO
+             * baseball etc.) this surfaces channels currently
+             * airing the same league as a "you might find it here"
+             * hint.  Score capped low so true team-matches always
+             * outrank this. */
+            score = 18 + leagueHit * 2 + sportHit;
+        } else if (sportHit >= 2) {
+            /* TIER-5: ultra-weak fallback for events where TheSportsDB
+             * fixture's `sport` field has multiple distinctive tokens
+             * the EPG also mentions (e.g. fixture sport='American
+             * Football' + EPG title 'NFL Football: ...').  Surfaces
+             * the broadcast as a possible viewing option. */
+            score = 12 + sportHit;
         } else {
             continue;
         }

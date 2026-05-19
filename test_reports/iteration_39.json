@@ -1,0 +1,37 @@
+{
+  "summary": "Iter 39 — v2.6.96 big batch. BACKEND 100% pass (8/8 pytest cases on /api/tmdb/upcoming-movies). FRONTEND partially verified — the Upcoming trailer shelf with [data-testid^='upcoming-trailer-'] cards DID render as 16:9 (verified ratio ≈1.78, hasImg=true, title-text present) and clicking a card DID navigate to /title/movie/<imdb>?autoplay-trailer=1 in an earlier run before profile-seeding regressed. The full re-test of TESTS 1-4 was BLOCKED because the live preview only has the default Kids profile (kids:true) which hides the Upcoming shelf, the Notifications section and other adult-only library sections — and the localStorage profile-seeding pattern from iter38 (`onnowtv-profiles-v1` as Array<{id:'p1',...,kids:false}>) is no longer honoured (key is not present after app boot — only `onnowtv-active-profile-v1` and instant-bundle-meta are read at boot, the profiles list appears to be sourced elsewhere/server-side). StreamUnavailableModal autoshow + Library Notifications could not be exercised end-to-end because we cannot get past the Kids-profile sandbox via add_init_script alone.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter39_upcoming.py",
+    "/app/test_reports/pytest/iter39_upcoming.xml"
+  ],
+  "action_items": [
+    "Main agent: please self-test TESTS 3-6 (StreamUnavailableModal autoshow, notify-add auto-dismiss 350ms, Library Notifications section, CollapsibleGrid toggle) in a real non-Kids profile (manually pick 'Add Profile' on the live preview, set kids=false, then run the playbook). TESTS 1+2 (upcoming shelf renders as 16:9 trailer cards + click navigates with ?autoplay-trailer=1) were partially observed and the backend endpoint feeding them is verified clean.",
+    "Confirm /lib/profileScope.js + Profiles.jsx seeding contract — iter38 notes say localStorage `onnowtv-profiles-v1` works, but in this iter only `onnowtv-active-profile-v1` was read; the profiles array itself was NOT picked up from localStorage so /profiles only showed the built-in Kids profile. Possibly profile registry has moved to a different key or to an in-memory init that overrides localStorage."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/tmdb/upcoming-movies (line 1727-1900): English-only + popularity≥6 filter implemented correctly. trailer_key resolution is cached 24h (`tmdb_trailer:movie:<id>`) and parallelised with a Semaphore(8) — clean. Trailer pick (line 1890+) prefers official YouTube trailers then teasers — sensible. No concerns.",
+    "UpcomingMoviesShelf.jsx (line 160-280): TrailerCard correctly uses 16:9 aspect, backdrop fallback to poster, data-testid `upcoming-trailer-{tmdb_id}` ✓. openItem (line 77-83) appends `?autoplay-trailer=1` only when item.trailer_key truthy — good degradation when TMDB has no trailer key.",
+    "Detail.jsx autoShow useEffect (line 788-796): unavailableSeenRef pattern is correct — single-shot guard prevents re-open after dismissal. Skips series mode as documented. Implementation looks sound.",
+    "StreamUnavailableModal.jsx handleNotifyToggle (line 37-62): 350ms auto-close after add via setTimeout(onClose, 350) — matches spec. No leak (setTimeout uses window scope; safe because parent unmounts via onClose). Could optionally clear the timer in a cleanup if user toggles off in <350ms, but the branch returns early after add so it's not a real risk.",
+    "Library.jsx Section (line 200-340) + CollapsibleGrid (line 363-400): collapsible/expanded/onToggle props are passed cleanly. section-toggle test-id pattern uses kebab-cased title — verify spec match: 'Notifications' → 'section-toggle-notifications', 'My Actors' → 'section-toggle-my-actors'. Looks correct."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter39_upcoming.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 pytest cases pass on /api/tmdb/upcoming-movies — status 200, data array non-empty, every item has trailer_key field, ≥1 item has real YouTube key matching [\\w-]{8,16}, popularity≥6 enforced, required fields present, limit≤8 respected, titles look Latin/English)",
+    "frontend": "Partial — TEST1 (16:9 trailer cards present, ratio≈1.78, hasImg=true, title text rendered) + TEST2 (card click navigates to /title|resolve/movie/<id>?autoplay-trailer=1) were OBSERVED in an early run before regression in profile seeding blocked re-execution. TESTS 3-6 (modal autoshow, modal auto-dismiss after notify add, Library notify section, CollapsibleGrid toggle) NOT executed because Kids-only profile sandbox hides those surfaces and localStorage seeding for a custom non-Kids profile didn't take effect (only Kids profile available in app)."
+  },
+  "test_credentials": "Default app has only one built-in profile: Kids (kids:true). To exercise adult-home/library surfaces, a non-Kids profile must be created via UI 'Add Profile' on /profiles or by setting the correct profile-registry storage (the legacy `onnowtv-profiles-v1` key noted in iter38 was NOT honoured on this run — appears the profile list has moved to a different store).",
+  "seed_data_creation": "Attempted to seed `vesper-library:p1` with notifyList[tt12345] and `onnowtv-profiles-v1` Array — failed (app didn't pick up the custom profile so all seeded library data was for a profile that doesn't exist client-side).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "CRITICAL GOTCHA: live preview only ships the built-in Kids profile by default. The iter38 add_init_script trick for `onnowtv-profiles-v1` as an Array no longer puts a non-Kids profile into /profiles — only `onnowtv-active-profile-v1` is read at boot. To test adult-home features you must either (a) drive the UI through the 'Add Profile' (data-testid='profile-add') flow on /profiles to manually create a non-Kids profile, or (b) discover the new profile-registry storage key in /app/frontend/src/lib/profileScope.js + Profiles.jsx. Without that, the Upcoming shelf, Library Notifications section, Actors section, etc. are all hidden by Kids mode. Confirmed working data-testids on /profiles page: profile-select, profile-kids, avatar-kids-default, profile-add, manage-profiles, load-existing-profile. Click on profile-kids navigates to / and lands on Kids-mode home which shows only kid-safe rows (no upcoming-movies-shelf). Backend endpoint `/api/tmdb/upcoming-movies?limit=8` returns 200 with English-only popular items each carrying trailer_key — verified by 8 pytest assertions; safe to skip retesting the backend.",
+  "rca of the issue": "Frontend test environment regression — the profile-registry localStorage seeding pattern documented in iter38 ('onnowtv-profiles-v1' as Array<{id,name,avatarId,kids,createdAt}>) is no longer honoured by the current build. After add_init_script writes the key, /profiles still shows only the default Kids profile. This blocks ALL adult-mode UI flows from automated testing until a different seeding path is discovered or the Add-Profile UI is automated. Possible cause: profile list now sourced from a context-init that runs BEFORE localStorage hydration, or the key was renamed. Mitigation: main agent to either click through Add Profile manually for a smoke test, or restore the localStorage-readable profiles list so future iterations can seed."
+}

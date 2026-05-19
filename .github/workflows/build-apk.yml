@@ -228,6 +228,53 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.96 — Sports auto-aliases · Upcoming trailers · Auto-show modal · Library Notifications + collapsible · Native Host dock**
+            - 🏈 **Sports matcher: auto-aliases for ALL leagues**.
+              Previous matcher only knew Premier League / NRL / IPL /
+              etc. — niche teams (NCAA, Chinese Super League, KBO,
+              Allsvenskan, etc.) never produced chips.  Now every
+              team name is auto-aliased to its first + last
+              distinctive token PLUS a low-confidence "league + sport
+              keyword" fallback when no team name appears in the
+              EPG.  Example: "NC State Wolfpack" → matches "Duke vs
+              NC State" / "ACC Basketball: Wolfpack v Devils".
+            - 🎬 **Upcoming Movies → 16:9 trailer rectangle cards**
+              with a centred Play badge on hover/focus.  Backend
+              now filters strictly to **English-language US/UK
+              releases** with popularity ≥ 6 (no Korean / Japanese /
+              Chinese / Hindi titles per user spec).  Each card
+              includes the resolved YouTube trailer key; clicking
+              a card lands you on Detail with `?autoplay-trailer=1`
+              so the trailer fires immediately.
+            - 🎯 **StreamUnavailableModal auto-shows** the moment
+              stream-loading completes with zero playable streams —
+              no more inert Play button.  Adding to the notify list
+              auto-dismisses the modal (350 ms delay so the user
+              sees the "Added" state momentarily).
+            - 🔔 **Library "Notifications" section** added — shows
+              every title you've opted into "notify me when
+              streams drop" with poster, title, and a 🗑 remove
+              icon.  Click a card to open Detail.
+            - 📂 **Library collapsible sections** — TV Shows,
+              Notifications, and My Actors collapse to 2 rows by
+              default with a fade-out gradient at the bottom hinting
+              there's more.  Click the • • • button next to the
+              section heading to expand to full height; click again
+              (now a ↑ chevron) to collapse.  Only appears when the
+              section has more than 6 (TV / Notifications) or 8
+              (Actors) items.
+            - 🎚️ **Native VlcPlayerActivity HOST dock REDESIGNED**.
+              The old labelled-button strip is gone — replaced with
+              the same H3 curved glass dock from the React side.
+              Bottom-centred translucent rounded bar with 5
+              circular bubble buttons (⏸ ⏩ ⟳ 🔒 💬).  Focus
+              animates 12 % up + 12 % bigger with a cyan halo,
+              matching the JS dock pixel-for-pixel.  This is the
+              "Apple-looking curved one" you asked for — visible
+              when the native VLC player is the host in a Watch
+              Together party.
+            - 🆙 APK bumped to **v2.6.96** (versionCode 166).
+
             **v2.6.95 — Settings page tightened · B&W library actors · Auto-deploy backend on push**
             - 📐 **Settings page made more compact** — page padding,
               H1, section headers, and ToggleRow paddings/font sizes

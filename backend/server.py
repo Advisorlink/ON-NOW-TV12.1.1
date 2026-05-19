@@ -1744,7 +1744,7 @@ async def tmdb_upcoming_movies(
     page.  IMDB lookup is best-effort + cached — entries without an
     IMDB id are still returned (Detail page falls back to TMDB).
     """
-    cache_key = f"tmdb_upcoming:{limit}:{days}"
+    cache_key = f"tmdb_upcoming:{limit}:{days}:en-us-gb"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1754,8 +1754,10 @@ async def tmdb_upcoming_movies(
 
     raw: List[Dict[str, Any]] = []
     try:
-        # TMDB /movie/upcoming is region-aware; "US" gives the
-        # widest set of titles for an English-speaking audience.
+        # TMDB /movie/upcoming for the US gives the canonical
+        # English-language theatrical/streaming slate.  We do NOT
+        # request region=GB additionally because it would dupe
+        # against the US slate for almost every major title.
         for page in (1, 2):
             data = await _tmdb_get(
                 "/movie/upcoming",
@@ -1765,10 +1767,12 @@ async def tmdb_upcoming_movies(
     except Exception as exc:  # noqa: BLE001
         logger.warning("tmdb upcoming fetch failed: %s", exc)
 
-    # Second source: /discover/movie with release_date.gte=today —
-    # catches everything TMDB knows about, not just the curated
-    # /upcoming feed.  Sort by popularity so the rail leads with
-    # titles people actually care about.
+    # Second source: /discover/movie restricted to English-language
+    # titles releasing in the US or UK in the next `days` days,
+    # sorted by popularity so the rail leads with titles the user
+    # has actually heard of.  Excludes non-English (Korean, Japanese,
+    # Hindi, Chinese, etc.) per user spec — they only want big
+    # English/Western releases in the Upcoming row.
     try:
         for page in (1, 2):
             data = await _tmdb_get(
@@ -1778,8 +1782,11 @@ async def tmdb_upcoming_movies(
                     "sort_by": "popularity.desc",
                     "primary_release_date.gte": today.isoformat(),
                     "primary_release_date.lte": end_date.isoformat(),
-                    "with_release_type": "2|3|4|5",  # theatrical / digital
+                    "with_release_type": "2|3|4|5",
+                    "with_original_language": "en",
+                    "region": "US",
                     "include_adult": "false",
+                    "vote_count.gte": "5",  # filter out obscure indies
                 },
             )
             raw.extend(data.get("results") or [])
@@ -1804,6 +1811,18 @@ async def tmdb_upcoming_movies(
             continue
         if not item.get("poster_path"):
             continue
+        # Restrict to English-language titles per user spec —
+        # "no overseas / international stuff, just the big English /
+        # US new releases".  TMDB exposes the canonical original
+        # language via `original_language`.
+        if (item.get("original_language") or "").lower() != "en":
+            continue
+        # Drop very-low-popularity items (Hallmark-tier obscurities,
+        # unreleased indies with no TMDB metadata yet).  Threshold
+        # picked empirically: anything below 6 popularity has zero
+        # name recognition for an English-speaking audience.
+        if (item.get("popularity") or 0) < 6:
+            continue
         seen.add(tmdb_id)
         out.append({
             "tmdb_id": tmdb_id,
@@ -1817,42 +1836,72 @@ async def tmdb_upcoming_movies(
             "year": rel[:4] if rel else "",
             "release_date": rel,
             "synopsis": item.get("overview") or "",
+            "popularity": round(item.get("popularity") or 0, 1),
             "rating": (
                 round(item.get("vote_average"), 1)
                 if isinstance(item.get("vote_average"), (int, float))
                 else None
             ),
             "imdb_id": None,  # filled below, best-effort
+            "trailer_key": None,  # YouTube key, filled below, best-effort
         })
 
-    # Sort by release date ascending — soonest first.  Cap to limit.
-    out.sort(key=lambda x: x.get("release_date") or "9999")
+    # Sort by popularity descending — user wants "the big titles"
+    # leading the rail.  Date is the tie-breaker so equally-popular
+    # films lead with whatever's coming out soonest.
+    out.sort(key=lambda x: (-(x.get("popularity") or 0), x.get("release_date") or "9999"))
     out = out[:limit]
 
-    # Best-effort IMDB id resolution (parallel, 8 concurrent).  Items
-    # that fail still ship — Detail page can still load via TMDB.
+    # Best-effort IMDB id + YouTube trailer key resolution (parallel,
+    # 8 concurrent).  Items that fail still ship.
     sem = asyncio.Semaphore(8)
 
-    async def _resolve_imdb(item: Dict[str, Any]) -> None:
+    async def _resolve(item: Dict[str, Any]) -> None:
         tmdb_id = item.get("tmdb_id")
         if not tmdb_id:
             return
+        # IMDB id (cached)
         ck = f"tmdb_imdb:movie:{tmdb_id}"
         cached_id = await cache.get(ck)
         if cached_id:
             item["imdb_id"] = cached_id
+        else:
+            async with sem:
+                try:
+                    data = await _tmdb_get(f"/movie/{tmdb_id}/external_ids")
+                    imdb = data.get("imdb_id") or None
+                    if imdb:
+                        item["imdb_id"] = imdb
+                        await cache.set(ck, imdb, CACHE_TTL_TMDB_IMDB)
+                except Exception:  # noqa: BLE001
+                    pass
+        # YouTube trailer key — TMDB /videos endpoint.  Pick the
+        # first official YouTube trailer.  Cache 24 h since trailers
+        # rarely change once uploaded.
+        tk = f"tmdb_trailer:movie:{tmdb_id}"
+        cached_trailer = await cache.get(tk)
+        if cached_trailer:
+            item["trailer_key"] = cached_trailer
             return
         async with sem:
             try:
-                data = await _tmdb_get(f"/movie/{tmdb_id}/external_ids")
-                imdb = data.get("imdb_id") or None
-                if imdb:
-                    item["imdb_id"] = imdb
-                    await cache.set(ck, imdb, CACHE_TTL_TMDB_IMDB)
+                vids = await _tmdb_get(f"/movie/{tmdb_id}/videos")
+                results = vids.get("results") or []
+                # Prefer official YouTube trailers, then teasers.
+                yt = [v for v in results if v.get("site") == "YouTube" and v.get("key")]
+                trailer = (
+                    next((v for v in yt if v.get("type") == "Trailer" and v.get("official")), None)
+                    or next((v for v in yt if v.get("type") == "Trailer"), None)
+                    or next((v for v in yt if v.get("type") == "Teaser"), None)
+                )
+                if trailer:
+                    key = trailer.get("key")
+                    item["trailer_key"] = key
+                    await cache.set(tk, key, 60 * 60 * 24)
             except Exception:  # noqa: BLE001
                 pass
 
-    await asyncio.gather(*[_resolve_imdb(it) for it in out])
+    await asyncio.gather(*[_resolve(it) for it in out])
 
     # Cache 1 h — TMDB upcoming refreshes daily but we don't need to
     # be that aggressive; 60 min keeps the rail fresh enough.

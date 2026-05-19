@@ -10,6 +10,11 @@ import {
     X,
     CalendarDays,
     Users,
+    MoreHorizontal,
+    ChevronDown,
+    ChevronUp,
+    Bell,
+    Trash2,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useLongPress from '@/hooks/useLongPress';
@@ -18,6 +23,8 @@ import {
     listWatchLater,
     removeFromWatchLater,
     listActors,
+    listNotifyList,
+    removeFromNotifyList,
 } from '@/lib/library';
 import LibraryCalendar from '@/components/LibraryCalendar';
 
@@ -40,14 +47,22 @@ export default function Library() {
     const [tv, setTv] = useState(listFavouritesByType('series'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
     const [actors, setActors] = useState(listActors());
+    const [notifyItems, setNotifyItems] = useState(listNotifyList());
     const [expanded, setExpanded] = useState(false);
     const [calendarOpen, setCalendarOpen] = useState(false);
+    /* Per-section expand toggles — "click the three dots to extend
+     * the section past 2 rows".  Default = collapsed so the page
+     * stays scannable; user clicks to reveal the full grid. */
+    const [tvExpanded, setTvExpanded] = useState(false);
+    const [actorsExpanded, setActorsExpanded] = useState(false);
+    const [notifyExpanded, setNotifyExpanded] = useState(false);
 
     useEffect(() => {
         const sync = () => {
             setTv(listFavouritesByType('series'));
             setWatchLater(listWatchLater());
             setActors(listActors());
+            setNotifyItems(listNotifyList());
         };
         window.addEventListener('vesper:library-change', sync);
         return () => window.removeEventListener('vesper:library-change', sync);
@@ -102,6 +117,9 @@ export default function Library() {
                 icon={Tv}
                 eyebrow="My library · Series"
                 title="TV Shows"
+                collapsible={tv.length > 6}
+                expanded={tvExpanded}
+                onToggle={() => setTvExpanded((v) => !v)}
                 action={
                     tv.length > 0 ? (
                         <button
@@ -133,17 +151,51 @@ export default function Library() {
                 {tv.length === 0 ? (
                     <TvEmptyState />
                 ) : (
-                    <FavouriteGrid items={tv} type="series" />
+                    <CollapsibleGrid expanded={tvExpanded}>
+                        <FavouriteGrid items={tv} type="series" />
+                    </CollapsibleGrid>
                 )}
             </Section>
+
+            {notifyItems.length > 0 && (
+                <Section
+                    icon={Bell}
+                    eyebrow="My library · Reminder list"
+                    title="Notifications"
+                    collapsible={notifyItems.length > 6}
+                    expanded={notifyExpanded}
+                    onToggle={() => setNotifyExpanded((v) => !v)}
+                >
+                    <CollapsibleGrid expanded={notifyExpanded}>
+                        <NotifyGrid
+                            items={notifyItems}
+                            onOpen={(n) => {
+                                const t = n.type || 'movie';
+                                if (String(n.id).startsWith('tt')) {
+                                    navigate(`/title/${t}/${n.id}`);
+                                }
+                            }}
+                            onRemove={(n) => {
+                                removeFromNotifyList(n.id);
+                                setNotifyItems(listNotifyList());
+                            }}
+                        />
+                    </CollapsibleGrid>
+                </Section>
+            )}
 
             {actors.length > 0 && (
                 <Section
                     icon={Users}
                     eyebrow="My library · Actors"
                     title="My Actors"
+                    collapsible={actors.length > 8}
+                    expanded={actorsExpanded}
+                    onToggle={() => setActorsExpanded((v) => !v)}
                 >
-                    <ActorGrid items={actors} />
+                    <CollapsibleGrid expanded={actorsExpanded}>
+                        <ActorGrid items={actors} />
+                    </CollapsibleGrid>
                 </Section>
             )}
 
@@ -235,7 +287,17 @@ function Header({ onBack }) {
 
 /* ----------------------------- Section ----------------------------- */
 
-function Section({ icon: Icon, eyebrow, title, style, action, children }) {
+function Section({
+    icon: Icon,
+    eyebrow,
+    title,
+    style,
+    action,
+    children,
+    collapsible = false,
+    expanded = false,
+    onToggle,
+}) {
     return (
         <section style={style}>
             <div
@@ -262,10 +324,206 @@ function Section({ icon: Icon, eyebrow, title, style, action, children }) {
                     <Icon size={24} strokeWidth={1.8} style={{ color: 'var(--vesper-blue)' }} />
                     {title}
                 </h2>
-                {action}
+                <div className="flex items-center gap-2">
+                    {action}
+                    {collapsible && (
+                        <button
+                            data-testid={`section-toggle-${(title || '').toLowerCase().replace(/\s+/g, '-')}`}
+                            data-focusable="true"
+                            data-focus-style="quiet"
+                            tabIndex={0}
+                            onClick={onToggle}
+                            aria-label={expanded ? 'Collapse section' : 'Expand section'}
+                            aria-expanded={expanded}
+                            className="flex items-center justify-center rounded-full"
+                            style={{
+                                width: 36,
+                                height: 36,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: 'var(--vesper-text-2)',
+                                cursor: 'pointer',
+                                transition: 'background 200ms, color 200ms',
+                            }}
+                        >
+                            {expanded ? (
+                                <ChevronUp size={16} strokeWidth={2.2} />
+                            ) : (
+                                <MoreHorizontal size={16} strokeWidth={2.2} />
+                            )}
+                        </button>
+                    )}
+                </div>
             </div>
             {children}
         </section>
+    );
+}
+
+/* CollapsibleGrid — wraps the grid in a maxHeight container that
+ * shows ~2 rows worth of tiles by default, with a fade-out gradient
+ * at the bottom to hint there's more.  Click the three-dot button
+ * in the section header to expand to the full height.
+ *
+ * Implementation note: we use maxHeight + overflow:hidden rather
+ * than slicing the array so the grid keeps its natural layout
+ * (column count stays consistent) and React doesn't churn the
+ * children on toggle. */
+function CollapsibleGrid({ expanded, children }) {
+    return (
+        <div
+            style={{
+                position: 'relative',
+                maxHeight: expanded ? 'none' : 'clamp(320px, 28vw, 460px)',
+                overflow: 'hidden',
+                transition: 'max-height 360ms cubic-bezier(.16,1,.3,1)',
+            }}
+        >
+            {children}
+            {!expanded && (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 80,
+                        background:
+                            'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.78) 78%, rgba(6,8,15,0.96) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+/* NotifyGrid — Library "Notifications" section.  Each card shows
+ * the poster + title of a movie/show the user opted into notifications
+ * for via the StreamUnavailableModal CTA.  Tap → opens Detail.
+ * Trash icon → removes from the notify list. */
+function NotifyGrid({ items, onOpen, onRemove }) {
+    return (
+        <div
+            className="grid"
+            style={{
+                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                gap: 14,
+            }}
+        >
+            {items.map((n) => (
+                <NotifyCard
+                    key={n.id}
+                    notify={n}
+                    onOpen={() => onOpen(n)}
+                    onRemove={() => onRemove(n)}
+                />
+            ))}
+        </div>
+    );
+}
+
+function NotifyCard({ notify, onOpen, onRemove }) {
+    const meta = notify.meta || {};
+    return (
+        <div
+            data-testid={`notify-card-${notify.id}`}
+            className="relative overflow-hidden"
+            style={{
+                aspectRatio: '2 / 3',
+                borderRadius: 10,
+                background: meta.poster
+                    ? '#1a1f2e'
+                    : 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.2), rgba(10,14,26,0.9))',
+                border: '1px solid rgba(255,255,255,0.08)',
+            }}
+        >
+            <button
+                data-focusable="true"
+                data-focus-style="tile"
+                tabIndex={0}
+                onClick={onOpen}
+                className="absolute inset-0 text-left"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                aria-label={`Open ${meta.name || 'item'}`}
+            >
+                {meta.poster && (
+                    <img
+                        src={meta.poster}
+                        alt={meta.name || ''}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                    />
+                )}
+                <div
+                    className="absolute inset-x-0 bottom-0"
+                    style={{
+                        padding: '10px 10px 8px',
+                        background:
+                            'linear-gradient(180deg, rgba(10,15,26,0) 0%, rgba(10,15,26,0.9) 70%)',
+                    }}
+                >
+                    <div
+                        style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: '#fff',
+                            lineHeight: 1.2,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {meta.name || 'Untitled'}
+                    </div>
+                    <div
+                        style={{
+                            marginTop: 4,
+                            fontSize: 9,
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-blue-bright)',
+                            fontFamily: 'monospace',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                        }}
+                    >
+                        <Bell size={9} />
+                        Notify on HD
+                    </div>
+                </div>
+            </button>
+            <button
+                data-testid={`notify-remove-${notify.id}`}
+                data-focusable="true"
+                data-focus-style="quiet"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                aria-label="Remove from notifications"
+                className="absolute"
+                style={{
+                    top: 6,
+                    right: 6,
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.55)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    color: '#fff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 2,
+                }}
+            >
+                <Trash2 size={11} />
+            </button>
+        </div>
     );
 }
 

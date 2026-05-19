@@ -724,33 +724,49 @@ class VlcPlayerActivity : AppCompatActivity() {
 
     private fun initHostMenu() {
         try {
+            // H3 "Curved Mac-style glass dock" — rounded translucent
+            // bar with 5 circular bubble buttons centred inside it.
+            // Mirrors PartyHostControls.jsx so the JS-host UI and the
+            // native Android-host UI feel identical (user complaint
+            // v2.6.94: the Kotlin overlay still looked like the legacy
+            // strip).  Each button is a 64×64 circle with a 1 px
+            // border + inner sheen — focus inflates to 72 px + cyan
+            // halo.  Bottom-anchored, ~80 dp above the safe area.
+            val dp = resources.displayMetrics.density
+            fun dpi(v: Float) = (v * dp).toInt()
+
             val root = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER
-                setBackgroundColor(0xC0060A18.toInt())
-                setPadding(36, 24, 36, 24)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                // Glass dock background — rounded with cyan border tint.
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dpi(34f).toFloat()
+                    setColor(0xCC0A1020.toInt())  // 80% opaque deep indigo
+                    setStroke(dpi(1f), 0x665DC8FF.toInt())  // cyan glow border
+                }
+                setPadding(dpi(18f), dpi(14f), dpi(18f), dpi(14f))
                 visibility = View.GONE
-                elevation = 30f
+                elevation = dpi(20f).toFloat()
+                clipToPadding = false
             }
             val labels = listOf(
-                "⏸  PAUSE"      to "pause",
-                "⏩  SKIP +30s"  to "skip",
-                "⟳  CATCH UP"   to "catchup",
-                "🔒  LOCK"       to "lock",
-                "💬  SUBS"      to "subs"
+                "⏸" to "pause",
+                "⏩" to "skip",
+                "⟳"  to "catchup",
+                "🔒" to "lock",
+                "💬" to "subs",
             )
             hostMenuButtons.clear()
             for ((label, key) in labels) {
                 val btn = android.widget.TextView(this).apply {
                     text = label
-                    textSize = 14f
-                    setPadding(28, 18, 28, 18)
-                    letterSpacing = 0.16f
+                    textSize = 26f
+                    gravity = android.view.Gravity.CENTER
                     setTextColor(0xFFE6EAF2.toInt())
                     val bg = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = 14f
-                        setColor(0xFF0D1322.toInt())
-                        setStroke(2, 0x335DC8FF.toInt())
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(0xFF1B2238.toInt())
+                        setStroke(dpi(1f), 0x4D5DC8FF.toInt())
                     }
                     background = bg
                     isFocusable = true
@@ -759,9 +775,8 @@ class VlcPlayerActivity : AppCompatActivity() {
                     setOnClickListener { handleHostMenuPick(key) }
                 }
                 val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(8, 0, 8, 0) }
+                    dpi(64f), dpi(64f)
+                ).apply { setMargins(dpi(7f), 0, dpi(7f), 0) }
                 root.addView(btn, lp)
                 hostMenuButtons.add(btn)
             }
@@ -770,7 +785,7 @@ class VlcPlayerActivity : AppCompatActivity() {
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
-                bottomMargin = 80
+                bottomMargin = dpi(80f)
             }
             (findViewById<View>(android.R.id.content) as? ViewGroup)?.addView(root, parentLp)
             hostMenuRoot = root
@@ -778,31 +793,50 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     private fun renderHostMenuFocus() {
+        val dp = resources.displayMetrics.density
         for ((i, btn) in hostMenuButtons.withIndex()) {
             val focused = i == hostMenuFocusIdx
             val bg = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 14f
-                setColor(if (focused) 0xFF5DC8FF.toInt() else 0xFF0D1322.toInt())
-                setStroke(2, if (focused) 0xFF5DC8FF.toInt() else 0x335DC8FF.toInt())
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                // Focused bubble = bright cyan fill, otherwise the
+                // glassy deep-indigo with subtle cyan border (same
+                // colour ramp as the H3 React design).
+                setColor(if (focused) 0xFF5DC8FF.toInt() else 0xFF1B2238.toInt())
+                setStroke(
+                    if (focused) (2 * dp).toInt() else (1 * dp).toInt(),
+                    if (focused) 0xFF7FD8FF.toInt() else 0x4D5DC8FF.toInt()
+                )
             }
             btn.background = bg
             btn.setTextColor(if (focused) 0xFF0A0E1A.toInt() else 0xFFE6EAF2.toInt())
-            btn.scaleX = if (focused) 1.06f else 1.0f
-            btn.scaleY = if (focused) 1.06f else 1.0f
+            // Focus animation — lift + scale, matching the JS dock.
+            btn.animate().cancel()
+            btn.animate()
+                .scaleX(if (focused) 1.12f else 1.0f)
+                .scaleY(if (focused) 1.12f else 1.0f)
+                .translationY(if (focused) -(8f * dp) else 0f)
+                .setDuration(180)
+                .start()
+            // Elevation gives the focused bubble a real drop-shadow
+            // halo (the "cyan glow" effect).
+            btn.elevation = if (focused) (12f * dp) else 0f
         }
     }
 
     private fun showHostMenu() {
         if (hostLocked) return
         val root = hostMenuRoot ?: return
-        // Reset pause/resume label based on current player state
+        // Reset pause/resume label based on current player state.
         hostMenuButtons.firstOrNull { it.tag == "pause" }?.text =
-            if (this::mediaPlayer.isInitialized && mediaPlayer.isPlaying) "⏸  PAUSE" else "▶  RESUME"
+            if (this::mediaPlayer.isInitialized && mediaPlayer.isPlaying) "⏸" else "▶"
         hostMenuFocusIdx = 0
         renderHostMenuFocus()
         root.visibility = View.VISIBLE
         root.alpha = 0f
-        root.animate().alpha(1f).setDuration(160).start()
+        // Slight upward fade-in matches the React dock's enter motion.
+        val dp = resources.displayMetrics.density
+        root.translationY = (12f * dp)
+        root.animate().alpha(1f).translationY(0f).setDuration(220).start()
         hostMenuVisible = true
         // Auto-hide after 6 s of inactivity
         partyHandler.removeCallbacks(hostMenuHide)

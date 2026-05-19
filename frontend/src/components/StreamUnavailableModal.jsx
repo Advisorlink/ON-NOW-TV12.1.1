@@ -49,6 +49,15 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
                 },
             });
             setAdded(true);
+            /* Auto-dismiss once added so the user gets out of the
+             * modal and back to the Detail page.  They'll see the
+             * "in your reminder list" pill on the Play button and
+             * the toast confirmation on the next app boot when
+             * streams drop. */
+            window.setTimeout(() => {
+                if (typeof onClose === 'function') onClose();
+            }, 350);
+            return;
         }
     };
 

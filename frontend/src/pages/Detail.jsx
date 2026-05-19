@@ -310,6 +310,27 @@ export default function Detail() {
             setTrailerLoading(false);
         }
     }, [tmdbInfo]);
+
+    /* When the user lands on Detail via the Upcoming-Movies trailer
+     * card (which appends `?autoplay-trailer=1` to the URL), fire
+     * the TrailerModal automatically as soon as tmdbInfo is ready.
+     * Guarded by a ref so the trailer only opens once per visit
+     * even if tmdbInfo re-runs (e.g. focused-actor refresh). */
+    const trailerAutoFiredRef = useRef(false);
+    useEffect(() => {
+        if (trailerAutoFiredRef.current) return;
+        if (!tmdbInfo?.tmdb_id) return;
+        try {
+            const hash = window.location.hash || '';
+            const qIdx = hash.indexOf('?');
+            const query = qIdx >= 0 ? hash.slice(qIdx + 1) : '';
+            const params = new URLSearchParams(query);
+            if (params.get('autoplay-trailer') === '1') {
+                trailerAutoFiredRef.current = true;
+                openTrailer();
+            }
+        } catch { /* ignore */ }
+    }, [tmdbInfo, openTrailer]);
     /* Bio cache so we don't refetch the same person when focus
      * sweeps left/right.  Keyed by TMDB person id. */
     const actorBioCacheRef = useRef(new Map());
@@ -755,6 +776,24 @@ export default function Detail() {
     };
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+
+    /* AUTO-SHOW "Coming soon" modal as soon as stream-loading
+     * resolves with zero playable streams — no Play click needed.
+     * Previously the user had to tap Play to see this CTA, which
+     * meant they sat on a Detail page with an inert button.
+     * Skip in series mode (per-episode flow handles its own modal)
+     * and skip when StreamUnavailableModal was already dismissed
+     * once for this item (so re-renders don't re-open it after the
+     * user dismissed it). */
+    const unavailableSeenRef = React.useRef(false);
+    useEffect(() => {
+        if (type === 'series') return;
+        if (streamLoading) return;
+        if (streams && streams.length > 0) return;
+        if (unavailableSeenRef.current) return;
+        unavailableSeenRef.current = true;
+        setShowUnavailableModal(true);
+    }, [streamLoading, streams, type]);
 
     // ---------- AUTOPLAY (via ?autoplay=1 URL) ----------
     // Fires automatically when the user arrived via hero Play / a
