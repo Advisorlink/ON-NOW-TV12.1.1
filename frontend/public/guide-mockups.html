@@ -245,6 +245,153 @@ html, body { background: #06080F; color: #E6EAF2;
 .m13-rail-faded { opacity: 0.35; pointer-events: none; }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 14 — REFERENCE-INSPIRED · vertical list + poster rail   */
+/* ─────────────────────────────────────────────────────────────── */
+.m14-bg { position: absolute; inset: 0; background: #000; }
+.m14-head {
+    position: absolute; top: 24px; left: 56px; right: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.m14-head-left { display: flex; align-items: center; gap: 16px; }
+.m14-head-logo {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: #fff; color: #000;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 16px; letter-spacing: -0.04em;
+}
+.m14-head-name { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; }
+.m14-head-live { display: inline-flex; align-items: center; gap: 6px;
+    color: #8B95A7; font-size: 13px; font-weight: 600; }
+.m14-head-live::before { content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: #5DC8FF; box-shadow: 0 0 0 4px rgba(93,200,255,0.25); }
+.m14-head-time { text-align: right; }
+.m14-head-clock { font-size: 30px; font-weight: 800; letter-spacing: 0.02em;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; color: #fff; }
+.m14-head-date { font-size: 13px; color: #8B95A7; font-weight: 500; margin-top: 4px; }
+
+.m14-list {
+    position: absolute; top: 130px; left: 0; right: 980px; bottom: 380px;
+    padding: 0 56px;
+    display: flex; flex-direction: column; gap: 8px;
+    overflow: hidden;
+}
+.m14-row { display: flex; align-items: center; gap: 18px;
+    padding: 8px 0; transition: all .25s ease; }
+.m14-row-num { font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 16px; font-weight: 600; color: #6B7280;
+    width: 56px; text-align: right;
+    transition: all .25s ease; }
+.m14-row-logo { width: 56px; height: 56px; border-radius: 14px;
+    background: #fff; color: #000;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px; letter-spacing: -0.02em;
+    flex-shrink: 0;
+    transition: all .25s ease; }
+.m14-row-body { flex: 1; min-width: 0; }
+.m14-row-title { font-size: 16px; font-weight: 500; color: #C7CFDB;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: all .25s ease; }
+.m14-row-when { font-size: 13px; color: #8B95A7;
+    margin-top: 4px; opacity: 0; height: 0;
+    transition: opacity .25s ease, height .25s ease, margin .25s ease; }
+.m14-row-bar { height: 2px; background: rgba(255,255,255,0.08);
+    border-radius: 99px; margin-top: 6px; overflow: hidden;
+    max-width: 520px; }
+.m14-row-bar > span { display: block; height: 100%; width: 38%;
+    background: #5DC8FF; }
+
+.m14-row.focus .m14-row-num {
+    font-size: 28px; font-weight: 800; color: #fff;
+}
+.m14-row.focus .m14-row-logo {
+    width: 72px; height: 72px; border-radius: 18px;
+    box-shadow: 0 0 0 2px #5DC8FF, 0 0 28px rgba(93,200,255,0.55);
+}
+.m14-row.focus .m14-row-title {
+    font-size: 28px; font-weight: 800; color: #fff;
+    letter-spacing: -0.01em;
+}
+.m14-row.focus .m14-row-when {
+    opacity: 1; height: auto; margin-top: 6px;
+    font-family: ui-monospace, monospace; letter-spacing: 0.06em;
+    font-size: 13px; color: #5DC8FF; font-weight: 600;
+}
+.m14-row.focus .m14-row-bar { display: none; }
+
+/* Bottom poster rail */
+.m14-rail {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 360px;
+    background: linear-gradient(to top,
+        rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0) 100%);
+    padding: 24px 56px 40px;
+}
+.m14-rail-labels {
+    display: flex; gap: 56px; margin-bottom: 14px;
+    align-items: baseline;
+}
+.m14-rail-label-onnow { font-size: 16px; font-weight: 700; color: #fff;
+    width: 320px; }
+.m14-rail-label-next { font-size: 16px; font-weight: 700; color: #fff; }
+
+.m14-rail-cards { display: flex; gap: 18px; align-items: flex-end; }
+.m14-poster {
+    border-radius: 14px; overflow: hidden; position: relative;
+    transition: all .22s ease;
+}
+.m14-poster.onnow {
+    flex: 0 0 380px; height: 220px;
+    border: 1.5px solid rgba(255,255,255,0.18);
+}
+.m14-poster.next {
+    width: 280px; height: 168px;
+}
+.m14-poster.focus {
+    box-shadow: 0 0 0 3px #5DC8FF, 0 16px 48px rgba(93,200,255,0.42);
+}
+/* Poster fills with cinematic gradients to fake real artwork */
+.m14-poster.p1 { background:
+    radial-gradient(circle at 30% 40%, rgba(120,160,80,0.7) 0%, transparent 60%),
+    linear-gradient(135deg, #2d4a3e 0%, #0a0f0a 100%); }
+.m14-poster.p2 { background:
+    radial-gradient(circle at 60% 50%, rgba(255,200,80,0.65) 0%, transparent 60%),
+    linear-gradient(135deg, #4a3a1e 0%, #1a0f0a 100%); }
+.m14-poster.p3 { background:
+    radial-gradient(circle at 50% 40%, rgba(80,140,200,0.7) 0%, transparent 60%),
+    linear-gradient(135deg, #1a3a5e 0%, #0a0a1f 100%); }
+.m14-poster.p4 { background:
+    radial-gradient(circle at 50% 50%, rgba(200,80,140,0.6) 0%, transparent 60%),
+    linear-gradient(135deg, #3a1a2e 0%, #1a0a1f 100%); }
+.m14-poster.p5 { background:
+    radial-gradient(circle at 40% 40%, rgba(255,140,80,0.6) 0%, transparent 60%),
+    linear-gradient(135deg, #3a2a1e 0%, #1a0f0a 100%); }
+.m14-card-cap {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 14px 16px;
+    background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, transparent 100%);
+}
+.m14-card-title { font-size: 16px; font-weight: 700; line-height: 1.2;
+    color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m14-card-time { font-size: 12px; color: #C7CFDB; margin-top: 4px;
+    font-family: ui-monospace, monospace; letter-spacing: 0.04em; }
+.m14-card-bar { height: 2px; background: rgba(255,255,255,0.18);
+    border-radius: 99px; margin-top: 8px; overflow: hidden; }
+.m14-card-bar > span { display: block; height: 100%; width: 38%;
+    background: #5DC8FF; }
+.m14-next-label {
+    font-size: 11px; color: #8B95A7;
+    font-family: ui-monospace, monospace; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600;
+    margin-bottom: 8px;
+}
+.m14-next-col {
+    display: flex; flex-direction: column;
+    width: 280px;
+    flex-shrink: 0;
+}
+
+
+/* ─────────────────────────────────────────────────────────────── */
 /* MOCKUP 1 — Premium STB (Sky / Foxtel)                          */
 /* ─────────────────────────────────────────────────────────────── */
 .m1-strip {
@@ -1127,6 +1274,154 @@ html, body { background: #06080F; color: #E6EAF2;
         <div class="m11-chan-card"><div class="logo green">C</div><div><div class="m11-chan-name">CBS</div><div class="m11-chan-num">CH 056</div></div></div>
         <div class="m11-chan-card"><div class="logo purple">D</div><div><div class="m11-chan-name">Discovery</div><div class="m11-chan-num">CH 088</div></div></div>
         <div class="m11-chan-card"><div class="logo orange">E</div><div><div class="m11-chan-name">ESPN</div><div class="m11-chan-num">CH 105</div></div></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M14: REFERENCE-INSPIRED · vertical list + bottom poster rail    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m14">
+<div class="m14-bg"></div>
+<div class="label">14 · REFERENCE STYLE</div>
+<div class="m14-head">
+    <div class="m14-head-left">
+        <div class="m14-head-logo" style="background:#fff;color:#000;">FOX</div>
+        <div>
+            <div class="m14-head-name">FOX</div>
+            <div class="m14-head-live">● LIVE</div>
+        </div>
+    </div>
+    <div class="m14-head-time">
+        <div class="m14-head-clock">22:10</div>
+        <div class="m14-head-date">Friday, May 23</div>
+    </div>
+</div>
+<div class="m14-list">
+    <div class="m14-row">
+        <div class="m14-row-num">145</div>
+        <div class="m14-row-logo" style="background:#fff;color:#000;">TBT</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">The Big Bang Theory</div>
+            <div class="m14-row-bar"><span></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">146</div>
+        <div class="m14-row-logo" style="background:#FFEB3B;color:#000;">E!</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">Alerta Cobra</div>
+            <div class="m14-row-bar"><span style="width:44%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">147</div>
+        <div class="m14-row-logo" style="background:#fff;color:#1E90FF;">DR</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">Moneyball</div>
+            <div class="m14-row-bar"><span style="width:32%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">148</div>
+        <div class="m14-row-logo" style="background:#000;color:#fff;border:2px solid #fff;">C</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">Obsesión</div>
+            <div class="m14-row-bar"><span style="width:50%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">149</div>
+        <div class="m14-row-logo" style="background:#fff;color:#000;">AXN</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">X-Men Orígenes: Lobezno</div>
+            <div class="m14-row-bar"><span style="width:62%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row focus">
+        <div class="m14-row-num">150</div>
+        <div class="m14-row-logo" style="background:#fff;color:#000;">FOX</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">FOX</div>
+            <div class="m14-row-when">NOW · 22:15 → 00:13</div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">151</div>
+        <div class="m14-row-logo" style="background:#fff;color:#FF6B00;">AMC</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">The Walking Dead</div>
+            <div class="m14-row-bar"><span style="width:78%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">152</div>
+        <div class="m14-row-logo" style="background:#FFCD00;color:#000;">NG</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">Fronteras peligrosas</div>
+            <div class="m14-row-bar"><span style="width:24%"></span></div>
+        </div>
+    </div>
+    <div class="m14-row">
+        <div class="m14-row-num">153</div>
+        <div class="m14-row-logo" style="background:#7C3C2D;color:#fff;">H</div>
+        <div class="m14-row-body">
+            <div class="m14-row-title">Skinwalker: El Rancho Maldito</div>
+            <div class="m14-row-bar"><span style="width:42%"></span></div>
+        </div>
+    </div>
+</div>
+<div class="m14-rail">
+    <div class="m14-rail-labels">
+        <div class="m14-rail-label-onnow">On Now</div>
+        <div class="m14-rail-label-next">Coming Up Next</div>
+    </div>
+    <div class="m14-rail-cards">
+        <!-- On Now card -->
+        <div class="m14-poster onnow p1 focus">
+            <div class="m14-card-cap">
+                <div class="m14-card-title">Jurassic World</div>
+                <div class="m14-card-time">22:15 → 00:13</div>
+                <div class="m14-card-bar"><span></span></div>
+            </div>
+        </div>
+        <!-- Up Next cards -->
+        <div class="m14-next-col">
+            <div class="m14-next-label">NEXT</div>
+            <div class="m14-poster next p2">
+                <div class="m14-card-cap">
+                    <div class="m14-card-title">Jurassic World</div>
+                    <div class="m14-card-time">00:13 → 01:40</div>
+                </div>
+            </div>
+        </div>
+        <div class="m14-next-col">
+            <div class="m14-next-label">NEXT +1</div>
+            <div class="m14-poster next p3">
+                <div class="m14-card-cap">
+                    <div class="m14-card-title">The Simpsons</div>
+                    <div class="m14-card-time">01:40 → 02:07</div>
+                </div>
+            </div>
+        </div>
+        <div class="m14-next-col">
+            <div class="m14-next-label">NEXT +2</div>
+            <div class="m14-poster next p4">
+                <div class="m14-card-cap">
+                    <div class="m14-card-title">9-1-1</div>
+                    <div class="m14-card-time">02:07 → 03:00</div>
+                </div>
+            </div>
+        </div>
+        <div class="m14-next-col">
+            <div class="m14-next-label">NEXT +3</div>
+            <div class="m14-poster next p5">
+                <div class="m14-card-cap">
+                    <div class="m14-card-title">The Mentalist</div>
+                    <div class="m14-card-time">03:00 → 04:00</div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 </div>
