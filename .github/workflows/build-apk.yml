@@ -234,6 +234,40 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.83 — Live TV player un-broken · Host loading artwork · 72h on-demand EPG · smooth scroll**
+            - 🚨 **CRITICAL FIX**: Live TV channel playback was launching
+              the watch-party VIEW-ONLY player (tap = subtitle picker
+              only).  Root cause: VlcPlayerActivity defaulted
+              `partyRole` to `"guest"` when the intent had no party
+              extras → EVERY non-party launch entered guest mode.
+              Now `partyRole = ""` when there's no party, so the
+              normal player (with full controls / pause / seek)
+              fires for Live TV + movies + episodes.
+            - 🎨 **HOST loading artwork** now actually shows on the
+              host's screen.  The host fell through to the legacy
+              poster-blur layout — added a dedicated full-bleed
+              `host-loading.png` branch in `PartyJoiningScreen.jsx`
+              that mirrors the guest popcorn treatment.  Host sees
+              the blue D-pad → emoji hint artwork right up until
+              native VLC takes over.
+            - 🎛 **Host menu opens on AIR-MOUSE click too** (not
+              only D-pad OK).  `videoLayout.setOnClickListener`
+              was missing the host-mode branch — clicked → fell
+              into `togglePlayPause()` instead of `showHostMenu()`.
+              Now: host click → 5-button menu, guest click →
+              subtitle picker, no-party click → normal controls.
+            - 📅 **TV Guide now fetches 72 h on-demand** (was 12
+              entries ≈ 6 h).  The instant bundle already delivers
+              ~76 programmes per covered channel; this fixes the
+              ~11,000 channels that don't have an `epg_channel_id`
+              and rely on the per-channel short_epg pull — they
+              now also get 200 entries instead of 12.
+            - 📜 **Smooth scrolling in the channel column**.
+              `Column` now uses `el.scrollTo({behavior:'smooth'})`
+              instead of `el.scrollTop = top` so D-pad spam (or a
+              finger fling) feels inertial like the Home shelves.
+            - 🆙 APK bumped to **v2.6.83** (versionCode 153).
+
             **v2.6.82 — Live TV: cleaner loader · instant re-opens · no re-fetch loops**
             - 🐛 **User reported (with screenshot)**: "Take away that
               TV Guide 0-to-50 thing — we don't need it anymore, and

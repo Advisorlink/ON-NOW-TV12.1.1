@@ -203,7 +203,138 @@ export default function PartyJoiningScreen({
         );
     }
 
-    /* --- HOST (and anything else): legacy poster-blur layout -- */
+    /* --- HOST: blue host-loading artwork ----------------------
+     *
+     * User feedback: "the host's blue screen showing him how to use
+     * it, that still isn't showing up for the host."  Previously the
+     * host fell through to the legacy poster-blurred screen below
+     * (which exists for desktop test mode + power-users).  Now the
+     * host gets the same full-bleed treatment as the guest — but
+     * with `host-loading.png` (the blue artwork that shows the
+     * D-pad arrow → emoji mapping + 5-button menu hint).  Native
+     * VLC takes over a moment later.
+     * ------------------------------------------------------------ */
+    if (role === 'host') {
+        return (
+            <div
+                data-testid="party-joining-screen"
+                style={{
+                    position: 'fixed', inset: 0, zIndex: 50,
+                    background: '#020610',
+                    overflow: 'hidden',
+                    color: '#E6EAF2',
+                }}
+            >
+                <img
+                    src={Host.publicAsset('party/host-loading.png')}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                    }}
+                />
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0, left: 0, right: 0,
+                        height: '32%',
+                        background:
+                            'linear-gradient(to top, rgba(2,6,16,0.92) 0%, rgba(2,6,16,0) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+                {noStreams ? (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            padding: '18px 24px',
+                            borderRadius: 14,
+                            background: 'rgba(180, 30, 40, 0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: '1px solid rgba(255,200,200,0.35)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {tagText}: couldn't find a stream.
+                    </div>
+                ) : (
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            bottom: 'clamp(24px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.6)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(93,200,255,0.35)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 700,
+                        }}
+                    >
+                        <Loader2
+                            className="vesper-spin"
+                            size={12}
+                            style={{ color: '#5DC8FF' }}
+                        />
+                        {stage.toUpperCase()}
+                    </div>
+                )}
+                <button
+                    data-testid="party-joining-cancel"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    style={{
+                        position: 'absolute',
+                        bottom: 'clamp(20px, 3vh, 32px)',
+                        right: 'clamp(20px, 3vw, 32px)',
+                        height: 44,
+                        padding: '0 18px',
+                        borderRadius: 999,
+                        background: 'rgba(2,6,16,0.55)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        color: '#E6EAF2',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <X size={14} />
+                    Cancel
+                </button>
+            </div>
+        );
+    }
+
+    /* --- Fallback: legacy poster-blur layout (desktop/test) ---- */
     return (
         <div
             data-testid="party-joining-screen"

@@ -56,6 +56,31 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 114 — Feb 19, 2026) — v2.6.83
+### Live TV player un-broken · Host loading artwork · 72 h on-demand EPG · smooth scroll
+- **🚨 CRITICAL FIX: Live TV channel playback was launching the watch-party VIEW-ONLY player.**
+  - **🐛 User reported**: "The playback video is still the one made for the watch party with the subtitles only — needs to be fixed."
+  - **🔬 Root cause**: `VlcPlayerActivity.kt` line 368: `partyRole = intent.getStringExtra(EXTRA_PARTY_ROLE) ?: "guest"`. When a normal (non-party) Live TV launch fired via `playInternalRich`, the intent had NO `EXTRA_PARTY_ROLE` extra → `getStringExtra` returned null → fell through to default `"guest"`. The downstream `videoLayout.setOnClickListener` then matched `partyRole == "guest"` and locked into "open subtitle picker only" mode. Bug had been live since v2.6.68 when guest-mode was added.
+  - **✅ Fix**: `partyRole` now only takes a value when `partyCode` is non-blank; otherwise `""`. All existing `partyRole == "guest"` checks naturally become false for non-party launches.
+- **🎨 Host loading artwork now actually shows for hosts.**
+  - **🐛 User reported (recurring)**: "Where the host's blue screen showing him how to use it, that still isn't showing up for the host."
+  - **🔬 Root cause**: `PartyJoiningScreen.jsx` had a dedicated GUEST branch (popcorn-loading.jpg) but the HOST role fell through to the legacy poster-blur layout (no host-loading.png at all).
+  - **✅ Fix**: Added a HOST branch matching the guest pattern — full-bleed `host-loading.png`, bottom gradient, status pill, Cancel button. Both roles now have full cinematic art treatment.
+- **🎛 Host menu now opens on air-mouse click (not only D-pad OK).**
+  - **🐛 User reported**: "Fix the player for the host as well."
+  - **🔬 Root cause**: `videoLayout.setOnClickListener` had a guest branch and a fallback `togglePlayPause` branch, but NO host branch — a host clicking the surface (via air mouse) fell into togglePlayPause instead of `showHostMenu()`.
+  - **✅ Fix**: Click handler now branches: party-guest → subtitles, party-host → 5-button menu, no-party → normal controls.
+- **📅 On-demand TV Guide now fetches 72 h** (was 6 h).
+  - **🐛 User reported**: "It's not showing the 72 hours or three days that she said was meant to be showing ahead."
+  - **🔬 Root cause**: Three `getFullEpg(provider, sid, 12)` call-sites in LiveTV.jsx used limit=12 (~6 h). The instant bundle delivers ~76 programmes per channel (~72 h) but only for the 3,141 channels that have an `epg_channel_id` set by the provider. The other 11,000 channels fall through to the on-demand fetch which was capped at 12.
+  - **✅ Fix**: Bumped all three call-sites to `limit=200`.
+- **📜 Smooth scrolling in the channel column.**
+  - **User wanted**: same inertial scrolling feel as the Home shelves (D-pad spam or finger fling should glide, not jump).
+  - **✅ Fix**: `Column` component now uses `el.scrollTo({ top, behavior: 'smooth' })` instead of `el.scrollTop = top`.
+- **🆙 APK bumped to v2.6.83 (versionCode 153)**. Release notes added.
+
+
+
 ## Implemented (Iteration 113 — Feb 19, 2026) — v2.6.82
 ### Live TV loader redesign + per-channel "no EPG" caching
 - **🐛 User feedback (with screenshot)**: "Take away that TV Guide 0-to-50 thing — we don't need it anymore. And the loading circle is behind the actual loading stuff so you can't actually see the circle properly."

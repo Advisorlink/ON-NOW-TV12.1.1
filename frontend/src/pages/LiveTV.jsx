@@ -313,7 +313,7 @@ function Grid({ provider, onLogout }) {
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
-                const items = await getFullEpg(provider, ch.stream_id, 12);
+                const items = await getFullEpg(provider, ch.stream_id, 200);
                 if (epgReqId.current !== myReq) return;
                 const arr = (items && items.length) ? items : [];
                 /* Always cache so future focuses skip the network. */
@@ -356,7 +356,7 @@ function Grid({ provider, onLogout }) {
                     if (i >= missing.length) return;
                     const ch = missing[i];
                     try {
-                        const items = await getFullEpg(provider, ch.stream_id, 12);
+                        const items = await getFullEpg(provider, ch.stream_id, 200);
                         if (cancel) return;
                         if (items && items.length) {
                             epg.current.set(ch.stream_id, items);
@@ -766,7 +766,7 @@ function Grid({ provider, onLogout }) {
                         if (i >= sids.length) return;
                         const sid = sids[i];
                         try {
-                            const items = await getFullEpg(provider, sid, 12);
+                            const items = await getFullEpg(provider, sid, 200);
                             if (cancel) return;
                             if (items && items.length) {
                                 epg.current.set(sid, items);
@@ -1690,8 +1690,22 @@ const Column = React.memo(function Column({ testid, isFocused, items, idx, rowHe
         const bottom = top + rowHeight;
         const viewTop = el.scrollTop;
         const viewBottom = viewTop + el.clientHeight;
-        if (top < viewTop) el.scrollTop = top;
-        else if (bottom > viewBottom) el.scrollTop = bottom - el.clientHeight;
+        /* Smooth-scroll the focused row into view.  Matches the
+         * inertial feel of the Home shelves so D-pad spam (or a
+         * finger drag) feels fluid rather than jumping row-by-row. */
+        const target =
+            top < viewTop
+                ? top
+                : bottom > viewBottom
+                ? bottom - el.clientHeight
+                : null;
+        if (target !== null) {
+            try {
+                el.scrollTo({ top: target, behavior: 'smooth' });
+            } catch {
+                el.scrollTop = target;
+            }
+        }
     }, [idx, rowHeight]);
 
     useEffect(() => {

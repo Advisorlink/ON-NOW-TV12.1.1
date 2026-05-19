@@ -365,7 +365,18 @@ class VlcPlayerActivity : AppCompatActivity() {
         startAtMs = intent.getLongExtra(EXTRA_START_AT_MS, 0L)
         cwId = intent.getStringExtra(EXTRA_CW_ID)
         partyCode = intent.getStringExtra(EXTRA_PARTY_CODE)
-        partyRole = intent.getStringExtra(EXTRA_PARTY_ROLE) ?: "guest"
+        // Default to "" (no role) when there is no party.  Defaulting
+        // to "guest" — as we used to — meant EVERY non-party launch
+        // (Live TV channel, movie playback from Detail, etc.) ended
+        // up in the watch-party VIEW-ONLY mode where a tap can only
+        // open the subtitle picker.  That's the bug the user
+        // reported: "the playback video is the watch-party one with
+        // subtitles only".
+        partyRole = if (!partyCode.isNullOrBlank()) {
+            intent.getStringExtra(EXTRA_PARTY_ROLE) ?: "guest"
+        } else {
+            ""
+        }
         partyMemberId = intent.getStringExtra(EXTRA_PARTY_MEMBER_ID)
         partyWsUrl = intent.getStringExtra(EXTRA_PARTY_WS_URL)
         partyAvatarEmoji = intent.getStringExtra(EXTRA_PARTY_AVATAR_EMOJI)
@@ -520,13 +531,23 @@ class VlcPlayerActivity : AppCompatActivity() {
             // Watch-party GUESTS are view-only — a tap (or D-pad
             // OK while controls are hidden) opens the SUBTITLES
             // picker, period.  No play/pause, no seek, no controls
-            // strip.  This is what stops the focus from "chasing
-            // all the different parts" of the player while the user
-            // holds an arrow to send an emoji reaction (the prior
-            // implementation revealed the full controls on any
-            // press, which then snatched focus from the surface).
-            if (partyRole == "guest") {
+            // strip.
+            //
+            // CRITICAL: `partyRole == "guest"` was being matched for
+            // EVERY non-party launch because the role default was
+            // also "guest".  v2.6.83 fixed the intent extraction to
+            // leave `partyRole = ""` when there's no party — now
+            // this branch only fires for actual party guests.
+            if (!partyCode.isNullOrBlank() && partyRole == "guest") {
                 if (!isPickerOpen()) openSubtitlePicker()
+                return@setOnClickListener
+            }
+            // Watch-party HOSTS get the 5-button menu on a click
+            // (air-mouse tap).  Was missing — only D-pad OK opened
+            // it.  User reported: "fix the player for the host as
+            // well".
+            if (!partyCode.isNullOrBlank() && partyRole == "host") {
+                showHostMenu()
                 return@setOnClickListener
             }
             if (controlsVisible) {
