@@ -240,6 +240,23 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.76 — STRICT no-4K in Watch Together (host buffering fix)**
+            - 🚫 **Watch-Together picker now strictly REFUSES 4K
+              streams.**  User correctly diagnosed: "I think the
+              buffering on the host's side is because we might be
+              choosing a 4K stream."  Yes — even though we filtered
+              4K out, the picker had a fallback that would let 4K
+              through if every other candidate was filtered.  Now:
+              if every available stream is 4K, the picker bails and
+              broadcasts `stream_error: only_4k_available` so guests
+              see a clean error instead of a buffer storm.
+            - 🔍 **`is4K()` detection beefed up.**  Now matches:
+              `4kbluray`, `4kuhd`, `2160i` (previously only `2160p`),
+              and a HEVC + ≥ 10 Mbps bitrate heuristic for Plex
+              direct streams that don't tag the title as 4K.
+              12 unit tests added to lock this behaviour in place.
+            - 🆙 APK bumped to **v2.6.76** (versionCode 146).
+
             **v2.6.75 — Host menu in web player · Top 5 movie picks**
             - 🎛 **HOST 5-button menu now in the WEB player.**  Port
               of the native Kotlin party menu so hosts on phones

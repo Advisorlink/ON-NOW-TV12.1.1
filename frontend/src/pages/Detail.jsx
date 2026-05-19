@@ -783,13 +783,32 @@ export default function Detail() {
         if (type === 'series') return; // series still uses per-episode flow
         if (streamLoading) return;
         if (!streams || streams.length === 0) return;
-        // Filter out 4K — the user explicitly asked us never to
-        // autoplay 4K (bandwidth + TV-decoder constraints on HK1).
-        // Falls back to streams[0] only if EVERY stream is 4K.
+        // STRICTLY filter out 4K — user reported buffering in
+        // parties was caused by accidentally picking 4K streams that
+        // the HK1 box's decoder can't keep up with.  No fallback —
+        // if every stream is 4K we send `stream_error` so guests
+        // bail gracefully instead of suffering a buffer-storm.
         const non4k = streams.filter((s) => !is4K(s));
-        const pool = non4k.length > 0 ? non4k : streams;
+        if (non4k.length === 0) {
+            partyBreadcrumb('party-autoplay:all-4k-bail', {
+                partyCode,
+                total: streams.length,
+            });
+            const ws = partyDetailWsRef.current;
+            if (ws && ws.readyState === 1) {
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'stream_error',
+                        reason: 'only_4k_available',
+                    }));
+                } catch { /* ignore */ }
+            }
+            return;
+        }
+        const pool = non4k;
         // Pick the best stream: prefer 1080p direct → any 1080p →
-        // first direct → first torrent → first anything.
+        // first direct → first torrent → first anything.  Pool is
+        // already guaranteed 4K-free.
         const pick =
             pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
             pool.find((s) => is1080p(s)) ||
@@ -828,8 +847,13 @@ export default function Detail() {
         if (!streams || streams.length === 0) return;
         const watchdog = setTimeout(() => {
             if (autoplayFiredRef.current) return;
+            // STRICTLY non-4K — same hard rule as the primary picker.
             const non4k = streams.filter((s) => !is4K(s));
-            const pool = non4k.length > 0 ? non4k : streams;
+            if (non4k.length === 0) {
+                partyBreadcrumb('party-autoplay:watchdog-all-4k-bail', { partyCode });
+                return;
+            }
+            const pool = non4k;
             const pick =
                 pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
                 pool.find((s) => is1080p(s)) ||
@@ -987,8 +1011,30 @@ export default function Detail() {
                     }
                     return;
                 }
+                // STRICTLY filter out 4K — same hard rule as the
+                // movie-party picker.  If every stream is 4K, bail
+                // gracefully (broadcast stream_error and reset
+                // firing flags so the user can try a different
+                // episode without a buffering meltdown).
                 const non4k = list.filter((s) => !is4K(s));
-                const pool = non4k.length > 0 ? non4k : list;
+                if (non4k.length === 0) {
+                    seriesPartyFiredRef.current = false;
+                    autoplayFiredRef.current = false;
+                    setAutoplayFired(false);
+                    if (isPartyHost) {
+                        const ws = partyDetailWsRef.current;
+                        if (ws && ws.readyState === 1) {
+                            try {
+                                ws.send(JSON.stringify({
+                                    type: 'stream_error',
+                                    reason: 'only_4k_available_for_episode',
+                                }));
+                            } catch { /* ignore */ }
+                        }
+                    }
+                    return;
+                }
+                const pool = non4k;
                 const pick =
                     pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
                     pool.find((s) => is1080p(s)) ||

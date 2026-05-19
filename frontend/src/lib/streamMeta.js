@@ -31,15 +31,31 @@ export function is1080p(stream) {
 }
 
 /**
- * "Is this a 4K / 2160p stream?" — used by the autoplay picker to
- * SKIP 4K streams as a fallback (the user's TV / bandwidth typically
- * can't handle 4K well, and 4K bitrates are too high for autoplay).
+ * "Is this a 4K / 2160p stream?" — used by the Watch-Together
+ * autoplay picker to SKIP 4K streams unconditionally.  Per user
+ * spec (v2.6.76): "Make sure we're only picking 1080p, NEVER 4K
+ * — that's what's causing the host's buffering."
+ *
+ * Detection signals:
+ *   • Literal quality tags:  4K, 2160p, 2160, UHD
+ *   • Common 4K release patterns: "4KBluRay", "UHD-BluRay", "WEB-DL.2160"
+ *   • Plex-style: "2160 · HEVC", "Plex 4K"
+ *   • Bitrate hint: if Plex/HLS metadata includes a bitrate ≥ 10 Mbps
+ *     AND HEVC, we assume 4K even without an explicit label (this
+ *     catches Plex direct streams that don't tag the title).
  */
 export function is4K(stream) {
     const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
         stream?.description || ''
     }`;
-    return /\b(2160p?|4k|uhd|2160)\b/i.test(haystack);
+    if (/\b(2160p?i?|4k|uhd|4kbluray|4kuhd)\b/i.test(haystack)) return true;
+    // High-bitrate HEVC pretty much guarantees 4K for the bitrates
+    // we'd see from Plex / direct sources (Blu-ray 1080p HEVC is
+    // typically 5-8 Mbps; 4K is 15-50 Mbps).
+    const bitrate = stream?.bitrate || stream?.bitrate_kbps || 0;
+    const isHEVC = /\b(hevc|x265|h\.?265)\b/i.test(haystack);
+    if (isHEVC && Number(bitrate) >= 10_000) return true;
+    return false;
 }
 
 /**

@@ -56,6 +56,21 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 108 — Feb 18, 2026) — v2.6.76
+### Watch Together: STRICTLY no 4K (host buffering fix)
+- **🚫 User diagnosed**: "I think the buffering on the host's side is because we might be choosing a 4K stream. We do need to make sure it's only 1080p — never 4K."
+- **🔬 Root cause**: The party autoplay picker already filtered 4K via `non4k = streams.filter(s => !is4K(s))` — but had a silent fallback `const pool = non4k.length > 0 ? non4k : streams` which let 4K through if every other candidate was filtered. Plus the `is4K()` detection only matched explicit `2160p|4k|uhd|2160` — it missed `4kbluray`, `2160i`, and Plex direct streams that don't tag their title.
+- **✅ Fixes in `/app/frontend/src/lib/streamMeta.js`**:
+  - `is4K()` now matches `4kbluray`, `4kuhd`, `2160i`, AND the heuristic "HEVC + bitrate ≥ 10 Mbps" (Blu-ray 1080p HEVC is 5-8 Mbps, 4K is 15-50 Mbps).
+  - 12 unit tests written and passing (run via `node -e ...` inline since the project doesn't have jest set up).
+- **✅ Fixes in `/app/frontend/src/pages/Detail.jsx`** (3 picker sites):
+  - **Movie autoplay** (line ~795): If `non4k.length === 0` we now broadcast `stream_error: only_4k_available` and bail. No fallback.
+  - **Watchdog autoplay** (line ~840): Same hard rule.
+  - **Series autoplay** (line ~1014): Same hard rule, with `stream_error: only_4k_available_for_episode`.
+- **🆙 APK bumped to v2.6.76 (versionCode 146).** Release notes added.
+
+
+
 ## Implemented (Iteration 107 — Feb 18, 2026) — v2.6.75
 ### Host menu ported to web player · Top 5 movie quick-picks on pick stage
 - **🎛 5-button host menu in the WEB Player.jsx** (`/app/frontend/src/components/PartyHostControls.jsx`)
