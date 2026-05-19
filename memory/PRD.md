@@ -81,6 +81,26 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 122 — Feb 19, 2026) — v2.6.95
+### Settings tightened · B&W library actors · Auto-deploy backend on push
+
+- **📐 Settings page made more compact** (`Settings.jsx`).  Container padding `clamp(40,5vw,80)` × `clamp(40,6vw,96)` → `clamp(20,2.6vw,44)` × `clamp(24,3.2vw,60)`.  H1 'Theme' `clamp(40,4.6vw,72)` → `clamp(26,2.8vw,42)` (verified 42px at 1920w).  Section H2 `clamp(20,1.8vw,28)` → `clamp(16,1.4vw,22)`.  Theme card grid min 200px → 160px with tighter `gap: clamp(8,0.8vw,14)`.  ToggleRow padding `14×18` → `10×14`, font 14→13, description 11.5→11, toggle handle 26→22 (handle stride 21→19 to match).  Max page width capped at 1100 px so wide TVs get a scannable column instead of stretched-thin paragraphs.
+
+- **🎭 Library actor portraits → black & white** (`Library.jsx`).  ActorCard `<img>` gains `filter: grayscale(1) contrast(1.05)` for a curated magazine feel.  Verified via getComputedStyle on rendered cards.
+
+- **🚀 Auto-deploy backend on push** (`.github/workflows/deploy-backend.yml`).  New workflow triggered by changes under `backend/**` or the workflow file itself:
+  - rsync's the backend tree (excluding `.env`, `__pycache__`, `*.pyc`, `*.bak*`, `tests/`) to `/opt/onnowtv/backend/` on the Contabo VPS.
+  - Pip-installs `requirements.txt` (idempotent — skips already-satisfied deps).
+  - `systemctl restart onnowtv-backend.service`, fails the workflow if the service isn't active after 8 s.
+  - Hits `https://onnowtv.duckdns.org/api/` as a public smoke test with 3 retries.
+  - **One-time setup:** add repo secret `VPS_SSH_PASSWORD` (Settings → Secrets → Actions).  Optional repo vars `VPS_HOST` / `VPS_USER` / `VPS_BACKEND_PATH` to override defaults.
+
+- **🧪 Verified** (iteration_38.json): 10/10 checks pass, zero JS errors, zero regressions on existing test-ids.  YAML lints clean via PyYAML.
+
+- **🆙 APK bumped to v2.6.95 (versionCode 165).**
+
+
+
 ## Implemented (Iteration 121 — Feb 19, 2026) — v2.6.94
 ### Upcoming-row diagnostic · Settings "Unlock" · Autoplay → Stream-unavailable modal · EPG disk shrink
 
