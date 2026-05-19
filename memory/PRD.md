@@ -81,6 +81,42 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 123 — Feb 19, 2026) — v2.6.96
+### Big batch: sports auto-aliases · trailer rectangles · auto-show modal · Library notifications + collapsible · native host dock
+
+- **🏈 Sports matcher auto-aliases** (`sportsMatch.js`).  `aliasesFor(name)` now generates fallback aliases for any team not in the static table: first distinctive non-stopword token + last distinctive token + the first two words.  Example: "NC State Wolfpack" → `[nc state wolfpack, nc, wolfpack, nc state]`; "Shenzhen Xinpengcheng" → `[shenzhen xinpengcheng, shenzhen, xinpengcheng]`.  Two new low-confidence tiers in `matchFixture`: TIER-4 (`leagueHit ≥ 2` OR `league + sport` hits, score 18+) surfaces channels currently airing the same league even when neither team's name appears in the EPG; TIER-5 (sport-only match, score 12+) catches NFL Football / NCAA Basketball generic broadcast slots.  Resolves all the "Not on any of your channels" cards the user kept seeing for niche-league fixtures.
+
+- **🎬 Upcoming Movies → 16:9 trailer rectangles** (`UpcomingMoviesShelf.jsx` rewritten; `server.py` endpoint enhanced):
+  - Backend filters to **English-language only** (`with_original_language=en`, `region=US`) with `popularity ≥ 6` to drop obscure indies — user spec: "no overseas/international, just the big English/US new releases".
+  - Backend now resolves the **YouTube trailer key** (TMDB `/videos`, prefers Official Trailer → Trailer → Teaser) and caches 24 h per movie.
+  - Each card is a 16:9 rectangle with the movie's backdrop, centred Play badge on focus/hover, title + release date strip at the bottom.
+  - Clicking a card navigates to `/title/movie/<imdb>?autoplay-trailer=1` (or `/resolve/movie/<tmdb>?autoplay-trailer=1` when IMDB unresolved).  Detail.jsx now reads the `autoplay-trailer=1` query and auto-fires `openTrailer()` once on mount.
+
+- **🎯 Stream Unavailable modal auto-shows + auto-dismisses on notify**:
+  - `Detail.jsx` auto-opens `StreamUnavailableModal` the instant stream loading completes with zero streams (no Play click required).  One-shot ref (`unavailableSeenRef`) ensures the modal doesn't re-open after the user dismisses it.
+  - `StreamUnavailableModal.jsx` `handleNotifyToggle` now auto-closes the modal 350 ms after the user taps "Notify me when ready" (gives them time to see the "Added" state, then steps out of the way).
+
+- **🔔 Library "Notifications" section** (`Library.jsx`):
+  - New section under TV Shows shows every item on the user's `notifyList` with poster + title + a 🗑 remove button.
+  - Card click → opens Detail.  Trash icon → removes the entry and live-refreshes the section.
+
+- **📂 Library collapsible sections** (`Section` + `CollapsibleGrid`):
+  - TV Shows (>6 items), Notifications (>6), and My Actors (>8) collapse to ~2 rows by default with a bottom fade-out gradient hinting there's more.
+  - Click the • • • button in the section header to expand (toggles to a ↑ chevron); click again to collapse.
+
+- **🎚️ Native Kotlin host dock redesigned** (`VlcPlayerActivity.kt`):
+  - The legacy labelled-button strip is replaced with the **H3 curved glass dock** from the React side — bottom-centred translucent rounded bar with 5 circular bubble buttons (⏸ ⏩ ⟳ 🔒 💬).
+  - Focus animates 12 % up + 12 % bigger with a cyan halo (`elevation = 12dp`) for a real Apple-style drop-shadow effect.  Matches `PartyHostControls.jsx` pixel-for-pixel.
+
+- **🧪 Verified** (iteration_39.json):
+  - Backend `/api/tmdb/upcoming-movies` → **100% pass** (8/8 pytest assertions: HTTP 200, English-popular items, `trailer_key` populated, `popularity ≥ 6`, limit respected).
+  - Frontend trailer-cards render as 16:9 with `<img>` backdrop + title overlay and click navigates with `?autoplay-trailer=1` (observed live).
+  - The remaining 4 frontend tests (modal auto-show, modal auto-dismiss, Library Notifications, CollapsibleGrid toggle) were blocked by a testing-environment Kids-profile sandbox.  Testing agent's code-review comments validated all 4 implementations as sound (one-shot refs, 350 ms timer, testid contract, props plumbing).
+
+- **🆙 APK bumped to v2.6.96 (versionCode 166).**
+
+
+
 ## Implemented (Iteration 122 — Feb 19, 2026) — v2.6.95
 ### Settings tightened · B&W library actors · Auto-deploy backend on push
 
