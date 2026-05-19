@@ -81,6 +81,26 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 121 — Feb 19, 2026) — v2.6.94
+### Upcoming-row diagnostic · Settings "Unlock" · Autoplay → Stream-unavailable modal · EPG disk shrink
+
+- **🔓 New "Unlock (testing)" toggle in Settings → General** — `ToggleRow` with `data-testid='toggle-dev-unlock'`.  Backed by `localStorage['onnowtv-dev-unlock']` (`'1'`/`'0'`).  Dispatches `onnowtv:dev-unlock-changed` for live subscribers.
+
+- **🎬 UpcomingMoviesShelf diagnostic banner** — when items list is empty AND unlock is ON, the shelf renders a debug card (`data-testid='upcoming-diag'`) with the API status (idle/ok/empty/error), item count, the failing endpoint URL, and a 404-specific hint reminding the operator to redeploy the FastAPI backend to the Contabo VPS (`/api/tmdb/upcoming-movies` is in v2.6.93+ but only ships on VPS after a manual sync).  Production UX unchanged: row stays hidden by default when no items.
+
+- **🐛 Stream Unavailable modal now fires on autoplay** — `Detail.jsx`'s autoplay useEffect previously bailed silently when streams loading completed with zero playable streams, leaving the user staring at an inert Play button.  Now it triggers `setShowUnavailableModal(true)` (matching the manual Play-button behaviour added in v2.6.87) so users always get the "Notify me when ready" CTA.
+
+- **⚡ EPG disk-cache shrink** — `liveCache.js` exports `persistEpgSubset(providerId, keysToPersist)`.  After `mergeAndSaveEpg` populates the in-memory cache, `instantBundle.js` computes the sports-channel-only `epg_channel_id` set (~50–80 channels, <500 KB) and persists THAT subset to disk.  Next cold boot: /sports chips render at T+0 instead of waiting 15–30 s for the bundle to re-merge.  Live-TV non-sports EPG still works in-session via the in-memory cache.
+
+- **🧪 Verified end-to-end** (iteration_37.json): toggle renders + positioned correctly, localStorage write confirmed, diag banner appears on both 404-mock and empty-array-mock with correct status text + endpoint URL, zero JS errors, lint clean across all 5 changed files.
+
+- **🆙 APK bumped to v2.6.94 (versionCode 164).**
+
+### ⏭️ User action required (carry-over)
+- **VPS sync:** Append `PREMIUMIZE_API_KEY="6xzchukamga8y6r4"` to `/opt/onnowtv/backend/.env` and copy the latest backend code (including `/api/tmdb/upcoming-movies`) to the Contabo VPS.  Then `systemctl restart onnowtv-backend.service`.
+
+
+
 ## Implemented (Iterations 118–120 — Feb 19, 2026) — v2.6.90 → v2.6.93
 ### 🏈 Sports guide channel chips FINALLY rendering · Vesper theme removed
 
