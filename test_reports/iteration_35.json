@@ -1,0 +1,45 @@
+{
+  "summary": "Iter 35 (frontend-only) — Sports chips fix v2.6.92 PARTIALLY landed but USER-VISIBLE BUG IS UNFIXED. The two pieces of v2.6.92 that ARE working: (a) safeWrite's new console.warn fires with key + payload size every time the EPG overflows localStorage — we captured two warnings per merge cycle: 'quota write failed for onnowtv-livecache-v1:default-njala:epg (size=43586873B): QuotaExceededError' and a follow-up at size=12835701B for the 50%-trim fallback. (b) The in-memory memCache Map is correctly set inside saveCategories / saveChannels / mergeAndSaveEpg BEFORE the disk write is attempted (verified by inspecting liveCache.js). BUT chips still do not render on /sports — 0 'WATCH ON' elements, 0 brand names (Sky/TNT/ESPN/beIN), 46 'NOT ON YOUR CHANNELS'. The fix did NOT solve the user-facing bug. Regressions PASS: Home renders fully (hero + 9 networks + 46 New Movies + UPCOMING row at bottom). Theme — vesper card absent, electric is first, no JS errors.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SportsGuide chips (FixtureCard + HeroFixture)",
+        "issue": "Zero 'WATCH ON' chips render on /sports even after 50s of bundle merge. All 46 fixtures show 'NOT ON YOUR CHANNELS' / 'Not on any of your channels yet.' The in-memory EPG cache IS being populated (mergeAndSaveEpg calls memCache.set before safeWrite) and the new safeWrite warning IS logging (size=43.5 MB written attempt, 12.8 MB trimmed attempt — both quota-exceeded), but the React tree never re-renders to consume the now-available EPG data.",
+        "selector": "[data-testid*='watch-on'] count = 0; text 'WATCH ON' count = 0; text 'NOT ON YOUR CHANNELS' count = 46",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "instantBundle → memCache → sportsMatch.buildIndex → FixtureCard.matches",
+        "issue": "Two cache layers freeze the empty result that was computed BEFORE the EPG arrived: (1) sportsMatch.js#buildIndex (lines 143-151) has a 60-second module-level TTL keyed by providerId. The first call (on initial SportsGuide mount, before instant-bundle has resolved) builds an empty index and caches it for 60s. (2) SportsGuide.jsx FixtureCard (line 957-962) and HeroFixture (line 450-455) wrap `matchFixture(provider.id, fixture, { limit: 4 })` in a useMemo whose deps are `[provider, fixture]`. Neither reference changes when EPG arrives ~30s later, so the memoised empty array is reused FOREVER. Even after navigating away from /sports and back, the in-memory `cachedIndex` is still the empty one (and on remount the useMemo runs immediately, before any cache-bust signal). Net effect: even though memCache holds the full 2,330-channel EPG, FixtureCard.matches stays [] for the life of the session.",
+        "affected_selectors": ["[data-testid^='sports-fixture']", "[data-testid*='watch-on']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_35.json"],
+  "action_items": [
+    "PRIMARY FIX: Add a cache-bust signal between liveCache and SportsGuide. Easiest pattern: expose a module-level subscriber (e.g., `export function onLiveCacheUpdate(cb) { ... }` in liveCache.js, called from mergeAndSaveEpg/saveChannels/saveCategories). SportsGuide.jsx subscribes via useEffect and bumps a state counter `const [cacheVer, setCacheVer] = useState(0)`. Pass `cacheVer` through to FixtureCard/HeroFixture and add it to the useMemo deps: `[provider, fixture, cacheVer]`. Also call `clearMatchCache()` from sportsMatch.js inside the same callback so buildIndex's 60s TTL is invalidated immediately.",
+    "ALTERNATIVE FIX (smaller surface): inside sportsMatch.js#buildIndex, check `loadEpg(providerId)` size BEFORE returning the cached index — if the cache is empty and the disk/mem now has data, invalidate. But the real React-level issue still leaves the useMemo stale until the deps move; the subscriber approach is cleaner.",
+    "ALSO: shrink the EPG before persisting. The bundle ships 43.5 MB of EPG which will NEVER fit in localStorage (~5–10 MB quota across all browsers). Filter `bundle.epg` in instantBundle.js to only the epg_channel_ids whose channel name/category matches the SPORT_CAT_RX or CHAN_NAME_RX already in sportsMatch.js — that drops the payload from 43.5 MB to <500 KB and lets the disk cache work too, so the first /sports visit (cold cache) renders chips instantly without waiting for the 50s background fetch."
+  ],
+  "critical_code_review_comments": [
+    "liveCache.js — memCache + safeWrite warn implementation is CORRECT and matches the brief. saveCategories/saveChannels/mergeAndSaveEpg all set memCache before disk write; loadCategories/loadChannels/loadEpg check memCache first. No bug here.",
+    "sportsMatch.js (lines 143-151) — buildIndex caches `cachedIndex` for 60s without any signal-based invalidation. Combined with React useMemo at the call sites this guarantees stale-empty results survive the EPG-merge window.",
+    "SportsGuide.jsx (lines 452-455, 959-962) — useMemo deps `[provider, fixture]` don't include any liveCache-version signal. When EPG arrives asynchronously, the component never recomputes. This is the real bug.",
+    "instantBundle.js — passes the entire 43.5 MB bundle.epg blob to mergeAndSaveEpg unfiltered. Quota write fails on every device. Even the 50% trim fallback (12.8 MB) is still 2–3× quota. The in-memory cache holds it for THIS session, but reload starts from zero every time."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only review)",
+    "frontend": "Theme regression PASS, Home regression PASS, console.warn observability PASS, in-memory cache plumbing PASS. Chips rendering FAIL (0 of 46 fixtures show 'WATCH ON' — same as iter 34)."
+  },
+  "test_credentials": "Profile p1 seeded via add_init_script; provider default-njala auto-seeded by backend.",
+  "seed_data_creation": "onnowtv-profiles-v1, onnowtv-active-profile-v1, onnowtv-welcome-tour-seen. Cleared livecache keys before each run to force a cold instant-bundle fetch.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "When validating the NEXT fix: (1) clear localStorage, (2) load /sports, (3) wait 45-60s, (4) expect document.body.innerText to contain 'WATCH ON' and/or one of {Sky Sport, TNT Sport, ESPN, beIN, Kayo, Fox Sport}, (5) expect 'NOT ON YOUR CHANNELS' count to drop substantially (current baseline is 46). The console.warn 'quota write failed' is EXPECTED — that confirms safeWrite still logs. The in-memory memCache is already proven correct; do not waste time there. The remaining fix is purely the React re-render trigger after mergeAndSaveEpg completes (plus optionally shrinking the EPG payload before persisting).",
+  "rca of the issue": "Iter 34 RCA was correct about quota busting localStorage; v2.6.92 correctly added memCache + console.warn so the data survives the session. BUT v2.6.92 missed the React-side gap: SportsGuide.jsx's FixtureCard/HeroFixture wrap matchFixture() in useMemo with deps `[provider, fixture]`. The first useMemo evaluation happens when SportsGuide mounts — well before the ~30-50s instant-bundle promise resolves. At that point liveCache is empty, buildIndex returns [], matches = []. Then EPG arrives, mergeAndSaveEpg populates memCache, BUT (a) sportsMatch.js's own 60s `cachedIndex` still holds the empty array, AND (b) even if 60s lapse, the useMemo deps haven't changed so React never re-invokes matchFixture. Result: chips stay invisible despite all underlying data being present in memory. Fix needs a cache-update subscriber that bumps a SportsGuide state and clears sportsMatch.cachedIndex."
+}

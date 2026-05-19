@@ -228,6 +228,36 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.92 — Sports guide channel chips REALLY working now**
+            - 🐛 **Second root cause found** (turtles all the way
+              down): even after fixing the matcher's key-mismatch
+              bug in v2.6.91, the chips still wouldn't render
+              because the EPG never reached the matcher.  The
+              instant-bundle backend was serving a healthy ~44 MB
+              EPG payload, but the browser's localStorage quota is
+              ~5 MB — the `safeWrite` helper silently swallowed
+              the `QuotaExceededError`, so EVERY load of
+              `loadEpg()` returned null and `sportsMatch.buildIndex`
+              iterated an empty map.
+            - ✅ **Fix #1**: added an in-memory cache layer to
+              `liveCache.js`.  Cats / channels / EPG now live in a
+              session-scoped `Map` BEFORE the disk write is
+              attempted, so quota failures no longer poison the
+              running session.  Saves writes attempt as usual; the
+              in-memory copy stays authoritative within the boot.
+            - ✅ **Fix #2**: `safeWrite` now `console.warn`s on
+              quota failure with the key + payload size.  Silent
+              quota busts will never be invisible again.
+            - 🧪 **Verified end-to-end with the user's real
+              Xtream bundle (44 MB EPG, 2,330 channels, 14 k
+              streams):** simulated a 5 MB localStorage quota,
+              confirmed disk writes correctly fail, in-memory
+              cache holds the full 2,330-channel EPG, `loadEpg()`
+              returns the data, `sportsMatch.buildIndex` builds a
+              27,870-entry index, and 4/4 test fixtures return
+              2–6 channels with scores 117-203.
+            - 🆙 APK bumped to **v2.6.92** (versionCode 162).
+
             **v2.6.91 — 🏈 Sports guide channel mapping FIXED · Vesper theme removed**
             - 🔧 **ROOT-CAUSE BUG: sportsMatch never returned hits.**
               The EPG map is keyed by `epg_channel_id` (e.g.

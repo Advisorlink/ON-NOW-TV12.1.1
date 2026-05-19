@@ -22,6 +22,16 @@
 
 const NS = 'onnowtv-livecache-v1';
 
+/* In-memory cache fallback — survives the current session even when
+ * localStorage quota is exceeded.  Keyed by `${kind}:${providerId}`
+ * so each cache kind (cats / chans / epg) stays distinct.  Reads
+ * check memory FIRST (cheaper than a JSON.parse anyway), then
+ * fall through to localStorage. */
+const memCache = new Map();
+function memKey(providerId, kind) {
+    return `${kind}:${providerId}`;
+}
+
 function k(providerId, kind) {
     return `${NS}:${providerId}:${kind}`;
 }
@@ -40,8 +50,21 @@ function safeWrite(key, payload) {
     try {
         localStorage.setItem(key, JSON.stringify(payload));
         return true;
-    } catch {
-        // Quota exceeded or storage disabled — degrade silently.
+    } catch (e) {
+        // Quota exceeded or storage disabled — degrade GRACEFULLY,
+        // but log so the next debug session doesn't waste days
+        // chasing a silent quota bust like we did with the sports
+        // chips.  In-memory cache (caller responsibility) still
+        // covers the running session.
+        try {
+            const size = (payload && typeof payload === 'object')
+                ? JSON.stringify(payload).length : 0;
+            // eslint-disable-next-line no-console
+            console.warn(
+                `[liveCache] quota write failed for ${key} (size=${size}B):`,
+                e?.message || e
+            );
+        } catch { /* nested toString failure — give up */ }
         return false;
     }
 }
@@ -49,24 +72,38 @@ function safeWrite(key, payload) {
 // -------- categories --------
 
 export function loadCategories(providerId) {
+    const mem = memCache.get(memKey(providerId, 'cats'));
+    if (mem) return mem;
     const got = safeRead(k(providerId, 'cats'));
-    return got && Array.isArray(got.data) ? got.data : null;
+    if (got && Array.isArray(got.data)) {
+        memCache.set(memKey(providerId, 'cats'), got.data);
+        return got.data;
+    }
+    return null;
 }
 
 export function saveCategories(providerId, list) {
     if (!Array.isArray(list)) return;
+    memCache.set(memKey(providerId, 'cats'), list);
     safeWrite(k(providerId, 'cats'), { at: Date.now(), data: list });
 }
 
 // -------- channels (per-category map) --------
 
 export function loadChannels(providerId) {
+    const mem = memCache.get(memKey(providerId, 'chans'));
+    if (mem) return mem;
     const got = safeRead(k(providerId, 'chans'));
-    return got && got.data && typeof got.data === 'object' ? got.data : null;
+    if (got && got.data && typeof got.data === 'object') {
+        memCache.set(memKey(providerId, 'chans'), got.data);
+        return got.data;
+    }
+    return null;
 }
 
 export function saveChannels(providerId, byCatId) {
     if (!byCatId || typeof byCatId !== 'object') return;
+    memCache.set(memKey(providerId, 'chans'), byCatId);
     safeWrite(k(providerId, 'chans'), { at: Date.now(), data: byCatId });
 }
 
@@ -78,8 +115,14 @@ export function saveChannels(providerId, byCatId) {
 // already passed.
 
 export function loadEpg(providerId) {
+    const mem = memCache.get(memKey(providerId, 'epg'));
+    if (mem) return mem;
     const got = safeRead(k(providerId, 'epg'));
-    return got && got.data && typeof got.data === 'object' ? got.data : null;
+    if (got && got.data && typeof got.data === 'object') {
+        memCache.set(memKey(providerId, 'epg'), got.data);
+        return got.data;
+    }
+    return null;
 }
 
 /** Merge `partial` into the persisted EPG map (in chunks if too
@@ -117,6 +160,13 @@ export function mergeAndSaveEpg(providerId, partial) {
         }
     }
     if (!dirty) return;
+    // Always update the in-memory cache so the running session
+    // has the data even if localStorage rejects the write.  This is
+    // what saved us when the 30 MB EPG blob hit the ~5–10 MB quota
+    // and silently failed — sportsMatch.buildIndex was iterating an
+    // empty `for (const epgId in epg)` loop.  Now the in-memory
+    // map has the data immediately, regardless of disk success.
+    memCache.set(memKey(providerId, 'epg'), existing);
     if (!safeWrite(k(providerId, 'epg'), { at: Date.now(), data: existing })) {
         // Quota exceeded — try writing only the smallest 50% of
         // entries so at least *some* hot data persists.
