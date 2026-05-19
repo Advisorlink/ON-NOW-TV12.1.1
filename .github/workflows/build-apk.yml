@@ -27,12 +27,14 @@ env:
   # down.  Emergent assigns a free `*.emergent.host` domain on
   # deploy — that's what we point to here.
   #
-  # TEMPORARY (v2.6.33): pointing back at the preview pod while
-  # the Contabo VPS migration is in flight.  The .emergent.host
-  # production deploy has been flapping (502/520) so we've moved
-  # back to the rock-solid preview pod for testing.  Will switch
-  # to the Contabo domain once the VPS is provisioned.
-  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
+  # v2.6.73: BACK ON THE PRODUCTION URL.  User confirmed the
+  # Emergent prod deploy is now healthy (was flapping with
+  # Cloudflare 520 errors for the last few iterations, so we'd
+  # temporarily reverted to the preview URL).  Clients hitting
+  # this URL get the real app every time — no more
+  # "Resume Preview" banner injected by the preview-pod
+  # hibernation middleware.
+  REACT_APP_BACKEND_URL: https://rebrand-app-5.emergent.host
 
 jobs:
   build:
@@ -237,6 +239,18 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.73 — APK now points at PRODUCTION (no more preview banner!)**
+            - 🚀 **`REACT_APP_BACKEND_URL` swapped to
+              `https://rebrand-app-5.emergent.host`.**  User confirmed
+              the production deployment is now healthy (was returning
+              Cloudflare 520 in earlier checks).  Clients hitting the
+              app will now get the real production backend every
+              time — no more "Resume Preview" banner injected by the
+              preview-pod hibernation middleware.
+            - 🆙 APK bumped to **v2.6.73** (versionCode 143).
+            - Defensive client-side banner nuker from v2.6.72 stays in
+              place as a belt-and-braces safety net.
 
             **v2.6.72 — DEFENSIVE: nuke "Resume Preview" banner client-side**
             - 🛡️ **Aggressive MutationObserver-based banner nuker.**
