@@ -234,6 +234,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.86 — Host UI: H3 curved dock + R4 orbital reactions remote · Hero fade extended**
+            - 🎨 **`PartyHostControls.jsx` rebuilt** with the H3/R4
+              design pair the user chose from the mockup gallery:
+                • **Host dock**: 5 large 3D bubble buttons (80 px) in
+                  a curved Mac-style glass frame at the bottom-centre.
+                  Each bubble has a top-left light source + bottom
+                  inner shadow recess for a real sphere illusion.
+                  Focused button lifts 4 px + scales 1.10× + glows
+                  cyan with a floating uppercase tooltip below it.
+                • **Reactions Remote (R4 Orbital)**: persistent
+                  200 px ring on the right edge — 4 emoji bubbles at
+                  N/E/S/W (😂 up · 🔥 right · 😱 down · ❤️ left)
+                  with a glowing cyan "OK" core in the middle.  Pure
+                  info graphic (`pointer-events: none`) so it never
+                  steals focus from anything.  Always visible during
+                  party host/guest sessions so first-time users
+                  always see what their D-pad does.
+            - 🐛 **D-pad on web host menu** still works as before
+              (LEFT/RIGHT to navigate, OK to fire, BACK closes).
+            - 🖼️ **Hero billboard fade extended** (user feedback):
+              vertical gradient now starts darkening at 70 % (was
+              50 %), with 92 % darkness at the bottom-most edge —
+              the seam between the hero and the first content shelf
+              is now imperceptible instead of being a hard black
+              band.
+            - 🆙 APK bumped to **v2.6.86** (versionCode 156).
+
             **v2.6.85 — Host menu redesign · Player back-leak fix · Hero polish · Plex+IPTV restored**
             - 🖼️ **Hero billboard tweaks** (user feedback): the
               backdrop image is now anchored at 30 % from the top
