@@ -56,6 +56,22 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 110 — Feb 18, 2026) — v2.6.78
+### End-user polish: "currently offline" message + Sources hidden
+- **📡 EmptyAddonsBanner reworded**:
+  - **User feedback**: "When it goes 'demo content shown' we need to remove 'Install a Stremio add-on to see real catalogs here' — just have it say 'On Now TV currently offline'."
+  - **✅ Fix in `Home.jsx`**: Replaced the headline with "On Now TV is currently offline." Added a soft secondary line: "Check your internet connection and try again — your profile and library are saved." Removed the "Open Sources →" button entirely.
+- **🛏 Sources entry hidden from SideNav**:
+  - **User feedback**: "Take away the sources button, because no one needs to be able to see that."
+  - **✅ Fix in `SideNav.jsx`**: Removed the `sources` entry from the main `NAV` array. The `/sources` route still exists for power-user direct-URL access but it no longer clutters the nav.
+- **🆙 APK bumped to v2.6.78 (versionCode 148).** Release notes added.
+
+### Explained to user (not a code change)
+- **Mobile vs box "empty after update" mystery**: Both devices hit the same backend. `localStorage` (where Stremio addon URLs are stored) is **per-device**. Box has addons → full catalogues. Fresh phone install → no addons → empty state. The new "currently offline" message is the polish for exactly this case so end-users get a polite "try again" instead of a "go configure addons" dev message.
+- **Deploy vs Save-to-GitHub**: Two different things. Deploy → website update (affects APK + browser users instantly). Save-to-GitHub → builds new APK file (auto-update prompt on box). Most changes need both for full propagation.
+
+
+
 ## Implemented (Iteration 109 — Feb 18, 2026) — v2.6.77
 ### THE bug: host menu + popcorn weren't rendering (ref vs state)
 - **🐛 User reported (with growing frustration)**: "The buttons still aren't working. The screen isn't showing on the host party page. That blue popcorn screen is not showing. The player settings aren't working on the host party one — it's still showing the same."

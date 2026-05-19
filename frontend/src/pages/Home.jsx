@@ -421,6 +421,11 @@ export default function Home() {
 }
 
 function EmptyAddonsBanner() {
+    /* v2.6.78: replaced the dev-facing "Install a Stremio addon to
+       see real catalogues here" + Sources button with a polished
+       end-user message.  No-one outside the dev workflow should
+       ever see (or need to use) the Sources screen — the app is a
+       finished product, not a Stremio configurator. */
     return (
         <section
             className="flex items-center justify-between"
@@ -436,33 +441,26 @@ function EmptyAddonsBanner() {
         >
             <div>
                 <div className="vesper-eyebrow" style={{ fontSize: 11 }}>
-                    Demo content shown
+                    Connection
                 </div>
                 <div
                     className="vesper-display mt-1"
                     style={{ fontSize: 22, letterSpacing: '-0.02em' }}
                 >
-                    Install a Stremio addon to see real catalogues here.
+                    On Now TV is currently offline.
+                </div>
+                <div
+                    style={{
+                        marginTop: 6,
+                        fontSize: 13,
+                        color: 'var(--vesper-text-2)',
+                        opacity: 0.78,
+                    }}
+                >
+                    Check your internet connection and try again — your
+                    profile and library are saved.
                 </div>
             </div>
-            <a
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                href="/sources"
-                onClick={(e) => {
-                    e.preventDefault();
-                    window.history.pushState({}, '', '/sources');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="h-12 px-5 rounded-full flex items-center font-sans font-semibold text-[16px]"
-                style={{
-                    background: 'var(--vesper-blue)',
-                    color: 'var(--vesper-bg-0)',
-                }}
-            >
-                Open Sources →
-            </a>
         </section>
     );
 }

@@ -240,6 +240,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.78 — End-user polish: "currently offline" + Sources hidden**
+            - 📡 **"Install a Stremio addon to see real catalogues" →
+              "On Now TV is currently offline."**  Friendlier copy
+              when the empty-catalogue state shows (e.g. on a fresh
+              install before addons have synced).  Now also includes
+              a soft hint: "Check your internet connection and try
+              again — your profile and library are saved."  Removed
+              the "Open Sources →" button entirely.
+            - 🛏 **Sources entry hidden from the main nav.**  End
+              users should never need to configure addons — that's
+              an internal-only workflow now.  The `/sources` route
+              still exists for direct-URL access but it no longer
+              clutters the SideNav for normal users.
+            - 🆙 APK bumped to **v2.6.78** (versionCode 148).
+
             **v2.6.77 — Host menu + popcorn artwork ACTUALLY render (ref → state)**
             - 🐛 **The bug**: in `Player.jsx`, `isPartyHost` was
               derived from `partyRoleRef.current` — a REF.  React

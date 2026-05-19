@@ -24,7 +24,10 @@ const NAV = [
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
-    { id: 'sources', label: 'Sources', icon: Plug, path: '/sources' },
+    // v2.6.78: removed the user-facing "Sources" entry — addon
+    // configuration is now an internal-only flow.  Power-users can
+    // still reach /sources directly via URL bar but it no longer
+    // clutters the main nav for end-users.
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
