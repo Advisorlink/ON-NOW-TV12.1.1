@@ -234,6 +234,46 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.82 — Live TV: cleaner loader · instant re-opens · no re-fetch loops**
+            - 🐛 **User reported (with screenshot)**: "Take away that
+              TV Guide 0-to-50 thing — we don't need it anymore, and
+              that whole loading screen, the loading circle is behind
+              the actual loading stuff so you can't actually see the
+              circle properly."
+            - 🔬 **Root cause**: the boot splash dated from when we
+              did per-channel Xtream calls and gated on "EPG cached
+              for 50 channels".  Now the backend pre-warms the full
+              ~14,000-channel bundle in one gzipped request, so the
+              `0 / 50` counter was misleading (we already had 2,335
+              channels of EPG by the time the loader started ticking
+              up).  And the previous centerpiece SVG arc overlapped
+              the big percentage text + phase icon at certain TV
+              resolutions, making the spinner look broken.
+            - ✅ **Loader redesigned** (`LiveTVBoot.jsx`): now a
+              single slim 168 px spinning ring with NOTHING overlaid
+              in the centre, brand wordmark above, "TUNING IN"
+              eyebrow + a single-line subtitle below.  Removed: the
+              4-stage progress rows, the 3 counter cards, the marquee
+              strip, the percentage / phase-icon overlap.  SKIP
+              affordance still appears after 10 s.
+            - ✅ **Subsequent visits are now truly instant.**  The
+              splash now dismisses the moment localStorage has
+              categories + channels (regardless of how much EPG is
+              cached).  Any remaining EPG fill keeps running silently
+              in the background while you browse — exactly what the
+              instant bundle was always meant to enable.
+            - ✅ **Per-channel guide no longer re-fetches forever.**
+              The on-demand EPG fetcher now caches EMPTY results too,
+              not just hits.  Only ~3,100 of the 14,220 channels in
+              the managed catalogue have any EPG at all (the rest
+              just don't have an `epg_channel_id` set by the
+              provider — there's no data to fetch).  Previously every
+              focus on one of those channels triggered a fresh
+              short_epg call, which is what produced the "couple of
+              seconds wait" the user described — even though the
+              answer was always "no programme info".
+            - 🆙 APK bumped to **v2.6.82** (versionCode 152).
+
             **v2.6.81 — HTTPS on onnowtv.duckdns.org (Let's Encrypt)**
             - 🔒 **TLS is live!**  Backend now reachable at
               `https://onnowtv.duckdns.org` with a real Let's Encrypt

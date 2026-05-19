@@ -296,7 +296,15 @@ function Grid({ provider, onLogout }) {
     /* On-demand EPG fetch — fires 200 ms after the user settles on
      * a channel that has no cached EPG.  Lands in epg.current
      * (same map the prefetch fills), so a subsequent focus on the
-     * same channel is instant.  Cancelled if the user moves on. */
+     * same channel is instant.  Cancelled if the user moves on.
+     *
+     * Empty results are ALSO cached (as []) so channels the
+     * provider doesn't ship EPG for don't re-fetch every time the
+     * user lands on them — that was the 1-2 second "wait" the user
+     * was seeing on channels like USA Entertainment.  Of 14,220
+     * channels in the managed catalogue, only ~3,100 have any EPG
+     * data at all (the provider just doesn't index the rest).
+     */
     const epgReqId = useRef(0);
     useEffect(() => {
         const ch = debouncedChannel;
@@ -307,12 +315,20 @@ function Grid({ provider, onLogout }) {
             try {
                 const items = await getFullEpg(provider, ch.stream_id, 12);
                 if (epgReqId.current !== myReq) return;
-                if (items && items.length) {
-                    epg.current.set(ch.stream_id, items);
-                    mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
+                const arr = (items && items.length) ? items : [];
+                /* Always cache so future focuses skip the network. */
+                epg.current.set(ch.stream_id, arr);
+                if (arr.length) {
+                    mergeAndSaveEpg(provider.id, { [ch.stream_id]: arr });
+                }
+                rerender();
+            } catch {
+                /* Network error — cache empty so we don't hammer. */
+                if (epgReqId.current === myReq) {
+                    epg.current.set(ch.stream_id, []);
                     rerender();
                 }
-            } catch { /* swallow */ }
+            }
         }, 200);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -489,11 +505,8 @@ function Grid({ provider, onLogout }) {
          * server-side bundle existed.  Now that the backend
          * pre-warms a 2,338-channel / 72-hour EPG bundle and
          * `instantBundle.js` seeds it into our cache on app boot,
-         * we use a tiny threshold (50 channels) instead of the
-         * old 500.  The bundle should populate the cache before
-         * anyone navigates here; this number only kicks in as a
-         * last-resort fallback if the bundle endpoint is down. */
-        const BOOT_TARGET_CHANNELS = 50;
+         * the splash is dismissed the moment the bundle lands —
+         * we no longer wait for an EPG threshold. */
         (async () => {
             setSyncing(true);
             try {
@@ -632,16 +645,14 @@ function Grid({ provider, onLogout }) {
                 /* Pre-fill: count channels we already have EPG for. */
                 let epgDone = sids.filter((sid) => epg.current.has(sid)).length;
                 const epgTotal = sids.length || 1;
-                const bootTarget = Math.min(BOOT_TARGET_CHANNELS, epgTotal);
                 setBootCounters((c) => ({ ...c, epgDone, epgTotal }));
                 setStage('epg', 'active', `${epgDone}/${epgTotal} channels`);
 
-                /* If the cache was already past the target, dismiss
-                 * the splash immediately and let the rest fetch in bg. */
-                if (epgDone >= bootTarget) {
-                    setStage('epg', 'done', `${epgDone}/${epgTotal} cached, more loading…`);
-                    setBootBlocked(false);
-                }
+                /* Dismiss the splash immediately as soon as we get
+                 * here — we already have channels + categories, so
+                 * the grid is paintable.  EPG keeps filling in the
+                 * background. */
+                setBootBlocked(false);
 
                 /* FAST PATH — try the full XMLTV download first.  A
                  * single ~3-5 MB gzipped request returns the entire
@@ -769,11 +780,6 @@ function Grid({ provider, onLogout }) {
                         setBootCounters((c) => ({ ...c, epgDone }));
                         setStage('epg', frac >= 1 ? 'done' : 'active',
                             `${epgDone}/${epgTotal} channels`);
-                        /* Dismiss the splash the moment we've covered
-                         * the boot target (500 channels by default). */
-                        if (epgDone >= bootTarget) {
-                            setBootBlocked(false);
-                        }
                     }
                 };
                 const workers = [];
@@ -1144,9 +1150,6 @@ function Grid({ provider, onLogout }) {
     if (bootBlocked) {
         return (
             <LiveTVBoot
-                stages={bootStages}
-                counters={bootCounters}
-                bootTarget={50}
                 onSkip={() => setBootBlocked(false)}
             />
         );

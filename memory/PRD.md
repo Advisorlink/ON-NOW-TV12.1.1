@@ -56,6 +56,28 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 113 — Feb 19, 2026) — v2.6.82
+### Live TV loader redesign + per-channel "no EPG" caching
+- **🐛 User feedback (with screenshot)**: "Take away that TV Guide 0-to-50 thing — we don't need it anymore. And the loading circle is behind the actual loading stuff so you can't actually see the circle properly."
+- **🔬 Why the `0/50` was misleading**: that counter dated from the per-channel Xtream-call era (BOOT_TARGET_CHANNELS = 50). Now the VPS pre-warms the full ~14,220-channel bundle in one gzipped 7 MB request and `bootInstantBundle()` seeds localStorage immediately — meaning by the time the boot splash showed any progress, 2,335 channels of EPG were ALREADY cached. The counter was effectively a UI lie.
+- **🔬 Why the spinner was hidden**: the previous `LiveTVBoot.jsx` had a 240×240 SVG arc with the active-phase icon + big "%" text + label all overlaid in the centre, AND a rotating tip-dot. On the user's HK1 box at certain DPI ratios the text + icon obscured the arc tip, so the user couldn't tell anything was moving.
+- **✅ Loader rewritten** (`/app/frontend/src/components/LiveTVBoot.jsx`): full file replacement.
+  - Single 168×168 spinning ring (linear infinite, 1.1 s/rev). Nothing overlaid.
+  - "Preparing your TV guide" headline + "TUNING IN" eyebrow + single-line subtitle.
+  - Removed: the 3 counter cards (CATEGORIES/CHANNELS/TV GUIDE), the 4 stage rows, the marquee strip at the bottom, the AnimatedNumber tweener.
+  - SKIP affordance unchanged (appears after 10 s, focusable, OK-to-skip).
+- **✅ LiveTV.jsx boot flow simplified**:
+  - `bootBlocked` initial check no longer requires EPG > 0 — just cats + channels. So any subsequent visit (after instant bundle has hydrated localStorage once) skips the splash entirely.
+  - Removed the `BOOT_TARGET_CHANNELS = 50` constant + the `bootTarget` checks that gated splash dismissal on the EPG fill.
+  - Splash now dismisses the moment the bundle (or legacy fallback) applies categories + channels.
+- **✅ Per-channel "no EPG" caching** (`useEffect` watching `debouncedChannel`):
+  - Of the 14,220 channels, only ~3,100 have an `epg_channel_id` set by the provider. The other ~11,000 have NO EPG anywhere — the data doesn't exist.
+  - Previously, focusing one of those channels triggered a fresh `getFullEpg()` call every time (a 1-2 s Xtream round-trip that always returned `[]`). User was hitting "wait a couple of seconds" on every navigation to a no-EPG channel.
+  - Now we cache EMPTY arrays too. `epg.current.set(streamId, [])` after a failed/empty fetch so the next focus is instant ("no programme info available" renders straight away).
+- **🆙 APK bumped to v2.6.82 (versionCode 152)**. Release notes added.
+
+
+
 ## Implemented (Iteration 112 — Feb 19, 2026) — v2.6.81
 ### 🔒 HTTPS live on Contabo VPS (Let's Encrypt)
 - **DuckDNS sorted** — user got `onnowtv.duckdns.org` pointing to `62.84.181.66` on second attempt.
