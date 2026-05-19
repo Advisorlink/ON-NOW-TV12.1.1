@@ -228,6 +228,48 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.98 — UX fixes from user video: covers · notifications · navigation · trailers · unlock**
+            - 📚 **Library covers no longer get cut off** — collapsible
+              wrapper only kicks in when a section actually has more
+              than the threshold items (TV > 6, Actors > 8).  Below
+              that the grid renders at its natural height so the
+              bottom row of cards is never clipped.
+            - 🔔 **Notifications moved out of Library rows** —
+              replaced with a **Reminders pill in the top-right of
+              the Library header** with a badge count.  Click → a
+              popover slides in from the top with every notify-list
+              entry, open + remove buttons per row, and Escape /
+              Backspace to close.
+            - 🎯 **Home focus respects scroll position** — pressing
+              the Home button in the side nav or returning from a
+              menu now focuses the first card of the **first
+              VISIBLE row in the viewport** instead of always
+              snapping to the top shelf.  Walks the focusables and
+              picks the one whose middle Y is between 120 px and
+              `viewport-80 px`.
+            - ⬅️➡️ **Hero buttons clamp Left/Right within the row**
+              — pressing Right on the My List button no longer
+              "jumps you back up" to the title.  Hero buttons now
+              own their own arrow handler that scopes to the
+              `data-hero-actions` container and refuses to leave
+              the row sideways (Up/Down still works as expected).
+            - 🎬 **Upcoming-trailer row aligned with other rows** —
+              header + cards padding `clamp(92,6.5vw,132)` →
+              `clamp(40,4.2vw,80)` so the first trailer card lines
+              up dead-centre with the first poster of the rows
+              above.  **Glow effect removed** on focus — replaced
+              with the standard cyan border outline + small lift to
+              match every other row.
+            - 🔓 **Settings "Unlock (testing)" now reveals empty
+              addon catalog rows** — `useLiveShelves` keeps empty
+              catalogs in the list when unlock is on and Shelf.jsx
+              renders a diagnostic stub showing addon name +
+              catalog title + error so you can see exactly which
+              addon catalog returned 0 items.  Toggling the unlock
+              setting busts the shelves cache so the change applies
+              instantly without a hard reload.
+            - 🆙 APK bumped to **v2.6.98** (versionCode 168).
+
             **v2.6.97 — Sports Guide trimmed to 72 h window**
             - 📅 **Sports Guide now shows Today + Tomorrow +
               Day-After only** (3-tile day strip instead of 7).

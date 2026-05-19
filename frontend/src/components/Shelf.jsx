@@ -87,6 +87,44 @@ export default function Shelf({ shelf, onSelect }) {
                         onSelect={onSelect}
                     />
                 ))}
+                {/* Dev-Unlock diagnostic — when a row was kept even
+                 * though it returned 0 items, render a clear stub
+                 * card so the user can see exactly which addon
+                 * catalog is failing.  Stays out of production UX
+                 * because useLiveShelves skips empty rows unless
+                 * unlock is on. */}
+                {shelf.empty && shelf.items.length === 0 && (
+                    <div
+                        data-testid={`shelf-empty-${shelf.id}`}
+                        style={{
+                            minWidth: 220,
+                            maxWidth: 320,
+                            padding: '16px 18px',
+                            background: 'rgba(255,180,60,0.08)',
+                            border: '1px dashed rgba(255,180,60,0.45)',
+                            borderRadius: 12,
+                            color: '#FFD8A1',
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            lineHeight: 1.55,
+                            flexShrink: 0,
+                        }}
+                    >
+                        <div style={{
+                            fontWeight: 800, marginBottom: 6,
+                            letterSpacing: '0.18em', fontSize: 9,
+                        }}>
+                            UNLOCK · EMPTY CATALOG
+                        </div>
+                        <div>Addon: <b>{shelf.addonName || 'unknown'}</b></div>
+                        <div>Catalog: <b>{shelf.title}</b></div>
+                        {shelf.error && (
+                            <div style={{ marginTop: 6, color: '#FFB069' }}>
+                                error: {shelf.error}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </section>
     );

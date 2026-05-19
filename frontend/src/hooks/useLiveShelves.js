@@ -39,6 +39,16 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
         Array.isArray(cached?.value) ? cached.value : []
     );
     const [loading, setLoading] = useState(!cached);
+    /* Re-fetch when the user toggles the dev-unlock flag so the
+     * empty-row stubs appear/disappear immediately instead of
+     * waiting for a stale cache TTL.  We mirror the flag into
+     * React state so the effect deps cover it. */
+    const [unlockTick, setUnlockTick] = useState(0);
+    useEffect(() => {
+        const bump = () => setUnlockTick((v) => v + 1);
+        window.addEventListener('onnowtv:dev-unlock-changed', bump);
+        return () => window.removeEventListener('onnowtv:dev-unlock-changed', bump);
+    }, []);
 
     useEffect(() => {
         if (!addons || addons.length === 0) {
@@ -52,10 +62,17 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
 
         // Hot path: cached and fresh — just paint and bail.
         const cur = cache.get(key);
-        if (cur) {
-            setShelves(Array.isArray(cur.value) ? cur.value : []);
+        // When unlockTick changes (user toggled the dev-unlock
+        // setting), bust the cache so the recomputed shelf list
+        // reflects the new keep-empty-rows behaviour.
+        if (cur && unlockTick > 0) {
+            cache.set(key, []); // mark dirty
+        }
+        const fresh = unlockTick > 0 ? null : cur;
+        if (fresh) {
+            setShelves(Array.isArray(fresh.value) ? fresh.value : []);
             setLoading(false);
-            if (!cache.isStale(cur, TTL_MS)) return;
+            if (!cache.isStale(fresh, TTL_MS)) return;
             // Stale — fall through to background refetch but do NOT
             // wipe the screen; keep showing the cached value.
         } else {
@@ -65,15 +82,17 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
 
         let cancelled = false;
         const acc = [];
-        // Snapshot the existing cached value so a network-dead
-        // refetch that yields zero shelves doesn't blow away the
-        // perfectly-good cache we just painted from.  Same idea as
-        // stale-while-revalidate: never replace a good value with
-        // a worse one.  (User report: "internet cuts out, reopen
-        // app, all home covers gone but Movies tab still works".)
         const prevCached = cache.get(key);
         const prevShelves = Array.isArray(prevCached?.value)
             ? prevCached.value : [];
+
+        /* Dev-Unlock toggle (Settings → Unlock testing) — when ON,
+         * the loop KEEPS empty-result catalogs so the user can see
+         * exactly which addon catalogs returned 0 items.  Production
+         * UX is unchanged: empty catalogs stay hidden by default. */
+        let devUnlock = false;
+        try { devUnlock = localStorage.getItem('onnowtv-dev-unlock') === '1'; }
+        catch { /* ignore */ }
 
         (async () => {
             for (const addon of addons) {
@@ -92,7 +111,7 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                             cat.id
                         );
                         const metas = res?.data?.metas || [];
-                        if (!metas.length) continue;
+                        if (!metas.length && !devUnlock) continue;
                         // Strip the addon name from catalog labels.
                         // Stremio catalogs often look like
                         //   "Cinemeta - Popular Movies" or
@@ -158,6 +177,11 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                             id: `${addon.id}-${cat.type}-${cat.id}`,
                             title: cleanTitle,
                             eyebrow: capitalize(cat.type === 'movie' ? 'movies' : cat.type),
+                            // Dev-Unlock diagnostic — flag empty rows so the
+                            // user can see WHICH addon catalogs returned 0
+                            // items.  Shelf component handles the visual.
+                            empty: metas.length === 0,
+                            addonName: addon.name || '',
                             items: metas.slice(0, FETCH_LIMIT).map((m) => ({
                                 id: `${addon.id}-${m.id}`,
                                 imdbId: m.id,
@@ -171,9 +195,6 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                                     .join(' · '),
                                 poster: m.poster,
                                 background: m.background,
-                                // Carry through genres so the tab
-                                // grid can build a category chip
-                                // row + filter against them.
                                 genres: Array.isArray(m.genres)
                                     ? m.genres
                                     : [],
@@ -183,8 +204,23 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                         };
                         acc.push(shelf);
                         if (!cancelled) setShelves([...acc]);
-                    } catch {
-                        // skip silently — one bad catalog shouldn't kill the row
+                    } catch (err) {
+                        if (devUnlock) {
+                            // Push a diagnostic stub so the user sees
+                            // which catalog crashed when troubleshooting.
+                            const stub = {
+                                id: `${addon.id}-${cat.type}-${cat.id}`,
+                                title: cat.name || prettify(cat.id),
+                                eyebrow: capitalize(cat.type === 'movie' ? 'movies' : cat.type),
+                                empty: true,
+                                error: err?.message || 'fetch error',
+                                addonName: addon.name || '',
+                                items: [],
+                            };
+                            acc.push(stub);
+                            if (!cancelled) setShelves([...acc]);
+                        }
+                        // skip silently in prod — one bad catalog shouldn't kill the row
                     }
                 }
             }
@@ -221,7 +257,7 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
         return () => {
             cancelled = true;
         };
-    }, [addons, filterType, FETCH_LIMIT, key]);
+    }, [addons, filterType, FETCH_LIMIT, key, unlockTick]);
 
     return { shelves, loading };
 }

@@ -107,13 +107,15 @@ export default function Home() {
         if (main) main.scrollTop = 0;
     }, [filter]);
 
-    // Initial focus on the FIRST tile of the FIRST shelf — not the
-    // hero Play button, not the side nav.  Shelves render async as
-    // addons resolve, so we retry over ~2 s before giving up.  In
-    // the filtered "TV Shows" / "Movies" tab view we target the
-    // tab grid list instead so focus snaps into the grid as soon
-    // as the first batch of items lands (= the page feels snappy
-    // even while remaining catalogues stream in).
+    // Initial focus on the FIRST tile of the FIRST VISIBLE shelf.
+    // User feedback v2.6.96: "any time you get off the menu or push
+    // the home button in the side rail it needs to focus the first
+    // card in the row that is showing at the time" — i.e. respect
+    // the current scroll position so we don't yank the user back to
+    // the top of the page.  We walk the shelves and grab the first
+    // focusable whose bounding rect is at least partially within
+    // the viewport.  Falls back to the first focusable in the page
+    // when nothing is visible (initial mount, before paint).
     React.useEffect(() => {
         let cancelled = false;
         const trySetFocus = () => {
@@ -124,15 +126,24 @@ export default function Home() {
                 ) ||
                 document.querySelector('[data-testid="shelves-region"]');
             if (!target) return false;
-            const first = target.querySelector('[data-focusable="true"]');
-            if (!first) return false;
+            const focusables = Array.from(
+                target.querySelectorAll('[data-focusable="true"]')
+            );
+            if (!focusables.length) return false;
+            const vh = window.innerHeight;
+            // Pick the first focusable whose middle Y lies in
+            // [120, vh - 80] — gives a generous "visible row"
+            // window that excludes the top hero & bottom footer.
+            const first = focusables.find((el) => {
+                const r = el.getBoundingClientRect();
+                const mid = r.top + r.height / 2;
+                return mid > 120 && mid < vh - 80 && r.width > 0;
+            }) || focusables[0];
             try {
                 first.focus({ preventScroll: true });
             } catch {
                 /* ignore */
             }
-            // Clear lingering data-focused on anything else (hero Play
-            // button may have picked it up from an earlier mount).
             document
                 .querySelectorAll('[data-focused="true"]')
                 .forEach((el) => {

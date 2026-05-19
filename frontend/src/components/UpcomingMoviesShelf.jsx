@@ -95,7 +95,7 @@ export default function UpcomingMoviesShelf() {
             <header
                 className="flex items-end justify-between mb-3"
                 style={{
-                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                    paddingLeft: 'clamp(40px, 4.2vw, 80px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                 }}
             >
@@ -129,7 +129,13 @@ export default function UpcomingMoviesShelf() {
                 className="vesper-shelf flex"
                 style={{
                     gap: 'clamp(14px, 1.25vw, 24px)',
-                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                    // Match the horizontal padding used by every
+                    // other shelf row on Home (`Shelf.jsx`) so the
+                    // first trailer card lines up dead-centre with
+                    // the first poster of the rows above.  User
+                    // feedback v2.6.96: the trailer row started
+                    // ~40 px to the left of everything else.
+                    paddingLeft: 'clamp(40px, 4.2vw, 80px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     paddingTop: 'clamp(14px, 1.4vw, 22px)',
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
@@ -258,7 +264,6 @@ function TrailerCard({ item, onOpen }) {
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 12px 32px rgba(0,184,255,0.55)',
                     }}
                 >
                     <Play size={22} fill="#0A0F1A" />
@@ -272,12 +277,15 @@ function TrailerCard({ item, onOpen }) {
                 }
                 [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover img,
                 [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus img {
-                    transform: scale(1.05);
+                    transform: scale(1.03);
                 }
+                /* Match the standard PosterTile focus treatment:
+                 * thin cyan outline + small lift, NO blue glow halo.
+                 * User asked for the same outline-and-movement style
+                 * as the rest of the rows. */
                 [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus {
-                    box-shadow:
-                      0 0 0 2px var(--vesper-blue, #5DC8FF),
-                      0 18px 40px rgba(0,184,255,0.35);
+                    border-color: var(--vesper-blue, #5DC8FF);
+                    box-shadow: none;
                     transform: translateY(-2px);
                 }
             `}</style>

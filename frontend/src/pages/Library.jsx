@@ -56,6 +56,10 @@ export default function Library() {
     const [tvExpanded, setTvExpanded] = useState(false);
     const [actorsExpanded, setActorsExpanded] = useState(false);
     const [notifyExpanded, setNotifyExpanded] = useState(false);
+    /* Notifications popover (replaces the in-row Notifications
+     * section — user feedback: shouldn't clutter the main grid).
+     * Toggled by the bell button in the header. */
+    const [notifyPopoverOpen, setNotifyPopoverOpen] = useState(false);
 
     useEffect(() => {
         const sync = () => {
@@ -111,7 +115,11 @@ export default function Library() {
                 paddingBottom: 120,
             }}
         >
-            <Header onBack={() => navigate('/')} />
+            <Header
+                onBack={() => navigate('/')}
+                notifyCount={notifyItems.length}
+                onNotifyOpen={() => setNotifyPopoverOpen(true)}
+            />
 
             <Section
                 icon={Tv}
@@ -150,39 +158,14 @@ export default function Library() {
             >
                 {tv.length === 0 ? (
                     <TvEmptyState />
-                ) : (
+                ) : tv.length > 6 ? (
                     <CollapsibleGrid expanded={tvExpanded}>
                         <FavouriteGrid items={tv} type="series" />
                     </CollapsibleGrid>
+                ) : (
+                    <FavouriteGrid items={tv} type="series" />
                 )}
             </Section>
-
-            {notifyItems.length > 0 && (
-                <Section
-                    icon={Bell}
-                    eyebrow="My library · Reminder list"
-                    title="Notifications"
-                    collapsible={notifyItems.length > 6}
-                    expanded={notifyExpanded}
-                    onToggle={() => setNotifyExpanded((v) => !v)}
-                >
-                    <CollapsibleGrid expanded={notifyExpanded}>
-                        <NotifyGrid
-                            items={notifyItems}
-                            onOpen={(n) => {
-                                const t = n.type || 'movie';
-                                if (String(n.id).startsWith('tt')) {
-                                    navigate(`/title/${t}/${n.id}`);
-                                }
-                            }}
-                            onRemove={(n) => {
-                                removeFromNotifyList(n.id);
-                                setNotifyItems(listNotifyList());
-                            }}
-                        />
-                    </CollapsibleGrid>
-                </Section>
-            )}
 
             {actors.length > 0 && (
                 <Section
@@ -193,9 +176,13 @@ export default function Library() {
                     expanded={actorsExpanded}
                     onToggle={() => setActorsExpanded((v) => !v)}
                 >
-                    <CollapsibleGrid expanded={actorsExpanded}>
+                    {actors.length > 8 ? (
+                        <CollapsibleGrid expanded={actorsExpanded}>
+                            <ActorGrid items={actors} />
+                        </CollapsibleGrid>
+                    ) : (
                         <ActorGrid items={actors} />
-                    </CollapsibleGrid>
+                    )}
                 </Section>
             )}
 
@@ -231,56 +218,128 @@ export default function Library() {
                     onClose={() => setCalendarOpen(false)}
                 />
             )}
+
+            {notifyPopoverOpen && (
+                <NotifyPopover
+                    items={notifyItems}
+                    onClose={() => setNotifyPopoverOpen(false)}
+                    onOpen={(n) => {
+                        if (String(n.id).startsWith('tt')) {
+                            navigate(`/title/${n.type || 'movie'}/${n.id}`);
+                        }
+                        setNotifyPopoverOpen(false);
+                    }}
+                    onRemove={(n) => {
+                        removeFromNotifyList(n.id);
+                        setNotifyItems(listNotifyList());
+                    }}
+                />
+            )}
         </div>
     );
 }
 
 /* ----------------------------- Header ----------------------------- */
 
-function Header({ onBack }) {
+function Header({ onBack, notifyCount, onNotifyOpen }) {
     return (
-        <div className="flex items-center gap-5" style={{ marginBottom: 40 }}>
+        <div className="flex items-center justify-between" style={{ gap: 20, marginBottom: 40 }}>
+            <div className="flex items-center gap-5">
+                <button
+                    data-testid="library-back"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    data-initial-focus="true"
+                    tabIndex={0}
+                    onClick={onBack}
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 46,
+                        height: 46,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: 'var(--vesper-text-2)',
+                    }}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.32em',
+                            color: 'var(--vesper-blue-bright)',
+                        }}
+                    >
+                        Your collection
+                    </div>
+                    <h1
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(40px, 4vw, 64px)',
+                            letterSpacing: '-0.03em',
+                            lineHeight: 0.95,
+                            marginTop: 4,
+                        }}
+                    >
+                        My Library
+                    </h1>
+                </div>
+            </div>
+
+            {/* Notifications button — opens a popover with the user's
+                full reminder list (titles they asked to be notified
+                about when streams drop).  Replaces the in-row
+                "Notifications" section so the cover grids stay
+                pristine.  Bell badge is hidden when there are zero
+                pending notifications. */}
             <button
-                data-testid="library-back"
+                data-testid="library-notifications-toggle"
                 data-focusable="true"
                 data-focus-style="quiet"
-                data-initial-focus="true"
                 tabIndex={0}
-                onClick={onBack}
-                className="flex items-center justify-center rounded-full"
+                onClick={onNotifyOpen}
+                aria-label={`Notifications (${notifyCount})`}
+                className="relative flex items-center gap-2 rounded-full"
                 style={{
-                    width: 46,
                     height: 46,
+                    padding: '0 18px 0 14px',
                     background: 'rgba(255,255,255,0.06)',
                     border: '1px solid rgba(255,255,255,0.12)',
-                    color: 'var(--vesper-text-2)',
+                    color: 'var(--vesper-text)',
+                    fontFamily: 'var(--theme-font-mono, monospace)',
+                    fontSize: 11,
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
                 }}
             >
-                <ArrowLeft size={20} />
+                <Bell size={16} strokeWidth={2} style={{ color: 'var(--vesper-blue-bright)' }} />
+                Reminders
+                {notifyCount > 0 && (
+                    <span
+                        aria-hidden
+                        style={{
+                            minWidth: 22,
+                            height: 22,
+                            padding: '0 7px',
+                            borderRadius: 999,
+                            background: 'var(--vesper-blue, #5DC8FF)',
+                            color: '#0A0F1A',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                            marginLeft: 6,
+                        }}
+                    >
+                        {notifyCount > 99 ? '99+' : notifyCount}
+                    </span>
+                )}
             </button>
-            <div>
-                <div
-                    className="vesper-mono"
-                    style={{
-                        fontSize: 11,
-                        letterSpacing: '0.32em',
-                        color: 'var(--vesper-blue-bright)',
-                    }}
-                >
-                    Your collection
-                </div>
-                <h1
-                    className="vesper-display"
-                    style={{
-                        fontSize: 'clamp(40px, 4vw, 64px)',
-                        letterSpacing: '-0.03em',
-                        lineHeight: 0.95,
-                        marginTop: 4,
-                    }}
-                >
-                    My Library
-                </h1>
-            </div>
         </div>
     );
 }
@@ -399,10 +458,203 @@ function CollapsibleGrid({ expanded, children }) {
     );
 }
 
+/* NotifyPopover — opened by the bell button in the Library header.
+ * Modal-style card pinned to the top right (mirrors the in-app
+ * NotifyHitWatcher placement) listing every notify-list item with
+ * remove + open actions.  Escape / Backspace closes the popover. */
+function NotifyPopover({ items, onClose, onOpen, onRemove }) {
+    /* Esc / Back closes us before propagating to the page-level
+     * back handler so we don't kick the user out to Home as well. */
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onClose]);
+
+    return (
+        <div
+            data-testid="notify-popover"
+            role="dialog"
+            aria-label="Reminders"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(4,6,12,0.65)',
+                backdropFilter: 'blur(8px)',
+                animation: 'vesper-fadein 200ms ease both',
+            }}
+            onClick={onClose}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    position: 'absolute',
+                    top: 110,
+                    right: 'clamp(40px, 4vw, 80px)',
+                    width: 'min(460px, 90vw)',
+                    maxHeight: 'calc(100vh - 160px)',
+                    overflowY: 'auto',
+                    background: '#0E1422',
+                    border: '1px solid rgba(var(--vesper-blue-rgb, 93,200,255), 0.45)',
+                    borderRadius: 16,
+                    boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+                    padding: 22,
+                    color: 'var(--vesper-text)',
+                    animation: 'vesper-popover-in 240ms cubic-bezier(.16,1,.3,1) both',
+                }}
+            >
+                <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+                    <div>
+                        <div className="vesper-mono" style={{
+                            fontSize: 10, letterSpacing: '0.32em', textTransform: 'uppercase',
+                            color: 'var(--vesper-blue-bright)',
+                        }}>
+                            My library · Reminder list
+                        </div>
+                        <h2 style={{
+                            fontSize: 22, fontWeight: 700, marginTop: 4, lineHeight: 1,
+                            letterSpacing: '-0.02em', display: 'inline-flex',
+                            alignItems: 'center', gap: 8,
+                        }}>
+                            <Bell size={18} style={{ color: 'var(--vesper-blue)' }} />
+                            Reminders
+                            <span style={{
+                                fontSize: 12, fontWeight: 700,
+                                color: 'var(--vesper-text-2)',
+                            }}>· {items.length}</span>
+                        </h2>
+                    </div>
+                    <button
+                        data-testid="notify-popover-close"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                            width: 34, height: 34,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text-2)', cursor: 'pointer',
+                        }}
+                    >
+                        <X size={15} />
+                    </button>
+                </div>
+
+                {items.length === 0 ? (
+                    <div style={{
+                        padding: '32px 12px',
+                        textAlign: 'center',
+                        color: 'var(--vesper-text-3)',
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                    }}>
+                        No reminders yet.<br />
+                        Tap "Notify me" on any movie that's not out yet and
+                        it'll appear here.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {items.map((n) => (
+                            <NotifyRow
+                                key={n.id}
+                                notify={n}
+                                onOpen={() => onOpen(n)}
+                                onRemove={() => onRemove(n)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <style>{`
+@keyframes vesper-popover-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes vesper-fadein {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+            `}</style>
+        </div>
+    );
+}
+
+function NotifyRow({ notify, onOpen, onRemove }) {
+    const meta = notify.meta || {};
+    return (
+        <div
+            data-testid={`notify-row-${notify.id}`}
+            className="flex items-center gap-3"
+            style={{
+                padding: '10px 12px',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 10,
+            }}
+        >
+            <button
+                onClick={onOpen}
+                data-focusable="true"
+                tabIndex={0}
+                aria-label={`Open ${meta.name || 'item'}`}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+                <div style={{
+                    width: 52, height: 78, flexShrink: 0,
+                    borderRadius: 6,
+                    background: meta.poster
+                        ? `center/cover url(${meta.poster})`
+                        : 'rgba(var(--vesper-blue-rgb), 0.15)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                }} />
+                <div className="min-w-0 flex-1">
+                    <div style={{
+                        fontSize: 13, fontWeight: 700,
+                        color: 'var(--vesper-text)', lineHeight: 1.25,
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        {meta.name || 'Untitled'}
+                    </div>
+                    <div className="vesper-mono" style={{
+                        marginTop: 4, fontSize: 9, letterSpacing: '0.2em',
+                        textTransform: 'uppercase', color: 'var(--vesper-blue-bright)',
+                    }}>
+                        <Bell size={9} style={{ display: 'inline-block', marginRight: 4 }} />
+                        Notify on HD
+                    </div>
+                </div>
+            </button>
+            <button
+                data-testid={`notify-row-remove-${notify.id}`}
+                onClick={onRemove}
+                aria-label="Remove"
+                data-focusable="true"
+                tabIndex={0}
+                className="flex items-center justify-center rounded-full"
+                style={{
+                    width: 32, height: 32, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    color: 'var(--vesper-text-2)', cursor: 'pointer',
+                }}
+            >
+                <Trash2 size={13} />
+            </button>
+        </div>
+    );
+}
+
 /* NotifyGrid — Library "Notifications" section.  Each card shows
- * the poster + title of a movie/show the user opted into notifications
- * for via the StreamUnavailableModal CTA.  Tap → opens Detail.
- * Trash icon → removes from the notify list. */
 function NotifyGrid({ items, onOpen, onRemove }) {
     return (
         <div

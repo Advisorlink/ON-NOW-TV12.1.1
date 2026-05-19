@@ -46,6 +46,29 @@ export default function HeroBillboard({ heroes }) {
         else navigate(`/title/${hero.id}${suffix}`);
     };
 
+    /* Local Left/Right handler — keeps focus among the three hero
+     * buttons instead of letting the global spatial-focus engine
+     * bounce focus up to the back arrow / title or sideways into
+     * the side nav rail.  Fixes user complaint v2.6.96: "If you're
+     * at the buttons on the hero section and push right, it jumps
+     * you back up — very frustrating". */
+    const handleHeroBtnKey = (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        e.stopPropagation();
+        const container = e.currentTarget.closest('[data-hero-actions]');
+        if (!container) return;
+        const buttons = Array.from(
+            container.querySelectorAll('[data-focusable="true"]')
+        );
+        const idx = buttons.indexOf(e.currentTarget);
+        if (idx < 0) return;
+        const next = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
+        // Clamp to the row — DON'T let focus escape sideways.
+        const clamped = Math.max(0, Math.min(buttons.length - 1, next));
+        buttons[clamped]?.focus();
+    };
+
     return (
         <section
             data-testid="hero-billboard"
@@ -179,13 +202,14 @@ export default function HeroBillboard({ heroes }) {
                         </p>
                     )}
 
-                    <div className="flex items-center gap-3 mt-5">
+                    <div className="flex items-center gap-3 mt-5" data-hero-actions>
                         <button
                             data-testid="hero-play-button"
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
                             onClick={() => goToDetail(true)}
+                            onKeyDown={(e) => handleHeroBtnKey(e)}
                             className="flex items-center gap-2 rounded-full font-sans font-semibold"
                             style={{
                                 height: 'clamp(44px, 3.6vw, 52px)',
@@ -206,6 +230,7 @@ export default function HeroBillboard({ heroes }) {
                             data-focus-style="pill"
                             tabIndex={0}
                             onClick={() => goToDetail(false)}
+                            onKeyDown={(e) => handleHeroBtnKey(e)}
                             className="flex items-center gap-2 rounded-full font-sans font-medium"
                             style={{
                                 height: 'clamp(44px, 3.6vw, 52px)',
@@ -225,6 +250,7 @@ export default function HeroBillboard({ heroes }) {
                             data-focusable="true"
                             data-focus-style="pill"
                             tabIndex={0}
+                            onKeyDown={(e) => handleHeroBtnKey(e)}
                             className="flex items-center gap-2 rounded-full font-sans font-medium"
                             style={{
                                 height: 'clamp(44px, 3.6vw, 52px)',
