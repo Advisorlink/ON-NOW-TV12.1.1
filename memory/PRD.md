@@ -55,6 +55,18 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 124 — Feb 19, 2026) — v2.6.99
+### Spatial nav double-fire fix — Hero Right no longer jumps focus out of the row (P0)
+
+- **🎯 Root-cause fix.** `HeroBillboard.jsx` already had a local `onKeyDown` handler that clamped Left/Right within the three action buttons and called `e.preventDefault()` + `e.stopPropagation()`. But React's synthetic `stopPropagation()` does NOT prevent the native event from continuing to bubble to `window` — so after the local handler clamped focus, the global spatial engine in `useSpatialFocus.js` also ran on the same keypress and yanked focus to a neighbouring shelf tile / nav rail, producing the visible "Right key jumps me back up" symptom.
+- **🛡️ Fix:** added `if (e.defaultPrevented) return;` as the very first statement in the window-level keydown handler in `/app/frontend/src/hooks/useSpatialFocus.js`. Any component that calls `preventDefault()` on Arrow keys (Hero buttons today, future scoped-nav components tomorrow) now short-circuits the global engine cleanly without needing extra plumbing.
+- **✅ Verified by frontend testing agent (iteration_41.json):** 6/6 hero spatial-nav assertions PASS — `Play→Info→List→List` (right clamp) and `List→Info→Play→Play` (left clamp), exactly one focus move per key press.
+- **🆙 APK bumped to v2.6.99 (versionCode 169).**
+
+### Notes
+- Dev-Unlock empty-shelf diagnostic stub (`shelf-empty-${id}` in `Shelf.jsx`) is code-review verified but could not be exercised at runtime because no installed addon catalog returned 0 metas during the test window. Behaviour will surface naturally when a real empty catalog appears.
+
+
 
 ## Implemented (Iteration 118 — Feb 19, 2026) — v2.6.90
 ### Sports guide channel mapping (P1) · GitHub auto-prune (P1 blocker) · Native trailer reliability

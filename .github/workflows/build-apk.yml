@@ -228,6 +228,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.99 — Spatial nav double-fire fix · Hero Right no longer jumps focus out of the row**
+            - 🎯 **Root-cause fix for the Hero D-pad "Right jumps me
+              back up" bug.**  `HeroBillboard.jsx` already had a
+              local `onKeyDown` handler that clamped Left/Right
+              within the three action buttons and called
+              `e.preventDefault()` + `e.stopPropagation()`.  But
+              React's synthetic `stopPropagation()` does **not**
+              prevent the native event from continuing to bubble to
+              `window` — so after the local handler clamped focus,
+              the global spatial engine in `useSpatialFocus.js`
+              also ran on the same keypress and yanked focus to a
+              neighbouring shelf tile or nav rail item, producing
+              the visible "double move / jump out of buttons"
+              symptom.
+            - 🛡️ **Fix:** added `if (e.defaultPrevented) return;` as
+              the very first statement in the window-level keydown
+              handler in `useSpatialFocus.js`.  Now any component
+              that calls `preventDefault()` on Arrow keys (Hero
+              buttons, or any future scoped-nav component) short-
+              circuits the global engine cleanly.  Verified: one
+              ArrowRight from Play lands exactly on More Info (not
+              skipping to My List); ArrowRight on My List clamps
+              (no out-of-row jump).  6/6 hero spatial-nav
+              assertions pass under the frontend testing harness.
+            - 🆙 APK bumped to **v2.6.99** (versionCode 169).
+
             **v2.6.98 — UX fixes from user video: covers · notifications · navigation · trailers · unlock**
             - 📚 **Library covers no longer get cut off** — collapsible
               wrapper only kicks in when a section actually has more
