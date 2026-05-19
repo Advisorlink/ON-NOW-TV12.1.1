@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vesper Live Guide — 10 Designs</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #06080F; color: #E6EAF2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden; }
+.stage {
+    width: 1920px; height: 1080px;
+    position: relative;
+    background: #000;
+    overflow: hidden;
+    margin: 0 auto;
+}
+/* Fake video bg — a cinematic still */
+.video-bg {
+    position: absolute; inset: 0;
+    background:
+        radial-gradient(circle at 30% 40%, rgba(255,200,120,0.35) 0%, transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(120,80,200,0.45) 0%, transparent 65%),
+        linear-gradient(135deg, #1a0d2e 0%, #0a1929 50%, #0d0d0d 100%);
+}
+.video-bg::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.6) 100%);
+}
+.label {
+    position: absolute; top: 24px; left: 24px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 14px; letter-spacing: 0.42em; font-weight: 800;
+    color: #5DC8FF;
+    padding: 10px 18px; border-radius: 999px;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(93,200,255,0.45);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    z-index: 1000;
+}
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.08em; }
+.eyebrow { font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10px; letter-spacing: 0.36em; font-weight: 700;
+    color: #5DC8FF; text-transform: uppercase; }
+.live-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 10px; border-radius: 4px;
+    background: #DC2626; color: #fff;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em; }
+.live-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+
+/* Common channel logo placeholder */
+.logo { width: 56px; height: 56px; border-radius: 12px;
+    background: linear-gradient(135deg, #5DC8FF, #1F4068);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+.logo.red { background: linear-gradient(135deg, #DC2626, #7F1D1D); }
+.logo.green { background: linear-gradient(135deg, #10B981, #064E3B); }
+.logo.purple { background: linear-gradient(135deg, #8B5CF6, #4C1D95); }
+.logo.orange { background: linear-gradient(135deg, #F97316, #7C2D12); }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 1 — Premium STB (Sky / Foxtel)                          */
+/* ─────────────────────────────────────────────────────────────── */
+.m1-strip {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 420px;
+    background: linear-gradient(to top,
+        rgba(6,8,15,0.98) 0%,
+        rgba(6,8,15,0.92) 60%,
+        rgba(6,8,15,0) 100%);
+    padding: 32px 56px;
+    display: flex; flex-direction: column; gap: 24px;
+}
+.m1-now {
+    display: flex; gap: 28px; align-items: center;
+}
+.m1-poster { width: 156px; height: 220px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366F1, #1E1B4B);
+    flex-shrink: 0; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
+.m1-meta { flex: 1; min-width: 0; }
+.m1-title { font-size: 32px; font-weight: 800; line-height: 1.1; margin: 8px 0; }
+.m1-row { display: flex; gap: 14px; align-items: center; color: #C7CFDB; font-size: 14px; margin-bottom: 12px; }
+.m1-prog-bar { height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; max-width: 600px; }
+.m1-prog-bar > span { display: block; height: 100%; width: 42%; background: #5DC8FF; }
+.m1-chan-row {
+    display: flex; gap: 14px; overflow: hidden;
+}
+.m1-chan {
+    flex: 0 0 200px; padding: 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; gap: 12px;
+}
+.m1-chan.focus {
+    background: rgba(93,200,255,0.15);
+    border-color: #5DC8FF;
+    box-shadow: 0 0 0 2px rgba(93,200,255,0.4);
+}
+.m1-chan-name { font-size: 13px; font-weight: 700; }
+.m1-chan-now { font-size: 11px; color: #8B95A7; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 110px; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 2 — Apple TV "Up Next" sidebar                          */
+/* ─────────────────────────────────────────────────────────────── */
+.m2-sidebar {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: 480px;
+    background: rgba(8,10,17,0.92);
+    backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    padding: 48px 32px;
+    display: flex; flex-direction: column; gap: 24px;
+}
+.m2-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.m2-title { font-size: 28px; font-weight: 700; }
+.m2-tabs { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.m2-tab { padding: 8px 14px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    color: #9DA5B5; background: rgba(255,255,255,0.06);
+    border: 1px solid transparent; }
+.m2-tab.active { color: #06080F; background: #5DC8FF; }
+.m2-card {
+    display: flex; gap: 16px; padding: 16px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: all .2s ease;
+}
+.m2-card.focus {
+    background: rgba(93,200,255,0.12);
+    border-color: rgba(93,200,255,0.6);
+    transform: scale(1.02);
+}
+.m2-card-body { flex: 1; min-width: 0; }
+.m2-card-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.m2-card-now { font-size: 13px; color: #C7CFDB; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m2-card-progress { height: 3px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
+.m2-card-progress > span { display: block; height: 100%; background: #5DC8FF; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 3 — YouTube TV grid (full takeover, 3-day timeline)     */
+/* ─────────────────────────────────────────────────────────────── */
+.m3-bg { position: absolute; inset: 0;
+    background: rgba(6,8,15,0.96);
+    backdrop-filter: blur(40px); }
+.m3-head { padding: 32px 56px 24px; display: flex; align-items: center; justify-content: space-between; }
+.m3-title { font-size: 24px; font-weight: 800; }
+.m3-time-strip { position: absolute; top: 92px; left: 296px; right: 0; height: 40px;
+    display: flex; padding-right: 56px; }
+.m3-time-cell { flex: 1; font-size: 11px; color: #8B95A7;
+    border-left: 1px solid rgba(255,255,255,0.08); padding: 8px 12px; font-weight: 600; }
+.m3-grid { position: absolute; top: 132px; left: 56px; right: 56px; bottom: 32px;
+    overflow: hidden; }
+.m3-row { display: flex; gap: 0; height: 80px; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: stretch; }
+.m3-ch-cell { width: 240px; padding: 14px 14px; display: flex; gap: 12px; align-items: center;
+    background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.06); }
+.m3-ch-name { font-size: 13px; font-weight: 700; }
+.m3-ch-num { font-size: 11px; color: #8B95A7; }
+.m3-prog { background: rgba(255,255,255,0.04);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 14px 12px; min-width: 0;
+    display: flex; flex-direction: column; justify-content: center; }
+.m3-prog.focus { background: rgba(93,200,255,0.18); box-shadow: inset 0 0 0 2px #5DC8FF; }
+.m3-prog-t { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m3-prog-s { font-size: 11px; color: #8B95A7; margin-top: 2px; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 4 — Picture-in-Picture (video shrinks)                  */
+/* ─────────────────────────────────────────────────────────────── */
+.m4-pip {
+    position: absolute; top: 32px; right: 32px;
+    width: 560px; height: 315px; border-radius: 16px; overflow: hidden;
+    background: linear-gradient(135deg, #1a0d2e 0%, #0a1929 100%);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(93,200,255,0.3);
+}
+.m4-pip::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+        radial-gradient(circle at 30% 40%, rgba(255,200,120,0.35) 0%, transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(120,80,200,0.45) 0%, transparent 65%);
+}
+.m4-pip-label { position: absolute; top: 12px; left: 12px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.2em;
+    background: rgba(0,0,0,0.65); padding: 5px 10px; border-radius: 4px;
+    color: #fff; z-index: 2; }
+.m4-content { position: absolute; top: 32px; left: 32px; right: 624px; bottom: 32px;
+    background: rgba(6,8,15,0.85); border-radius: 24px;
+    backdrop-filter: blur(40px);
+    padding: 36px 40px; overflow: hidden; }
+.m4-title { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+.m4-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.m4-row { display: flex; gap: 16px; padding: 14px 16px; border-radius: 12px; align-items: center; }
+.m4-row.focus { background: rgba(93,200,255,0.16); box-shadow: inset 0 0 0 1px #5DC8FF; }
+.m4-num { font-family: ui-monospace, monospace; font-size: 11px; color: #8B95A7;
+    width: 32px; text-align: right; font-weight: 700; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 5 — Floating mini-dock (cable box style)                */
+/* ─────────────────────────────────────────────────────────────── */
+.m5-dock {
+    position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+    width: 1240px;
+    background: rgba(6,8,15,0.85);
+    border-radius: 22px;
+    backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+    padding: 24px 32px;
+    display: flex; gap: 28px; align-items: center;
+}
+.m5-now-block { flex: 1; min-width: 0; }
+.m5-now-t { font-size: 22px; font-weight: 800; line-height: 1.15; }
+.m5-now-s { font-size: 13px; color: #8B95A7; margin-top: 4px; }
+.m5-prog-bar { height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.m5-prog-bar > span { display: block; height: 100%; width: 35%;
+    background: linear-gradient(to right, #5DC8FF, #fff); }
+.m5-divider { width: 1px; height: 80px; background: rgba(255,255,255,0.12); }
+.m5-controls { display: flex; gap: 12px; align-items: center; }
+.m5-ctrl { width: 56px; height: 56px; border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; }
+.m5-ctrl.focus { background: #5DC8FF; color: #06080F; box-shadow: 0 0 0 2px rgba(93,200,255,0.4); }
+.m5-channel-pill { padding: 10px 18px; border-radius: 999px;
+    background: rgba(93,200,255,0.2); border: 1px solid rgba(93,200,255,0.5);
+    font-weight: 800; font-size: 14px; color: #5DC8FF; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 6 — Single-line ticker (minimal)                        */
+/* ─────────────────────────────────────────────────────────────── */
+.m6-ticker { position: absolute; bottom: 32px; left: 32px; right: 32px;
+    height: 72px; border-radius: 16px;
+    background: rgba(6,8,15,0.88); backdrop-filter: blur(24px);
+    border: 1px solid rgba(93,200,255,0.25);
+    padding: 0 24px;
+    display: flex; align-items: center; gap: 24px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6); }
+.m6-channel-num { font-family: ui-monospace, monospace;
+    font-size: 32px; font-weight: 800; color: #5DC8FF;
+    min-width: 56px; }
+.m6-channel-name { font-size: 14px; font-weight: 700; }
+.m6-channel-now { font-size: 13px; color: #C7CFDB;
+    border-left: 1px solid rgba(255,255,255,0.18); padding-left: 24px; }
+.m6-time { margin-left: auto; font-family: ui-monospace, monospace; color: #8B95A7; font-size: 13px; }
+.m6-prog-bar { position: absolute; bottom: 0; left: 24px; right: 24px;
+    height: 2px; background: rgba(255,255,255,0.1); border-radius: 1px; overflow: hidden; }
+.m6-prog-bar > span { display: block; height: 100%; width: 42%; background: #5DC8FF; }
+.m6-hint { position: absolute; bottom: 124px; left: 32px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.32em; color: #8B95A7; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 7 — Vesper signature (neon glass card, centred)         */
+/* ─────────────────────────────────────────────────────────────── */
+.m7-card {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 1320px; height: 720px;
+    border-radius: 28px;
+    background: rgba(6,8,15,0.78);
+    backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(93,200,255,0.25);
+    box-shadow:
+        0 32px 80px rgba(0,0,0,0.7),
+        0 0 0 1px rgba(93,200,255,0.15),
+        0 0 100px rgba(93,200,255,0.2);
+    overflow: hidden;
+    display: grid; grid-template-columns: 460px 1fr;
+}
+.m7-left { padding: 40px 32px; overflow: hidden;
+    border-right: 1px solid rgba(255,255,255,0.08); }
+.m7-search { padding: 14px 18px; border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    color: #C7CFDB; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 18px; }
+.m7-cat-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.m7-cat { padding: 8px 14px; border-radius: 999px; font-size: 11px;
+    background: rgba(255,255,255,0.06); font-weight: 700; }
+.m7-cat.active { background: #5DC8FF; color: #06080F; }
+.m7-chan { display: flex; gap: 14px; padding: 14px 12px; border-radius: 12px;
+    align-items: center; margin-bottom: 6px; }
+.m7-chan.focus { background: rgba(93,200,255,0.16); box-shadow: inset 0 0 0 1px #5DC8FF; }
+.m7-right { padding: 40px; display: flex; flex-direction: column; }
+.m7-poster-card { flex: 1; border-radius: 18px; overflow: hidden; position: relative;
+    background:
+        linear-gradient(to top, rgba(6,8,15,0.95) 0%, transparent 60%),
+        linear-gradient(135deg, #6366F1, #1E1B4B);
+    padding: 32px; display: flex; flex-direction: column; justify-content: flex-end; }
+.m7-poster-title { font-size: 36px; font-weight: 800; line-height: 1.1; }
+.m7-poster-meta { display: flex; gap: 12px; margin: 16px 0 12px; align-items: center; color: #C7CFDB; font-size: 13px; }
+.m7-poster-desc { color: #9DA5B5; font-size: 14px; line-height: 1.5; max-width: 600px; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 8 — Carousel of poster cards (Netflix-y)                */
+/* ─────────────────────────────────────────────────────────────── */
+.m8-strip { position: absolute; bottom: 0; left: 0; right: 0;
+    height: 480px;
+    background: linear-gradient(to top, rgba(6,8,15,0.92) 0%, transparent 100%);
+    padding: 48px 56px;
+    overflow: hidden; }
+.m8-eyebrow { font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.36em;
+    color: #5DC8FF; font-weight: 800; margin-bottom: 14px; }
+.m8-cards { display: flex; gap: 18px; }
+.m8-card { flex: 0 0 260px; height: 350px;
+    border-radius: 16px; overflow: hidden; position: relative;
+    background: linear-gradient(135deg, #6366F1, #1E1B4B);
+    transition: all .2s ease; }
+.m8-card.red { background: linear-gradient(135deg, #DC2626, #7F1D1D); }
+.m8-card.green { background: linear-gradient(135deg, #10B981, #064E3B); }
+.m8-card.purple { background: linear-gradient(135deg, #8B5CF6, #4C1D95); }
+.m8-card.orange { background: linear-gradient(135deg, #F97316, #7C2D12); }
+.m8-card.focus { transform: scale(1.06); box-shadow: 0 0 0 3px #5DC8FF, 0 24px 60px rgba(93,200,255,0.4); }
+.m8-card-overlay { position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%);
+    padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; }
+.m8-card-name { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+.m8-card-now { font-size: 13px; color: #C7CFDB; opacity: 0.9; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 9 — Split panel + horizontal timeline                   */
+/* ─────────────────────────────────────────────────────────────── */
+.m9-bg { position: absolute; inset: 0; background: rgba(6,8,15,0.95); }
+.m9-left { position: absolute; top: 32px; left: 32px; bottom: 32px; width: 340px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 28px 20px; overflow: hidden; }
+.m9-right { position: absolute; top: 32px; left: 396px; right: 32px; bottom: 32px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 28px; overflow: hidden; }
+.m9-now-poster { width: 100%; height: 280px; border-radius: 14px;
+    background: linear-gradient(135deg, #6366F1, #1E1B4B);
+    margin-bottom: 22px; position: relative; overflow: hidden; }
+.m9-now-poster::after { content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 60%); }
+.m9-now-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.m9-row { display: flex; gap: 10px; padding: 10px; border-radius: 10px; align-items: center; margin-bottom: 4px; }
+.m9-row.focus { background: rgba(93,200,255,0.15); box-shadow: inset 0 0 0 1px #5DC8FF; }
+.m9-timeline-header { display: flex; gap: 0; height: 36px; margin-bottom: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08); }
+.m9-day { flex: 1; font-size: 12px; font-weight: 700; padding: 8px 0;
+    text-align: center; color: #8B95A7; }
+.m9-day.active { color: #5DC8FF; border-bottom: 2px solid #5DC8FF; }
+.m9-tline-row { display: flex; gap: 8px; height: 64px; margin-bottom: 8px; align-items: stretch; }
+.m9-tprog { padding: 12px 14px; border-radius: 8px; background: rgba(255,255,255,0.04);
+    flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.m9-tprog.focus { background: rgba(93,200,255,0.18); box-shadow: inset 0 0 0 1px #5DC8FF; }
+.m9-tprog-t { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m9-tprog-s { font-size: 10px; color: #8B95A7; margin-top: 2px; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 10 — Cinematic poster takeover                          */
+/* ─────────────────────────────────────────────────────────────── */
+.m10-poster {
+    position: absolute; inset: 0;
+    background:
+        linear-gradient(135deg, rgba(6,8,15,0.92) 0%, rgba(6,8,15,0.55) 40%, transparent 70%),
+        linear-gradient(to top, rgba(6,8,15,0.95) 0%, rgba(6,8,15,0.3) 50%, transparent 100%),
+        radial-gradient(circle at 70% 30%, rgba(255,140,80,0.4) 0%, transparent 50%),
+        linear-gradient(135deg, #2a1a3e 0%, #0a1929 50%, #1a0a0d 100%);
+}
+.m10-content { position: absolute; top: 0; left: 0; bottom: 0; width: 720px;
+    padding: 96px 64px; display: flex; flex-direction: column; justify-content: flex-end; }
+.m10-now-eyebrow { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: 0.4em;
+    color: #5DC8FF; margin-bottom: 16px; font-weight: 800; }
+.m10-title { font-size: 64px; font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; margin-bottom: 18px; }
+.m10-meta { display: flex; gap: 14px; align-items: center; color: #C7CFDB; font-size: 15px; margin-bottom: 18px; }
+.m10-desc { color: #9DA5B5; font-size: 16px; line-height: 1.6; max-width: 580px; margin-bottom: 26px; }
+.m10-prog-bar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; max-width: 580px; overflow: hidden; margin-bottom: 12px; }
+.m10-prog-bar > span { display: block; height: 100%; width: 38%;
+    background: linear-gradient(to right, #5DC8FF, #fff); }
+.m10-prog-times { display: flex; justify-content: space-between; color: #8B95A7; font-size: 12px; max-width: 580px;
+    font-family: ui-monospace, monospace; letter-spacing: 0.08em; }
+.m10-channels { position: absolute; top: 0; right: 0; bottom: 0; width: 380px;
+    padding: 64px 32px; overflow: hidden;
+    background: linear-gradient(to right, transparent 0%, rgba(6,8,15,0.85) 30%); }
+.m10-ch-row { padding: 14px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center;
+    margin-bottom: 6px; }
+.m10-ch-row.focus { background: rgba(93,200,255,0.18); box-shadow: inset 0 0 0 1px #5DC8FF; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M1: Premium STB — bottom strip with NOW card + channel rail    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m1">
+<div class="video-bg"></div>
+<div class="label">01 · PREMIUM STB</div>
+<div class="m1-strip">
+    <div class="m1-now">
+        <div class="m1-poster"></div>
+        <div class="m1-meta">
+            <span class="live-pill">LIVE</span>
+            <span class="eyebrow" style="margin-left:14px;">CH 042 · USA ENTERTAINMENT</span>
+            <h1 class="m1-title">The Late Show with Stephen Colbert</h1>
+            <div class="m1-row">
+                <span>10:30 PM</span><span>·</span><span>30 min left</span><span>·</span>
+                <span>S11 E142</span><span>·</span><span>TV-14</span>
+            </div>
+            <div class="m1-prog-bar"><span></span></div>
+        </div>
+    </div>
+    <div class="m1-chan-row">
+        <div class="m1-chan"><div class="logo">A</div><div><div class="m1-chan-name">ABC News</div><div class="m1-chan-now">World tonight</div></div></div>
+        <div class="m1-chan"><div class="logo red">B</div><div><div class="m1-chan-name">BBC One</div><div class="m1-chan-now">Question Time</div></div></div>
+        <div class="m1-chan focus"><div class="logo green">C</div><div><div class="m1-chan-name">CBS</div><div class="m1-chan-now">Late Show</div></div></div>
+        <div class="m1-chan"><div class="logo purple">D</div><div><div class="m1-chan-name">Discovery</div><div class="m1-chan-now">Naked Survival</div></div></div>
+        <div class="m1-chan"><div class="logo orange">E</div><div><div class="m1-chan-name">ESPN</div><div class="m1-chan-now">SportsCenter</div></div></div>
+        <div class="m1-chan"><div class="logo">F</div><div><div class="m1-chan-name">FOX News</div><div class="m1-chan-now">Hannity</div></div></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M2: Apple TV Up Next sidebar                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m2">
+<div class="video-bg"></div>
+<div class="label">02 · APPLE TV "UP NEXT"</div>
+<div class="m2-sidebar">
+    <div class="m2-head">
+        <div class="m2-title">Up Next</div>
+        <div class="mono" style="font-size:11px;color:#8B95A7;letter-spacing:0.28em;">10:42 PM</div>
+    </div>
+    <div class="m2-tabs">
+        <span class="m2-tab active">All</span>
+        <span class="m2-tab">Favourites</span>
+        <span class="m2-tab">News</span>
+        <span class="m2-tab">Sports</span>
+        <span class="m2-tab">Movies</span>
+    </div>
+    <div class="m2-card">
+        <div class="logo">A</div>
+        <div class="m2-card-body">
+            <div class="m2-card-name">ABC News</div>
+            <div class="m2-card-now">World News Tonight with David Muir</div>
+            <div class="m2-card-progress"><span style="width:62%"></span></div>
+        </div>
+    </div>
+    <div class="m2-card focus">
+        <div class="logo red">B</div>
+        <div class="m2-card-body">
+            <div class="m2-card-name">BBC One</div>
+            <div class="m2-card-now">Question Time · Live from Manchester</div>
+            <div class="m2-card-progress"><span style="width:38%"></span></div>
+        </div>
+    </div>
+    <div class="m2-card">
+        <div class="logo green">C</div>
+        <div class="m2-card-body">
+            <div class="m2-card-name">CBS</div>
+            <div class="m2-card-now">The Late Show with Stephen Colbert</div>
+            <div class="m2-card-progress"><span style="width:42%"></span></div>
+        </div>
+    </div>
+    <div class="m2-card">
+        <div class="logo purple">D</div>
+        <div class="m2-card-body">
+            <div class="m2-card-name">Discovery</div>
+            <div class="m2-card-now">Naked &amp; Afraid: Last One Standing</div>
+            <div class="m2-card-progress"><span style="width:78%"></span></div>
+        </div>
+    </div>
+    <div class="m2-card">
+        <div class="logo orange">E</div>
+        <div class="m2-card-body">
+            <div class="m2-card-name">ESPN</div>
+            <div class="m2-card-now">SportsCenter with Scott Van Pelt</div>
+            <div class="m2-card-progress"><span style="width:14%"></span></div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M3: YouTube TV grid — full takeover                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m3">
+<div class="m3-bg"></div>
+<div class="label">03 · YOUTUBE TV GRID</div>
+<div class="m3-head">
+    <div class="m3-title">Live Guide · Tonight</div>
+    <div class="mono" style="font-size:12px;color:#8B95A7;letter-spacing:0.28em;">FRI · 10:42 PM</div>
+</div>
+<div class="m3-time-strip">
+    <div class="m3-time-cell">10:30 PM</div>
+    <div class="m3-time-cell">11:00 PM</div>
+    <div class="m3-time-cell">11:30 PM</div>
+    <div class="m3-time-cell">12:00 AM</div>
+</div>
+<div class="m3-grid">
+    <div class="m3-row">
+        <div class="m3-ch-cell"><div class="logo">A</div><div><div class="m3-ch-name">ABC News</div><div class="m3-ch-num">CH 002</div></div></div>
+        <div class="m3-prog" style="flex:0.5"><div class="m3-prog-t">World News Tonight</div><div class="m3-prog-s">David Muir reports</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Nightline</div><div class="m3-prog-s">Late-night news</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Jimmy Kimmel Live!</div><div class="m3-prog-s">With Tom Hanks</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Nightline</div><div class="m3-prog-s">Rebroadcast</div></div>
+    </div>
+    <div class="m3-row">
+        <div class="m3-ch-cell"><div class="logo red">B</div><div><div class="m3-ch-name">BBC One</div><div class="m3-ch-num">CH 042</div></div></div>
+        <div class="m3-prog" style="flex:0.5"><div class="m3-prog-t">News at Ten</div><div class="m3-prog-s">Headlines</div></div>
+        <div class="m3-prog focus" style="flex:1"><div class="m3-prog-t">Question Time</div><div class="m3-prog-s">Live from Manchester</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Newsnight</div><div class="m3-prog-s">Politics, art, culture</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Weather</div><div class="m3-prog-s">UK forecast</div></div>
+    </div>
+    <div class="m3-row">
+        <div class="m3-ch-cell"><div class="logo green">C</div><div><div class="m3-ch-name">CBS</div><div class="m3-ch-num">CH 056</div></div></div>
+        <div class="m3-prog" style="flex:0.5"><div class="m3-prog-t">CBS Evening News</div><div class="m3-prog-s">Norah O'Donnell</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">The Late Show</div><div class="m3-prog-s">with Stephen Colbert</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">The Late Late Show</div><div class="m3-prog-s">with James Corden</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">CBS Overnight News</div><div class="m3-prog-s">Wrap-up</div></div>
+    </div>
+    <div class="m3-row">
+        <div class="m3-ch-cell"><div class="logo purple">D</div><div><div class="m3-ch-name">Discovery</div><div class="m3-ch-num">CH 088</div></div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Naked & Afraid</div><div class="m3-prog-s">Last One Standing</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Gold Rush</div><div class="m3-prog-s">Parker's Trail</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">Deadliest Catch</div><div class="m3-prog-s">Bering Sea</div></div>
+    </div>
+    <div class="m3-row">
+        <div class="m3-ch-cell"><div class="logo orange">E</div><div><div class="m3-ch-name">ESPN</div><div class="m3-ch-num">CH 105</div></div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">SportsCenter</div><div class="m3-prog-s">Scott Van Pelt</div></div>
+        <div class="m3-prog" style="flex:1"><div class="m3-prog-t">NBA Tonight</div><div class="m3-prog-s">Recaps</div></div>
+        <div class="m3-prog" style="flex:0.8"><div class="m3-prog-t">UFC Countdown</div><div class="m3-prog-s">Fight night</div></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M4: Picture in Picture                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m4">
+<div style="position:absolute;inset:0;background:rgba(6,8,15,0.85);"></div>
+<div class="label">04 · PICTURE-IN-PICTURE</div>
+<div class="m4-pip">
+    <span class="m4-pip-label">PLAYING · BBC ONE</span>
+</div>
+<div class="m4-content">
+    <div class="eyebrow">LIVE GUIDE</div>
+    <h1 class="m4-title" style="margin-top:14px;">Tonight on TV</h1>
+    <div class="m4-list">
+        <div class="m4-row">
+            <span class="m4-num">002</span><div class="logo">A</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">ABC News</div><div style="font-size:12px;color:#8B95A7;">World News Tonight</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">10:30PM</div>
+        </div>
+        <div class="m4-row focus">
+            <span class="m4-num">042</span><div class="logo red">B</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">BBC One <span class="live-pill" style="margin-left:8px">LIVE</span></div><div style="font-size:12px;color:#C7CFDB;">Question Time · Live from Manchester</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">10:00PM</div>
+        </div>
+        <div class="m4-row">
+            <span class="m4-num">056</span><div class="logo green">C</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">CBS</div><div style="font-size:12px;color:#8B95A7;">The Late Show with Stephen Colbert</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">10:35PM</div>
+        </div>
+        <div class="m4-row">
+            <span class="m4-num">088</span><div class="logo purple">D</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">Discovery</div><div style="font-size:12px;color:#8B95A7;">Naked &amp; Afraid: Last One Standing</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">10:00PM</div>
+        </div>
+        <div class="m4-row">
+            <span class="m4-num">105</span><div class="logo orange">E</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">ESPN</div><div style="font-size:12px;color:#8B95A7;">SportsCenter with Scott Van Pelt</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">11:00PM</div>
+        </div>
+        <div class="m4-row">
+            <span class="m4-num">142</span><div class="logo">F</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700;">FOX News</div><div style="font-size:12px;color:#8B95A7;">Hannity</div></div>
+            <div style="font-size:12px;color:#5DC8FF;font-family:ui-monospace,monospace;">10:00PM</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M5: Floating mini-dock                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m5">
+<div class="video-bg"></div>
+<div class="label">05 · FLOATING DOCK</div>
+<div class="m5-dock">
+    <div class="m5-channel-pill">CH 042</div>
+    <div class="logo red">B</div>
+    <div class="m5-now-block">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;">
+            <span class="live-pill">LIVE</span>
+            <span class="eyebrow">BBC ONE</span>
+        </div>
+        <div class="m5-now-t">Question Time · Live from Manchester</div>
+        <div class="m5-now-s">10:00 PM → 11:00 PM · 22 min left · Politics, debate</div>
+        <div class="m5-prog-bar"><span></span></div>
+    </div>
+    <div class="m5-divider"></div>
+    <div class="m5-controls">
+        <div class="m5-ctrl">◀</div>
+        <div class="m5-ctrl focus">≡</div>
+        <div class="m5-ctrl">▶</div>
+        <div class="m5-ctrl">⭐</div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M6: Minimal ticker                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m6">
+<div class="video-bg"></div>
+<div class="label">06 · MINIMAL TICKER</div>
+<div class="m6-hint">▲ ▼ CHANGE CHANNEL  ·  OK CONFIRM  ·  ◀ ▶ NEXT PROGRAMME</div>
+<div class="m6-ticker">
+    <span class="m6-channel-num">042</span>
+    <div class="logo red" style="width:48px;height:48px;font-size:12px;">B</div>
+    <div>
+        <div class="m6-channel-name">BBC One <span class="live-pill" style="margin-left:8px">LIVE</span></div>
+        <div style="font-size:11px;color:#8B95A7;margin-top:2px;">News &amp; Politics</div>
+    </div>
+    <div class="m6-channel-now">
+        <div style="font-size:14px;font-weight:700;">Question Time</div>
+        <div style="font-size:11px;color:#8B95A7;margin-top:2px;">10:00 PM → 11:00 PM · 22 min left</div>
+    </div>
+    <div class="m6-time">22:42</div>
+    <div class="m6-prog-bar"><span></span></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M7: Vesper signature neon-glass card                            -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m7">
+<div class="video-bg"></div>
+<div class="label">07 · VESPER SIGNATURE</div>
+<div class="m7-card">
+    <div class="m7-left">
+        <div class="eyebrow" style="margin-bottom:10px;">LIVE GUIDE</div>
+        <div class="m7-search">🔍&nbsp;&nbsp;Search channels...</div>
+        <div class="m7-cat-row">
+            <span class="m7-cat active">All</span>
+            <span class="m7-cat">⭐</span>
+            <span class="m7-cat">News</span>
+            <span class="m7-cat">Sports</span>
+            <span class="m7-cat">Kids</span>
+            <span class="m7-cat">Movies</span>
+        </div>
+        <div class="m7-chan"><div class="logo">A</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">ABC News</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">World News Tonight</div></div></div>
+        <div class="m7-chan focus"><div class="logo red">B</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">BBC One</div><div style="font-size:11px;color:#C7CFDB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Question Time</div></div><span class="live-pill" style="font-size:9px">LIVE</span></div>
+        <div class="m7-chan"><div class="logo green">C</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">CBS</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Late Show</div></div></div>
+        <div class="m7-chan"><div class="logo purple">D</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">Discovery</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Naked &amp; Afraid</div></div></div>
+        <div class="m7-chan"><div class="logo orange">E</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">ESPN</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SportsCenter</div></div></div>
+        <div class="m7-chan"><div class="logo">F</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">FOX News</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hannity</div></div></div>
+    </div>
+    <div class="m7-right">
+        <div class="m7-poster-card">
+            <div style="position:absolute;top:32px;left:32px;display:flex;gap:10px;align-items:center;">
+                <span class="live-pill">LIVE</span>
+                <span class="eyebrow">BBC ONE · CH 042</span>
+            </div>
+            <h1 class="m7-poster-title">Question Time</h1>
+            <div class="m7-poster-meta"><span>Live from Manchester</span><span>·</span><span>10:00 PM</span><span>·</span><span>22 min left</span></div>
+            <p class="m7-poster-desc">Fiona Bruce hosts a topical political debate with a panel of leading politicians, journalists and commentators, and a public audience.</p>
+            <div class="m1-prog-bar" style="margin-top:20px;max-width:580px;"><span style="width:38%;display:block;height:100%;background:#5DC8FF;"></span></div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M8: Netflix-style carousel of poster cards                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m8">
+<div class="video-bg"></div>
+<div class="label">08 · NETFLIX CAROUSEL</div>
+<div class="m8-strip">
+    <div class="m8-eyebrow">LIVE NOW · 142 CHANNELS</div>
+    <div class="m8-cards">
+        <div class="m8-card">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 002 · ABC</div>
+                <div class="m8-card-name">World News Tonight</div>
+                <div class="m8-card-now">10:30 PM → 11:00 PM</div>
+            </div>
+        </div>
+        <div class="m8-card red focus">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 042 · BBC ONE</div>
+                <div class="m8-card-name">Question Time</div>
+                <div class="m8-card-now">Live from Manchester · 22 min left</div>
+            </div>
+        </div>
+        <div class="m8-card green">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 056 · CBS</div>
+                <div class="m8-card-name">The Late Show</div>
+                <div class="m8-card-now">with Stephen Colbert</div>
+            </div>
+        </div>
+        <div class="m8-card purple">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 088 · DISCOVERY</div>
+                <div class="m8-card-name">Naked &amp; Afraid</div>
+                <div class="m8-card-now">Last One Standing</div>
+            </div>
+        </div>
+        <div class="m8-card orange">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 105 · ESPN</div>
+                <div class="m8-card-name">SportsCenter</div>
+                <div class="m8-card-now">with Scott Van Pelt</div>
+            </div>
+        </div>
+        <div class="m8-card">
+            <div class="m8-card-overlay">
+                <div style="font-size:10px;font-family:ui-monospace,monospace;letter-spacing:0.2em;color:#5DC8FF;margin-bottom:6px;">CH 142 · FOX</div>
+                <div class="m8-card-name">Hannity</div>
+                <div class="m8-card-now">10:00 PM → 11:00 PM</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M9: Split panel + 3-day timeline                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m9">
+<div class="m9-bg"></div>
+<div class="label">09 · SPLIT PANEL + 3-DAY TIMELINE</div>
+<div class="m9-left">
+    <div class="m9-now-poster">
+        <div style="position:absolute;bottom:18px;left:18px;right:18px;">
+            <span class="live-pill">LIVE</span>
+            <div class="m9-now-title" style="margin-top:8px;color:#fff;">Question Time</div>
+            <div style="font-size:11px;color:#C7CFDB;">BBC One · CH 042</div>
+        </div>
+    </div>
+    <div class="eyebrow" style="margin-bottom:12px;">CHANNELS</div>
+    <div class="m9-row"><div class="logo">A</div><div><div style="font-size:13px;font-weight:700">ABC News</div><div style="font-size:11px;color:#8B95A7">World News</div></div></div>
+    <div class="m9-row focus"><div class="logo red">B</div><div><div style="font-size:13px;font-weight:700">BBC One</div><div style="font-size:11px;color:#5DC8FF">Question Time</div></div></div>
+    <div class="m9-row"><div class="logo green">C</div><div><div style="font-size:13px;font-weight:700">CBS</div><div style="font-size:11px;color:#8B95A7">Late Show</div></div></div>
+    <div class="m9-row"><div class="logo purple">D</div><div><div style="font-size:13px;font-weight:700">Discovery</div><div style="font-size:11px;color:#8B95A7">Naked &amp; Afraid</div></div></div>
+    <div class="m9-row"><div class="logo orange">E</div><div><div style="font-size:13px;font-weight:700">ESPN</div><div style="font-size:11px;color:#8B95A7">SportsCenter</div></div></div>
+</div>
+<div class="m9-right">
+    <div class="m9-timeline-header">
+        <div class="m9-day active">Tonight · Fri</div>
+        <div class="m9-day">Sat</div>
+        <div class="m9-day">Sun</div>
+    </div>
+    <div class="eyebrow" style="margin-bottom:12px;">BBC ONE · 72-HOUR GUIDE</div>
+    <div class="m9-tline-row">
+        <div class="m9-tprog" style="width:140px"><div class="m9-tprog-t">News at Ten</div><div class="m9-tprog-s">10:00 PM</div></div>
+        <div class="m9-tprog focus" style="width:280px"><div class="m9-tprog-t">Question Time</div><div class="m9-tprog-s">10:30 PM · Live</div></div>
+        <div class="m9-tprog" style="width:200px"><div class="m9-tprog-t">Newsnight</div><div class="m9-tprog-s">11:30 PM</div></div>
+        <div class="m9-tprog" style="width:160px"><div class="m9-tprog-t">Weather</div><div class="m9-tprog-s">12:15 AM</div></div>
+        <div class="m9-tprog" style="width:240px"><div class="m9-tprog-t">Imagine</div><div class="m9-tprog-s">12:30 AM</div></div>
+    </div>
+    <div class="m9-tline-row">
+        <div class="m9-tprog" style="width:180px"><div class="m9-tprog-t">Click</div><div class="m9-tprog-s">1:30 AM</div></div>
+        <div class="m9-tprog" style="width:260px"><div class="m9-tprog-t">BBC News</div><div class="m9-tprog-s">2:00 AM</div></div>
+        <div class="m9-tprog" style="width:220px"><div class="m9-tprog-t">HardTalk</div><div class="m9-tprog-s">3:00 AM</div></div>
+        <div class="m9-tprog" style="width:200px"><div class="m9-tprog-t">Asia Business</div><div class="m9-tprog-s">3:30 AM</div></div>
+        <div class="m9-tprog" style="width:180px"><div class="m9-tprog-t">News Briefing</div><div class="m9-tprog-s">4:00 AM</div></div>
+    </div>
+    <div class="m9-tline-row">
+        <div class="m9-tprog" style="width:200px"><div class="m9-tprog-t">Breakfast</div><div class="m9-tprog-s">6:00 AM</div></div>
+        <div class="m9-tprog" style="width:240px"><div class="m9-tprog-t">Morning Live</div><div class="m9-tprog-s">9:15 AM</div></div>
+        <div class="m9-tprog" style="width:260px"><div class="m9-tprog-t">Homes Under the Hammer</div><div class="m9-tprog-s">10:00 AM</div></div>
+        <div class="m9-tprog" style="width:220px"><div class="m9-tprog-t">Bargain Hunt</div><div class="m9-tprog-s">11:00 AM</div></div>
+    </div>
+    <div class="m9-tline-row">
+        <div class="m9-tprog" style="width:280px"><div class="m9-tprog-t">BBC News at One</div><div class="m9-tprog-s">1:00 PM</div></div>
+        <div class="m9-tprog" style="width:220px"><div class="m9-tprog-t">Doctors</div><div class="m9-tprog-s">1:45 PM</div></div>
+        <div class="m9-tprog" style="width:200px"><div class="m9-tprog-t">Escape to Country</div><div class="m9-tprog-s">2:15 PM</div></div>
+        <div class="m9-tprog" style="width:240px"><div class="m9-tprog-t">Money for Nothing</div><div class="m9-tprog-s">3:00 PM</div></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M10: Cinematic poster takeover                                  -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m10">
+<div class="m10-poster"></div>
+<div class="label">10 · CINEMATIC TAKEOVER</div>
+<div class="m10-content">
+    <div class="m10-now-eyebrow">▶ NOW PLAYING · BBC ONE · CH 042</div>
+    <h1 class="m10-title">Question Time</h1>
+    <div class="m10-meta">
+        <span class="live-pill">LIVE</span>
+        <span>Live from Manchester</span>
+        <span>·</span>
+        <span>News &amp; Politics</span>
+        <span>·</span>
+        <span>1h 0m</span>
+    </div>
+    <p class="m10-desc">Fiona Bruce hosts a topical political debate with a panel of leading politicians, journalists and commentators, and a public audience. Tonight from Manchester.</p>
+    <div class="m10-prog-bar"><span></span></div>
+    <div class="m10-prog-times"><span>10:00 PM</span><span>22 MIN LEFT</span><span>11:00 PM</span></div>
+</div>
+<div class="m10-channels">
+    <div class="eyebrow" style="margin-bottom:18px;">UP NEXT</div>
+    <div class="m10-ch-row"><div class="logo">A</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">ABC News</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">World News Tonight</div></div></div>
+    <div class="m10-ch-row focus"><div class="logo red">B</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">BBC One</div><div style="font-size:11px;color:#5DC8FF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Question Time · LIVE</div></div></div>
+    <div class="m10-ch-row"><div class="logo green">C</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">CBS</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Late Show</div></div></div>
+    <div class="m10-ch-row"><div class="logo purple">D</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">Discovery</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Naked &amp; Afraid</div></div></div>
+    <div class="m10-ch-row"><div class="logo orange">E</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">ESPN</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SportsCenter</div></div></div>
+    <div class="m10-ch-row"><div class="logo">F</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">FOX News</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hannity</div></div></div>
+</div>
+</div>
+
+</body>
+</html>
