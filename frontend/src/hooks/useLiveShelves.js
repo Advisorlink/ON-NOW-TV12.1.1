@@ -42,7 +42,10 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
 
     useEffect(() => {
         if (!addons || addons.length === 0) {
-            setShelves([]);
+            // No addons → but if state is already populated from a
+            // cache hit on first paint, KEEP showing those shelves.
+            // A transient `addons=[]` (network blip during useAddons
+            // refresh) used to wipe the rails — never again.
             setLoading(false);
             return;
         }
@@ -62,6 +65,15 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
 
         let cancelled = false;
         const acc = [];
+        // Snapshot the existing cached value so a network-dead
+        // refetch that yields zero shelves doesn't blow away the
+        // perfectly-good cache we just painted from.  Same idea as
+        // stale-while-revalidate: never replace a good value with
+        // a worse one.  (User report: "internet cuts out, reopen
+        // app, all home covers gone but Movies tab still works".)
+        const prevCached = cache.get(key);
+        const prevShelves = Array.isArray(prevCached?.value)
+            ? prevCached.value : [];
 
         (async () => {
             for (const addon of addons) {
@@ -177,7 +189,31 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                 }
             }
             if (!cancelled) {
-                cache.set(key, acc);
+                // GUARD: only overwrite the cache if the new fetch
+                // is at least as good as what was already cached.
+                // If the network dropped half-way and `acc` is empty
+                // (or shrunk dramatically), keep the cached shelves
+                // on screen + in storage so the next cold boot
+                // still renders the last-known-good Home page.
+                if (acc.length === 0 && prevShelves.length > 0) {
+                    // Roll state back to the cached value — the
+                    // progressive `setShelves([...acc])` loop above
+                    // never fired (every catalog throw'd), but if
+                    // it had partially painted with [] we restore.
+                    setShelves(prevShelves);
+                } else if (
+                    acc.length > 0 &&
+                    acc.length < Math.floor(prevShelves.length / 2) &&
+                    prevShelves.length >= 3
+                ) {
+                    // Partial-failure case: we got SOME shelves but
+                    // less than half what we had before.  Probably
+                    // a flaky reconnection.  Keep the previous good
+                    // cache + paint instead of replacing.
+                    setShelves(prevShelves);
+                } else {
+                    cache.set(key, acc);
+                }
                 setLoading(false);
             }
         })();

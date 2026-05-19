@@ -41,6 +41,20 @@ export function useAddons() {
                 clearTimeout(timeoutId);
             }
             const list = Array.isArray(data) ? data : [];
+            // GUARD: never overwrite a populated addon cache with
+            // an empty list — this is the exact scenario that wiped
+            // the Home rails when the user's internet dropped (the
+            // backend timed out or returned []).  Keep the cached
+            // addons + return them so downstream shelves still
+            // render off real data.
+            const prevAddons = cache.get(ADDONS_CACHE_KEY);
+            const prevList = Array.isArray(prevAddons?.value)
+                ? prevAddons.value : [];
+            if (list.length === 0 && prevList.length > 0) {
+                setAddons(prevList);
+                setError(null);
+                return prevList;
+            }
             cache.set(ADDONS_CACHE_KEY, list);
             setAddons(list);
             setError(null);

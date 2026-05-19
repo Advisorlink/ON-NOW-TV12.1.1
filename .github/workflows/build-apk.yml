@@ -234,6 +234,26 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.89 — Bug fix: Home rails no longer blank after network drop**
+            - 🐛 **Root cause** (`useLiveShelves` / `useLiveHeroes` /
+              `useAddons` hooks): on a stale-while-revalidate
+              refetch the hooks unconditionally overwrote the cache
+              with whatever they fetched.  When the device's
+              internet had dropped mid-app every catalogue throw'd,
+              the result was an empty array, and that empty array
+              REPLACED the perfectly-good cached shelves in
+              localStorage.  Next cold boot → empty Home page
+              (even though Movies / TV grid pages still worked
+              because they use a separate `useTabCatalog` hook).
+            - ✅ **Fix**: never overwrite a populated cache with a
+              smaller/empty one.  If the refetch comes back with
+              zero shelves but we previously had some, we keep the
+              old cache + repaint from it.  Same guard added to the
+              hero billboard + addons list.  The Home page is now
+              resilient to network drops, app re-opens, and partial
+              failures — your last-known-good rails always render.
+            - 🆙 APK bumped to **v2.6.89** (versionCode 159).
+
             **v2.6.88 — Upcoming Movies row · Boot notify scanner · Electric blue theme · Torrentio Debrid**
             - 🎬 **New "Coming soon" row at the bottom of Home** —
               pulls TMDB's next-60-day upcoming movies and shows them

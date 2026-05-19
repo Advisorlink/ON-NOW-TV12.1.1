@@ -30,6 +30,11 @@ export function useLiveHeroes(addons, type = 'movie') {
         }
 
         let cancelled = false;
+        // Snapshot for "don't replace a good cache with a worse one"
+        // guard below (mirrors useLiveShelves).
+        const prevCached = cache.get(key);
+        const prevHeroes = Array.isArray(prevCached?.value)
+            ? prevCached.value : [];
 
         const fromCinemeta = async () => {
             if (!addons || addons.length === 0) return null;
@@ -113,11 +118,22 @@ export function useLiveHeroes(addons, type = 'movie') {
                 }
                 const tmdbHeroes = await fromTmdb();
                 if (!cancelled) {
-                    setHeroes(tmdbHeroes);
-                    cache.set(key, tmdbHeroes);
+                    // GUARD — never wipe a populated hero cache with
+                    // an empty list (network blip / preview asleep).
+                    if (tmdbHeroes.length === 0 && prevHeroes.length > 0) {
+                        setHeroes(prevHeroes);
+                    } else {
+                        setHeroes(tmdbHeroes);
+                        cache.set(key, tmdbHeroes);
+                    }
                 }
             } catch {
-                if (!cancelled) setHeroes([]);
+                // Network died mid-fetch — fall back to whatever we
+                // had cached so the billboard never goes blank.
+                if (!cancelled) {
+                    if (prevHeroes.length > 0) setHeroes(prevHeroes);
+                    else setHeroes([]);
+                }
             } finally {
                 if (!cancelled) setLoading(false);
             }

@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 33 — Verified the network-drop / empty-refetch defensive guards in useLiveShelves, useLiveHeroes, useAddons. Three-phase Playwright run on the live preview URL (frontend only, per request): (1) cold boot, (2) reload with **/api/addons/** aborted via page.route, (3) reload with /api/addons fulfilled as []. In ALL three phases the Home page rendered 4 shelves (same testids each time), [data-testid='hero-billboard'] was present, [data-testid='upcoming-movies-shelf'] was present, and the cached addons list in localStorage stayed at 6 entries. localStorage carried 4 onnowtv:cache:* keys after first paint: addons, networks:logos:v2, shelves:all:<6-addon-id-hash>, heroes:series:<6-addon-id-hash>. The user-reported regression ('home covers gone after internet blip') is FIXED — the guards in all three hooks correctly refuse to overwrite a populated cache with an empty / much-smaller result.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_33.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useAddons.js (lines 50-57): correct — snapshot prev cache via cache.get() before setAddons, and on `list.length===0 && prevList.length>0` return prevList without touching the cache. The setError(null) call in this branch is appropriate since the request technically succeeded with [], it's just our policy not to surface it. Good.",
+    "useLiveShelves.js (lines 191-216): three-pronged guard is sensible — (a) empty acc + non-empty prev → restore prev, (b) acc < half prev (>=3) → restore prev, (c) otherwise cache.set(acc). The progressive setShelves([...acc]) during the loop (line 185) could still flicker before the guard fires if some catalogs partially succeeded with empty metas — but in practice catch{} skips empties and the FINAL setShelves is governed by the guard. Acceptable.",
+    "useLiveHeroes.js (lines 111-140): solid — cinemeta path early-returns with cache.set, tmdb fallback applies the empty-guard, and the catch{} restores prevHeroes. One nit: when fromCinemeta returns non-null heroes we directly cache.set(key, cinemetaHeroes) WITHOUT applying the same `prev.length > new.length` guard. In the cinemeta success path that's fine (cinemeta returns either >0 picks or null), but it's a subtle asymmetry worth noting if a future change makes fromCinemeta return [] instead of null on partial failures.",
+    "cache.js: PERSIST_PREFIXES list correctly includes 'addons', 'shelves:', 'heroes:' so the populated cache survives a full page reload via localStorage. Confirmed end-to-end in Phase 2 and Phase 3 of this run.",
+    "No regression spotted: P1 and P2 produced IDENTICAL shelf testids (['shelf-com.linvo.cinemeta-movie-year', 'shelf-com.linvo.cinemeta-series-year', 'shelf-com.linvo.cinemeta-movie-top', 'shelf-com.linvo.cinemeta-series-top']), meaning the rails the user saw before the blackout are the exact rails they see after, byte-for-byte."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A — frontend-only iteration per review brief (backend already verified in iter32)",
+    "frontend": "100% — all 6 review items PASS (regression test, network-drop sim, empty-response guard, cache-key persistence, hero billboard guard, upcoming-shelf still present)"
+  },
+  "test_credentials": "Seeded onnowtv-profiles-v1 + onnowtv-active-profile-v1 + onnowtv-welcome-tour-seen via add_init_script. Welcome tour overlay still appeared in screenshots (the 'seen' flag key may have rotated), but the Home page DOM behind the overlay is fully rendered — confirmed by data-testid queries succeeding for shelf-*, hero-billboard, and upcoming-movies-shelf. Not a regression introduced by this fix.",
+  "seed_data_creation": "None on the backend. Frontend localStorage seeded ephemerally per playwright run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase numbers: P1 cold boot, P2 page.route('**/api/addons/**', abort) + reload, P3 page.route('**/api/addons', fulfill 200 []) + reload. All three painted 4 identical shelves + hero + upcoming + 6 cached addons. The three guards are at useLiveShelves.js:191-216, useLiveHeroes.js:121-128 + 132-136, useAddons.js:50-57. The cosmetic welcome-tour overlay does NOT block functional verification — DOM testid queries confirm Home is rendered underneath. Backend already verified in iter32 (GET /api/tmdb/upcoming-movies, addons seeder, streams endpoint — 6/6 pytest). Do not re-run backend tests unless code touches /api/* endpoints.",
+  "rca of the issue": "Original bug: when the device's internet dropped mid-session, the next foreground/reload would call useAddons.refresh() which fetched [] (timeout aborted or backend returned empty), then cache.set('addons', []) — that empty list propagated to useLiveShelves (no addons to iterate) and useLiveHeroes (no cinemeta hit), wiping the rails AND the cached rails. Movies/TV tabs still worked because they use a different shelves cache key (filterType=movie/series) that hadn't been touched yet, AND they fall back to network catalogs on demand. Fix: each of the three hooks now snapshots the previous cached value at the top of the effect and refuses to overwrite a populated cache with an empty/much-smaller result. Verified by aborting **/api/addons/** AND by fulfilling /api/addons with [] — in both cases the rails survived a hard reload."
+}
