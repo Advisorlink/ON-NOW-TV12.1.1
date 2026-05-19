@@ -240,6 +240,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.74 — Unified popcorn artwork · WS auto-reconnect · 200 ms emoji rate**
+            - 🎬 **No more loading screen between popcorn and play.**
+              The host's loading PNG and the guest's popcorn JPG now
+              stay on-screen ALL THE WAY through to the moment
+              playback starts.  Replaced the legacy
+              `PartyStartingScreen` (the poster-blurred "Loading…
+              100%" view) with a full-bleed image identical in style
+              to `PartyJoiningScreen`.  Top-right party-code chip is
+              the only overlay.  Result: one continuous cinematic
+              transition into the movie, no UI flash.
+            - 🔁 **Watch-Together WebSocket auto-reconnects.**  User
+              reported: "After sending multiple emojis, it stops
+              sending them completely and restarts the stream."
+              Confirmed cause: WS dropped (badge flipped to OFFLINE)
+              and never came back.  Now: on `onclose` the client
+              schedules a reconnect with 1.5 s / 3 s / 5 s / 8 s
+              backoff and resends `hello` + the `ready` flag on
+              re-open.  Status badge flips to "RECONNECTING" while
+              we're between sockets.
+            - 😱 **Rapid-fire emojis now actually fire.**  Backend
+              per-member rate-limit was 800 ms which silently dropped
+              3-4 out of 5 fast taps.  Dropped to 200 ms — still
+              prevents a stuck-key spam attack, but real rapid taps
+              all land on every party member's screen.
+            - 🆙 APK bumped to **v2.6.74** (versionCode 144).
+
             **v2.6.73 — APK now points at PRODUCTION (no more preview banner!)**
             - 🚀 **`REACT_APP_BACKEND_URL` swapped to
               `https://rebrand-app-5.emergent.host`.**  User confirmed

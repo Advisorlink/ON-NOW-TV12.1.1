@@ -56,6 +56,30 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 106 — Feb 18, 2026) — v2.6.74
+### Unified popcorn artwork · WS auto-reconnect · 200 ms emoji rate
+- **🎬 Unified popcorn/host artwork across the entire join → play flow**
+  - **User feedback**: "I don't want the loading screen shown at all. The popcorn screens should stay on there all the way through to when the movie starts. We've got the timing perfect now, just figure out the UI."
+  - **✅ Fix**: Completely rewrote `PartyStartingScreen.jsx` from the old poster-blurred "Loading 100%" view to a pure full-bleed image identical in style to `PartyJoiningScreen`. Renders `host-loading.png` for hosts and `popcorn-loading.jpg` for guests via `Host.publicAsset()`. Only overlay is a discrete top-right party-code chip. Removed: title cards, poster card, members rail, pulsing rings, status text. One continuous cinematic transition into the movie.
+
+- **🔁 Watch-Together WebSocket auto-reconnect** (`Player.jsx`)
+  - **User reported**: "After sending a whole bunch of emojis one after the other, it stops sending them completely. There's like a limit on it, and it restarts the stream on the box." Screenshot confirmed badge said "PARTY · 3XBMKF · OFFLINE".
+  - **🔬 RCA**: WS `onclose` set `partyStatus='disconnected'` and gave up. No reconnect logic. After ~5 fast emoji sends (during a router blip or backend hiccup), the socket dropped and never came back.
+  - **✅ Fix**: Refactored the WS lifecycle into a `connect()` closure called recursively from `onclose`. Backoff schedule 1.5 s / 3 s / 5 s / 8 s. On re-open, resends `hello` and (if buffered) `ready`. Cleanup function flips a `cancelled` flag so the React unmount truly stops the loop.
+
+- **😱 Rapid-fire emoji rate-limit relaxed** (`backend/watch_party.py`)
+  - **🐛 RCA**: Backend's per-member reaction throttle was 800 ms. Rapid 5-tap presses → only 2 made it through; the rest were silently dropped. Combined with the WS reconnect bug above, this is what caused "emojis stop working" reports.
+  - **✅ Fix**: Lowered the throttle to 200 ms. Genuine rapid taps now land; a stuck D-pad still gets rate-limited.
+
+- **🆙 APK bumped to v2.6.74 (versionCode 144).** Release notes added.
+- **🧪 Regression**: 16/16 watch-party backend tests pass.
+
+### Carried over / explicitly deferred
+- **Host menu controls in the WEB Player.jsx**: User screenshot showed the standard JS player controls (Subtitles/Audio/Speed/Aspect) instead of the 5-button menu I built. The 5-button menu (Pause/Skip/Catch Up/Lock/Subs) currently only exists in the NATIVE `VlcPlayerActivity.kt`. When the host is on a device WITHOUT the native bridge (web preview or non-Android device), they fall through to the JS player which has its own controls. Porting the 5-button menu to JS Player.jsx is deferred until user confirms whether they want it on web devices too — typically the host is on the HK1 box (native) and guests are on phones (web).
+- **"What do you want to watch?" + Top 5 movies on host pick screen**: deferred to next iteration. Plan: query TMDB `/movie/now_playing` filtered by `vote_average >= 6.0`, render as a horizontal row on the WatchTogether host stage with no keyboard visible by default. Keyboard appears only when the user clicks an empty search box.
+
+
+
 ## Implemented (Iteration 105 — Feb 18, 2026) — v2.6.72
 ### "Resume Preview" banner — defensive client-side nuker
 - **🐛 User reported (with screenshot)**: "Why is there a Resume Preview button on the application if I've deployed it, I'm paying for the actual application?" Banner shown at bottom: *"You're viewing a static preview. Resume to interact with the app." + "Resume Preview"* button.

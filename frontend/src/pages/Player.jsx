@@ -565,48 +565,91 @@ export default function Player() {
 
         const wsBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
             .replace(/^http/, 'ws');
-        const ws = new WebSocket(`${wsBase}/api/watch-party/ws/${partyCode}`);
-        partyWsRef.current = ws;
+
+        /* v2.6.73: Auto-reconnect on close.  User reported "after
+           sending multiple emojis one after the other, it stops
+           sending them completely" — the badge flipped to OFFLINE,
+           meaning the WS dropped and never came back.  We now keep
+           a 1.5 s / 3 s / 5 s / 8 s backoff loop until reconnected.
+           Stays disabled once the party is over (cleanup flag). */
+        let cancelled = false;
+        let reconnectTimer = null;
+        let reconnectAttempt = 0;
+        let activeWs = null;
+
         const send = (m) => {
-            if (ws.readyState === 1) ws.send(JSON.stringify(m));
+            const w = activeWs;
+            if (w && w.readyState === 1) w.send(JSON.stringify(m));
         };
 
-        ws.onopen = () => {
-            const profile = getActiveProfile() || {};
-            send({
-                type: 'hello',
-                role,
-                member_id: memberId || undefined,
-                name: profile.name || 'Guest',
-                avatar: profile.avatarId || 'a1',
-            });
-            setPartyStatus('connected');
-            // If the stream was already buffered before the WS opened,
-            // fire ready right away so the party can advance.
-            if (streamReadyRef.current && !partyReadySentRef.current) {
-                partyReadySentRef.current = true;
-                send({ type: 'ready', member_id: partyMemberIdRef.current });
-            }
-        };
+        function scheduleReconnect() {
+            if (cancelled) return;
+            const delays = [1500, 3000, 5000, 8000];
+            const delay = delays[Math.min(reconnectAttempt, delays.length - 1)];
+            reconnectAttempt += 1;
+            // Don't show "DISCONNECTED" for too long — flip to
+            // "RECONNECTING…" so the user knows we're on it.
+            setPartyStatus('reconnecting');
+            reconnectTimer = setTimeout(connect, delay);
+        }
 
-        ws.onclose = () => {
-            if (partyWsRef.current === ws) partyWsRef.current = null;
-            setPartyStatus('disconnected');
-        };
+        function connect() {
+            if (cancelled) return;
+            const ws = new WebSocket(`${wsBase}/api/watch-party/ws/${partyCode}`);
+            partyWsRef.current = ws;
+            activeWs = ws;
 
-        ws.onmessage = (e) => {
-            let msg; try { msg = JSON.parse(e.data); } catch { return; }
+            ws.onopen = () => {
+                if (cancelled) { try { ws.close(); } catch { /* ignore */ } return; }
+                reconnectAttempt = 0;
+                const profile = getActiveProfile() || {};
+                send({
+                    type: 'hello',
+                    role,
+                    member_id: memberId || undefined,
+                    name: profile.name || 'Guest',
+                    avatar: profile.avatarId || 'a1',
+                });
+                setPartyStatus('connected');
+                // If the stream was already buffered before the WS opened,
+                // fire ready right away so the party can advance.
+                if (streamReadyRef.current && !partyReadySentRef.current) {
+                    partyReadySentRef.current = true;
+                    send({ type: 'ready', member_id: partyMemberIdRef.current });
+                }
+            };
+
+            ws.onclose = () => {
+                if (partyWsRef.current === ws) partyWsRef.current = null;
+                activeWs = null;
+                if (cancelled) return;
+                scheduleReconnect();
+            };
+
+            ws.onerror = () => {
+                // Let the onclose handler do the reconnect logic.
+                try { ws.close(); } catch { /* ignore */ }
+            };
+
+            ws.onmessage = (e) => {
+                let msg; try { msg = JSON.parse(e.data); } catch { return; }
+                handlePartyMessage(msg, send);
+            };
+        }
+
+        // The message handler is hoisted into a named function so
+        // we can re-bind it after each reconnect without rebuilding
+        // the closure.  `send` is passed in because it changes when
+        // the underlying ws changes.
+        function handlePartyMessage(msg, send) {
+            const v = videoRef.current;
             if (msg.type === 'joined') {
                 partyMemberIdRef.current = msg.member_id;
                 try { sessionStorage.setItem('vesper-party-member-id', msg.member_id); }
                 catch { /* ignore */ }
                 return;
             }
-            // Incoming emoji reaction from ANY party member.  We render
-            // it as a floating bubble; the sender's own reaction is
-            // already echoed locally via usePartyReactions' onLocalFire
-            // so we de-dup here by ignoring `reaction` whose member.id
-            // matches our own.
+            // Incoming emoji reaction from ANY party member.
             if (msg.type === 'reaction' && msg.emoji) {
                 const myId = partyMemberIdRef.current;
                 if (msg.member && msg.member.id === myId) return;
@@ -614,13 +657,8 @@ export default function Player() {
                 return;
             }
             if (msg.type !== 'state') return;
-            const v = videoRef.current;
             if (!v) return;
 
-            /* Mirror the server's member roster (with `ready` flag)
-             * onto the takeover overlay so guests can see who's
-             * still buffering.  Server payload uses `members`
-             * but historically also `member_list` — accept both. */
             const rosterFromServer = Array.isArray(msg.members)
                 ? msg.members
                 : Array.isArray(msg.member_list)
@@ -637,30 +675,21 @@ export default function Player() {
                 );
             }
 
-            // Show a "preparing party…" overlay while server is in
-            // `loading` (waiting for every member's <video> to buffer
-            // enough to fire `ready`).
             if (msg.status === 'loading') {
                 setPartyCountdown(0);
                 setPartyPhase('waiting');
                 return;
             }
 
-            // Countdown handling — every client.  When `status` is
-            // 'countdown' we render an overlay that ticks down until
-            // `at_ms` wallclock, then we (the local video) play.
             if (msg.status === 'countdown' && msg.at_ms) {
                 const remaining = Math.max(0, msg.at_ms - Date.now());
                 setPartyCountdown(Math.ceil(remaining / 1000));
                 setPartyPhase('countdown');
                 if (role === 'guest') {
-                    // Guests seek to host's anchor point now so the
-                    // first frame after countdown is in sync.
                     const targetSec = (msg.position_ms || 0) / 1000;
                     if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
                         try { v.currentTime = targetSec; } catch { /* ignore */ }
                     }
-                    // Schedule the actual play call.
                     const fire = () => {
                         partyArmedRef.current = false;
                         v.play().catch(() => {});
@@ -670,11 +699,6 @@ export default function Player() {
                     if (remaining <= 0) fire();
                     else setTimeout(fire, remaining);
                 } else if (role === 'host') {
-                    /* Host also waits for the countdown — its
-                     * <video> was held paused while members buffered.
-                     * Schedule v.play() at the same wallclock so the
-                     * host's first frame lines up with every guest's
-                     * first frame. */
                     const fire = () => {
                         partyArmedRef.current = false;
                         v.play().catch(() => {});
@@ -689,9 +713,6 @@ export default function Player() {
 
             setPartyCountdown(0);
 
-            /* Anything other than loading/countdown means playback
-             * is in progress (or paused mid-stream) — hide the
-             * takeover overlay. */
             if (msg.status === 'playing' || msg.status === 'paused') {
                 setPartyPhase('playing');
             }
@@ -707,7 +728,6 @@ export default function Player() {
                         try { v.pause(); } catch { /* ignore */ }
                     }
                 } else if (msg.status === 'playing') {
-                    // Drift correction during playback.
                     const targetSec = (msg.position_ms || 0) / 1000;
                     if (Math.abs((v.currentTime || 0) - targetSec) > 1.5) {
                         try { v.currentTime = targetSec; } catch { /* ignore */ }
@@ -718,7 +738,7 @@ export default function Player() {
                     }
                 }
             }
-        };
+        }
 
         // Host emits play/pause/seek as the user interacts.  We track
         // a small "armed" flag to avoid echoing programmatic state
@@ -734,8 +754,6 @@ export default function Player() {
             if (role !== 'host') return;
             if (!partyArmedRef.current) { partyArmedRef.current = true; return; }
             const v = videoRef.current; if (!v) return;
-            // Ignore the 'ended' pause — we don't want to pause the
-            // entire party when the movie reaches its credits.
             if (v.ended) return;
             send({ type: 'pause', position_ms: Math.floor((v.currentTime || 0) * 1000) });
         };
@@ -761,11 +779,13 @@ export default function Player() {
         }
 
         return () => {
+            cancelled = true;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
             if (heartbeat) clearInterval(heartbeat);
             v?.removeEventListener('play', onPlay);
             v?.removeEventListener('pause', onPause);
             v?.removeEventListener('seeked', onSeeked);
-            try { ws.close(); } catch { /* ignore */ }
+            try { activeWs?.close(); } catch { /* ignore */ }
             partyWsRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps

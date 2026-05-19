@@ -498,16 +498,20 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
 
             elif mtype == "reaction":
                 # Floating emoji broadcast.  Any party member can send.
-                # We rate-limit per member to one reaction every 800 ms
-                # so a stuck D-pad doesn't spam the room.  Allowed
-                # emojis are an explicit whitelist — the frontend only
-                # ever sends from this set.
+                # We rate-limit per member to one reaction every 200 ms
+                # so a stuck D-pad still doesn't spam the room, but
+                # genuine rapid-fire taps (e.g. user mashes the heart
+                # 5 times for a hilarious scene) all make it through.
+                # Previously 800 ms which silently dropped 3-4 out of
+                # 5 rapid presses — user reported "after sending
+                # multiple emojis one after the other, then it stops
+                # sending them completely".
                 allowed = {"\u2764\ufe0f", "\U0001F62D", "\U0001F606", "\U0001F631"}
                 emoji = msg.get("emoji") or ""
                 if emoji not in allowed:
                     continue
                 now_ts = time.time()
-                if now_ts - (member.last_reaction_at or 0) < 0.8:
+                if now_ts - (member.last_reaction_at or 0) < 0.2:
                     continue
                 member.last_reaction_at = now_ts
                 # Frontend sends `avatar_emoji` so receivers can render
