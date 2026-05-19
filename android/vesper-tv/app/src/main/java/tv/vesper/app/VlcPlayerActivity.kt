@@ -1508,7 +1508,15 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                     // Keep preview visible for a beat so the user
                     // gets to read the synopsis even on fast streams.
-                    mainHandler.postDelayed({ dismissPreview() }, 1200)
+                    // EXCEPTION: live TV channels skip this — for
+                    // zapping we want the video on screen the
+                    // MILLISECOND the first frame decodes, no synopsis
+                    // pause.  Saves ~1.2 s on every channel change.
+                    if (contentType == "live") {
+                        dismissPreview()
+                    } else {
+                        mainHandler.postDelayed({ dismissPreview() }, 1200)
+                    }
                 }
                 MediaPlayer.Event.Paused -> {
                     playBtn.setImageResource(R.drawable.ic_play)
@@ -1554,9 +1562,45 @@ class VlcPlayerActivity : AppCompatActivity() {
         val isMagnet = url.startsWith("magnet:", ignoreCase = true)
                 || url.endsWith(".torrent", ignoreCase = true)
         val isTrailer = contentType == "trailer"
+        val isLive = contentType == "live"
         val media = Media(libVlc, Uri.parse(url))
+        // Hardware decoding: enabled, NOT forced (false) — falls
+        // back to software automatically when the codec/profile is
+        // unsupported.  Without the fallback, certain HEVC live TS
+        // streams played AUDIO ONLY because hardware refused the
+        // profile but VLC did not auto-retry in software.
         media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=1500")
+        if (isLive) {
+            // ─── LIVE IPTV (.ts / HLS) — optimised for FAST ZAPPING ───
+            // The user reported: "when you change the channel it
+            // changes, but it actually shows the video. 'Cause right
+            // now, it's only showing audio."  Root cause was a mix
+            // of (a) too-long network-caching → blank surface for
+            // 1.5 s, (b) no live-caching set → libVLC fell into
+            // VOD-mode buffering, and (c) audio track sometimes
+            // selected before video output finished negotiating.
+            media.addOption(":network-caching=600")    // 600 ms
+            media.addOption(":live-caching=600")
+            media.addOption(":file-caching=600")
+            media.addOption(":clock-jitter=0")
+            media.addOption(":clock-synchro=0")
+            media.addOption(":no-audio-time-stretch")
+            // Drop late frames instead of stalling — vital on the
+            // HK1's modest decoder.  Loop-filter skip at level 1
+            // (was 4 for trailers) keeps quality acceptable.
+            media.addOption(":drop-late-frames")
+            media.addOption(":skip-frames")
+            media.addOption(":avcodec-skiploopfilter=1")
+            media.addOption(":avcodec-fast")
+            media.addOption(":avcodec-threads=0")      // all cores
+            media.addOption(":avcodec-hw=any")
+            // Disable subtitle decoding by default — IPTV TS
+            // streams sometimes carry teletext that wastes a
+            // decoder thread and slows the FIRST FRAME.
+            media.addOption(":no-sub-autodetect-file")
+            media.addOption(":sub-track=-1")
+        }
         if (isMagnet) {
             // libVLC's bittorrent demuxer needs explicit selection
             // for magnet URIs; without this it falls back to the

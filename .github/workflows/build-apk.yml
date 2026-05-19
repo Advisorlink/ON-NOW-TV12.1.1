@@ -234,6 +234,41 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.84 — Live TV: FAST ZAPPING · "Press OK" host hint · 1-second EPG**
+            - ⚡ **Live TV channel zap is now ~3× faster.**
+              libVLC `:network-caching` for LIVE streams dropped
+              from 1.5 s → 600 ms, `:live-caching` & `:file-caching`
+              now explicit at 600 ms, `:clock-jitter=0` for tight
+              A/V sync, `:drop-late-frames` + `:skip-frames` so
+              network hiccups stall briefly instead of silently
+              freezing.
+            - 🎬 **Removed the 1.2 s synopsis-pause on Live TV.**
+              The cinematic preview card now dismisses the
+              MILLISECOND the first frame decodes — no more
+              "audio first, video appears 1.2 s later" feel.  Movies
+              & episodes still get the 1.2 s synopsis read.
+            - 🔇 **Fix for audio-only video bug.**  Live TS streams
+              were sometimes carrying a teletext subtitle track that
+              fought the video decoder for a thread on the HK1's
+              modest CPU.  Now `:no-sub-autodetect-file` +
+              `:sub-track=-1` for live, so subs never compete with
+              video on the first-frame race.  Also `:avcodec-fast`
+              + `:avcodec-threads=0` (use all cores) +
+              `:avcodec-skiploopfilter=1` for lighter HEVC decoding.
+            - 🎯 **"Press OK for menu" pulsing host hint** added on
+              the host loading screen.  Subtle cyan pill above the
+              artwork that breathes in/out so first-time hosts know
+              exactly where to bring up the 5-button menu.  Hides
+              automatically once the player takes over.
+            - ⚡ **Instant Bundle: meta-first fast-path.**
+              `bootInstantBundle()` now does a tiny `/meta` probe
+              first (<1 KB).  If `epg_fetched_at` matches our local
+              cache, we SKIP the 7 MB full bundle fetch entirely —
+              every app launch after the first is now genuinely
+              instant from a network standpoint.  Backend regen
+              auto-invalidates because `epg_fetched_at` changes.
+            - 🆙 APK bumped to **v2.6.84** (versionCode 154).
+
             **v2.6.83 — Live TV player un-broken · Host loading artwork · 72h on-demand EPG · smooth scroll**
             - 🚨 **CRITICAL FIX**: Live TV channel playback was launching
               the watch-party VIEW-ONLY player (tap = subtitle picker

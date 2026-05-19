@@ -63,6 +63,44 @@ function pickSeedProviderId(bundleHost) {
  */
 export async function bootInstantBundle() {
     if (!API) return false;
+
+    /* Fast-path: tiny `/meta` probe first.  If the backend's
+     * `epg_fetched_at` matches our local copy, the cache is fresh
+     * — skip the 7 MB full-bundle fetch entirely.  This is what
+     * makes 2nd-and-onwards app launches feel instant: no big
+     * download, the in-memory + localStorage cache from the
+     * previous session just keeps working.
+     *
+     * We only honour the fast-path when there's also a populated
+     * provider on the user's device (so the very first run still
+     * triggers the full pull). */
+    try {
+        const metaRes = await fetch(`${API}/api/xtream/instant-bundle/meta`, {
+            cache: 'no-store',
+        });
+        if (metaRes.ok) {
+            const serverMeta = await metaRes.json();
+            const localRaw = localStorage.getItem(META_KEY);
+            const localMeta = localRaw ? JSON.parse(localRaw) : null;
+            const allProviders = listProviders();
+            const haveLocalCache = !!(
+                localMeta
+                && localMeta.epg_fetched_at
+                && serverMeta.epg_fetched_at === localMeta.epg_fetched_at
+                && allProviders.length > 0
+            );
+            if (haveLocalCache) {
+                /* Already in sync — touch applied_at so the "last
+                 * refreshed" UI stays accurate. */
+                localStorage.setItem(META_KEY, JSON.stringify({
+                    ...localMeta,
+                    applied_at: Date.now(),
+                }));
+                return true;
+            }
+        }
+    } catch { /* meta probe failed — fall through to full fetch */ }
+
     let bundle;
     try {
         const res = await fetch(`${API}/api/xtream/instant-bundle`, {

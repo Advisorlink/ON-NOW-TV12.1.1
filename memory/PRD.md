@@ -56,6 +56,29 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 115 — Feb 19, 2026) — v2.6.84
+### Live TV: FAST ZAPPING · "Press OK" host hint · 1-second EPG
+- **User asked (verbatim)**: "Extremely fast zapping. When you click on a TV show I want it to open up really quickly and zap really quickly into the next one. Right now it's only showing audio. Make everything really quick and really snappy. The entire EPG, every single EPG that is available, loaded within a second like we do in the beginning."
+- **🎬 libVLC live-channel options retuned for fast zapping** (`VlcPlayerActivity.kt::startPlayback`):
+  - `:network-caching=600` (was 1500) → first frame in 600 ms instead of 1.5 s
+  - `:live-caching=600`, `:file-caching=600` explicit (were inherited from the 5-s global default)
+  - `:clock-jitter=0`, `:clock-synchro=0`, `:no-audio-time-stretch` → tighter A/V sync
+  - `:drop-late-frames` + `:skip-frames` → momentary network hiccups stall briefly instead of "audio-only" silent freeze (root cause of the user's "only showing audio" report — IPTV teletext subtitle track was thread-starving the video decoder on the HK1)
+  - `:avcodec-fast`, `:avcodec-threads=0` (all cores), `:avcodec-skiploopfilter=1` → lighter HEVC decode
+  - `:no-sub-autodetect-file` + `:sub-track=-1` → no subtitle decoder competing with video
+- **🎬 Removed the 1.2 s synopsis-pause for live TV** in `VlcPlayerActivity::Event.Playing` — `dismissPreview()` fires immediately for `contentType == "live"`. Movies & episodes still get the 1.2 s synopsis-read window because the user actually wants that for VOD.
+- **🎯 Pulsing "Press OK for menu" callout** on host-loading.png (`PartyJoiningScreen.jsx` host branch) — cyan pill with breathing animation above the artwork. Teaches first-time hosts where the 5-button menu is.
+- **⚡ Instant Bundle meta-first fast-path** (`instantBundle.js`):
+  - `bootInstantBundle()` now hits `/api/xtream/instant-bundle/meta` (≈1 KB) FIRST.
+  - If `serverMeta.epg_fetched_at === localMeta.epg_fetched_at`, skip the 7 MB full bundle fetch entirely. Cache from prior session is reused. 2nd+ app launches now genuinely instant.
+  - Backend regen auto-invalidates because `epg_fetched_at` changes on every regeneration.
+- **🆙 APK bumped to v2.6.84 (versionCode 154)**. Release notes added.
+
+### ❓ Verification needed from user after install
+- The "audio only" report: I suspect the root cause was the teletext-subtitle-track-stealing-decoder issue (specific to certain HEVC IPTV streams on the HK1). The new `:sub-track=-1` should fix it across the board. If you still see audio-only on a channel after the v2.6.84 APK lands, **note the channel name** so I can investigate that specific stream's profile.
+
+
+
 ## Implemented (Iteration 114 — Feb 19, 2026) — v2.6.83
 ### Live TV player un-broken · Host loading artwork · 72 h on-demand EPG · smooth scroll
 - **🚨 CRITICAL FIX: Live TV channel playback was launching the watch-party VIEW-ONLY player.**

@@ -330,6 +330,67 @@ export default function PartyJoiningScreen({
                     <X size={14} />
                     Cancel
                 </button>
+
+                {/* "PRESS OK FOR MENU" callout — a subtle pulsing
+                    pill that teaches first-time hosts where the
+                    5-button control menu lives.  Only renders when
+                    we're past the loading stage (so we don't pile
+                    text on top of the loading-status pill at the
+                    bottom). */}
+                {!noStreams && (
+                    <div
+                        data-testid="party-joining-host-hint"
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            top: 'clamp(22px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.65)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(93,200,255,0.42)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 800,
+                            animation: 'vesper-party-host-hint-pulse 1.7s ease-in-out infinite',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 22, height: 22,
+                                borderRadius: '50%',
+                                background: '#5DC8FF',
+                                color: '#020610',
+                                fontSize: 10,
+                                fontWeight: 900,
+                                letterSpacing: 0,
+                                boxShadow: '0 0 12px rgba(93,200,255,0.65)',
+                            }}
+                        >
+                            OK
+                        </span>
+                        Press OK for menu
+                    </div>
+                )}
+                <style>{`
+@keyframes vesper-party-host-hint-pulse {
+  0%   { transform: translateX(-50%) scale(1); opacity: 0.92; }
+  50%  { transform: translateX(-50%) scale(1.04); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 0.92; }
+}
+                `}</style>
             </div>
         );
     }
