@@ -228,6 +228,16 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.97 — Sports Guide trimmed to 72 h window**
+            - 📅 **Sports Guide now shows Today + Tomorrow +
+              Day-After only** (3-tile day strip instead of 7).
+              Events are filtered to a kickoff window of −6 h
+              (recent live results) through +72 h (next 3 days)
+              before they reach the matcher / cards.  More relevant,
+              less clutter, faster to scan, and avoids matching
+              against EPG slots that aren't populated yet.
+            - 🆙 APK bumped to **v2.6.97** (versionCode 167).
+
             **v2.6.96 — Sports auto-aliases · Upcoming trailers · Auto-show modal · Library Notifications + collapsible · Native Host dock**
             - 🏈 **Sports matcher: auto-aliases for ALL leagues**.
               Previous matcher only knew Premier League / NRL / IPL /

@@ -200,10 +200,22 @@ export default function SportsGuide() {
     const baseEvents = data?.events || [];
     const sportsMeta = data?.sportsMeta || [];
 
-    /* Patch in live score updates (id-keyed) so the cards tick up live. */
+    /* allEvents capped to a 72-hour forward window — user wants
+     * the Sports Guide focused on what's "on tonight + the next
+     * couple of days" rather than a 14-day forecast.  Keeps the
+     * payload small AND avoids the matcher chewing through events
+     * whose EPG slots aren't even loaded yet. */
     const allEvents = useMemo(() => {
-        if (!Object.keys(liveScores).length) return baseEvents;
-        return baseEvents.map((e) => {
+        const cutoffPast = Math.floor(Date.now() / 1000) - 6 * 3600;   // keep things that kicked off ≤ 6 h ago
+        const cutoffFuture = Math.floor(Date.now() / 1000) + 72 * 3600; // 72 h forward
+        const inWindow = (e) => {
+            const t = Number(e?.ts) || 0;
+            if (!t) return true; // missing kickoff → keep, server might not have set it
+            return t >= cutoffPast && t <= cutoffFuture;
+        };
+        const trimmed = baseEvents.filter(inWindow);
+        if (!Object.keys(liveScores).length) return trimmed;
+        return trimmed.map((e) => {
             const patch = liveScores[e.id];
             if (!patch) return e;
             return {
@@ -269,9 +281,12 @@ export default function SportsGuide() {
 
     /* Available days (today + next 6 with content) for the date strip. */
     const availableDays = useMemo(() => {
+        // User-spec: only show Today + Tomorrow + Day-After (72 h
+        // window).  More than that and the strip clutters up with
+        // empty days the EPG / live cache won't have data for yet.
         const today0 = midnight(0);
         const out = [{ key: 0, label: 'Today',     date: today0,             count: 0 }];
-        for (let i = 1; i < 7; i++) {
+        for (let i = 1; i < 3; i++) {
             const s = today0 + i * 86400;
             out.push({ key: i, label: dayLabel(s), date: s, count: 0 });
         }
