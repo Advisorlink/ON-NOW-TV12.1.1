@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write   # needed by softprops/action-gh-release
+  actions: write    # needed by the storage-cleanup step to delete old artifacts + runs
 
 env:
   # Live deployed backend URL — the APK bakes this into the
@@ -217,13 +218,6 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
           ls -la "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
 
-      - name: Upload APK as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: onnowtv-v2-debug.apk
-          path: onnowtv-v2-debug.apk
-          retention-days: 1
-
       - name: Publish/update "apk-latest" Release
         uses: softprops/action-gh-release@v2
         with:
@@ -233,6 +227,40 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.90 — Sports guide channel mapping · GitHub auto-prune · Trailer reliability**
+            - 🏈 **Sports guide channel matching is now far more
+              accurate.**  The fixture-to-EPG matcher used to drop
+              the most distinctive words ("United", "City", "Real")
+              from the team name as stopwords, so a fixture like
+              "Liverpool vs Manchester United" never hit an EPG
+              titled "Liverpool v Man Utd · Premier League".
+              The new matcher:
+                • Substring-matches the FULL team name against the
+                  programme title + description (catches "Liverpool
+                  v Man Utd" → ✓ both teams).
+                • Knows common aliases — Man Utd ↔ Manchester
+                  United, Spurs ↔ Tottenham, Panthers ↔ Penrith
+                  Panthers, etc. (Premier League + NRL + AFL +
+                  La Liga + Bundesliga + Serie A all seeded).
+                • Widens the time window to ±3 h so build-up
+                  programming still gets attributed to the right
+                  fixture.
+                • Falls back to token scoring for events with no
+                  team aliases (PGA Championship, Wimbledon, etc.).
+              Net effect: more "Watch on" channel chips appear on
+              the Sports Guide cards, fewer "Not on any of your
+              channels" empty states for matches you can actually
+              watch.
+            - 🗑️ **GitHub auto-prune workflow** — every APK build
+              now ends by deleting workflow artifacts older than 1
+              day AND completed workflow runs older than 7 days,
+              using the built-in `GITHUB_TOKEN` (no PAT needed).
+              Also dropped the duplicate `actions/upload-artifact`
+              step — the APK only attaches to the `apk-latest`
+              release now.  Your repo's free-tier storage should
+              stop creeping up to 90 %.
+            - 🆙 APK bumped to **v2.6.90** (versionCode 160).
 
             **v2.6.89 — Bug fix: Home rails no longer blank after network drop**
             - 🐛 **Root cause** (`useLiveShelves` / `useLiveHeroes` /
@@ -2246,3 +2274,86 @@ jobs:
           files: onnowtv-v2-debug.apk
           prerelease: true
           make_latest: 'false'
+
+      # ─────────────────────────────────────────────────────────────
+      # Storage cleanup — keeps the repo from filling up with old
+      # workflow artifacts.  The workflow uploads the APK to the
+      # `apk-latest` release ONLY (we dropped the duplicate
+      # `actions/upload-artifact` step); this step then deletes any
+      # leftover artifacts older than 1 day and prunes succeeded
+      # workflow runs older than 7 days so the user's account never
+      # bumps into GitHub's free-tier storage cap.
+      # Uses the built-in GITHUB_TOKEN — no PAT required.
+      # ─────────────────────────────────────────────────────────────
+      - name: Prune old workflow artifacts and runs
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const DAY = 24 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            // 1) Delete artifacts older than 1 day (catches anything
+            //    left over from older runs that used retention-days > 0).
+            try {
+              let page = 1;
+              while (true) {
+                const { data } = await github.rest.actions.listArtifactsForRepo({
+                  owner, repo, per_page: 100, page,
+                });
+                if (!data.artifacts || data.artifacts.length === 0) break;
+                for (const art of data.artifacts) {
+                  const age = now - new Date(art.created_at).getTime();
+                  if (age > 1 * DAY) {
+                    try {
+                      await github.rest.actions.deleteArtifact({
+                        owner, repo, artifact_id: art.id,
+                      });
+                      core.info(`Deleted artifact ${art.id} (${art.name}, age ${Math.round(age/DAY)}d)`);
+                    } catch (e) {
+                      core.warning(`Failed to delete artifact ${art.id}: ${e.message}`);
+                    }
+                  }
+                }
+                if (data.artifacts.length < 100) break;
+                page += 1;
+                if (page > 20) break; // safety
+              }
+            } catch (e) {
+              core.warning(`Artifact prune failed: ${e.message}`);
+            }
+
+            // 2) Delete completed workflow runs older than 7 days for
+            //    this same workflow file.  Keeps the run history short
+            //    so logs + caches stay under the free-tier cap.
+            try {
+              const workflow_id = 'build-apk.yml';
+              let page = 1;
+              while (true) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner, repo, workflow_id, per_page: 100, page,
+                });
+                if (!data.workflow_runs || data.workflow_runs.length === 0) break;
+                for (const run of data.workflow_runs) {
+                  if (run.status !== 'completed') continue;
+                  const age = now - new Date(run.created_at).getTime();
+                  if (age > 7 * DAY) {
+                    try {
+                      await github.rest.actions.deleteWorkflowRun({
+                        owner, repo, run_id: run.id,
+                      });
+                      core.info(`Deleted workflow run ${run.id} (age ${Math.round(age/DAY)}d)`);
+                    } catch (e) {
+                      core.warning(`Failed to delete run ${run.id}: ${e.message}`);
+                    }
+                  }
+                }
+                if (data.workflow_runs.length < 100) break;
+                page += 1;
+                if (page > 20) break;
+              }
+            } catch (e) {
+              core.warning(`Run prune failed: ${e.message}`);
+            }

@@ -56,6 +56,31 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 118 — Feb 19, 2026) — v2.6.90
+### Sports guide channel mapping (P1) · GitHub auto-prune (P1 blocker) · Native trailer reliability
+
+- **🏈 Sports guide channel matching** (`lib/sportsMatch.js`) — algorithm rewritten with substring + alias matching.  Previously the matcher dropped distinctive words ("United", "City", "Real") as stopwords, so "Liverpool vs Manchester United" never hit an EPG titled "Liverpool v Man Utd · Premier League".  New algorithm:
+  - Builds a per-team alias table (Man Utd ↔ Manchester United, Spurs ↔ Tottenham, etc.) — Premier League + La Liga + Bundesliga + Serie A + NRL + AFL all pre-seeded.
+  - Substring-matches the full team name (and every alias) against the EPG `title + description` blob, with a manual word-boundary check so "tarTeam" doesn't false-positive "team".
+  - Falls through to token scoring for non-team events ("PGA Championship", "Wimbledon Final") so the matcher still works without aliases.
+  - Widens the kickoff window from ±2 h to ±3 h so build-up programming and post-match analysis get matched too.
+  - Sport / league hits act as tie-breakers, never as the only signal.
+  - **Verified** with 6 inline node test cases (Man Utd/Liverpool literal, abbreviated, Spurs alias, wrong-teams negative case, NRL panthers/eels mixed alias case) — all pass.
+
+- **🗑️ GitHub auto-prune workflow** (`.github/workflows/build-apk.yml`) — unblocks the "GitHub storage 90 % full" P1.  Every APK build now ends with an `actions/github-script` step that:
+  - Deletes every workflow artifact older than 1 day.
+  - Deletes every completed workflow run older than 7 days.
+  Uses the built-in `GITHUB_TOKEN` (with the `actions: write` permission newly granted) — no PAT required, no manual cleanup ever again.  Also dropped the duplicate `actions/upload-artifact` step (APK only goes to the `apk-latest` release).
+
+- **🛠️ APK trailer regression** — the JS-side TrailerModal correctly checks `window.OnNowTV.playTrailer` and the Kotlin side already implements `playTrailer(url, audioUrl, …)`.  No JS change required.  The fix lands automatically when the user installs the v2.6.90 APK.
+
+- **🆙 APK bumped to v2.6.90 (versionCode 160).**
+
+### ⏭️ Deferred — needs the user's mockup
+- **M14 Live Guide native rewrite**: the handoff spec ("vertical channel list on the left + horizontal bottom cards for Now/Next EPG + D-pad nav") matches roughly what `LiveGuideController.kt` ALREADY ships — vertical panel + bottom-right detail card.  Without the actual M14 mockup image it's unsafe to rewrite the controller and risk breaking the player.  **Awaiting the user's mockup screenshot** before tackling this.
+
+
+
 ## Implemented (Iteration 117 — Feb 19, 2026) — v2.6.89
 ### Bug fix: Home rails no longer blank after a network blip
 
