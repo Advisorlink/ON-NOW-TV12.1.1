@@ -21,20 +21,14 @@ env:
   # production JS bundle, so the sideloaded app keeps fetching real
   # TMDB and addon data without any preview-URL dependency on the
   # frontend side.
-  # The APK ships with this URL baked into the React bundle.
-  # MUST be the PRODUCTION backend (not the preview pod) so the
-  # app keeps working when the preview sandbox sleeps / is torn
-  # down.  Emergent assigns a free `*.emergent.host` domain on
-  # deploy — that's what we point to here.
-  #
-  # v2.6.73: BACK ON THE PRODUCTION URL.  User confirmed the
-  # Emergent prod deploy is now healthy (was flapping with
-  # Cloudflare 520 errors for the last few iterations, so we'd
-  # temporarily reverted to the preview URL).  Clients hitting
-  # this URL get the real app every time — no more
-  # "Resume Preview" banner injected by the preview-pod
-  # hibernation middleware.
-  REACT_APP_BACKEND_URL: https://rebrand-app-5.emergent.host
+  # v2.6.79: TEMPORARY rollback to the PREVIEW URL while the
+  # production deployment at `rebrand-app-5.emergent.host` is
+  # returning Cloudflare 520 / nginx 502.  Preview pod is rock-
+  # solid so this keeps clients working while we (a) wait for
+  # Emergent support to fix prod OR (b) migrate to a Contabo VPS.
+  # Will swap to the Contabo domain (vesper.tv / similar) once
+  # the VPS is provisioned.
+  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
 
 jobs:
   build:
@@ -239,6 +233,18 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.79 — EMERGENCY rollback to preview URL · prod is 520-ing**
+            - 🚑 **`REACT_APP_BACKEND_URL` rolled BACK to
+              `https://rebrand-app-5.preview.emergentagent.com`.**
+              The Emergent production deployment at
+              `rebrand-app-5.emergent.host` is returning Cloudflare
+              520 + nginx 502 on every API endpoint — every API
+              call fails so catalogues / Live TV / profiles show
+              empty.  Preview pod is rock-solid; clients on this
+              build will work while Emergent support fixes prod
+              OR while we migrate to the Contabo VPS.
+            - 🆙 APK bumped to **v2.6.79** (versionCode 149).
 
             **v2.6.78 — End-user polish: "currently offline" + Sources hidden**
             - 📡 **"Install a Stremio addon to see real catalogues" →
