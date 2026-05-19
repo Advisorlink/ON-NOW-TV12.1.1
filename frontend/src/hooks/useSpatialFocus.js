@@ -521,6 +521,19 @@ export default function useSpatialFocus() {
         };
 
         const onKey = (e) => {
+            // If a component-level onKeyDown already handled this
+            // press (and called preventDefault), bail out so we don't
+            // double-move.  React's synthetic e.stopPropagation()
+            // does NOT stop the native event from reaching this
+            // window-level listener, so this defaultPrevented gate
+            // is the only reliable signal.  Without it, e.g. the
+            // HeroBillboard buttons handle Left/Right locally to
+            // clamp focus within the action row, but the global
+            // engine ALSO runs and yanks focus into adjacent
+            // shelves / nav — producing the user's reported
+            // "Right on hero jumps focus back up" bug.
+            if (e.defaultPrevented) return;
+
             // While typing in an input/textarea, let LEFT/RIGHT move
             // the text cursor natively, but forward UP/DOWN to the
             // spatial focus so the user can D-pad out of the input
