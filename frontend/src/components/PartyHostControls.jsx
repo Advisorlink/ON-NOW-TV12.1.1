@@ -28,6 +28,7 @@ import { Pause, Play, FastForward, RefreshCw, Lock, Captions } from 'lucide-reac
  * HOLD-direction-1-second flow.)
  */
 export default function PartyHostControls({
+    role = 'host',
     paused,
     locked,
     onTogglePause,
@@ -91,13 +92,18 @@ export default function PartyHostControls({
         return <ReactionRemote />;
     }
 
-    const items = [
-        { key: 'pause',   icon: paused ? Play : Pause,  label: paused ? 'Resume' : 'Pause', onClick: onTogglePause },
-        { key: 'skip',    icon: FastForward,            label: 'Skip 30s',    onClick: onSkip30  },
-        { key: 'catchup', icon: RefreshCw,              label: 'Catch Up',    onClick: onCatchUp },
-        { key: 'lock',    icon: Lock,                   label: 'Lock',        onClick: onLock    },
-        { key: 'subs',    icon: Captions,               label: 'Subtitles',   onClick: onSubs    },
-    ];
+    const items = role === 'guest'
+        ? [
+            { key: 'catchup', icon: RefreshCw, label: 'Catch Up',  onClick: onCatchUp },
+            { key: 'subs',    icon: Captions,  label: 'Subtitles', onClick: onSubs    },
+        ]
+        : [
+            { key: 'pause',   icon: paused ? Play : Pause,  label: paused ? 'Resume' : 'Pause', onClick: onTogglePause },
+            { key: 'skip',    icon: FastForward,            label: 'Skip 30s',    onClick: onSkip30  },
+            { key: 'catchup', icon: RefreshCw,              label: 'Catch Up',    onClick: onCatchUp },
+            { key: 'lock',    icon: Lock,                   label: 'Lock',        onClick: onLock    },
+            { key: 'subs',    icon: Captions,               label: 'Subtitles',   onClick: onSubs    },
+        ];
 
     return (
         <>

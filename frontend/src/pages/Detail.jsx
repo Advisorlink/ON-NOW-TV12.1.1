@@ -17,6 +17,7 @@ import SeriesEpisodes from '@/components/SeriesEpisodes';
 import CastRow from '@/components/CastRow';
 import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import TrailerModal from '@/components/TrailerModal';
+import StreamUnavailableModal from '@/components/StreamUnavailableModal';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -738,8 +739,22 @@ export default function Detail() {
 
     // Manual trigger for the on-page Play button.
     const triggerAutoplay = () => {
-        if (autoplayCandidate) playStream(autoplayCandidate);
+        if (autoplayCandidate) {
+            playStream(autoplayCandidate);
+            return;
+        }
+        /* v2.6.87 — if there's no candidate it means streams loading
+         * finished and there's literally nothing playable (no addon
+         * has this title yet — usually a brand-new TMDB release).
+         * Replace the silent dead-button-state with a cinematic
+         * "Coming Soon" modal that offers the user to add it to
+         * their notify list. */
+        if (!streamLoading && (!streams || streams.length === 0)) {
+            setShowUnavailableModal(true);
+        }
     };
+
+    const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
     // ---------- AUTOPLAY (via ?autoplay=1 URL) ----------
     // Fires automatically when the user arrived via hero Play / a
@@ -1680,30 +1695,20 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
-                                disabled={
-                                    streamLoading || autoplayCandidate === null
-                                }
+                                disabled={streamLoading}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',
                                     paddingRight: 'clamp(28px, 2.2vw, 38px)',
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
-                                    background:
-                                        streamLoading ||
-                                        autoplayCandidate === null
-                                            ? 'rgba(255,255,255,0.10)'
-                                            : 'var(--vesper-blue)',
-                                    color:
-                                        streamLoading ||
-                                        autoplayCandidate === null
-                                            ? 'var(--vesper-text-2)'
-                                            : 'var(--vesper-bg-0)',
-                                    opacity:
-                                        streamLoading ||
-                                        autoplayCandidate === null
-                                            ? 0.7
-                                            : 1,
+                                    background: streamLoading
+                                        ? 'rgba(255,255,255,0.10)'
+                                        : 'var(--vesper-blue)',
+                                    color: streamLoading
+                                        ? 'var(--vesper-text-2)'
+                                        : 'var(--vesper-bg-0)',
+                                    opacity: streamLoading ? 0.7 : 1,
                                 }}
                             >
                                 {streamLoading ? (
@@ -2272,6 +2277,18 @@ export default function Detail() {
                 backdrop={meta?.background || meta?.poster || ''}
                 onClose={() => setTrailerKey(null)}
             />
+
+            {/* "Coming Soon" modal — fires when the user taps Play
+                on a TMDB-promoted title that no addon has streams
+                for yet.  Lets them add it to the notify list so we
+                can alert them the moment a stream becomes available. */}
+            {showUnavailableModal && (
+                <StreamUnavailableModal
+                    id={id}
+                    meta={meta}
+                    onClose={() => setShowUnavailableModal(false)}
+                />
+            )}
         </div>
     );
 }

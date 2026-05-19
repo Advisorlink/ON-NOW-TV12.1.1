@@ -30,7 +30,7 @@ import { readScopedString, writeScopedString } from './profileScope';
 
 const KEY = 'vesper-library';
 
-const EMPTY = { favorites: {}, watchLater: [], actors: {}, dismissed: {} };
+const EMPTY = { favorites: {}, watchLater: [], actors: {}, dismissed: {}, notifyList: {} };
 
 function read() {
     try {
@@ -51,6 +51,8 @@ function read() {
                 ? parsed.actors : {},
             dismissed: parsed.dismissed && typeof parsed.dismissed === 'object'
                 ? parsed.dismissed : {},
+            notifyList: parsed.notifyList && typeof parsed.notifyList === 'object'
+                ? parsed.notifyList : {},
         };
     } catch {
         return { ...EMPTY };
@@ -244,5 +246,65 @@ export function listActors() {
     const s = read();
     return Object.entries(s.actors)
         .map(([id, v]) => ({ id, ...v }))
+
+/* ────────────────────────────────────────────────────────────────
+ *  NOTIFY-LIST — "tell me when this movie/show has streams"
+ *
+ *  User clicks Play on something Cinemeta promotes but no addon
+ *  has streams for yet (a new release that exists in TMDB but the
+ *  uploaders haven't ripped it / Plex doesn't have it / etc.).
+ *  The "Stream Unavailable" modal lets them tap "Notify me" — we
+ *  drop the item here.  On every app boot, a background scanner
+ *  re-checks Torrentio/Plex for each entry and surfaces a banner
+ *  when a stream becomes available.
+ * ──────────────────────────────────────────────────────────────── */
+
+export function addToNotifyList(id, { type, meta }) {
+    if (!id) return;
+    const s = read();
+    s.notifyList = s.notifyList || {};
+    s.notifyList[id] = {
+        type: type || 'movie',
+        addedAt: new Date().toISOString(),
+        meta: meta || {},
+        lastCheckedAt: null,
+        notifiedAt: null,
+    };
+    write(s);
+}
+
+export function removeFromNotifyList(id) {
+    if (!id) return;
+    const s = read();
+    if (s.notifyList && s.notifyList[id]) {
+        delete s.notifyList[id];
+        write(s);
+    }
+}
+
+export function isInNotifyList(id) {
+    if (!id) return false;
+    const s = read();
+    return !!(s.notifyList && s.notifyList[id]);
+}
+
+export function listNotifyList() {
+    const s = read();
+    return Object.entries(s.notifyList || {})
+        .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+}
+
+export function markNotifyListChecked(id, found) {
+    if (!id) return;
+    const s = read();
+    if (!s.notifyList || !s.notifyList[id]) return;
+    s.notifyList[id].lastCheckedAt = new Date().toISOString();
+    if (found && !s.notifyList[id].notifiedAt) {
+        s.notifyList[id].notifiedAt = new Date().toISOString();
+    }
+    write(s);
+}
+
         .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
 }

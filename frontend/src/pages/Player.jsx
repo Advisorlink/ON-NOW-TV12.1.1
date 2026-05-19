@@ -909,7 +909,7 @@ export default function Player() {
      * `hostLocked` consumes all player surface interactions until
      * the user holds OK for 2 s.
      * ------------------------------------------------------------- */
-    const [hostMenuVisible, setHostMenuVisible] = useState(false);
+    const [hostMenuVisible, setHostMenuVisible] = useState(true); // v2.6.87: always visible
     const [hostLocked, setHostLocked] = useState(false);
     const hostMenuTimerRef = useRef(null);
     const hostUnlockTimerRef = useRef(null);
@@ -917,21 +917,23 @@ export default function Player() {
     const isPartyHost = !!partyCode && partyRoleState === 'host';
     const isPartyGuest = !!partyCode && partyRoleState === 'guest';
 
+    /* v2.6.87 — user wanted the host menu + reactions remote to
+     * stay on screen for the entire party session.  The auto-hide
+     * timers (6 s) made this impossible — every time you weren't
+     * pressing keys, the dock would vanish.  Now both `openHostMenu`
+     * and `refreshHostMenuAutoHide` are no-ops: the dock is mounted
+     * once and stays until BACK exits the player.  We leave the
+     * functions in place so legacy callers don't blow up. */
     const refreshHostMenuAutoHide = useCallback(() => {
-        if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
-        hostMenuTimerRef.current = setTimeout(() => {
-            setHostMenuVisible(false);
-        }, 6_000);
+        // intentionally empty — auto-hide is disabled
     }, []);
 
     const openHostMenu = useCallback(() => {
         setHostMenuVisible(true);
-        refreshHostMenuAutoHide();
-    }, [refreshHostMenuAutoHide]);
+    }, []);
 
     const closeHostMenu = useCallback(() => {
-        setHostMenuVisible(false);
-        if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
+        // Kept as a no-op — pressing BACK exits the activity entirely.
     }, []);
 
     const sendPartyWs = useCallback((payload) => {
@@ -1146,11 +1148,11 @@ export default function Player() {
                 />
             )}
 
-            {/* HOST PARTY CONTROLS — the 5-button menu (Pause / Skip /
-                Catch Up / Lock / Subs) that mirrors the native Kotlin
-                player.  Hidden by default; tap video or press OK to
-                reveal.  Auto-hides after 6 s.  Locked state freezes
-                the player surface until Hold-OK-2s unlocks. */}
+            {/* HOST PARTY CONTROLS — H3 curved dock + R4 orbital
+                remote.  v2.6.87: both elements are ALWAYS visible
+                during the party session (user feedback: "the
+                controls don't need to disappear, they can stay
+                there forever"). */}
             {isPartyHost && !partyTakeoverVisible && (
                 <PartyHostControls
                     paused={vidPaused}
@@ -1165,6 +1167,36 @@ export default function Player() {
                     onAutoHideRefresh={refreshHostMenuAutoHide}
                 />
             )}
+
+            {/* GUEST PARTY CONTROLS — same visual language as the
+                host (H3 curved dock + R4 orbital remote) but with
+                a guest-appropriate 2-button menu: Catch Up (re-sync
+                if drift > 1.5 s) + Subtitles.  v2.6.87. */}
+            {isPartyGuest && !partyTakeoverVisible && (
+                <PartyHostControls
+                    role="guest"
+                    paused={vidPaused}
+                    locked={false}
+                    visible
+                    onCatchUp={() => {
+                        /* Guest's "Catch Up" jumps the local element
+                         * to the server's authoritative position
+                         * (corrected by ping/pong offset). */
+                        try {
+                            const v = videoRef.current;
+                            if (v && partyStateRef.current?.position_ms != null) {
+                                const target = partyStateRef.current.position_ms / 1000;
+                                if (Math.abs(v.currentTime - target) > 0.4) {
+                                    v.currentTime = target;
+                                }
+                            }
+                        } catch { /* ignore */ }
+                    }}
+                    onSubs={onHostSubs}
+                    onAutoHideRefresh={() => {}}
+                />
+            )}
+
 
             {/* Watch-party full-screen takeover.  Hides every other
                 player surface (top bar, controls, preview, etc.)

@@ -234,6 +234,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.87 — Always-on host/guest controls · Notify-me library · Detail polish**
+            - 📌 **Host dock + Reactions Remote now ALWAYS visible**
+              during a party.  User feedback: "the controls don't
+              need to disappear, they can stay there forever."  The
+              auto-hide timer in Player.jsx is now a no-op; the dock
+              + remote are mounted for the entire session.
+            - 🪞 **Guest dock matches host** visually.  Same H3 curved
+              glass dock, same R4 orbital remote on the right — but
+              the guest only sees TWO bubbles: **Catch Up** (re-syncs
+              the local element to the server's authoritative
+              position) + **Subtitles** (opens the picker).  Pause /
+              Skip / Lock remain host-only as intended.
+            - ✨ **"Coming Soon" modal** replaces the silent dead-
+              button-state when the user taps Play on a TMDB-promoted
+              title that no addon has streams for yet.  Cinematic
+              card with a blurred backdrop, sparkles glyph,
+              "Notify me when ready" cyan CTA, and a Back button.
+              D-pad navigation between the two buttons.
+            - 🔔 **Notify-list scanner** runs 4 s after every app
+              boot.  Re-checks the user's saved titles against every
+              installed addon; surfaces a sonner toast the moment a
+              stream becomes available ("Inception is now streaming!").
+              Throttled to 6 concurrent requests, 1-hour cooldown per
+              entry so we don't hammer the backend.
+            - 🆙 APK bumped to **v2.6.87** (versionCode 157).
+
             **v2.6.86 — Host UI: H3 curved dock + R4 orbital reactions remote · Hero fade extended**
             - 🎨 **`PartyHostControls.jsx` rebuilt** with the H3/R4
               design pair the user chose from the mockup gallery:

@@ -35,6 +35,7 @@ import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 import { pushNativeGuideFromCache } from '@/lib/nativeGuideBoot';
 import { bootInstantBundle, fetchInstantBundleMeta } from '@/lib/instantBundle';
+import { runNotifyScanner } from '@/lib/notifyScanner';
 
 /* INSTANT BUNDLE bootstrap — fetch the backend-managed Live TV
  * channels + categories + EPG and seed them into the same
@@ -55,6 +56,10 @@ if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('vesper:bundle-ready'));
             } catch { /* ignore */ }
         });
+        /* v2.6.87 — background re-check of the user's "notify me"
+         * library entries.  Fires 4 s after boot so it never blocks
+         * the initial paint or instant-bundle hydration. */
+        setTimeout(() => { runNotifyScanner(); }, 4000);
     }, 100);
     setInterval(async () => {
         const meta = await fetchInstantBundleMeta();
