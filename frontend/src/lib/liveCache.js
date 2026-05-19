@@ -214,3 +214,21 @@ export function mergeAndSaveEpg(providerId, partial) {
     }
     notifyCacheUpdate('epg', providerId);
 }
+
+/** Persist ONLY the EPG entries for `keysToPersist` (a Set of
+ *  epg_channel_ids) to disk, while keeping the full in-memory cache
+ *  intact.  Used by the cold-boot path so the next /sports visit
+ *  renders chips at T+0 instead of T+15-30s waiting for the bundle
+ *  to merge again.  The sports-only subset is small enough (~50–80
+ *  channels = <500 KB) to fit comfortably inside localStorage. */
+export function persistEpgSubset(providerId, keysToPersist) {
+    if (!(keysToPersist instanceof Set) || keysToPersist.size === 0) return;
+    const full = memCache.get(memKey(providerId, 'epg'));
+    if (!full || typeof full !== 'object') return;
+    const subset = {};
+    for (const key of keysToPersist) {
+        if (full[key]) subset[key] = full[key];
+    }
+    if (Object.keys(subset).length === 0) return;
+    safeWrite(k(providerId, 'epg'), { at: Date.now(), data: subset });
+}

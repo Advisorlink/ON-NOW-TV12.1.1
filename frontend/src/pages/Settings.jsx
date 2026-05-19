@@ -35,6 +35,24 @@ export default function Settings() {
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
     const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
     const [savedFlash, setSavedFlash] = React.useState(0);
+    /* Developer "Unlock" toggle — testing aid that surfaces diagnostic
+     * info on the Home page's Upcoming row + any other testing
+     * surfaces.  Lives in localStorage so it survives reloads.  Read
+     * elsewhere with `localStorage.getItem('onnowtv-dev-unlock') === '1'`. */
+    const [devUnlock, setDevUnlock] = React.useState(() => {
+        try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
+        catch { return false; }
+    });
+    const toggleDevUnlock = React.useCallback(() => {
+        setDevUnlock((cur) => {
+            const next = !cur;
+            try {
+                localStorage.setItem('onnowtv-dev-unlock', next ? '1' : '0');
+            } catch { /* ignore */ }
+            window.dispatchEvent(new Event('onnowtv:dev-unlock-changed'));
+            return next;
+        });
+    }, []);
 
     /* v2.6.71: Update gate's "Back up first" button stashes
        sessionStorage.vesper-settings-jump-to = 'backup' before
@@ -303,6 +321,14 @@ export default function Settings() {
                 description="Skip the sources list and instantly play the best available stream when you press Play.  Falls back to the source picker if nothing playable is available."
                 value={autoplay}
                 onToggle={toggleAutoplay}
+            />
+
+            <ToggleRow
+                testid="dev-unlock"
+                title="Unlock (testing)"
+                description="Reveal diagnostic info on the home Upcoming row and any hidden testing surfaces.  Use this if something looks missing — the row will surface its API status so you can tell whether the backend has the endpoint deployed."
+                value={devUnlock}
+                onToggle={toggleDevUnlock}
             />
 
             {/* ---- PROFILES ---- */}

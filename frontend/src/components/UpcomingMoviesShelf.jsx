@@ -23,6 +23,29 @@ export default function UpcomingMoviesShelf() {
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [diag, setDiag] = useState({ status: 'idle', count: 0, err: '' });
+    /* "Unlock (testing)" toggle from Settings — when ON we render a
+     * stub state showing whether the upcoming-movies API call
+     * succeeded, returned empty, or failed.  Lets the user
+     * differentiate "backend missing the endpoint" from "endpoint
+     * returned no upcoming movies".  Watches an event so flipping
+     * the toggle re-renders immediately. */
+    const [unlock, setUnlock] = useState(() => {
+        try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
+        catch { return false; }
+    });
+    useEffect(() => {
+        const sync = () => {
+            try { setUnlock(localStorage.getItem('onnowtv-dev-unlock') === '1'); }
+            catch { /* ignore */ }
+        };
+        window.addEventListener('onnowtv:dev-unlock-changed', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('onnowtv:dev-unlock-changed', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
 
     useEffect(() => {
         let cancel = false;
@@ -34,6 +57,11 @@ export default function UpcomingMoviesShelf() {
                 );
                 if (cancel) return;
                 const data = Array.isArray(r?.data?.data) ? r.data.data : [];
+                setDiag({
+                    status: data.length === 0 ? 'empty' : 'ok',
+                    count: data.length,
+                    err: '',
+                });
                 setItems(
                     data.map((m) => ({
                         id: m.imdb_id || `tmdb:${m.tmdb_id}`,
@@ -46,17 +74,22 @@ export default function UpcomingMoviesShelf() {
                         year: m.year,
                         sub: m.year,
                         description: m.synopsis,
-                        // Tell PosterTile exactly where to send the user.
-                        // When IMDB id is known → standard Detail route.
-                        // Otherwise fall back to TMDB find-by route so
-                        // Detail.jsx can still resolve metadata.
                         routePath: m.imdb_id
                             ? `/title/movie/${m.imdb_id}`
                             : null,
                     }))
                 );
-            } catch {
-                /* swallow — empty rail is acceptable */
+            } catch (e) {
+                if (cancel) return;
+                /* Capture HTTP status for the diag banner so the user
+                 * can see "endpoint not deployed" (404) vs network
+                 * error vs server crash without DevTools. */
+                const status = e?.response?.status;
+                setDiag({
+                    status: 'error',
+                    count: 0,
+                    err: status ? `HTTP ${status}` : (e?.message || 'fetch failed'),
+                });
             } finally {
                 if (!cancel) setLoading(false);
             }
@@ -64,7 +97,11 @@ export default function UpcomingMoviesShelf() {
         return () => { cancel = true; };
     }, []);
 
-    if (!loading && items.length === 0) return null;
+    /* When the API returns nothing AND the user hasn't enabled the
+     * unlock toggle, hide the row entirely — that's the production
+     * UX.  Unlock mode shows a diagnostic stub instead so the user
+     * can see WHY the row is empty (404, network, etc.). */
+    if (!loading && items.length === 0 && !unlock) return null;
 
     return (
         <section
@@ -126,6 +163,44 @@ export default function UpcomingMoviesShelf() {
                     Array.from({ length: 6 }).map((_, i) => (
                         <UpcomingSkeleton key={i} />
                     ))
+                )}
+                {!loading && items.length === 0 && unlock && (
+                    <div
+                        data-testid="upcoming-diag"
+                        style={{
+                            padding: '16px 22px',
+                            background: 'rgba(255,180,60,0.08)',
+                            border: '1px dashed rgba(255,180,60,0.45)',
+                            borderRadius: 12,
+                            color: '#FFD8A1',
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            lineHeight: 1.55,
+                            maxWidth: 700,
+                        }}
+                    >
+                        <div style={{
+                            fontWeight: 800, marginBottom: 6,
+                            letterSpacing: '0.18em', fontSize: 10,
+                        }}>
+                            UNLOCK · UPCOMING-MOVIES DIAGNOSTIC
+                        </div>
+                        <div>status: <b>{diag.status}</b></div>
+                        <div>items returned: <b>{diag.count}</b></div>
+                        {diag.err && <div>error: <b>{diag.err}</b></div>}
+                        <div style={{ marginTop: 8, opacity: 0.8 }}>
+                            Endpoint: <code>{API}/api/tmdb/upcoming-movies</code>
+                        </div>
+                        {diag.err && diag.err.includes('404') && (
+                            <div style={{ marginTop: 8, color: '#FFB069' }}>
+                                ⚠ Backend doesn't have this endpoint yet —
+                                you need to redeploy the FastAPI server
+                                code to your Contabo VPS (the new
+                                `/api/tmdb/upcoming-movies` route ships
+                                in this build's backend folder).
+                            </div>
+                        )}
+                    </div>
                 )}
                 {items.map((item) => (
                     <PosterTile

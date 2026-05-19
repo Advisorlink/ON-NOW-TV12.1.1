@@ -966,6 +966,18 @@ export default function Detail() {
         if (type === 'series') return; // series uses per-episode flow
         if (streamLoading) return;
         if (partyCode) return; // handled by the dedicated party useEffect above
+        /* If streams finished loading and there's literally nothing
+         * playable, surface the cinematic "Coming Soon" modal so the
+         * user can add the title to their notify list — same as the
+         * manual Play button path.  This catches the autoplay flow
+         * (poster-tap → Detail with ?autoplay=1) which used to fall
+         * silently to the regular Detail layout when no candidate
+         * was found, leaving the user staring at a movie page with
+         * an inert Play button instead of an actionable prompt. */
+        if (!streams || streams.length === 0) {
+            setShowUnavailableModal(true);
+            return;
+        }
         // Non-party autoplay still requires the user's preference + a
         // 1080p stream — that's by design.
         if (!getAutoplay1080p()) return;

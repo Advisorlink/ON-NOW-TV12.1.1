@@ -228,6 +228,41 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.94 — Upcoming Movies diagnostic · Settings "Unlock" · StreamUnavailableModal autoplay path · EPG disk shrink**
+            - 🐛 **Stream Unavailable modal wasn't firing on
+              autoplay**.  When tapping a poster (which navigates
+              to Detail with `?autoplay=1`), the autoplay useEffect
+              bailed out silently when streams were empty —
+              leaving the user staring at an inert Play button.
+              Now the autoplay path also calls
+              `setShowUnavailableModal(true)` when streams loading
+              finishes with zero playable streams, matching the
+              manual Play-button behaviour.
+            - 🔓 **New "Unlock (testing)" toggle in Settings →
+              General**.  Stored in localStorage as
+              `onnowtv-dev-unlock`.  When ON, the Home page's
+              Upcoming row renders a diagnostic banner whenever
+              the upcoming-movies API returns empty/404 — telling
+              you exactly why the row isn't showing (e.g. backend
+              missing the endpoint, in which case the VPS needs
+              the latest FastAPI code).
+            - 🎬 **Upcoming Movies row also surfaces a diag panel**
+              when unlocked, with the API status, item count, the
+              endpoint URL, and a 404-specific hint reminding you
+              to redeploy the FastAPI backend to your Contabo VPS
+              (the `/api/tmdb/upcoming-movies` route ships with
+              v2.6.93+ but only takes effect after a VPS deploy).
+            - ⚡ **EPG disk-cache shrink** — after the bundle merges
+              the full 44 MB EPG into the in-memory cache, we now
+              also write a SPORTS-ONLY subset (~50–80 channels,
+              <500 KB) to localStorage.  Next cold boot: /sports
+              chips render at T+0 instead of T+15-30s waiting for
+              the bundle to re-merge.  Live TV's non-sports EPG
+              still works during the session via the in-memory
+              cache; non-sports rendering after a hard reload
+              re-fetches the bundle as before.
+            - 🆙 APK bumped to **v2.6.94** (versionCode 164).
+
             **v2.6.93 — Sports chips actually render now (third time's the charm)**
             - 🐛 **Third layer of the bug**: even after the matcher
               key fix (v2.6.91) and the in-memory cache fix

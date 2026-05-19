@@ -25,7 +25,7 @@
  * this module just pre-warms its category/channel/EPG caches so
  * the EPG loop on Live TV launch is skipped entirely.
  */
-import { saveCategories, saveChannels, mergeAndSaveEpg } from './liveCache';
+import { saveCategories, saveChannels, mergeAndSaveEpg, persistEpgSubset } from './liveCache';
 import { getActiveProvider, listProviders } from './xtream';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -157,6 +157,37 @@ export async function bootInstantBundle() {
      *    already had for channels the backend doesn't yet cover). */
     if (bundle.epg && typeof bundle.epg === 'object') {
         mergeAndSaveEpg(seedId, bundle.epg);
+
+        /* 3a. SPORTS-EPG DISK SHRINK.  The full EPG (~44 MB) never
+         *     fits in localStorage (~5-10 MB), but the in-memory
+         *     cache absorbs it for this session.  To make /sports
+         *     chips render INSTANTLY on the next cold boot (instead
+         *     of waiting 15-30 s for the bundle to re-merge), we
+         *     overwrite the disk EPG cache with a sports-only
+         *     subset (~50-80 channels, <500 KB).  Non-sports EPG
+         *     still appears in Live TV during the current session
+         *     via the in-memory cache; cold-boot Live TV re-fetches
+         *     the bundle anyway so nothing is lost long-term. */
+        const SPORT_CAT_RX =
+            /sport|football|soccer|rugby|cricket|tennis|golf|formula|f1|motorsport|nfl|nba|nrl|afl|epl|la liga|laliga|bundesliga|serie a|ipl|kayo|fubo|espn|wwe|ufc|boxing|mma|hockey|baseball|peacock/i;
+        const CHAN_NAME_RX =
+            /\bsport|sports?\b|\befl\b|\bepl\b|\bnfl\b|\bnba\b|\bnrl\b|\bafl\b|\bmlb\b|\bnhl\b|\bipl\b|\bf1\b|formula\s?1|cricket|rugby|tennis|golf|premier\s+league|la\s+liga|bundesliga|serie\s+a|champions\s+league|europa\s+league|kayo|espn|tnt\s+sport|sky\s+sport|bein|fubo|peacock|fox\s+sport|fox\s+league|nbc\s+sport|optus\s+sport/i;
+        const sportsCatIds = new Set();
+        for (const c of bundle.categories) {
+            if (SPORT_CAT_RX.test(c.name || '')) {
+                sportsCatIds.add(String(c.id));
+            }
+        }
+        const sportsEpgIds = new Set();
+        for (const ch of bundle.channels) {
+            if (!ch.epg_channel_id) continue;
+            const inSportsCat = sportsCatIds.has(String(ch.category_id || ''));
+            const nameMatch = CHAN_NAME_RX.test(ch.name || '');
+            if (inSportsCat || nameMatch) {
+                sportsEpgIds.add(ch.epg_channel_id);
+            }
+        }
+        persistEpgSubset(seedId, sportsEpgIds);
     }
 
     /* 4. Stamp the bundle metadata so the LiveTV page (or a future
