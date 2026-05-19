@@ -28,7 +28,7 @@ env:
   # Emergent support to fix prod OR (b) migrate to a Contabo VPS.
   # Will swap to the Contabo domain (vesper.tv / similar) once
   # the VPS is provisioned.
-  REACT_APP_BACKEND_URL: http://62.84.181.66
+  REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
 
 jobs:
   build:
@@ -233,6 +233,18 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.81 — HTTPS on onnowtv.duckdns.org (Let's Encrypt)**
+            - 🔒 **TLS is live!**  Backend now reachable at
+              `https://onnowtv.duckdns.org` with a real Let's Encrypt
+              certificate (auto-renews every 60 days via
+              `certbot.timer`).  HTTP→HTTPS auto-redirect on nginx.
+              All API calls and WebSockets now travel over TLS.
+            - 🧹 **Cleartext exception removed** from
+              `network_security_config.xml`.  Base config is back to
+              `cleartextTrafficPermitted="false"` — Android refuses
+              any unencrypted traffic, full stop.
+            - 🆙 APK bumped to **v2.6.81** (versionCode 151).
 
             **v2.6.80 — PERMANENT BACKEND on Contabo VPS (own infrastructure)**
             - 🚀 **`REACT_APP_BACKEND_URL` now points at our own VPS:

@@ -56,6 +56,17 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 112 — Feb 19, 2026) — v2.6.81
+### 🔒 HTTPS live on Contabo VPS (Let's Encrypt)
+- **DuckDNS sorted** — user got `onnowtv.duckdns.org` pointing to `62.84.181.66` on second attempt.
+- **Let's Encrypt cert issued** via `certbot --nginx --redirect -d onnowtv.duckdns.org` — full chain at `/etc/letsencrypt/live/onnowtv.duckdns.org/`. `certbot.timer` auto-renews every 60 days. HTTP→HTTPS auto-redirect active.
+- **APK now points at `https://onnowtv.duckdns.org`** — workflow `REACT_APP_BACKEND_URL` flipped. Cleartext exception fully removed from `network_security_config.xml` (base config back to `cleartextTrafficPermitted="false"`).
+- **🐛 Caught a multi-worker bug**: initial deploy used `--workers 2` on the systemd ExecStart. Each uvicorn worker has its own in-memory `WatchPartyHub` → Worker A creates a party, Worker B's WebSocket can't find it (`{"type":"error","reason":"not_found"}`). Switched to `--workers 1` (in-process state is sufficient for our load profile; if we ever need multi-worker, watch-party state needs to move to Redis/Mongo).
+- **Final HTTPS smoke tests**: `/api/` ✓ · `/api/app/latest-version` ✓ · `/api/tmdb/party-picks` ✓ · `/api/xtream/instant-bundle/meta` ✓ · WSS lifecycle (joined → state broadcast → ping/pong sync, 123ms RTT to Europe) ✓.
+- **🆙 APK bumped to v2.6.81 (versionCode 151)**. Release notes added.
+
+
+
 ## Implemented (Iteration 111 — Feb 19, 2026) — v2.6.80
 ### 🚀 PERMANENT backend on Contabo VPS — escape the platform deploy hell
 - **🐛 User reported (3rd recurrence in 2 weeks)**: "Deploying the app caused everything on the TV box to stop working — 520/502 on every API call." Production at `*.emergent.host` was returning Cloudflare 520, preview pod kept hibernating, and we'd already cycled through workflow rollbacks twice. **The platform deploy itself is the bug** — we need our own infrastructure.

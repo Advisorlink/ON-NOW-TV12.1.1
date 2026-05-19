@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!--
-        Permit cleartext (HTTP) ONLY for the Contabo VPS we run the
-        backend on.  Once we switch the backend to a DDNS hostname
-        with a Let's Encrypt cert, this exception can be deleted.
-    -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">62.84.181.66</domain>
-    </domain-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
