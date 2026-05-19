@@ -228,6 +228,32 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.93 — Sports chips actually render now (third time's the charm)**
+            - 🐛 **Third layer of the bug**: even after the matcher
+              key fix (v2.6.91) and the in-memory cache fix
+              (v2.6.92), the React tree never re-rendered when the
+              EPG arrived asynchronously.  FixtureCard's
+              `useMemo([provider, fixture])` evaluated to []
+              during mount (before instant-bundle resolved) and
+              stayed memo'd forever — chips never appeared.
+            - ✅ **Fix**: added a pub-sub layer to `liveCache.js`
+              (`subscribeLiveCache(cb)`).  `saveCategories`,
+              `saveChannels`, and `mergeAndSaveEpg` notify
+              subscribers on the next microtask (coalesced).
+              `SportsGuide.jsx` subscribes once on mount, bumps a
+              `cacheVer` state counter when the cache updates, and
+              threads `cacheVer` into the useMemo deps of
+              `HeroFixture` / `FixtureCard` (and through
+              `LeagueBlock`).  The subscriber also calls
+              `clearMatchCache()` to bust sportsMatch's own 60s
+              index TTL so the next `buildIndex` call sees the
+              fresh EPG.
+            - 🎯 **Net effect**: when the instant-bundle finishes
+              downloading & merging (~30 s on a cold boot, instant
+              on a warm one), every fixture card recomputes its
+              channel matches and the "WATCH ON" chips animate in.
+            - 🆙 APK bumped to **v2.6.93** (versionCode 163).
+
             **v2.6.92 — Sports guide channel chips REALLY working now**
             - 🐛 **Second root cause found** (turtles all the way
               down): even after fixing the matcher's key-mismatch

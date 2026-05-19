@@ -1,0 +1,30 @@
+{
+  "summary": "Iter 36 (frontend-only) — v2.6.93 Sports chips fix VERIFIED WORKING. Cold-boot /sports flow: cleared livecache + bundle meta, seeded profile p1, waited for instant-bundle merge. Within 15s of /sports load: WATCH ON count = 24, NOT ON YOUR CHANNELS = 23 (down from the 46 baseline in iter 34/35 → ~50% reduction, exactly the brief's expected substantial drop). The vesper:bundle-ready event fired, lsKeys=2 (cats + chans persisted), and the expected `[liveCache] quota write failed for ...:epg (size=43.2 MB / 12.7 MB)` warnings logged twice — confirming safeWrite still observes the EPG-over-quota case while the new pub-sub layer triggers FixtureCard/HeroFixture useMemo re-evaluation via cacheVer state bump + clearMatchCache(). NO 'Maximum update depth exceeded' loops, NO React error boundary errors, NO pageerrors. The first 3 fixtures inspected showed real EPG matches (e.g. Chinese Super League fixture matched, Doosan Bears vs NC Dinos NOT ON correctly distinguished). Regressions PASS: Home page renders Networks + New Movies + Upcoming row at bottom (Upcoming at 87% body offset). Settings → Appearance: no Vesper Neon card (hasVesperNeon=false), Electric is the first theme (position 213, before Sunset @ 371 and Crimson @ 625). This iteration's fix is DECISIVE — primary bug is resolved.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_36.json"],
+  "action_items": [
+    "OPTIONAL FOLLOW-UP (not blocking — but recommended next): the EPG payload is still 43 MB → always quota-fails on disk. Filter bundle.epg in instantBundle.js (or backend-side in /api/xtream/instant-bundle) to only EPG entries whose channel_id matches the sports CHAN_NAME_RX / SPORT_CAT_RX patterns from sportsMatch.js. That drops it to <500 KB and lets the disk cache survive page reloads — so the SECOND /sports visit renders chips at T+0 instead of T+15s. Not required for this iteration's acceptance criteria but the only remaining UX rough edge."
+  ],
+  "critical_code_review_comments": [
+    "liveCache.js (lines 41-65): pub-sub layer is correct — Set of subscribers, coalesced microtask notify (notifyScheduled flag prevents bursts), errors in subscriber cb are caught & warned. saveCategories / saveChannels / mergeAndSaveEpg each call notifyCacheUpdate after the write. Clean implementation.",
+    "SportsGuide.jsx (lines 148-155): useEffect subscribes once on mount, returns unsub on unmount. setCacheVer((v) => v+1) is functional-update form — no stale-closure risk. clearMatchCache() is called before setCacheVer so the next render sees fresh buildIndex.",
+    "SportsGuide.jsx (lines 474, 983): useMemo deps `[provider, fixture, cacheVer]` now correctly include the cacheVer signal — re-runs matchFixture when liveCache emits.",
+    "v2.6.93 fix passes all 4 acceptance criteria in the brief. No regressions observed."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only)",
+    "frontend": "PRIMARY chip rendering PASS (24 WATCH ON, 23 NOT ON, baseline was 0/46). Console quota warns PASS. No update-depth loops PASS. Home regression PASS. Settings/Appearance regression PASS."
+  },
+  "test_credentials": "Profile p1 seeded via add_init_script; provider default-njala auto-seeded by backend.",
+  "seed_data_creation": "onnowtv-profiles-v1, onnowtv-active-profile-v1, onnowtv-welcome-tour-seen, onnowtv-onboarding-seen-v1. Cleared livecache + bundle-meta keys before run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "v2.6.93 is verified resolved. If a future regression needs validating: (1) clear localStorage livecache + meta keys, (2) visit /sports, (3) within 15-30s WATCH ON count should be 20+ and NOT ON YOUR CHANNELS should be ~half of 46. The 43 MB EPG quota write WILL fail on disk — that is BY DESIGN (in-memory memCache holds the data for the session) and the warning is expected logging, not a bug. The only optional improvement left is shrinking the EPG payload to sports-only channels.",
+  "rca of the issue": "Iter 35 RCA correctly identified the third bug layer: FixtureCard/HeroFixture useMemo deps `[provider, fixture]` froze the empty matchFixture() result that was computed before the async instant-bundle EPG arrived. v2.6.93 closes the loop with a publisher in liveCache.js (subscribers Set + coalesced notifyCacheUpdate microtask from saveCategories/saveChannels/mergeAndSaveEpg) and a subscriber in SportsGuide.jsx (useEffect bumps cacheVer state + clears sportsMatch's 60s buildIndex TTL). The cacheVer is threaded through HeroFixture → LeagueBlock → FixtureCard useMemo deps so they re-run matchFixture as soon as EPG arrives. Verified end-to-end."
+}

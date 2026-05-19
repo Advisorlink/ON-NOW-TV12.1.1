@@ -32,6 +32,38 @@ function memKey(providerId, kind) {
     return `${kind}:${providerId}`;
 }
 
+/* ── Pub-sub for cache updates ──────────────────────────────────
+ * Consumers like the SportsGuide need to re-render when fresh
+ * EPG / channel / category data arrives asynchronously from the
+ * instant-bundle fetch (the React useMemo deps don't include
+ * anything that changes when the cache populates).  Components
+ * subscribe and bump a state counter to force a recompute. */
+const subscribers = new Set();
+
+export function subscribeLiveCache(cb) {
+    if (typeof cb !== 'function') return () => {};
+    subscribers.add(cb);
+    return () => { subscribers.delete(cb); };
+}
+
+let notifyScheduled = false;
+function notifyCacheUpdate(kind, providerId) {
+    // Coalesce multi-write bursts (cats + chans + epg arrive in
+    // quick succession) into a single notify on the next tick.
+    if (notifyScheduled) return;
+    notifyScheduled = true;
+    Promise.resolve().then(() => {
+        notifyScheduled = false;
+        for (const cb of [...subscribers]) {
+            try { cb({ kind, providerId }); }
+            catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn('[liveCache] subscriber threw:', e);
+            }
+        }
+    });
+}
+
 function k(providerId, kind) {
     return `${NS}:${providerId}:${kind}`;
 }
@@ -86,6 +118,7 @@ export function saveCategories(providerId, list) {
     if (!Array.isArray(list)) return;
     memCache.set(memKey(providerId, 'cats'), list);
     safeWrite(k(providerId, 'cats'), { at: Date.now(), data: list });
+    notifyCacheUpdate('cats', providerId);
 }
 
 // -------- channels (per-category map) --------
@@ -105,6 +138,7 @@ export function saveChannels(providerId, byCatId) {
     if (!byCatId || typeof byCatId !== 'object') return;
     memCache.set(memKey(providerId, 'chans'), byCatId);
     safeWrite(k(providerId, 'chans'), { at: Date.now(), data: byCatId });
+    notifyCacheUpdate('chans', providerId);
 }
 
 // -------- EPG (per-stream map) --------
@@ -178,4 +212,5 @@ export function mergeAndSaveEpg(providerId, partial) {
         }
         safeWrite(k(providerId, 'epg'), { at: Date.now(), data: trimmed });
     }
+    notifyCacheUpdate('epg', providerId);
 }

@@ -41,9 +41,9 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import useBackHandler from '@/hooks/useBackHandler';
 import { getActiveProvider, getStreamUrl } from '@/lib/xtream';
-import { matchFixture } from '@/lib/sportsMatch';
+import { matchFixture, clearMatchCache } from '@/lib/sportsMatch';
 import { getReminders, toggleReminder } from '@/lib/liveReminders';
-import { loadChannels } from '@/lib/liveCache';
+import { loadChannels, subscribeLiveCache } from '@/lib/liveCache';
 import Host from '@/lib/host';
 
 function proxy(url, w = 80, q = 60) {
@@ -136,6 +136,23 @@ export default function SportsGuide() {
     const [sportFilter, setSportFilter] = useState('all'); // 'all' or sport name
     const [dayFilter, setDayFilter]   = useState(0);       // 0=Today, 1=Tomorrow, ..., 6 / -1=Live, -2=All
     const [, setBump] = useState(0);
+    /* `cacheVer` — bumped every time liveCache emits a notification
+     * (EPG / channels / cats just got merged from the instant
+     * bundle).  We thread it through to FixtureCard / HeroFixture
+     * via useMemo deps so they re-run matchFixture() the instant
+     * the data arrives, instead of staying stuck on the empty
+     * result that was computed during initial mount.
+     *
+     * Also clears `sportsMatch`'s own 60s index TTL so buildIndex
+     * gets fresh EPG data on the next call. */
+    const [cacheVer, setCacheVer] = useState(0);
+    useEffect(() => {
+        const unsub = subscribeLiveCache(() => {
+            clearMatchCache();
+            setCacheVer((v) => v + 1);
+        });
+        return () => { unsub(); };
+    }, []);
 
     /* Load fixtures once. */
     useEffect(() => {
@@ -389,6 +406,7 @@ export default function SportsGuide() {
                                     onPlay={onCardEnter}
                                     onRemind={onCardRemind}
                                     reminders={reminders}
+                                    cacheVer={cacheVer}
                                 />
                             )}
 
@@ -417,6 +435,7 @@ export default function SportsGuide() {
                                         onPlay={onCardEnter}
                                         onRemind={onCardRemind}
                                         reminders={reminders}
+                                        cacheVer={cacheVer}
                                     />
                                 ))
                             )}
@@ -447,11 +466,12 @@ export default function SportsGuide() {
 
 /* ─────────────────────────────────── Hero ─────────────────────────────────── */
 
-const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay, onRemind, reminders }) {
+const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay, onRemind, reminders, cacheVer }) {
     const accent = SPORT_ACCENT[fixture.sport] || ACCENT_DEFAULT;
     const matches = useMemo(
         () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
-        [provider, fixture],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [provider, fixture, cacheVer],
     );
     const live = isLiveNow(fixture) || fixture.live || fixture.state === 'in';
     const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
@@ -891,7 +911,7 @@ const DatePill = React.memo(function DatePill({ label, sub, accent, active, live
 
 /* ─────────────────────────────────── League block ─────────────────────────────────── */
 
-const LeagueBlock = React.memo(function LeagueBlock({ group, provider, onPlay, onRemind, reminders }) {
+const LeagueBlock = React.memo(function LeagueBlock({ group, provider, onPlay, onRemind, reminders, cacheVer }) {
     const accent = SPORT_ACCENT[group.sport] || ACCENT_DEFAULT;
     return (
         <section style={{ marginBottom: 22 }}>
@@ -945,6 +965,7 @@ const LeagueBlock = React.memo(function LeagueBlock({ group, provider, onPlay, o
                         onPlay={onPlay}
                         onRemind={onRemind}
                         reminders={reminders}
+                        cacheVer={cacheVer}
                     />
                 ))}
             </div>
@@ -954,11 +975,12 @@ const LeagueBlock = React.memo(function LeagueBlock({ group, provider, onPlay, o
 
 /* ─────────────────────────────────── Fixture Card ─────────────────────────────────── */
 
-const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay, onRemind, reminders }) {
+const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay, onRemind, reminders, cacheVer }) {
     const accent = SPORT_ACCENT[fixture.sport] || ACCENT_DEFAULT;
     const matches = useMemo(
         () => (provider ? matchFixture(provider.id, fixture, { limit: 4 }) : []),
-        [provider, fixture],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [provider, fixture, cacheVer],
     );
     const live = isLiveNow(fixture) || fixture.live || fixture.state === 'in';
     const reminded = matches.length > 0 && reminders.has(`${matches[0].streamId}:${matches[0].startTs}`);
