@@ -234,6 +234,41 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.88 — Upcoming Movies row · Boot notify scanner · Electric blue theme · Torrentio Debrid**
+            - 🎬 **New "Coming soon" row at the bottom of Home** —
+              pulls TMDB's next-60-day upcoming movies and shows them
+              as poster tiles.  Click a tile to open the Detail page
+              with the trailer button + "Add to reminder list" CTA.
+            - 🔔 **Boot-time notify scanner with rich top-right toast**
+              — once on app open, the saved reminder-list titles are
+              re-checked against your installed addons.  When a stream
+              becomes available a card slides in from the right with
+              **Watch now / Watch later / Dismiss** buttons.  "Watch
+              later" drops the movie straight into your library queue.
+            - ⚡ **New "On Now TV Electric" theme** added to Settings →
+              Appearance — the signature electric-blue accent (#00B8FF)
+              for users who want a brighter, more saturated UI than
+              Vesper Neon.  Pick it from Settings → Themes.
+            - 🏷️ **"Autoplay 1080p" renamed to "Auto play"** everywhere
+              (Settings, Onboarding step 5, Profile-edit prompt) so
+              new users aren't confused about quality picking — the
+              feature now skips the source list and plays the best
+              available stream regardless of resolution (auto-play
+              still excludes 4K to keep the HK1's H.264 decoder happy).
+            - 🧲 **Torrentio Debrid (Premiumize) wired in** — the
+              backend now builds the Torrentio addon URL at boot from
+              `PREMIUMIZE_API_KEY` in `.env` and filters out CAM,
+              SCR, unknown, 480p, and 720p quality tiers.  Only 1080p
+              HD and 4K reach the source list.  The seeder
+              auto-upserts the addon when the URL drifts so rotating
+              the Debrid key is a redeploy, not a code change.
+            - 📺 **"Stream not yet released" cinematic modal** —
+              tapping Play on a TMDB-promoted title with no addon
+              streams now opens a polished modal with poster-blur
+              backdrop offering "Notify me when ready" (saves to the
+              reminder list).  No more dead-button states.
+            - 🆙 APK bumped to **v2.6.88** (versionCode 158).
+
             **v2.6.87 — Always-on host/guest controls · Notify-me library · Detail polish**
             - 📌 **Host dock + Reactions Remote now ALWAYS visible**
               during a party.  User feedback: "the controls don't

@@ -56,6 +56,77 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 116 — Feb 19, 2026) — v2.6.88
+### Upcoming Movies row · Boot notify-list scanner · Electric theme · Torrentio Debrid wiring · "Auto play" rename
+
+- **🎬 New "Coming soon" rail at the bottom of Home** (`UpcomingMoviesShelf.jsx`).
+  Pulls `/api/tmdb/upcoming-movies?limit=20&days=60` (new backend endpoint —
+  combines TMDB `/movie/upcoming` + `/discover/movie` date window, dedupes by
+  TMDB id, resolves IMDB ids best-effort).  Tapping a tile navigates to Detail
+  (via `/resolve/movie/{tmdb_id}` when IMDB missing).  Detail already has the
+  trailer pill + the StreamUnavailableModal "Notify me" CTA, so the full flow
+  "see upcoming → tap → watch trailer → add to reminder" works end-to-end.
+
+- **🔔 Boot-time notify-list scanner now surfaces a rich toast** —
+  `notifyScanner.js` runs 4 s after boot, checks `/api/streams/{type}/{id}`
+  for every entry in `notifyList`, and PUSHES hits onto a persistent queue
+  consumed by the new `NotifyHitWatcher.jsx`.  Card slides in from the top
+  right with poster-blur backdrop + three buttons: **Watch now** (navigates
+  to Detail with `?autoplay=1` and removes from list), **Watch later**
+  (drops the title into the library Watch-Later queue and removes from
+  notify list), **Dismiss** (just removes).  Multiple hits queue up and
+  show one at a time.
+
+- **⚡ "On Now TV Electric" theme added** (`themes.js`) — id `electric`,
+  accent `#00B8FF`, bright `#5CDFFF`, glow `rgba(0,184,255,0.55)`.  Sits at
+  the top of the THEMES array.  Selectable from Settings → Appearance.
+
+- **🏷️ "Autoplay 1080p" wording → "Auto play"** across all three surfaces:
+  Settings toggle (description rewrites "best available stream" instead of
+  "first 1080p stream"), `Onboarding.jsx` SettingRow label, and
+  `ProfileEdit.jsx` AutoplayPrompt step-5 dialog.  Function names + storage
+  keys (`onnowtv-autoplay-1080p:*`) stay unchanged to preserve user data.
+
+- **🧲 Torrentio Premiumize Debrid wiring** (`server.py`):
+  - New `PREMIUMIZE_API_KEY` env var (added to `/app/backend/.env`,
+    documented in `test_credentials.md` with VPS sync instructions).
+  - Auto-seeder builds the Torrentio manifest URL at boot:
+    `https://torrentio.strem.fun/sort=qualitysize|qualityfilter=scr,cam,unknown,480p,720p|premiumize=<KEY>/manifest.json`
+  - Quality filter strips CAM / SCR / unknown / 480p / 720p so only 1080p HD
+    and 4K reach the source list (per user spec).
+  - Seeder now detects URL drift on existing rows and re-upserts, so
+    rotating the Debrid key is a redeploy not a manual mongo edit.
+
+- **🐛 Bug-fix: `library.js` syntax error** — the notify-list helpers were
+  inserted mid-`listActors()` in the prior session, breaking the entire
+  file.  Restored proper function boundaries.  Frontend compiles cleanly.
+
+- **🆙 APK bumped to v2.6.88 (versionCode 158).**  Release notes updated.
+
+### ⚠️ Known caveats / blockers
+- **Preview pod Torrentio fetch returns 403** — Cloudflare blocks the
+  datacenter IP; seeder logs the failure and continues with the other
+  3 addons.  **Expected behaviour**; the user's residential VPS succeeds.
+- **APK trailer regression (user-reported)** — the JS-side TrailerModal
+  correctly checks `window.OnNowTV.playTrailer` and the Kotlin
+  `WebAppInterface.kt` exposes that method.  No JS change required — the
+  user simply needs to **rebuild the APK** to pick up the most recent
+  bundle.  Browser preview will continue to show the YouTube iframe
+  fallback because there's no native bridge available outside the APK.
+
+### ❓ Verification needed from user after install
+- Open Home, scroll to bottom — the new "Coming soon" rail should render
+  with ~12–20 upcoming-movie posters.
+- Open Settings → Appearance — the "On Now TV Electric" theme card should
+  be the leftmost option.  Activating it should repaint the whole UI
+  in bright electric blue.
+- After the VPS sync (append `PREMIUMIZE_API_KEY=…` to the VPS .env,
+  `systemctl restart onnowtv-backend.service`), tap Play on any title with
+  prior magnet-only Torrentio streams — you should see HTTPS Debrid
+  streams instead of unsupported magnets.
+
+
+
 ## Implemented (Iteration 115 — Feb 19, 2026) — v2.6.84
 ### Live TV: FAST ZAPPING · "Press OK" host hint · 1-second EPG
 - **User asked (verbatim)**: "Extremely fast zapping. When you click on a TV show I want it to open up really quickly and zap really quickly into the next one. Right now it's only showing audio. Make everything really quick and really snappy. The entire EPG, every single EPG that is available, loaded within a second like we do in the beginning."
