@@ -28,7 +28,7 @@ env:
   # Emergent support to fix prod OR (b) migrate to a Contabo VPS.
   # Will swap to the Contabo domain (vesper.tv / similar) once
   # the VPS is provisioned.
-  REACT_APP_BACKEND_URL: https://rebrand-app-5.preview.emergentagent.com
+  REACT_APP_BACKEND_URL: http://62.84.181.66
 
 jobs:
   build:
@@ -233,6 +233,26 @@ jobs:
             Sideload-ready debug APK auto-built from the latest commit.
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
+
+            **v2.6.80 — PERMANENT BACKEND on Contabo VPS (own infrastructure)**
+            - 🚀 **`REACT_APP_BACKEND_URL` now points at our own VPS:
+              `http://62.84.181.66`**.  No more dependence on the
+              Emergent preview pod (which kept hibernating) or the
+              broken production deployment (which was returning
+              520/502).  This is dedicated, always-on infrastructure
+              we control 100%.
+            - 📦 What's running on the VPS: Ubuntu 24.04 LTS, MongoDB 7,
+              nginx 1.24 reverse proxy, FastAPI/uvicorn (systemd
+              service `onnowtv-backend.service`, auto-restart on
+              crash), yt-dlp + ffmpeg for trailer extraction, ufw
+              firewall locked down to 22/80/443.
+            - 🔒 **Cleartext-HTTP exception** added to
+              `network_security_config.xml` for `62.84.181.66`
+              specifically — required because Android API 28+ blocks
+              non-TLS by default.  Will be removed once we move to
+              a DDNS hostname with a Let's Encrypt cert (e.g.
+              `onnowtv.duckdns.org` once DNS propagation works).
+            - 🆙 APK bumped to **v2.6.80** (versionCode 150).
 
             **v2.6.79 — EMERGENCY rollback to preview URL · prod is 520-ing**
             - 🚑 **`REACT_APP_BACKEND_URL` rolled BACK to

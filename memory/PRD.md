@@ -56,6 +56,22 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 111 — Feb 19, 2026) — v2.6.80
+### 🚀 PERMANENT backend on Contabo VPS — escape the platform deploy hell
+- **🐛 User reported (3rd recurrence in 2 weeks)**: "Deploying the app caused everything on the TV box to stop working — 520/502 on every API call." Production at `*.emergent.host` was returning Cloudflare 520, preview pod kept hibernating, and we'd already cycled through workflow rollbacks twice. **The platform deploy itself is the bug** — we need our own infrastructure.
+- **✅ Migration completed in one session**:
+  - **VPS**: Contabo Cloud VPS 10 SSD, Hub Europe — 62.84.181.66, Ubuntu 24.04 LTS, 145 GB disk, 7.8 GB RAM. Customer ID 14979688.
+  - **Stack**: MongoDB 7 (apt), nginx 1.24 reverse proxy, FastAPI/uvicorn under `systemd` (`onnowtv-backend.service`, auto-restart, 2 workers), Python 3.12 venv at `/opt/onnowtv/venv`, code at `/opt/onnowtv/backend/`, env at `/opt/onnowtv/backend/.env` (chmod 600).
+  - **Firewall**: ufw — deny incoming except 22/80/443.
+  - **Reverse-proxy**: nginx terminates HTTP on port 80, proxies `/api/*` → `127.0.0.1:8001`, `/api/watch-party/ws/*` upgrades to WebSocket, rate-limit 10 r/s burst 30 on `/api`, 50 MB body cap, 86400 s read/send timeout for WS.
+  - **Smoke tests from E1 pod** (external network, not loopback): `/api/` ✓ · `/api/app/latest-version` ✓ · `/api/tmdb/party-picks` ✓ (returned cached + live) · `/api/watch-party/create` ✓ (returned code) · `/api/xtream/instant-bundle/meta` ✓ (14,220 channels + 2,335 EPG channels — Contabo can reach `njala.ddns.me` whereas preview pod could not) · WebSocket lifecycle ✓ (hello → joined → ping/pong with `server_ms` echoed).
+  - **Survives reboot**: all 3 services (mongod, nginx, onnowtv-backend) `systemctl enable`d. `unattended-upgrades` package installed → security patches auto-apply nightly. `certbot.timer` already scheduled for when we issue TLS cert later.
+- **🌐 DuckDNS pending**: User's DuckDNS sign-up kept rejecting the IP entry ("invalid ip address entered for onnowtv.duckdns.org") — root cause not yet identified. Without DDNS we can't get a Let's Encrypt cert. **Workaround**: shipped APK against `http://62.84.181.66` (bare IP, no TLS). Android API 28+ blocks cleartext by default → added a `<domain-config cleartextTrafficPermitted="true">` exception for `62.84.181.66` specifically in `network_security_config.xml`. Base config still blocks everything else.
+- **🆙 APK bumped to v2.6.80 (versionCode 150)**. Release notes added. **User must hit "Save to GitHub" to trigger the APK rebuild**, then the box's UpdateGate will pick it up.
+- **🟡 Carried over**: DuckDNS retry → TLS upgrade. Once `onnowtv.duckdns.org` resolves to 62.84.181.66, run `certbot --nginx -d onnowtv.duckdns.org`, flip workflow to `https://onnowtv.duckdns.org`, remove the cleartext exception, bump APK again.
+
+
+
 ## Implemented (Iteration 110 — Feb 18, 2026) — v2.6.78
 ### End-user polish: "currently offline" message + Sources hidden
 - **📡 EmptyAddonsBanner reworded**:
