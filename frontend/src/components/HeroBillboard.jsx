@@ -87,9 +87,10 @@ export default function HeroBillboard({ heroes }) {
                 style={{
                     background: `linear-gradient(180deg,
                         rgba(6,8,15,0.55) 0%,
-                        rgba(6,8,15,0) 28%,
-                        rgba(6,8,15,0) 50%,
-                        rgba(6,8,15,0.88) 88%,
+                        rgba(6,8,15,0) 22%,
+                        rgba(6,8,15,0) 42%,
+                        rgba(6,8,15,0.55) 70%,
+                        rgba(6,8,15,0.95) 92%,
                         var(--vesper-bg-0) 100%)`,
                 }}
             />

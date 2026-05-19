@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>3D Bubbly Host UI · Mockups v2</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background:#000; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+       color:#E6EAF2; overflow-x:hidden; }
+.stage { width:1920px; height:1080px; position:relative; margin:0 auto; overflow:hidden; }
+.backdrop { position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 30% 35%, rgba(255,180,90,0.45) 0%, transparent 55%),
+      radial-gradient(circle at 70% 65%, rgba(100,70,210,0.55) 0%, transparent 60%),
+      radial-gradient(circle at 90% 30%, rgba(255,200,180,0.25) 0%, transparent 40%),
+      linear-gradient(135deg, #2a1244 0%, #0a1f33 50%, #0d0a0a 100%); }
+.backdrop::after { content:''; position:absolute; inset:0;
+    background: linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.65) 100%); }
+.label {
+    position:absolute; top:24px; left:24px;
+    font-family:ui-monospace,monospace; font-size:14px; letter-spacing:0.42em;
+    font-weight:800; color:#5DC8FF;
+    padding:10px 18px; border-radius:999px;
+    background:rgba(0,0,0,0.6); border:1px solid rgba(93,200,255,0.5);
+    backdrop-filter:blur(10px); z-index:1000; }
+.fake-now {
+    position:absolute; top:50px; left:50%; transform:translateX(-50%);
+    color:#fff; font-size:24px; font-weight:700; letter-spacing:-0.01em;
+    text-shadow:0 2px 18px rgba(0,0,0,0.8); }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  THE BUBBLY/3D BUTTON LANGUAGE                                    */
+/* ═══════════════════════════════════════════════════════════════ */
+/*  Every "bubble" combines:
+    1.  A subtle radial-gradient highlight at the top (light source up-left)
+    2.  Inner highlight (inset 0 1px 0 rgba(white,.25)) — top edge sheen
+    3.  Inner shadow at bottom (inset 0 -8px 14px rgba(black,.45)) — depth
+    4.  Outer drop shadow (0 12px 28px rgba(black,.55)) — floats above bg
+    5.  When FOCUSED: outer cyan glow + brighter highlight + slight lift   */
+.bubble {
+    border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 38%),
+        linear-gradient(160deg, #1d2842 0%, #0a1224 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.22),
+        inset 0 -10px 16px rgba(0,0,0,0.45),
+        inset 0 2px 4px rgba(255,255,255,0.08),
+        0 14px 32px rgba(0,0,0,0.55),
+        0 2px 4px rgba(0,0,0,0.4);
+    color:#C7CFDB;
+    display:inline-flex; align-items:center; justify-content:center;
+    transition:transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s ease,
+               background .25s ease;
+}
+.bubble.focus {
+    transform:translateY(-4px) scale(1.10);
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#fff;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.45),
+        inset 0 -12px 18px rgba(0,40,80,0.5),
+        inset 0 3px 6px rgba(255,255,255,0.15),
+        0 0 0 1.5px rgba(255,255,255,0.18),
+        0 16px 40px rgba(93,200,255,0.55),
+        0 0 80px rgba(93,200,255,0.35);
+}
+.bubble-square {
+    border-radius:24px;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0) 42%),
+        linear-gradient(160deg, #1d2842 0%, #0a1224 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.22),
+        inset 0 -10px 16px rgba(0,0,0,0.45),
+        inset 0 2px 4px rgba(255,255,255,0.08),
+        0 14px 32px rgba(0,0,0,0.55);
+    color:#C7CFDB;
+    display:inline-flex; align-items:center; justify-content:center;
+    transition:transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s ease,
+               background .25s ease;
+}
+.bubble-square.focus {
+    transform:translateY(-4px) scale(1.08);
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#fff;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.45),
+        inset 0 -12px 18px rgba(0,40,80,0.5),
+        0 0 0 1.5px rgba(255,255,255,0.18),
+        0 16px 40px rgba(93,200,255,0.55),
+        0 0 80px rgba(93,200,255,0.35);
+}
+.bubble-caption {
+    position:absolute; bottom:-30px; left:50%; transform:translateX(-50%);
+    font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.32em;
+    color:#5DC8FF; font-weight:800; white-space:nowrap; text-transform:uppercase;
+    text-shadow:0 0 12px rgba(93,200,255,0.6); }
+.bubble-tooltip {
+    position:absolute; font-family:ui-monospace,monospace; font-size:11px;
+    letter-spacing:0.28em; color:#fff; font-weight:800; white-space:nowrap;
+    text-transform:uppercase;
+    padding:8px 16px; border-radius:8px;
+    background:linear-gradient(160deg, rgba(93,200,255,0.95) 0%, rgba(26,120,184,0.95) 100%);
+    box-shadow:0 8px 24px rgba(93,200,255,0.5); }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  V1 — Vertical rail of glass bubbles (left edge, large)          */
+/* ═══════════════════════════════════════════════════════════════ */
+.v1-rail { position:absolute; top:50%; left:80px; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:24px; align-items:center; }
+.v1-eb { font-family:ui-monospace,monospace; font-size:11px; letter-spacing:0.42em;
+    color:#5DC8FF; font-weight:800; text-shadow:0 0 14px rgba(93,200,255,0.7);
+    margin-bottom:8px; }
+.v1-bubble { width:88px; height:88px; font-size:32px; position:relative; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  V2 — Vertical "pebbles" (rounded rectangles, stacked)            */
+/* ═══════════════════════════════════════════════════════════════ */
+.v2-rail { position:absolute; top:50%; left:80px; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:18px; align-items:center; }
+.v2-tile { width:96px; height:96px; font-size:32px; position:relative; flex-direction:column; gap:4px; }
+.v2-tile .v2-cap { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.18em; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  V3 — Beaded chain (overlapping circles connected by neon line)   */
+/* ═══════════════════════════════════════════════════════════════ */
+.v3-rail { position:absolute; top:50%; left:90px; transform:translateY(-50%); }
+.v3-rail::before { content:''; position:absolute; top:8px; bottom:8px;
+    left:43px; width:2px;
+    background:linear-gradient(180deg, transparent 0%, rgba(93,200,255,0.5) 20%,
+        rgba(93,200,255,0.5) 80%, transparent 100%);
+    box-shadow:0 0 16px rgba(93,200,255,0.45); z-index:0; }
+.v3-stack { display:flex; flex-direction:column; gap:14px; position:relative; z-index:1; }
+.v3-bubble { width:82px; height:82px; font-size:30px; position:relative; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  H1 — Horizontal 3D dock (bottom, big bubbles)                    */
+/* ═══════════════════════════════════════════════════════════════ */
+.hd1 { position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+    display:flex; gap:24px; align-items:center; padding:0 12px; }
+.hd1-bubble { width:96px; height:96px; font-size:38px; position:relative; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  H2 — Horizontal pebble row (rounded rect tiles)                  */
+/* ═══════════════════════════════════════════════════════════════ */
+.hd2 { position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+    display:flex; gap:18px; padding:24px;
+    background:rgba(6,8,15,0.55); backdrop-filter:blur(20px);
+    border-radius:32px; border:1px solid rgba(93,200,255,0.18);
+    box-shadow:0 24px 60px rgba(0,0,0,0.5); }
+.hd2-tile { width:108px; height:108px; font-size:36px; position:relative;
+    flex-direction:column; gap:6px; }
+.hd2-tile .hd2-cap { font-family:ui-monospace,monospace; font-size:10px;
+    letter-spacing:0.18em; font-weight:800; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  H3 — Curved bottom dock with depth (Mac-like + 3D bubbles)      */
+/* ═══════════════════════════════════════════════════════════════ */
+.hd3 { position:absolute; bottom:60px; left:50%; transform:translateX(-50%);
+    padding:16px 28px;
+    background:linear-gradient(180deg, rgba(6,8,15,0.7) 0%, rgba(15,22,38,0.6) 100%);
+    backdrop-filter:blur(30px) saturate(180%);
+    border-radius:48px;
+    border:1px solid rgba(255,255,255,0.15);
+    box-shadow:0 20px 50px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+    display:flex; gap:18px; align-items:center; }
+.hd3-bubble { width:80px; height:80px; font-size:32px; position:relative; }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  REMOTE VARIATIONS                                                */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* R1 — Compass: emojis AT the cardinal points (the points ARE the emojis) */
+.r1 { position:absolute; top:50%; right:40px; transform:translateY(-50%);
+    width:220px; padding:28px 18px;
+    background:rgba(6,8,15,0.78); backdrop-filter:blur(24px);
+    border-radius:28px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 24px 60px rgba(0,0,0,0.6); }
+.r1-eb { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; text-align:center; margin-bottom:16px; }
+.r1-compass { position:relative; width:180px; height:180px; margin:0 auto; }
+.r1-emoji { position:absolute; width:48px; height:48px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center; font-size:26px;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 50%),
+        rgba(255,255,255,0.06);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -6px 10px rgba(0,0,0,0.35),
+        0 6px 16px rgba(0,0,0,0.5); }
+.r1-e-up    { top:0; left:50%; transform:translateX(-50%); }
+.r1-e-right { right:0; top:50%; transform:translateY(-50%); }
+.r1-e-down  { bottom:0; left:50%; transform:translateX(-50%); }
+.r1-e-left  { left:0; top:50%; transform:translateY(-50%); }
+.r1-center  { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:62px; height:62px; border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#06080F; font-family:ui-monospace,monospace; font-size:13px; font-weight:900;
+    letter-spacing:0.1em;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.45),
+        inset 0 -8px 14px rgba(0,40,80,0.4),
+        0 0 24px rgba(93,200,255,0.7),
+        0 8px 24px rgba(93,200,255,0.45); }
+/* faint arrow lines connecting emoji to center */
+.r1-arrow { position:absolute; color:rgba(255,255,255,0.25); font-size:14px; font-weight:700;
+    pointer-events:none; }
+.r1-a-up    { top:50px; left:50%; transform:translateX(-50%); }
+.r1-a-right { right:48px; top:50%; transform:translateY(-50%); }
+.r1-a-down  { bottom:50px; left:50%; transform:translateX(-50%); }
+.r1-a-left  { left:48px; top:50%; transform:translateY(-50%); }
+.r1-hint { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.24em;
+    color:#5b6473; text-align:center; margin-top:18px; text-transform:uppercase; }
+
+/* R2 — Plus/cross: minimal, no border circles, just emojis floating with neon haloes */
+.r2 { position:absolute; top:50%; right:40px; transform:translateY(-50%);
+    width:220px; padding:28px 18px;
+    background:rgba(6,8,15,0.78); backdrop-filter:blur(24px);
+    border-radius:28px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 24px 60px rgba(0,0,0,0.6); }
+.r2-eb { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; text-align:center; margin-bottom:16px; }
+.r2-pad { position:relative; width:180px; height:180px; margin:0 auto; }
+.r2-emoji { position:absolute; font-size:42px; filter:
+    drop-shadow(0 0 8px rgba(255,255,255,0.3)) drop-shadow(0 6px 14px rgba(0,0,0,0.6)); }
+.r2-emoji.up    { top:-4px; left:50%; transform:translateX(-50%); }
+.r2-emoji.right { right:-4px; top:50%; transform:translateY(-50%); }
+.r2-emoji.down  { bottom:-4px; left:50%; transform:translateX(-50%); }
+.r2-emoji.left  { left:-4px; top:50%; transform:translateY(-50%); }
+.r2-ok { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:64px; height:64px; border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#06080F; font-family:ui-monospace,monospace; font-size:14px; font-weight:900;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.45),
+        inset 0 -8px 14px rgba(0,40,80,0.4),
+        0 0 30px rgba(93,200,255,0.8),
+        0 10px 26px rgba(93,200,255,0.5); }
+.r2-arrows { position:absolute; inset:30px;
+    color:rgba(93,200,255,0.18); pointer-events:none; }
+
+/* R3 — Diamond layout (emojis at corners of a diamond) */
+.r3 { position:absolute; top:50%; right:40px; transform:translateY(-50%);
+    width:220px; padding:28px 18px;
+    background:rgba(6,8,15,0.78); backdrop-filter:blur(24px);
+    border-radius:28px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 24px 60px rgba(0,0,0,0.6); }
+.r3-eb { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; text-align:center; margin-bottom:16px; }
+.r3-diamond { position:relative; width:180px; height:180px; margin:0 auto;
+    transform:rotate(0deg); }
+.r3-tile { position:absolute; width:56px; height:56px; border-radius:18px;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.3) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -6px 10px rgba(0,0,0,0.4),
+        0 8px 18px rgba(0,0,0,0.5);
+    display:inline-flex; align-items:center; justify-content:center; font-size:28px; }
+.r3-tile.up    { top:0; left:50%; transform:translateX(-50%); }
+.r3-tile.right { right:0; top:50%; transform:translateY(-50%); }
+.r3-tile.down  { bottom:0; left:50%; transform:translateX(-50%); }
+.r3-tile.left  { left:0; top:50%; transform:translateY(-50%); }
+.r3-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:50px; height:50px; border-radius:50%;
+    background:linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#06080F; font-family:ui-monospace,monospace; font-size:12px; font-weight:900;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:0 0 22px rgba(93,200,255,0.7), inset 0 1px 0 rgba(255,255,255,0.4); }
+
+/* R4 — Outer ring (orbital emojis around an OK core) */
+.r4 { position:absolute; top:50%; right:40px; transform:translateY(-50%);
+    width:240px; padding:28px 18px;
+    background:rgba(6,8,15,0.78); backdrop-filter:blur(24px);
+    border-radius:28px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 24px 60px rgba(0,0,0,0.6); }
+.r4-eb { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; text-align:center; margin-bottom:16px; }
+.r4-orb { position:relative; width:200px; height:200px; margin:0 auto;
+    border-radius:50%;
+    border:1.5px solid rgba(93,200,255,0.25);
+    box-shadow:inset 0 0 30px rgba(93,200,255,0.1); }
+.r4-orb::before { content:''; position:absolute; inset:18px; border-radius:50%;
+    background:radial-gradient(circle, rgba(93,200,255,0.08) 0%, transparent 70%); }
+.r4-bubble { position:absolute; width:56px; height:56px; border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%),
+        rgba(20,30,50,0.85);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px rgba(0,0,0,0.5),
+        0 0 20px rgba(93,200,255,0.3);
+    display:inline-flex; align-items:center; justify-content:center; font-size:30px; }
+.r4-bubble.up    { top:-12px; left:50%; transform:translateX(-50%); }
+.r4-bubble.right { right:-12px; top:50%; transform:translateY(-50%); }
+.r4-bubble.down  { bottom:-12px; left:50%; transform:translateX(-50%); }
+.r4-bubble.left  { left:-12px; top:50%; transform:translateY(-50%); }
+.r4-ok { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:80px; height:80px; border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 50%),
+        linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%);
+    color:#06080F; font-family:ui-monospace,monospace; font-size:15px; font-weight:900;
+    display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:
+        inset 0 2px 0 rgba(255,255,255,0.5),
+        inset 0 -10px 18px rgba(0,40,80,0.5),
+        0 0 40px rgba(93,200,255,0.9),
+        0 12px 32px rgba(93,200,255,0.55); }
+
+/* R5 — Vertical strip of just emojis (compact) */
+.r5 { position:absolute; top:50%; right:50px; transform:translateY(-50%);
+    width:96px; padding:24px 14px;
+    background:rgba(6,8,15,0.78); backdrop-filter:blur(24px);
+    border-radius:48px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 24px 60px rgba(0,0,0,0.6);
+    display:flex; flex-direction:column; gap:12px; align-items:center; }
+.r5-eb { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.42em;
+    color:#5DC8FF; font-weight:800; writing-mode:vertical-rl; transform:rotate(180deg);
+    margin:6px 0; }
+.r5-emoji { width:60px; height:60px; border-radius:50%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%),
+        rgba(20,30,50,0.85);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 18px rgba(0,0,0,0.5);
+    display:inline-flex; align-items:center; justify-content:center; font-size:30px; position:relative; }
+.r5-emoji span { position:absolute; right:-2px; top:50%; transform:translateY(-50%);
+    font-family:ui-monospace,monospace; font-size:11px; color:#5DC8FF;
+    font-weight:800; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- V1 — Big vertical bubble rail · R1 compass remote                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">V1 · BIG BUBBLES + R1 COMPASS</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="v1-rail">
+    <div class="v1-eb">★ HOST</div>
+    <div class="bubble v1-bubble">⏸</div>
+    <div class="bubble v1-bubble focus">⏩<span class="bubble-tooltip" style="left:calc(100% + 14px); top:50%; transform:translateY(-50%);">SKIP 30s</span></div>
+    <div class="bubble v1-bubble">⟳</div>
+    <div class="bubble v1-bubble">🔒</div>
+    <div class="bubble v1-bubble">💬</div>
+</div>
+<div class="r1">
+    <div class="r1-eb">REACTIONS</div>
+    <div class="r1-compass">
+        <div class="r1-emoji r1-e-up">😂</div>
+        <div class="r1-emoji r1-e-right">🔥</div>
+        <div class="r1-emoji r1-e-down">😱</div>
+        <div class="r1-emoji r1-e-left">❤️</div>
+        <div class="r1-arrow r1-a-up">▲</div>
+        <div class="r1-arrow r1-a-right">▶</div>
+        <div class="r1-arrow r1-a-down">▼</div>
+        <div class="r1-arrow r1-a-left">◀</div>
+        <div class="r1-center">OK</div>
+    </div>
+    <div class="r1-hint">Tap arrow → react</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- V2 — Vertical pebbles · R2 plus-cross remote                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">V2 · PEBBLE STACK + R2 PLUS-CROSS</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="v2-rail">
+    <div class="v1-eb">★ HOST</div>
+    <div class="bubble-square v2-tile">⏸<div class="v2-cap">PAUSE</div></div>
+    <div class="bubble-square v2-tile focus">⏩<div class="v2-cap">SKIP 30s</div></div>
+    <div class="bubble-square v2-tile">⟳<div class="v2-cap">CATCH</div></div>
+    <div class="bubble-square v2-tile">🔒<div class="v2-cap">LOCK</div></div>
+    <div class="bubble-square v2-tile">💬<div class="v2-cap">SUBS</div></div>
+</div>
+<div class="r2">
+    <div class="r2-eb">REACTIONS</div>
+    <div class="r2-pad">
+        <span class="r2-emoji up">😂</span>
+        <span class="r2-emoji right">🔥</span>
+        <span class="r2-emoji down">😱</span>
+        <span class="r2-emoji left">❤️</span>
+        <div class="r2-ok">OK</div>
+    </div>
+    <div class="r1-hint">Press direction → react</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- V3 — Beaded chain · R3 diamond                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">V3 · BEADED CHAIN + R3 DIAMOND</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="v3-rail">
+    <div class="v3-stack">
+        <div class="bubble v3-bubble">⏸</div>
+        <div class="bubble v3-bubble focus">⏩<span class="bubble-tooltip" style="left:calc(100% + 14px); top:50%; transform:translateY(-50%);">SKIP 30s</span></div>
+        <div class="bubble v3-bubble">⟳</div>
+        <div class="bubble v3-bubble">🔒</div>
+        <div class="bubble v3-bubble">💬</div>
+    </div>
+</div>
+<div class="r3">
+    <div class="r3-eb">REACTIONS</div>
+    <div class="r3-diamond">
+        <div class="r3-tile up">😂</div>
+        <div class="r3-tile right">🔥</div>
+        <div class="r3-tile down">😱</div>
+        <div class="r3-tile left">❤️</div>
+        <div class="r3-center">OK</div>
+    </div>
+    <div class="r1-hint">D-pad emoji react</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H1 — Horizontal bubble dock · R4 orbital                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">H1 · HORIZONTAL BUBBLES + R4 ORBITAL</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="hd1">
+    <div class="bubble hd1-bubble">⏸<span class="bubble-caption">PAUSE</span></div>
+    <div class="bubble hd1-bubble focus">⏩<span class="bubble-caption" style="color:#fff; text-shadow:0 0 14px rgba(93,200,255,0.9);">SKIP 30s</span></div>
+    <div class="bubble hd1-bubble">⟳<span class="bubble-caption">CATCH UP</span></div>
+    <div class="bubble hd1-bubble">🔒<span class="bubble-caption">LOCK</span></div>
+    <div class="bubble hd1-bubble">💬<span class="bubble-caption">SUBS</span></div>
+</div>
+<div class="r4">
+    <div class="r4-eb">REACTIONS</div>
+    <div class="r4-orb">
+        <div class="r4-bubble up">😂</div>
+        <div class="r4-bubble right">🔥</div>
+        <div class="r4-bubble down">😱</div>
+        <div class="r4-bubble left">❤️</div>
+        <div class="r4-ok">OK</div>
+    </div>
+    <div class="r1-hint">Press D-pad direction</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H2 — Pebble dock with frame · R5 vertical strip                   -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">H2 · PEBBLE DOCK + R5 VERTICAL STRIP</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="hd2">
+    <div class="bubble-square hd2-tile">⏸<div class="hd2-cap">PAUSE</div></div>
+    <div class="bubble-square hd2-tile focus">⏩<div class="hd2-cap">SKIP 30s</div></div>
+    <div class="bubble-square hd2-tile">⟳<div class="hd2-cap">CATCH UP</div></div>
+    <div class="bubble-square hd2-tile">🔒<div class="hd2-cap">LOCK</div></div>
+    <div class="bubble-square hd2-tile">💬<div class="hd2-cap">SUBS</div></div>
+</div>
+<div class="r5">
+    <div class="r5-eb">REACTIONS</div>
+    <div class="r5-emoji">😂<span>▲</span></div>
+    <div class="r5-emoji">🔥<span>▶</span></div>
+    <div class="r5-emoji" style="background:linear-gradient(160deg, #5DC8FF 0%, #1a78b8 100%); color:#06080F; font-family:ui-monospace,monospace; font-size:14px; font-weight:900;">OK</div>
+    <div class="r5-emoji">❤️<span>◀</span></div>
+    <div class="r5-emoji">😱<span>▼</span></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H3 — Curved Mac-style dock · R1 compass (reprise)                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div>
+<div class="label">H3 · CURVED DOCK + R1 COMPASS</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="hd3">
+    <div class="bubble hd3-bubble">⏸</div>
+    <div class="bubble hd3-bubble focus">⏩<span class="bubble-caption" style="color:#fff;">SKIP 30s</span></div>
+    <div class="bubble hd3-bubble">⟳</div>
+    <div class="bubble hd3-bubble">🔒</div>
+    <div class="bubble hd3-bubble">💬</div>
+</div>
+<div class="r1" style="right:60px;">
+    <div class="r1-eb">REACTIONS</div>
+    <div class="r1-compass">
+        <div class="r1-emoji r1-e-up">😂</div>
+        <div class="r1-emoji r1-e-right">🔥</div>
+        <div class="r1-emoji r1-e-down">😱</div>
+        <div class="r1-emoji r1-e-left">❤️</div>
+        <div class="r1-arrow r1-a-up">▲</div>
+        <div class="r1-arrow r1-a-right">▶</div>
+        <div class="r1-arrow r1-a-down">▼</div>
+        <div class="r1-arrow r1-a-left">◀</div>
+        <div class="r1-center">OK</div>
+    </div>
+    <div class="r1-hint">Tap arrow → react</div>
+</div>
+</div>
+
+</body>
+</html>
