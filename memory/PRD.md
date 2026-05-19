@@ -81,6 +81,36 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iterations 118–120 — Feb 19, 2026) — v2.6.90 → v2.6.93
+### 🏈 Sports guide channel chips FINALLY rendering · Vesper theme removed
+
+The "Watch On" channel mapping the user has been chasing for weeks turned out to be a **three-layer bug** — each fix uncovered the next layer.
+
+**Layer 1 (v2.6.90 / v2.6.91): Matcher key-mismatch.**  `sportsMatch.buildIndex` keyed its channel lookup by `stream_id` but the EPG map is keyed by `epg_channel_id` — the join missed 100 % of the time.  Fixed by re-keying by `epg_channel_id` and storing `stream_id` alongside for playback resolution.  Verified standalone via `/tmp/test_sports_real.mjs` against the user's real bundle (4/4 fixtures matched 2–6 channels each, scores 117–203).
+
+**Layer 2 (v2.6.92): localStorage quota overflow.**  The EPG payload is ~44 MB but browsers cap localStorage at ~5 MB.  `safeWrite` was silently swallowing the `QuotaExceededError`, so `loadEpg()` returned `null` and `sportsMatch.buildIndex` iterated an empty map.  Fixed by adding an in-memory `memCache` Map to `liveCache.js` — `saveCategories` / `saveChannels` / `mergeAndSaveEpg` now write to memory BEFORE attempting disk, and `loadCategories` / `loadChannels` / `loadEpg` check memory first.  `safeWrite` also gained a `console.warn` so silent quota busts will never be invisible again.
+
+**Layer 3 (v2.6.93): React useMemo froze the empty result.**  `FixtureCard` / `HeroFixture` wrapped `matchFixture()` in `useMemo([provider, fixture])` — those deps don't change when EPG arrives async ~15-30 s after mount.  The empty result computed during initial render stayed memo'd forever.  Fixed by adding a pub-sub layer to `liveCache.js` (`subscribeLiveCache(cb)` + coalesced microtask notify from the 3 save paths) and a subscriber in `SportsGuide.jsx` that bumps a `cacheVer` state counter (threaded into `HeroFixture` / `LeagueBlock` / `FixtureCard` `useMemo` deps) and calls `clearMatchCache()` to bust `sportsMatch`'s own 60-s index TTL.
+
+**Verified in browser (iteration_36.json):**
+- 24 "WATCH ON" chips render within 15 s of /sports load (baseline was 0/46).
+- "Not on any of your channels" count drops from 46 → 23.
+- No `Maximum update depth exceeded` loops, no React error-boundary errors.
+- Console correctly logs `[liveCache] quota write failed for …:epg (size=43.2 MB)` — expected; in-memory cache holds the data for the session.
+
+### 🎨 Vesper Neon theme removed (v2.6.91)
+Deleted from `themes.js`; `DEFAULT_THEME_ID` switched to `electric`.  Existing profiles with `themeId='vesper'` auto-migrate to Electric via the `THEMES[0]` fallback in `getTheme()`.
+
+### 🗑️ GitHub auto-prune workflow (v2.6.90)
+`build-apk.yml` now ends with an `actions/github-script` step that deletes workflow artifacts > 1 day and completed runs > 7 days using the built-in `GITHUB_TOKEN` (no PAT).  Dropped the duplicate `upload-artifact` step.
+
+### APK bumped: v2.6.93 (versionCode 163)
+
+### ⏭️ Optional follow-up
+- Shrink the EPG payload to only sports-channel entries in `instantBundle.js` (or backend-side) so the disk cache also survives reloads.  Drops 44 MB → <500 KB.  Would make the **second** /sports visit render chips at T+0 instead of T+15s.
+
+
+
 ## Implemented (Iteration 117 — Feb 19, 2026) — v2.6.89
 ### Bug fix: Home rails no longer blank after a network blip
 
