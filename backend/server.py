@@ -55,9 +55,14 @@ SUGGESTED_ADDONS = [
         "description": "IMDB-style catalogues + rich metadata for movies & series",
     },
     {
-        "name": "OpenSubtitles",
+        "name": "OpenSubtitles v3",
         "url": "https://opensubtitles-v3.strem.io/manifest.json",
         "description": "Subtitle search across the OpenSubtitles database",
+    },
+    {
+        "name": "Torrentio",
+        "url": "https://torrentio.strem.fun/manifest.json",
+        "description": "Stream resolver — finds high-quality torrent streams for movies & series",
     },
     {
         "name": "WatchHub",
@@ -2466,6 +2471,70 @@ logger = logging.getLogger("vesper")
 @app.on_event("shutdown")
 async def shutdown():
     mongo.close()
+
+
+@app.on_event("startup")
+async def _seed_default_addons() -> None:
+    """Auto-install the SUGGESTED_ADDONS list on first boot.
+
+    Why?  Whenever the backend mongo is fresh (new VPS, dropped
+    database, etc.) the user's app would show TMDB metadata fine but
+    have **no streams** because the content addons (Torrentio etc.)
+    aren't in the database.  This seeder closes the gap silently.
+
+    Idempotent: each addon is installed only if its `addon_id`
+    isn't already present.  Manifest is fetched server-side; if
+    Cloudflare bot-walls our datacentre IP for a particular addon,
+    that one is skipped and logged — the user can still install it
+    manually from a browser later (their residential IP succeeds).
+    """
+    try:
+        existing = set()
+        async for row in db.addons.find(
+            {"user_id": DEFAULT_USER, "active": True},
+            {"addon_id": 1},
+        ):
+            existing.add(row.get("addon_id"))
+
+        missing = []
+        for s in SUGGESTED_ADDONS:
+            try:
+                _, manifest_url = _normalize_manifest_url(s["url"])
+                async with httpx.AsyncClient(timeout=20) as client:
+                    manifest = await _fetch_json(client, manifest_url)
+                if not isinstance(manifest, dict):
+                    continue
+                addon_id = manifest.get("id")
+                if not addon_id or addon_id in existing:
+                    continue
+                now = datetime.now(timezone.utc).isoformat()
+                await db.addons.update_one(
+                    {"user_id": DEFAULT_USER, "addon_id": addon_id},
+                    {
+                        "$set": {
+                            "user_id": DEFAULT_USER,
+                            "addon_id": addon_id,
+                            "_id_str": addon_id,
+                            "url": s["url"].rsplit("/manifest.json", 1)[0],
+                            "manifest": manifest,
+                            "active": True,
+                            "installed_at": now,
+                            "updated_at": now,
+                            "auto_seeded": True,
+                        }
+                    },
+                    upsert=True,
+                )
+                missing.append(s["name"])
+            except Exception as inner:  # noqa: BLE001
+                logger.warning(
+                    "Failed to auto-seed addon %s: %s", s.get("name"), inner
+                )
+        if missing:
+            logger.info("Auto-seeded %d default addons: %s",
+                        len(missing), ", ".join(missing))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Default-addon seeder failed: %s", exc)
 
 
 @app.on_event("startup")
