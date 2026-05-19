@@ -59,6 +59,192 @@ html, body { background: #06080F; color: #E6EAF2;
 .logo.orange { background: linear-gradient(135deg, #F97316, #7C2D12); }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 11 — Channel rail (EXPANDED state — focused card opens) */
+/* ─────────────────────────────────────────────────────────────── */
+.m11-rail {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 720px;
+    background: linear-gradient(to top,
+        rgba(6,8,15,0.96) 0%,
+        rgba(6,8,15,0.55) 70%,
+        rgba(6,8,15,0) 100%);
+    padding: 32px 56px 40px;
+    display: flex; flex-direction: column; gap: 28px;
+}
+.m11-eyebrow {
+    font-family: ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.36em;
+    color: #5DC8FF; font-weight: 800; }
+/* Horizontal programme timeline (above the focused channel) */
+.m11-timeline-wrap {
+    display: flex; gap: 18px; align-items: flex-end;
+    height: 380px; overflow: hidden;
+}
+.m11-time-card {
+    flex: 0 0 280px; height: 360px;
+    border-radius: 18px; overflow: hidden; position: relative;
+    background: linear-gradient(135deg, #6366F1, #1E1B4B);
+    transition: all 0.22s ease;
+}
+.m11-time-card.now {
+    flex: 0 0 360px; height: 380px;
+    background: linear-gradient(135deg, #DC2626, #7F1D1D);
+    box-shadow: 0 0 0 3px #5DC8FF, 0 28px 80px rgba(93,200,255,0.45);
+}
+.m11-time-card.green { background: linear-gradient(135deg, #10B981, #064E3B); }
+.m11-time-card.purple { background: linear-gradient(135deg, #8B5CF6, #4C1D95); }
+.m11-time-card.orange { background: linear-gradient(135deg, #F97316, #7C2D12); }
+.m11-time-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 55%);
+    padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+.m11-time-when { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.2em;
+    color: #5DC8FF; font-weight: 800; margin-bottom: 8px; }
+.m11-time-name { font-size: 17px; font-weight: 800; margin-bottom: 4px; line-height: 1.2; }
+.m11-time-sub { font-size: 12px; color: #C7CFDB; opacity: 0.95;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m11-bell { position: absolute; top: 14px; right: 14px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; backdrop-filter: blur(6px); }
+.m11-bell.set { background: #5DC8FF; border-color: #5DC8FF; color: #06080F; }
+.m11-now-pill { position: absolute; top: 14px; left: 14px;
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 10px; border-radius: 4px;
+    background: #5DC8FF; color: #06080F;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em; }
+.m11-now-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #06080F; }
+
+/* Channel rail itself (always visible at very bottom) */
+.m11-chan-rail {
+    display: flex; gap: 14px; height: 96px;
+    overflow: hidden;
+}
+.m11-chan-card {
+    flex: 0 0 200px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 16px;
+    display: flex; gap: 12px; align-items: center;
+    transition: all .2s ease;
+}
+.m11-chan-card.focus {
+    background: linear-gradient(135deg, rgba(93,200,255,0.22), rgba(93,200,255,0.08));
+    border-color: #5DC8FF;
+    box-shadow: 0 0 0 2px rgba(93,200,255,0.45), 0 12px 36px rgba(93,200,255,0.25);
+}
+.m11-chan-card .logo { width: 48px; height: 48px; font-size: 13px; }
+.m11-chan-name { font-size: 13px; font-weight: 800; line-height: 1.2; }
+.m11-chan-num { font-family: ui-monospace, monospace; font-size: 10px;
+    letter-spacing: 0.18em; color: #8B95A7; margin-top: 2px; }
+.m11-hint {
+    position: absolute; bottom: 760px; left: 56px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.36em; color: #8B95A7; }
+.m11-hint span { color: #5DC8FF; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 12 — Foxtel-style minimal ticker (after OK press)       */
+/* ─────────────────────────────────────────────────────────────── */
+.m12-ticker {
+    position: absolute; bottom: 32px; left: 32px; right: 32px;
+    height: 108px; border-radius: 18px;
+    background: linear-gradient(135deg,
+        rgba(6,8,15,0.92) 0%,
+        rgba(15,20,30,0.85) 100%);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(93,200,255,0.25);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7), 0 0 60px rgba(93,200,255,0.12);
+    padding: 18px 28px;
+    display: flex; gap: 24px; align-items: center;
+    overflow: hidden;
+}
+.m12-ticker::before {
+    content: ''; position: absolute; bottom: 0; left: 0;
+    width: 38%; height: 3px;
+    background: linear-gradient(to right, #5DC8FF 0%, #FFFFFF 100%);
+    border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;
+}
+.m12-ch-pill {
+    flex-shrink: 0;
+    padding: 12px 18px; border-radius: 12px;
+    background: rgba(93,200,255,0.18);
+    border: 1px solid rgba(93,200,255,0.5);
+    font-family: ui-monospace, monospace;
+    font-size: 22px; font-weight: 800;
+    color: #5DC8FF; letter-spacing: 0.06em;
+}
+.m12-logo { width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, #DC2626, #7F1D1D);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 16px; }
+.m12-info { flex: 1; min-width: 0; }
+.m12-row1 { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
+.m12-channel { font-size: 14px; font-weight: 800; }
+.m12-cat { font-family: ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.28em; color: #8B95A7; font-weight: 700; }
+.m12-title { font-size: 22px; font-weight: 800; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 760px; margin-bottom: 4px; }
+.m12-meta { font-size: 12px; color: #C7CFDB; opacity: 0.95;
+    font-family: ui-monospace, monospace; letter-spacing: 0.04em; }
+.m12-next {
+    flex-shrink: 0; padding: 12px 18px; border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border-left: 2px solid rgba(255,255,255,0.18);
+    max-width: 320px;
+}
+.m12-next-eb { font-family: ui-monospace, monospace; font-size: 9px;
+    letter-spacing: 0.28em; color: #8B95A7; font-weight: 800; margin-bottom: 4px; }
+.m12-next-t { font-size: 13px; font-weight: 700; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m12-time { flex-shrink: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 26px; font-weight: 800;
+    color: #FFFFFF; letter-spacing: 0.04em; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* MOCKUP 13 — Categories drawer (one push LEFT from channel rail) */
+/* ─────────────────────────────────────────────────────────────── */
+.m13-drawer {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    width: 360px;
+    background: rgba(6,8,15,0.95);
+    backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
+    border-right: 1px solid rgba(93,200,255,0.18);
+    padding: 64px 28px;
+    display: flex; flex-direction: column; gap: 14px;
+}
+.m13-search {
+    padding: 14px 18px; border-radius: 14px;
+    background: rgba(255,255,255,0.06);
+    color: #C7CFDB; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 8px;
+}
+.m13-cat {
+    padding: 16px 18px; border-radius: 14px;
+    display: flex; gap: 14px; align-items: center;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid transparent;
+}
+.m13-cat.focus {
+    background: linear-gradient(135deg, rgba(93,200,255,0.22), rgba(93,200,255,0.08));
+    border-color: #5DC8FF;
+    box-shadow: 0 0 0 1px rgba(93,200,255,0.35);
+}
+.m13-cat-icon { width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; }
+.m13-cat-name { flex: 1; font-size: 14px; font-weight: 700; }
+.m13-cat-count { font-family: ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.12em; color: #8B95A7; }
+.m13-rail-faded { opacity: 0.35; pointer-events: none; }
+
+/* ─────────────────────────────────────────────────────────────── */
 /* MOCKUP 1 — Premium STB (Sky / Foxtel)                          */
 /* ─────────────────────────────────────────────────────────────── */
 .m1-strip {
@@ -811,6 +997,137 @@ html, body { background: #06080F; color: #E6EAF2;
     <div class="m10-ch-row"><div class="logo purple">D</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">Discovery</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Naked &amp; Afraid</div></div></div>
     <div class="m10-ch-row"><div class="logo orange">E</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">ESPN</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SportsCenter</div></div></div>
     <div class="m10-ch-row"><div class="logo">F</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">FOX News</div><div style="font-size:11px;color:#8B95A7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hannity</div></div></div>
+</div>
+</div>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M11: Channel rail EXPANDED — focused channel reveals timeline   -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m11">
+<div class="video-bg"></div>
+<div class="label">11 · CHANNEL RAIL · EXPANDED</div>
+<div class="m11-hint">▲ <span>UP</span> · PROGRAMMES &nbsp;&nbsp;◀ ▶ <span>LEFT/RIGHT</span> · CHANNELS &nbsp;&nbsp; OK <span>·</span> WATCH</div>
+<div class="m11-rail">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="m11-eyebrow">BBC ONE · CH 042 · UP NEXT &amp; LATER</div>
+        <div class="m11-eyebrow" style="color:#8B95A7;">▲ SCROLL FOR MORE · ⭐ OK SETS REMINDER</div>
+    </div>
+    <div class="m11-timeline-wrap">
+        <div class="m11-time-card now">
+            <span class="m11-now-pill">LIVE NOW</span>
+            <button class="m11-bell">🔔</button>
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">10:00 PM → 11:00 PM · 22 MIN LEFT</div>
+                <div class="m11-time-name">Question Time</div>
+                <div class="m11-time-sub">Live from Manchester · Politics</div>
+            </div>
+        </div>
+        <div class="m11-time-card">
+            <button class="m11-bell set">🔔</button>
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">11:00 PM → 11:30 PM</div>
+                <div class="m11-time-name">Newsnight</div>
+                <div class="m11-time-sub">with Victoria Derbyshire</div>
+            </div>
+        </div>
+        <div class="m11-time-card green">
+            <button class="m11-bell">🔔</button>
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">11:30 PM → 12:00 AM</div>
+                <div class="m11-time-name">Weather</div>
+                <div class="m11-time-sub">UK forecast tonight</div>
+            </div>
+        </div>
+        <div class="m11-time-card purple">
+            <button class="m11-bell">🔔</button>
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">12:00 AM → 1:30 AM</div>
+                <div class="m11-time-name">Imagine</div>
+                <div class="m11-time-sub">Alan Yentob meets Jonas Brothers</div>
+            </div>
+        </div>
+        <div class="m11-time-card orange">
+            <button class="m11-bell">🔔</button>
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">1:30 AM → 2:00 AM</div>
+                <div class="m11-time-name">Click</div>
+                <div class="m11-time-sub">Technology magazine</div>
+            </div>
+        </div>
+        <div class="m11-time-card">
+            <div class="m11-time-overlay">
+                <div class="m11-time-when">2:00 AM → 3:00 AM</div>
+                <div class="m11-time-name">BBC News</div>
+                <div class="m11-time-sub">Around the world</div>
+            </div>
+        </div>
+    </div>
+    <div class="m11-chan-rail">
+        <div class="m11-chan-card"><div class="logo">A</div><div><div class="m11-chan-name">ABC News</div><div class="m11-chan-num">CH 002</div></div></div>
+        <div class="m11-chan-card focus"><div class="logo red">B</div><div><div class="m11-chan-name">BBC One</div><div class="m11-chan-num">CH 042</div></div></div>
+        <div class="m11-chan-card"><div class="logo green">C</div><div><div class="m11-chan-name">CBS</div><div class="m11-chan-num">CH 056</div></div></div>
+        <div class="m11-chan-card"><div class="logo purple">D</div><div><div class="m11-chan-name">Discovery</div><div class="m11-chan-num">CH 088</div></div></div>
+        <div class="m11-chan-card"><div class="logo orange">E</div><div><div class="m11-chan-name">ESPN</div><div class="m11-chan-num">CH 105</div></div></div>
+        <div class="m11-chan-card"><div class="logo">F</div><div><div class="m11-chan-name">FOX News</div><div class="m11-chan-num">CH 142</div></div></div>
+        <div class="m11-chan-card"><div class="logo red">G</div><div><div class="m11-chan-name">HBO</div><div class="m11-chan-num">CH 160</div></div></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M12: Foxtel-style ticker (after pressing OK)                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m12">
+<div class="video-bg"></div>
+<div class="label">12 · FOXTEL-STYLE TICKER (after OK)</div>
+<div class="m12-ticker">
+    <div class="m12-ch-pill">042</div>
+    <div class="m12-logo">B</div>
+    <div class="m12-info">
+        <div class="m12-row1">
+            <span class="m12-channel">BBC One</span>
+            <span class="live-pill">LIVE</span>
+            <span class="m12-cat">NEWS &amp; POLITICS</span>
+        </div>
+        <div class="m12-title">Question Time · Live from Manchester</div>
+        <div class="m12-meta">10:00 PM → 11:00 PM · 22 MIN LEFT · TV-14</div>
+    </div>
+    <div class="m12-next">
+        <div class="m12-next-eb">UP NEXT 11:00 PM</div>
+        <div class="m12-next-t">Newsnight with Victoria Derbyshire</div>
+    </div>
+    <div class="m12-time">22:38</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- M13: Categories drawer (one more press LEFT)                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage" id="m13">
+<div class="video-bg"></div>
+<div class="label">13 · CATEGORIES (◀◀ from rail)</div>
+<div class="m13-drawer">
+    <div class="m11-eyebrow" style="margin-bottom:14px;">CATEGORIES · 163</div>
+    <div class="m13-search">🔍&nbsp;&nbsp;Search channels...</div>
+    <div class="m13-cat focus"><div class="m13-cat-icon">📺</div><div class="m13-cat-name">All Channels</div><div class="m13-cat-count">14,220</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">⭐</div><div class="m13-cat-name">Favourites</div><div class="m13-cat-count">12</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">⏱</div><div class="m13-cat-name">Recently Watched</div><div class="m13-cat-count">8</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">📰</div><div class="m13-cat-name">News</div><div class="m13-cat-count">42</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">⚽</div><div class="m13-cat-name">Sports</div><div class="m13-cat-count">88</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">🎬</div><div class="m13-cat-name">Movies</div><div class="m13-cat-count">156</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">🧒</div><div class="m13-cat-name">Kids</div><div class="m13-cat-count">34</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">🎵</div><div class="m13-cat-name">Music</div><div class="m13-cat-count">18</div></div>
+    <div class="m13-cat"><div class="m13-cat-icon">🌍</div><div class="m13-cat-name">International</div><div class="m13-cat-count">220</div></div>
+</div>
+<!-- faded channel rail behind the drawer to show the flow -->
+<div class="m11-rail m13-rail-faded">
+    <div class="m11-eyebrow">CHANNEL RAIL (DIMMED)</div>
+    <div class="m11-chan-rail">
+        <div class="m11-chan-card"><div class="logo">A</div><div><div class="m11-chan-name">ABC News</div><div class="m11-chan-num">CH 002</div></div></div>
+        <div class="m11-chan-card"><div class="logo red">B</div><div><div class="m11-chan-name">BBC One</div><div class="m11-chan-num">CH 042</div></div></div>
+        <div class="m11-chan-card"><div class="logo green">C</div><div><div class="m11-chan-name">CBS</div><div class="m11-chan-num">CH 056</div></div></div>
+        <div class="m11-chan-card"><div class="logo purple">D</div><div><div class="m11-chan-name">Discovery</div><div class="m11-chan-num">CH 088</div></div></div>
+        <div class="m11-chan-card"><div class="logo orange">E</div><div><div class="m11-chan-name">ESPN</div><div class="m11-chan-num">CH 105</div></div></div>
+    </div>
 </div>
 </div>
 
