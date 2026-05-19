@@ -234,6 +234,36 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.85 — Host menu redesign · Player back-leak fix · Plex+IPTV restored**
+            - 🎨 **`PartyHostControls.jsx` completely redesigned** to
+              match the rest of Vesper's aesthetic.  Replaces the
+              flat utility-bar with a cinematic glass card:
+                  • Cyan-glow neon eyebrow ("HOST CONTROLS")
+                  • 5 vertical icon-tiles (icon top, caption below)
+                  • Focused tile lifts + scales 1.06× with cyan glow
+                  • Background is the same dark glass + 28-px blur
+                    used in the home / detail screens
+                  • Lock state uses a small floating chip in red
+                    instead of crashing through the layout
+              D-pad LEFT/RIGHT navigation is identical to before,
+              OK fires, BACK closes (parent handles).
+            - 🐛 **"Old player behind" fix.**
+              When the host (or guest) pressed BACK to exit the
+              native VLC Activity, the WebView underneath was still
+              mounted on Detail.jsx → user saw a flash of the
+              "duplicate" old-player surface before pressing BACK
+              again.  Detail.jsx now `navigate('/')` immediately
+              after the native VLC handoff fires, so the WebView is
+              already on the home screen by the time VLC quits — no
+              more leak.  (LiveTV intentionally NOT changed; user
+              expects to return to the channel grid.)
+            - 📡 **Server-side**: Plex addon + AU IPTV addon
+              restored to the Contabo backend after the Feb 19
+              migration accidentally dropped them.  All 6 original
+              addons confirmed live.  Auto-seeder now runs on every
+              backend startup to prevent recurrence.
+            - 🆙 APK bumped to **v2.6.85** (versionCode 155).
+
             **v2.6.84 — Live TV: FAST ZAPPING · "Press OK" host hint · 1-second EPG**
             - ⚡ **Live TV channel zap is now ~3× faster.**
               libVLC `:network-caching` for LIVE streams dropped

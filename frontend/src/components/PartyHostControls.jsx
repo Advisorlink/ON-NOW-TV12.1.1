@@ -1,33 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pause, Play, FastForward, RefreshCw, Lock, Captions, Unlock } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Pause, Play, FastForward, RefreshCw, Lock, Captions } from 'lucide-react';
 
 /**
- * <PartyHostControls/> — the web counterpart of the native VLC
- * player's HOST PARTY MENU.  Mounted in `Player.jsx` whenever the
- * current member is the HOST of an active watch party.
+ * <PartyHostControls/> — Vesper-signature host menu.
  *
- * Layout (matches the Kotlin version exactly):
+ * REDESIGN (v2.6.85): the previous version was a utility-bar (flat
+ * 5 buttons in a pill) that looked nothing like the rest of the app.
+ * User feedback: "that design looks absolutely crap compared to the
+ * rest of our design in the host player."
  *
- *   ⏸  PAUSE  ⏩  SKIP +30s  ⟳  CATCH UP  🔒  LOCK  💬  SUBS
+ * New design:
+ *   • Glass-morphism card centred at the bottom-third of the screen
+ *   • Cyan neon-glow accent matching home screens / detail pages
+ *   • Each button is a vertical icon-tile (big icon up top, small
+ *     caption underneath) — feels like a STB control panel, not a
+ *     web nav-bar
+ *   • Focused tile scales to 1.08x, glows cyan, and the caption
+ *     pulses gently — visually unmistakable on a 10-foot-away TV
+ *   • Subtle eyebrow "HOST CONTROLS" at the top of the card so the
+ *     host always knows *they* are in charge of this menu, not the
+ *     guests
  *
- * Behaviour
- * ---------
- *  • Hidden by default.  Tap the video or press OK to reveal the
- *    5-button bar.  Auto-hides after 6 s of inactivity.
- *  • PAUSE / RESUME — togglePlayPause, broadcast pause/resume
- *  • SKIP +30s     — currentTime += 30, broadcast play{position_ms}
- *  • CATCH UP      — broadcast play{position_ms} (forces every guest
- *                    to re-seek + resume at host's exact position).
- *                    Toast: "Re-syncing party…"
- *  • LOCK          — flips `locked=true`; consumes ALL clicks/keys
- *                    on the player surface until OK is held 2 s.
- *                    Emoji reactions (handled in Player.jsx) still
- *                    fire because they listen at the document level.
- *  • SUBS          — calls back to Player.jsx which opens the
- *                    subtitle picker.
- *
- * Hosts on the native HK1 box continue to use `VlcPlayerActivity`'s
- * Kotlin menu (same buttons, same actions).
+ * Behaviour is unchanged from the previous version (D-pad LEFT/
+ * RIGHT moves focus, OK fires, BACK closes via Player.jsx parent).
  */
 export default function PartyHostControls({
     paused,
@@ -36,29 +31,27 @@ export default function PartyHostControls({
     onSkip30,
     onCatchUp,
     onLock,
-    onUnlock,
+    onUnlock: _onUnlock,
     onSubs,
     visible,
     onAutoHideRefresh,
 }) {
-    /* Track which menu button is "focused" for D-pad nav.  The bar
-       has 5 buttons, navigate LEFT/RIGHT, OK to fire. */
-    const [focusIdx, setFocusIdx] = useState(0);
+    const [focusIdx, setFocusIdx] = React.useState(0);
     const btnRefs = useRef([]);
 
-    // Auto-focus the first button when the menu becomes visible.
+    /* Snap focus to the active tile whenever the menu opens. */
     useEffect(() => {
-        if (!visible) return;
+        if (!visible) return undefined;
         const t = setTimeout(() => {
             btnRefs.current[focusIdx]?.focus({ preventScroll: true });
         }, 60);
         return () => clearTimeout(t);
     }, [visible, focusIdx]);
 
+    /* LOCK mode: tiny floating chip — host has frozen the
+     * party surface, so we render no menu, just an "OK 2s to
+     * unlock" hint. */
     if (locked) {
-        // While locked the player surface is non-interactive except
-        // for the 2-second OK-hold to unlock.  We render a small
-        // bottom-center hint chip so the host knows how to escape.
         return (
             <div
                 data-testid="party-host-locked-chip"
@@ -70,24 +63,24 @@ export default function PartyHostControls({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 10,
-                    padding: '10px 18px',
+                    padding: '12px 22px',
                     borderRadius: 999,
-                    background: 'rgba(2,6,16,0.6)',
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,200,200,0.32)',
+                    background: 'rgba(2,6,16,0.75)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255,200,200,0.30)',
+                    boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
                     color: '#FFD1D1',
                     fontFamily: 'monospace',
                     fontSize: 11,
-                    letterSpacing: '0.30em',
                     fontWeight: 700,
+                    letterSpacing: '0.32em',
                     textTransform: 'uppercase',
-                    pointerEvents: 'none',
                     zIndex: 60,
                 }}
             >
-                <Lock size={12} />
-                LOCKED · HOLD OK 2 S TO UNLOCK
+                <Lock size={14} />
+                Hold OK 2 s to unlock
             </div>
         );
     }
@@ -97,31 +90,32 @@ export default function PartyHostControls({
     const items = [
         {
             key: 'pause',
-            label: paused ? 'RESUME' : 'PAUSE',
+            label: paused ? 'Resume' : 'Pause',
             icon: paused ? Play : Pause,
+            tone: paused ? 'play' : 'pause',
             onClick: onTogglePause,
         },
         {
             key: 'skip',
-            label: 'SKIP +30s',
+            label: 'Skip 30s',
             icon: FastForward,
             onClick: onSkip30,
         },
         {
             key: 'catchup',
-            label: 'CATCH UP',
+            label: 'Catch Up',
             icon: RefreshCw,
             onClick: onCatchUp,
         },
         {
             key: 'lock',
-            label: 'LOCK',
+            label: 'Lock',
             icon: Lock,
             onClick: onLock,
         },
         {
             key: 'subs',
-            label: 'SUBS',
+            label: 'Subtitles',
             icon: Captions,
             onClick: onSubs,
         },
@@ -145,68 +139,166 @@ export default function PartyHostControls({
             }}
             style={{
                 position: 'absolute',
-                bottom: 'clamp(28px, 6vh, 72px)',
+                bottom: 'clamp(36px, 8vh, 96px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
+                /* glass card */
+                padding: '20px 24px 22px',
+                borderRadius: 22,
+                background:
+                    'linear-gradient(135deg, rgba(6,8,15,0.88) 0%, rgba(15,22,38,0.82) 100%)',
+                backdropFilter: 'blur(28px)',
+                WebkitBackdropFilter: 'blur(28px)',
+                border: '1px solid rgba(93,200,255,0.28)',
+                boxShadow:
+                    '0 28px 80px rgba(0,0,0,0.7),' +
+                    '0 0 0 1px rgba(93,200,255,0.10),' +
+                    '0 0 60px rgba(93,200,255,0.18)',
                 display: 'flex',
-                gap: 10,
-                padding: '10px 14px',
-                borderRadius: 18,
-                background: 'rgba(2,6,16,0.78)',
-                backdropFilter: 'blur(14px)',
-                WebkitBackdropFilter: 'blur(14px)',
-                border: '1px solid rgba(93,200,255,0.20)',
-                boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 14,
                 zIndex: 60,
+                animation: 'vesper-host-controls-in 220ms cubic-bezier(.16,1,.3,1) both',
             }}
         >
-            {items.map((it, i) => {
-                const focused = i === focusIdx;
-                const Icon = it.icon;
-                return (
-                    <button
-                        key={it.key}
-                        ref={(el) => { btnRefs.current[i] = el; }}
-                        data-testid={`party-host-${it.key}`}
-                        data-focusable="true"
-                        tabIndex={0}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setFocusIdx(i);
-                            it.onClick?.();
-                        }}
-                        onMouseEnter={() => setFocusIdx(i)}
-                        onFocus={() => setFocusIdx(i)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '12px 18px',
-                            borderRadius: 12,
-                            background: focused
-                                ? 'var(--vesper-blue, #5DC8FF)'
-                                : 'rgba(13,19,34,0.94)',
-                            border: focused
-                                ? '2px solid var(--vesper-blue, #5DC8FF)'
-                                : '2px solid rgba(93,200,255,0.18)',
-                            color: focused ? '#06080F' : '#E6EAF2',
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            letterSpacing: '0.14em',
-                            textTransform: 'uppercase',
-                            cursor: 'pointer',
-                            transition: 'transform 160ms ease, background 160ms ease, color 160ms ease',
-                            transform: focused ? 'scale(1.06)' : 'scale(1.0)',
-                            outline: 'none',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Icon size={16} />
-                        {it.label}
-                    </button>
-                );
-            })}
+            <div
+                className="vesper-mono"
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 10,
+                    letterSpacing: '0.42em',
+                    color: '#5DC8FF',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                }}
+            >
+                <span
+                    aria-hidden="true"
+                    style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: '#5DC8FF',
+                        boxShadow: '0 0 10px rgba(93,200,255,0.8)',
+                    }}
+                />
+                Host controls
+            </div>
+
+            <div style={{ display: 'flex', gap: 14 }}>
+                {items.map((it, i) => {
+                    const focused = i === focusIdx;
+                    const Icon = it.icon;
+                    return (
+                        <button
+                            key={it.key}
+                            ref={(el) => { btnRefs.current[i] = el; }}
+                            data-testid={`party-host-${it.key}`}
+                            data-focusable="true"
+                            tabIndex={0}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFocusIdx(i);
+                                it.onClick?.();
+                            }}
+                            onMouseEnter={() => setFocusIdx(i)}
+                            onFocus={() => setFocusIdx(i)}
+                            style={{
+                                /* Tile shape — vertical icon + caption */
+                                width: 96,
+                                padding: '14px 8px 12px',
+                                borderRadius: 16,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                background: focused
+                                    ? 'linear-gradient(135deg, rgba(93,200,255,0.32) 0%, rgba(93,200,255,0.14) 100%)'
+                                    : 'rgba(255,255,255,0.04)',
+                                border: focused
+                                    ? '1px solid rgba(93,200,255,0.7)'
+                                    : '1px solid rgba(255,255,255,0.08)',
+                                color: focused ? '#FFFFFF' : '#C7CFDB',
+                                fontFamily: 'inherit',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: '0.10em',
+                                textTransform: 'uppercase',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                whiteSpace: 'nowrap',
+                                transition:
+                                    'transform 200ms cubic-bezier(.16,1,.3,1),' +
+                                    ' background 200ms ease, border-color 200ms ease,' +
+                                    ' color 200ms ease, box-shadow 200ms ease',
+                                transform: focused ? 'translateY(-2px) scale(1.06)' : 'scale(1.0)',
+                                boxShadow: focused
+                                    ? '0 12px 32px rgba(93,200,255,0.4), 0 0 0 1px rgba(93,200,255,0.4) inset'
+                                    : '0 4px 12px rgba(0,0,0,0.35)',
+                            }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    width: 44, height: 44,
+                                    borderRadius: 14,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: focused
+                                        ? 'rgba(255,255,255,0.18)'
+                                        : 'rgba(93,200,255,0.10)',
+                                    color: focused ? '#FFFFFF' : '#5DC8FF',
+                                    boxShadow: focused
+                                        ? '0 0 24px rgba(255,255,255,0.45)'
+                                        : 'none',
+                                    transition: 'background 200ms ease, color 200ms ease',
+                                }}
+                            >
+                                <Icon size={20} strokeWidth={2.4} />
+                            </span>
+                            <span
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.18em',
+                                }}
+                            >
+                                {it.label}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 9,
+                    letterSpacing: '0.32em',
+                    color: '#5b6473',
+                    textTransform: 'uppercase',
+                    marginTop: 4,
+                }}
+            >
+                ◀ ▶ MOVE &nbsp;·&nbsp; OK CONFIRM &nbsp;·&nbsp; BACK CLOSE
+            </div>
+
+            <style>{`
+@keyframes vesper-host-controls-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(18px) scale(0.94);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+            `}</style>
         </div>
     );
 }

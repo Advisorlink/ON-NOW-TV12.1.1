@@ -925,6 +925,12 @@ export default function Detail() {
             partyDisplayName: _profile.name || 'Guest',
         })) {
             partyBreadcrumb('guest:native-launched', {});
+            /* Same back-leak fix as the host path — navigate the
+             * WebView home so VLC's BACK doesn't reveal the React
+             * surface still mounted underneath. */
+            if (Host.isAndroid) {
+                try { navigate('/'); } catch { /* ignore */ }
+            }
             return;
         }
         // Web fallback
@@ -1250,6 +1256,24 @@ export default function Detail() {
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});
+                /* v2.6.85 — back-leak fix.
+                 *
+                 * Native VLC takes over the surface immediately.  But
+                 * the WebView (with Detail.jsx OR Player.jsx still
+                 * mounted underneath) keeps running — its video el
+                 * even keeps decoding the same stream in software!
+                 * When the host presses BACK to leave VLC, the
+                 * native Activity finishes and the previous WebView
+                 * surface is revealed, briefly flashing the
+                 * "duplicate" old-player UI before the user can hit
+                 * BACK again.
+                 *
+                 * Routing home immediately fixes the leak: by the
+                 * time VLC finishes, the WebView is on the home
+                 * screen and there's nothing to "show behind." */
+                if (Host.isAndroid) {
+                    try { navigate('/'); } catch { /* ignore */ }
+                }
                 return;
             }
             // WebView fallback (preview / non-Android) — keep the
