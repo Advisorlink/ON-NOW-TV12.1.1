@@ -222,7 +222,7 @@ jobs:
         with:
           name: onnowtv-v2-debug.apk
           path: onnowtv-v2-debug.apk
-          retention-days: 30
+          retention-days: 1
 
       - name: Publish/update "apk-latest" Release
         uses: softprops/action-gh-release@v2
