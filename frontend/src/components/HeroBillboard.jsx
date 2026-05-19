@@ -61,12 +61,23 @@ export default function HeroBillboard({ heroes }) {
                 >
                     <div
                         key={`${h.id}-${idx}`}
-                        className={`absolute inset-0 bg-cover bg-center ${
+                        className={`absolute inset-0 bg-cover ${
                             i === idx && !Host.isAndroid && !Host.isLowEnd
                                 ? 'vesper-kenburns'
                                 : ''
                         }`}
-                        style={{ backgroundImage: `url(${img.backdrop(h.backdrop)})` }}
+                        style={{
+                            backgroundImage: `url(${img.backdrop(h.backdrop)})`,
+                            /* v2.6.85 — user feedback: actor heads
+                             * were getting cropped at the top of the
+                             * hero.  Anchoring the background at 30 %
+                             * (rather than the default 50 % / centre)
+                             * keeps the upper third of the image
+                             * visible, so faces sit comfortably below
+                             * the top edge instead of being shaved
+                             * off. */
+                            backgroundPosition: 'center 30%',
+                        }}
                     />
                 </div>
             ))}
@@ -107,7 +118,11 @@ export default function HeroBillboard({ heroes }) {
                     className="relative z-10 max-w-[58vw] vesper-fade-up"
                     style={{
                         paddingLeft: 'clamp(92px, 6.5vw, 132px)',
-                        paddingBottom: 'clamp(48px, 5vw, 96px)',
+                        /* v2.6.85 — reduced bottom padding so the
+                         * eyebrow + title + meta block sits lower in
+                         * the hero, leaving less empty black band
+                         * between the hero and the first shelf. */
+                        paddingBottom: 'clamp(28px, 3.2vw, 64px)',
                     }}
                 >
                     <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>

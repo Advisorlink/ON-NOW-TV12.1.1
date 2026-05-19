@@ -234,7 +234,15 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.6.85 — Host menu redesign · Player back-leak fix · Plex+IPTV restored**
+            **v2.6.85 — Host menu redesign · Player back-leak fix · Hero polish · Plex+IPTV restored**
+            - 🖼️ **Hero billboard tweaks** (user feedback): the
+              backdrop image is now anchored at 30 % from the top
+              instead of dead-centre, so actors' faces stop being
+              shaved off at the top.  The hero text block (eyebrow /
+              title / meta) now sits lower in the hero too — the
+              bottom padding dropped from `clamp(48px, 5vw, 96px)`
+              to `clamp(28px, 3.2vw, 64px)`, closing the empty black
+              band between the hero and the first shelf.
             - 🎨 **`PartyHostControls.jsx` completely redesigned** to
               match the rest of Vesper's aesthetic.  Replaces the
               flat utility-bar with a cinematic glass card:
