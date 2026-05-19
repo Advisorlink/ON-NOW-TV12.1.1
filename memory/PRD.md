@@ -56,6 +56,17 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 117 — Feb 19, 2026) — v2.6.89
+### Bug fix: Home rails no longer blank after a network blip
+
+- **🐛 User report (verbatim):** "When the internet cuts out, I reopen the app, and all of the home screen covers are gone.  But if I go to the Movies section or TV Shows section, all the covers are there and I can play movies fine.  So it's just weird how it all disappeared off the home screen after the internet was cut."
+- **🔬 Root cause:** `useLiveShelves` / `useLiveHeroes` / `useAddons` all ran a stale-while-revalidate refetch after painting from cache.  When the device's internet had dropped, every catalogue fetch threw → `acc` ended up empty → `cache.set(key, acc)` **overwrote the perfectly-good localStorage cache with an empty array**.  Next cold boot the cache returned `[]` and Home painted blank.  Movies / TV tabs use a separate `useTabCatalog` cache with a different key, so they survived — explaining the inconsistency the user saw.
+- **✅ Fix:** all three hooks now snapshot the previous cached value at the top of the effect (`prevShelves` / `prevHeroes` / `prevList`) and refuse to overwrite a populated cache with an empty or much-smaller result.  If the refetch comes back with zero shelves but we previously had some, we **keep the old cache + repaint from it**.  Same guard added to the hero billboard + addons list.
+- **🧪 Verified:** `iteration_33.json` — three-phase Playwright run (cold boot, **/api/addons/** aborted, `/api/addons` fulfilled as `[]`).  In ALL three phases the Home page rendered 4 identical shelves + hero billboard + Upcoming row + 6 cached addons.  Byte-for-byte identical UI before/after a simulated network blackout.
+- **🆙 APK bumped to v2.6.89 (versionCode 159).**
+
+
+
 ## Implemented (Iteration 116 — Feb 19, 2026) — v2.6.88
 ### Upcoming Movies row · Boot notify-list scanner · Electric theme · Torrentio Debrid wiring · "Auto play" rename
 
