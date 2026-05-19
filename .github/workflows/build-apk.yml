@@ -240,6 +240,25 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.77 — Host menu + popcorn artwork ACTUALLY render (ref → state)**
+            - 🐛 **The bug**: in `Player.jsx`, `isPartyHost` was
+              derived from `partyRoleRef.current` — a REF.  React
+              doesn't re-render when a ref's `.current` changes,
+              so after the WS resolved the role the derived flag
+              stayed at `false`.  Net effect: the 5-button menu
+              never mounted, and the popcorn artwork stayed as
+              the (default 'guest') popcorn instead of switching
+              to `host-loading.png` for hosts.
+            - ✅ **Fix**: also keep `partyRoleState` (state) in
+              parallel with the ref.  Every `isPartyHost` /
+              `isPartyGuest` derivation now reads from state →
+              React re-renders → both the host menu AND the host
+              loading artwork appear as designed.
+            - Also cleaned up an orphan JSX block from the v2.6.74
+              edit that was leftover after the old preview ribbon
+              was replaced.
+            - 🆙 APK bumped to **v2.6.77** (versionCode 147).
+
             **v2.6.76 — STRICT no-4K in Watch Together (host buffering fix)**
             - 🚫 **Watch-Together picker now strictly REFUSES 4K
               streams.**  User correctly diagnosed: "I think the

@@ -56,6 +56,24 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 109 — Feb 18, 2026) — v2.6.77
+### THE bug: host menu + popcorn weren't rendering (ref vs state)
+- **🐛 User reported (with growing frustration)**: "The buttons still aren't working. The screen isn't showing on the host party page. That blue popcorn screen is not showing. The player settings aren't working on the host party one — it's still showing the same."
+- **🔬 Root cause (the actual one)**: In `Player.jsx` I had:
+  ```js
+  const partyRoleRef = useRef('guest');
+  const isPartyHost = !!partyCode && partyRoleRef.current === 'host';
+  ```
+  React does NOT re-render when a ref's `.current` mutates. The WS `onopen` handler set `partyRoleRef.current = 'host'` but no re-render fired, so the derived `isPartyHost` flag stayed at its first-render value (`false`). Net effect: the 5-button host menu never mounted, AND the `<PartyStartingScreen role={partyRoleRef.current}>` was always called with `'guest'` even for hosts → popcorn artwork instead of `host-loading.png`.
+- **✅ Fix in `/app/frontend/src/pages/Player.jsx`**:
+  - Added `const [partyRoleState, setPartyRoleState] = useState('guest');` in parallel with the existing ref.
+  - WS `onopen` now calls both `partyRoleRef.current = role` AND `setPartyRoleState(role)`.
+  - `isPartyHost` / `isPartyGuest` / `<PartyStartingScreen role={...}>` all read from `partyRoleState`.
+  - Cleaned up an orphan JSX block (countdown/role/title/etc) left over from the v2.6.74 PartyStartingScreen redesign.
+- **🆙 APK bumped to v2.6.77 (versionCode 147).** Release notes added.
+
+
+
 ## Implemented (Iteration 108 — Feb 18, 2026) — v2.6.76
 ### Watch Together: STRICTLY no 4K (host buffering fix)
 - **🚫 User diagnosed**: "I think the buffering on the host's side is because we might be choosing a 4K stream. We do need to make sure it's only 1080p — never 4K."

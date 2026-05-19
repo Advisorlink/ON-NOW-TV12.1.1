@@ -491,6 +491,14 @@ export default function Player() {
     //     normal HLS buffering jitter.
     // -----------------------------------------------------------------
     const partyRoleRef = useRef('guest');
+    // v2.6.77: also track partyRole as STATE so React re-renders
+    // when we learn the role.  The ref alone doesn't trigger a
+    // re-render → the derived `isPartyHost` / `isPartyGuest` flags
+    // were stuck at `false` after first render, which meant the
+    // host menu never mounted AND the popcorn artwork stayed as
+    // the (default 'guest') popcorn instead of switching to the
+    // host-loading.png for hosts.
+    const [partyRoleState, setPartyRoleState] = useState('guest');
     const partyMemberIdRef = useRef('');
     const partyWsRef = useRef(null);
     const partyArmedRef = useRef(false);   // ignore the first 'play' that we
@@ -562,6 +570,7 @@ export default function Player() {
             memberId = sessionStorage.getItem('vesper-party-member-id') || '';
         } catch { /* private mode */ }
         partyRoleRef.current = role;
+        setPartyRoleState(role);
         partyMemberIdRef.current = memberId;
 
         const wsBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
@@ -904,9 +913,9 @@ export default function Player() {
     const [hostLocked, setHostLocked] = useState(false);
     const hostMenuTimerRef = useRef(null);
     const hostUnlockTimerRef = useRef(null);
-    const partyRole = partyRoleRef.current; // closure-friendly snapshot
-    const isPartyHost = !!partyCode && partyRoleRef.current === 'host';
-    const isPartyGuest = !!partyCode && partyRoleRef.current === 'guest';
+    const partyRole = partyRoleState; // re-renders when WS sets the role
+    const isPartyHost = !!partyCode && partyRoleState === 'host';
+    const isPartyGuest = !!partyCode && partyRoleState === 'guest';
 
     const refreshHostMenuAutoHide = useCallback(() => {
         if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
@@ -1165,12 +1174,8 @@ export default function Player() {
             <PartyStartingScreen
                 visible={partyTakeoverVisible}
                 phase={partyPhase}
-                countdown={partyCountdown}
-                role={partyRoleRef.current}
                 partyCode={partyCode}
-                title={title}
-                previewMeta={previewMeta}
-                members={partyMembers}
+                role={partyRoleState}
             />
 
             {/* Watch-party floating emoji reactions overlay.  Sits
