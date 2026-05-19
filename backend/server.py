@@ -1643,6 +1643,78 @@ async def tmdb_trending(
     return {"cached": False, "data": out}
 
 
+@api.get("/tmdb/party-picks")
+async def tmdb_party_picks(limit: int = Query(5, ge=1, le=12)):
+    """Curated "What do you want to watch?" picks for the Watch
+    Together host stage.  Returns the latest theatrical / now-playing
+    movies filtered down to titles with `vote_average >= 6.0` so the
+    host always sees something worth picking.  Per user spec
+    (v2.6.75): "Top 5 new release movies with over a 6 rating."
+
+    Cached 30 min — TMDB now_playing rotates roughly weekly but we
+    refresh more often so the user sees new releases promptly.
+    """
+    cache_key = f"tmdb_party_picks:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+    # Pull a couple of pages so we have enough candidates after the
+    # rating filter knocks out the duds.  TMDB returns ~20/page.
+    raw: List[Dict[str, Any]] = []
+    for page in (1, 2):
+        data = await _tmdb_get("/movie/now_playing", params={"page": page})
+        raw.extend(data.get("results") or [])
+        if len(raw) >= limit * 6:
+            break
+    # Filter + dedupe + rank
+    seen: set = set()
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        if not item.get("poster_path"):
+            continue
+        rating = item.get("vote_average")
+        if not isinstance(rating, (int, float)) or rating < 6.0:
+            continue
+        # Skip titles with too few votes — TMDB's "vote_average" for a
+        # day-1 release with 12 votes isn't reliable.  >= 40 keeps the
+        # bar reasonable without being too strict.
+        votes = item.get("vote_count") or 0
+        if votes < 40:
+            continue
+        tmdb_id = item.get("id")
+        if tmdb_id in seen:
+            continue
+        seen.add(tmdb_id)
+        rel = item.get("release_date") or ""
+        out.append({
+            "tmdb_id": tmdb_id,
+            "type": "movie",
+            "title": item.get("title") or item.get("name") or "",
+            "poster": (
+                f"{TMDB_IMG}/w500{item['poster_path']}"
+                if item.get("poster_path") else None
+            ),
+            "backdrop": (
+                f"{TMDB_IMG}/original{item['backdrop_path']}"
+                if item.get("backdrop_path") else None
+            ),
+            "year": rel[:4] if rel else "",
+            "rating": round(rating, 1),
+            "synopsis": item.get("overview") or "",
+        })
+    # Sort by rating then vote count so the very best top the list.
+    out.sort(
+        key=lambda x: (
+            x.get("rating") or 0,
+            -len(x.get("synopsis") or ""),
+        ),
+        reverse=True,
+    )
+    out = out[:limit]
+    await cache.set(cache_key, out, 1800)
+    return {"cached": False, "data": out}
+
+
 @api.get("/tmdb/genres/{media}")
 async def tmdb_genres(media: str):
     """Return the TMDB master genre list for movies or TV.

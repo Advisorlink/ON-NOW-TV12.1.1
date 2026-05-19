@@ -240,6 +240,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.75 — Host menu in web player · Top 5 movie picks**
+            - 🎛 **HOST 5-button menu now in the WEB player.**  Port
+              of the native Kotlin party menu so hosts on phones
+              and the web preview see the SAME controls as on the
+              HK1 box: Pause · Skip +30s · Catch Up · Lock · Subs.
+              Click video → menu appears.  Auto-hides 6 s.  Locked
+              state freezes the player surface until Hold-OK-2s
+              unlocks.  Legacy `PlayerOverlay` (Subtitles / Audio /
+              Speed / Aspect strip) is now hidden whenever a party
+              code is in the URL, so the host never sees the wrong
+              control bar.
+            - 🎬 **"What do you want to watch?" Top-5 movie row.**
+              New `/api/tmdb/party-picks` endpoint returns the
+              latest theatrical releases filtered to `vote_average
+              >= 6.0` AND `vote_count >= 40`.  Top 5 are rendered
+              as poster cards on the host's pick stage UNDER the
+              search box.  Keyboard is hidden by default — only
+              appears when the user clicks the search input.  Click
+              a poster → party launches with that movie, zero
+              typing required.
+            - 🆙 APK bumped to **v2.6.75** (versionCode 145).
+
             **v2.6.74 — Unified popcorn artwork · WS auto-reconnect · 200 ms emoji rate**
             - 🎬 **No more loading screen between popcorn and play.**
               The host's loading PNG and the guest's popcorn JPG now

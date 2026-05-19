@@ -56,6 +56,34 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 107 — Feb 18, 2026) — v2.6.75
+### Host menu ported to web player · Top 5 movie quick-picks on pick stage
+- **🎛 5-button host menu in the WEB Player.jsx** (`/app/frontend/src/components/PartyHostControls.jsx`)
+  - **User feedback**: "Make sure the buttons and everything are the same on phone and box and everything."
+  - **✅ Implementation**:
+    - New `PartyHostControls` component matches the native Kotlin layout exactly: `⏸ PAUSE · ⏩ SKIP +30s · ⟳ CATCH UP · 🔒 LOCK · 💬 SUBS`.
+    - Click video (or press OK) → menu reveals at bottom-center. Auto-hides after 6 s. Refreshes timer on any in-menu interaction.
+    - **Pause/Resume**: toggles `videoRef.pause()/play()`, broadcasts `pause`/`resume`.
+    - **Skip +30s**: `currentTime += 30`, broadcasts `play{position_ms}` so guests follow.
+    - **Catch Up**: broadcasts `play{position_ms}` with current time, sonner toast "Re-syncing party…".
+    - **Lock**: flips a `hostLocked` flag; player surface becomes `pointer-events:none`, document-level keydown listener watches for Enter/Space hold ≥ 2 s to unlock.
+    - **Subs**: opens the existing subtitle picker.
+    - The legacy `PlayerOverlay` (Subtitles/Audio/Speed/Aspect strip) is now suppressed whenever `partyCode` is set — guests get nothing (view-only; tap → subtitle picker only), hosts get the new menu.
+
+- **🎬 Top 5 movie quick-picks** on the host pick stage
+  - **User feedback**: "Top 5 new release movies that have come over a 6 rating. Shown beside / underneath where you choose what to watch. Show 'What do you want to watch?' without the keyboard, and the movies underneath. When they click on something, that's when the keyboard pops up."
+  - **✅ Backend** (`/api/tmdb/party-picks?limit=5`): Pulls `/movie/now_playing` (pages 1+2), filters to `vote_average ≥ 6.0` AND `vote_count ≥ 40` (to prevent day-1 12-vote inflated scores), sorts by rating then synopsis quality, returns top 5 with `poster`, `backdrop`, `year`, `rating`, `synopsis`. Cached 30 min. Tested live: returned 5 movies all rated 8.5+.
+  - **✅ Frontend** (`MoviePicker` in `WatchTogether.jsx`):
+    - `keyboardOpen` state, defaults to `false`. Search input wrapper is now a click target — clicking opens the keyboard.
+    - `picks` state fetched on mount, rendered as a horizontal row of 5 poster cards (170 px wide, 2:3 aspect) when `!keyboardOpen && !q` (i.e. user hasn't started typing).
+    - Clicking a quick-pick calls `onPick({tmdb_id, media_type:'movie', title, poster, year})` — same code path as a normal search-result click. Zero typing required.
+    - Each card shows the rating in a top-left gold chip (`★ 8.5`).
+
+- **🆙 APK bumped to v2.6.75 (versionCode 145).** Release notes added.
+- **🧪 Regression**: 16/16 watch-party backend tests pass. Frontend lint clean.
+
+
+
 ## Implemented (Iteration 106 — Feb 18, 2026) — v2.6.74
 ### Unified popcorn artwork · WS auto-reconnect · 200 ms emoji rate
 - **🎬 Unified popcorn/host artwork across the entire join → play flow**

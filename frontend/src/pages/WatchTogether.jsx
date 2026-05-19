@@ -619,11 +619,32 @@ function MoviePicker({ onPick }) {
     const [results, setResults] = useState([]);
     const [busy, setBusy] = useState(false);
     const [searched, setSearched] = useState(false);
+    /* v2.6.75: "What do you want to watch?" — show the keyboard
+       only when the user explicitly engages the search input.  By
+       default we show top 5 new release movies (rating ≥ 6) so the
+       host can pick something without typing anything. */
+    const [keyboardOpen, setKeyboardOpen] = useState(false);
+    const [picks, setPicks] = useState([]);
+    const [picksBusy, setPicksBusy] = useState(true);
     /* When the host taps a TV result we don't broadcast the pick
        immediately — we open an in-line season+episode picker first
        so the whole party autoplays the SAME episode.  Movies skip
        this step entirely. */
     const [pendingShow, setPendingShow] = useState(null);
+
+    useEffect(() => {
+        let cancel = false;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/tmdb/party-picks?limit=5`);
+                const j = await r.json();
+                if (!cancel) setPicks(Array.isArray(j?.data) ? j.data : []);
+            } catch { if (!cancel) setPicks([]); }
+            finally { if (!cancel) setPicksBusy(false); }
+        })();
+        return () => { cancel = true; };
+    }, []);
+
     const submit = async () => {
         if (q.trim().length < 2) return;
         setBusy(true);
@@ -708,6 +729,16 @@ function MoviePicker({ onPick }) {
                         <div
                             data-testid="party-search-input-wrap"
                             className="flex items-center gap-3"
+                            role="button"
+                            tabIndex={0}
+                            data-focusable="true"
+                            onClick={() => setKeyboardOpen(true)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setKeyboardOpen(true);
+                                }
+                            }}
                             style={{
                                 width: '100%', maxWidth: 560, height: 52, padding: '0 20px',
                                 borderRadius: 999,
@@ -715,6 +746,7 @@ function MoviePicker({ onPick }) {
                                 border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
                                 boxShadow: '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
                                 marginTop: 2,
+                                cursor: 'pointer',
                             }}
                         >
                             <SearchIcon size={18} strokeWidth={2} color="var(--vesper-blue-bright)" />
@@ -728,19 +760,171 @@ function MoviePicker({ onPick }) {
                                 }}
                             >
                                 {q || 'Title, actor, keyword…'}
-                                <span aria-hidden="true" style={{
-                                    display: 'inline-block', width: 2, height: 18, marginLeft: 4,
-                                    verticalAlign: 'middle', background: 'var(--vesper-blue-bright)',
-                                    animation: 'vesperPulse 1100ms infinite', borderRadius: 1,
-                                }} />
+                                {keyboardOpen && (
+                                    <span aria-hidden="true" style={{
+                                        display: 'inline-block', width: 2, height: 18, marginLeft: 4,
+                                        verticalAlign: 'middle', background: 'var(--vesper-blue-bright)',
+                                        animation: 'vesperPulse 1100ms infinite', borderRadius: 1,
+                                    }} />
+                                )}
                             </div>
                             <span className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: 'var(--vesper-text-3)', textTransform: 'uppercase' }}>
                                 {q.length}/60
                             </span>
                         </div>
-                        <div style={{ marginTop: 2, width: '100%', maxWidth: 720 }}>
-                            <TVKeyboard value={q} onChange={(v) => { setQ(v); if (searched) setSearched(false); }} onSubmit={submit} maxLength={60} variant="name" />
-                        </div>
+                        {/* v2.6.75: keyboard hidden until the user
+                            taps the search input.  Saves a ton of
+                            real estate for the Top 5 movies rail
+                            below. */}
+                        {keyboardOpen && (
+                            <div style={{ marginTop: 2, width: '100%', maxWidth: 720 }}>
+                                <TVKeyboard
+                                    value={q}
+                                    onChange={(v) => { setQ(v); if (searched) setSearched(false); }}
+                                    onSubmit={submit}
+                                    maxLength={60}
+                                    variant="name"
+                                />
+                            </div>
+                        )}
+                        {/* v2.6.75: Top 5 new release movies rail.
+                            Hidden while the user is actively typing
+                            (keyboardOpen + non-empty query) or while
+                            search results are showing.  All titles
+                            have vote_average ≥ 6 + 40+ votes — the
+                            backend filters this. */}
+                        {!keyboardOpen && !q && (
+                            <div style={{ marginTop: 18, width: '100%', maxWidth: 1100 }}>
+                                <div
+                                    className="vesper-mono"
+                                    style={{
+                                        fontSize: 10,
+                                        letterSpacing: '0.32em',
+                                        textTransform: 'uppercase',
+                                        color: 'var(--vesper-text-3)',
+                                        textAlign: 'center',
+                                        marginBottom: 14,
+                                    }}
+                                >
+                                    Or jump straight in · This week's top picks
+                                </div>
+                                {picksBusy ? (
+                                    <div className="flex items-center justify-center gap-2" style={{ color: 'var(--vesper-text-3)' }}>
+                                        <Loader2 className="vesper-spin" size={14} />
+                                        <span style={{ fontSize: 12 }}>Loading top picks…</span>
+                                    </div>
+                                ) : picks.length > 0 ? (
+                                    <div
+                                        className="flex"
+                                        style={{
+                                            gap: 16,
+                                            justifyContent: 'center',
+                                            flexWrap: 'wrap',
+                                        }}
+                                    >
+                                        {picks.map((p) => (
+                                            <button
+                                                key={p.tmdb_id}
+                                                data-testid={`party-quickpick-${p.tmdb_id}`}
+                                                data-focusable="true"
+                                                tabIndex={0}
+                                                onClick={() => onPick({
+                                                    tmdb_id: String(p.tmdb_id),
+                                                    media_type: 'movie',
+                                                    title: p.title,
+                                                    poster: p.poster,
+                                                    year: p.year || '',
+                                                })}
+                                                style={{
+                                                    width: 170,
+                                                    border: 'none',
+                                                    background: 'transparent',
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'flex-start',
+                                                    gap: 8,
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        width: '100%',
+                                                        aspectRatio: '2 / 3',
+                                                        borderRadius: 12,
+                                                        overflow: 'hidden',
+                                                        background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
+                                                        border: '1px solid rgba(255,255,255,0.10)',
+                                                        position: 'relative',
+                                                        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                                                        transition: 'transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease',
+                                                    }}
+                                                >
+                                                    {p.poster && (
+                                                        <img
+                                                            src={p.poster}
+                                                            alt={p.title}
+                                                            loading="lazy"
+                                                            style={{
+                                                                position: 'absolute',
+                                                                inset: 0,
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                objectFit: 'cover',
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <div
+                                                        className="vesper-mono"
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: 8, left: 8,
+                                                            padding: '4px 8px',
+                                                            borderRadius: 999,
+                                                            background: 'rgba(2,6,16,0.72)',
+                                                            backdropFilter: 'blur(8px)',
+                                                            fontSize: 10,
+                                                            letterSpacing: '0.18em',
+                                                            color: '#FFD86B',
+                                                            fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        ★ {p.rating}
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    className="vesper-display"
+                                                    style={{
+                                                        fontSize: 14,
+                                                        fontWeight: 700,
+                                                        letterSpacing: '-0.01em',
+                                                        color: 'var(--vesper-text)',
+                                                        textAlign: 'left',
+                                                        width: '100%',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {p.title}
+                                                </div>
+                                                <div
+                                                    className="vesper-mono"
+                                                    style={{
+                                                        fontSize: 10,
+                                                        letterSpacing: '0.18em',
+                                                        textTransform: 'uppercase',
+                                                        color: 'var(--vesper-text-3)',
+                                                    }}
+                                                >
+                                                    {p.year}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

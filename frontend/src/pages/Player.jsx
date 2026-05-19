@@ -17,6 +17,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
 import PartyReactions from '@/components/PartyReactions';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
+import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
@@ -888,6 +889,183 @@ export default function Player() {
         try { v.currentTime = Math.max(0, sec); } catch { /* ignore */ }
     }, []);
 
+    /* ---------------------------------------------------------------
+     * HOST PARTY MENU (web-only) — v2.6.75
+     *
+     * Native Kotlin player has its own 5-button menu in
+     * VlcPlayerActivity.kt; this is the JS counterpart so guests on
+     * phones / hosts on the web preview get the SAME controls.
+     *
+     * `hostMenuVisible` flips on tap / OK and auto-hides after 6 s.
+     * `hostLocked` consumes all player surface interactions until
+     * the user holds OK for 2 s.
+     * ------------------------------------------------------------- */
+    const [hostMenuVisible, setHostMenuVisible] = useState(false);
+    const [hostLocked, setHostLocked] = useState(false);
+    const hostMenuTimerRef = useRef(null);
+    const hostUnlockTimerRef = useRef(null);
+    const partyRole = partyRoleRef.current; // closure-friendly snapshot
+    const isPartyHost = !!partyCode && partyRoleRef.current === 'host';
+    const isPartyGuest = !!partyCode && partyRoleRef.current === 'guest';
+
+    const refreshHostMenuAutoHide = useCallback(() => {
+        if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
+        hostMenuTimerRef.current = setTimeout(() => {
+            setHostMenuVisible(false);
+        }, 6_000);
+    }, []);
+
+    const openHostMenu = useCallback(() => {
+        setHostMenuVisible(true);
+        refreshHostMenuAutoHide();
+    }, [refreshHostMenuAutoHide]);
+
+    const closeHostMenu = useCallback(() => {
+        setHostMenuVisible(false);
+        if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
+    }, []);
+
+    const sendPartyWs = useCallback((payload) => {
+        const ws = partyWsRef.current;
+        if (ws && ws.readyState === 1) {
+            try { ws.send(JSON.stringify(payload)); } catch { /* ignore */ }
+        }
+    }, []);
+
+    /* Host menu actions — mirror Kotlin handleHostMenuPick() exactly. */
+    const onHostTogglePause = useCallback(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        if (v.paused) {
+            v.play().catch(() => {});
+            sendPartyWs({
+                type: 'resume',
+                position_ms: Math.floor((v.currentTime || 0) * 1000),
+                lead_ms: 800,
+            });
+        } else {
+            v.pause();
+            sendPartyWs({
+                type: 'pause',
+                position_ms: Math.floor((v.currentTime || 0) * 1000),
+            });
+        }
+        closeHostMenu();
+    }, [sendPartyWs, closeHostMenu]);
+
+    const onHostSkip30 = useCallback(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        const dur = v.duration || 0;
+        const target = Math.min((v.currentTime || 0) + 30, Math.max(dur - 2, 0));
+        try { v.currentTime = target; } catch { /* ignore */ }
+        sendPartyWs({
+            type: 'play',
+            position_ms: Math.floor(target * 1000),
+            lead_ms: 1200,
+        });
+        closeHostMenu();
+    }, [sendPartyWs, closeHostMenu]);
+
+    const onHostCatchUp = useCallback(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        sendPartyWs({
+            type: 'play',
+            position_ms: Math.floor((v.currentTime || 0) * 1000),
+            lead_ms: 1500,
+        });
+        closeHostMenu();
+        try {
+            import('sonner').then(({ toast }) => {
+                toast.success('Re-syncing party…');
+            });
+        } catch { /* sonner not loaded */ }
+    }, [sendPartyWs, closeHostMenu]);
+
+    const onHostLock = useCallback(() => {
+        setHostLocked(true);
+        closeHostMenu();
+        try {
+            import('sonner').then(({ toast }) => {
+                toast.info('Locked — hold OK 2 s to unlock');
+            });
+        } catch { /* sonner not loaded */ }
+    }, [closeHostMenu]);
+
+    const onHostSubs = useCallback(() => {
+        setPickerOpen(true);
+        closeHostMenu();
+    }, [closeHostMenu]);
+
+    /* While locked, document-level Enter/Space hold for 2 s unlocks
+       the host's screen.  We track press start time and clear on
+       release / unlock. */
+    useEffect(() => {
+        if (!hostLocked) return undefined;
+        let holdStart = 0;
+        const onDown = (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.repeat) return;
+            holdStart = Date.now();
+            // After 2 s of continuous hold, unlock.
+            hostUnlockTimerRef.current = setTimeout(() => {
+                if (holdStart > 0) {
+                    setHostLocked(false);
+                    try {
+                        import('sonner').then(({ toast }) => {
+                            toast.success('Screen unlocked');
+                        });
+                    } catch { /* ignore */ }
+                }
+            }, 2_000);
+        };
+        const onUp = (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            holdStart = 0;
+            if (hostUnlockTimerRef.current) {
+                clearTimeout(hostUnlockTimerRef.current);
+                hostUnlockTimerRef.current = null;
+            }
+        };
+        // Use CAPTURE so we run before the spatial-focus engine and
+        // any other listeners — preventing focus from moving while
+        // we're holding for unlock.
+        document.addEventListener('keydown', onDown, true);
+        document.addEventListener('keyup', onUp, true);
+        return () => {
+            document.removeEventListener('keydown', onDown, true);
+            document.removeEventListener('keyup', onUp, true);
+            if (hostUnlockTimerRef.current) clearTimeout(hostUnlockTimerRef.current);
+        };
+    }, [hostLocked]);
+
+    /* Cleanup the auto-hide timer on unmount. */
+    useEffect(() => () => {
+        if (hostMenuTimerRef.current) clearTimeout(hostMenuTimerRef.current);
+        if (hostUnlockTimerRef.current) clearTimeout(hostUnlockTimerRef.current);
+    }, []);
+
+    /* Click on the video while in party-host mode opens the menu
+       (or closes it if already open).  Replaces the default
+       handlePlayPause behaviour for hosts.  Guests get NOTHING —
+       view-only; only emoji reactions (handled at document level)
+       and subtitle tap work. */
+    const handleVideoClick = useCallback(() => {
+        if (hostLocked) return;
+        if (isPartyHost) {
+            if (hostMenuVisible) closeHostMenu();
+            else openHostMenu();
+            return;
+        }
+        if (isPartyGuest) {
+            // Guest tap → open subtitles picker only.
+            setPickerOpen(true);
+            return;
+        }
+        handlePlayPause();
+    }, [hostLocked, isPartyHost, isPartyGuest, hostMenuVisible, openHostMenu, closeHostMenu, handlePlayPause]);
+
     if (!url) {
         return (
             <CenterMsg>
@@ -926,9 +1104,12 @@ export default function Player() {
                 data-testid="player-video"
                 playsInline
                 crossOrigin="anonymous"
-                onClick={handlePlayPause}
+                onClick={handleVideoClick}
                 className="absolute inset-0 w-full h-full object-contain"
-                style={{ cursor: 'pointer' }}
+                style={{
+                    cursor: hostLocked ? 'not-allowed' : 'pointer',
+                    pointerEvents: hostLocked ? 'none' : 'auto',
+                }}
             />
 
             {/* Premium movie playback overlay — replaces the
@@ -938,8 +1119,10 @@ export default function Player() {
                 Auto-hides with the rest of the chrome during
                 playback, always visible while paused.  Suppressed
                 during the party takeover and during the loading
-                preview. */}
-            {!partyTakeoverVisible && !showPreview && (
+                preview.  Also suppressed when the current member
+                is a HOST or GUEST of a watch party (the dedicated
+                PartyHostControls / view-only mode handles UI). */}
+            {!partyTakeoverVisible && !showPreview && !partyCode && (
                 <PlayerOverlay
                     visible={chromeVisible || pickerOpen}
                     paused={vidPaused}
@@ -951,6 +1134,26 @@ export default function Player() {
                     onPlayPause={handlePlayPause}
                     onSeek={handleSeekRel}
                     onSeekTo={handleSeekAbs}
+                />
+            )}
+
+            {/* HOST PARTY CONTROLS — the 5-button menu (Pause / Skip /
+                Catch Up / Lock / Subs) that mirrors the native Kotlin
+                player.  Hidden by default; tap video or press OK to
+                reveal.  Auto-hides after 6 s.  Locked state freezes
+                the player surface until Hold-OK-2s unlocks. */}
+            {isPartyHost && !partyTakeoverVisible && (
+                <PartyHostControls
+                    paused={vidPaused}
+                    locked={hostLocked}
+                    visible={hostMenuVisible}
+                    onTogglePause={onHostTogglePause}
+                    onSkip30={onHostSkip30}
+                    onCatchUp={onHostCatchUp}
+                    onLock={onHostLock}
+                    onUnlock={() => setHostLocked(false)}
+                    onSubs={onHostSubs}
+                    onAutoHideRefresh={refreshHostMenuAutoHide}
                 />
             )}
 
