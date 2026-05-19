@@ -154,46 +154,84 @@ function buildIndex(providerId) {
     const chans = loadChannels(providerId) || {};
     const epg = loadEpg(providerId) || {};
 
+    /* Detect sport-flavoured CATEGORIES.  Cover the obvious "Sport"
+     * label plus the league-specific buckets the user's provider
+     * actually has: EPL, Formula One, F1 Replays, La Liga Replays,
+     * Rugby-Pass, Motorsports Events, FOX/KAYO SPORTS, etc.
+     * Regex is case-insensitive so we hit "UK | Sports", "USA |
+     * SPORTS", "STAN Sports", "PEACOCK SPORT" etc. */
+    const SPORT_CAT_RX =
+        /sport|football|soccer|rugby|cricket|tennis|golf|formula|f1|motorsport|nfl|nba|nrl|afl|epl|la liga|laliga|bundesliga|serie a|ipl|kayo|fubo|espn|wwe|ufc|boxing|mma|hockey|baseball|peacock/i;
+
     const sportsCatIds = new Set(
-        cats.filter((c) => /sport/i.test(c.category_name || '')).map((c) => String(c.category_id)),
+        cats
+            .filter((c) => SPORT_CAT_RX.test(c.category_name || ''))
+            .map((c) => String(c.category_id)),
     );
 
-    const channelLookup = new Map();
+    /* Channel detection — keyed by EPG_CHANNEL_ID so we can join
+     * straight against the EPG map.  Also keep stream_id around so
+     * the consumer (SportsGuide) can resolve playback URLs.
+     *
+     * BUG FIX (v2.6.91): the previous version keyed channelLookup
+     * by stream_id, but the EPG map is keyed by epg_channel_id —
+     * the join never matched and the matcher returned [] every
+     * time.  This was the root cause of "no Watch On channels"
+     * the user has been seeing for weeks. */
+    const CHAN_NAME_RX =
+        /\bsport|sports?\b|\befl\b|\bepl\b|\bnfl\b|\bnba\b|\bnrl\b|\bafl\b|\bmlb\b|\bnhl\b|\bipl\b|\bf1\b|formula\s?1|cricket|rugby|tennis|golf|premier\s+league|la\s+liga|bundesliga|serie\s+a|champions\s+league|europa\s+league|kayo|espn|tnt\s+sport|sky\s+sport|bein|fubo|peacock|fox\s+sport|fox\s+league|nbc\s+sport|optus\s+sport/i;
+
+    const epgIdToChannels = new Map(); // epg_channel_id → [{ stream_id, name, icon }, …]
     for (const catId in chans) {
-        if (!sportsCatIds.has(String(catId))) continue;
+        const isSportCat = sportsCatIds.has(String(catId));
         for (const ch of (chans[catId] || [])) {
-            channelLookup.set(String(ch.stream_id), {
-                name: ch.name || '',
+            const name = ch.name || '';
+            const looksSporty = isSportCat || CHAN_NAME_RX.test(name);
+            if (!looksSporty) continue;
+            const epgId = ch.epg_channel_id;
+            if (!epgId) continue;
+            if (!epgIdToChannels.has(epgId)) epgIdToChannels.set(epgId, []);
+            epgIdToChannels.get(epgId).push({
+                stream_id: String(ch.stream_id),
+                name,
                 icon: ch.stream_icon || '',
             });
         }
     }
 
-    /* Flat index: list of { streamId, channelName, icon, startTs,
-     * stopTs, title, _tokens, _haystack } where `_haystack` is the
-     * full lowercase `title + ' ' + description` string we'll run
-     * substring queries against. */
+    /* Flat index keyed by EPG entries.  One EPG entry can map to
+     * MULTIPLE channels (FHD / HD / SD / 50fps variants share the
+     * same epg_channel_id), so we explode each entry per channel
+     * variant — the de-dupe-by-channel step in `matchFixture` keeps
+     * the final list clean while still surfacing every variant on
+     * the user's box.  Earlier behaviour dropped duplicates here
+     * which meant the user only saw 1 of 3 quality variants. */
     const idx = [];
-    for (const sid in epg) {
-        const meta = channelLookup.get(String(sid));
-        if (!meta) continue;
-        for (const it of (epg[sid] || [])) {
+    for (const epgId in epg) {
+        const channelList = epgIdToChannels.get(epgId);
+        if (!channelList || channelList.length === 0) continue;
+        for (const it of (epg[epgId] || [])) {
             const start = Number(it.startTimestamp) || 0;
             const stop = Number(it.stopTimestamp) || 0;
             if (!start) continue;
             const title = it.title || '';
-            const desc = it.description || '';
+            const desc = it.description || it.desc || '';
             const blob = `${title} ${desc}`.toLowerCase();
-            idx.push({
-                streamId: sid,
-                channelName: meta.name,
-                channelIcon: meta.icon,
-                title,
-                startTs: start,
-                stopTs: stop,
-                _tokens: tokens(blob),
-                _haystack: ` ${blob} `, // pad so word boundaries work at ends
-            });
+            const _tokens = tokens(blob);
+            const _haystack = ` ${blob} `;
+            for (const ch of channelList) {
+                idx.push({
+                    streamId: ch.stream_id,
+                    channelName: ch.name,
+                    channelIcon: ch.icon,
+                    epgChannelId: epgId,
+                    title,
+                    startTs: start,
+                    stopTs: stop,
+                    _tokens,
+                    _haystack,
+                });
+            }
         }
     }
     cachedIndex = idx;
@@ -286,6 +324,7 @@ export function matchFixture(providerId, fixture, { limit = 6, windowSec = 10800
             streamId: e.streamId,
             channelName: e.channelName,
             channelIcon: e.channelIcon,
+            epgChannelId: e.epgChannelId,
             epgTitle: e.title,
             startTs: e.startTs,
             stopTs: e.stopTs,
@@ -294,12 +333,19 @@ export function matchFixture(providerId, fixture, { limit = 6, windowSec = 10800
     }
 
     hits.sort((a, b) => b.score - a.score);
-    // De-dupe by channel; keep best score per channel.
+    /* De-dupe by EPG-channel-id (groups together "Sky Sports
+     * Premier League FHD/HD/SD/50fps" variants — same channel
+     * logically, just different quality streams).  We keep the
+     * highest-scoring variant per logical channel so the user sees
+     * up to `limit` DISTINCT channels broadcasting the fixture.
+     * The streamId of the kept variant is the one the SportsGuide
+     * "Watch on" click handler resolves to a playback URL. */
     const seen = new Set();
     const out = [];
     for (const h of hits) {
-        if (seen.has(h.streamId)) continue;
-        seen.add(h.streamId);
+        const dedupKey = h.epgChannelId || h.streamId;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
         out.push(h);
         if (out.length >= limit) break;
     }

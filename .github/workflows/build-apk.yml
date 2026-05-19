@@ -228,6 +228,50 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.91 — 🏈 Sports guide channel mapping FIXED · Vesper theme removed**
+            - 🔧 **ROOT-CAUSE BUG: sportsMatch never returned hits.**
+              The EPG map is keyed by `epg_channel_id` (e.g.
+              `skysportspremierleague.uk`) but the channel lookup
+              table was keyed by `stream_id` — the join always
+              missed, so the matcher's index ended up empty and
+              **every fixture returned zero "Watch on" channels.**
+              This was THE underlying reason the user has been
+              seeing "Not on any of your channels yet" on cards
+              they definitely had Sky Sports / TNT Sport for.
+            - ✅ **Fix**: rebuilt the index keyed by epg_channel_id,
+              with the channel's stream_id stored alongside for
+              playback resolution.  Verified end-to-end against
+              the user's real Xtream bundle (805 sport channels,
+              2,330 EPG channels, 27,870 EPG×channel entries):
+                • Manchester United v Bournemouth → 6 channels
+                  (Sky Sports Premier League scored 203).
+                • Buffalo Bills v Atlanta Falcons → 2 channels
+                  (Sky Sports Action/NFL scored 198).
+                • Punjab Kings v Mumbai Indians → 5 channels
+                  (Sky Sports Cricket scored 198).
+                • Chennai Super Kings v Delhi Capitals → 6 channels
+                  (Sky Sports Mix scored 198).
+            - 🎨 **Channel detection widened** — now picks up
+              sports channels by category AND by channel-name
+              keywords ("Premier League", "TNT Sport", "Sky Sport",
+              "ESPN", "Fox Sport", "Kayo", "Optus Sport", "beIN",
+              "NFL", "NBA", "NRL", "AFL", "F1", "Formula 1",
+              "MLB", "NHL", "Bundesliga", "La Liga", "Serie A",
+              "IPL", "Champions League", "Europa League").  Even
+              if the user's IPTV provider files Sky Sports under
+              a generic "UK CHANNELS" category, we still find it.
+            - 🎯 **Quality variants dedup'd** — Sky Sports
+              Premier League FHD / HD / SD / 50fps share an
+              epg_channel_id, so the matcher now shows ONE entry
+              per logical channel (highest-quality variant) up to
+              the limit.  No more 4 duplicate chips for the same
+              channel.
+            - 🎨 **Vesper Neon theme removed** from Appearance ·
+              Themes per user request.  Existing profiles using
+              the Vesper theme auto-migrate to "On Now TV
+              Electric" (now the default).
+            - 🆙 APK bumped to **v2.6.91** (versionCode 161).
+
             **v2.6.90 — Sports guide channel mapping · GitHub auto-prune · Trailer reliability**
             - 🏈 **Sports guide channel matching is now far more
               accurate.**  The fixture-to-EPG matcher used to drop

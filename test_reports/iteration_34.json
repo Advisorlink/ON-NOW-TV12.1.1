@@ -1,0 +1,51 @@
+{
+  "summary": "Frontend-only iter 34. Theme work (TASKS 3, 4): 100% PASS — Vesper theme card is gone (data-testid='theme-vesper' returns null), 'On Now TV Electric' (data-testid='theme-electric') is the first card, all 8 themes present (electric/magenta/sunset/amethyst/emerald/ember/gold/mint), legacy localStorage themeId='vesper' migrates silently to 'electric' with NO crash (data-theme attr on <html> = 'electric'). Home page (TASK 5): PASS — Upcoming Movies shelf still renders, zero JS errors. SportsGuide (TASKS 1, 2): the matcher itself runs with ZERO JS errors (the key-mismatch fix in sportsMatch.js does NOT throw) — but 0 fixtures render a 'WATCH ON' chip. All 46 visible fixtures show 'NOT ON YOUR CHANNELS'. RCA: the matcher fix is correct in isolation BUT the EPG data never reaches the matcher because `mergeAndSaveEpg` silently fails to persist a ~17–30 MB EPG payload (2,330 channels) to localStorage (~5–10 MB quota), and `loadEpg` has no in-memory fallback. Channels (14,220) and categories (163) DO persist; only the EPG drops. So sportsMatch.buildIndex always sees an empty epg map → returns [] for every fixture.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SportsGuide chips",
+        "issue": "ZERO 'WATCH ON' chips render on /sports. Every fixture shows 'NOT ON YOUR CHANNELS'. The matcher fix in sportsMatch.js is correct (no JS errors, key-by-epg_channel_id is right) but the upstream EPG cache is empty — so the index has no EPG entries to match against.",
+        "selector": "data-testid='sports-page' descendants; text 'WATCH ON' count = 0, 'NOT ON YOUR CHANNELS' count = 46",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "InstantBundle EPG → localStorage → sportsMatch",
+        "issue": "Backend /api/xtream/instant-bundle returns a healthy 49 MB payload with 2,330 EPG channels (verified via curl). Frontend successfully writes the 'chans' and 'cats' keys to localStorage but the 'epg' key is NEVER written. Root cause: liveCache.js#safeWrite (line 39–47) wraps localStorage.setItem in a try/catch and swallows QuotaExceededError silently. The serialized EPG blob (~17–30 MB) far exceeds the typical 5–10 MB localStorage quota, so the write throws, the catch returns false, and no warning surfaces. liveCache.js also has no in-memory module-level cache, so loadEpg() returns null forever and sportsMatch.buildIndex iterates an empty epg map.",
+        "affected_selectors": ["onnowtv-livecache-v1:default-njala:epg (missing in localStorage)"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_34.json"
+  ],
+  "action_items": [
+    "FIX (high priority): shrink the EPG payload persisted to localStorage. Easiest path is to filter mergeAndSaveEpg() (or instantBundle.js#bundle.epg before the call) to ONLY persist EPG for channels whose name OR category matches the sports regexes already in sportsMatch.js. Channels we'll match are ~25–80 out of 14,220 — that drops the EPG blob from ~30 MB to <500 KB and fits comfortably in localStorage.",
+    "FIX (alt / belt-and-braces): add an in-memory module cache in liveCache.js so the bundle's EPG survives the current session even when the localStorage write fails. saveEpg / mergeAndSaveEpg should populate a module-scope Map keyed by providerId, and loadEpg should check the in-memory map BEFORE falling back to localStorage. This way sportsMatch.buildIndex always sees EPG data within the boot session.",
+    "OBSERVABILITY: surface the safeWrite failure. liveCache.js#safeWrite catches every error to '/dev/null' — change it to log a console.warn with the key + payload size so silent quota busts are noticed immediately. This regression has been invisible for weeks precisely because of this swallow."
+  ],
+  "critical_code_review_comments": [
+    "sportsMatch.js (lines 147–241): buildIndex is correctly keyed by epg_channel_id now and dedupes quality variants. Code is sound; the fix matches the brief. The only assumption it makes is that loadEpg() returns data — there is no diagnostic when epg is empty, which is what's biting us today.",
+    "liveCache.js (lines 39–47): safeWrite silently swallows ALL errors including QuotaExceededError. This is the real reason the sports-chips bug has persisted across multiple 'fixes' — every fix to the matcher itself was correct, but the matcher never had data to match against. Add at minimum a `console.warn('[liveCache] quota write failed for', key, 'size=', JSON.stringify(payload).length)` inside the catch.",
+    "liveCache.js (no in-memory layer): saveEpg/mergeAndSaveEpg ONLY persist to localStorage. There is no module-scoped Map to fall back to. If the write fails, the data is lost FOR THE REST OF THE SESSION even though we just downloaded it. Adding an in-memory Map keyed by providerId would make every sports/live feature resilient to quota issues for free.",
+    "instantBundle.js (lines 156–160): passes the entire bundle.epg blob to mergeAndSaveEpg without any size guard. With 2,330 EPG channels × ~50 entries × ~150 B = ~17 MB, this is guaranteed to overflow localStorage on any device with a 5–10 MB quota (i.e., every browser). Filter to sports-tagged channels here BEFORE handing off to liveCache.",
+    "themes.js + ThemeProvider.jsx: clean removal of 'vesper'. ThemeProvider.loadTheme() correctly falls back to DEFAULT_THEME_ID when localStorage holds an unknown id — verified end-to-end with seeded 'vesper' in storage. No regressions."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A — frontend-only review (backend bundle endpoint verified healthy via curl: 200, 49 MB, 2330 EPG channels)",
+    "frontend": "4 of 5 review tasks PASS (no JS errors, vesper removed, electric is first, vesper-id migrates safely, Home renders Upcoming row). Task 1 (chip rendering on SportsGuide) FAILS — root cause is upstream EPG persistence, not the matcher fix itself."
+  },
+  "test_credentials": "Profiles seeded via add_init_script (profile id 'p1'). Xtream provider auto-seeded by backend (default-njala). No manual login required.",
+  "seed_data_creation": "Seeded onnowtv-profiles-v1, onnowtv-active-profile-v1, onnowtv-welcome-tour-seen, AND legacy 'vesper' theme id to verify the migration. The welcome-tour overlay still appeared visually but functional DOM checks (querySelector on data-testid) work underneath it.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "When validating the FIX for the chip rendering: (1) load /sports as a fresh profile (clear localStorage first), (2) wait 30 s, (3) inspect localStorage keys — onnowtv-livecache-v1:default-njala:epg MUST be present and parse to an object with >0 keys, (4) assert document.body.innerText contains 'WATCH ON' at least once OR contains a recognised sports brand (Sky Sport, TNT Sport, ESPN, beIN, Kayo) inside a fixture-card. The backend bundle endpoint is healthy — DO NOT debug there. Theme migration is fully verified, do not re-test unless theme code touches happen.",
+  "rca of the issue": "1) User report: every /sports fixture shows 'Not on any of your channels yet'. 2) Main agent's matcher fix (sportsMatch.js v2.6.91) correctly keys channelLookup by epg_channel_id and the logic was verified standalone via /tmp/test_sports_real.mjs (4/4 fixtures matched 2–6 channels). 3) In-browser repro: visit /sports → 46 fixtures render → 0 'WATCH ON' labels, 0 'WATCH LIVE' labels, 46 'NOT ON YOUR CHANNELS' labels. 0 JS errors. 4) Diagnostic dump of localStorage on /sports: onnowtv-livecache-v1:default-njala:chans (14,220 channels including 'US: ESPN', 'US: beIN SPORTS', 'UK | Sky Sports' cats with 51 sports categories) PRESENT, :cats PRESENT, :epg ABSENT. 5) Backend /api/xtream/instant-bundle returns 200 / 49 MB / 2330 EPG channels (healthy). 6) Root cause: liveCache.js#safeWrite swallows QuotaExceededError. The 17–30 MB serialized EPG payload exceeds localStorage's ~5–10 MB quota, the setItem throws, safeWrite returns false silently. loadEpg has no in-memory fallback, returns null, sportsMatch.buildIndex's `for (const epgId in epg)` loop runs 0 times, index is [], matchFixture returns [] for every fixture. 7) Fix: filter bundle.epg in instantBundle.js (BEFORE the mergeAndSaveEpg call) to only the epg_channel_ids of channels whose category OR name matches the sports regexes already defined in sportsMatch.js — drops the payload from ~30 MB to <500 KB. Optionally add an in-memory Map cache to liveCache.js for belt-and-braces resilience."
+}

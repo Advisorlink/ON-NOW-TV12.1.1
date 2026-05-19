@@ -88,15 +88,6 @@ export const THEMES = [
         '#03060F'
     ),
     make(
-        'vesper',
-        'Vesper Neon',
-        'Inky midnight · neon-blue accents · cinematic billboard',
-        '#5DC8FF',
-        '#7FD8FF',
-        'rgba(93,200,255,0.55)',
-        '#06080F'
-    ),
-    make(
         'magenta',
         'Hot Magenta',
         'Cyber pink · bold and bright · neon nightclub vibe',
@@ -161,7 +152,7 @@ export const THEMES = [
     ),
 ];
 
-export const DEFAULT_THEME_ID = 'vesper';
+export const DEFAULT_THEME_ID = 'electric';
 
 export function getTheme(id) {
     return THEMES.find((t) => t.id === id) || THEMES[0];
