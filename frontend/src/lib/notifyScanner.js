@@ -3,21 +3,21 @@
  *
  * Once on app boot, iterates the user's `notifyList` and for each
  * entry asks the backend if any installed addon now returns streams
- * for that title.  If we find a fresh hit, we surface a toast via
- * `sonner` and mark the entry `notifiedAt` so we don't spam the
- * user on every cold start.
+ * for that title.  If we find a fresh hit, we PUSH it onto the
+ * `NotifyHitWatcher` queue — the watcher then shows a top-right
+ * "X just came out in HD" card with Watch / Watch later / Dismiss
+ * actions.
  *
  * Cheap: at most 1 HTTP request per notify-list entry per app boot.
  * Throttled to a max of 6 concurrent requests so we don't hammer
  * the backend if the user has a 50-title notify list.
  */
 import axios from 'axios';
-import { toast } from 'sonner';
 import {
     listNotifyList,
     markNotifyListChecked,
-    removeFromNotifyList,
 } from '@/lib/library';
+import { pushNotifyHit } from '@/components/NotifyHitWatcher';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 let alreadyRan = false;
@@ -39,8 +39,6 @@ export async function runNotifyScanner() {
     });
     if (!dueItems.length) return;
 
-    let foundCount = 0;
-    const found = [];
     const CONC = 6;
     const queue = [...dueItems];
     const workers = Array.from({ length: Math.min(CONC, queue.length) }, async () => {
@@ -54,9 +52,14 @@ export async function runNotifyScanner() {
                 const url = `${API}/api/streams/${entry.type || 'movie'}/${entry.id}`;
                 const res = await axios.get(url, { timeout: 12_000 });
                 const hits = Array.isArray(res?.data?.streams) ? res.data.streams : [];
-                if (hits.length > 0) {
-                    found.push(entry);
-                    foundCount += 1;
+                if (hits.length > 0 && !entry.notifiedAt) {
+                    // Push to the global watcher queue with all the
+                    // metadata it needs to render the toast.
+                    pushNotifyHit({
+                        id: entry.id,
+                        type: entry.type || 'movie',
+                        meta: entry.meta || {},
+                    });
                     markNotifyListChecked(entry.id, true);
                 } else {
                     markNotifyListChecked(entry.id, false);
@@ -69,29 +72,4 @@ export async function runNotifyScanner() {
         }
     });
     await Promise.all(workers);
-
-    if (foundCount > 0) {
-        if (foundCount === 1) {
-            const e = found[0];
-            toast.success(`${e.meta?.name || 'Your movie'} is now streaming!`, {
-                description: 'Open Library → Notify List to watch.',
-                duration: 10_000,
-            });
-        } else {
-            toast.success(`${foundCount} of your saved titles are now streaming!`, {
-                description: 'Open Library → Notify List to see them.',
-                duration: 10_000,
-            });
-        }
-        /* Auto-remove items the user has watched once they've been
-         * notified — we don't want them stuck in the list forever.
-         * We DO leave them for one cycle so the user has time to
-         * see the notification first. */
-        found.forEach((e) => {
-            if (e.notifiedAt) {
-                /* Already notified previously → safe to clear. */
-                removeFromNotifyList(e.id);
-            }
-        });
-    }
 }

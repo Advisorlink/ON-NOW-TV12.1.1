@@ -59,10 +59,14 @@ SUGGESTED_ADDONS = [
         "url": "https://opensubtitles-v3.strem.io/manifest.json",
         "description": "Subtitle search across the OpenSubtitles database",
     },
+    # Torrentio URL is computed at boot from PREMIUMIZE_API_KEY (.env)
+    # so we get HTTPS Debrid streams instead of magnets, and so the
+    # cam / SCR / 480p / 720p tiers never reach the source list.
+    # The seeder pulls the built URL via `_torrentio_manifest_url()`.
     {
         "name": "Torrentio",
-        "url": "https://torrentio.strem.fun/manifest.json",
-        "description": "Stream resolver — finds high-quality torrent streams for movies & series",
+        "url": "PLACEHOLDER_TORRENTIO_URL",
+        "description": "Stream resolver — Debrid-powered HTTPS streams via Premiumize · 1080p / 4K only",
     },
     {
         "name": "WatchHub",
@@ -1720,6 +1724,142 @@ async def tmdb_party_picks(limit: int = Query(5, ge=1, le=12)):
     return {"cached": False, "data": out}
 
 
+@api.get("/tmdb/upcoming-movies")
+async def tmdb_upcoming_movies(
+    limit: int = Query(20, ge=1, le=40),
+    days: int = Query(60, ge=7, le=180),
+):
+    """Theatrical / streaming releases dropping in the next `days`
+    days.  Powers the "Upcoming" rail at the bottom of Home — users
+    click a tile to land on the Detail page, watch the trailer, or
+    add the title to their notify list.
+
+    We pull `/movie/upcoming` (TMDB's marketing-friendly window —
+    usually ~2 weeks out) **plus** `/movie/popular` filtered to
+    future release dates, then dedupe so the row stays fresh even
+    when /upcoming runs thin.
+
+    Each item carries the resolved `imdb_id` so the front-end can
+    route directly into the existing /title/movie/{imdb_id} Detail
+    page.  IMDB lookup is best-effort + cached — entries without an
+    IMDB id are still returned (Detail page falls back to TMDB).
+    """
+    cache_key = f"tmdb_upcoming:{limit}:{days}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    today = datetime.now(timezone.utc).date()
+    end_date = today + timedelta(days=days)
+
+    raw: List[Dict[str, Any]] = []
+    try:
+        # TMDB /movie/upcoming is region-aware; "US" gives the
+        # widest set of titles for an English-speaking audience.
+        for page in (1, 2):
+            data = await _tmdb_get(
+                "/movie/upcoming",
+                params={"page": page, "region": "US"},
+            )
+            raw.extend(data.get("results") or [])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("tmdb upcoming fetch failed: %s", exc)
+
+    # Second source: /discover/movie with release_date.gte=today —
+    # catches everything TMDB knows about, not just the curated
+    # /upcoming feed.  Sort by popularity so the rail leads with
+    # titles people actually care about.
+    try:
+        for page in (1, 2):
+            data = await _tmdb_get(
+                "/discover/movie",
+                params={
+                    "page": page,
+                    "sort_by": "popularity.desc",
+                    "primary_release_date.gte": today.isoformat(),
+                    "primary_release_date.lte": end_date.isoformat(),
+                    "with_release_type": "2|3|4|5",  # theatrical / digital
+                    "include_adult": "false",
+                },
+            )
+            raw.extend(data.get("results") or [])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("tmdb discover upcoming fetch failed: %s", exc)
+
+    seen: set = set()
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        tmdb_id = item.get("id")
+        if not tmdb_id or tmdb_id in seen:
+            continue
+        # Must release within the requested window.
+        rel = item.get("release_date") or ""
+        if not rel:
+            continue
+        try:
+            rel_date = datetime.fromisoformat(rel).date()
+        except Exception:  # noqa: BLE001
+            continue
+        if rel_date < today or rel_date > end_date:
+            continue
+        if not item.get("poster_path"):
+            continue
+        seen.add(tmdb_id)
+        out.append({
+            "tmdb_id": tmdb_id,
+            "type": "movie",
+            "title": item.get("title") or item.get("name") or "",
+            "poster": f"{TMDB_IMG}/w500{item['poster_path']}",
+            "backdrop": (
+                f"{TMDB_IMG}/original{item['backdrop_path']}"
+                if item.get("backdrop_path") else None
+            ),
+            "year": rel[:4] if rel else "",
+            "release_date": rel,
+            "synopsis": item.get("overview") or "",
+            "rating": (
+                round(item.get("vote_average"), 1)
+                if isinstance(item.get("vote_average"), (int, float))
+                else None
+            ),
+            "imdb_id": None,  # filled below, best-effort
+        })
+
+    # Sort by release date ascending — soonest first.  Cap to limit.
+    out.sort(key=lambda x: x.get("release_date") or "9999")
+    out = out[:limit]
+
+    # Best-effort IMDB id resolution (parallel, 8 concurrent).  Items
+    # that fail still ship — Detail page can still load via TMDB.
+    sem = asyncio.Semaphore(8)
+
+    async def _resolve_imdb(item: Dict[str, Any]) -> None:
+        tmdb_id = item.get("tmdb_id")
+        if not tmdb_id:
+            return
+        ck = f"tmdb_imdb:movie:{tmdb_id}"
+        cached_id = await cache.get(ck)
+        if cached_id:
+            item["imdb_id"] = cached_id
+            return
+        async with sem:
+            try:
+                data = await _tmdb_get(f"/movie/{tmdb_id}/external_ids")
+                imdb = data.get("imdb_id") or None
+                if imdb:
+                    item["imdb_id"] = imdb
+                    await cache.set(ck, imdb, CACHE_TTL_TMDB_IMDB)
+            except Exception:  # noqa: BLE001
+                pass
+
+    await asyncio.gather(*[_resolve_imdb(it) for it in out])
+
+    # Cache 1 h — TMDB upcoming refreshes daily but we don't need to
+    # be that aggressive; 60 min keeps the rail fresh enough.
+    await cache.set(cache_key, out, 60 * 60)
+    return {"cached": False, "data": out}
+
+
 @api.get("/tmdb/genres/{media}")
 async def tmdb_genres(media: str):
     """Return the TMDB master genre list for movies or TV.
@@ -2488,16 +2628,49 @@ async def _seed_default_addons() -> None:
     that one is skipped and logged — the user can still install it
     manually from a browser later (their residential IP succeeds).
     """
+    # Build the Torrentio URL from .env so swapping debrid keys /
+    # quality filters is a redeploy, not a code change.  Quality
+    # filter strips CAM / SCR / TS / unknown / 480p / 720p so only
+    # 1080p HD and 4K reach the source list (user spec).
+    premiumize_key = (os.environ.get("PREMIUMIZE_API_KEY") or "").strip()
+    if premiumize_key:
+        torrentio_url = (
+            "https://torrentio.strem.fun/"
+            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            f"%7Cpremiumize={premiumize_key}/manifest.json"
+        )
+    else:
+        # No Debrid key — fall back to magnet-only Torrentio so the
+        # user still gets a catalogue, but warn so the operator
+        # knows playback won't work on libVLC Android.
+        torrentio_url = (
+            "https://torrentio.strem.fun/"
+            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            "/manifest.json"
+        )
+        logger.warning(
+            "PREMIUMIZE_API_KEY not set — Torrentio will return magnets only"
+        )
+
+    # Materialise SUGGESTED_ADDONS with the runtime URL for Torrentio.
+    seed_list = []
+    for s in SUGGESTED_ADDONS:
+        if s.get("name") == "Torrentio":
+            seed_list.append({**s, "url": torrentio_url})
+        else:
+            seed_list.append(s)
+
     try:
-        existing = set()
+        existing_addons: Dict[str, Dict[str, Any]] = {}
         async for row in db.addons.find(
             {"user_id": DEFAULT_USER, "active": True},
-            {"addon_id": 1},
+            {"addon_id": 1, "url": 1, "name": 1, "manifest": 1},
         ):
-            existing.add(row.get("addon_id"))
+            existing_addons[row.get("addon_id")] = row
 
         missing = []
-        for s in SUGGESTED_ADDONS:
+        updated = []
+        for s in seed_list:
             try:
                 _, manifest_url = _normalize_manifest_url(s["url"])
                 async with httpx.AsyncClient(timeout=20) as client:
@@ -2505,7 +2678,15 @@ async def _seed_default_addons() -> None:
                 if not isinstance(manifest, dict):
                     continue
                 addon_id = manifest.get("id")
-                if not addon_id or addon_id in existing:
+                if not addon_id:
+                    continue
+                expected_base = s["url"].rsplit("/manifest.json", 1)[0]
+                existing = existing_addons.get(addon_id)
+                # Re-upsert the row when the base URL drifted (e.g.
+                # operator rotated PREMIUMIZE_API_KEY).  This keeps
+                # the Torrentio config in lockstep with .env without
+                # the user having to drop the row by hand.
+                if existing and existing.get("url") == expected_base:
                     continue
                 now = datetime.now(timezone.utc).isoformat()
                 await db.addons.update_one(
@@ -2515,7 +2696,7 @@ async def _seed_default_addons() -> None:
                             "user_id": DEFAULT_USER,
                             "addon_id": addon_id,
                             "_id_str": addon_id,
-                            "url": s["url"].rsplit("/manifest.json", 1)[0],
+                            "url": expected_base,
                             "manifest": manifest,
                             "active": True,
                             "installed_at": now,
@@ -2525,7 +2706,10 @@ async def _seed_default_addons() -> None:
                     },
                     upsert=True,
                 )
-                missing.append(s["name"])
+                if existing:
+                    updated.append(s["name"])
+                else:
+                    missing.append(s["name"])
             except Exception as inner:  # noqa: BLE001
                 logger.warning(
                     "Failed to auto-seed addon %s: %s", s.get("name"), inner
@@ -2533,6 +2717,9 @@ async def _seed_default_addons() -> None:
         if missing:
             logger.info("Auto-seeded %d default addons: %s",
                         len(missing), ", ".join(missing))
+        if updated:
+            logger.info("Auto-updated %d existing addons: %s",
+                        len(updated), ", ".join(updated))
     except Exception as exc:  # noqa: BLE001
         logger.warning("Default-addon seeder failed: %s", exc)
 

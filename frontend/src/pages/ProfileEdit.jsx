@@ -2580,9 +2580,9 @@ function AutoplayPrompt({ onYes, onNo }) {
         <ConfirmModal
             testId="autoplay-prompt"
             eyebrow="Playback · Step 5 of 6"
-            title="Autoplay 1080p streams?"
-            body="When you tap Play, we'll skip the source list and instantly start the first 1080p stream we find.  You can change this any time in Settings."
-            yesLabel="Yes, autoplay 1080p"
+            title="Auto play streams?"
+            body="When you tap Play, we'll skip the source list and instantly start the best available stream.  You can change this any time in Settings."
+            yesLabel="Yes, auto play"
             noLabel="Skip"
             onYes={onYes}
             onNo={onNo}

@@ -246,6 +246,8 @@ export function listActors() {
     const s = read();
     return Object.entries(s.actors)
         .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+}
 
 /* ────────────────────────────────────────────────────────────────
  *  NOTIFY-LIST — "tell me when this movie/show has streams"
@@ -304,7 +306,4 @@ export function markNotifyListChecked(id, found) {
         s.notifyList[id].notifiedAt = new Date().toISOString();
     }
     write(s);
-}
-
-        .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
 }

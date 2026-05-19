@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, BellOff, ArrowLeft, Sparkles } from 'lucide-react';
 import { addToNotifyList, removeFromNotifyList, isInNotifyList } from '@/lib/library';
-import { img } from '@/lib/api';
+import * as img from '@/lib/img';
 
 /**
  * <StreamUnavailableModal/> — shown when the user taps Play on

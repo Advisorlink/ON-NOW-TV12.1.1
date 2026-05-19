@@ -7,6 +7,7 @@ import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
 import ForYouShelf from '@/components/ForYouShelf';
+import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -368,6 +369,15 @@ export default function Home() {
                                 <Shelf shelf={shelf} />
                             </Lazy>
                         ))}
+
+                        {/* Upcoming Movies — always the last rail on
+                            Home.  Pulls TMDB's next-60-day window via
+                            /api/tmdb/upcoming-movies.  Clicking a tile
+                            opens Detail (which renders the trailer +
+                            "Notify me" CTA when no streams exist). */}
+                        <Lazy minHeight={340} eager={false}>
+                            <UpcomingMoviesShelf />
+                        </Lazy>
 
                         <footer
                             className="flex items-center justify-between"

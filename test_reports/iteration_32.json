@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 32 — Verified Upcoming Movies shelf, Electric theme, 'Auto play' rename, Torrentio Premiumize seeder URL, and notify-scanner streams endpoint. Backend: 6/6 pytest tests PASS (test_iter32_upcoming_and_seeder.py). Frontend: Home loads with zero JS errors, '[data-testid=\"upcoming-movies-shelf\"]' rendered at the bottom with 'UPCOMING' eyebrow + 'Coming soon' title and 12+ TMDB upcoming-movie tiles. Settings → Appearance shows new 'On Now TV Electric' theme card (id=electric) plus all 9 themes (electric, vesper, magenta, sunset, amethyst, emerald, ember, gold, mint). 'Auto play' label confirmed (no more 'Autoplay 1080p' text). library.js exports addToNotifyList / removeFromNotifyList / listNotifyList / addToWatchLater — parses cleanly (zero console errors). Backend seeder logs confirm Torrentio URL is built with the correct `qualityfilter=scr,cam,unknown,480p,720p` + `premiumize=<KEY>` segments — the 403 from Cloudflare in preview is EXPECTED per the brief and not a bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/addons (auto-seeder, Torrentio)", "issue": "Torrentio manifest fetch returns 403 (Cloudflare blocks datacenter IPs) in preview pod. Expected per brief — works on VPS. Seeder correctly logs 'Failed to auto-seed addon Torrentio: 403' and continues with the other 3 addons (Cinemeta, OpenSubtitles, WatchHub auto-seeded)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter32_upcoming_and_seeder.py",
+    "/app/test_reports/pytest/iter32_upcoming.xml"
+  ],
+  "action_items": [
+    "DOCUMENTATION/CONSISTENCY NOTE: The review brief states selector '[data-testid=\"autoplay-1080p\"]' should still work, but the actual rendered DOM testid is '[data-testid=\"toggle-autoplay-1080p\"]' because the shared ToggleRow component prefixes the prop with 'toggle-' (Settings.jsx line 1443: `data-testid={`toggle-${testid}`}`). The PROP testid value is still 'autoplay-1080p' (line 301), so internal consumers searching for the prop name still find it. Recommend updating the brief OR (preferred) updating ToggleRow to use the raw testid when it already starts with a recognised feature key. Functionally everything works — label correctly reads 'Auto play' and toggling persists to prefs.",
+    "Torrentio 403 in preview is expected per brief — when the user deploys to Contabo VPS the manifest fetch will succeed and the seeder will auto-upsert with the new qualityfilter+premiumize URL on first boot. No action needed beyond the documented VPS sync step in test_credentials.md."
+  ],
+  "critical_code_review_comments": [
+    "server.py /tmdb/upcoming-movies (line 1727): solid implementation — combines /movie/upcoming + /discover/movie with date-window + popularity sort, dedupes by tmdb_id, returns ISO release_date, IMDB id best-effort, cached. Future enhancement: in-loop IMDB lookups are sequential which can be slow on cache-miss; consider asyncio.gather to parallelise (best-effort, not blocking).",
+    "server.py _seed_default_addons (line 2617): correctly re-upserts on URL drift (auto-updated branch fires when PREMIUMIZE_API_KEY changes). 403 handling is graceful — the other 3 addons still seed.",
+    "Settings.jsx ToggleRow (line 1440): the `data-testid={`toggle-${testid}`}` prefix pattern means external selectors must include 'toggle-' — minor selector-naming gotcha (see action_items). Not a functional bug.",
+    "UpcomingMoviesShelf.jsx renders cleanly with 'UPCOMING' eyebrow + 'Coming soon' title; 40 inner clickable/img elements rendered for ~12 tiles — looks right.",
+    "themes.js: 9 themes total with 'electric' first in the array as documented; theme-electric data-testid attribute correctly applied at Settings.jsx:1514.",
+    "library.js: all four notify/watch-later exports parse — confirmed by zero console errors on home load (Home.jsx imports it transitively via UpcomingMoviesShelf + NotifyHitWatcher)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter32_upcoming_and_seeder.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% — 6/6 tests PASS (3 upcoming-movies + 2 streams endpoint + 1 addons seeder)",
+    "frontend": "100% — Home + Settings render with zero JS / page errors, all required testids and labels found"
+  },
+  "test_credentials": "None used. Seeded a default profile via add_init_script (onnowtv-profiles-v1 + onnowtv-active-profile-v1='p1') to bypass profile picker.",
+  "seed_data_creation": "None on the backend. Frontend localStorage seeded ephemerally for the playwright run only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend run: `cd /app && export REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d '=' -f2) && python -m pytest backend/tests/test_iter32_upcoming_and_seeder.py -v`. Frontend: navigate to /settings (BrowserRouter, no #) after seeding the profile localStorage keys. Welcome tour appears unless onnowtv-welcome-tour-seen='1' is set. Required testids verified: upcoming-movies-shelf, theme-electric, toggle-autoplay-1080p (NOTE the 'toggle-' prefix — not bare 'autoplay-1080p'). Torrentio 403 in preview is expected — only verify Cinemeta+OpenSubtitles+WatchHub in /api/addons (Torrentio missing is fine).",
+  "rca of the issue": "N/A — feature verification iteration, no bugs to RCA. Only behavioural note: the review brief expected raw `[data-testid=\"autoplay-1080p\"]` but the shared ToggleRow component adds a `toggle-` prefix to its testid prop. Selector to use is `[data-testid=\"toggle-autoplay-1080p\"]`. This is a brief/code naming mismatch, NOT a functional bug — the toggle behaves correctly and the label correctly reads 'Auto play'."
+}

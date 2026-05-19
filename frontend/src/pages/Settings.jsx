@@ -299,8 +299,8 @@ export default function Settings() {
 
             <ToggleRow
                 testid="autoplay-1080p"
-                title="Autoplay 1080p"
-                description="Skip the sources list and instantly play the first 1080p stream when you press Play.  Falls back to the source picker if no 1080p stream is available."
+                title="Auto play"
+                description="Skip the sources list and instantly play the best available stream when you press Play.  Falls back to the source picker if nothing playable is available."
                 value={autoplay}
                 onToggle={toggleAutoplay}
             />

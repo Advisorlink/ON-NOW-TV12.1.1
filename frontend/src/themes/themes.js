@@ -79,6 +79,15 @@ function hexToRgb(hex) {
 
 export const THEMES = [
     make(
+        'electric',
+        'On Now TV Electric',
+        'Pure electric blue · the signature On Now TV vibe',
+        '#00B8FF',
+        '#5CDFFF',
+        'rgba(0,184,255,0.55)',
+        '#03060F'
+    ),
+    make(
         'vesper',
         'Vesper Neon',
         'Inky midnight · neon-blue accents · cinematic billboard',

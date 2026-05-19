@@ -1637,7 +1637,7 @@ function SceneSettings() {
                     </div>
                 </SettingRow>
                 {/* Autoplay toggle */}
-                <SettingRow label="Autoplay 1080p">
+                <SettingRow label="Auto play">
                     <Toggle on />
                 </SettingRow>
                 {/* Kids PIN */}
