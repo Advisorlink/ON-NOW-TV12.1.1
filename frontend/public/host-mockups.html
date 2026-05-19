@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Host Controller — 10 Designs</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:#E6EAF2; overflow-x:hidden; }
+.stage { width:1920px; height:1080px; position:relative; margin:0 auto; overflow:hidden; }
+/* Placeholder backdrop — cinematic still */
+.backdrop {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 30% 35%, rgba(255,180,90,0.45) 0%, transparent 55%),
+      radial-gradient(circle at 70% 65%, rgba(100,70,210,0.55) 0%, transparent 60%),
+      radial-gradient(circle at 90% 30%, rgba(255,200,180,0.25) 0%, transparent 40%),
+      linear-gradient(135deg, #2a1244 0%, #0a1f33 50%, #0d0a0a 100%);
+}
+.backdrop::after { content:''; position:absolute; inset:0;
+    background: linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.7) 100%); }
+/* Dim overlay applied when menu visible */
+.dim { position:absolute; inset:0; background: rgba(0,0,0,0.35); pointer-events:none; }
+.dim-strong { background: rgba(0,0,0,0.55); }
+.dim-gradient { background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.2) 50%, transparent 100%); }
+.dim-vignette {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 100%, rgba(0,0,0,0.85) 0%, transparent 70%),
+      radial-gradient(circle at 90% 50%, rgba(0,0,0,0.6) 0%, transparent 50%);
+}
+
+.label {
+    position:absolute; top:24px; left:24px;
+    font-family:ui-monospace,monospace; font-size:14px; letter-spacing:0.42em;
+    font-weight:800; color:#5DC8FF;
+    padding:10px 18px; border-radius:999px;
+    background:rgba(0,0,0,0.6); border:1px solid rgba(93,200,255,0.5);
+    backdrop-filter:blur(10px); z-index:1000; }
+.fake-title {
+    position:absolute; top:36px; left:50%; transform:translateX(-50%);
+    color:rgba(255,255,255,0.4); font-size:14px; font-weight:600;
+    letter-spacing:0.32em; text-transform:uppercase;
+    font-family:ui-monospace,monospace; }
+.fake-now {
+    position:absolute; top:64px; left:50%; transform:translateX(-50%);
+    color:rgba(255,255,255,0.85); font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* RIGHT-SIDE REMOTE OVERLAY — same on every mockup                */
+/* ─────────────────────────────────────────────────────────────── */
+.remote {
+    position:absolute; top:50%; right:40px;
+    transform:translateY(-50%);
+    width:180px; padding:24px 18px;
+    border-radius:24px;
+    background:rgba(6,8,15,0.78);
+    backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(93,200,255,0.10);
+    z-index:50;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+}
+.remote-eb { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.38em;
+    color:#5DC8FF; font-weight:800; text-transform:uppercase; }
+.remote-pad {
+    position:relative; width:140px; height:140px;
+    display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr 1fr 1fr;
+}
+.r-up    { grid-column:2; grid-row:1; }
+.r-left  { grid-column:1; grid-row:2; }
+.r-mid   { grid-column:2; grid-row:2; }
+.r-right { grid-column:3; grid-row:2; }
+.r-down  { grid-column:2; grid-row:3; }
+.r-cell {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:2px;
+    font-size:22px;
+}
+.r-arrow { color:rgba(255,255,255,0.7); font-weight:700; }
+.r-emoji { font-size:20px; }
+.r-ok {
+    width:46px; height:46px; border-radius:50%;
+    background:#5DC8FF; color:#06080F;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,monospace; font-size:11px; font-weight:900; letter-spacing:0.1em;
+    box-shadow:0 0 16px rgba(93,200,255,0.7);
+}
+.remote-hint { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.18em;
+    color:#8B95A7; text-align:center; line-height:1.5; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H1 — CURRENT v2.6.85 (baseline)                                 */
+/* ─────────────────────────────────────────────────────────────── */
+.h1-card {
+    position:absolute; bottom:120px; left:50%; transform:translateX(-50%);
+    padding:20px 24px 22px; border-radius:22px;
+    background: linear-gradient(135deg, rgba(6,8,15,0.88) 0%, rgba(15,22,38,0.82) 100%);
+    backdrop-filter:blur(28px);
+    border:1px solid rgba(93,200,255,0.28);
+    box-shadow:0 28px 80px rgba(0,0,0,0.7), 0 0 60px rgba(93,200,255,0.18);
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+}
+.h1-eb { display:inline-flex; align-items:center; gap:8px;
+    font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.42em;
+    color:#5DC8FF; font-weight:800; text-transform:uppercase; }
+.h1-eb::before { content:''; width:6px; height:6px; border-radius:50%; background:#5DC8FF;
+    box-shadow:0 0 10px rgba(93,200,255,0.8); }
+.h1-row { display:flex; gap:14px; }
+.h1-tile { width:96px; padding:14px 8px 12px; border-radius:16px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+    color:#C7CFDB; font-size:11px; font-weight:700; letter-spacing:0.10em; text-transform:uppercase; }
+.h1-tile.focus { transform:translateY(-2px) scale(1.06);
+    background:linear-gradient(135deg, rgba(93,200,255,0.32) 0%, rgba(93,200,255,0.14) 100%);
+    border:1px solid rgba(93,200,255,0.7); color:#fff;
+    box-shadow:0 12px 32px rgba(93,200,255,0.4); }
+.h1-ic { width:44px; height:44px; border-radius:14px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(93,200,255,0.10); color:#5DC8FF; font-size:22px; }
+.h1-tile.focus .h1-ic { background:rgba(255,255,255,0.18); color:#fff;
+    box-shadow:0 0 24px rgba(255,255,255,0.45); }
+.h1-cap { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.18em; font-weight:800; }
+.h1-hint { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.32em;
+    color:#5b6473; text-transform:uppercase; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H2 — VERTICAL RIGHT-RAIL (icon stack)                          */
+/* ─────────────────────────────────────────────────────────────── */
+.h2-rail {
+    position:absolute; top:50%; left:60px; transform:translateY(-50%);
+    width:96px; padding:18px 0;
+    background: linear-gradient(180deg, rgba(6,8,15,0.85) 0%, rgba(15,22,38,0.85) 100%);
+    backdrop-filter:blur(24px);
+    border:1px solid rgba(93,200,255,0.22); border-radius:60px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.65), 0 0 40px rgba(93,200,255,0.18);
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+}
+.h2-eb { font-family:ui-monospace,monospace; font-size:8px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; writing-mode:vertical-rl; transform:rotate(180deg);
+    margin:8px 0; }
+.h2-btn { width:66px; height:66px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.04); color:#C7CFDB; font-size:22px;
+    border:1px solid rgba(255,255,255,0.08); position:relative; }
+.h2-btn.focus { background:#5DC8FF; color:#06080F;
+    box-shadow:0 0 0 3px rgba(93,200,255,0.3), 0 0 30px rgba(93,200,255,0.6);
+    transform:scale(1.1); }
+.h2-btn.focus::after { content:attr(data-cap); position:absolute; left:88px;
+    font-family:ui-monospace,monospace; font-size:11px; letter-spacing:0.24em;
+    text-transform:uppercase; color:#5DC8FF; font-weight:800; white-space:nowrap;
+    background:rgba(6,8,15,0.85); padding:8px 14px; border-radius:8px;
+    border:1px solid rgba(93,200,255,0.4); }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H3 — RADIAL / CIRCULAR menu                                     */
+/* ─────────────────────────────────────────────────────────────── */
+.h3-wrap { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:380px; height:380px; }
+.h3-center {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:120px; height:120px; border-radius:50%;
+    background:linear-gradient(135deg, rgba(93,200,255,0.3) 0%, rgba(6,8,15,0.9) 100%);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(93,200,255,0.4);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 0 40px rgba(93,200,255,0.4); }
+.h3-c-eb { font-family:ui-monospace,monospace; font-size:8px; letter-spacing:0.4em;
+    color:#5DC8FF; font-weight:800; }
+.h3-c-t { font-size:14px; font-weight:800; margin-top:4px; }
+.h3-arc { position:absolute; width:88px; height:88px; border-radius:24px;
+    background:rgba(6,8,15,0.85); backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,0.1);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; color:#C7CFDB; font-size:22px; }
+.h3-arc.focus { background:linear-gradient(135deg, rgba(93,200,255,0.5), rgba(93,200,255,0.15));
+    border-color:rgba(93,200,255,0.8); color:#fff;
+    box-shadow:0 0 30px rgba(93,200,255,0.6); transform:scale(1.1); }
+.h3-arc .arc-cap { font-family:ui-monospace,monospace; font-size:8px; letter-spacing:0.2em;
+    font-weight:800; text-transform:uppercase; }
+.h3-arc.a1 { top:0; left:50%; transform:translateX(-50%); }
+.h3-arc.a2 { top:50%; right:0; transform:translateY(-50%); }
+.h3-arc.a3 { bottom:0; right:30px; }
+.h3-arc.a4 { bottom:0; left:30px; }
+.h3-arc.a5 { top:50%; left:0; transform:translateY(-50%); }
+.h3-arc.a1.focus { transform:translateX(-50%) scale(1.1); }
+.h3-arc.a2.focus { transform:translateY(-50%) scale(1.1); }
+.h3-arc.a5.focus { transform:translateY(-50%) scale(1.1); }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H4 — SLIM BOTTOM PILL (chip style)                              */
+/* ─────────────────────────────────────────────────────────────── */
+.h4-pill {
+    position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+    padding:10px;
+    background:rgba(6,8,15,0.85); backdrop-filter:blur(20px);
+    border-radius:999px;
+    border:1px solid rgba(93,200,255,0.25);
+    box-shadow:0 20px 50px rgba(0,0,0,0.6);
+    display:flex; gap:6px; align-items:center; }
+.h4-btn { padding:14px 20px; border-radius:999px;
+    background:transparent;
+    color:#C7CFDB; font-family:ui-monospace,monospace; font-size:11px; font-weight:800;
+    letter-spacing:0.18em; text-transform:uppercase;
+    display:inline-flex; align-items:center; gap:8px; }
+.h4-btn .ic { font-size:18px; }
+.h4-btn.focus { background:#5DC8FF; color:#06080F;
+    box-shadow:0 0 24px rgba(93,200,255,0.6); }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H5 — MAC-STYLE CURVED DOCK with bouncing icons                  */
+/* ─────────────────────────────────────────────────────────────── */
+.h5-dock {
+    position:absolute; bottom:60px; left:50%; transform:translateX(-50%);
+    padding:8px 14px;
+    background:rgba(255,255,255,0.06);
+    backdrop-filter:blur(40px) saturate(180%);
+    border-radius:24px;
+    border:1px solid rgba(255,255,255,0.18);
+    box-shadow:0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+    display:flex; gap:8px; align-items:flex-end; }
+.h5-ic { width:64px; height:64px; border-radius:16px;
+    background:linear-gradient(180deg, #1e293b, #0f172a);
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; color:#E6EAF2;
+    transition:transform .3s ease;
+    box-shadow:0 4px 12px rgba(0,0,0,0.4); }
+.h5-ic.focus { width:88px; height:88px; font-size:36px;
+    background:linear-gradient(180deg, #5DC8FF, #1F4068);
+    color:#fff; transform:translateY(-12px);
+    box-shadow:0 16px 40px rgba(93,200,255,0.55); }
+.h5-ic.adj { width:74px; height:74px; font-size:30px; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H6 — MINIMAL COMMAND BAR (Spotlight style)                      */
+/* ─────────────────────────────────────────────────────────────── */
+.h6-cmd {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:640px; padding:14px;
+    background:rgba(6,8,15,0.85); backdrop-filter:blur(28px);
+    border-radius:18px;
+    border:1px solid rgba(93,200,255,0.3);
+    box-shadow:0 30px 80px rgba(0,0,0,0.7), 0 0 80px rgba(93,200,255,0.2); }
+.h6-eb { padding:6px 14px;
+    font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.42em;
+    color:#5DC8FF; font-weight:800; }
+.h6-row { display:flex; padding:6px;
+    border-radius:10px; align-items:center; gap:14px;
+    color:#C7CFDB; }
+.h6-row.focus { background:linear-gradient(90deg, rgba(93,200,255,0.25) 0%, rgba(93,200,255,0.05) 100%);
+    color:#fff; }
+.h6-ic-sm { width:36px; height:36px; border-radius:10px;
+    background:rgba(93,200,255,0.1); color:#5DC8FF;
+    display:inline-flex; align-items:center; justify-content:center; font-size:18px; }
+.h6-row.focus .h6-ic-sm { background:#5DC8FF; color:#06080F; }
+.h6-lbl { font-size:14px; font-weight:600; flex:1; }
+.h6-key { font-family:ui-monospace,monospace; font-size:10px;
+    letter-spacing:0.18em; color:#5b6473; font-weight:700; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H7 — BOTTOM-LEFT ACTION STACK with status                       */
+/* ─────────────────────────────────────────────────────────────── */
+.h7-stack { position:absolute; bottom:60px; left:60px;
+    width:320px;
+    padding:24px; border-radius:20px;
+    background:rgba(6,8,15,0.82); backdrop-filter:blur(24px);
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+.h7-status { display:flex; align-items:center; gap:10px;
+    padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:14px; }
+.h7-dot { width:8px; height:8px; border-radius:50%; background:#5DC8FF;
+    box-shadow:0 0 8px #5DC8FF; }
+.h7-st-t { font-size:11px; letter-spacing:0.32em; color:#5DC8FF; font-weight:800;
+    text-transform:uppercase; font-family:ui-monospace,monospace; }
+.h7-st-sub { font-size:11px; color:#8B95A7; margin-left:auto; font-family:ui-monospace,monospace; }
+.h7-btn { display:flex; align-items:center; gap:14px; padding:12px;
+    border-radius:12px; color:#C7CFDB; cursor:pointer;
+    border:1px solid transparent; }
+.h7-btn.focus { background:linear-gradient(90deg, rgba(93,200,255,0.22), rgba(93,200,255,0.05));
+    border-color:rgba(93,200,255,0.45); color:#fff; }
+.h7-btn-ic { width:32px; height:32px; border-radius:8px;
+    background:rgba(93,200,255,0.12); color:#5DC8FF;
+    display:inline-flex; align-items:center; justify-content:center; font-size:16px; }
+.h7-btn.focus .h7-btn-ic { background:#5DC8FF; color:#06080F; }
+.h7-btn-lbl { font-size:13px; font-weight:600; flex:1; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H8 — GLASS TERMINAL (monospace, hacker aesthetic)               */
+/* ─────────────────────────────────────────────────────────────── */
+.h8-term {
+    position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+    width:880px;
+    background:rgba(2,4,8,0.9); backdrop-filter:blur(24px);
+    border-radius:14px; border:1px solid rgba(93,200,255,0.3);
+    box-shadow:0 30px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(93,200,255,0.2);
+    overflow:hidden;
+    font-family:ui-monospace,"SF Mono",monospace; }
+.h8-bar { display:flex; align-items:center; gap:8px; padding:12px 18px;
+    background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.06); }
+.h8-bar > .dot { width:10px; height:10px; border-radius:50%; }
+.h8-bar > .dot.r { background:#FF5F57; }
+.h8-bar > .dot.y { background:#FEBC2E; }
+.h8-bar > .dot.g { background:#28C840; }
+.h8-bar-t { margin-left:14px; font-size:11px; color:#8B95A7;
+    letter-spacing:0.18em; text-transform:uppercase; }
+.h8-body { padding:20px 24px; }
+.h8-prompt { display:flex; gap:6px; align-items:center;
+    color:#5DC8FF; font-size:13px; font-weight:700; }
+.h8-cmd-line { color:#9DA5B5; font-size:13px; margin-top:6px; }
+.h8-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr;
+    gap:8px; margin-top:18px; }
+.h8-cell { padding:12px; border-radius:8px;
+    background:rgba(255,255,255,0.04);
+    border-left:2px solid rgba(93,200,255,0.3);
+    color:#C7CFDB; }
+.h8-cell.focus { background:rgba(93,200,255,0.18); border-left-color:#5DC8FF;
+    color:#fff; box-shadow:0 0 0 1px #5DC8FF; }
+.h8-cell-key { font-size:9px; letter-spacing:0.24em; color:#5DC8FF; font-weight:800;
+    text-transform:uppercase; margin-bottom:6px; }
+.h8-cell-val { font-size:14px; font-weight:700; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H9 — COMPACT ICON-ONLY TRAY (top-right small)                   */
+/* ─────────────────────────────────────────────────────────────── */
+.h9-tray {
+    position:absolute; bottom:50%; left:50%; transform:translate(-50%, 50%);
+    background:rgba(6,8,15,0.82); backdrop-filter:blur(20px);
+    border-radius:18px; padding:8px;
+    border:1px solid rgba(93,200,255,0.22);
+    box-shadow:0 20px 50px rgba(0,0,0,0.6);
+    display:flex; gap:4px; align-items:center; }
+.h9-btn { width:56px; height:56px; border-radius:12px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.04); color:#C7CFDB; font-size:22px;
+    position:relative; }
+.h9-btn.focus { background:#5DC8FF; color:#06080F;
+    box-shadow:0 0 24px rgba(93,200,255,0.6); transform:scale(1.1); }
+.h9-btn.focus::after { content:attr(data-cap); position:absolute; bottom:-30px;
+    left:50%; transform:translateX(-50%);
+    font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.24em;
+    color:#5DC8FF; font-weight:800; white-space:nowrap;
+    text-transform:uppercase; }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* H10 — PIP INFO CARD with inline controls                        */
+/* ─────────────────────────────────────────────────────────────── */
+.h10-card {
+    position:absolute; bottom:80px; left:60px; right:60px;
+    padding:20px 24px;
+    background:linear-gradient(135deg, rgba(6,8,15,0.88) 0%, rgba(15,22,38,0.85) 100%);
+    backdrop-filter:blur(24px);
+    border-radius:18px;
+    border:1px solid rgba(93,200,255,0.25);
+    box-shadow:0 20px 60px rgba(0,0,0,0.65);
+    display:flex; gap:24px; align-items:center; }
+.h10-poster { width:120px; height:80px; border-radius:10px;
+    background:linear-gradient(135deg, #6366F1, #1E1B4B);
+    flex-shrink:0; box-shadow:0 8px 24px rgba(0,0,0,0.5); }
+.h10-info { flex:1; min-width:0; }
+.h10-eb { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:0.42em;
+    color:#5DC8FF; font-weight:800; text-transform:uppercase; margin-bottom:6px; }
+.h10-title { font-size:22px; font-weight:800; margin-bottom:4px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.h10-prog { height:3px; background:rgba(255,255,255,0.12); border-radius:99px; overflow:hidden;
+    margin-top:8px; max-width:520px; }
+.h10-prog > span { display:block; height:100%; width:42%; background:#5DC8FF; }
+.h10-meta { font-family:ui-monospace,monospace; font-size:11px; color:#8B95A7;
+    margin-top:6px; letter-spacing:0.04em; }
+.h10-controls { display:flex; gap:8px; }
+.h10-c { width:52px; height:52px; border-radius:14px;
+    background:rgba(255,255,255,0.04); color:#C7CFDB;
+    display:inline-flex; align-items:center; justify-content:center; font-size:18px;
+    border:1px solid rgba(255,255,255,0.08); position:relative; }
+.h10-c.focus { background:#5DC8FF; color:#06080F; transform:scale(1.1);
+    box-shadow:0 0 24px rgba(93,200,255,0.6); }
+.h10-c.focus::after { content:attr(data-cap); position:absolute; top:-28px;
+    left:50%; transform:translateX(-50%);
+    font-family:ui-monospace,monospace; font-size:9px; letter-spacing:0.24em;
+    color:#5DC8FF; font-weight:800; white-space:nowrap; text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H1 — CURRENT v2.6.85 baseline                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim"></div>
+<div class="label">01 · CURRENT (v2.6.85)</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h1-card">
+    <div class="h1-eb">Host controls</div>
+    <div class="h1-row">
+        <div class="h1-tile"><span class="h1-ic">⏸</span><span class="h1-cap">Pause</span></div>
+        <div class="h1-tile focus"><span class="h1-ic">⏩</span><span class="h1-cap">Skip 30s</span></div>
+        <div class="h1-tile"><span class="h1-ic">⟳</span><span class="h1-cap">Catch Up</span></div>
+        <div class="h1-tile"><span class="h1-ic">🔒</span><span class="h1-cap">Lock</span></div>
+        <div class="h1-tile"><span class="h1-ic">💬</span><span class="h1-cap">Subs</span></div>
+    </div>
+    <div class="h1-hint">◀ ▶ MOVE · OK CONFIRM · BACK CLOSE</div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H2 — Vertical right-rail                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim"></div>
+<div class="label">02 · VERTICAL RAIL</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h2-rail">
+    <div class="h2-eb">HOST</div>
+    <div class="h2-btn" data-cap="Pause">⏸</div>
+    <div class="h2-btn focus" data-cap="Skip 30s">⏩</div>
+    <div class="h2-btn" data-cap="Catch Up">⟳</div>
+    <div class="h2-btn" data-cap="Lock">🔒</div>
+    <div class="h2-btn" data-cap="Subtitles">💬</div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H3 — Radial / circular menu                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim dim-strong"></div>
+<div class="label">03 · RADIAL</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h3-wrap">
+    <div class="h3-arc a1 focus">⏸<span class="arc-cap">Pause</span></div>
+    <div class="h3-arc a2">⏩<span class="arc-cap">Skip</span></div>
+    <div class="h3-arc a3">⟳<span class="arc-cap">Catch</span></div>
+    <div class="h3-arc a4">🔒<span class="arc-cap">Lock</span></div>
+    <div class="h3-arc a5">💬<span class="arc-cap">Subs</span></div>
+    <div class="h3-center">
+        <div class="h3-c-eb">HOST</div>
+        <div class="h3-c-t">CONTROLS</div>
+    </div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H4 — Slim bottom pill                                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim dim-gradient"></div>
+<div class="label">04 · SLIM PILL</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h4-pill">
+    <div class="h4-btn"><span class="ic">⏸</span>Pause</div>
+    <div class="h4-btn focus"><span class="ic">⏩</span>Skip 30s</div>
+    <div class="h4-btn"><span class="ic">⟳</span>Catch Up</div>
+    <div class="h4-btn"><span class="ic">🔒</span>Lock</div>
+    <div class="h4-btn"><span class="ic">💬</span>Subs</div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H5 — Mac curved dock                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim"></div>
+<div class="label">05 · MAC DOCK</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h5-dock">
+    <div class="h5-ic">⏸</div>
+    <div class="h5-ic adj">⏩</div>
+    <div class="h5-ic focus">⟳</div>
+    <div class="h5-ic adj">🔒</div>
+    <div class="h5-ic">💬</div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H6 — Minimal command bar                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim dim-strong"></div>
+<div class="label">06 · COMMAND BAR</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h6-cmd">
+    <div class="h6-eb">HOST · WHAT WOULD YOU LIKE TO DO?</div>
+    <div class="h6-row"><span class="h6-ic-sm">⏸</span><span class="h6-lbl">Pause for everyone</span><span class="h6-key">P</span></div>
+    <div class="h6-row focus"><span class="h6-ic-sm">⏩</span><span class="h6-lbl">Skip forward 30 seconds</span><span class="h6-key">→</span></div>
+    <div class="h6-row"><span class="h6-ic-sm">⟳</span><span class="h6-lbl">Catch up — re-sync everyone</span><span class="h6-key">C</span></div>
+    <div class="h6-row"><span class="h6-ic-sm">🔒</span><span class="h6-lbl">Lock the host controls</span><span class="h6-key">L</span></div>
+    <div class="h6-row"><span class="h6-ic-sm">💬</span><span class="h6-lbl">Subtitle picker</span><span class="h6-key">S</span></div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H7 — Bottom-left action stack with status                         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim"></div>
+<div class="label">07 · ACTION STACK</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h7-stack">
+    <div class="h7-status">
+        <div class="h7-dot"></div>
+        <div class="h7-st-t">Host live</div>
+        <div class="h7-st-sub">3 viewers</div>
+    </div>
+    <div class="h7-btn"><span class="h7-btn-ic">⏸</span><span class="h7-btn-lbl">Pause</span></div>
+    <div class="h7-btn focus"><span class="h7-btn-ic">⏩</span><span class="h7-btn-lbl">Skip 30s</span></div>
+    <div class="h7-btn"><span class="h7-btn-ic">⟳</span><span class="h7-btn-lbl">Catch up everyone</span></div>
+    <div class="h7-btn"><span class="h7-btn-ic">🔒</span><span class="h7-btn-lbl">Lock</span></div>
+    <div class="h7-btn"><span class="h7-btn-ic">💬</span><span class="h7-btn-lbl">Subtitles</span></div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H8 — Glass terminal aesthetic                                     -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim dim-strong"></div>
+<div class="label">08 · TERMINAL</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h8-term">
+    <div class="h8-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="h8-bar-t">vesper-party — host@inception</span>
+    </div>
+    <div class="h8-body">
+        <div class="h8-prompt">▶ host_</div>
+        <div class="h8-cmd-line">select action — current viewers: 3 · drift: ±0.1s</div>
+        <div class="h8-grid">
+            <div class="h8-cell"><div class="h8-cell-key">▲</div><div class="h8-cell-val">⏸ Pause</div></div>
+            <div class="h8-cell focus"><div class="h8-cell-key">▶ NOW</div><div class="h8-cell-val">⏩ Skip 30s</div></div>
+            <div class="h8-cell"><div class="h8-cell-key">▼</div><div class="h8-cell-val">⟳ Catch Up</div></div>
+            <div class="h8-cell"><div class="h8-cell-key">◀</div><div class="h8-cell-val">🔒 Lock</div></div>
+            <div class="h8-cell"><div class="h8-cell-key">▶</div><div class="h8-cell-val">💬 Subs</div></div>
+        </div>
+    </div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H9 — Compact icon tray (centred)                                  -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim dim-vignette"></div>
+<div class="label">09 · ICON TRAY</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h9-tray">
+    <div class="h9-btn" data-cap="Pause">⏸</div>
+    <div class="h9-btn focus" data-cap="Skip 30s">⏩</div>
+    <div class="h9-btn" data-cap="Catch Up">⟳</div>
+    <div class="h9-btn" data-cap="Lock">🔒</div>
+    <div class="h9-btn" data-cap="Subs">💬</div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- H10 — PIP info card with inline controls                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="stage">
+<div class="backdrop"></div><div class="dim"></div>
+<div class="label">10 · PIP INFO CARD</div>
+<div class="fake-title">★ HOST · WATCH PARTY</div>
+<div class="fake-now">Inception · 1h 18m left</div>
+<div class="h10-card">
+    <div class="h10-poster"></div>
+    <div class="h10-info">
+        <div class="h10-eb">★ HOST · 3 VIEWERS</div>
+        <div class="h10-title">Inception</div>
+        <div class="h10-meta">1h 18m left · in sync · drift ±0.1s</div>
+        <div class="h10-prog"><span></span></div>
+    </div>
+    <div class="h10-controls">
+        <div class="h10-c" data-cap="Pause">⏸</div>
+        <div class="h10-c focus" data-cap="Skip 30s">⏩</div>
+        <div class="h10-c" data-cap="Catch Up">⟳</div>
+        <div class="h10-c" data-cap="Lock">🔒</div>
+        <div class="h10-c" data-cap="Subs">💬</div>
+    </div>
+</div>
+<div class="remote">
+    <div class="remote-eb">Reactions</div>
+    <div class="remote-pad">
+        <div class="r-cell r-up"><span class="r-emoji">😂</span><span class="r-arrow">▲</span></div>
+        <div class="r-cell r-left"><span class="r-emoji">❤️</span><span class="r-arrow">◀</span></div>
+        <div class="r-cell r-mid"><span class="r-ok">OK</span></div>
+        <div class="r-cell r-right"><span class="r-arrow">▶</span><span class="r-emoji">🔥</span></div>
+        <div class="r-cell r-down"><span class="r-arrow">▼</span><span class="r-emoji">😱</span></div>
+    </div>
+    <div class="remote-hint">HOLD ARROW<br>TO REACT</div>
+</div>
+</div>
+
+</body>
+</html>
