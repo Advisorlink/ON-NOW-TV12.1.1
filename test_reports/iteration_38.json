@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 38 (frontend-only) — v2.6.95 polish round verified end-to-end. (1) Settings page renders without errors, [data-testid='settings-scroll'] present, padding tightened (paddingTop=44px, paddingLeft=60px at 1920w which matches the new clamp(20,2.6vw,44) × clamp(24,3.2vw,60) cap, maxWidth=1100px). (2) H1 'Theme' computed fontSize=42px at 1920w viewport — at top of the new clamp(26,2.8vw,42) range and well below the previous ~72px. (3) Section H2 'Streams' fontSize=22px — top of new clamp(16,1.4vw,22) range, was 28px. (4) Toggles work: toggle-autoplay-1080p + toggle-dev-unlock both flip — dev-unlock localStorage went None→'1' and the handle moved from left:3px → left:19px confirming the smaller 22px handle slides correctly inside the tighter ToggleRow (10×14px padding). (5) Library page /library renders with seeded actors (vesper-library:p1 actors) — both rendered actor imgs have computed `filter: grayscale(1) contrast(1.05)`. (6) REGRESSION: home renders, upcoming-movies-shelf renders, diag panel HIDDEN when dev-unlock='0' (correct). (7) REGRESSION: /sports page renders (sports-page + nav-sports testids present). (8) REGRESSION: theme switching live-updates --vesper-blue CSS variable (Electric=#00B8FF, Magenta=#FF4DB8) — flips correctly when ThemeCard clicked. (9) YAML lint: /app/.github/workflows/deploy-backend.yml parses cleanly via PyYAML — no syntax errors. (10) Zero JS pageerrors during full flow. All existing data-testids used by prior agents (settings-scroll, settings-page, toggle-autoplay-1080p, toggle-dev-unlock, theme-electric, upcoming-movies-shelf, sports-page, nav-sports, actor-{id}, backup-save-btn etc.) remain intact.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_38.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.jsx — padding/font reductions are clean and consistent. paddingTop clamp(20,2.6vw,44px) lower bound 20px on small screens is appropriate; H1 lower bound clamp(26,…) keeps the section header readable on phones. No regressions introduced.",
+    "Settings.jsx ToggleRow (line 1475+) — handle position math `left: value ? 19 : 3` for the 22px-wide handle inside a 38px-wide track gives a clean 3px symmetric gutter. Verified handle moves 3→19 on toggle, animates with the same 220ms transition.",
+    "Library.jsx ActorCard (line 660-674) — `filter: 'grayscale(1) contrast(1.05)'` applied directly via inline style on the <img>. Computed style verified on rendered cards. Consider extracting the magic numbers to a CSS variable if more 'curated' grayscale surfaces appear later (e.g. /person header), but for one place inline is fine.",
+    "Library.jsx — fallback initial letter avatar (line 676-685) when actor.profile is missing is NOT grayscaled (it's a typographic letter on var(--vesper-blue-bright)), so the magazine effect breaks for any actor without a TMDB profile photo. Not a regression (the prior version also showed it in colour) — flagging as a low-priority polish consideration only.",
+    ".github/workflows/deploy-backend.yml — YAML valid. The 'Install rsync + sshpass' step uses sshpass which is widely flagged as discouraged vs. SSH keys (the comment in the file already acknowledges this). Consider adding the alt VPS_SSH_KEY path mentioned in the header comment in a follow-up; for now it works because the secret-presence guard at line 80-83 prevents accidental runs without the password set. NOT a runtime risk — workflow is push-on-main only and won't fire during testing."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only)",
+    "frontend": "100% — all 5 listed test scenarios pass; YAML lints clean; zero JS errors."
+  },
+  "test_credentials": "Profile p1 seeded via add_init_script (onnowtv-profiles-v1 as Array containing {id:'p1',name:'Tester',avatarId:'p-1',kids:false,createdAt:…} + onnowtv-active-profile-v1='p1' + onboarding/welcome-tour seen flags + onnowtv-instant-bundle-meta-v1 to skip splash).",
+  "seed_data_creation": "vesper-library:p1 seeded with 2 sample actors (id 287 + 500) with profile URLs so ActorCard renders the <img> tag (rather than the letter-initial fallback) — required to actually verify the grayscale filter is applied to a real <img>.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "v2.6.95 verified. KEY GOTCHA repeats from prev iter: Playwright `page.click()` may not fire onClick on ToggleRow (Settings.jsx line 1475+). Use `await page.evaluate(\"() => document.querySelector('[data-testid=\\\"...\\\"]').click()\")` instead — this DOES trigger React onClick and is what was used for both autoplay + dev-unlock toggles here. For Library actor grayscale tests, seed `vesper-library:<activeProfileId>` (NOT `vesper-library` — it's profile-scoped via /app/frontend/src/lib/profileScope.js) with an `actors` object whose values include a `profile` URL so the <img> path renders (otherwise you get the letter fallback). Profile array shape is Array<{id,name,avatarId,kids,createdAt}>, NOT an object — `onnowtv-profiles-v1` must be a JSON array.",
+  "rca of the issue": "No issues — verification only. All numeric expectations from the spec (H1 26-42, H2 16-22, padding clamps, smaller toggle handle) confirmed via getComputedStyle at 1920w. Grayscale filter verified via getComputedStyle(img).filter === 'grayscale(1) contrast(1.05)'. YAML workflow file parses cleanly via PyYAML."
+}

@@ -228,6 +228,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.95 — Settings page tightened · B&W library actors · Auto-deploy backend on push**
+            - 📐 **Settings page made more compact** — page padding,
+              H1, section headers, and ToggleRow paddings/font sizes
+              all dropped ~30 % to match a "proper settings page"
+              density (closer to iOS / macOS System Settings than a
+              marketing hero).  Same dark theme, same blue accents,
+              same focus states — just easier to navigate.  Max
+              width capped at 1100 px so wider screens get the
+              same scannable column instead of stretching.
+            - 🎭 **Library actor portraits → black & white**.
+              Library's actor grid now renders profile photos with
+              `grayscale(1) contrast(1.05)` for a curated magazine
+              look that visually separates "saved actors" from the
+              colour cast-rows on Detail pages.
+            - 🚀 **NEW: Auto-deploy backend on every push to main**.
+              New workflow `.github/workflows/deploy-backend.yml`
+              rsync's `/app/backend/` → `/opt/onnowtv/backend/` on
+              the Contabo VPS, pip-installs requirements, restarts
+              the systemd service, and hits the public HTTPS
+              endpoint as a smoke test.  All you need is a one-time
+              repo secret `VPS_SSH_PASSWORD`.  No more manual VPS
+              syncs after "Save to GitHub".
+            - 🆙 APK bumped to **v2.6.95** (versionCode 165).
+
             **v2.6.94 — Upcoming Movies diagnostic · Settings "Unlock" · StreamUnavailableModal autoplay path · EPG disk shrink**
             - 🐛 **Stream Unavailable modal wasn't firing on
               autoplay**.  When tapping a poster (which navigates

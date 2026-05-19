@@ -663,6 +663,14 @@ function ActorCard({ actor }) {
                     alt={actor.name}
                     loading="lazy"
                     className="w-full h-full object-cover"
+                    style={{
+                        // Library actors are shown as classic
+                        // black-and-white portraits — gives the
+                        // page a curated, magazine-style feel and
+                        // visually separates the Library grid from
+                        // colour cast-rows on Detail pages.
+                        filter: 'grayscale(1) contrast(1.05)',
+                    }}
                 />
             ) : (
                 <div

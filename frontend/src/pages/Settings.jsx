@@ -204,7 +204,16 @@ export default function Settings() {
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     WebkitOverflowScrolling: 'touch',
-                    padding: 'clamp(40px, 5vw, 80px) clamp(40px, 6vw, 96px) 80px',
+                    /* TIGHTER PADDING — user wanted the Settings page
+                     * smaller and easier to navigate.  Was clamp(40,5vw,80)
+                     * × clamp(40,6vw,96) which felt like a marketing
+                     * landing page; bring it in line with a proper
+                     * settings surface (~similar density to iOS/macOS
+                     * System Settings). */
+                    padding: 'clamp(20px, 2.6vw, 44px) clamp(24px, 3.2vw, 60px) 56px',
+                    maxWidth: 1100,
+                    marginLeft: 'auto',
+                    marginRight: 'auto',
                 }}
             >
 
@@ -215,29 +224,29 @@ export default function Settings() {
                 onClick={() => navigate('/')}
                 className="inline-flex items-center gap-2"
                 style={{
-                    padding: '10px 18px',
+                    padding: '7px 14px',
                     background: 'rgba(255,255,255,0.06)',
                     border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 999,
                     color: 'var(--vesper-text-2)',
                     fontFamily: 'var(--theme-font-mono, monospace)',
-                    fontSize: 12,
+                    fontSize: 11,
                     letterSpacing: '0.22em',
                     textTransform: 'uppercase',
-                    marginBottom: 28,
+                    marginBottom: 18,
                 }}
             >
-                <ArrowLeft size={14} /> Back
+                <ArrowLeft size={12} /> Back
             </button>
 
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
-                    fontSize: 11,
+                    fontSize: 10,
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginBottom: 8,
+                    marginBottom: 6,
                 }}
             >
                 Settings · Appearance
@@ -246,11 +255,11 @@ export default function Settings() {
             <h1
                 style={{
                     fontFamily: 'var(--theme-font-display, "Geist", sans-serif)',
-                    fontSize: 'clamp(40px, 4.6vw, 72px)',
+                    fontSize: 'clamp(26px, 2.8vw, 42px)',
                     fontWeight: 700,
                     letterSpacing: '-0.025em',
                     lineHeight: 0.95,
-                    marginBottom: 12,
+                    marginBottom: 8,
                 }}
             >
                 Theme
@@ -258,11 +267,11 @@ export default function Settings() {
 
             <p
                 style={{
-                    fontSize: 'clamp(14px, 1.05vw, 17px)',
-                    lineHeight: 1.55,
+                    fontSize: 'clamp(12px, 0.9vw, 14px)',
+                    lineHeight: 1.5,
                     color: 'var(--vesper-text-2)',
                     maxWidth: '60ch',
-                    marginBottom: 40,
+                    marginBottom: 22,
                 }}
             >
                 Pick the colour that suits your room.  Every theme keeps
@@ -273,8 +282,8 @@ export default function Settings() {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                    gap: 'clamp(12px, 1.1vw, 18px)',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                    gap: 'clamp(8px, 0.8vw, 14px)',
                 }}
             >
                 {THEMES.map((t, i) => (
@@ -296,8 +305,8 @@ export default function Settings() {
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginTop: 56,
-                    marginBottom: 6,
+                    marginTop: 32,
+                    marginBottom: 5,
                 }}
             >
                 Settings · Playback
@@ -305,11 +314,11 @@ export default function Settings() {
             <h2
                 style={{
                     fontFamily: 'var(--theme-font-display, "Geist", sans-serif)',
-                    fontSize: 'clamp(20px, 1.8vw, 28px)',
+                    fontSize: 'clamp(16px, 1.4vw, 22px)',
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
                     lineHeight: 1,
-                    marginBottom: 18,
+                    marginBottom: 12,
                 }}
             >
                 Streams
@@ -1237,9 +1246,9 @@ function SectionHeader({ eyebrow, title, icon: Icon, anchorId }) {
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginTop: 44,
-                    marginBottom: 6,
-                    scrollMarginTop: 80,
+                    marginTop: 28,
+                    marginBottom: 5,
+                    scrollMarginTop: 60,
                 }}
             >
                 {eyebrow}
@@ -1248,19 +1257,19 @@ function SectionHeader({ eyebrow, title, icon: Icon, anchorId }) {
                 style={{
                     fontFamily:
                         'var(--theme-font-display, "Geist", sans-serif)',
-                    fontSize: 'clamp(20px, 1.8vw, 28px)',
+                    fontSize: 'clamp(16px, 1.4vw, 22px)',
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
                     lineHeight: 1,
-                    marginBottom: 18,
+                    marginBottom: 12,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 10,
+                    gap: 8,
                 }}
             >
                 {Icon && (
                     <Icon
-                        size={20}
+                        size={16}
                         strokeWidth={1.8}
                         style={{ color: 'var(--vesper-blue)' }}
                     />
@@ -1471,18 +1480,19 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
             data-focus-style="tile"
             tabIndex={0}
             onClick={onToggle}
-            className="w-full flex items-center justify-between gap-5 text-left"
+            className="w-full flex items-center justify-between gap-4 text-left"
             style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 14,
-                padding: '14px 18px',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
             }}
         >
             <div className="flex-1 min-w-0">
                 <div
                     style={{
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                         letterSpacing: '-0.01em',
                         color: 'var(--vesper-text)',
@@ -1492,9 +1502,9 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
                 </div>
                 <div
                     style={{
-                        marginTop: 4,
-                        fontSize: 11.5,
-                        lineHeight: 1.45,
+                        marginTop: 3,
+                        fontSize: 11,
+                        lineHeight: 1.4,
                         color: 'var(--vesper-text-2)',
                         maxWidth: '70ch',
                     }}
@@ -1505,8 +1515,8 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
             <span
                 style={{
                     flex: '0 0 auto',
-                    width: 44,
-                    height: 26,
+                    width: 38,
+                    height: 22,
                     borderRadius: 999,
                     background: value
                         ? 'var(--vesper-blue)'
@@ -1519,9 +1529,9 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
                     style={{
                         position: 'absolute',
                         top: 3,
-                        left: value ? 21 : 3,
-                        width: 20,
-                        height: 20,
+                        left: value ? 19 : 3,
+                        width: 16,
+                        height: 16,
                         borderRadius: '50%',
                         background: '#fff',
                         transition: 'left 220ms ease',

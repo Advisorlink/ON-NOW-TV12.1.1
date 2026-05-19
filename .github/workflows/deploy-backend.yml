@@ -1,0 +1,158 @@
+name: Deploy Backend to Contabo VPS
+
+# Auto-syncs /app/backend/ to the Contabo VPS and restarts the
+# onnowtv-backend.service whenever the backend code changes on main.
+#
+# Trigger paths:
+#   - backend/**          → server.py, helpers, requirements.txt
+#   - .github/workflows/deploy-backend.yml (test the workflow itself)
+#
+# How to set up the secrets BEFORE this workflow can run:
+#   1. Go to Settings → Secrets and variables → Actions
+#   2. Add `VPS_SSH_PASSWORD`  (value: your Contabo root SSH password)
+#      OR use VPS_SSH_KEY if you prefer key-based auth (recommended).
+#   3. Optional: override the host / user / path with:
+#      VPS_HOST  (default 62.84.181.66)
+#      VPS_USER  (default root)
+#      VPS_BACKEND_PATH (default /opt/onnowtv/backend)
+#
+# The deploy step uses rsync over SSH so only changed files transfer
+# (typically <500 KB per deploy).  After rsync it restarts the
+# systemd service and tails 20 lines of logs to surface obvious
+# startup failures in the workflow output.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Sync backend → VPS → restart service
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install rsync + sshpass
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rsync sshpass
+
+      - name: Resolve deploy targets
+        id: targets
+        run: |
+          VPS_HOST="${VPS_HOST_OVERRIDE:-62.84.181.66}"
+          VPS_USER="${VPS_USER_OVERRIDE:-root}"
+          VPS_PATH="${VPS_BACKEND_PATH_OVERRIDE:-/opt/onnowtv/backend}"
+          echo "host=$VPS_HOST" >> "$GITHUB_OUTPUT"
+          echo "user=$VPS_USER" >> "$GITHUB_OUTPUT"
+          echo "path=$VPS_PATH" >> "$GITHUB_OUTPUT"
+          echo "Deploying to $VPS_USER@$VPS_HOST:$VPS_PATH"
+        env:
+          VPS_HOST_OVERRIDE: ${{ vars.VPS_HOST }}
+          VPS_USER_OVERRIDE: ${{ vars.VPS_USER }}
+          VPS_BACKEND_PATH_OVERRIDE: ${{ vars.VPS_BACKEND_PATH }}
+
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ steps.targets.outputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Rsync backend code to VPS
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.targets.outputs.path }}
+        run: |
+          if [ -z "$SSHPASS" ]; then
+            echo "::error::VPS_SSH_PASSWORD secret is not set.  Add it under Settings → Secrets → Actions."
+            exit 1
+          fi
+          # Exclude caches / venvs / local-only files so we never push
+          # garbage to production.  Note: we DON'T touch /opt/onnowtv/
+          # backend/.env on the VPS — that file holds production secrets
+          # (TMDB_BEARER_TOKEN, PREMIUMIZE_API_KEY, etc.) and should
+          # never be overwritten from git.
+          sshpass -e rsync -avz --delete \
+            --exclude="__pycache__" \
+            --exclude="*.pyc" \
+            --exclude=".env" \
+            --exclude=".env.*" \
+            --exclude="*.bak*" \
+            --exclude="*.log" \
+            --exclude=".pytest_cache" \
+            --exclude="tests/" \
+            -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
+            backend/ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
+
+      - name: Install new Python dependencies (if requirements.txt changed)
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.targets.outputs.path }}
+        run: |
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              set -e
+              # Always pip-install — pip is idempotent and skips
+              # already-satisfied dependencies fast.  This keeps the
+              # workflow simple (no diff comparison required) and
+              # covers the case where the file was just rsync'd.
+              if [ -f $VPS_PATH/requirements.txt ]; then
+                /opt/onnowtv/venv/bin/pip install --quiet --disable-pip-version-check -r $VPS_PATH/requirements.txt
+              fi
+            "
+
+      - name: Restart backend service + health check
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+        run: |
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              set -e
+              systemctl restart onnowtv-backend.service
+              sleep 8
+              # If the service crashed on boot, surface the failure
+              # in the workflow output.
+              if ! systemctl is-active --quiet onnowtv-backend.service; then
+                echo '❌ Service failed to start. Recent logs:'
+                journalctl -u onnowtv-backend.service --no-pager -n 30
+                exit 1
+              fi
+              echo '✅ Service active.  Recent startup logs:'
+              tail -n 20 /var/log/onnowtv/backend.err.log 2>/dev/null || journalctl -u onnowtv-backend.service --no-pager -n 20
+            "
+
+      - name: Public HTTPS smoke test
+        run: |
+          # Hit the production endpoint over the public DNS to confirm
+          # the service is actually serving requests (not just running
+          # the systemd unit).  Retry a couple of times to absorb the
+          # uvicorn warm-up window.
+          for i in 1 2 3; do
+            status=$(curl -sk -o /dev/null -w "%{http_code}" https://onnowtv.duckdns.org/api/ || echo 000)
+            echo "Attempt $i: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "✅ Public API healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ Public API never returned 200 — investigate."
+          exit 1
