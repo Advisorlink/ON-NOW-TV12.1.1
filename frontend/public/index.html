@@ -39,8 +39,17 @@
             [class*="static-preview"],
             [class*="staticPreview"],
             [class*="preview-banner"],
+            [class*="preview-bar"],
+            [class*="resume-preview"],
+            [class*="resumePreview"],
+            [class*="preview-pod"],
+            [class*="hibernate"],
+            button[class*="resume"],
+            [aria-label*="Resume Preview"],
+            [aria-label*="static preview"],
             [data-emergent],
-            [data-resume-preview] {
+            [data-resume-preview],
+            [data-preview-banner] {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
@@ -49,6 +58,77 @@
                 left: -99999px !important;
             }
         </style>
+        <script>
+            /* v2.6.72: aggressive runtime guard against Emergent's
+               preview-hibernation banner.  When the preview pod
+               sleeps the platform overlays a "You're viewing a
+               static preview — Resume Preview" bar on top of our
+               app.  Source HTML is clean (we removed emergent-main.js
+               in v2.6.67) but the banner can also be injected by
+               server-side middleware on suspended pods.  This
+               MutationObserver nukes anything matching known banner
+               signatures the instant it appears.
+               Real fix is migrating to a production URL (which the
+               user is actioning with Emergent support). */
+            (function () {
+                var SIGS = [
+                    /Resume Preview/i,
+                    /viewing a static preview/i,
+                    /viewing a preview/i,
+                ];
+                function isBanner(el) {
+                    if (!el || !el.textContent) return false;
+                    var t = el.textContent.slice(0, 200);
+                    for (var i = 0; i < SIGS.length; i++) {
+                        if (SIGS[i].test(t)) return true;
+                    }
+                    return false;
+                }
+                function kill(node) {
+                    try {
+                        // Walk up until we find the banner container
+                        // (the matching text might be in a deep child).
+                        var hop = node;
+                        for (var i = 0; i < 6 && hop && hop.parentNode; i++) {
+                            if (isBanner(hop) && hop.parentNode !== document.body) {
+                                hop = hop.parentNode;
+                                continue;
+                            }
+                            break;
+                        }
+                        if (hop && hop !== document.body && hop.parentNode) {
+                            hop.parentNode.removeChild(hop);
+                        }
+                    } catch (_e) { /* ignore */ }
+                }
+                function sweep(root) {
+                    if (!root || !root.querySelectorAll) return;
+                    try {
+                        var all = root.querySelectorAll('div,section,aside,footer,header,nav');
+                        for (var i = 0; i < all.length; i++) {
+                            if (isBanner(all[i])) kill(all[i]);
+                        }
+                    } catch (_e) { /* ignore */ }
+                }
+                document.addEventListener('DOMContentLoaded', function () {
+                    sweep(document.body);
+                });
+                var mo = new MutationObserver(function (mutations) {
+                    for (var i = 0; i < mutations.length; i++) {
+                        var m = mutations[i];
+                        if (m.addedNodes) {
+                            for (var j = 0; j < m.addedNodes.length; j++) {
+                                var n = m.addedNodes[j];
+                                if (n.nodeType !== 1) continue;
+                                if (isBanner(n)) { kill(n); continue; }
+                                sweep(n);
+                            }
+                        }
+                    }
+                });
+                mo.observe(document.documentElement, { childList: true, subtree: true });
+            })();
+        </script>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <!--
             v2.6.67: removed `<script src="…assets.emergent.sh/scripts/emergent-main.js"></script>`

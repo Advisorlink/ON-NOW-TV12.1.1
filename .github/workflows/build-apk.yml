@@ -238,6 +238,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.6.72 — DEFENSIVE: nuke "Resume Preview" banner client-side**
+            - 🛡️ **Aggressive MutationObserver-based banner nuker.**
+              The "You're viewing a static preview · Resume Preview"
+              bar is injected by Emergent's preview-pod hibernation
+              middleware (not our code).  Real fix is migrating to a
+              production URL (`*.emergent.host` instead of
+              `*.preview.emergentagent.com`) — the user is in touch
+              with Emergent support for this.
+              In the meantime this build adds:
+              • Broader CSS selectors covering `[class*="resume-preview"]`,
+                `[aria-label*="Resume Preview"]`, `button[class*="resume"]`,
+                `[data-preview-banner]`, etc.
+              • A MutationObserver that detects nodes containing the
+                strings "Resume Preview" or "viewing a static preview"
+                and removes them within a single frame.
+              • Initial DOMContentLoaded sweep so any banner injected
+                before the observer is wired up still gets cleaned.
+              Net effect: even if the preview pod hibernates and the
+              platform tries to overlay the banner, the user sees it
+              for ≤ 1 frame before our observer removes it.
+            - 🆙 APK bumped to **v2.6.72** (versionCode 142).
+
             **v2.6.71 — Host button error · No-border avatar reactions · Backup button on update**
             - 📣 **Host party button errors are now visible.**  The
               "host party isn't clickable" was actually a silent

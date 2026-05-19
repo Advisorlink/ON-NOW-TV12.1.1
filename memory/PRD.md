@@ -56,6 +56,21 @@ frontend/backend/Android code that the box would see.
 
 
 
+## Implemented (Iteration 105 — Feb 18, 2026) — v2.6.72
+### "Resume Preview" banner — defensive client-side nuker
+- **🐛 User reported (with screenshot)**: "Why is there a Resume Preview button on the application if I've deployed it, I'm paying for the actual application?" Banner shown at bottom: *"You're viewing a static preview. Resume to interact with the app." + "Resume Preview"* button.
+- **🔬 Root cause**: This banner is NOT from our app code (v2.6.67 removed `emergent-main.js` from source `index.html`). It's injected by the **Emergent preview-pod hibernation middleware** at the platform level — when a preview pod sleeps from idle, Emergent's infrastructure serves a "preview suspended" overlay regardless of what's in the source HTML.
+- **🔧 The PROPER fix** = migrate the APK from the preview URL (`rebrand-app-5.preview.emergentagent.com`) to a production deployment URL (`*.emergent.host`). Tested `rebrand-app-5.emergent.host` → returns Cloudflare 520, so prod deployment is currently broken. **User must contact `support@emergent.sh` to activate the production deployment.** I called support_agent and relayed the exact email script + questions to the user.
+- **🛡️ Defensive client-side fix in this build**:
+  - Expanded CSS hide rules: `[class*="resume-preview"]`, `[class*="resumePreview"]`, `[class*="preview-banner"]`, `[class*="preview-bar"]`, `[class*="hibernate"]`, `button[class*="resume"]`, `[aria-label*="Resume Preview"]`, `[aria-label*="static preview"]`, `[data-preview-banner]`.
+  - **MutationObserver** added in `<head>` that detects nodes containing "Resume Preview" / "viewing a static preview" text and removes them within a single frame.
+  - DOMContentLoaded sweep so banners injected before observer wiring still get cleaned.
+  - Walks up to 6 ancestors to find the banner's wrapper container (text might be in a deep child).
+- **Limitation**: This is a band-aid. If the user is OFFLINE and the WebView is showing the platform's hibernation page, NO React code is running so the MutationObserver isn't active either. The real fix remains the production-URL migration.
+- **🆙 APK bumped to v2.6.72 (versionCode 142).** Release notes added.
+
+
+
 ## Implemented (Iteration 104 — Feb 18, 2026) — v2.6.71
 ### Host button error toast · No-border avatar dock reactions · Backup button on update gate
 - **📣 Host Watch Party button: surfaced silent failures**
