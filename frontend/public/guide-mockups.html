@@ -247,7 +247,12 @@ html, body { background: #06080F; color: #E6EAF2;
 /* ─────────────────────────────────────────────────────────────── */
 /* MOCKUP 14 — REFERENCE-INSPIRED · vertical list + poster rail   */
 /* ─────────────────────────────────────────────────────────────── */
-.m14-bg { position: absolute; inset: 0; background: #000; }
+.m14-bg {
+    position: absolute; inset: 0;
+    background:
+        linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.92) 100%),
+        url('https://image.tmdb.org/t/p/original/2I1OFQJ0L9T0dpU6FobKFWV2PxX.jpg') center/cover;
+}
 .m14-head {
     position: absolute; top: 24px; left: 56px; right: 56px;
     display: flex; align-items: center; justify-content: space-between;
@@ -349,22 +354,26 @@ html, body { background: #06080F; color: #E6EAF2;
 .m14-poster.focus {
     box-shadow: 0 0 0 3px #5DC8FF, 0 16px 48px rgba(93,200,255,0.42);
 }
-/* Poster fills with cinematic gradients to fake real artwork */
+/* Poster fills with REAL TMDB backdrops (live URLs fetched from
+ * /api/tmdb/trending at design time) to preview the v2.7.04
+ * native rail's actual look — at runtime, `bindTmdbBackdrop()`
+ * in LiveGuideController.kt resolves the focused programme's
+ * title via /api/tmdb/search and paints the result at α 0.55. */
 .m14-poster.p1 { background:
-    radial-gradient(circle at 30% 40%, rgba(120,160,80,0.7) 0%, transparent 60%),
-    linear-gradient(135deg, #2d4a3e 0%, #0a0f0a 100%); }
+    linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.85) 100%),
+    url('https://image.tmdb.org/t/p/original/2I1OFQJ0L9T0dpU6FobKFWV2PxX.jpg') center/cover; }
 .m14-poster.p2 { background:
-    radial-gradient(circle at 60% 50%, rgba(255,200,80,0.65) 0%, transparent 60%),
-    linear-gradient(135deg, #4a3a1e 0%, #1a0f0a 100%); }
+    linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.85) 100%),
+    url('https://image.tmdb.org/t/p/original/ewlmL0nxo2lLqBj69upgp2gjHpV.jpg') center/cover; }
 .m14-poster.p3 { background:
-    radial-gradient(circle at 50% 40%, rgba(80,140,200,0.7) 0%, transparent 60%),
-    linear-gradient(135deg, #1a3a5e 0%, #0a0a1f 100%); }
+    linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.85) 100%),
+    url('https://image.tmdb.org/t/p/original/mez2Z3WqlPKNXpi7mWoiiE5guE9.jpg') center/cover; }
 .m14-poster.p4 { background:
-    radial-gradient(circle at 50% 50%, rgba(200,80,140,0.6) 0%, transparent 60%),
-    linear-gradient(135deg, #3a1a2e 0%, #1a0a1f 100%); }
+    linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.85) 100%),
+    url('https://image.tmdb.org/t/p/original/bq28ajZaoMyzEIm6REelqyqtEDZ.jpg') center/cover; }
 .m14-poster.p5 { background:
-    radial-gradient(circle at 40% 40%, rgba(255,140,80,0.6) 0%, transparent 60%),
-    linear-gradient(135deg, #3a2a1e 0%, #1a0f0a 100%); }
+    linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.85) 100%),
+    url('https://image.tmdb.org/t/p/original/auyEi4Xho43HFvVQnd42LzqBdiV.jpg') center/cover; }
 .m14-card-cap {
     position: absolute; bottom: 0; left: 0; right: 0;
     padding: 14px 16px;
@@ -1380,7 +1389,7 @@ html, body { background: #06080F; color: #E6EAF2;
         <!-- On Now card -->
         <div class="m14-poster onnow p1 focus">
             <div class="m14-card-cap">
-                <div class="m14-card-title">Jurassic World</div>
+                <div class="m14-card-title">Project Hail Mary</div>
                 <div class="m14-card-time">22:15 → 00:13</div>
                 <div class="m14-card-bar"><span></span></div>
             </div>
@@ -1390,7 +1399,7 @@ html, body { background: #06080F; color: #E6EAF2;
             <div class="m14-next-label">NEXT</div>
             <div class="m14-poster next p2">
                 <div class="m14-card-cap">
-                    <div class="m14-card-title">Jurassic World</div>
+                    <div class="m14-card-title">Dutton Ranch</div>
                     <div class="m14-card-time">00:13 → 01:40</div>
                 </div>
             </div>
@@ -1399,7 +1408,7 @@ html, body { background: #06080F; color: #E6EAF2;
             <div class="m14-next-label">NEXT +1</div>
             <div class="m14-poster next p3">
                 <div class="m14-card-cap">
-                    <div class="m14-card-title">The Simpsons</div>
+                    <div class="m14-card-title">Euphoria</div>
                     <div class="m14-card-time">01:40 → 02:07</div>
                 </div>
             </div>
@@ -1408,7 +1417,7 @@ html, body { background: #06080F; color: #E6EAF2;
             <div class="m14-next-label">NEXT +2</div>
             <div class="m14-poster next p4">
                 <div class="m14-card-cap">
-                    <div class="m14-card-title">9-1-1</div>
+                    <div class="m14-card-title">The Boys</div>
                     <div class="m14-card-time">02:07 → 03:00</div>
                 </div>
             </div>
@@ -1417,7 +1426,7 @@ html, body { background: #06080F; color: #E6EAF2;
             <div class="m14-next-label">NEXT +3</div>
             <div class="m14-poster next p5">
                 <div class="m14-card-cap">
-                    <div class="m14-card-title">The Mentalist</div>
+                    <div class="m14-card-title">FROM</div>
                     <div class="m14-card-time">03:00 → 04:00</div>
                 </div>
             </div>

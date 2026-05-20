@@ -228,6 +228,52 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.04 — M14 rail TMDB backdrops · NEVER autoplay 4K**
+            - 🎨 **Plex / Netflix Up Next feel on the M14 Live Guide
+              bottom rail.**  Both the "On Now" card and the four
+              "Coming Up Next" cards now load the actual TMDB
+              backdrop art of the focused programme behind a 0.55
+              alpha + dark gradient overlay (text legibility
+              preserved).  Resolved at 240 ms fade-in via a new
+              `bindTmdbBackdrop()` helper in
+              `LiveGuideController.kt` that:
+                • hits `/api/tmdb/search?q=<title>` on the backend
+                  (server-side 1 h cache),
+                • picks the first movie/tv hit's `backdrop` field,
+                • caches the URL in an LRU 256-entry map
+                  (negative cache too — empty string = "no match",
+                  so we don't retry every focus change),
+                • bitmap-loads on a dedicated 2-thread executor
+                  and View-tag-guards so rapid D-pad scrolling
+                  never paints last channel's backdrop into a
+                  new card.
+            - 🚫 **`is4K()` detection escalated — solo-mode autoplay
+              will NEVER pick a 4K stream again.**  User reported
+              non-party autoplay was launching 4K streams even
+              with the Autoplay-1080p preference on.  Root cause:
+              the old detector only matched literal `2160` / `4K`
+              tokens, missing real-world Stremio addon titles like
+              `Web-DL HDR Atmos` (no resolution tag, but
+              effectively always 4K).  v2.7.04 escalates the
+              heuristic to also trip on:
+                • `HDR`, `HDR10`, `HDR10+`, `Dolby Vision`, `DV`,
+                  `IMAX Enhanced` — all virtually exclusive to 4K
+                  releases on the addons we serve;
+                • `Ultra HD` (Plex-style label);
+                • file-size ≥ 20 GB pulled from
+                  `👤 423 💾 23.4 GB` Torrentio descriptions
+                  (1080p tops out around 15 GB even for
+                  remuxes — 20 GB+ is 4K territory).
+              All ten unit-test cases pass:
+                ✓ `1080p BluRay 4.2 GB` → 1080p (kept)
+                ✓ `4K HDR 18 GB` → rejected
+                ✓ `Web-DL HDR Atmos 12 GB` → rejected (no 4K tag)
+                ✓ `Dolby Vision 8 GB` → rejected
+                ✓ `BluRay 1080 23 GB` → rejected (huge file)
+                ✓ `IMAX Enhanced 14 GB` → rejected
+                ✓ `1080p HEVC 5 GB` → 1080p (kept)
+            - 🆙 APK bumped to **v2.7.04** (versionCode 174).
+
             **v2.7.03 — M14 Live Guide native rewrite (Kotlin/XML)**
             - 🛰️ **Implemented the long-pending M14 reference design**
               for the native Android Live Guide overlay

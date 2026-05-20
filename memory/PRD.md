@@ -55,6 +55,39 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 129 — Feb 20, 2026) — v2.7.04
+### M14 rail TMDB backdrops (Plex/Netflix Up Next feel) + autoplay 4K rejection escalated
+
+#### 1) TMDB backdrops on every M14 rail card (P0 enhancement)
+- Added `bindTmdbBackdrop(target, title)` helper to `LiveGuideController.kt`:
+  - Hits `/api/tmdb/search?q=<title>` on the backend (server-side 1h cache).
+  - Picks the first movie/tv hit's `backdrop` field.
+  - LRU 256-entry cache (negative cache too — empty string = "no match" so we don't retry).
+  - 2-thread executor, View-tag race guard, 240ms fade-in to α 0.55.
+- Wired into renderDetail(): the "On Now" card + all 4 "NEXT / NEXT+1 / NEXT+2 / NEXT+3" cards now show the actual programme's TMDB backdrop behind a dark legibility gradient.
+- New XML IDs: `m14_onnow_bg`, `m14_next{1..4}_bg`.
+- Mockup updated at `/app/frontend/public/guide-mockups.html` with real live TMDB URLs so the visual preview matches the native runtime behavior — screenshot delivered to user inline.
+
+#### 2) Autoplay will NEVER pick a 4K stream (P0 bug fix)
+- User reported solo (non-party) autoplay launching 4K streams despite Autoplay-1080p being on.
+- **Root cause:** old `is4K()` only matched literal `2160` / `4K` tokens; real-world Stremio addons title 4K releases as e.g. `Web-DL HDR Atmos` (no resolution tag).
+- **Fix:** escalated `is4K()` heuristic in `/app/frontend/src/lib/streamMeta.js`:
+  - Now trips on `HDR`, `HDR10`, `HDR10+`, `Dolby Vision`, `DV`, `IMAX Enhanced` — virtually never 1080p on the addons we use.
+  - Also trips on `Ultra HD` (Plex-style).
+  - Also trips on file size ≥ 20 GB pulled from Torrentio descriptions (`💾 23 GB`).
+- **Verified:** 10/10 unit-test cases pass via Node script (`/tmp/test_is4k.mjs`) covering all reported failure modes.
+
+**Files changed:**
+- `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/LiveGuideController.kt` — added TMDB backdrop helpers, view refs, On Now binding.
+- `/app/android/vesper-tv/app/src/main/res/layout/activity_vlc_player.xml` — added 5 backdrop ImageViews (m14_onnow_bg, m14_next{1..4}_bg).
+- `/app/frontend/src/lib/streamMeta.js` — escalated `is4K()`.
+- `/app/frontend/public/guide-mockups.html` — live TMDB URLs on M14 mockup for the preview screenshot.
+
+**Self-validation:** XML parses cleanly, all R.id.* references resolve, no duplicate IDs, all 10 4K-detection tests pass.
+
+**🆙 APK bumped to v2.7.04 (versionCode 174).**
+
+
 ## Implemented (Iteration 128 — Feb 20, 2026) — v2.7.03
 ### M14 Live Guide native rewrite — Kotlin + Android XML (P0)
 

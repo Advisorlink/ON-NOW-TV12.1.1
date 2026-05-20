@@ -31,30 +31,52 @@ export function is1080p(stream) {
 }
 
 /**
- * "Is this a 4K / 2160p stream?" — used by the Watch-Together
- * autoplay picker to SKIP 4K streams unconditionally.  Per user
- * spec (v2.6.76): "Make sure we're only picking 1080p, NEVER 4K
- * — that's what's causing the host's buffering."
+ * "Is this a 4K / 2160p stream?" — used by the autoplay picker
+ * (party AND solo) to SKIP 4K streams unconditionally on the HK1
+ * Android box, which can't actually decode 2160p HEVC in real time
+ * → buffers + drops frames.  Per the user's repeated spec:
+ *   "Only play 1080p, NEVER 4K — autoplay should never pick a 4K
+ *    stream even when one is available."
  *
- * Detection signals:
- *   • Literal quality tags:  4K, 2160p, 2160, UHD
- *   • Common 4K release patterns: "4KBluRay", "UHD-BluRay", "WEB-DL.2160"
- *   • Plex-style: "2160 · HEVC", "Plex 4K"
- *   • Bitrate hint: if Plex/HLS metadata includes a bitrate ≥ 10 Mbps
- *     AND HEVC, we assume 4K even without an explicit label (this
- *     catches Plex direct streams that don't tag the title).
+ * Detection signals (any single match → 4K):
+ *   • Literal resolution tags: 4K, 2160p, 2160i, UHD, 4KBluRay,
+ *     4KUHD, "Ultra HD" (Plex)
+ *   • Common 4K-only release codecs/formats: HDR, HDR10, HDR10+,
+ *     Dolby Vision / DV, IMAX Enhanced — virtually never appear on
+ *     1080p torrents from the addons we use, so safe to treat as
+ *     a 4K signal.  This is the v2.7.04 escalation: previously
+ *     `is4K` only matched explicit "2160" or "4K" tokens, and the
+ *     user reported solo-mode autoplay picking up streams titled
+ *     e.g. "Web-DL HDR Atmos" (no 2160 in the name) that turned
+ *     out to be 4K under the hood.  HDR/DV are the giveaway.
+ *   • Bitrate hint: HEVC + ≥ 10 Mbps  → 4K territory.
+ *   • Size hint: file size ≥ 20 GB for a single movie → almost
+ *     certainly 4K (1080p movies typically peak at ~15 GB for the
+ *     fattest BluRay encodes).
  */
 export function is4K(stream) {
     const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
         stream?.description || ''
     }`;
-    if (/\b(2160p?i?|4k|uhd|4kbluray|4kuhd)\b/i.test(haystack)) return true;
-    // High-bitrate HEVC pretty much guarantees 4K for the bitrates
-    // we'd see from Plex / direct sources (Blu-ray 1080p HEVC is
-    // typically 5-8 Mbps; 4K is 15-50 Mbps).
+    if (/\b(2160p?i?|4k|uhd|4kbluray|4kuhd|ultra[\s_.\-]?hd)\b/i.test(haystack)) return true;
+    /* v2.7.04 — HDR / Dolby Vision / IMAX Enhanced are 4K signals
+       on every Stremio addon catalogue we serve (HDR-1080p is
+       essentially non-existent in real-world torrents). */
+    if (/\b(hdr10\+?|hdr|dolby[\s_.\-]?vision|\bdv\b|imax[\s_.\-]?enhanced)\b/i.test(haystack)) return true;
+    /* High-bitrate HEVC pretty much guarantees 4K (Blu-ray 1080p
+       HEVC tops out around 5-8 Mbps; 4K is 15-50 Mbps). */
     const bitrate = stream?.bitrate || stream?.bitrate_kbps || 0;
     const isHEVC = /\b(hevc|x265|h\.?265)\b/i.test(haystack);
     if (isHEVC && Number(bitrate) >= 10_000) return true;
+    /* v2.7.04 — file-size sanity: pull a "12.4 GB" / "23 GB" /
+       "9.8GB" hint out of the title and reject anything ≥ 20 GB.
+       Torrentio puts the size in the description, e.g.
+       "👤 423 💾 12.4 GB". */
+    const sizeMatch = haystack.match(/(\d+(?:\.\d+)?)\s*GB\b/i);
+    if (sizeMatch) {
+        const gb = parseFloat(sizeMatch[1]);
+        if (gb >= 20) return true;
+    }
     return false;
 }
 

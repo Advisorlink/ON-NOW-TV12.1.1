@@ -114,12 +114,31 @@ class LiveGuideController(
     private val m14HeaderDate: TextView = root.findViewById(R.id.m14_header_date)
     private val m14Next1Title: TextView = root.findViewById(R.id.m14_next1_title)
     private val m14Next1Time: TextView = root.findViewById(R.id.m14_next1_time)
+    private val m14Next1Bg: ImageView = root.findViewById(R.id.m14_next1_bg)
     private val m14Next2Title: TextView = root.findViewById(R.id.m14_next2_title)
     private val m14Next2Time: TextView = root.findViewById(R.id.m14_next2_time)
+    private val m14Next2Bg: ImageView = root.findViewById(R.id.m14_next2_bg)
     private val m14Next3Title: TextView = root.findViewById(R.id.m14_next3_title)
     private val m14Next3Time: TextView = root.findViewById(R.id.m14_next3_time)
+    private val m14Next3Bg: ImageView = root.findViewById(R.id.m14_next3_bg)
     private val m14Next4Title: TextView = root.findViewById(R.id.m14_next4_title)
     private val m14Next4Time: TextView = root.findViewById(R.id.m14_next4_time)
+    private val m14Next4Bg: ImageView = root.findViewById(R.id.m14_next4_bg)
+    private val m14OnNowBg: ImageView = root.findViewById(R.id.m14_onnow_bg)
+
+    /* v2.7.04 — TMDB backdrop cache for the M14 rail.  Key is the
+       lowercased EPG programme title; value is the full TMDB
+       backdrop URL (or "" as a negative cache so we don't retry
+       the lookup every 30 s for a title that has no TMDB match).
+       Resolved by hitting /api/tmdb/search?q={title} on the
+       backend (which itself caches for 1 h).  This lets the
+       "Coming Up Next" cards feel like Plex / Netflix Up Next
+       without a heavy per-render API cost. */
+    private val tmdbBackdropCache = androidx.collection.LruCache<String, String>(256)
+    private val tmdbExecutor = java.util.concurrent.Executors.newFixedThreadPool(2)
+    private val backendBase: String by lazy {
+        activity.getString(R.string.app_url).trim().trimEnd('/')
+    }
 
     /* Repeating clock-tick runnable — refreshes the top-right time
        display every 30 s while the guide is open. */
@@ -569,10 +588,21 @@ class LiveGuideController(
             .sortedBy { it.startTs }
             .take(4)
             .toList()
-        bindNextCard(m14Next1Title, m14Next1Time, upcoming.getOrNull(0))
-        bindNextCard(m14Next2Title, m14Next2Time, upcoming.getOrNull(1))
-        bindNextCard(m14Next3Title, m14Next3Time, upcoming.getOrNull(2))
-        bindNextCard(m14Next4Title, m14Next4Time, upcoming.getOrNull(3))
+        bindNextCard(m14Next1Title, m14Next1Time, m14Next1Bg, upcoming.getOrNull(0))
+        bindNextCard(m14Next2Title, m14Next2Time, m14Next2Bg, upcoming.getOrNull(1))
+        bindNextCard(m14Next3Title, m14Next3Time, m14Next3Bg, upcoming.getOrNull(2))
+        bindNextCard(m14Next4Title, m14Next4Time, m14Next4Bg, upcoming.getOrNull(3))
+
+        /* v2.7.04 — TMDB backdrop on the On Now card too, so the
+           focused programme shows its actual poster/backdrop art
+           (Plex-style "Up Next" feel) instead of just the channel
+           logo. */
+        if (nowProg != null) {
+            bindTmdbBackdrop(m14OnNowBg, nowProg.title)
+        } else {
+            m14OnNowBg.tag = null
+            m14OnNowBg.setImageDrawable(null)
+        }
 
         detailProgrammeTitle.text =
             nowProg?.title?.ifBlank { ch.name } ?: ch.name
@@ -700,16 +730,111 @@ class LiveGuideController(
         m14HeaderDate.text = dayFmt.format(cal.time)
     }
 
-    /* v2.7.03 — binds one Next-card pair (title + time range
-       caption).  When prog is null we clear both fields so empty
-       upcoming slots read as ghosted placeholders. */
-    private fun bindNextCard(titleTv: TextView, timeTv: TextView, prog: Programme?) {
+    /* v2.7.04 — binds one Next-card group (title + time caption +
+       TMDB backdrop image).  When prog is null we clear everything
+       so empty upcoming slots read as ghosted placeholders.  The
+       backdrop lookup happens asynchronously off the main thread;
+       a View-tag race guard keeps fast D-pad scrolling from
+       painting last channel's backdrop into a new card. */
+    private fun bindNextCard(
+        titleTv: TextView, timeTv: TextView, bgIv: ImageView, prog: Programme?
+    ) {
         if (prog == null) {
             titleTv.text = ""
             timeTv.text = ""
+            bgIv.tag = null
+            bgIv.setImageDrawable(null)
         } else {
             titleTv.text = prog.title.ifBlank { "—" }
             timeTv.text = "${formatTime(prog.startTs)} → ${formatTime(prog.stopTs)}"
+            bindTmdbBackdrop(bgIv, prog.title)
+        }
+    }
+
+    /* v2.7.04 — async TMDB backdrop loader.  Looks up the
+       programme title on the backend's /api/tmdb/search endpoint,
+       picks the first movie/tv hit, and loads its backdrop into
+       the target ImageView.  Negative results are cached so we
+       don't retry empty titles.  Race-safe via View tag. */
+    private fun bindTmdbBackdrop(target: ImageView, title: String) {
+        val q = title.trim()
+        target.tag = q
+        if (q.isBlank()) {
+            target.setImageDrawable(null)
+            return
+        }
+        val key = q.lowercase(java.util.Locale.ROOT)
+        val cached = tmdbBackdropCache.get(key)
+        if (cached != null) {
+            if (cached.isEmpty()) {
+                target.setImageDrawable(null)
+            } else {
+                val bm = logoCache.get(cached)
+                if (bm != null) {
+                    target.setImageBitmap(bm)
+                } else {
+                    target.setImageDrawable(null)
+                    loadBackdropBitmapInto(target, q, cached)
+                }
+            }
+            return
+        }
+        target.setImageDrawable(null)
+        tmdbExecutor.execute {
+            try {
+                val backdrop = resolveTmdbBackdrop(q) ?: ""
+                tmdbBackdropCache.put(key, backdrop)
+                if (backdrop.isNotEmpty()) {
+                    loadBackdropBitmapInto(target, q, backdrop)
+                }
+            } catch (_: Throwable) { /* swallow */ }
+        }
+    }
+
+    /* Fetch the JSON, grab the first movie/tv hit's `backdrop` URL.
+       Returns null on any failure / no-match.  Runs on the tmdb
+       executor — never the main thread. */
+    private fun resolveTmdbBackdrop(title: String): String? {
+        return try {
+            val url = "$backendBase/api/tmdb/search?q=" +
+                java.net.URLEncoder.encode(title, "UTF-8")
+            val u = java.net.URL(url)
+            val c = u.openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 4000
+            c.readTimeout = 6000
+            c.requestMethod = "GET"
+            if (c.responseCode !in 200..299) return null
+            val body = c.inputStream.bufferedReader().use { it.readText() }
+            val json = org.json.JSONObject(body)
+            val arr = json.optJSONArray("data") ?: return null
+            for (i in 0 until arr.length()) {
+                val it = arr.optJSONObject(i) ?: continue
+                val mt = it.optString("media_type", "")
+                if (mt != "movie" && mt != "tv") continue
+                val b = it.optString("backdrop", "")
+                if (b.isNotBlank()) return b
+            }
+            null
+        } catch (_: Throwable) { null }
+    }
+
+    /* Race-safe bitmap loader that also remembers the original
+       title — if the target ImageView has been re-bound to a
+       different title by the time the bitmap arrives, we drop
+       silently. */
+    private fun loadBackdropBitmapInto(target: ImageView, originalTitle: String, url: String) {
+        tmdbExecutor.execute {
+            try {
+                val bm = loadBitmap(url) ?: return@execute
+                logoCache.put(url, bm)
+                target.post {
+                    if (target.tag == originalTitle) {
+                        target.setImageBitmap(bm)
+                        target.alpha = 0f
+                        target.animate().alpha(0.55f).setDuration(240).start()
+                    }
+                }
+            } catch (_: Throwable) { /* swallow */ }
         }
     }
 

@@ -921,11 +921,23 @@
                     android:background="@drawable/guide_detail_bg"
                     android:clipChildren="true"
                     android:clipToOutline="true">
+                    <!-- TMDB backdrop of the currently-airing programme.
+                         When no match is found, we fall back to the
+                         channel logo painted center-cropped (legacy
+                         look).  detail_channel_logo is retained as a
+                         small badge in the corner via m14_onnow_badge. -->
+                    <ImageView
+                        android:id="@+id/m14_onnow_bg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:contentDescription="@null" />
                     <ImageView
                         android:id="@+id/detail_channel_logo"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:scaleType="centerCrop"
+                        android:alpha="0"
                         android:contentDescription="@null" />
                     <View
                         android:layout_width="match_parent"
@@ -1007,6 +1019,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="168dp"
                         android:background="@drawable/guide_detail_bg">
+                        <ImageView
+                            android:id="@+id/m14_next1_bg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:alpha="0.55"
+                            android:contentDescription="@null" />
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
@@ -1062,6 +1081,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="168dp"
                         android:background="@drawable/guide_detail_bg">
+                        <ImageView
+                            android:id="@+id/m14_next2_bg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:alpha="0.55"
+                            android:contentDescription="@null" />
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
@@ -1117,6 +1143,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="168dp"
                         android:background="@drawable/guide_detail_bg">
+                        <ImageView
+                            android:id="@+id/m14_next3_bg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:alpha="0.55"
+                            android:contentDescription="@null" />
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
@@ -1172,6 +1205,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="168dp"
                         android:background="@drawable/guide_detail_bg">
+                        <ImageView
+                            android:id="@+id/m14_next4_bg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:alpha="0.55"
+                            android:contentDescription="@null" />
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
