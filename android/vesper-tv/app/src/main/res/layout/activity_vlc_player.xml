@@ -727,6 +727,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
+        android:background="#F206080F"
         android:clipChildren="false">
 
         <!-- Full-screen backdrop art of the focused channel.

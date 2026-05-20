@@ -609,12 +609,17 @@ class LiveGuideController(
         /* v2.7.04 — TMDB backdrop on the On Now card too, so the
            focused programme shows its actual poster/backdrop art
            (Plex-style "Up Next" feel) instead of just the channel
-           logo. */
+           logo.  v2.7.07 — when there's no programme data, fall
+           back to the channel logo (fitCenter) so the card never
+           reads as an empty black rectangle. */
         if (nowProg != null) {
+            m14OnNowBg.scaleType = ImageView.ScaleType.CENTER_CROP
+            m14OnNowBg.alpha = 1f
             bindTmdbBackdrop(m14OnNowBg, nowProg.title)
         } else {
-            m14OnNowBg.tag = null
-            m14OnNowBg.setImageDrawable(null)
+            m14OnNowBg.scaleType = ImageView.ScaleType.FIT_CENTER
+            m14OnNowBg.alpha = 0.55f
+            bindLogo(m14OnNowBg, ch)
         }
 
         /* v2.7.06 — Right-side info panel: channel logo + name +
@@ -638,11 +643,11 @@ class LiveGuideController(
         }
 
         detailProgrammeTitle.text =
-            nowProg?.title?.ifBlank { ch.name } ?: ch.name
+            nowProg?.title?.ifBlank { "Live broadcast" } ?: "Live broadcast"
         detailTimeRange.text = if (nowProg != null) {
             "${formatTime(nowProg.startTs)} – ${formatTime(nowProg.stopTs)}"
         } else {
-            "Schedule unavailable"
+            "No schedule data"
         }
         detailNext.text = if (nextProg != null) {
             "UP NEXT · ${formatTime(nextProg.startTs)} · ${nextProg.title}"
@@ -773,8 +778,12 @@ class LiveGuideController(
         titleTv: TextView, timeTv: TextView, bgIv: ImageView, prog: Programme?
     ) {
         if (prog == null) {
-            titleTv.text = ""
-            timeTv.text = ""
+            /* v2.7.07 — show a ghosted placeholder instead of an
+               empty black rectangle so the rail still reads as
+               4 + 1 cards even when EPG is missing for this
+               channel. */
+            titleTv.text = "—"
+            timeTv.text = "Schedule unavailable"
             bgIv.tag = null
             bgIv.setImageDrawable(null)
         } else {

@@ -366,7 +366,12 @@ function Section({
                     letterSpacing: '0.32em',
                     textTransform: 'uppercase',
                     color: 'var(--theme-accent, var(--vesper-blue))',
-                    marginBottom: 8,
+                    /* v2.7.07 — align the eyebrow with the title TEXT
+                     * (not the icon).  Icon (24px) + gap-3 (12px) = 36px
+                     * — push the eyebrow right by that so it sits
+                     * cleanly above the heading text, not the icon. */
+                    marginLeft: 36,
+                    marginBottom: 12,
                 }}
             >
                 {eyebrow}
@@ -1253,7 +1258,10 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
                             letterSpacing: '0.32em',
                             color: 'var(--vesper-blue-bright)',
                             textTransform: 'uppercase',
-                            marginBottom: 8,
+                            /* v2.7.07 — align with the heading text
+                             * (bookmark icon 24px + gap-3 12px = 36px). */
+                            marginLeft: 36,
+                            marginBottom: 10,
                         }}
                     >
                         Queued up{items.length > 0 && ` · ${items.length}`}

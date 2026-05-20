@@ -73,7 +73,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: 'clamp(340px, 50vh, 540px)' }}
+            style={{ height: 'clamp(320px, 45vh, 480px)' }}
         >
             {list.map((h, i) => (
                 <div

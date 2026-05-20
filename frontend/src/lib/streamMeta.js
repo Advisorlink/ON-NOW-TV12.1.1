@@ -34,48 +34,52 @@ export function is1080p(stream) {
  * "Is this a 4K / 2160p stream?" — used by the autoplay picker
  * (party AND solo) to SKIP 4K streams unconditionally on the HK1
  * Android box, which can't actually decode 2160p HEVC in real time
- * → buffers + drops frames.  Per the user's repeated spec:
- *   "Only play 1080p, NEVER 4K — autoplay should never pick a 4K
- *    stream even when one is available."
+ * → buffers + drops frames.
  *
- * Detection signals (any single match → 4K):
- *   • Literal resolution tags: 4K, 2160p, 2160i, UHD, 4KBluRay,
- *     4KUHD, "Ultra HD" (Plex)
- *   • Common 4K-only release codecs/formats: HDR, HDR10, HDR10+,
- *     Dolby Vision / DV, IMAX Enhanced — virtually never appear on
- *     1080p torrents from the addons we use, so safe to treat as
- *     a 4K signal.  This is the v2.7.04 escalation: previously
- *     `is4K` only matched explicit "2160" or "4K" tokens, and the
- *     user reported solo-mode autoplay picking up streams titled
- *     e.g. "Web-DL HDR Atmos" (no 2160 in the name) that turned
- *     out to be 4K under the hood.  HDR/DV are the giveaway.
- *   • Bitrate hint: HEVC + ≥ 10 Mbps  → 4K territory.
- *   • Size hint: file size ≥ 20 GB for a single movie → almost
- *     certainly 4K (1080p movies typically peak at ~15 GB for the
- *     fattest BluRay encodes).
+ * v2.7.07 — toned down from v2.7.04's over-aggressive heuristic.
+ * The user reported normal autoplay buffering because HDR-tagged
+ * 1080p streams (which DO exist — every Plex 1080p HDR Blu-ray
+ * remux qualifies) were being mis-classified as 4K, so autoplay
+ * fell back to worse streams.  Revised contract:
+ *
+ *   • EXPLICIT 1080p token in the title → ALWAYS treat as 1080p,
+ *     even if HDR/DV/HEVC also present.  This is the key fix.
+ *   • Explicit 4K markers (4K, 2160p, UHD, "Ultra HD") → 4K.
+ *   • HDR / Dolby Vision WITHOUT a 1080p marker → 4K (a real
+ *     "Movie · WEB-DL HDR" without resolution is almost always
+ *     a 4K release on Stremio addons).
+ *   • File size ≥ 25 GB → 4K (1080p remuxes top out around
+ *     20 GB; only 4K hits this).
+ *   • High-bitrate HEVC (≥ 10 Mbps) with no 1080p marker → 4K.
  */
 export function is4K(stream) {
     const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
         stream?.description || ''
     }`;
-    if (/\b(2160p?i?|4k|uhd|4kbluray|4kuhd|ultra[\s_.\-]?hd)\b/i.test(haystack)) return true;
-    /* v2.7.04 — HDR / Dolby Vision / IMAX Enhanced are 4K signals
-       on every Stremio addon catalogue we serve (HDR-1080p is
-       essentially non-existent in real-world torrents). */
-    if (/\b(hdr10\+?|hdr|dolby[\s_.\-]?vision|\bdv\b|imax[\s_.\-]?enhanced)\b/i.test(haystack)) return true;
-    /* High-bitrate HEVC pretty much guarantees 4K (Blu-ray 1080p
-       HEVC tops out around 5-8 Mbps; 4K is 15-50 Mbps). */
+    /* Hard explicit 4K markers — always 4K, regardless of other
+       tokens.  Note we do NOT include "Ultra HD" → it sometimes
+       appears on 1080p Plex titles as a quality descriptor. */
+    if (/\b(2160p?i?|4kbluray|4kuhd|4kweb|4kdvd)\b/i.test(haystack)) return true;
+    if (/\b4k\b/i.test(haystack)) return true;
+    if (/\buhd\b/i.test(haystack) && !/\b1080p?\b/i.test(haystack)) return true;
+    /* Explicit 1080p marker → always 1080p, even with HDR/DV. */
+    const has1080 = /\b1080p?\b/i.test(haystack);
+    if (has1080) return false;
+    /* No 1080 marker — now check the secondary signals. */
+    if (/\b(hdr10\+?|dolby[\s_.\-]?vision|\bdv\b|imax[\s_.\-]?enhanced)\b/i.test(haystack)) return true;
+    /* Stand-alone "HDR" (not HDR10/HDR10+) is a weaker signal —
+       still trip if present without 1080p. */
+    if (/\bhdr\b/i.test(haystack)) return true;
+    /* High-bitrate HEVC → 4K. */
     const bitrate = stream?.bitrate || stream?.bitrate_kbps || 0;
     const isHEVC = /\b(hevc|x265|h\.?265)\b/i.test(haystack);
     if (isHEVC && Number(bitrate) >= 10_000) return true;
-    /* v2.7.04 — file-size sanity: pull a "12.4 GB" / "23 GB" /
-       "9.8GB" hint out of the title and reject anything ≥ 20 GB.
-       Torrentio puts the size in the description, e.g.
-       "👤 423 💾 12.4 GB". */
+    /* Size hint: 25 GB+ is 4K territory (bumped from 20 GB in
+       v2.7.04 since 1080p remuxes can legitimately hit 22 GB). */
     const sizeMatch = haystack.match(/(\d+(?:\.\d+)?)\s*GB\b/i);
     if (sizeMatch) {
         const gb = parseFloat(sizeMatch[1]);
-        if (gb >= 20) return true;
+        if (gb >= 25) return true;
     }
     return false;
 }

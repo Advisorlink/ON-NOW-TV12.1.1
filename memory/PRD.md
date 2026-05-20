@@ -55,6 +55,50 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 132 — Feb 20, 2026) — v2.7.07
+### Player buffering fix + UI fitting fixes from user's bug-report video
+
+User uploaded 5 screenshots with red marks identifying bugs after seeing v2.7.06 on the HK1. Per CONTEXT.md the target is 1920×1080 WebView on the HK1 with TV overscan.
+
+#### 1) 🚨 CRITICAL — Player buffering regression in non-party autoplay (P0)
+- **Root cause:** v2.7.04 escalated `is4K()` to also trip on HDR/DV/IMAX/UltraHD/≥20GB. But HDR-tagged 1080p streams are a real thing (every Plex 1080p HDR Blu-ray remux qualifies), so autoplay started rejecting good 1080p direct streams and falling back to worse magnet/torrent picks that buffer.
+- **Fix:** revised `is4K()` in `/app/frontend/src/lib/streamMeta.js`:
+  - Explicit `1080p` token in title → ALWAYS 1080p, even if HDR/DV/HEVC also present.
+  - HDR/DV/IMAX/standalone-HDR markers only count when there's NO `1080` token.
+  - UHD only counts when no `1080` token (Plex sometimes labels 1080 as "UHD").
+  - File-size threshold raised 20 GB → 25 GB (1080p remuxes can hit 22 GB).
+- **Verified:** 14/14 unit tests pass via Node script — including new HDR-1080p, HDR-no-resolution, and large-remux cases.
+
+#### 2) Home: "Similar to what you love" eyebrow clipped at viewport bottom
+- Hero height shrunk: `clamp(340, 50vh, 540)` → `clamp(320, 45vh, 480)`. Reclaims ~60px so the next shelf's eyebrow stays inside the projector's safe area on first load.
+
+#### 3) Library: eyebrow/icon overlap on "TV Shows", "My Actors", "Watch Later"
+- Section eyebrows now have `marginLeft: 36` (icon 24px + gap-3 12px) so they align with the heading TEXT instead of being stacked directly above the icon.
+- `marginBottom` bumped 8 → 12 for breathing room.
+- Same fix applied to WatchLaterBlock's "Queued up" eyebrow.
+
+#### 4) M14 Live Guide: VLC video bleeding through behind guide UI
+- `guide_scrim_gradient` darkened from 0xE6–0x80 → 0xF5–0xE8 (effectively solid).
+- `guide_root` FrameLayout gained `#F206080F` solid background as backstop so video never leaks during scrim fade-in.
+
+#### 5) M14: empty On Now + Next cards when channel has no EPG ("No EPG data")
+- On Now card now fades in channel logo at `fitCenter` (α 0.55) as a fallback when no programme data.
+- Empty Next cards show `—` placeholder + `Schedule unavailable` caption instead of being completely blank.
+- Channel-name fallback caption on On Now replaced with "Live broadcast" instead of duplicating the channel name.
+
+**Files changed:**
+- `/app/frontend/src/lib/streamMeta.js` (is4K logic revised)
+- `/app/frontend/src/components/HeroBillboard.jsx` (hero height shrunk)
+- `/app/frontend/src/pages/Library.jsx` (Section + WatchLaterBlock eyebrow alignment)
+- `/app/android/vesper-tv/app/src/main/res/drawable/guide_scrim_gradient.xml` (solid scrim)
+- `/app/android/vesper-tv/app/src/main/res/layout/activity_vlc_player.xml` (guide_root background)
+- `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/LiveGuideController.kt` (empty-EPG fallbacks)
+
+**Self-validation:** all JS lint clean, 14/14 is4K unit tests pass, XML parses, all R.id refs resolve.
+
+**🆙 APK bumped to v2.7.07 (versionCode 177).**
+
+
 ## Implemented (Iteration 131 — Feb 20, 2026) — v2.7.06
 ### M14 Option B implemented (right-side info panel, logo-above-name, TMDB synopsis under)
 

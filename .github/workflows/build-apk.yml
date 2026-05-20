@@ -228,6 +228,61 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.07 — Player buffering fix · UI fitting fixes from user video**
+            - 🚨 **CRITICAL fix — player buffering regression.**
+              v2.7.04 escalated `is4K()` to also trip on HDR, DV,
+              IMAX-Enhanced, "Ultra HD", and files ≥ 20 GB.  But
+              HDR-tagged 1080p streams are a real thing (every
+              Plex 1080p HDR Blu-ray remux qualifies), so autoplay
+              started rejecting legitimate 1080p direct streams
+              and falling back to worse magnet/torrent picks that
+              buffer.  Revised contract:
+                • Explicit `1080p` token in the title → ALWAYS
+                  treat as 1080p, even if HDR/DV/HEVC also present
+                  (the key fix).
+                • Explicit `4K / 2160p / 4KBluRay / 4KUHD` → 4K.
+                • `UHD` only → 4K if no 1080 marker (Plex sometimes
+                  uses "UHD" as a 1080 quality descriptor).
+                • `HDR / HDR10 / DV / IMAX Enhanced` only → 4K when
+                  there's NO `1080` marker.
+                • File size raised 20 GB → 25 GB (1080p remuxes
+                  can legitimately hit 22 GB).
+              14/14 unit tests pass including new HDR-1080p,
+              HDR-no-resolution, and large-remux cases.
+            - 📐 **Home: hero shrunk** 50vh max 540 → 45vh max 480.
+              User's projector overscan was clipping the "Similar
+              to what you love" eyebrow at the bottom of the
+              viewport.  Hero loses 60 px, shelves region gains
+              that space so the next row's eyebrow stays inside
+              the safe area on first load.
+            - 📚 **Library: eyebrow alignment fix.**  "MY LIBRARY ·
+              SERIES" / "MY LIBRARY · ACTORS" / "QUEUED UP · 3"
+              eyebrows now align with the heading TEXT (not the
+              icon), via `marginLeft: 36`.  `marginBottom` bumped
+              8 → 12 for breathing room.  Eyebrows no longer feel
+              squashed against the icon below.
+            - 📺 **M14 Live Guide: solid backdrop, no more bleed.**
+              User's screenshot showed the underlying VLC video
+              stream (channel ad, brand wordmark) visible behind
+              the guide UI.  Two fixes:
+                • `guide_scrim_gradient` darkened from 0xE6-0x80
+                  → 0xF5-0xE8 (effectively solid).
+                • `guide_root` FrameLayout gained a `#F206080F`
+                  solid background as a safety backstop so the
+                  video stream never leaks even during the scrim's
+                  fade-in animation.
+            - 📺 **M14: On Now + Next cards fallback when no EPG.**
+              When the focused channel has no programme data
+              ("No EPG data"), the On Now card now fades in the
+              channel LOGO at fitCenter (instead of an empty black
+              rectangle).  Empty Next cards show a "—" ghosted
+              placeholder + "Schedule unavailable" caption so the
+              rail still reads as 5 cards visually.  Channel-name
+              fallback caption on the On Now card replaced with
+              "Live broadcast" instead of duplicating the channel
+              name.
+            - 🆙 APK bumped to **v2.7.07** (versionCode 177).
+
             **v2.7.06 — M14 Option B + user customisations: logo above name, TMDB synopsis under**
             - 🎯 **Implemented Option B per user choice.** Added a
               persistent right-side info panel to the M14 Live
