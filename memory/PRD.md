@@ -1,5 +1,25 @@
 # Vesper — Product Requirements Document
 
+## 🔒 LOCKED-IN PERMANENT BASELINE — v2.7.19 (Feb 2026)
+User explicitly approved the v2.7.19 home D-pad snap engine, focus
+ring, and player VOD config as a **permanent invariant**. Any
+future change that breaks these is a regression — revert, do not
+patch. Source of truth: `/app/CONTEXT.md` "PERMANENT INVARIANTS".
+Regression test: `/app/frontend/tests/home-snap.spec.js`.
+
+Specifically protected:
+- `useSpatialFocus.focusEl` snap-row fast-path (`scrollIntoView`
+  on `[data-testid="shelf-page"]` parent — bypasses the per-pixel
+  row-pin math for any tile inside a snap container).
+- `outline: 3px solid var(--vesper-blue-bright) !important` focus
+  ring (not `box-shadow` — outlines are immune to inline-style
+  overrides on individual tile components).
+- Empty CW / ForYou ShelfPage wrappers conditionally rendered
+  (`{hasCW && ...}`, `{hasViewingStyle && ...}` in Home.jsx).
+- VOD player minimal config: `setHWDecoderEnabled(true, false)` +
+  `:network-caching=1500` only.  No `:no-mediacodec-dr`.  Force-SDR
+  is an opt-in Settings toggle, default OFF.
+
 ## Origin
 The user originally asked to "rebrand my app" and uploaded a decompiled
 Android APK of Nova Box (a piracy streaming app). The main agent

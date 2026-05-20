@@ -7,6 +7,9 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## 🔒 v2.7.19 — LOCKED-IN PERMANENT BASELINE
+User explicitly approved v2.7.19's home D-pad snap behaviour and asked to save it as permanent. The home-screen scroll engine, focus ring, and player VOD config from this version are now locked in as invariants — see `/app/CONTEXT.md` "PERMANENT INVARIANTS" section. Regression test: `/app/frontend/tests/home-snap.spec.js`.
+
 ## v2.7.19 — Snap-row fast-path ("RecyclerView feel" on the web)
 - **User request**: "rebuild the whole home screen in the buttery smooth recycler view... rows snap change not slide up... each row if its a new row or an old row is treated the same."
 - **Implementation**: instead of rewriting Home into a virtualised list (overkill for ~7 rows), added a snap-row fast-path inside `useSpatialFocus.focusEl`. When the focused tile lives inside a `[data-testid="shelf-page"]`, the per-pixel row-pin math is **skipped entirely** and the snap-page parent is committed via `scrollIntoView({ behavior: 'auto', block: 'center' })`. The browser's native `scroll-snap-type: y mandatory` engine then snaps the row to fill the viewport on the next frame.
