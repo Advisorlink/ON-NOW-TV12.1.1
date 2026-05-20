@@ -55,6 +55,27 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 135 — Feb 20, 2026) — v2.7.10
+### Bulletproof one-row-per-page + rows sit lower (no more peek-through)
+
+User reported (with 2 hardware photos) that v2.7.08's snap wasn't holding — neighbour shelves were still visibly bleeding into view. Also asked for rows to sit lower in their page.
+
+**Root cause:** `min-height: calc(100dvh - 480px)` was unreliable on the HK1 WebView. `dvh` underreports there; hero doesn't always equal exactly 480px so the calc came out short. Pages were < scroll-region tall → neighbours peeked through during/after snap settle.
+
+**Fix:**
+- **Programmatic measurement.** New `shelfPageHeight` state in `Home.jsx` = `window.innerHeight - hero.offsetHeight`, recomputed on resize + 3 post-mount ticks (80ms / 400ms / 1200ms). Passed to every ShelfPage as a `height` prop.
+- **`overflow: hidden`** added to each ShelfPage as a safety belt — even if shelf content somehow exceeded the page, neighbours can't bleed.
+- **`justifyContent: 'flex-end'` + `paddingBottom: 64`** — shelf row now sits in the bottom 60% of each page, leaving empty space above (per user "rows are sitting too high off the bottom").
+
+**Verified at runtime (1920×1080):**
+- 7 shelf-pages rendered, each exactly **600 px** tall (= 1080 viewport - 480 hero)
+- Page 1 spans y=480→1080 (bottom of viewport); Page 2 starts at y=1080 (off-screen)
+- Shelf inside page 1 sits at y=641→1016 (= bottom portion of the page, with 64 px clearance below)
+- Lint clean
+
+**🆙 APK bumped to v2.7.10 (versionCode 180).**
+
+
 ## Implemented (Iteration 134 — Feb 20, 2026) — v2.7.09
 ### GitHub Actions build fix — "Argument list too long" on release publish
 

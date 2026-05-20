@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
@@ -306,6 +306,35 @@ export default function Home() {
         return () => window.removeEventListener('keydown', onKey, true);
     }, [isFilterView]);
 
+    /* v2.7.10 — measure the EXACT pixel height available for one
+     * shelf "page" so CSS scroll-snap behaves identically on every
+     * device.  The previous calc(100dvh - 480px) approach relied
+     * on the HK1 WebView reporting `dvh` correctly + hero matching
+     * the static 480px; both assumptions failed in practice and
+     * users saw two/three shelves bleeding through at once. */
+    const [shelfPageHeight, setShelfPageHeight] = useState(600);
+    useEffect(() => {
+        const compute = () => {
+            const heroEl = document.querySelector(
+                '[data-testid="hero-billboard"]'
+            );
+            const heroH = heroEl ? heroEl.offsetHeight : 480;
+            const wh = window.innerHeight;
+            setShelfPageHeight(Math.max(320, wh - heroH));
+        };
+        compute();
+        const t1 = setTimeout(compute, 80);
+        const t2 = setTimeout(compute, 400);
+        const t3 = setTimeout(compute, 1200);
+        window.addEventListener('resize', compute);
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+            window.removeEventListener('resize', compute);
+        };
+    }, []);
+
     return (
         <div
             data-testid="home-page"
@@ -366,14 +395,14 @@ export default function Home() {
                             overscrollBehavior: 'contain',
                         }}
                     >
-                        <ShelfPage><ContinueWatchingShelf /></ShelfPage>
-                        <ShelfPage><ForYouShelf /></ShelfPage>
-                        <ShelfPage><NetworksShelf /></ShelfPage>
+                        <ShelfPage height={shelfPageHeight}><ContinueWatchingShelf /></ShelfPage>
+                        <ShelfPage height={shelfPageHeight}><ForYouShelf /></ShelfPage>
+                        <ShelfPage height={shelfPageHeight}><NetworksShelf /></ShelfPage>
                         {addons.length === 0 && (
-                            <ShelfPage><EmptyAddonsBanner /></ShelfPage>
+                            <ShelfPage height={shelfPageHeight}><EmptyAddonsBanner /></ShelfPage>
                         )}
                         {shelves.map((shelf, i) => (
-                            <ShelfPage key={shelf.id}>
+                            <ShelfPage key={shelf.id} height={shelfPageHeight}>
                                 <Lazy minHeight={340} eager={i < 3}>
                                     <Shelf shelf={shelf} />
                                 </Lazy>
@@ -385,7 +414,7 @@ export default function Home() {
                             /api/tmdb/upcoming-movies.  Clicking a tile
                             opens Detail (which renders the trailer +
                             "Notify me" CTA when no streams exist). */}
-                        <ShelfPage>
+                        <ShelfPage height={shelfPageHeight}>
                             <Lazy minHeight={340} eager={false}>
                                 <UpcomingMoviesShelf />
                             </Lazy>
@@ -488,34 +517,39 @@ function EmptyAddonsBanner() {
 }
 
 
-/* ShelfPage — wraps each home-screen shelf so it occupies the full
-   visible scroll area (≈ 100dvh - hero) and acts as a single
-   CSS scroll-snap target.  Per user spec ("each row has to be its
-   own row, not even a little bit on the bottom"), the snap-align
-   keeps exactly ONE shelf in view at a time — D-pad-down jumps
-   the next row fully in, the previous row fully out.
+/* ShelfPage — wraps each home-screen shelf so it occupies EXACTLY
+   the visible scroll area (window.innerHeight - heroHeight, passed
+   in as `height` prop because programmatic measurement is far more
+   reliable than CSS `calc(100dvh - 480px)` which under-counts on
+   the HK1 WebView).  Per the user's spec ("each row needs to have
+   nothing else in it, right from CW all the way to upcoming
+   trailers"), the snap-align + overflow:hidden combo guarantees
+   exactly ONE shelf in view at a time.  D-pad-Down jumps the next
+   row fully in, the previous row fully out.
 
-   We pick `min-height: calc(100dvh - 480px)` because the hero
-   billboard is capped at 480 px on 1080p (`clamp(320, 45vh, 480)`
-   from HeroBillboard.jsx).  On taller screens the calc still
-   leaves a comfortably tall snap page that the row centres into.
+   `justifyContent: 'flex-end'` + paddingBottom places the row
+   content near the BOTTOM of its page, with empty space ABOVE
+   (per user "rows are sitting too high off the bottom").  The
+   shelf row floats just above the bottom edge of the page, giving
+   the entire page a cinematic "row of the moment" feel.
 
-   Inside the page we use a flex column with `justifyContent:
-   center` so the shelf content is vertically centred — the
-   focus-scale animation (1.08×) has equal headroom top and
-   bottom, never clipping. */
-const ShelfPage = ({ children }) => (
+   `overflow: hidden` is the safety belt — even if a shelf's
+   intrinsic height exceeds the page height, neighbour rows can't
+   bleed into view.  The 64-px paddingBottom buffer is more than
+   enough for the focus scale(1.08) animation overflow (~7px). */
+const ShelfPage = ({ children, height }) => (
     <div
         data-testid="shelf-page"
         style={{
-            minHeight: 'calc(100dvh - 480px)',
+            height,
+            minHeight: height,
             scrollSnapAlign: 'center',
             scrollSnapStop: 'always',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            paddingTop: 12,
-            paddingBottom: 12,
+            justifyContent: 'flex-end',
+            paddingBottom: 64,
+            overflow: 'hidden',
         }}
     >
         {children}

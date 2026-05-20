@@ -228,24 +228,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.09 — GitHub Actions build fix (`Argument list too long`)**
-            - The `body:` field in this workflow had grown to ~161 KB
-              of accumulated release notes across 30+ versions, which
-              tripped Linux's `ARG_MAX` limit when the runner shelled
-              out to softprops/action-gh-release.  Truncated the body
-              to ONLY the latest version's notes inline; older notes
-              moved to `/CHANGELOG.md` at the repo root.
-            - Every future release should append a NEW section here
-              and migrate the previous one into CHANGELOG.md so this
-              limit never re-triggers.
+            **v2.7.10 — Bulletproof one-row-per-page + rows sit lower**
+            - User reported v2.7.08 still showed neighbour shelves
+              bleeding through.  Root cause: the `calc(100dvh -
+              480px)` CSS approach was unreliable on the HK1
+              WebView — `dvh` underreports, hero height doesn't
+              always equal the static 480px.  Replaced with
+              programmatic measurement (`window.innerHeight -
+              hero.offsetHeight`) re-computed on resize + 3
+              post-mount ticks.  Snap math now exact: 600 px page
+              on a 1080p TV (verified runtime: 7 pages, each
+              y=480→1080, next page starts at y=1080 off-screen).
+            - Added `overflow: hidden` to each ShelfPage as a
+              safety belt — even if shelf content exceeded the
+              page, neighbour rows can't bleed.
+            - Per user "rows are sitting too high off the bottom":
+              switched from `justifyContent: center` to
+              `flex-end` with `paddingBottom: 64`.  Shelf row now
+              sits in the BOTTOM 60% of each page, leaving empty
+              space ABOVE — cinematic floating-row feel.
+            - APK bumped to v2.7.10 (versionCode 180).
 
-            **v2.7.08 — One row per page (full scroll-snap)**
-            - Every home-screen shelf is wrapped in a `ShelfPage`
-              with `min-height: calc(100dvh - 480px)`.  The shelves-
-              region uses `scroll-snap-type: y mandatory` +
-              `scroll-snap-stop: always`, so D-pad-Down slides the
-              next row fully in and the previous one fully out —
-              nothing else can ever peek through at the bottom.
+            **v2.7.09 — GitHub Actions release body trimmed (Argument list too long)**
 
             For older release notes see CHANGELOG.md in the repo.
 

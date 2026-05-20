@@ -7,6 +7,14 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.10 — Bulletproof one-row-per-page + rows sit lower
+- User reported v2.7.08 still showed neighbour shelves bleeding through. Replaced `calc(100dvh - 480px)` with programmatic measurement (`window.innerHeight - hero.offsetHeight`) recomputed on resize + 3 post-mount ticks. Snap math now exact (600px page on 1080p).
+- Added `overflow: hidden` to each ShelfPage as a safety belt — even if shelf content exceeded the page, neighbours can't bleed.
+- Switched from `justifyContent: center` → `flex-end` with `paddingBottom: 64`. Shelf row now sits in the bottom 60% of each page, leaving empty space above — cinematic floating-row feel.
+
+## v2.7.09 — GitHub Actions build fix (Argument list too long)
+- The `body:` field in `build-apk.yml` had grown to ~161 KB of accumulated release notes across 30+ versions, tripping Linux's `ARG_MAX` limit. Truncated to the latest version only; older notes live here.
+
 ## v2.7.08 — One row per page: full scroll-snap
 - Every home-screen shelf is wrapped in a new `ShelfPage` component
   with `min-height: calc(100dvh - 480px)` and the shelves-region uses
