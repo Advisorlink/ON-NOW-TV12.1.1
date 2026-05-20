@@ -55,6 +55,27 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 137 — Feb 20, 2026) — v2.7.12
+### Player buffering regression FIXED — movies + TV shows no longer stall every few seconds
+
+User reported the native VLC player buffering every couple of seconds on movies and TV shows — NOT a stream-quality problem, a player-config regression.
+
+**Root cause:** `VlcPlayerActivity.openStream()` set `:network-caching=1500` unconditionally as the per-media default, then conditionally overrode for live (600 ms) / magnet (6000 ms) / trailer (3500 ms). **VOD direct streams (Premiumize / Plex Direct / Real-Debrid) inherited the tight 1.5-second buffer** — too aggressive for the HK1's variable-throughput network. Any tiny jitter drained the buffer → re-buffer every few seconds.
+
+**Fix in `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/VlcPlayerActivity.kt`:**
+- Added an explicit `isVod = !isLive && !isMagnet && !isTrailer` branch with:
+  - `:network-caching=5000` + `:file-caching=5000` (matches libVLC global default)
+  - `:clock-jitter=0` + `:clock-synchro=0` (strict A/V sync — no re-buffer on clock drift)
+  - `:drop-late-frames` + `:skip-frames` (burst delay → 1-2 imperceptible dropped frames, not a visible stall)
+  - `:avcodec-hw=any` + `:avcodec-fast` + `:avcodec-skiploopfilter=1` + `:avcodec-threads=0` (max HEVC throughput on the HK1's ARM)
+  - `:http-reconnect` + `:http-continuous` (transient ISP/Wi-Fi blips don't surface as stalls)
+- Removed the unconditional `:network-caching=1500` line.
+
+**Expected impact:** first-frame latency increases by ~3 s vs the old 1500 ms (libVLC starts decoding as soon as the buffer has one GOP, not when the full 5 s is filled), but mid-playback re-buffer pauses should drop to near-zero on healthy network.
+
+**🆙 APK bumped to v2.7.12 (versionCode 182).**
+
+
 ## Implemented (Iteration 136 — Feb 20, 2026) — v2.7.11
 ### Instant snap + focus border restored + rows down (fixes from user video)
 

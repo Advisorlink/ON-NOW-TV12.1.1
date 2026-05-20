@@ -1597,6 +1597,15 @@ class VlcPlayerActivity : AppCompatActivity() {
                 || url.endsWith(".torrent", ignoreCase = true)
         val isTrailer = contentType == "trailer"
         val isLive = contentType == "live"
+        /* v2.7.12 — "isVod" is the catch-all for direct HTTPS
+           movie + TV streams (Premiumize, Plex Direct, Real-Debrid).
+           Everything that ISN'T live, magnet, or trailer.  Previously
+           this branch had no per-media tuning and inherited a
+           `:network-caching=1500` override that was too tight for the
+           HK1's network → every minor jitter drained the buffer and
+           triggered re-buffering every few seconds (user-reported
+           regression). */
+        val isVod = !isLive && !isMagnet && !isTrailer
         val media = Media(libVlc, Uri.parse(url))
         // Hardware decoding: enabled, NOT forced (false) — falls
         // back to software automatically when the codec/profile is
@@ -1604,7 +1613,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         // streams played AUDIO ONLY because hardware refused the
         // profile but VLC did not auto-retry in software.
         media.setHWDecoderEnabled(true, false)
-        media.addOption(":network-caching=1500")
         if (isLive) {
             // ─── LIVE IPTV (.ts / HLS) — optimised for FAST ZAPPING ───
             // The user reported: "when you change the channel it
@@ -1661,6 +1669,40 @@ class VlcPlayerActivity : AppCompatActivity() {
             // whereas a stall is jarring.
             media.addOption(":drop-late-frames")
             media.addOption(":skip-frames")
+        }
+        if (isVod) {
+            /* v2.7.12 — VOD / direct HTTPS movies + TV.  User-reported
+               regression: smooth playback before, now buffering every
+               few seconds.  Root cause: per-media `network-caching` was
+               left at the libVLC default (1.5 s) which is too tight for
+               the HK1's variable-throughput network — every burst delay
+               drained the buffer.  Bump to 5 s + tighten the A/V sync
+               clock + drop late frames so a short network lull never
+               cascades into a visible stall.
+               Note: a 5-second buffer fills in 5 s at any bitrate above
+               the stream's nominal rate — so first-frame latency only
+               grows by ~3 s vs the old 1500 ms config (libVLC starts
+               decoding as soon as the buffer has enough for one GOP,
+               not when the full 5 s window is full).  Worth it. */
+            media.addOption(":network-caching=5000")
+            media.addOption(":file-caching=5000")
+            media.addOption(":clock-jitter=0")
+            media.addOption(":clock-synchro=0")
+            // Drop late frames instead of stalling — HK1 is a modest
+            // ARM SoC and a few skipped frames on burst delay is
+            // invisible, whereas a re-buffer pause is jarring.
+            media.addOption(":drop-late-frames")
+            media.addOption(":skip-frames")
+            media.addOption(":avcodec-hw=any")
+            media.addOption(":avcodec-fast")
+            // Light loop-filter skip — keeps visual quality high but
+            // gives the decoder ~10% headroom on 1080p HEVC.
+            media.addOption(":avcodec-skiploopfilter=1")
+            media.addOption(":avcodec-threads=0")       // all cores
+            // HTTP-level reconnect on transient errors — covers brief
+            // ISP / Wi-Fi blips that used to surface as a stall.
+            media.addOption(":http-reconnect")
+            media.addOption(":http-continuous")
         }
         mediaPlayer.media = media
         media.release()

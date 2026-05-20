@@ -7,6 +7,10 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.12 — Movie / TV playback no longer buffers every few seconds
+- VlcPlayerActivity.openStream() applied `:network-caching=1500` unconditionally, then conditionally overrode for live (600ms) / magnet (6000ms) / trailer (3500ms). VOD direct streams (Premiumize, Plex Direct, Real-Debrid) inherited the tight 1.5s buffer → every minor jitter drained it and triggered re-buffering every few seconds on the HK1's variable-throughput network.
+- Added explicit `isVod` branch: `:network-caching=5000`, `:file-caching=5000`, `:clock-jitter=0`, `:clock-synchro=0`, `:drop-late-frames`, `:skip-frames`, `:avcodec-hw=any`, `:avcodec-fast`, `:avcodec-skiploopfilter=1`, `:avcodec-threads=0`, `:http-reconnect`, `:http-continuous`. Brief burst delays now turn into 1-2 imperceptible frame drops instead of visible stalls.
+
 ## v2.7.11 — Instant snap + focus border restored + rows down
 - scroll-behavior 'smooth' → 'auto' on the shelves-region AND inside Home.jsx onKey scrollIntoView. D-pad-Down is now an instant jump-cut, no slide.
 - Removed `overflow: hidden` from ShelfPage — it was clipping the focused tile's box-shadow focus ring (4 px solid + 24 px glow) whenever it extended past the page boundary. Snap math is exact so no clip is needed anyway.

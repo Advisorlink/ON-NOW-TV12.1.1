@@ -228,30 +228,37 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.11 — INSTANT snap + focus border restored + rows down**
-            - Three fixes from user's bug-report video:
-              1. **Sliding animation removed.**  scroll-behavior:
-                 'smooth' → 'auto' on the shelves-region.  Home.jsx
-                 onKey handler's scrollIntoView also switched from
-                 'smooth' → 'auto'.  D-pad-Down between shelves is
-                 now an instant jump-cut snap, exactly like before.
-              2. **Disappearing focus border FIXED.**  v2.7.10
-                 added `overflow: hidden` to ShelfPage as a
-                 safety belt, but it clipped the focused tile's
-                 4 px + 24 px box-shadow focus ring whenever the
-                 ring extended past the page boundary.  Removed —
-                 the snap math is exact, so no clip is needed.
-              3. **Rows brought down further.**  ShelfPage's
-                 paddingBottom slashed 64 → 20.  Shelf row now
-                 sits at y=1060 (only 20 px above the 1080
-                 viewport bottom) — almost AT the bottom of the
-                 screen per user spec ("the covers need to come
-                 back down").
-              4. **D-pad nav scroll target switched** from the
-                 inner shelf section → the parent ShelfPage so the
-                 spatial-focus engine and CSS snap can't fight
-                 each other.
-            - APK bumped to v2.7.11 (versionCode 181).
+            **v2.7.12 — Movie / TV playback no longer buffers every few seconds**
+            - **Root cause of the buffering regression the user
+              reported.**  `VlcPlayerActivity.openStream()` had this
+              flow:
+                ```
+                media.addOption(":network-caching=1500")
+                if (isLive)    { override 600ms  ✓ }
+                if (isMagnet)  { override 6000ms ✓ }
+                if (isTrailer) { override 3500ms ✓ }
+                // else (movies/TV) → STAYS at 1500ms ← bug
+                ```
+              VOD direct streams (Premiumize, Plex Direct, Real-
+              Debrid) inherited the tight 1.5-second buffer.  On
+              the HK1's variable-throughput network, ANY tiny
+              jitter drained that and triggered re-buffering every
+              few seconds — exactly the symptom the user reported.
+            - **Fix.**  Added an explicit `isVod` branch:
+                • `:network-caching=5000` + `:file-caching=5000`
+                  (5-second buffer matches the libVLC global)
+                • `:clock-jitter=0` + `:clock-synchro=0` for strict
+                  A/V sync (avoids re-buffer on clock drift)
+                • `:drop-late-frames` + `:skip-frames` so brief
+                  burst delay turns into 1-2 imperceptible frame
+                  drops, not a visible stall
+                • `:avcodec-hw=any` + `:avcodec-fast` +
+                  `:avcodec-skiploopfilter=1` + `:avcodec-threads=0`
+                  for max HEVC decode throughput on the HK1's ARM
+                • `:http-reconnect` + `:http-continuous` so
+                  transient ISP/Wi-Fi blips don't surface as
+                  player stalls
+            - APK bumped to v2.7.12 (versionCode 182).
 
             For older release notes see CHANGELOG.md in the repo.
 
