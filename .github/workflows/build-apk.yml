@@ -228,28 +228,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.21 — Row headings now show on every row**
-            - User: some rows weren't showing their heading
-              ("By network", "New movies", etc.) — the heading
-              was being pushed above the shelf-page snap area.
-              Per user spec: "LEAVE THE CARDS AND COVERS WHERE
-              THEY ARE.  Move the HERO TEXT AND BUTTONS UP A
-              TINY bit."
-            - **Hero height**: `clamp(420, 58vh, 620)` →
-              `clamp(400, 55vh, 590)` (-30 px at 1080p).  The
-              hero artwork stays largely identical but the bottom
-              edge sits 30 px higher.
-            - **Hero text/buttons paddingBottom**:
-              `clamp(18, 2vw, 36)` → `clamp(12, 1.2vw, 22)` (-14
-              px).  Title + Play button float up inside the hero.
-            - Net effect: shelf-page height grows 460 → 490 px,
-              which is exactly enough room for the eyebrow +
-              heading (~50 px) to fit above any rail.  Verified
-              at runtime: all 6 row headings ("By network",
-              "New movies", "New series", "Popular movies",
-              "Popular series", "Coming soon") now render
-              `heading_in_shelf: true` after the v2.7.19 snap.
-            - APK bumped to v2.7.21 (versionCode 191).
+            **v2.7.22 — Cards down a touch + Stream picker is now a centered popup**
+            - **Cards moved down 12 px**: `ShelfPage`
+              `paddingBottom` 20 → 8.  Cards now sit even closer
+              to the bottom edge of the snap-page, giving the
+              heading more breathing room above.
+            - **Stream picker is now a centered modal popup**.
+              Clicking "Choose stream" on a movie's Detail page
+              (Autoplay OFF) opens a centred popup with the
+              cinematic blurred backdrop, the streams list, and
+              an auto-focused first stream — D-pad walks through,
+              OK plays, BACK closes.  Currently-playing stream
+              shows the "● CURRENT" badge + cyan border inside
+              the modal too, so you can swap streams to diagnose
+              broken playback without leaving the page.
+            - APK bumped to v2.7.22 (versionCode 192).
 
             For older release notes see CHANGELOG.md in the repo.
 

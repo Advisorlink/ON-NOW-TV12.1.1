@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.22 — Cards down a touch + Stream picker is now a centered popup
+- **Cards moved down 12 px**: `ShelfPage` `paddingBottom: 20` → `8`. Cards sit closer to the bottom edge of the snap-page, giving the heading more breathing room above. Verified runtime: `paddingBottom: 8px`, 6 shelf-pages all rendering correctly.
+- **`<StreamPickerModal/>`**: new component (`/app/frontend/src/components/StreamPickerModal.jsx`). Centred popup with cinematic blurred backdrop (same recipe as `StreamUnavailableModal`). Scrollable streams list. **First stream auto-focused on open** via `useEffect` + `requestAnimationFrame` (mounts → focus first `[data-testid^="modal-stream-"]`). Currently-playing stream shows the `● CURRENT` badge + cyan border inside the modal. ESC / Backspace closes.
+- **Detail page wiring**: `"Choose stream"` button on movie Detail (Autoplay OFF) now opens the modal instead of scrolling to the inline picker. Picking a stream closes the modal and calls `playStream()`.
+
 ## v2.7.21 — Row headings now show on every row
 - **User spec**: "LEAVE THE CARDS AND COVERS WHERE THEY ARE — move the HERO TEXT AND BUTTONS UP A TINY bit."
 - Hero height: `clamp(420, 58vh, 620)` → `clamp(400, 55vh, 590)` (-30 px at 1080p).

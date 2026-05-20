@@ -566,23 +566,10 @@ function EmptyAddonsBanner() {
 
 /* ShelfPage — wraps each home-screen shelf so it occupies EXACTLY
    the visible scroll area (window.innerHeight - heroHeight).
-   v2.7.11 — three fixes from user video feedback:
-
-   1. `overflow: hidden` REMOVED.  It was clipping the focused
-      tile's box-shadow focus ring (4 px solid + 24 px glow extend
-      OUTSIDE the tile rect) — which made the border DISAPPEAR
-      every time the user landed on a tile near the page edges.
-      The snap math is exact, so neighbour bleed is impossible by
-      construction — no clip needed.
-
-   2. `paddingBottom` slashed 64 → 20 so the shelf row sits
-      almost AT the bottom of the page (user said "the covers
-      need to come back down").  20 px still leaves enough room
-      below the row for the focus-scale 1.08× overflow without
-      visually crowding the bottom edge.
-
-   3. `flex-end` retained so the row drops to the bottom of the
-      page rather than centring. */
+   v2.7.22 — paddingBottom slashed 20 → 8 to push the cards down a
+   touch closer to the bottom edge of the snap-page per user spec
+   "move the cards down a tiny bit".  8 px still leaves enough
+   room for the focus-scale 1.08× overflow without crowding. */
 const ShelfPage = ({ children, height }) => (
     <div
         data-testid="shelf-page"
@@ -594,7 +581,7 @@ const ShelfPage = ({ children, height }) => (
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-end',
-            paddingBottom: 20,
+            paddingBottom: 8,
         }}
     >
         {children}

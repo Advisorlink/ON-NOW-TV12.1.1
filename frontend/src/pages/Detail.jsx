@@ -18,6 +18,7 @@ import CastRow from '@/components/CastRow';
 import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import TrailerModal from '@/components/TrailerModal';
 import StreamUnavailableModal from '@/components/StreamUnavailableModal';
+import StreamPickerModal from '@/components/StreamPickerModal';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -796,39 +797,26 @@ export default function Detail() {
         } catch { return null; }
     });
 
-    /* Scroll-to-picker + focus-first-stream.  Used by the
-     * "Choose stream" CTA shown when Autoplay is OFF.  We
-     * `scrollIntoView` the picker section and then move focus
-     * to the first stream button — `useSpatialFocus.focusEl`
-     * picks it up and the cyan ring lands on it. */
-    const focusFirstStream = React.useCallback(() => {
-        // Defer one frame so the picker section is in the DOM
-        // (it's gated behind `autoplayEnabled` + candidate).
-        requestAnimationFrame(() => {
-            const section = document.querySelector(
-                '[data-testid="stream-picker"]'
-            );
-            if (section) {
-                section.scrollIntoView({
-                    behavior: 'auto',
-                    block: 'start',
-                });
-            }
-            // Sweep stale focus.
-            document
-                .querySelectorAll('[data-focused="true"]')
-                .forEach((el) => el.removeAttribute('data-focused'));
-            const first = document.querySelector(
-                '[data-testid="stream-0"]'
-            );
-            if (first) {
-                first.setAttribute('data-focused', 'true');
-                try {
-                    first.focus({ preventScroll: true });
-                } catch { /* ignore */ }
-            }
-        });
+    /* v2.7.22 — Stream picker modal state.  Opened by the
+     * "Choose stream" CTA (Autoplay OFF, movie type).  When open
+     * it renders <StreamPickerModal/> centred on the screen with
+     * the streams list; auto-focuses stream-0; D-pad scrolls;
+     * OK plays; Back closes. */
+    const [showStreamPicker, setShowStreamPicker] = useState(false);
+    const openStreamPicker = React.useCallback(() => {
+        setShowStreamPicker(true);
     }, []);
+    const closeStreamPicker = React.useCallback(() => {
+        setShowStreamPicker(false);
+    }, []);
+    const handleStreamPick = React.useCallback(
+        (stream) => {
+            setShowStreamPicker(false);
+            playStream(stream);
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        []
+    );
 
     /* AUTO-SHOW "Coming soon" modal as soon as stream-loading
      * resolves with zero playable streams — no Play click needed.
@@ -1871,7 +1859,7 @@ export default function Detail() {
                                 data-focus-style="pill"
                                 data-initial-focus="true"
                                 tabIndex={0}
-                                onClick={focusFirstStream}
+                                onClick={openStreamPicker}
                                 disabled={streamLoading}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
@@ -2502,6 +2490,20 @@ export default function Detail() {
                     id={id}
                     meta={meta}
                     onClose={() => setShowUnavailableModal(false)}
+                />
+            )}
+
+            {/* v2.7.22 — Stream picker modal.  Opened by the
+                "Choose stream" CTA on movie Detail when Autoplay
+                is OFF.  Centred popup, first stream auto-focused,
+                D-pad walks the list, OK plays, BACK closes. */}
+            {showStreamPicker && (
+                <StreamPickerModal
+                    streams={streams}
+                    currentIdx={lastStreamIdx}
+                    onPick={handleStreamPick}
+                    onClose={closeStreamPicker}
+                    meta={meta}
                 />
             )}
         </div>
