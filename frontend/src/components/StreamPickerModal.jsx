@@ -27,7 +27,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { qualityBadge } from '@/lib/streamMeta';
+import { qualityBadge, toneColors } from '@/lib/streamMeta';
 import * as img from '@/lib/img';
 
 // Inline streamMode helper — matches Detail.jsx's definition.
@@ -38,28 +38,15 @@ const streamMode = (s) => {
     return 'unknown';
 };
 
-const toneColors = {
-    sd: {
-        bg: 'rgba(255,255,255,0.04)',
-        fg: 'var(--vesper-text-2)',
-        border: 'rgba(255,255,255,0.08)',
-    },
-    hd: {
-        bg: 'rgba(93,200,255,0.12)',
-        fg: 'var(--vesper-blue-bright)',
-        border: 'rgba(93,200,255,0.32)',
-    },
-    fhd: {
-        bg: 'rgba(93,200,255,0.18)',
-        fg: '#7FDCFF',
-        border: 'rgba(93,200,255,0.45)',
-    },
-    uhd: {
-        bg: 'rgba(255,210,138,0.16)',
-        fg: '#ffd28a',
-        border: 'rgba(255,210,138,0.4)',
-    },
+// Safe tone-color lookup — never throws if `qualityBadge` returns a
+// tone key we don't know about (defensive against future additions
+// to streamMeta.js QUALITY_PATTERNS).
+const NEUTRAL_TONE = {
+    bg: 'rgba(93,200,255,0.16)',
+    fg: 'var(--vesper-blue-bright)',
+    border: 'rgba(93,200,255,0.35)',
 };
+const safeTone = (tone) => toneColors?.[tone] || NEUTRAL_TONE;
 
 export default function StreamPickerModal({
     streams,
@@ -257,13 +244,13 @@ export default function StreamPickerModal({
                                                 minHeight: 48,
                                                 borderRadius: 10,
                                                 background: badge
-                                                    ? toneColors[badge.tone].bg
+                                                    ? safeTone(badge.tone).bg
                                                     : 'rgba(93,200,255,0.16)',
                                                 color: badge
-                                                    ? toneColors[badge.tone].fg
+                                                    ? safeTone(badge.tone).fg
                                                     : accent,
                                                 border: badge
-                                                    ? `1px solid ${toneColors[badge.tone].border}`
+                                                    ? `1px solid ${safeTone(badge.tone).border}`
                                                     : 'none',
                                                 padding: '6px 4px',
                                             }}

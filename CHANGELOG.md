@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.26 — Fix Stream picker modal crash
+- **Bug**: clicking "Choose stream" crashed the app with `Cannot read properties of undefined (reading 'bg')`. Caught by the global error boundary → "ON NOW TV2 hit a snag" screen.
+- **Root cause**: v2.7.22's `StreamPickerModal.jsx` defined a LOCAL `toneColors` map keyed `sd|hd|fhd|uhd`. But the real `qualityBadge(stream).tone` from `/lib/streamMeta.js` returns `gold|blue|cyan|violet|neutral|muted|red`. Lookup returned `undefined`, and `.bg` on `undefined` threw.
+- **Fix**: import the REAL `toneColors` from `streamMeta.js` and use a `safeTone(tone)` helper with a cyan fallback. Never throws regardless of which tone string the patterns emit.
+
 ## v2.7.25 — Stream picker always reachable + in-player stream switcher
 - **"Choose stream" button is now always visible** on the movie Detail page whenever streams are available, regardless of Autoplay setting. Was previously gated behind Autoplay-OFF — the popup itself was working, but the user couldn't reach it with Autoplay ON.
 - **NEW — In-player stream picker overlay** (native Kotlin, `VlcPlayerActivity`). MENU / INFO / GUIDE / `S` key opens a centred overlay listing every alt stream. ▲▼ walks the list, OK swaps the URL via libVLC stop + restart (best-effort resume from same position), BACK closes. The full streams list is passed from the web layer to the native player through `playInternalRich`'s new `streamsJson` + `currentStreamIdx` extras.

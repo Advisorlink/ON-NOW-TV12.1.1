@@ -228,28 +228,21 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.25 — Stream picker actually works + in-player stream switcher**
-            - **"Choose stream" button is now ALWAYS visible** on
-              movie Detail when streams are available, regardless
-              of Autoplay setting.  Sits as a secondary pill next
-              to the Autoplay button.  Shows `(N)` stream count.
-              Click → opens the centred popup (the picker IS
-              working — it was just gated behind Autoplay-OFF
-              before, hence the user couldn't reach it with
-              Autoplay ON).
-            - **NEW: In-player stream picker overlay** (native
-              Kotlin).  Press the **MENU**, **INFO**, or **GUIDE**
-              key (or **S**) on your remote while a movie is
-              playing to bring up a centred overlay listing every
-              alternate stream.  ▲▼ to walk, OK to swap, BACK to
-              close.  The player stops, swaps the source URL,
-              resumes from the same position best-effort.  No
-              need to exit back to the Detail page when a stream
-              dies.
-            - Full streams list is now passed from the web layer
-              to the native player via `playInternalRich`'s new
-              `streamsJson` argument (plus `currentStreamIdx`).
-            - APK bumped to v2.7.25 (versionCode 195).
+            **v2.7.26 — Fix Stream picker modal crash ("bg" undefined)**
+            - User report: clicking "Choose stream" crashed with
+              `Cannot read properties of undefined (reading 'bg')`.
+            - **Root cause**: v2.7.22's `StreamPickerModal`
+              defined a LOCAL `toneColors` map keyed `sd|hd|fhd|
+              uhd`.  But the real `qualityBadge.tone` from
+              `streamMeta.js` returns `gold|blue|cyan|violet|
+              neutral|muted|red`.  Lookup returned `undefined`,
+              and `.bg` on it threw.
+            - **Fix**: import the REAL `toneColors` from
+              `streamMeta.js` + use a `safeTone(tone)` helper
+              with a neutral cyan fallback.  Now never throws
+              regardless of which tone string the patterns
+              emit.
+            - APK bumped to v2.7.26 (versionCode 196).
 
             For older release notes see CHANGELOG.md in the repo.
 
