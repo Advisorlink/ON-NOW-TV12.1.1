@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.11 — Instant snap + focus border restored + rows down
+- scroll-behavior 'smooth' → 'auto' on the shelves-region AND inside Home.jsx onKey scrollIntoView. D-pad-Down is now an instant jump-cut, no slide.
+- Removed `overflow: hidden` from ShelfPage — it was clipping the focused tile's box-shadow focus ring (4 px solid + 24 px glow) whenever it extended past the page boundary. Snap math is exact so no clip is needed anyway.
+- ShelfPage paddingBottom 64 → 20. Shelf row now sits at y=1060 on a 1080p viewport — almost AT the bottom of the screen.
+- D-pad nav scroll target switched from inner shelf section → parent ShelfPage so the spatial-focus engine and CSS snap can't fight each other (root cause of disappearing-border / focus-jump-to-top bugs from the user video).
+
 ## v2.7.10 — Bulletproof one-row-per-page + rows sit lower
 - User reported v2.7.08 still showed neighbour shelves bleeding through. Replaced `calc(100dvh - 480px)` with programmatic measurement (`window.innerHeight - hero.offsetHeight`) recomputed on resize + 3 post-mount ticks. Snap math now exact (600px page on 1080p).
 - Added `overflow: hidden` to each ShelfPage as a safety belt — even if shelf content exceeded the page, neighbours can't bleed.

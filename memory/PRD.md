@@ -55,6 +55,36 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 136 — Feb 20, 2026) — v2.7.11
+### Instant snap + focus border restored + rows down (fixes from user video)
+
+User uploaded a video showing v2.7.10 had three problems:
+1. Rows still positioned too high off the bottom of the 1920×1080 screen
+2. Unwanted smooth-scroll "sliding" animation between rows (wants instant snap-cut)
+3. D-pad navigation completely broken — focus border disappearing, focus jumping to top, side-nav rail degraded
+
+**Three fixes:**
+
+#### 1) Removed scroll-behavior smoothing
+- `shelves-region` `scrollBehavior: 'smooth'` → `'auto'`
+- Home.jsx onKey handler's `scrollIntoView({behavior: 'smooth'})` → `'auto'`
+- D-pad-Down is now an instant jump-cut snap.
+
+#### 2) Restored focus border (removed overflow:hidden)
+- v2.7.10's `overflow: hidden` on ShelfPage clipped the focused tile's box-shadow focus ring (4 px solid + 24 px glow extends OUTSIDE the tile rect) whenever the ring crossed the page boundary. That's why the user saw the focus border disappearing on tiles near the page edges.
+- Removed. The snap math is exact (page = scroll region exactly), so no clip is needed by construction.
+
+#### 3) Rows brought down further
+- ShelfPage `paddingBottom: 64 → 20`. Shelf row's bottom is now at y=1060 on a 1080p viewport (20 px clearance from the very bottom edge), almost AT the bottom per user spec.
+
+#### Plus: D-pad scroll target fixed
+- Home.jsx onKey handler now scrolls the parent **ShelfPage** (snap target), not the inner shelf-section. With the section-level scrollIntoView + snap-stop:always + smooth, the two systems were fighting → focus jumping erratically. Single-target snap = predictable behavior.
+
+**Verified at runtime (1920×1080):** 8 shelf-pages each exactly 600 px tall, `scroll-behavior: auto`, `overflow: visible`, shelf bottom at y=1060 (20px above viewport bottom), focus box-shadow renders correctly `rgb(92,223,255) 0 0 0 3px`.
+
+**🆙 APK bumped to v2.7.11 (versionCode 181).**
+
+
 ## Implemented (Iteration 135 — Feb 20, 2026) — v2.7.10
 ### Bulletproof one-row-per-page + rows sit lower (no more peek-through)
 

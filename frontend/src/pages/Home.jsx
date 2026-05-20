@@ -277,25 +277,21 @@ export default function Home() {
                 .forEach((el) => {
                     if (el !== target.el) el.removeAttribute('data-focused');
                 });
-            // ROW PINNING — scroll the entire SHELF SECTION (not the
-            // tile) to a consistent position in the shelves region.
-            // We use `block: 'center'` so the focused row anchors at
-            // the vertical middle of the visible shelves area: every
-            // row is the same height, so they all land at exactly
-            // the same Y, AND the focus scale(1.08) animation has
-            // equal headroom above AND below — no clipping at the
-            // top OR bottom regardless of which row is focused.
-            // Earlier `block: 'start'` worked when posters were
-            // smaller, but the v2.6.12 size bump made each row tall
-            // enough that the scaled tile's bottom edge spilled
-            // out the bottom of the shelves region.
-            const sectionAncestor = target.el.closest(
-                '[data-testid="for-you-shelf"], [data-testid^="continue-watching"], [data-testid="networks-shelf"], section'
+            /* v2.7.11 — scroll the SHELF PAGE (snap target), not
+             * the inner section.  Earlier code scrolled the
+             * section with `behavior: 'smooth'`, which fought
+             * scroll-snap and caused the disappearing-border /
+             * focus-jumps-to-top bugs the user reported.  Now we
+             * scroll-snap to the parent ShelfPage instantly
+             * (`auto`); the browser commits to the snap target on
+             * the next frame, no animation, no jitter. */
+            const pageAncestor = target.el.closest(
+                '[data-testid="shelf-page"]'
             );
-            const toScroll = sectionAncestor || target.el;
+            const toScroll = pageAncestor || target.el;
             try {
                 toScroll.scrollIntoView({
-                    behavior: 'smooth',
+                    behavior: 'auto',
                     block: 'center',
                     inline: 'nearest',
                 });
@@ -372,20 +368,19 @@ export default function Home() {
                         data-testid="shelves-region"
                         className="flex-1 overflow-y-auto"
                         style={{
-                            scrollBehavior: 'smooth',
-                            /* v2.7.08 — Each shelf is now ITS OWN
-                             * "page".  Per user spec ("Each row has
-                             * to be its own row, not even a little
-                             * bit on the bottom"), we wrap every
-                             * shelf in a snap container that's at
-                             * least the visible scroll height tall
-                             * (100vh - hero height = ~55vh).  With
-                             * scroll-snap-type: y mandatory + snap-
-                             * stop: always, the user can never end
-                             * up with two rows partially visible.
-                             * The active shelf is vertically
-                             * centred in its page so focus scale
-                             * + glow never clip top OR bottom. */
+                            /* v2.7.11 — INSTANT snap per user spec
+                             * ("NO sliding up and down effect, I
+                             * want snap change like before").  The
+                             * v2.7.08+ `smooth` behaviour was
+                             * fighting with scroll-snap-stop:always
+                             * + the spatial-focus engine's own
+                             * scrollIntoView calls, producing the
+                             * jittery / disappearing-focus-border
+                             * behaviour visible in the user video.
+                             * `auto` lets the browser instantly
+                             * commit to the snap target on every
+                             * D-pad press. */
+                            scrollBehavior: 'auto',
                             scrollSnapType: 'y mandatory',
                             scrollSnapStop: 'always',
                             paddingTop: 0,
@@ -518,25 +513,24 @@ function EmptyAddonsBanner() {
 
 
 /* ShelfPage — wraps each home-screen shelf so it occupies EXACTLY
-   the visible scroll area (window.innerHeight - heroHeight, passed
-   in as `height` prop because programmatic measurement is far more
-   reliable than CSS `calc(100dvh - 480px)` which under-counts on
-   the HK1 WebView).  Per the user's spec ("each row needs to have
-   nothing else in it, right from CW all the way to upcoming
-   trailers"), the snap-align + overflow:hidden combo guarantees
-   exactly ONE shelf in view at a time.  D-pad-Down jumps the next
-   row fully in, the previous row fully out.
+   the visible scroll area (window.innerHeight - heroHeight).
+   v2.7.11 — three fixes from user video feedback:
 
-   `justifyContent: 'flex-end'` + paddingBottom places the row
-   content near the BOTTOM of its page, with empty space ABOVE
-   (per user "rows are sitting too high off the bottom").  The
-   shelf row floats just above the bottom edge of the page, giving
-   the entire page a cinematic "row of the moment" feel.
+   1. `overflow: hidden` REMOVED.  It was clipping the focused
+      tile's box-shadow focus ring (4 px solid + 24 px glow extend
+      OUTSIDE the tile rect) — which made the border DISAPPEAR
+      every time the user landed on a tile near the page edges.
+      The snap math is exact, so neighbour bleed is impossible by
+      construction — no clip needed.
 
-   `overflow: hidden` is the safety belt — even if a shelf's
-   intrinsic height exceeds the page height, neighbour rows can't
-   bleed into view.  The 64-px paddingBottom buffer is more than
-   enough for the focus scale(1.08) animation overflow (~7px). */
+   2. `paddingBottom` slashed 64 → 20 so the shelf row sits
+      almost AT the bottom of the page (user said "the covers
+      need to come back down").  20 px still leaves enough room
+      below the row for the focus-scale 1.08× overflow without
+      visually crowding the bottom edge.
+
+   3. `flex-end` retained so the row drops to the bottom of the
+      page rather than centring. */
 const ShelfPage = ({ children, height }) => (
     <div
         data-testid="shelf-page"
@@ -548,8 +542,7 @@ const ShelfPage = ({ children, height }) => (
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-end',
-            paddingBottom: 64,
-            overflow: 'hidden',
+            paddingBottom: 20,
         }}
     >
         {children}

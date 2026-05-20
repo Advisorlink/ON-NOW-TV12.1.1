@@ -228,28 +228,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.10 — Bulletproof one-row-per-page + rows sit lower**
-            - User reported v2.7.08 still showed neighbour shelves
-              bleeding through.  Root cause: the `calc(100dvh -
-              480px)` CSS approach was unreliable on the HK1
-              WebView — `dvh` underreports, hero height doesn't
-              always equal the static 480px.  Replaced with
-              programmatic measurement (`window.innerHeight -
-              hero.offsetHeight`) re-computed on resize + 3
-              post-mount ticks.  Snap math now exact: 600 px page
-              on a 1080p TV (verified runtime: 7 pages, each
-              y=480→1080, next page starts at y=1080 off-screen).
-            - Added `overflow: hidden` to each ShelfPage as a
-              safety belt — even if shelf content exceeded the
-              page, neighbour rows can't bleed.
-            - Per user "rows are sitting too high off the bottom":
-              switched from `justifyContent: center` to
-              `flex-end` with `paddingBottom: 64`.  Shelf row now
-              sits in the BOTTOM 60% of each page, leaving empty
-              space ABOVE — cinematic floating-row feel.
-            - APK bumped to v2.7.10 (versionCode 180).
-
-            **v2.7.09 — GitHub Actions release body trimmed (Argument list too long)**
+            **v2.7.11 — INSTANT snap + focus border restored + rows down**
+            - Three fixes from user's bug-report video:
+              1. **Sliding animation removed.**  scroll-behavior:
+                 'smooth' → 'auto' on the shelves-region.  Home.jsx
+                 onKey handler's scrollIntoView also switched from
+                 'smooth' → 'auto'.  D-pad-Down between shelves is
+                 now an instant jump-cut snap, exactly like before.
+              2. **Disappearing focus border FIXED.**  v2.7.10
+                 added `overflow: hidden` to ShelfPage as a
+                 safety belt, but it clipped the focused tile's
+                 4 px + 24 px box-shadow focus ring whenever the
+                 ring extended past the page boundary.  Removed —
+                 the snap math is exact, so no clip is needed.
+              3. **Rows brought down further.**  ShelfPage's
+                 paddingBottom slashed 64 → 20.  Shelf row now
+                 sits at y=1060 (only 20 px above the 1080
+                 viewport bottom) — almost AT the bottom of the
+                 screen per user spec ("the covers need to come
+                 back down").
+              4. **D-pad nav scroll target switched** from the
+                 inner shelf section → the parent ShelfPage so the
+                 spatial-focus engine and CSS snap can't fight
+                 each other.
+            - APK bumped to v2.7.11 (versionCode 181).
 
             For older release notes see CHANGELOG.md in the repo.
 
