@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.15 — Strict D-pad nav + smoother trailer scroll
+- **Strict Left**: pressing Left only escapes to the side-nav rail from the FIRST shelf-page (Continue Watching). On every other shelf (For You, Networks, addon catalogues, Upcoming Movies) Left now hits a hard stop — focus stays on the leftmost tile. Fixes the "I went into Popular Movies and got yanked into the menu" surprise reported in the user's video.
+- **Strict Right-from-rail**: when the user presses Right from the side-nav, focus lands on the bookmarked tile of the CURRENTLY VISIBLE shelf-page (the one whose centre intersects the viewport centre), not the document's first focusable. Fixes the "focus border disappears after pressing Right" symptom — focus was previously yanked to an off-screen Hero Play button.
+- **Upcoming Trailers smoother scroll**: backend `/api/tmdb/upcoming-movies` now returns `/w780/` TMDB backdrops (was `/w1280/`). ~2× smaller payload → no more frame drops when scrolling the trailer rail on the low-power HK1.
+
 ## v2.7.14 — REVERT v2.7.12 player tuning (movies playing again)
 - v2.7.12's expanded VOD player tuning (5s network-caching + drop-late-frames + skip-frames + clock-jitter=0 + http-reconnect + http-continuous + avcodec-fast + avcodec-skiploopfilter=1) broke movie playback entirely — player just spun the loading circle instead of starting.
 - Reverted: the `isVod` branch is gone. For direct HTTPS movie/TV streams we now apply ZERO per-media options. libVLC uses its own defaults (~1s network-caching) — exactly the "just grab the link and play it" behaviour from the start of the project.

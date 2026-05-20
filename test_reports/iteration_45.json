@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 45 — Verified v2.7.15 strict Home D-pad nav rules + /w780/ TMDB backdrops. 4 of 5 scenarios PASS via Playwright spatial-focus test. T3 (Right-from-nav lands on visible shelf-page) is INCONCLUSIVE — could not reliably reproduce the precondition because the new strict Left rule prevents the natural D-pad path of 'scroll down → ArrowLeft → enter nav'. When forced into nav via mouse click then ArrowRight, focus landed on shelf-page 3 (New movies) instead of the visibly-centred shelf-page 4 (New series), but the mouse-click likely never moved data-focused into the nav rail so the right-from-nav branch may not have fired. Worth a hand-test from the user with a remote.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Right-from-nav after deep scroll (T3)", "issue": "Could not reach side-nav via ArrowLeft from a deep shelf-page (strict rule blocks it — that is the intended T2 behavior). Forcing nav focus via mouse-click did not set data-focused on the nav item, so the v2.7.15 right-from-nav branch (L667-723) may not have executed. End result: ArrowRight landed on shelf-page 3 (New movies) tile poster-com.linvo.cinemeta-tt27681354 while the centred visible shelf-page was 4 (New series). Spec mismatch needs human verification on a real remote.", "affected_selectors": ["[data-testid='side-nav']", "[data-testid='shelf-page']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Manually verify scenario 3 with a physical remote: from a scrolled-down Home, press ArrowLeft to confirm whether ArrowLeft from a TILE OTHER THAN THE LEFTMOST (i.e. user is mid-row) is supposed to still cross into side-nav at some point, OR whether nav is now unreachable via D-pad once scrolled past the first shelf. If unreachable, document the Back/Menu key as the only way to return to nav. If still reachable from leftmost+one-more-left in some corner case, ensure right-from-nav code path at useSpatialFocus.js L667-723 executes — current strict Left rule may make this scenario impossible to reach via D-pad alone.",
+    "Consider: the user spec for T3 reads 'press ArrowLeft to get into the side-nav' from a deep shelf — but the new strict rule (T2) explicitly blocks that path. The two requirements are contradictory unless ArrowLeft from non-leftmost positions still escapes (it doesn't — findNext returns the previous tile in the row, so the escape branch never fires there either)."
+  ],
+  "critical_code_review_comments": [
+    "useSpatialFocus.js L590-628 (strict Left rule): isFirstShelf detection via DOM-order previousElementSibling.matches() is correct and O(n) over previous siblings. Works on the verified DOM layout (8 shelf-pages, idx 0 = Hero). Confirmed by T1 (escape) and T2 (no-escape) passing.",
+    "useSpatialFocus.js L667-723 (Right-from-nav): the probe (regionRect.top + regionRect.height/2) correctly identifies the visible shelf in my snapshot (visibleIdx=4 when scrolled to Popular movies focused). The .vesper-shelf, [data-shelf-rail] selector is critical — verify these classes exist on the actual rail elements inside shelf-page divs in production DOM. If they do not match, the rail variable is null and pick falls through to visible.querySelector('[data-focusable=\"true\"]') which would still be on shelf 4. Since the test landed on shelf 3 (NOT shelf 4), suspect the right-from-nav branch never fired (inNav check failed because data-focused was not on a nav item after the mouse click).",
+    "Backend backdrop URL /api/tmdb/upcoming-movies: verified all 7 returned trailer cards have backdrop_url containing /w780/ and zero contain /w1280/. UpcomingMoviesShelf TrailerCard image src is now correctly served at w780."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend only)",
+    "frontend": "T1 PASS (Left from first-shelf tile -> side-nav), T2 PASS (Left from non-first shelf leftmost tile stays), T4 PASS (all upcoming trailers serve /w780/), T5 PASS (ArrowDown x5 walks 5 distinct shelves, 1 data-focused tile per step). T3 INCONCLUSIVE due to strict-rule preventing test precondition."
+  },
+  "test_credentials": "Seeded localStorage onnowtv-profiles-v1 with single Tester profile (p1), tour-completed flags set, then clicked profile-p1 to advance to Home.",
+  "seed_data_creation": "localStorage onnowtv-profiles-v1=[{id:'p1',name:'Tester'...}], active=p1, all tour-completed flags set. Note: vesper-cw-v1 seed did NOT produce a Continue Watching shelf-page in the rendered DOM (CW shelf may require server-validated entries). Hero billboard is shelf-page 0, By Network is shelf-page 2.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend URL: REACT_APP_BACKEND_URL. Home is at '/', not '/home'. Seed profiles via localStorage then page.reload(), click [data-testid='profile-p1'], then click 'SKIP TOUR' if welcome tour appears. Shelf-page DOM layout: idx 0 = Hero (contains hero-play-button, more-info, my-list, fullscreen-button), idx 1 = empty/placeholder, idx 2 = 'By network', idx 3 = 'New movies', idx 4 = 'New series', idx 5 = 'Popular movies', idx 6 = 'Popular series', idx 7 = 'Coming soon' (Upcoming Movies w780). For T3 retest: programmatic .focus() on a nav item does NOT set data-focused; must use real ArrowLeft key from shelf-page 0 (only path that triggers escape per strict rule), then ArrowDown inside nav, then ArrowRight to test the visible-shelf landing. Beware: pressing ArrowDown ~5 from a nav item may move down the nav rail itself rather than entering content.",
+  "rca of the issue": "v2.7.15 strict rules confirmed working for the originally reported bugs: (1) Left no longer escapes to side-menu from below-top rows (T2 verified across shelf 3, 5, and 7 leftmost tiles), (2) Upcoming Trailers now serves w780 backdrops (T4 verified — 7/7 cards, 0 w1280). Test coverage gap remains for (3) Right-from-nav landing on visible shelf — could not exercise the L667-723 code path via D-pad because the strict Left rule blocks the natural entry route into nav from a deep shelf. Main agent should hand-verify on the HK1 box, or add a programmatic test hook (e.g. window.__testFocusNavItem) for automated coverage."
+}
