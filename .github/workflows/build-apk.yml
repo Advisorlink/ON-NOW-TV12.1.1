@@ -228,25 +228,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.20 — Movie detail "Choose stream" CTA + CURRENT marker**
-            - User feedback: needs a way to diagnose whether a
-              broken movie is the stream or the player, by trying
-              alternate streams without leaving the page.
-            - **New "Choose stream" button** on movie Detail when
-              Autoplay is OFF.  Same pill style as the Autoplay
-              button.  Shows the stream count.  Clicking it
-              scrolls to the Available-streams picker AND focuses
-              the first stream so D-pad can scroll through them
-              immediately (data-testid `detail-choose-stream`).
-            - **"● CURRENT" badge** on the row of the stream
-              that's currently playing (or last attempted).
-              Persisted in sessionStorage keyed by detail-page id
-              so it survives a player-launch round-trip.  Row
-              also gets a cyan border + tinted background to
-              stand out at a glance.  Now you can pick a
-              different stream and instantly tell which one was
-              the broken one.
-            - APK bumped to v2.7.20 (versionCode 190).
+            **v2.7.21 — Row headings now show on every row**
+            - User: some rows weren't showing their heading
+              ("By network", "New movies", etc.) — the heading
+              was being pushed above the shelf-page snap area.
+              Per user spec: "LEAVE THE CARDS AND COVERS WHERE
+              THEY ARE.  Move the HERO TEXT AND BUTTONS UP A
+              TINY bit."
+            - **Hero height**: `clamp(420, 58vh, 620)` →
+              `clamp(400, 55vh, 590)` (-30 px at 1080p).  The
+              hero artwork stays largely identical but the bottom
+              edge sits 30 px higher.
+            - **Hero text/buttons paddingBottom**:
+              `clamp(18, 2vw, 36)` → `clamp(12, 1.2vw, 22)` (-14
+              px).  Title + Play button float up inside the hero.
+            - Net effect: shelf-page height grows 460 → 490 px,
+              which is exactly enough room for the eyebrow +
+              heading (~50 px) to fit above any rail.  Verified
+              at runtime: all 6 row headings ("By network",
+              "New movies", "New series", "Popular movies",
+              "Popular series", "Coming soon") now render
+              `heading_in_shelf: true` after the v2.7.19 snap.
+            - APK bumped to v2.7.21 (versionCode 191).
 
             For older release notes see CHANGELOG.md in the repo.
 

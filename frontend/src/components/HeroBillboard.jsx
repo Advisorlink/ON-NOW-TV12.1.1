@@ -73,7 +73,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: 'clamp(420px, 58vh, 620px)' }}
+            style={{ height: 'clamp(400px, 55vh, 590px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -142,12 +142,19 @@ export default function HeroBillboard({ heroes }) {
                     className="relative z-10 max-w-[62vw] vesper-fade-up"
                     style={{
                         paddingLeft: 'clamp(92px, 6.5vw, 132px)',
-                        /* v2.7.16 — user wants the hero text content
-                         * to sit lower in the hero AND fill more of
-                         * the dark band beneath the artwork.  Reduce
-                         * bottom padding so the title/buttons hug the
-                         * bottom edge of the hero. */
-                        paddingBottom: 'clamp(18px, 2vw, 36px)',
+                        /* v2.7.21 — bring hero text/buttons up a tiny
+                         * bit so the row HEADINGS below the hero have
+                         * room to render (some headings were getting
+                         * clipped on rows whose content stack was
+                         * taller than the shelf-page).  Per user spec:
+                         * "LEAVE THE CARDS AND COVERS WHERE THEY ARE
+                         * — move the HERO TEXT AND BUTTONS UP A TINY
+                         * bit."  Combined with a 30 px hero-height
+                         * reduction (clamp 620→590 at 1080p) the
+                         * shelf-page gains 30 px of vertical room,
+                         * which is enough for the eyebrow + title to
+                         * fit above any rail. */
+                        paddingBottom: 'clamp(12px, 1.2vw, 22px)',
                     }}
                 >
                     <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>

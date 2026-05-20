@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.21 — Row headings now show on every row
+- **User spec**: "LEAVE THE CARDS AND COVERS WHERE THEY ARE — move the HERO TEXT AND BUTTONS UP A TINY bit."
+- Hero height: `clamp(420, 58vh, 620)` → `clamp(400, 55vh, 590)` (-30 px at 1080p).
+- Hero text/buttons `paddingBottom`: `clamp(18, 2vw, 36)` → `clamp(12, 1.2vw, 22)` (-14 px).
+- Shelf-page height grows 460 → 490 px → all 6 row headings ("By network", "New movies", "New series", "Popular movies", "Popular series", "Coming soon") now render inside their shelf-page bounds. Verified runtime: `heading_in_shelf: true` for every row.
+
 ## v2.7.20 — Movie detail "Choose stream" CTA + CURRENT marker
 - **New "Choose stream" button** on movie detail page when Autoplay is OFF. `data-testid="detail-choose-stream"`. Same pill style/size as the Autoplay button. Shows the stream count `(N)` next to the label. On click, scrolls to the picker AND moves focus (`data-focused="true"`) to `stream-0` so D-pad can immediately walk the list.
 - **"● CURRENT" badge** on the row matching `lastStreamIdx` (persisted in `sessionStorage['onnowtv-last-stream:<id>']`). Row also gets cyan border + tinted background. Helps user diagnose whether a broken stream or the player is the issue — they can pick a different one and instantly see which they tried.
