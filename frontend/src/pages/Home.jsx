@@ -566,10 +566,10 @@ function EmptyAddonsBanner() {
 
 /* ShelfPage — wraps each home-screen shelf so it occupies EXACTLY
    the visible scroll area (window.innerHeight - heroHeight).
-   v2.7.22 — paddingBottom slashed 20 → 8 to push the cards down a
-   touch closer to the bottom edge of the snap-page per user spec
-   "move the cards down a tiny bit".  8 px still leaves enough
-   room for the focus-scale 1.08× overflow without crowding. */
+   v2.7.24 — paddingBottom slashed 8 → 0 to push the rows down to
+   the very bottom edge of the snap-page per user spec "STOP
+   TOUCHING THE HERO SECTION AND JUST MOVE THE ROWS down a tiny
+   bit".  Cards now sit flush at viewport bottom. */
 const ShelfPage = ({ children, height }) => (
     <div
         data-testid="shelf-page"
@@ -581,7 +581,7 @@ const ShelfPage = ({ children, height }) => (
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-end',
-            paddingBottom: 8,
+            paddingBottom: 0,
         }}
     >
         {children}

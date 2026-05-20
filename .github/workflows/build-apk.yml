@@ -228,17 +228,14 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.23 — More breathing room below hero + bigger network tiles**
-            - **Hero shrunk further**: `clamp(400, 55vh, 590)` →
-              `clamp(380, 50vh, 540)` (-50 px at 1080p).  Creates
-              ~50 px more vertical room before the next row's
-              heading.  No longer crammed under the Play / More
-              Info / My List buttons.
-            - **Network tiles bigger**:
-              `clamp(180, 15vw, 260)` → `clamp(220, 18vw, 310)`
-              (+50 px width at 1080p).  Borders 18 → 20 px to
-              match the slightly larger feel.
-            - APK bumped to v2.7.23 (versionCode 193).
+            **v2.7.24 — Rows nudged down (hero untouched)**
+            - User: "STOP TOUCHING THE HERO SECTION AND JUST MOVE
+              THE ROWS down a tiny bit."
+            - ShelfPage `paddingBottom` 8 → 0.  Each row's bottom
+              edge now sits flush at the viewport bottom (was
+              8 px above).  Hero left exactly as it was in
+              v2.7.23 (clamp 380 / 50vh / 540).
+            - APK bumped to v2.7.24 (versionCode 194).
 
             For older release notes see CHANGELOG.md in the repo.
 

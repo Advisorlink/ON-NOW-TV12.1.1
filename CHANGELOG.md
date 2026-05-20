@@ -7,6 +7,10 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.24 — Rows nudged down (hero untouched)
+- **Rows moved down 8 px**: `ShelfPage` `paddingBottom: 8 → 0`. Each row's bottom edge sits flush at viewport bottom.
+- **Hero untouched** per user explicit instruction. Stayed at v2.7.23 settings (`clamp(380, 50vh, 540)`).
+
 ## v2.7.23 — More breathing room below hero + bigger network tiles
 - **Hero shrunk further**: `clamp(400, 55vh, 590)` → `clamp(380, 50vh, 540)` (-50 px at 1080p). Verified runtime: gap from Play button bottom → next row heading top now ~287 px (was ~80 px).
 - **Network tiles bigger**: `clamp(180, 15vw, 260)` → `clamp(220, 18vw, 310)` (+50 px width). Border-radius 18 → 20 to match.
