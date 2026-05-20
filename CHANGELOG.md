@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.20 — Movie detail "Choose stream" CTA + CURRENT marker
+- **New "Choose stream" button** on movie detail page when Autoplay is OFF. `data-testid="detail-choose-stream"`. Same pill style/size as the Autoplay button. Shows the stream count `(N)` next to the label. On click, scrolls to the picker AND moves focus (`data-focused="true"`) to `stream-0` so D-pad can immediately walk the list.
+- **"● CURRENT" badge** on the row matching `lastStreamIdx` (persisted in `sessionStorage['onnowtv-last-stream:<id>']`). Row also gets cyan border + tinted background. Helps user diagnose whether a broken stream or the player is the issue — they can pick a different one and instantly see which they tried.
+- **`playStream`** now writes the chosen stream's index to sessionStorage before launching the native player, so the round-trip back to the detail page shows the CURRENT marker on the right row.
+
 ## 🔒 v2.7.19 — LOCKED-IN PERMANENT BASELINE
 User explicitly approved v2.7.19's home D-pad snap behaviour and asked to save it as permanent. The home-screen scroll engine, focus ring, and player VOD config from this version are now locked in as invariants — see `/app/CONTEXT.md` "PERMANENT INVARIANTS" section. Regression test: `/app/frontend/tests/home-snap.spec.js`.
 

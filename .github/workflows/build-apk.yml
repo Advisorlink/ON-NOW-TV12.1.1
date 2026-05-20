@@ -228,35 +228,25 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.19 — Snap-row fast-path (every row treated identically, instant cut, no slide)**
-            - User: "rebuild the whole home screen in the buttery
-              smooth recycler view... rows snap change not slide
-              up... each row if its a new row or an old row is
-              treated the same."
-            - **Snap-row fast-path** in `useSpatialFocus.focusEl`:
-              when the focused tile lives inside a
-              `[data-testid="shelf-page"]`, the per-pixel row-pin
-              math is BYPASSED entirely.  Instead the snap-page
-              parent gets `scrollIntoView({behavior:'auto',
-              block:'center'})` and the browser's native
-              `scroll-snap-type: y mandatory` engine commits the
-              snap on the next frame.  Instant cut, no slide,
-              IDENTICAL behaviour for every row (Continue
-              Watching, Networks, For You, addon catalogues,
-              Upcoming) — exactly the "RecyclerView feel" the
-              user wanted, achieved without any DOM rewrite.
-            - **Verified at runtime (Playwright @ 1920×1080)**:
-              with shelf-page height = 460 px, scrollTop
-              progression after 6 sequential ArrowDown presses
-              was **0 → 460 → 920 → 1380 → 1840 → 2300 → 2760** —
-              exact integer multiples, zero intermediate values.
-              `scroll@100ms` after each keypress equalled the
-              final commit position → no smooth animation, pure
-              snap.  Up sequence reversed cleanly through the
-              same points.  Every focused tile carried the
-              `outline: 3px cyan` ring (v2.7.18) including network
-              chips, posters, and trailer cards.
-            - APK bumped to v2.7.19 (versionCode 189).
+            **v2.7.20 — Movie detail "Choose stream" CTA + CURRENT marker**
+            - User feedback: needs a way to diagnose whether a
+              broken movie is the stream or the player, by trying
+              alternate streams without leaving the page.
+            - **New "Choose stream" button** on movie Detail when
+              Autoplay is OFF.  Same pill style as the Autoplay
+              button.  Shows the stream count.  Clicking it
+              scrolls to the Available-streams picker AND focuses
+              the first stream so D-pad can scroll through them
+              immediately (data-testid `detail-choose-stream`).
+            - **"● CURRENT" badge** on the row of the stream
+              that's currently playing (or last attempted).
+              Persisted in sessionStorage keyed by detail-page id
+              so it survives a player-launch round-trip.  Row
+              also gets a cyan border + tinted background to
+              stand out at a glance.  Now you can pick a
+              different stream and instantly tell which one was
+              the broken one.
+            - APK bumped to v2.7.20 (versionCode 190).
 
             For older release notes see CHANGELOG.md in the repo.
 

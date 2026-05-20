@@ -777,6 +777,59 @@ export default function Detail() {
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
+    /* v2.7.20 — Track the LAST stream the user chose (or that
+     * autoplay picked).  Used to:
+     *   (a) Visually mark "CURRENT" on that stream's row in the
+     *       Available-streams picker so the user can tell which
+     *       stream is in the player right now.
+     *   (b) Diagnose whether a specific stream is broken vs the
+     *       player config — they can pick a different stream
+     *       without leaving the page.
+     * Stored in sessionStorage keyed by detail-page id so it
+     * survives a player-launch round-trip without polluting
+     * cross-session state. */
+    const lastStreamKey = `onnowtv-last-stream:${id}`;
+    const [lastStreamIdx, setLastStreamIdx] = useState(() => {
+        try {
+            const raw = sessionStorage.getItem(lastStreamKey);
+            return raw == null ? null : Number(raw);
+        } catch { return null; }
+    });
+
+    /* Scroll-to-picker + focus-first-stream.  Used by the
+     * "Choose stream" CTA shown when Autoplay is OFF.  We
+     * `scrollIntoView` the picker section and then move focus
+     * to the first stream button — `useSpatialFocus.focusEl`
+     * picks it up and the cyan ring lands on it. */
+    const focusFirstStream = React.useCallback(() => {
+        // Defer one frame so the picker section is in the DOM
+        // (it's gated behind `autoplayEnabled` + candidate).
+        requestAnimationFrame(() => {
+            const section = document.querySelector(
+                '[data-testid="stream-picker"]'
+            );
+            if (section) {
+                section.scrollIntoView({
+                    behavior: 'auto',
+                    block: 'start',
+                });
+            }
+            // Sweep stale focus.
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => el.removeAttribute('data-focused'));
+            const first = document.querySelector(
+                '[data-testid="stream-0"]'
+            );
+            if (first) {
+                first.setAttribute('data-focused', 'true');
+                try {
+                    first.focus({ preventScroll: true });
+                } catch { /* ignore */ }
+            }
+        });
+    }, []);
+
     /* AUTO-SHOW "Coming soon" modal as soon as stream-loading
      * resolves with zero playable streams — no Play click needed.
      * Previously the user had to tap Play to see this CTA, which
@@ -1135,6 +1188,16 @@ export default function Detail() {
 
     const playStream = async (stream, episodeOverride = null) => {
         const mode = streamMode(stream);
+        /* v2.7.20 — Persist which stream the user is currently
+         * playing so the picker can mark it as "CURRENT" on
+         * return. */
+        try {
+            const idx = streams.findIndex((s) => s === stream);
+            if (idx >= 0) {
+                sessionStorage.setItem(lastStreamKey, String(idx));
+                setLastStreamIdx(idx);
+            }
+        } catch { /* ignore */ }
         /* For series episodes coming from the party-autoplay path,
            use the composite videoId (`imdbId:season:episode`) for
            subtitles, CW key, and resume.  Movies pass null and
@@ -1789,6 +1852,79 @@ export default function Detail() {
                         </div>
                     )}
 
+                    {/* v2.7.20 — Movie + Autoplay OFF.  Show a
+                        "Choose stream" CTA that scrolls to and
+                        focuses the first stream in the picker.
+                        Without this button, users with Autoplay
+                        off had no obvious primary action — they
+                        had to scroll down to find the streams.
+                        Helps them diagnose stream-vs-player
+                        issues without leaving the page. */}
+                    {type === 'movie'
+                        && !autoplayEnabled
+                        && !focusedActor
+                        && !focusedMovie && (
+                        <div className="mt-8 flex items-center gap-3 flex-wrap">
+                            <button
+                                data-testid="detail-choose-stream"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                data-initial-focus="true"
+                                tabIndex={0}
+                                onClick={focusFirstStream}
+                                disabled={streamLoading}
+                                className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
+                                style={{
+                                    height: 'clamp(50px, 4vw, 60px)',
+                                    paddingLeft: 'clamp(24px, 1.8vw, 32px)',
+                                    paddingRight: 'clamp(28px, 2.2vw, 38px)',
+                                    fontSize: 'clamp(15px, 1.15vw, 18px)',
+                                    background: streamLoading
+                                        ? 'rgba(255,255,255,0.10)'
+                                        : 'var(--vesper-blue)',
+                                    color: streamLoading
+                                        ? 'var(--vesper-text-2)'
+                                        : 'var(--vesper-bg-0)',
+                                    opacity: streamLoading ? 0.7 : 1,
+                                }}
+                            >
+                                {streamLoading ? (
+                                    <>
+                                        <Loader2
+                                            className="vesper-spin"
+                                            size={18}
+                                        />
+                                        Finding streams…
+                                    </>
+                                ) : streams && streams.length > 0 ? (
+                                    <>
+                                        <Play size={18} fill="currentColor" />
+                                        Choose stream
+                                        <span
+                                            className="ml-1 vesper-mono"
+                                            style={{
+                                                fontSize: 12,
+                                                opacity: 0.75,
+                                                letterSpacing: '0.06em',
+                                            }}
+                                        >
+                                            ({streams.length})
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={18} />
+                                        No stream found
+                                    </>
+                                )}
+                            </button>
+                            <TrailerPill
+                                onClick={openTrailer}
+                                loading={trailerLoading}
+                            />
+                        </div>
+                    )}
+
                     {/* For TV SERIES the Trailer button sits on
                         its own row, above the season picker, so
                         it doesn't compete with the Autoplay
@@ -2039,9 +2175,13 @@ export default function Detail() {
                                                         padding: '18px 22px',
                                                         borderRadius: 14,
                                                         background:
-                                                            'rgba(13,18,28,0.78)',
+                                                            i === lastStreamIdx
+                                                                ? 'rgba(var(--vesper-blue-rgb),0.10)'
+                                                                : 'rgba(13,18,28,0.78)',
                                                         border:
-                                                            '1px solid rgba(255,255,255,0.06)',
+                                                            i === lastStreamIdx
+                                                                ? '1px solid var(--vesper-blue-bright)'
+                                                                : '1px solid rgba(255,255,255,0.06)',
                                                         boxShadow:
                                                             '0 6px 18px rgba(0,0,0,0.28)',
                                                     }}
@@ -2102,21 +2242,45 @@ export default function Detail() {
 
                                                     <div className="min-w-0 flex-1">
                                                         <div
-                                                            style={{
-                                                                fontFamily:
-                                                                    'var(--theme-font-body, "Geist", system-ui, sans-serif)',
-                                                                fontSize: 15,
-                                                                fontWeight: 500,
-                                                                lineHeight: 1.35,
-                                                                color: 'var(--vesper-text)',
-                                                                wordBreak: 'break-word',
-                                                                display: '-webkit-box',
-                                                                WebkitBoxOrient: 'vertical',
-                                                                WebkitLineClamp: 2,
-                                                                overflow: 'hidden',
-                                                            }}
+                                                            className="flex items-center gap-2 flex-wrap"
                                                         >
-                                                            {titleLine}
+                                                            <div
+                                                                style={{
+                                                                    fontFamily:
+                                                                        'var(--theme-font-body, "Geist", system-ui, sans-serif)',
+                                                                    fontSize: 15,
+                                                                    fontWeight: 500,
+                                                                    lineHeight: 1.35,
+                                                                    color: 'var(--vesper-text)',
+                                                                    wordBreak: 'break-word',
+                                                                    display: '-webkit-box',
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    WebkitLineClamp: 2,
+                                                                    overflow: 'hidden',
+                                                                    flex: '1 1 auto',
+                                                                    minWidth: 0,
+                                                                }}
+                                                            >
+                                                                {titleLine}
+                                                            </div>
+                                                            {i === lastStreamIdx && (
+                                                                <span
+                                                                    data-testid={`stream-${i}-current`}
+                                                                    className="vesper-mono shrink-0"
+                                                                    style={{
+                                                                        fontSize: 10,
+                                                                        fontWeight: 800,
+                                                                        letterSpacing: '0.14em',
+                                                                        padding: '3px 9px',
+                                                                        borderRadius: 4,
+                                                                        background: 'var(--vesper-blue-bright)',
+                                                                        color: 'var(--vesper-bg-0)',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    ● CURRENT
+                                                                </span>
+                                                            )}
                                                         </div>
 
                                                         {/* Quality tag pills (HDR / DV / Atmos / REMUX) */}
