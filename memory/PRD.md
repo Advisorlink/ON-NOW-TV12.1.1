@@ -55,6 +55,35 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 143 — Feb 20, 2026) — v2.7.18
+### Bulletproof focus ring — outline-based, can't be overridden
+
+User uploaded video showing the focus ring disappearing on every intermediate row when pressing Down from Continue Watching, only reappearing at the bottom. User: "The focus boarder needs to be visible on every row. No skipping no disappearing it needs to work."
+
+**Root cause (verified by Playwright DOM inspection):**
+- `NetworkTile` in `NetworksShelf.jsx` carries an inline `style={{ boxShadow: '0 14px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)' }}` for its resting drop-shadow.
+- CSS inline `style` props always win over class-selector rules, so when the network tile receives focus the `[data-focus-style='tile'][data-focused='true'] { box-shadow: 0 0 0 3px var(--vesper-blue-bright) }` rule was OVERRIDDEN by the tile's inline shadow → blue ring went invisible.
+- Other tile components likely have the same pattern in various places. The CSS box-shadow approach was structurally fragile — every component that wants a resting drop-shadow becomes a focus-ring-killer.
+
+**Fix in `/app/frontend/src/index.css`:**
+- Focus ring re-implemented as a CSS `outline: 3px solid var(--vesper-blue-bright) !important; outline-offset: 2px !important`.
+- Outlines:
+  - Are immune to inline-style overrides (no inline `outline` props in the codebase).
+  - Don't take any layout space (don't push siblings around).
+  - Can't be clipped by parent `contain: layout style` containers.
+  - Don't fight stacking contexts.
+- Applied to BOTH `data-focus-style='tile'` and `data-focus-style='pill'` selectors (the two styles used across home + library + detail page rows).
+- The old `box-shadow` rule is kept as a secondary visual (the bright ring is the outline; the box-shadow contributes the inner glow). When the box-shadow is overridden by an inline style, the outline still renders — the ring is never invisible.
+
+**Verified at runtime (Playwright, 1920×1080, with seeded Continue Watching item):**
+- Sequence: INITIAL focus on CW tile → 7 sequential ArrowDown presses.
+- Each step's focused tile had: `outline: rgb(92, 223, 255) solid 3px`, `outline_width: 3px`.
+- Sequence: `continue-tt1 → network-netflix → poster-tt27681354 → poster-tt34991493 → poster-tt37287335 → poster-tt1190634 → upcoming-trailer-1228710`.
+- Previously, network-netflix had `box_shadow: rgba(0,0,0,0.45) ...` (no ring). Now it has the 3px cyan outline. ✅
+
+**🆙 APK bumped to v2.7.18 (versionCode 188).**
+
+
 ## Implemented (Iteration 142 — Feb 20, 2026) — v2.7.17
 ### Player rebuilt minimal + new-profile empty rows skipped + force-SDR toggle
 

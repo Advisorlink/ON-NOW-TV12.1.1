@@ -443,6 +443,24 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     z-index: 5;
 }
 
+/* v2.7.18 — BULLETPROOF FOCUS RING.  Several tile components
+   (NetworkTile, certain custom buttons) carry inline `boxShadow`
+   style props for their resting drop-shadow — inline styles win
+   over class selectors, so when those tiles got focus the blue
+   box-shadow ring above was overridden and the focus ring went
+   invisible (user reported "border ring disappears on intermediate
+   rows").  Adding an outline-based ring with !important guarantees
+   visibility regardless of any inline shadow / parent stacking
+   context / overflow.  Outlines don't take layout space and can't
+   be clipped by `contain: layout style` containers. */
+[data-focus-style='tile']:focus-visible,
+[data-focus-style='tile'][data-focused='true'],
+[data-focus-style='pill']:focus-visible,
+[data-focus-style='pill'][data-focused='true'] {
+    outline: 3px solid var(--vesper-blue-bright) !important;
+    outline-offset: 2px !important;
+}
+
 /* Pill focus — buttons.  Same principle: solid ring, no blur. */
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {

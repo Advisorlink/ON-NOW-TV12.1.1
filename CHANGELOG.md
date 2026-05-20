@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.18 — Bulletproof focus ring (outline-based)
+- **Root cause of "focus ring disappears on intermediate rows"** (user video): `NetworkTile` (and a couple of other tile components) carry an inline `boxShadow` style prop for their resting drop-shadow. CSS inline styles win over class selectors, so the `[data-focus-style='tile'][data-focused='true'] { box-shadow: ... }` focus rule was OVERRIDDEN whenever such tiles received focus → blue ring went invisible. User saw the ring on hero + bottom rows because those tiles don't have inline shadows.
+- **Fix**: focus ring re-implemented as `outline: 3px solid var(--vesper-blue-bright) !important; outline-offset: 2px !important`. Outlines are immune to inline-style overrides, take no layout space, can't be clipped by parent `contain` / `overflow` rules, and don't fight stacking contexts. Visible on every focused tile, every row, every time.
+- **Verified at runtime (Playwright)**: 7 sequential ArrowDown presses from hero through CW → Networks → 4 catalogue shelves → Upcoming Trailers. Every focused tile showed `outline: rgb(92,223,255) solid 3px` including `network-netflix` (which previously had zero blue ring due to inline boxShadow).
+
 ## v2.7.17 — Player rebuilt minimal (Stremio-style) + new-profile empty rows fix
 - **CRITICAL**: v2.7.16's `:no-mediacodec-dr` option caused green horizontal static-line corruption on movie playback (visible in user video). When MediaCodec direct-rendering is disabled but HW decoding stays enabled, libVLC tries to copy opaque hardware MediaCodec output buffers via software, which reads random GPU memory → green corruption. REMOVED.
 - **Player rebuilt from scratch (Stremio's exact approach)**: `VlcPlayerActivity.startPlayback()` VOD path now uses ONLY `setHWDecoderEnabled(true, false)` + `:network-caching=1500`. Nothing else. Live IPTV, magnet, trailer paths kept untouched.
