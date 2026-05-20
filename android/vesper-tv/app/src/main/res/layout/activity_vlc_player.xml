@@ -729,12 +729,17 @@
         android:visibility="gone"
         android:clipChildren="false">
 
-        <!-- Full-screen backdrop art of the focused channel -->
+        <!-- Full-screen backdrop art of the focused channel.
+             v2.7.05 — alpha 0 by default; the channel-logo backdrop
+             was distracting + made the rail backdrops fight each
+             other.  Keep the ImageView for the legacy controller
+             code path but never paint it visibly. -->
         <ImageView
             android:id="@+id/detail_backdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
+            android:alpha="0"
             android:contentDescription="@null" />
 
         <!-- Darkening scrim over the backdrop -->

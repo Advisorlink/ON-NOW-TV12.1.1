@@ -228,6 +228,37 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.05 — No more channel-logo wallpaper · cleaner M14 stage**
+            - 🧹 **Hid the full-screen `detail_backdrop` ImageView**
+              (set `android:alpha="0"` on it).  Previously the
+              focused channel's logo was being painted across the
+              entire screen as a backdrop — distracting and made
+              the rail backdrops fight each other.  Now the M14
+              stage is a clean dark canvas: only the rail's On Now
+              + Coming Up Next cards carry TMDB backdrops, exactly
+              per the user's spec.
+            - 📝 Confirmed wiring: the bottom rail re-renders LIVE
+              as the user D-pads through channels.  Each row's
+              focus-change listener calls `renderDetail(ch)`, which
+              rebinds the M14 top header (logo + name) + On Now
+              card (TMDB backdrop + title + time + progress) + all
+              4 Next cards (titles, times, fresh TMDB backdrops).
+              No additional work needed for "card changes as you
+              scroll" — that's the existing behaviour and survives
+              the v2.7.05 cleanup.
+            - 🎨 **Channel-name side-display options** mocked up
+              (screenshots delivered inline to user):
+                • A — Big 110px inline name + LIVE pill + Now Playing
+                  beside the focused row (free-floating typography).
+                • B — Right-side persistent info column with HUGE
+                  140px channel name + LIVE pill + Now Playing card
+                  (always anchored on right).
+                • C — Sleek floating glass chip beside the focused
+                  row with 64px channel name + LIVE · CH 150 +
+                  programme title (Plex-style hover card).
+              Pending user pick — implement in v2.7.06.
+            - 🆙 APK bumped to **v2.7.05** (versionCode 175).
+
             **v2.7.04 — M14 rail TMDB backdrops · NEVER autoplay 4K**
             - 🎨 **Plex / Netflix Up Next feel on the M14 Live Guide
               bottom rail.**  Both the "On Now" card and the four

@@ -55,6 +55,21 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 130 — Feb 20, 2026) — v2.7.05
+### Clean M14 stage (no wallpaper) + channel-name side-display mockups (A/B/C)
+
+**User clarified after seeing the v2.7.04 screenshot:**
+1. "I don't want a TMDB background wallpaper" — only TMDB on the Up Next cards. → Hid full-screen `detail_backdrop` (`alpha="0"`).
+2. "Make sure the bottom rail updates as I scroll channels" — confirmed already wired via `setOnFocusChangeListener → renderDetail(ch)` in ChannelAdapter. No change needed.
+3. "Add big bold channel name beside the focused row" — designed 3 mockup options and delivered screenshots inline:
+   - **Option A** — Big 110px inline name + LIVE pill + Now Playing beside the focused row (free-floating typography).
+   - **Option B** — Right-side persistent info column with HUGE 140px name + LIVE pill + Now Playing mini-card (anchored to the right edge of the channel-list area).
+   - **Option C** — Sleek floating glass chip beside the focused row with 64px name + LIVE · CH 150 + programme title (Plex-style hover card with backdrop blur + cyan glow).
+4. Pending user pick → implement in v2.7.06.
+
+**🆙 APK bumped to v2.7.05 (versionCode 175).**
+
+
 ## Implemented (Iteration 129 — Feb 20, 2026) — v2.7.04
 ### M14 rail TMDB backdrops (Plex/Netflix Up Next feel) + autoplay 4K rejection escalated
 
