@@ -228,6 +228,49 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.03 — M14 Live Guide native rewrite (Kotlin/XML)**
+            - 🛰️ **Implemented the long-pending M14 reference design**
+              for the native Android Live Guide overlay
+              (`LiveGuideController.kt` + `activity_vlc_player.xml`).
+              The legacy 460 dp left panel + floating right detail
+              card is gone; the screen now reads as a single
+              cinematic surface:
+                • **Top header strip:** focused channel logo +
+                  name + `● LIVE` pill on the left, big monospaced
+                  clock + day/date on the right.  Clock auto-ticks
+                  every 30 s while the guide is open.
+                • **Full-width vertical channel list** with the
+                  focused row scaled 1.12× and shifted 24 px right
+                  with a 24 dp elevation glow — the row literally
+                  "lifts off the page" so you feel the D-pad.
+                • **Bottom rail (360 dp):**  large "On Now" poster
+                  card on the left (reuses the existing
+                  detail_channel_logo / detail_programme_title /
+                  detail_time_range / detail_progress IDs so all
+                  controller binding survives) + four "NEXT,
+                  NEXT +1, NEXT +2, NEXT +3" cards on the right,
+                  each binding the next 4 EPG entries for the
+                  focused channel.
+            - 🎬 **Cinematic open/close choreography.** Header
+              drops from above (-60 → 0 px, 280 ms), list cross-
+              fades (260 ms with 80 ms delay), rail rises from
+              below (+120 → 0 px, 320 ms with 60 ms delay).  Mirror
+              animations on close.
+            - 🪛 **Backward-compatible.**  All retired IDs
+              (`guide_panel`, `guide_detail`, `guide_title`,
+              `guide_subtitle`, `guide_hint`, `detail_next`, all
+              `detail_chip_*`, `detail_description`,
+              `detail_divider`) are kept as 0×0 invisible stubs so
+              `LiveGuideController.findViewById` never returns null
+              and no code path crashes.  Once the controller is
+              fully ported off the legacy IDs we can remove these
+              stubs.
+            - 📐 Updated `item_guide_channel.xml` with
+              `clipChildren="false"` so the 1.12× focus scale
+              doesn't clip; same flag added to the RecyclerView
+              and the list-wrap FrameLayout.
+            - 🆙 APK bumped to **v2.7.03** (versionCode 173).
+
             **v2.7.02 — Only ONE focus ring at a time · eyebrow brand-blue restored**
             - 🎯 **Real root cause of "two blue rings around the
               covers" (user clarified the previous v2.7.01 fix

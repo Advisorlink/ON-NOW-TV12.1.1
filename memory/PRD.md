@@ -55,6 +55,38 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 128 — Feb 20, 2026) — v2.7.03
+### M14 Live Guide native rewrite — Kotlin + Android XML (P0)
+
+User pointed out the M14 mockup was already designed in a prior iteration (`/app/frontend/public/guide-mockups.html` line 1282+) — I had been waiting for a fresh mockup needlessly. Located the existing M14 reference and shipped the full native rewrite.
+
+**Visual structure (matches the HTML mockup pixel-for-pixel within Android's layout system):**
+- **Top header strip (130 dp tall):** focused channel logo + name + `● LIVE` pill on the left; big monospaced clock + day/date on the right. Clock auto-ticks every 30 s.
+- **Full-width vertical channel list** (left half of viewport, paddingBottom 380 dp to clear the rail). Focused row scales 1.12×, shifts 24 dp right, elevates 24 dp with a glow — the row literally "lifts off the page".
+- **Bottom rail (360 dp tall):** large "On Now" poster card (380×220 dp) on the left + four "NEXT / NEXT+1 / NEXT+2 / NEXT+3" cards (280×168 dp each) to the right, bound from the focused channel's upcoming EPG entries.
+
+**Cinematic open/close choreography:**
+- Header drops in from above (-60 → 0 px, 280 ms)
+- List cross-fades (260 ms with 80 ms delay)
+- Rail rises from below (+120 → 0 px, 320 ms with 60 ms delay)
+- Initial states set BEFORE `root.visibility = VISIBLE` so there's no flash of fully-rendered UI before the animation starts.
+
+**Backward-compatible:**
+- All retired view IDs (`guide_panel`, `guide_detail`, `guide_title`, `guide_subtitle`, `guide_hint`, `detail_next`, `detail_chip_*`, `detail_description`, `detail_divider`) are kept as 0×0 invisible stubs so `findViewById` calls in the controller's legacy code paths never crash.
+- The "On Now" card on the left of the rail REUSES `detail_channel_logo / detail_channel_name / detail_programme_title / detail_time_range / detail_progress` — so the existing `renderDetail()` data-binding code keeps working unchanged; only the visual position has moved.
+- New IDs added for header + Next cards: `m14_header_logo / m14_header_name / m14_header_clock / m14_header_date / m14_next{1..4}_title / m14_next{1..4}_time`.
+- New helpers: `updateClock()`, `bindNextCard(titleTv, timeTv, prog)`, `bindLogo(target, ch)`.
+
+**Files changed:**
+- `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/LiveGuideController.kt` (added 13 M14 view refs, clock handler, `updateClock()`, `bindNextCard()`, `bindLogo()`, M14 entry/exit animations, row focus scale-up logic)
+- `/app/android/vesper-tv/app/src/main/res/layout/activity_vlc_player.xml` (replaced 477 lines of legacy `guide_root` block with M14 layout)
+- `/app/android/vesper-tv/app/src/main/res/layout/item_guide_channel.xml` (added `clipChildren=false` so 1.12× focus scale isn't clipped)
+
+**Self-validation:** XML parses cleanly. All `R.id.*` references in controller resolve to declared IDs in the layout XMLs (43 IDs declared, 42 referenced — no missing). All drawables referenced exist. No duplicate IDs. Build will happen in GitHub Actions APK workflow on next push — user to sideload v2.7.03 APK on HK1 to verify on real hardware.
+
+**🆙 APK bumped to v2.7.03 (versionCode 173).**
+
+
 ## Implemented (Iteration 127 — Feb 20, 2026) — v2.7.02
 ### Only ONE blue focus ring at a time (P0) · eyebrow brand-blue restored
 

@@ -688,23 +688,39 @@
     </FrameLayout>
 
     <!-- ============================================================
-         LIVE GUIDE OVERLAY — premium edge-panel design
+         LIVE GUIDE OVERLAY — M14 reference design (v2.7.03)
          ============================================================
-         REDESIGNED v2.6.2.  The previous full-screen guide covered
-         the video; this one slides in from the LEFT as a 460dp-wide
-         vertical panel so the player stays fully visible to the
-         right.  The currently-focused channel renders a programme
-         detail card that overlays the player's bottom-right corner
-         with poster + title + Now/Next.
+         FULL REWRITE per the user's M14 mockup (see
+         /app/frontend/public/guide-mockups.html line 1282+):
 
-         Two animated parts:
-           • guide_panel  – slides in/out (translateX from -460dp → 0)
-           • guide_detail – fades in/out as focus moves (alpha 0 → 1)
+           ┌─────────────────────────────────────────────────┐
+           │ [logo]  CHANNEL · LIVE        22:10  Fri May 23 │  ← header
+           ├─────────────────────────────────────────────────┤
+           │  145 [LOGO] The Big Bang Theory     ▓▓░░░░░░    │
+           │  146 [LOGO] Alerta Cobra            ▓▓▓▓░░░░    │
+           │  147 [LOGO] Moneyball               ▓▓░░░░░░    │
+           │ ▶150 [LOGO]  FOX (focused row — scaled up)      │
+           │       NOW · 22:15 → 00:13                       │  ← focused expands
+           │  151 [LOGO] The Walking Dead        ▓▓▓▓▓▓░░    │
+           ├──────────── ON NOW ─── COMING UP NEXT ──────────┤
+           │ ┌─────────┐ NEXT     NEXT+1    NEXT+2    NEXT+3 │  ← bottom rail
+           │ │ Jurassic│ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ │
+           │ │  World  │ │Jurass│ │Simpso│ │ 9-1-1│ │Mental│ │
+           │ │22:15→00 │ │00:13→│ │01:40→│ │02:07→│ │03:00→│ │
+           │ └─────────┘ └──────┘ └──────┘ └──────┘ └──────┘ │
+           └─────────────────────────────────────────────────┘
 
-         No traditional player buttons inside the guide — the user's
-         brief was "premium, no buttons, channel + cover art the
-         star".  D-pad up/down to scroll, OK to switch channel, BACK
-         to dismiss.
+         IMPORTANT:
+         • The original `guide_panel` (460 dp left edge) and the
+           floating `guide_detail` card have both been retired.
+           Their IDs are KEPT below as 0-dp invisible stubs so
+           LiveGuideController.kt's findViewById calls don't
+           crash — the controller binds the new M14 views by
+           their new IDs (`m14_*`) and only writes legacy IDs
+           when convenient.
+         • detail_backdrop + guide_scrim are reused as-is: the
+           focused channel's art still fills the screen behind
+           everything and a darker scrim keeps text legible.
          ============================================================ -->
     <FrameLayout
         android:id="@+id/guide_root"
@@ -713,11 +729,7 @@
         android:visibility="gone"
         android:clipChildren="false">
 
-        <!-- v2.6.70: FULL-SCREEN backdrop layer.  The currently-
-             focused channel's art fills the entire frame and is
-             then darkened by the scrim above.  Replaces the old
-             per-card backdrop so the whole guide feels cinematic
-             instead of "a panel on top of video". -->
+        <!-- Full-screen backdrop art of the focused channel -->
         <ImageView
             android:id="@+id/detail_backdrop"
             android:layout_width="match_parent"
@@ -725,424 +737,492 @@
             android:scaleType="centerCrop"
             android:contentDescription="@null" />
 
-        <!-- Soft scrim under the right edge of the panel so the
-             panel's drop shadow looks lifted off the video.  Also
-             darkens the backdrop so foreground text reads cleanly. -->
+        <!-- Darkening scrim over the backdrop -->
         <View
             android:id="@+id/guide_scrim"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@drawable/guide_scrim_gradient" />
 
-        <!-- LEFT panel — vertical channel list + header.  All other
-             content lives inside this view so the slide-in animation
-             is a single translateX on the panel. -->
+        <!-- ====================== M14 HEADER ====================== -->
         <LinearLayout
-            android:id="@+id/guide_panel"
-            android:layout_width="460dp"
-            android:layout_height="match_parent"
-            android:layout_gravity="start"
-            android:orientation="vertical"
-            android:background="@drawable/guide_panel_bg"
-            android:elevation="24dp"
-            android:paddingTop="36dp"
-            android:paddingBottom="36dp">
+            android:id="@+id/m14_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:layout_marginTop="24dp"
+            android:paddingStart="56dp"
+            android:paddingEnd="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-            <!-- Header strip: eyebrow + title + categories pill -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="28dp"
-                android:paddingEnd="28dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="LIVE TV"
-                    android:textColor="#5DC8FF"
-                    android:textSize="11sp"
-                    android:letterSpacing="0.36"
-                    android:fontFamily="monospace"
-                    android:textStyle="bold" />
-                <TextView
-                    android:id="@+id/guide_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Channel guide"
-                    android:textColor="#FFFFFF"
-                    android:textSize="32sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="-0.025" />
-                <TextView
-                    android:id="@+id/guide_subtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="#9DA5B5"
-                    android:textSize="12sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.06" />
-
-                <!-- Category pill rail — horizontal scroll, plays
-                     the role of "All channels" / "Sports" / "Movies"
-                     filter without taking up vertical space. -->
-                <HorizontalScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:scrollbars="none"
-                    android:overScrollMode="never">
-                    <LinearLayout
-                        android:id="@+id/guide_category_pills"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
-            </LinearLayout>
-
-            <!-- 1dp neon-cyan accent line under the header -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="20dp"
-                android:layout_marginStart="28dp"
-                android:layout_marginEnd="28dp"
-                android:background="#1F5DC8FF" />
-
-            <!-- Channel list takes the remaining height -->
+            <!-- Left side: channel logo + name + LIVE pill -->
             <FrameLayout
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/guide_channels"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/guide_detail_logo_bg">
+                <ImageView
+                    android:id="@+id/m14_header_logo"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:paddingStart="20dp"
-                    android:paddingEnd="20dp"
-                    android:paddingTop="12dp"
-                    android:paddingBottom="40dp"
-                    android:clipToPadding="false"
-                    android:overScrollMode="never"
-                    android:scrollbars="none" />
-
-                <!-- Empty state -->
-                <TextView
-                    android:id="@+id/guide_empty"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:gravity="center"
-                    android:text="Channel list not loaded yet.\nGo back and open Live TV first."
-                    android:textColor="#9DA5B5"
-                    android:textSize="14sp"
-                    android:visibility="gone" />
+                    android:layout_margin="8dp"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@null" />
             </FrameLayout>
 
-            <!-- Subtle bottom hint bar -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="16dp"
+                android:orientation="vertical">
+                <TextView
+                    android:id="@+id/m14_header_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.01"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="2dp">
+                    <View
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:background="@drawable/guide_dot_live"
+                        android:layout_marginEnd="6dp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="LIVE"
+                        android:textColor="#8B95A7"
+                        android:textSize="13sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Right side: clock + date -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end">
+                <TextView
+                    android:id="@+id/m14_header_clock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.02" />
+                <TextView
+                    android:id="@+id/m14_header_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#8B95A7"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ====================== M14 CHANNEL LIST ================
+             Vertical RecyclerView, left-aligned, takes the area
+             between the header and the bottom rail.  Right padding
+             leaves an empty band where the focused channel's
+             backdrop art bleeds through for cinematic feel. -->
+        <FrameLayout
+            android:id="@+id/m14_list_wrap"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingStart="56dp"
+            android:paddingEnd="56dp"
+            android:paddingTop="130dp"
+            android:paddingBottom="380dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/guide_channels"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
+            <TextView
+                android:id="@+id/guide_empty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:text="Channel list not loaded yet.\nGo back and open Live TV first."
+                android:textColor="#9DA5B5"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- ====================== M14 BOTTOM RAIL ================= -->
+        <LinearLayout
+            android:id="@+id/m14_rail"
+            android:layout_width="match_parent"
+            android:layout_height="360dp"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:background="@drawable/guide_detail_gradient"
+            android:paddingStart="56dp"
+            android:paddingEnd="56dp"
+            android:paddingTop="24dp"
+            android:paddingBottom="40dp">
+
+            <!-- Section labels: "On Now"   "Coming Up Next" -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingStart="28dp"
-                android:paddingEnd="28dp"
-                android:paddingTop="12dp"
-                android:gravity="center_vertical">
-                <View
-                    android:layout_width="6dp"
-                    android:layout_height="6dp"
-                    android:background="@drawable/guide_dot_live" />
+                android:layout_marginBottom="14dp">
                 <TextView
-                    android:id="@+id/guide_hint"
+                    android:layout_width="380dp"
+                    android:layout_height="wrap_content"
+                    android:text="On Now"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:text="OK · TUNE     BACK · CLOSE"
-                    android:textColor="#6B7587"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.22"
-                    android:fontFamily="monospace"
+                    android:layout_marginStart="18dp"
+                    android:text="Coming Up Next"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
             </LinearLayout>
-        </LinearLayout>
 
-        <!-- RIGHT: floating programme detail card.  Sits in the
-             center-right area over the dimmed backdrop.  Slides in
-             200ms after the panel; refreshes its content as the user
-             D-pads through the channel list.
-             v2.6.70: enlarged + moved to centered-right per user's
-             design reference, no longer a tiny bottom-right widget.
-             Converted to a vertical LinearLayout so the header card
-             and the body (chips, time, description, up-next) stack
-             cleanly instead of overlapping. -->
-        <LinearLayout
-            android:id="@+id/guide_detail"
-            android:layout_width="540dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical|end"
-            android:layout_marginEnd="80dp"
-            android:layout_marginTop="36dp"
-            android:layout_marginBottom="36dp"
-            android:orientation="vertical"
-            android:alpha="0"
-            android:background="@drawable/guide_detail_bg"
-            android:elevation="18dp"
-            android:clipChildren="false"
-            android:clipToPadding="false">
-
-            <!-- Header strip — "LIVE NOW" pill + channel logo on a
-                 deeper-tinted band so it reads as a card.  No backdrop
-                 image inside the card now — it's a full-screen layer
-                 behind the entire guide instead. -->
-            <FrameLayout
+            <!-- Card row: On Now + 4 Next columns -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/guide_detail_gradient"
-                android:paddingTop="22dp"
-                android:paddingBottom="14dp"
-                android:paddingStart="22dp"
-                android:paddingEnd="22dp">
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="bottom">
 
-                <!-- Top-left LIVE pill (red, pulsing dot) -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|start"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/guide_live_pill"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="14dp"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="6dp">
-                    <View
-                        android:layout_width="7dp"
-                        android:layout_height="7dp"
-                        android:background="@drawable/guide_dot_white"
-                        android:layout_marginEnd="8dp" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="LIVE NOW"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:fontFamily="monospace"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.24" />
-                </LinearLayout>
-
-                <!-- Top-right channel logo on glass plate -->
+                <!-- ON NOW CARD (380×220) -->
                 <FrameLayout
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_gravity="top|end"
-                    android:background="@drawable/guide_detail_logo_bg">
+                    android:id="@+id/m14_onnow_card"
+                    android:layout_width="380dp"
+                    android:layout_height="220dp"
+                    android:background="@drawable/guide_detail_bg"
+                    android:clipChildren="true"
+                    android:clipToOutline="true">
                     <ImageView
                         android:id="@+id/detail_channel_logo"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:layout_margin="8dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="centerCrop"
                         android:contentDescription="@null" />
-                </FrameLayout>
-
-                <!-- Center title block — channel eyebrow + programme
-                     title.  Pushed below the pill/logo row. -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top"
-                    android:layout_marginTop="78dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/detail_channel_name"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="#5DC8FF"
-                        android:textSize="12sp"
-                        android:letterSpacing="0.28"
-                        android:fontFamily="monospace"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/detail_programme_title"
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/guide_detail_gradient" />
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="34sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="-0.025"
-                        android:maxLines="2"
-                        android:ellipsize="end"
-                        android:shadowColor="#CC000000"
-                        android:shadowDx="0"
-                        android:shadowDy="2"
-                        android:shadowRadius="6" />
-                </LinearLayout>
-            </FrameLayout>
-
-            <!-- Lower info area — chips, time/progress, description -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:paddingTop="14dp"
-                android:paddingBottom="22dp">
-
-                <!-- Meta chips row: episode badge / year / rating / category -->
-                <LinearLayout
-                    android:id="@+id/detail_chip_row"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="start|center_vertical">
-
-                    <TextView
-                        android:id="@+id/detail_chip_episode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        android:background="@drawable/guide_chip_bg"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:layout_marginEnd="6dp"
-                        android:textColor="#7FE5FF"
-                        android:textSize="10sp"
-                        android:fontFamily="monospace"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.10" />
-
-                    <TextView
-                        android:id="@+id/detail_chip_year"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        android:background="@drawable/guide_chip_bg"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:layout_marginEnd="6dp"
-                        android:textColor="#C7CFDB"
-                        android:textSize="10sp"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.10" />
-
-                    <TextView
-                        android:id="@+id/detail_chip_rating"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        android:background="@drawable/guide_chip_bg"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:layout_marginEnd="6dp"
-                        android:textColor="#C7CFDB"
-                        android:textSize="10sp"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.10" />
-
-                    <TextView
-                        android:id="@+id/detail_chip_category"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        android:background="@drawable/guide_chip_bg"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:textColor="#C7CFDB"
-                        android:textSize="10sp"
-                        android:fontFamily="monospace"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:letterSpacing="0.10" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/detail_time_range"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:textColor="#9DA5B5"
-                    android:textSize="12sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.08" />
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="8dp"
-                    android:background="#1FFFFFFF">
-                    <View
-                        android:id="@+id/detail_progress"
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:background="#5DC8FF" />
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="14dp">
+                        <TextView
+                            android:id="@+id/detail_channel_name"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#5DC8FF"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.22" />
+                        <TextView
+                            android:id="@+id/detail_programme_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:shadowColor="#CC000000"
+                            android:shadowDx="0"
+                            android:shadowDy="2"
+                            android:shadowRadius="4" />
+                        <TextView
+                            android:id="@+id/detail_time_range"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textColor="#C7CFDB"
+                            android:textSize="12sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.04" />
+                        <FrameLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="2dp"
+                            android:layout_marginTop="8dp"
+                            android:background="#2EFFFFFF">
+                            <View
+                                android:id="@+id/detail_progress"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:background="#5DC8FF" />
+                        </FrameLayout>
+                    </LinearLayout>
                 </FrameLayout>
 
-                <TextView
-                    android:id="@+id/detail_description"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:textColor="#C7CFDB"
-                    android:textSize="13sp"
-                    android:lineSpacingMultiplier="1.35"
-                    android:maxLines="5"
-                    android:ellipsize="end" />
+                <!-- 4 NEXT COLUMNS -->
+                <LinearLayout
+                    android:id="@+id/m14_next_col_1"
+                    android:layout_width="280dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical"
+                    android:gravity="bottom">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NEXT"
+                        android:textColor="#8B95A7"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:layout_marginBottom="8dp" />
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="168dp"
+                        android:background="@drawable/guide_detail_bg">
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/guide_detail_gradient" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:orientation="vertical"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingBottom="14dp">
+                            <TextView
+                                android:id="@+id/m14_next1_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end" />
+                            <TextView
+                                android:id="@+id/m14_next1_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:textColor="#C7CFDB"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.04" />
+                        </LinearLayout>
+                    </FrameLayout>
+                </LinearLayout>
 
-                <View
-                    android:id="@+id/detail_divider"
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="14dp"
-                    android:background="#1AFFFFFF" />
+                <LinearLayout
+                    android:id="@+id/m14_next_col_2"
+                    android:layout_width="280dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical"
+                    android:gravity="bottom">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NEXT +1"
+                        android:textColor="#8B95A7"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:layout_marginBottom="8dp" />
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="168dp"
+                        android:background="@drawable/guide_detail_bg">
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/guide_detail_gradient" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:orientation="vertical"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingBottom="14dp">
+                            <TextView
+                                android:id="@+id/m14_next2_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end" />
+                            <TextView
+                                android:id="@+id/m14_next2_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:textColor="#C7CFDB"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.04" />
+                        </LinearLayout>
+                    </FrameLayout>
+                </LinearLayout>
 
-                <TextView
-                    android:id="@+id/detail_next"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:textColor="#9DA5B5"
-                    android:textSize="11sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.10"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                <LinearLayout
+                    android:id="@+id/m14_next_col_3"
+                    android:layout_width="280dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical"
+                    android:gravity="bottom">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NEXT +2"
+                        android:textColor="#8B95A7"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:layout_marginBottom="8dp" />
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="168dp"
+                        android:background="@drawable/guide_detail_bg">
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/guide_detail_gradient" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:orientation="vertical"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingBottom="14dp">
+                            <TextView
+                                android:id="@+id/m14_next3_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end" />
+                            <TextView
+                                android:id="@+id/m14_next3_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:textColor="#C7CFDB"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.04" />
+                        </LinearLayout>
+                    </FrameLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/m14_next_col_4"
+                    android:layout_width="280dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical"
+                    android:gravity="bottom">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NEXT +3"
+                        android:textColor="#8B95A7"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:layout_marginBottom="8dp" />
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="168dp"
+                        android:background="@drawable/guide_detail_bg">
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/guide_detail_gradient" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:orientation="vertical"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingBottom="14dp">
+                            <TextView
+                                android:id="@+id/m14_next4_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end" />
+                            <TextView
+                                android:id="@+id/m14_next4_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:textColor="#C7CFDB"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.04" />
+                        </LinearLayout>
+                    </FrameLayout>
+                </LinearLayout>
+
             </LinearLayout>
         </LinearLayout>
 
-        <!-- v2.6.70: bottom-right BACK hint chip.  User explicitly
-             requested "PRESS BACK TO RETURN TO PLAYER" affordance at
-             the bottom of the guide so they always know how to get
-             back to the show.  Subtle glass chip — doesn't fight
-             the channel list for attention. -->
+        <!-- ====================== BACK HINT ======================= -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_marginEnd="36dp"
-            android:layout_marginBottom="20dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="100dp"
+            android:layout_marginEnd="56dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/guide_back_chip_bg"
             android:paddingStart="14dp"
             android:paddingEnd="18dp"
             android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:elevation="22dp">
+            android:paddingBottom="8dp">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -1156,12 +1236,84 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="PRESS BACK TO RETURN TO PLAYER"
+                android:text="OK · TUNE     BACK · CLOSE"
                 android:textColor="#C7CFDB"
                 android:textSize="10sp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"
                 android:letterSpacing="0.24" />
         </LinearLayout>
+
+        <!-- ====================== LEGACY-STUB VIEWS ===============
+             0×0 placeholders retained so the old controller's
+             findViewById calls (renderDetail) still resolve.
+             They are never visible and never animated.
+             Once the controller is fully ported to M14-only IDs,
+             these can be deleted. -->
+        <View
+            android:id="@+id/guide_panel"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <View
+            android:id="@+id/guide_detail"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/guide_title"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/guide_subtitle"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <LinearLayout
+            android:id="@+id/guide_category_pills"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/guide_hint"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_next"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_description"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_chip_episode"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_chip_year"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_chip_rating"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/detail_chip_category"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+        <View
+            android:id="@+id/detail_divider"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

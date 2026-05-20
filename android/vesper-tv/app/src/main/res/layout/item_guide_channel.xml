@@ -23,6 +23,8 @@
     android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:paddingStart="14dp"
     android:paddingEnd="14dp">
 

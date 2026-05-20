@@ -82,6 +82,12 @@ class LiveGuideController(
     private val chanRv: RecyclerView = root.findViewById(R.id.guide_channels)
     private val categoryPillRow: LinearLayout = root.findViewById(R.id.guide_category_pills)
 
+    /* M14 layout containers — we animate these on open/close
+       instead of the legacy `panel`. */
+    private val m14Header: View = root.findViewById(R.id.m14_header)
+    private val m14ListWrap: View = root.findViewById(R.id.m14_list_wrap)
+    private val m14Rail: View = root.findViewById(R.id.m14_rail)
+
     /* Programme detail card */
     private val detailCard: View = root.findViewById(R.id.guide_detail)
     private val detailBackdrop: ImageView = root.findViewById(R.id.detail_backdrop)
@@ -97,6 +103,33 @@ class LiveGuideController(
     private val detailChipRating: TextView = root.findViewById(R.id.detail_chip_rating)
     private val detailChipCategory: TextView = root.findViewById(R.id.detail_chip_category)
     private val detailDivider: View = root.findViewById(R.id.detail_divider)
+
+    /* v2.7.03 — M14 layout views.  Top header (channel logo, name,
+       clock, date) + the four "Coming Up Next" cards in the bottom
+       rail.  The "On Now" card on the left of the rail reuses the
+       existing detail_* views, repurposed inside the M14 layout. */
+    private val m14HeaderLogo: ImageView = root.findViewById(R.id.m14_header_logo)
+    private val m14HeaderName: TextView = root.findViewById(R.id.m14_header_name)
+    private val m14HeaderClock: TextView = root.findViewById(R.id.m14_header_clock)
+    private val m14HeaderDate: TextView = root.findViewById(R.id.m14_header_date)
+    private val m14Next1Title: TextView = root.findViewById(R.id.m14_next1_title)
+    private val m14Next1Time: TextView = root.findViewById(R.id.m14_next1_time)
+    private val m14Next2Title: TextView = root.findViewById(R.id.m14_next2_title)
+    private val m14Next2Time: TextView = root.findViewById(R.id.m14_next2_time)
+    private val m14Next3Title: TextView = root.findViewById(R.id.m14_next3_title)
+    private val m14Next3Time: TextView = root.findViewById(R.id.m14_next3_time)
+    private val m14Next4Title: TextView = root.findViewById(R.id.m14_next4_title)
+    private val m14Next4Time: TextView = root.findViewById(R.id.m14_next4_time)
+
+    /* Repeating clock-tick runnable — refreshes the top-right time
+       display every 30 s while the guide is open. */
+    private val clockHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val clockTick = object : Runnable {
+        override fun run() {
+            updateClock()
+            clockHandler.postDelayed(this, 30_000L)
+        }
+    }
 
     private val chanAdapter = ChannelAdapter()
 
@@ -141,18 +174,49 @@ class LiveGuideController(
             subtitle.text = "${channels.size} channels · ${categories.size} categories"
         }
 
+        /* v2.7.03 — set initial M14 entry states BEFORE making
+           root visible so we never flash the fully-rendered UI
+           for a frame and then animate it. */
+        m14Header.translationY = -60f
+        m14Header.alpha = 0f
+        m14ListWrap.alpha = 0f
+        m14Rail.translationY = 120f
+        m14Rail.alpha = 0f
+        scrim.alpha = 0f
+
         root.visibility = View.VISIBLE
+
+        /* M14 — start the clock tick.  Hourly date display is set
+           once per open + every clock tick. */
+        updateClock()
+        clockHandler.removeCallbacks(clockTick)
+        clockHandler.postDelayed(clockTick, 30_000L)
 
         /* Animate the scrim (cross-fade) and the panel (slide-in).
            Initial state set explicitly because the previous open
            may have left them mid-animation. */
-        scrim.alpha = 0f
         scrim.animate().alpha(1f).setDuration(240).start()
 
         panel.translationX = -panel.width.toFloat().let { if (it == 0f) -460f else it }
         panel.animate()
             .translationX(0f)
             .setDuration(280)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+
+        /* v2.7.03 — M14 entry choreography: header drops from
+           above, list fades in, rail rises from below.  Each
+           runs on its own timeline so the screen "assembles"
+           cinematically over ~340 ms. */
+        m14Header.animate().translationY(0f).alpha(1f)
+            .setDuration(280)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        m14ListWrap.animate().alpha(1f).setStartDelay(80)
+            .setDuration(260).start()
+        m14Rail.animate().translationY(0f).alpha(1f)
+            .setStartDelay(60)
+            .setDuration(320)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .start()
 
@@ -175,6 +239,7 @@ class LiveGuideController(
 
     fun close() {
         if (root.visibility != View.VISIBLE) return
+        clockHandler.removeCallbacks(clockTick)
         scrim.animate().alpha(0f).setDuration(180).start()
         panel.animate()
             .translationX(-panel.width.toFloat())
@@ -183,6 +248,15 @@ class LiveGuideController(
             .withEndAction { root.visibility = View.GONE }
             .start()
         detailCard.animate().alpha(0f).setDuration(140).start()
+        /* v2.7.03 — M14 exit: header rises out top, rail drops
+           out bottom, list cross-fades.  Same total duration as
+           the legacy slide so the visibility=GONE end-callback
+           still fires at the right time. */
+        m14Header.animate().translationY(-60f).alpha(0f)
+            .setDuration(180).start()
+        m14ListWrap.animate().alpha(0f).setDuration(160).start()
+        m14Rail.animate().translationY(120f).alpha(0f)
+            .setDuration(220).start()
     }
 
     fun onBackPressed(): Boolean {
@@ -426,9 +500,24 @@ class LiveGuideController(
                 }
             }
 
-            /* Focus → live-refresh the detail card to this channel. */
+            /* v2.7.03 — Focus → live-refresh the detail card AND
+               scale the row up (M14 spec: focused row pops out at
+               1.12×, with a soft blue glow elevation). */
             holder.root.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus) renderDetail(ch)
+                if (hasFocus) {
+                    renderDetail(ch)
+                    holder.root.animate()
+                        .scaleX(1.12f).scaleY(1.12f)
+                        .translationX(24f)
+                        .setDuration(160).start()
+                    holder.root.elevation = 24f
+                } else {
+                    holder.root.animate()
+                        .scaleX(1f).scaleY(1f)
+                        .translationX(0f)
+                        .setDuration(140).start()
+                    holder.root.elevation = 0f
+                }
             }
             holder.root.setOnClickListener {
                 activity.swapChannel(ch.streamUrl, ch.name, ch.logo, ch.streamId)
@@ -463,6 +552,27 @@ class LiveGuideController(
         val nextProg = if (nowProg != null) {
             list.firstOrNull { it.startTs >= nowProg.stopTs }
         } else list.firstOrNull { it.startTs > nowSec }
+
+        /* v2.7.03 — M14 top header: channel logo + name reflect
+           the currently-focused channel.  The clock + date are
+           managed independently by updateClock(). */
+        m14HeaderName.text = ch.name
+        bindLogo(m14HeaderLogo, ch)
+
+        /* v2.7.03 — M14 bottom rail: bind the next FOUR upcoming
+           programmes after the current one into the Next +0..+3
+           cards.  Each card hides cleanly when there's no EPG
+           data available beyond what we've shown. */
+        val pivotStop = nowProg?.stopTs ?: nowSec
+        val upcoming = list.asSequence()
+            .filter { it.startTs >= pivotStop }
+            .sortedBy { it.startTs }
+            .take(4)
+            .toList()
+        bindNextCard(m14Next1Title, m14Next1Time, upcoming.getOrNull(0))
+        bindNextCard(m14Next2Title, m14Next2Time, upcoming.getOrNull(1))
+        bindNextCard(m14Next3Title, m14Next3Time, upcoming.getOrNull(2))
+        bindNextCard(m14Next4Title, m14Next4Time, upcoming.getOrNull(3))
 
         detailProgrammeTitle.text =
             nowProg?.title?.ifBlank { ch.name } ?: ch.name
@@ -578,6 +688,58 @@ class LiveGuideController(
     }
 
     // ───────────────────────── Helpers ────────────────────────────
+
+    /* v2.7.03 — refreshes the M14 top-right clock + date strip.
+       Called once on open and every 30 s while the guide is open. */
+    private fun updateClock() {
+        val cal = java.util.Calendar.getInstance()
+        val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val m = cal.get(java.util.Calendar.MINUTE)
+        m14HeaderClock.text = String.format(java.util.Locale.US, "%02d:%02d", h, m)
+        val dayFmt = java.text.SimpleDateFormat("EEEE, MMM d", java.util.Locale.getDefault())
+        m14HeaderDate.text = dayFmt.format(cal.time)
+    }
+
+    /* v2.7.03 — binds one Next-card pair (title + time range
+       caption).  When prog is null we clear both fields so empty
+       upcoming slots read as ghosted placeholders. */
+    private fun bindNextCard(titleTv: TextView, timeTv: TextView, prog: Programme?) {
+        if (prog == null) {
+            titleTv.text = ""
+            timeTv.text = ""
+        } else {
+            titleTv.text = prog.title.ifBlank { "—" }
+            timeTv.text = "${formatTime(prog.startTs)} → ${formatTime(prog.stopTs)}"
+        }
+    }
+
+    /* v2.7.03 — async-loads the channel logo into an ImageView,
+       respecting the LRU cache and the View-tag race guard so a
+       fast D-pad scroll never paints the wrong logo into the
+       wrong slot. */
+    private fun bindLogo(target: ImageView, ch: Channel) {
+        target.tag = ch.logo
+        if (ch.logo.isBlank()) {
+            target.setImageDrawable(makeInitialDrawable(ch.name))
+            return
+        }
+        val cached = logoCache.get(ch.logo)
+        if (cached != null) {
+            target.setImageBitmap(cached)
+            return
+        }
+        target.setImageDrawable(makeInitialDrawable(ch.name))
+        val url = ch.logo
+        logoExecutor.execute {
+            try {
+                val bm = loadBitmap(url) ?: return@execute
+                logoCache.put(url, bm)
+                target.post {
+                    if (target.tag == url) target.setImageBitmap(bm)
+                }
+            } catch (_: Throwable) { /* swallow */ }
+        }
+    }
 
     private fun formatTime(ts: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = ts * 1000 }
