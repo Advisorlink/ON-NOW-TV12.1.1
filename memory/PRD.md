@@ -55,6 +55,26 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 138 — Feb 20, 2026) — v2.7.13
+### Strict-directional D-pad nav + trailer tile matches Continue Watching
+
+User reported in video that the focus border was disappearing intermittently, focus was skipping covers, and randomly jumping to the side menu. Also requested trailer cards to look/feel identical to Continue Watching tiles.
+
+**Issue 1 — Strict-directional D-pad nav:**
+- Root cause: `findNext` was using geometric distance scoring with a directional axis filter — but the filter would let a tile two rails away win if its pixel-distance to the focused tile's centre was less than the next shelf's; or a side-nav item if its perpendicular distance was less than a shelf tile's. Borders also "disappeared" because focus was being set on elements before the snap completed scrolling them into view.
+- Two new fast paths in `/app/frontend/src/hooks/useSpatialFocus.js` that run BEFORE the geometric scorer:
+  1. UP/DOWN inside side-nav rail → strict DOM sibling traversal. At edges, focus STOPS (no leak into shelves).
+  2. UP/DOWN from a tile inside `[data-testid=shelf-page]` → walks DOM siblings to the previous/next shelf-page, picks its bookmarked tile (or first focusable).
+- Verified at runtime: pressing ArrowDown 5 times from CW correctly traverses pages 1→2→3→4→5→6 with `data-focused="true"` set on every target.
+
+**Issue 2 — Trailer tile matches CW exactly:**
+- `UpcomingMoviesShelf.TrailerCard` now uses `data-focus-style="tile"` → inherits the global blue glow + scale(1.08) focus treatment (same as CW tiles).
+- Width clamp 260 → 280, border-radius 12 → 18 (matches CW), background `#0B1322` (matches), `1px rgba(255,255,255,0.06)` border (matches).
+- Removed conflicting per-card `:focus` override that set `box-shadow: none` and `translateY(-2px)`.
+
+**🆙 APK bumped to v2.7.13 (versionCode 183).**
+
+
 ## Implemented (Iteration 137 — Feb 20, 2026) — v2.7.12
 ### Player buffering regression FIXED — movies + TV shows no longer stall every few seconds
 

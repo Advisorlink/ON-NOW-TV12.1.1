@@ -107,6 +107,102 @@ export default function useSpatialFocus() {
                 }
             }
 
+            // -------- FAST PATH: vertical nav inside the side-nav rail --------
+            // v2.7.13 — strict DOM-sibling movement within the
+            // side-nav so Up/Down can't accidentally yank focus
+            // into a shelf tile that happens to be geometrically
+            // closer (root cause of user-reported "border
+            // disappears / jumps to a random tile" inside the
+            // nav rail).
+            if ((dir === 'up' || dir === 'down') && currentInNav) {
+                const navRoot = current.closest(NAV_RAIL);
+                if (navRoot) {
+                    const navItems = Array.from(
+                        navRoot.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'));
+                    const idx = navItems.indexOf(current);
+                    if (idx !== -1) {
+                        const nextIdx = dir === 'down' ? idx + 1 : idx - 1;
+                        if (nextIdx >= 0 && nextIdx < navItems.length) {
+                            return navItems[nextIdx];
+                        }
+                        // Edge of nav — stop, don't leak into shelves.
+                        return null;
+                    }
+                }
+            }
+
+            // -------- FAST PATH: vertical nav between shelf pages --------
+            // v2.7.13 — strict directional navigation.  When the user
+            // presses Up or Down from a tile that lives inside a
+            // [data-testid="shelf-page"] (home / library / upcoming
+            // layouts), we walk the DOM in document order to the
+            // previous/next shelf-page and pick its bookmarked tile
+            // (or its first focusable).  This bypasses ALL geometric
+            // scoring, eliminating the user-reported bugs:
+            //   • "skipping covers" — geometry picked a tile two
+            //     rails away because it happened to be closer in
+            //     pixel distance to the focused tile's centre
+            //   • "jumping to menu for no reason" — geometry picked
+            //     a nav-rail item when its perpendicular distance
+            //     was less than the next shelf's
+            //   • "border disappears" — focus was being set on an
+            //     element that wasn't fully visible, so the
+            //     :focus-visible / data-focused style didn't apply
+            //     until the snap finished scrolling.  Now the focus
+            //     target is always inside a snap page that the
+            //     browser instantly snaps to, eliminating the
+            //     transient invisible state.
+            if (
+                (dir === 'up' || dir === 'down') &&
+                !currentInNav
+            ) {
+                const curPage = current.closest('[data-testid="shelf-page"]');
+                if (curPage) {
+                    let targetPage = null;
+                    if (dir === 'down') {
+                        let n = curPage.nextElementSibling;
+                        while (n) {
+                            if (n.matches('[data-testid="shelf-page"]')) {
+                                targetPage = n;
+                                break;
+                            }
+                            n = n.nextElementSibling;
+                        }
+                    } else {
+                        let p = curPage.previousElementSibling;
+                        while (p) {
+                            if (p.matches('[data-testid="shelf-page"]')) {
+                                targetPage = p;
+                                break;
+                            }
+                            p = p.previousElementSibling;
+                        }
+                    }
+                    if (targetPage) {
+                        // Prefer the rail's bookmarked tile (so up-
+                        // then-down returns focus to the column the
+                        // user was on), else fall back to the first
+                        // focusable in the rail.
+                        const rail = targetPage.querySelector(
+                            '.vesper-shelf, [data-shelf-rail]'
+                        );
+                        let pick = null;
+                        if (rail && rail.__lastFocusedKey) {
+                            pick = rail.querySelector(
+                                `[data-testid="${rail.__lastFocusedKey}"]`
+                            );
+                        }
+                        if (!pick) {
+                            pick = targetPage.querySelector(
+                                '[data-focusable="true"]:not([disabled])'
+                            );
+                        }
+                        if (pick) return pick;
+                    }
+                }
+            }
+
             const cur = current.getBoundingClientRect();
             const c = center(cur);
 

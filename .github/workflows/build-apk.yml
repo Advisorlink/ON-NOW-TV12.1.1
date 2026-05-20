@@ -228,37 +228,36 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.12 — Movie / TV playback no longer buffers every few seconds**
-            - **Root cause of the buffering regression the user
-              reported.**  `VlcPlayerActivity.openStream()` had this
-              flow:
-                ```
-                media.addOption(":network-caching=1500")
-                if (isLive)    { override 600ms  ✓ }
-                if (isMagnet)  { override 6000ms ✓ }
-                if (isTrailer) { override 3500ms ✓ }
-                // else (movies/TV) → STAYS at 1500ms ← bug
-                ```
-              VOD direct streams (Premiumize, Plex Direct, Real-
-              Debrid) inherited the tight 1.5-second buffer.  On
-              the HK1's variable-throughput network, ANY tiny
-              jitter drained that and triggered re-buffering every
-              few seconds — exactly the symptom the user reported.
-            - **Fix.**  Added an explicit `isVod` branch:
-                • `:network-caching=5000` + `:file-caching=5000`
-                  (5-second buffer matches the libVLC global)
-                • `:clock-jitter=0` + `:clock-synchro=0` for strict
-                  A/V sync (avoids re-buffer on clock drift)
-                • `:drop-late-frames` + `:skip-frames` so brief
-                  burst delay turns into 1-2 imperceptible frame
-                  drops, not a visible stall
-                • `:avcodec-hw=any` + `:avcodec-fast` +
-                  `:avcodec-skiploopfilter=1` + `:avcodec-threads=0`
-                  for max HEVC decode throughput on the HK1's ARM
-                • `:http-reconnect` + `:http-continuous` so
-                  transient ISP/Wi-Fi blips don't surface as
-                  player stalls
-            - APK bumped to v2.7.12 (versionCode 182).
+            **v2.7.13 — Strict-directional D-pad nav + trailer tile matches CW**
+            - **Strict-directional navigation** in `useSpatialFocus`.
+              Two new fast paths run BEFORE the geometric scoring:
+                1. UP/DOWN inside the side-nav rail → strict DOM
+                   sibling.  At the top/bottom edge, focus STOPS
+                   (no leak into shelves).
+                2. UP/DOWN from a tile inside a `[data-testid=
+                   shelf-page]` → walk DOM siblings to the
+                   previous/next shelf-page, pick its bookmarked
+                   tile (else its first focusable).  Geometric
+                   distance scoring never runs for these moves.
+              Eliminates all three user-reported nav bugs:
+                • "skipping covers" (geometry was picking tiles
+                  two rails away because pixel-distance was less
+                  than the next shelf's),
+                • "jumping to menu for no reason" (geometry was
+                  picking a nav item when its perpendicular
+                  distance was smaller than the next shelf's),
+                • "focus border disappears" (focus was being set
+                  on an off-screen element before the snap
+                  completed — now the target is always inside the
+                  snap page the browser instantly snaps to).
+            - **Trailer card matches Continue Watching exactly.**
+              `UpcomingMoviesShelf.TrailerCard` now uses
+              `data-focus-style="tile"` to inherit the global blue
+              glow + scale(1.08) focus treatment (same as CW
+              tiles).  Width bumped 260 → 280 minimum, border-
+              radius 12 → 18, removed conflicting per-card
+              :focus override.  Same dimensions, same feel.
+            - APK bumped to v2.7.13 (versionCode 183).
 
             For older release notes see CHANGELOG.md in the repo.
 

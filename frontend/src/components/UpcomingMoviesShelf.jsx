@@ -174,18 +174,18 @@ function TrailerCard({ item, onOpen }) {
             data-testid={`upcoming-trailer-${item.tmdb_id}`}
             onClick={() => onOpen(item)}
             data-focusable="true"
+            data-focus-style="tile"
             tabIndex={0}
             className="relative shrink-0 group overflow-hidden text-left"
             style={{
-                width: 'clamp(260px, 22vw, 380px)',
+                width: 'clamp(280px, 22vw, 380px)',
                 aspectRatio: '16 / 9',
-                borderRadius: 12,
-                border: '1px solid rgba(255,255,255,0.10)',
-                background: '#0A0F1A',
+                borderRadius: 18,
+                background: '#0B1322',
+                border: '1px solid rgba(255,255,255,0.06)',
                 scrollSnapAlign: 'start',
                 cursor: 'pointer',
                 outline: 'none',
-                transition: 'transform 240ms cubic-bezier(.16,1,.3,1), box-shadow 240ms',
             }}
         >
             {art && (
@@ -272,22 +272,18 @@ function TrailerCard({ item, onOpen }) {
 
             <style>{`
                 [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover [data-play-badge],
-                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus [data-play-badge] {
+                [data-testid="upcoming-trailer-${item.tmdb_id}"][data-focused="true"] [data-play-badge] {
                     opacity: 1;
                 }
                 [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover img,
-                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus img {
+                [data-testid="upcoming-trailer-${item.tmdb_id}"][data-focused="true"] img {
                     transform: scale(1.03);
                 }
-                /* Match the standard PosterTile focus treatment:
-                 * thin cyan outline + small lift, NO blue glow halo.
-                 * User asked for the same outline-and-movement style
-                 * as the rest of the rows. */
-                [data-testid="upcoming-trailer-${item.tmdb_id}"]:focus {
-                    border-color: var(--vesper-blue, #5DC8FF);
-                    box-shadow: none;
-                    transform: translateY(-2px);
-                }
+                /* v2.7.13 — DELIBERATELY no :focus rule here.  We
+                 * use the global [data-focus-style=tile] styles in
+                 * index.css so the trailer card gets the SAME blue
+                 * glow + scale(1.08) treatment as Continue Watching
+                 * tiles, per user spec (trailers need same as cw). */
             `}</style>
         </button>
     );
@@ -298,9 +294,9 @@ function TrailerSkeleton() {
         <div
             aria-hidden="true"
             style={{
-                width: 'clamp(260px, 22vw, 380px)',
+                width: 'clamp(280px, 22vw, 380px)',
                 aspectRatio: '16 / 9',
-                borderRadius: 12,
+                borderRadius: 18,
                 background:
                     'linear-gradient(110deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 70%)',
                 backgroundSize: '200% 100%',

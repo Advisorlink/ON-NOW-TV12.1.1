@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.13 — Strict-directional D-pad nav + trailer tile matches CW
+- Two new fast paths in `useSpatialFocus.findNext` run BEFORE geometric scoring: (1) UP/DOWN inside the side-nav rail → strict DOM sibling; edge stops (no leak into shelves); (2) UP/DOWN from a tile inside a shelf-page → walk DOM siblings to the previous/next shelf-page, pick its bookmarked tile or first focusable.
+- Eliminates user-reported nav bugs: skipping covers (geometry was picking tiles two rails away by pixel distance), jumping to menu (geometry was picking nav items when perpendicular distance was smaller), focus border disappearing (focus was being set on off-screen elements before snap completed).
+- TrailerCard in UpcomingMoviesShelf now uses `data-focus-style="tile"` to inherit the global blue glow + scale(1.08) focus treatment matching Continue Watching. Width 260 → 280 min, border-radius 12 → 18, removed conflicting `:focus` overrides.
+
 ## v2.7.12 — Movie / TV playback no longer buffers every few seconds
 - VlcPlayerActivity.openStream() applied `:network-caching=1500` unconditionally, then conditionally overrode for live (600ms) / magnet (6000ms) / trailer (3500ms). VOD direct streams (Premiumize, Plex Direct, Real-Debrid) inherited the tight 1.5s buffer → every minor jitter drained it and triggered re-buffering every few seconds on the HK1's variable-throughput network.
 - Added explicit `isVod` branch: `:network-caching=5000`, `:file-caching=5000`, `:clock-jitter=0`, `:clock-synchro=0`, `:drop-late-frames`, `:skip-frames`, `:avcodec-hw=any`, `:avcodec-fast`, `:avcodec-skiploopfilter=1`, `:avcodec-threads=0`, `:http-reconnect`, `:http-continuous`. Brief burst delays now turn into 1-2 imperceptible frame drops instead of visible stalls.
