@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.14 — REVERT v2.7.12 player tuning (movies playing again)
+- v2.7.12's expanded VOD player tuning (5s network-caching + drop-late-frames + skip-frames + clock-jitter=0 + http-reconnect + http-continuous + avcodec-fast + avcodec-skiploopfilter=1) broke movie playback entirely — player just spun the loading circle instead of starting.
+- Reverted: the `isVod` branch is gone. For direct HTTPS movie/TV streams we now apply ZERO per-media options. libVLC uses its own defaults (~1s network-caching) — exactly the "just grab the link and play it" behaviour from the start of the project.
+- Live IPTV, magnet, and trailer paths keep their existing tuning — they were never the issue.
+
 ## v2.7.13 — Strict-directional D-pad nav + trailer tile matches CW
 - Two new fast paths in `useSpatialFocus.findNext` run BEFORE geometric scoring: (1) UP/DOWN inside the side-nav rail → strict DOM sibling; edge stops (no leak into shelves); (2) UP/DOWN from a tile inside a shelf-page → walk DOM siblings to the previous/next shelf-page, pick its bookmarked tile or first focusable.
 - Eliminates user-reported nav bugs: skipping covers (geometry was picking tiles two rails away by pixel distance), jumping to menu (geometry was picking nav items when perpendicular distance was smaller), focus border disappearing (focus was being set on off-screen elements before snap completed).

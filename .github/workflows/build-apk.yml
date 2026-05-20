@@ -228,36 +228,22 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.13 — Strict-directional D-pad nav + trailer tile matches CW**
-            - **Strict-directional navigation** in `useSpatialFocus`.
-              Two new fast paths run BEFORE the geometric scoring:
-                1. UP/DOWN inside the side-nav rail → strict DOM
-                   sibling.  At the top/bottom edge, focus STOPS
-                   (no leak into shelves).
-                2. UP/DOWN from a tile inside a `[data-testid=
-                   shelf-page]` → walk DOM siblings to the
-                   previous/next shelf-page, pick its bookmarked
-                   tile (else its first focusable).  Geometric
-                   distance scoring never runs for these moves.
-              Eliminates all three user-reported nav bugs:
-                • "skipping covers" (geometry was picking tiles
-                  two rails away because pixel-distance was less
-                  than the next shelf's),
-                • "jumping to menu for no reason" (geometry was
-                  picking a nav item when its perpendicular
-                  distance was smaller than the next shelf's),
-                • "focus border disappears" (focus was being set
-                  on an off-screen element before the snap
-                  completed — now the target is always inside the
-                  snap page the browser instantly snaps to).
-            - **Trailer card matches Continue Watching exactly.**
-              `UpcomingMoviesShelf.TrailerCard` now uses
-              `data-focus-style="tile"` to inherit the global blue
-              glow + scale(1.08) focus treatment (same as CW
-              tiles).  Width bumped 260 → 280 minimum, border-
-              radius 12 → 18, removed conflicting per-card
-              :focus override.  Same dimensions, same feel.
-            - APK bumped to v2.7.13 (versionCode 183).
+            **v2.7.14 — REVERT v2.7.12 player tuning (movies playing again)**
+            - User reported v2.7.12's expanded VOD player tuning
+              (5-second network-caching + drop-late-frames +
+              skip-frames + clock-jitter=0 + http-reconnect +
+              http-continuous + avcodec-fast +
+              avcodec-skiploopfilter=1) broke movie playback
+              entirely — player just spun the blue loading circle.
+            - **Fix:** removed the entire `isVod` branch.  For
+              direct HTTPS movie + TV streams we now apply ZERO
+              per-media options.  libVLC uses its own defaults
+              (~1 s network-caching) — exactly the "just grab the
+              link and play it" behaviour the user described from
+              the start of the project.
+            - Live IPTV, magnet, and trailer paths keep their
+              existing tuning — they were never the issue.
+            - APK bumped to v2.7.14 (versionCode 184).
 
             For older release notes see CHANGELOG.md in the repo.
 

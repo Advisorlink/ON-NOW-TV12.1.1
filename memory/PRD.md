@@ -55,6 +55,24 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 139 — Feb 20, 2026) — v2.7.14
+### REVERT v2.7.12 player tuning — movies playing again
+
+User reported v2.7.12's expanded VOD player tuning broke movie playback entirely — the player just spun the blue loading circle instead of starting. Explicit request: restore the original "just grab the link and play it" behaviour from the start of the project.
+
+**Fix:** removed the entire `isVod` branch from `VlcPlayerActivity.startPlayback()`:
+- No more `:network-caching=5000`
+- No more `:file-caching=5000`
+- No more `:clock-jitter=0` / `:clock-synchro=0`
+- No more `:drop-late-frames` / `:skip-frames`
+- No more `:avcodec-hw=any` / `:avcodec-fast` / `:avcodec-skiploopfilter=1` / `:avcodec-threads=0`
+- No more `:http-reconnect` / `:http-continuous`
+
+For direct HTTPS movie + TV streams (Premiumize, Plex Direct, Real-Debrid), ZERO per-media options are now applied. libVLC uses its own defaults (~1s network-caching). Live IPTV, magnet, and trailer paths keep their existing tuning since they were never the issue.
+
+**🆙 APK bumped to v2.7.14 (versionCode 184).**
+
+
 ## Implemented (Iteration 138 — Feb 20, 2026) — v2.7.13
 ### Strict-directional D-pad nav + trailer tile matches Continue Watching
 
