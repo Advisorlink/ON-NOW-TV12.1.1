@@ -55,6 +55,24 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 127 — Feb 20, 2026) — v2.7.02
+### Only ONE blue focus ring at a time (P0) · eyebrow brand-blue restored
+
+User clarified that the "two blue highlights" symptom from v2.7.01 was actually **two visible focus rings around tile covers** (not the eyebrow brand color competing with the focus ring as misread previously).
+
+**Root cause:** Multiple page components (`Home.jsx`, `Detail.jsx`, `Settings.jsx`, `WatchTogether.jsx`) prime initial focus by directly setting `data-focused="true"` on a tile, but `useSpatialFocus.setFocusAttr` only cleared the element tracked in its closure-local `lastFocused` variable. So a tile primed by one component kept its `data-focused` attribute when the user D-pad-navigated to a tile handled by the global spatial-focus engine → CSS box-shadow rule fired on BOTH tiles → two blue rings on screen at once.
+
+**Fix:** Replaced the `lastFocused`-only clearing in `/app/frontend/src/hooks/useSpatialFocus.js` (`setFocusAttr`) with a **document-wide sweep**: `document.querySelectorAll('[data-focused="true"]')` clears the attribute from every element except the new focus target on every key press. Also defensively clears stragglers from interrupted long-presses or press-ripples (`data-holding`, `data-pressed`) so those animations can't keep painting a ring on a tile after the user has moved on.
+
+**Self-test verified (1920×1080):** Injected stale `data-focused` on a 2nd element → count=2. After any successful arrow nav → count returns to **1**. Eyebrow color back to brand blue `rgb(0, 184, 255)` (Electric Blue theme active). v2.7.00 `:has()` z-index lift and v2.6.99 hero spatial-nav still intact (confirmed via testing agent code review).
+
+**Reverted from v2.7.01:**
+- `.vesper-eyebrow` color restored to `var(--vesper-blue)` (was muted white).
+- "X LEFT" caption in CW tiles restored to `var(--vesper-blue)`.
+
+**🆙 APK bumped to v2.7.02 (versionCode 172).**
+
+
 ## Implemented (Iteration 126 — Feb 20, 2026) — v2.7.01
 ### Continue Watching cards fit projector safe-area + single neon-blue focus indicator (P0)
 
