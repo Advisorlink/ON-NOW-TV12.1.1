@@ -223,6 +223,21 @@ body {
        perf win without breaking nav. */
 }
 
+/* v2.7.00 — stacking-context lift for the active shelf.  Because
+   `.vesper-shelf-section` carries `contain: layout style` it forms
+   its OWN stacking context, so the focused tile's `z-index: 50`
+   only wins within its own section — the next shelf below paints
+   on top of any overflow from the scale(1.08) animation and clips
+   the bottom edge (progress bar + "X left" on Continue Watching
+   tiles, focus ring on regular posters).  Lift the entire section
+   so its focused-tile overflow always paints above its siblings.
+   `:has()` is Chrome 105+ which the HK1 WebView already supports
+   (we keep it as a progressive enhancement; older WebViews still
+   render the row correctly, they just clip slightly on focus). */
+.vesper-shelf-section:has([data-focused="true"]) {
+    z-index: 20;
+}
+
 /* Every focusable tile gets promoted on-demand so transforms /
    shadows render off the UI thread. */
 [data-focusable='true'] {

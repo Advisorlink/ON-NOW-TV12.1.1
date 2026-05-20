@@ -82,7 +82,13 @@ export default function ContinueWatchingShelf() {
             className="relative w-full vesper-shelf-section"
             style={{
                 paddingTop: 'clamp(28px, 3vw, 56px)',
-                paddingBottom: 0,
+                /* v2.7.00 — was `0`, which gave the focused tile's
+                 * scale(1.08) animation nowhere to breathe — the
+                 * next shelf below was painting over the bottom
+                 * edge (progress bar + "X left" text clipped).
+                 * Mirror the top spacing so the card always has
+                 * room to grow on focus. */
+                paddingBottom: 'clamp(18px, 2vw, 36px)',
             }}
         >
             <header
@@ -317,64 +323,73 @@ function CWTile({
                 }}
             />
 
-            {/* Play badge bottom-left */}
-            <div
-                className="absolute"
-                style={{
-                    left: 14,
-                    bottom: 38,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 36,
-                    height: 36,
-                    borderRadius: 999,
-                    background: 'rgba(11,19,34,0.7)',
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    backdropFilter: 'blur(8px)',
-                }}
-            >
-                <Play
-                    size={14}
-                    fill="#fff"
-                    color="#fff"
-                    style={{ marginLeft: 2 }}
-                />
-            </div>
-
-            {/* Title + remaining */}
+            {/* v2.7.00 — single flex stack at the bottom replaces
+             * the old absolutely-positioned play-badge + title +
+             * "X left" layout.  Previously the badge sat at
+             * bottom: 38 and the title block at bottom: 22 with a
+             * paddingLeft hack to dodge the badge — fragile and
+             * the "X LEFT" mono caption would clip into the
+             * progress bar at the bottom-most edge.  Now
+             * everything is laid out in normal flow above the
+             * progress bar with guaranteed gaps. */}
             <div
                 className="absolute"
                 style={{
                     left: 14,
                     right: 14,
-                    bottom: 22,
+                    bottom: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
                 }}
             >
-                <div
-                    style={{
-                        fontSize: 'clamp(14px, 1vw, 17px)',
-                        fontWeight: 700,
-                        color: '#fff',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.55)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        paddingLeft: 46,
-                    }}
-                >
-                    {entry.title}
+                <div className="flex items-center gap-3 min-w-0">
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 32,
+                            height: 32,
+                            borderRadius: 999,
+                            background: 'rgba(11,19,34,0.7)',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            backdropFilter: 'blur(8px)',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Play
+                            size={13}
+                            fill="#fff"
+                            color="#fff"
+                            style={{ marginLeft: 2 }}
+                        />
+                    </span>
+                    <div
+                        style={{
+                            fontSize: 'clamp(13px, 0.95vw, 16px)',
+                            fontWeight: 700,
+                            color: '#fff',
+                            textShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            minWidth: 0,
+                            flex: 1,
+                        }}
+                    >
+                        {entry.title}
+                    </div>
                 </div>
                 {remaining && (
                     <div
                         className="vesper-mono"
                         style={{
-                            fontSize: 11,
-                            letterSpacing: '0.14em',
+                            fontSize: 10,
+                            letterSpacing: '0.16em',
                             textTransform: 'uppercase',
                             color: 'var(--vesper-blue)',
-                            marginTop: 4,
-                            paddingLeft: 46,
+                            paddingLeft: 44,
                         }}
                     >
                         {remaining} left
@@ -382,14 +397,14 @@ function CWTile({
                 )}
             </div>
 
-            {/* Progress bar */}
+            {/* Progress bar — flush at the very bottom edge. */}
             <div
                 className="absolute"
                 style={{
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    height: 6,
+                    height: 4,
                     background: 'rgba(255,255,255,0.16)',
                 }}
             >

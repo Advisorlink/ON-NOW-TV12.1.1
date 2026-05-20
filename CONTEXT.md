@@ -1,0 +1,1 @@
+This app runs on an HK1 Android TV box via a WebView. Target display: 1920x1080. All layouts must account for WebView rendering differences vs. desktop Chrome — do not assume browser spacing or overflow behavior. Reference this file before making any layout changes to the home screen.

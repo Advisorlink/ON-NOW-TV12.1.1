@@ -228,6 +228,42 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.00 — Continue Watching cards: stacking-context fix · clean flex layout · no more clipped bottoms**
+            - 🩹 **Root cause of "card bottoms get cut off" (P0 user report).**
+              `.vesper-shelf-section` carries `contain: layout style`
+              which makes each shelf its OWN stacking context.  So
+              even though the focused tile sets `z-index: 50`, that
+              z-index is **scoped to its own section** — the next
+              shelf below (DOM order) paints on top of any overflow
+              from the focus `scale(1.08)` animation and clips the
+              bottom edge (progress bar + "X LEFT" caption on the
+              Continue Watching tile, focus ring on regular posters).
+            - 🛡️ **Fix 1 — CSS stacking lift.** Added
+              `.vesper-shelf-section:has([data-focused="true"]) {
+              z-index: 20; }` to `/app/frontend/src/index.css`.
+              The section containing the active tile now paints
+              above its siblings, so the focus-scale overflow is
+              never clipped.  `:has()` is Chrome 105+ which the
+              HK1 WebView supports; older WebViews degrade
+              gracefully (row still renders, just clips a couple
+              of pixels on focus like before).
+            - 🛡️ **Fix 2 — Continue Watching layout rewritten.**
+              `ContinueWatchingShelf.jsx` previously stacked an
+              absolutely-positioned play badge at `bottom: 38`,
+              title block at `bottom: 22` with a `paddingLeft: 46`
+              hack to dodge the badge, and the 6 px progress bar at
+              `bottom: 0`.  Fragile + the "X LEFT" mono caption was
+              clipping into the progress bar when cards were
+              enlarged.  Rewrote as one flex column at `bottom: 14`
+              with `gap: 6` — play badge inline with title, "X LEFT"
+              underneath, slim 4 px progress bar flush at the
+              bottom.  Guaranteed spacing at every breakpoint.
+            - 🛡️ **Fix 3 — Section bottom padding restored.** CW
+              `<section>` was `paddingBottom: 0` (zero!) — focus
+              scale had literally nowhere to grow.  Mirrored the
+              top spacing: `paddingBottom: 'clamp(18px, 2vw, 36px)'`.
+            - 🆙 APK bumped to **v2.7.00** (versionCode 170).
+
             **v2.6.99 — Spatial nav double-fire fix · Hero Right no longer jumps focus out of the row**
             - 🎯 **Root-cause fix for the Hero D-pad "Right jumps me
               back up" bug.**  `HeroBillboard.jsx` already had a
