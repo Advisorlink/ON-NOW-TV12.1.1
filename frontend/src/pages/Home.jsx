@@ -343,42 +343,41 @@ export default function Home() {
                         data-testid="shelves-region"
                         className="flex-1 overflow-y-auto"
                         style={{
-                            scrollBehavior: 'auto',
-                            // Generous top + bottom padding so the
-                            // FIRST and LAST shelves can still be
-                            // perfectly centered by `block: 'center'`
-                            // (otherwise the viewport runs out of
-                            // scroll room and the row sticks to the
-                            // top/bottom edge, where the focus scale
-                            // animation gets clipped by the
-                            // shelves-region's `overflow-y: auto`).
-                            // 60 px on each side comfortably exceeds
-                            // the 12-14 px focus-scale overflow on
-                            // the largest poster size.
-                            paddingTop: 60,
-                            paddingBottom: 60,
-                            scrollPaddingTop: 60,
-                            scrollPaddingBottom: 60,
-                            // GPU-accelerated vertical scrolling.
-                            // NOTE: do NOT add `contain: content` —
-                            // it would clip the focused tile's
-                            // scale(1.08) transform at the shelves
-                            // region's bottom edge.  Tile-level
-                            // `content-visibility: auto` already
-                            // handles virtualisation.
+                            scrollBehavior: 'smooth',
+                            /* v2.7.08 — Each shelf is now ITS OWN
+                             * "page".  Per user spec ("Each row has
+                             * to be its own row, not even a little
+                             * bit on the bottom"), we wrap every
+                             * shelf in a snap container that's at
+                             * least the visible scroll height tall
+                             * (100vh - hero height = ~55vh).  With
+                             * scroll-snap-type: y mandatory + snap-
+                             * stop: always, the user can never end
+                             * up with two rows partially visible.
+                             * The active shelf is vertically
+                             * centred in its page so focus scale
+                             * + glow never clip top OR bottom. */
+                            scrollSnapType: 'y mandatory',
+                            scrollSnapStop: 'always',
+                            paddingTop: 0,
+                            paddingBottom: 0,
                             transform: 'translateZ(0)',
                             willChange: 'scroll-position',
                             overscrollBehavior: 'contain',
                         }}
                     >
-                        <ContinueWatchingShelf />
-                        <ForYouShelf />
-                        <NetworksShelf />
-                        {addons.length === 0 && <EmptyAddonsBanner />}
+                        <ShelfPage><ContinueWatchingShelf /></ShelfPage>
+                        <ShelfPage><ForYouShelf /></ShelfPage>
+                        <ShelfPage><NetworksShelf /></ShelfPage>
+                        {addons.length === 0 && (
+                            <ShelfPage><EmptyAddonsBanner /></ShelfPage>
+                        )}
                         {shelves.map((shelf, i) => (
-                            <Lazy key={shelf.id} minHeight={340} eager={i < 3}>
-                                <Shelf shelf={shelf} />
-                            </Lazy>
+                            <ShelfPage key={shelf.id}>
+                                <Lazy minHeight={340} eager={i < 3}>
+                                    <Shelf shelf={shelf} />
+                                </Lazy>
+                            </ShelfPage>
                         ))}
 
                         {/* Upcoming Movies — always the last rail on
@@ -386,9 +385,11 @@ export default function Home() {
                             /api/tmdb/upcoming-movies.  Clicking a tile
                             opens Detail (which renders the trailer +
                             "Notify me" CTA when no streams exist). */}
-                        <Lazy minHeight={340} eager={false}>
-                            <UpcomingMoviesShelf />
-                        </Lazy>
+                        <ShelfPage>
+                            <Lazy minHeight={340} eager={false}>
+                                <UpcomingMoviesShelf />
+                            </Lazy>
+                        </ShelfPage>
 
                         <footer
                             className="flex items-center justify-between"
@@ -485,3 +486,38 @@ function EmptyAddonsBanner() {
         </section>
     );
 }
+
+
+/* ShelfPage — wraps each home-screen shelf so it occupies the full
+   visible scroll area (≈ 100dvh - hero) and acts as a single
+   CSS scroll-snap target.  Per user spec ("each row has to be its
+   own row, not even a little bit on the bottom"), the snap-align
+   keeps exactly ONE shelf in view at a time — D-pad-down jumps
+   the next row fully in, the previous row fully out.
+
+   We pick `min-height: calc(100dvh - 480px)` because the hero
+   billboard is capped at 480 px on 1080p (`clamp(320, 45vh, 480)`
+   from HeroBillboard.jsx).  On taller screens the calc still
+   leaves a comfortably tall snap page that the row centres into.
+
+   Inside the page we use a flex column with `justifyContent:
+   center` so the shelf content is vertically centred — the
+   focus-scale animation (1.08×) has equal headroom top and
+   bottom, never clipping. */
+const ShelfPage = ({ children }) => (
+    <div
+        data-testid="shelf-page"
+        style={{
+            minHeight: 'calc(100dvh - 480px)',
+            scrollSnapAlign: 'center',
+            scrollSnapStop: 'always',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            paddingTop: 12,
+            paddingBottom: 12,
+        }}
+    >
+        {children}
+    </div>
+);

@@ -55,6 +55,21 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 133 — Feb 20, 2026) — v2.7.08
+### One row per page — full CSS scroll-snap (no more peek-through)
+
+User confirmed via video that even small previews of the next row at the bottom were unacceptable. Requested every row to occupy its own page with nothing else visible.
+
+**Implementation:**
+- New `ShelfPage` wrapper component in `Home.jsx` with `min-height: calc(100dvh - 480px)` (= visible scroll area below the 480px-max hero), `scroll-snap-align: center`, `scroll-snap-stop: always`, and `justify-content: center` so the row sits dead-centre in its page.
+- shelves-region now uses `scroll-snap-type: y mandatory` + `scroll-behavior: smooth` for cinematic D-pad-Down transitions.
+- Every existing shelf wrapped: ContinueWatching, ForYou, Networks, EmptyAddonsBanner (when active), every dynamic Shelf, UpcomingMovies.
+
+**Self-validation (live screenshot):** 5 ShelfPages rendered, each exactly **600 px tall** on 1080p viewport — perfect snap math. Lint clean.
+
+**🆙 APK bumped to v2.7.08 (versionCode 178).**
+
+
 ## Implemented (Iteration 132 — Feb 20, 2026) — v2.7.07
 ### Player buffering fix + UI fitting fixes from user's bug-report video
 

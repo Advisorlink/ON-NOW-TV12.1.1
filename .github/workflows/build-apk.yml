@@ -228,6 +228,24 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.08 — One row per page: full scroll-snap (no more peek-through)**
+            - 🎯 **Implemented user-requested "each row has to be its
+              own row, not even a little bit on the bottom".**  Every
+              home-screen shelf is now wrapped in a new
+              `ShelfPage` component with `min-height: calc(100dvh
+              - 480px)` (= the visible scroll area below the hero
+              billboard).  The shelves-region uses
+              `scroll-snap-type: y mandatory` + `scroll-snap-stop:
+              always`, so D-pad-Down between shelves SLIDES the
+              full next row in and the previous one fully out —
+              nothing else can ever peek through at the bottom.
+            - 📐 Each ShelfPage uses flex + `justify-content:
+              center` so the row content is vertically centred in
+              its 600 px (on 1080p) page.  The focus-scale 1.08×
+              animation has equal headroom top + bottom, never
+              clipping.
+            - 🆙 APK bumped to **v2.7.08** (versionCode 178).
+
             **v2.7.07 — Player buffering fix · UI fitting fixes from user video**
             - 🚨 **CRITICAL fix — player buffering regression.**
               v2.7.04 escalated `is4K()` to also trip on HDR, DV,
