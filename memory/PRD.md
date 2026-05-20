@@ -55,6 +55,24 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 126 — Feb 20, 2026) — v2.7.01
+### Continue Watching cards fit projector safe-area + single neon-blue focus indicator (P0)
+
+User reported via photo + video that on their HK1+projector setup the CW row was clipped at the bottom (only top half of cards visible) AND that during D-pad nav there were TWO blue highlights on screen at once.
+
+**Bug 1 — CW cards clipped by TV overscan/safe-area.**
+- **Root cause:** Hero `clamp(360, 56vh, 620)` = 605px on 1080p + CW shelf `paddingTop: clamp(28, 3vw, 56)` = 56px pushed the CW tile's bottom to ~982px PLUS another 56px padding → shelf bottom ~1038px which overflows the ~972px effective viewport on a projector with overscan.
+- **Fix:** Hero shrunk to `clamp(340, 50vh, 540)` and CW shelf `paddingTop` tightened to `clamp(18, 2vw, 32)`. Runtime measurements: hero bottom = 540, CW shelf top = 600, **CW tile bottom = 920.98** — 105px clear of the 1026px TV-safe-area inset and 50px clear of the user's overscan line.
+
+**Bug 2 — Two blue highlights visible during navigation.**
+- **Root cause:** `.vesper-eyebrow` ("FOR YOU", "MOVIES", "TV SERIES" labels above every shelf) was painted `color: var(--vesper-blue)` — competing with the focused tile's blue ring → user couldn't tell which was the active focus.
+- **Fix:** Eyebrow muted to `rgba(255, 255, 255, 0.55)` in `/app/frontend/src/index.css`. Same treatment applied to the "X LEFT" caption inside CW tiles (`rgba(255, 255, 255, 0.72)`). Only neon-blue thing on screen during navigation is now the actively focused tile.
+
+**Verified by testing agent (iteration_43.json):** 4/4 priorities PASS, including v2.7.00 stacking-context regression (`section.zIndex` correctly toggles `'auto'` ↔ `'20'` via `:has()`) and v2.6.99 hero spatial-nav (ArrowRight play→info single-step).
+
+**🆙 APK bumped to v2.7.01 (versionCode 171).**
+
+
 ## Implemented (Iteration 125 — Feb 20, 2026) — v2.7.00
 ### Continue Watching cards no longer clip on focus (P0) — stacking-context fix + clean flex layout
 
