@@ -228,6 +228,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.01 — Continue Watching cards no longer clipped on projector · single neon-blue focus indicator**
+            - 📺 **CW cards fully visible on 1080p projector / TV.**
+              User reported via photo that the bottom half of the
+              Continue Watching cards was being cut off by the
+              projector's safe area.  Two-part fix:
+              (a) **Hero billboard shrunk** from `clamp(360, 56vh,
+              620px)` → `clamp(340, 50vh, 540px)` — reclaims ~80 px
+              of vertical real estate on a 1080p TV.
+              (b) **CW section paddingTop tightened** from
+              `clamp(28, 3vw, 56px)` → `clamp(18, 2vw, 32px)` so
+              the row sits ~20 px higher.  Combined, the full card
+              including the 4 px progress bar at the bottom is now
+              inside the projector's safe-area on the user's setup.
+            - 🎯 **Only ONE blue highlight on screen at a time.**
+              User reported "two blue highlights when you move
+              around" — the `.vesper-eyebrow` brand label ("FOR YOU",
+              "MOVIES", "TV SERIES") was painted in
+              `var(--vesper-blue)` on every shelf, and the focused
+              tile's border was ALSO blue → visually competing.
+              Muted the eyebrow from neon blue to
+              `rgba(255,255,255,0.55)` (soft white).  Same change
+              applied to the "X LEFT" caption inside CW tiles
+              (`rgba(255,255,255,0.72)`).  Now the **only** neon-blue
+              element on screen at any time is the actively focused
+              tile / button.  Brand identity preserved via the wide
+              letter-spacing + uppercase monospace face — colour
+              doesn't need to also scream for attention.
+            - 🆙 APK bumped to **v2.7.01** (versionCode 171).
+
             **v2.7.00 — Continue Watching cards: stacking-context fix · clean flex layout · no more clipped bottoms**
             - 🩹 **Root cause of "card bottoms get cut off" (P0 user report).**
               `.vesper-shelf-section` carries `contain: layout style`

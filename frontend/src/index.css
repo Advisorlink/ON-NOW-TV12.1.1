@@ -280,7 +280,15 @@ body {
         font-size: 13px;
         letter-spacing: 0.32em;
         text-transform: uppercase;
-        color: var(--vesper-blue);
+        /* v2.7.01 — muted from `var(--vesper-blue)` to a soft
+         * white-on-dark.  The neon blue eyebrow on EVERY shelf
+         * was competing with the focused tile's blue border, so
+         * the user perceived "two blue highlights at once" while
+         * navigating.  Eyebrow stays prominent via the wide
+         * letter-spacing + uppercase + monospaced face — colour
+         * doesn't need to also scream for attention.  Only the
+         * actively focused element is neon blue now. */
+        color: rgba(255, 255, 255, 0.55);
     }
     .vesper-mono {
         font-family: 'Geist Mono', 'JetBrains Mono', monospace;

@@ -81,13 +81,14 @@ export default function ContinueWatchingShelf() {
             data-testid="continue-watching-shelf"
             className="relative w-full vesper-shelf-section"
             style={{
-                paddingTop: 'clamp(28px, 3vw, 56px)',
-                /* v2.7.00 — was `0`, which gave the focused tile's
-                 * scale(1.08) animation nowhere to breathe — the
-                 * next shelf below was painting over the bottom
-                 * edge (progress bar + "X left" text clipped).
-                 * Mirror the top spacing so the card always has
-                 * room to grow on focus. */
+                /* v2.7.01 — top padding tightened from clamp(28,3vw,56)
+                 * → clamp(18,2vw,32) so the CW row sits closer to
+                 * the hero on a 1080p TV (with overscan).  Combined
+                 * with hero height reduced to 50vh max 540px, the
+                 * full CW card — including the 4px progress bar at
+                 * the bottom — now stays within the safe area on
+                 * the user's projector. */
+                paddingTop: 'clamp(18px, 2vw, 32px)',
                 paddingBottom: 'clamp(18px, 2vw, 36px)',
             }}
         >
@@ -388,7 +389,11 @@ function CWTile({
                             fontSize: 10,
                             letterSpacing: '0.16em',
                             textTransform: 'uppercase',
-                            color: 'var(--vesper-blue)',
+                            /* v2.7.01 — was neon blue; muted to a
+                             * soft white so the active focus
+                             * indicator is the ONLY blue thing on
+                             * screen during D-pad navigation. */
+                            color: 'rgba(255, 255, 255, 0.72)',
                             paddingLeft: 44,
                         }}
                     >
