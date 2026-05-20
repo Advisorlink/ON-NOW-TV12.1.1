@@ -287,8 +287,39 @@ export default function useSpatialFocus() {
         // pseudo-class.
         let lastFocused = null;
         const setFocusAttr = (el) => {
-            if (lastFocused && lastFocused !== el) {
-                lastFocused.removeAttribute('data-focused');
+            // v2.7.02 — document-wide sweep instead of only clearing
+            // `lastFocused`.  Multiple components (Home.jsx,
+            // Detail.jsx, Settings.jsx, WatchTogether.jsx) set
+            // `data-focused="true"` directly on initial-focus
+            // priming, but our `lastFocused` closure variable
+            // doesn't know about those.  Without the sweep, those
+            // attributes lingered on stale tiles and the user saw
+            // TWO blue focus rings on screen at the same time —
+            // one from the stale priming and one on the actually-
+            // focused tile.  Sweep is O(n) over `[data-focused=
+            // "true"]` matches which is at most a handful of
+            // elements at any time, so it's free.
+            const stale = document.querySelectorAll(
+                '[data-focused="true"]'
+            );
+            for (let i = 0; i < stale.length; i++) {
+                if (stale[i] !== el) {
+                    stale[i].removeAttribute('data-focused');
+                }
+            }
+            // Also clean up any stragglers from interrupted
+            // long-presses or press-ripples on OTHER tiles — these
+            // attributes drive their own box-shadow ring animations
+            // and if the user starts a press then arrow-navs away
+            // before keyup, the original tile keeps animating.
+            const stragglers = document.querySelectorAll(
+                '[data-holding="true"], [data-pressed="true"]'
+            );
+            for (let i = 0; i < stragglers.length; i++) {
+                if (stragglers[i] !== el) {
+                    stragglers[i].removeAttribute('data-holding');
+                    stragglers[i].removeAttribute('data-pressed');
+                }
             }
             if (el) {
                 el.setAttribute('data-focused', 'true');

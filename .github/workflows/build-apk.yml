@@ -228,6 +228,38 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.02 — Only ONE focus ring at a time · eyebrow brand-blue restored**
+            - 🎯 **Real root cause of "two blue rings around the
+              covers" (user clarified the previous v2.7.01 fix
+              misread the symptom).**  Multiple components
+              (`Home.jsx`, `Detail.jsx`, `Settings.jsx`,
+              `WatchTogether.jsx`) set `data-focused="true"`
+              directly on initial-focus priming, but the global
+              `useSpatialFocus.setFocusAttr` only cleared the
+              `lastFocused` element tracked in its own closure
+              variable.  So a tile primed by Home.jsx (or another
+              page) kept its `data-focused` attribute when the user
+              D-pad-navigated away, painting a SECOND blue ring on
+              screen alongside the actually focused tile.
+            - 🛡️ **Fix:** `setFocusAttr` now does a document-wide
+              sweep of `[data-focused="true"]` and removes the
+              attribute from every element except the new focus
+              target on every key press.  Also defensively clears
+              stragglers from interrupted long-presses or
+              press-ripples (`data-holding`, `data-pressed`) so
+              those animations can't keep painting a ring on a
+              tile after the user has moved on.
+            - 🔵 **Eyebrow brand-blue restored.**  v2.7.01 muted
+              the `.vesper-eyebrow` colour to white-on-dark on the
+              mistaken theory that it was competing with the focus
+              ring.  User clarified that the issue was actual
+              duplicate rings around tile covers, not the brand
+              accent.  Eyebrow now reads in `var(--vesper-blue)`
+              again ("FOR YOU", "MOVIES", "TV SERIES" pop with
+              brand colour); the "X LEFT" caption inside CW tiles
+              also reverted to brand blue.
+            - 🆙 APK bumped to **v2.7.02** (versionCode 172).
+
             **v2.7.01 — Continue Watching cards no longer clipped on projector · single neon-blue focus indicator**
             - 📺 **CW cards fully visible on 1080p projector / TV.**
               User reported via photo that the bottom half of the

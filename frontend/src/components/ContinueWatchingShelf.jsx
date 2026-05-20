@@ -389,11 +389,7 @@ function CWTile({
                             fontSize: 10,
                             letterSpacing: '0.16em',
                             textTransform: 'uppercase',
-                            /* v2.7.01 — was neon blue; muted to a
-                             * soft white so the active focus
-                             * indicator is the ONLY blue thing on
-                             * screen during D-pad navigation. */
-                            color: 'rgba(255, 255, 255, 0.72)',
+                            color: 'var(--vesper-blue)',
                             paddingLeft: 44,
                         }}
                     >
