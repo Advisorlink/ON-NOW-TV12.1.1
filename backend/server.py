@@ -2687,11 +2687,26 @@ async def _seed_default_addons() -> None:
     # quality filters is a redeploy, not a code change.  Quality
     # filter strips CAM / SCR / TS / unknown / 480p / 720p so only
     # 1080p HD and 4K reach the source list (user spec).
+    # v2.7.27 — `language=...` filter EXCLUDES the listed foreign
+    # languages so only English-language (and language-agnostic)
+    # releases reach the source list.  Torrentio's `language` param
+    # is an exclusion filter, NOT an "include only english" filter.
+    # The list below covers every language Torrentio scrapers
+    # currently classify; English-language and untagged releases
+    # are not in it and therefore stay.
+    foreign_langs = (
+        "russian,french,spanish,italian,german,portuguese,polish,"
+        "hindi,tamil,telugu,malayalam,korean,japanese,chinese,"
+        "turkish,arabic,dutch,danish,swedish,norwegian,finnish,"
+        "czech,hungarian,greek,thai,vietnamese,indonesian,hebrew,"
+        "ukrainian,romanian"
+    )
     premiumize_key = (os.environ.get("PREMIUMIZE_API_KEY") or "").strip()
     if premiumize_key:
         torrentio_url = (
             "https://torrentio.strem.fun/"
             "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            f"%7Clanguage={foreign_langs}"
             f"%7Cpremiumize={premiumize_key}/manifest.json"
         )
     else:
@@ -2701,6 +2716,7 @@ async def _seed_default_addons() -> None:
         torrentio_url = (
             "https://torrentio.strem.fun/"
             "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            f"%7Clanguage={foreign_langs}"
             "/manifest.json"
         )
         logger.warning(
@@ -2728,43 +2744,76 @@ async def _seed_default_addons() -> None:
         for s in seed_list:
             try:
                 _, manifest_url = _normalize_manifest_url(s["url"])
-                async with httpx.AsyncClient(timeout=20) as client:
-                    manifest = await _fetch_json(client, manifest_url)
-                if not isinstance(manifest, dict):
-                    continue
-                addon_id = manifest.get("id")
-                if not addon_id:
-                    continue
                 expected_base = s["url"].rsplit("/manifest.json", 1)[0]
-                existing = existing_addons.get(addon_id)
-                # Re-upsert the row when the base URL drifted (e.g.
-                # operator rotated PREMIUMIZE_API_KEY).  This keeps
-                # the Torrentio config in lockstep with .env without
-                # the user having to drop the row by hand.
-                if existing and existing.get("url") == expected_base:
-                    continue
-                now = datetime.now(timezone.utc).isoformat()
-                await db.addons.update_one(
-                    {"user_id": DEFAULT_USER, "addon_id": addon_id},
-                    {
-                        "$set": {
-                            "user_id": DEFAULT_USER,
-                            "addon_id": addon_id,
-                            "_id_str": addon_id,
-                            "url": expected_base,
-                            "manifest": manifest,
-                            "active": True,
-                            "installed_at": now,
-                            "updated_at": now,
-                            "auto_seeded": True,
-                        }
-                    },
-                    upsert=True,
-                )
-                if existing:
-                    updated.append(s["name"])
+
+                # v2.7.27 — special-case Torrentio: Cloudflare often
+                # 403s our datacentre IP on the FIRST manifest fetch
+                # so we never reach the URL-update path.  If the
+                # existing row's URL has drifted (e.g. because the
+                # operator updated the language filter), force the
+                # URL update even when manifest fetch fails — we
+                # keep the OLD manifest as a fallback.
+                manifest: Any = None
+                try:
+                    async with httpx.AsyncClient(timeout=20) as client:
+                        manifest = await _fetch_json(client, manifest_url)
+                except Exception:
+                    manifest = None
+
+                if isinstance(manifest, dict):
+                    addon_id = manifest.get("id")
+                    if not addon_id:
+                        continue
+                    existing = existing_addons.get(addon_id)
+                    if existing and existing.get("url") == expected_base:
+                        continue
+                    now = datetime.now(timezone.utc).isoformat()
+                    await db.addons.update_one(
+                        {"user_id": DEFAULT_USER, "addon_id": addon_id},
+                        {
+                            "$set": {
+                                "user_id": DEFAULT_USER,
+                                "addon_id": addon_id,
+                                "_id_str": addon_id,
+                                "url": expected_base,
+                                "manifest": manifest,
+                                "active": True,
+                                "installed_at": now,
+                                "updated_at": now,
+                                "auto_seeded": True,
+                            }
+                        },
+                        upsert=True,
+                    )
+                    if existing:
+                        updated.append(s["name"])
+                    else:
+                        missing.append(s["name"])
                 else:
-                    missing.append(s["name"])
+                    # Manifest fetch failed.  If this is Torrentio
+                    # AND we already have it in the DB AND the URL
+                    # drifted, force-update the URL but keep the
+                    # cached manifest.
+                    if s.get("name") == "Torrentio":
+                        for row in existing_addons.values():
+                            row_url = row.get("url", "")
+                            if (
+                                row_url.startswith("https://torrentio.strem.fun")
+                                and row_url != expected_base
+                            ):
+                                now = datetime.now(timezone.utc).isoformat()
+                                await db.addons.update_one(
+                                    {"user_id": DEFAULT_USER, "addon_id": row.get("addon_id")},
+                                    {
+                                        "$set": {
+                                            "url": expected_base,
+                                            "updated_at": now,
+                                        }
+                                    },
+                                )
+                                updated.append(f"{s['name']} (URL only)")
+                                break
+                    continue
             except Exception as inner:  # noqa: BLE001
                 logger.warning(
                     "Failed to auto-seed addon %s: %s", s.get("name"), inner

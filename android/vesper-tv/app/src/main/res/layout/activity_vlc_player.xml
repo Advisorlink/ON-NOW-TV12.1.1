@@ -602,6 +602,30 @@
                     android:focusable="true"
                     android:nextFocusUp="@id/btn_skip_fwd"
                     android:nextFocusLeft="@id/btn_speed"
+                    android:nextFocusRight="@id/btn_streams" />
+
+                <!-- v2.7.27 — Visible "Streams" button so the user
+                     can swap streams from inside the player without
+                     hunting for the MENU key on their remote.
+                     Hidden when only one stream is available. -->
+                <Button
+                    android:id="@+id/btn_streams"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/btn_pill"
+                    android:paddingStart="22dp"
+                    android:paddingEnd="22dp"
+                    android:drawableStart="@drawable/ic_grid"
+                    android:drawablePadding="10dp"
+                    android:text="Streams"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:focusable="true"
+                    android:visibility="gone"
+                    android:nextFocusUp="@id/btn_skip_fwd"
+                    android:nextFocusLeft="@id/btn_aspect"
                     android:nextFocusRight="@id/btn_channels" />
 
                 <Button
@@ -621,7 +645,7 @@
                     android:focusable="true"
                     android:visibility="gone"
                     android:nextFocusUp="@id/btn_skip_fwd"
-                    android:nextFocusLeft="@id/btn_aspect" />
+                    android:nextFocusLeft="@id/btn_streams" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>

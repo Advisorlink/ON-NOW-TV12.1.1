@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.27 — 4 fixes (Torrentio English-only · Player loading screen restored · CW cover art · Visible Streams button in player)
+1. **Torrentio English-only filter**: backend seeder now builds Torrentio URL with `language=russian,french,spanish,italian,german,portuguese,polish,hindi,tamil,...` (30 foreign languages). Torrentio's `language=` param is an EXCLUSION filter — listed languages get filtered out, English + untagged stays. Seeder force-updates the existing DB row even when Cloudflare 403s the manifest fetch (uses cached manifest). VPS verified: row URL now contains the filter.
+2. **Player loading screen lost cover/synopsis** — ROOT CAUSE: v2.7.25 grew `playInternalRich` from 13→15 args. Kotlin default params DON'T survive `JavascriptInterface` reflection lookup → JS call with 15 args found no method → fell through to legacy `playInternal(url, title, subtitleUrl)` → poster/backdrop/synopsis never passed. **Fix**: kept old 13-arg `playInternalRich` intact, added new 15-arg `playInternalRichV2` for the streams payload. Web layer (`host.js`) tries V2 first, falls back to V1. Both work via reflection. Backward-compat preserved.
+3. **CW cover art missing**: `ContinueWatchingShelf` tile now uses `entry.backdrop || entry.poster` (was `entry.backdrop` only). Falls back gracefully when only poster was saved.
+4. **NEW — Visible "Streams" button in the player**: `btn_streams` in `activity_vlc_player.xml`, between Aspect and Channels. Shown when 2+ alt streams available. Click → same overlay as MENU/INFO key. Discoverable without remote-key tricks.
+
 ## v2.7.26 — Fix Stream picker modal crash
 - **Bug**: clicking "Choose stream" crashed the app with `Cannot read properties of undefined (reading 'bg')`. Caught by the global error boundary → "ON NOW TV2 hit a snag" screen.
 - **Root cause**: v2.7.22's `StreamPickerModal.jsx` defined a LOCAL `toneColors` map keyed `sd|hd|fhd|uhd`. But the real `qualityBadge(stream).tone` from `/lib/streamMeta.js` returns `gold|blue|cyan|violet|neutral|muted|red`. Lookup returned `undefined`, and `.bg` on `undefined` threw.

@@ -228,21 +228,31 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.26 — Fix Stream picker modal crash ("bg" undefined)**
-            - User report: clicking "Choose stream" crashed with
-              `Cannot read properties of undefined (reading 'bg')`.
-            - **Root cause**: v2.7.22's `StreamPickerModal`
-              defined a LOCAL `toneColors` map keyed `sd|hd|fhd|
-              uhd`.  But the real `qualityBadge.tone` from
-              `streamMeta.js` returns `gold|blue|cyan|violet|
-              neutral|muted|red`.  Lookup returned `undefined`,
-              and `.bg` on it threw.
-            - **Fix**: import the REAL `toneColors` from
-              `streamMeta.js` + use a `safeTone(tone)` helper
-              with a neutral cyan fallback.  Now never throws
-              regardless of which tone string the patterns
-              emit.
-            - APK bumped to v2.7.26 (versionCode 196).
+            **v2.7.27 — 4 fixes (Torrentio English-only · Player loading screen restored · CW cover art · Visible Streams button in player)**
+            - **#1 Torrentio English-only**: backend now seeds
+              Torrentio with `language=russian,french,spanish,
+              italian,german,...` (30+ foreign languages) — every
+              non-English release is filtered out at the source.
+              The seeder force-updates the existing DB row even
+              when Cloudflare 403s the manifest fetch.
+            - **#2 Player loading screen lost cover art / synopsis**:
+              ROOT CAUSE — v2.7.25 grew `playInternalRich` from
+              13 → 15 args, which broke the JS↔Kotlin bridge for
+              the existing JS call.  Android's JavascriptInterface
+              uses reflection and Kotlin default params don't
+              create overloads.  Fix: kept legacy 13-arg
+              `playInternalRich`, added new 15-arg
+              `playInternalRichV2` for the streams payload.  Web
+              layer tries V2 first, falls back to V1.  Both work.
+            - **#3 Continue Watching cover art missing**: tile now
+              falls back to `entry.poster` when `entry.backdrop`
+              is empty.  No more black CW tiles.
+            - **#4 NEW: Visible "Streams" button in the player**:
+              shows in the bottom control bar whenever the movie
+              has 2+ alt streams.  Sits between Aspect and
+              Channels.  Click → same overlay as MENU key.  No
+              more hunting for hidden remote keys.
+            - APK bumped to v2.7.27 (versionCode 197).
 
             For older release notes see CHANGELOG.md in the repo.
 

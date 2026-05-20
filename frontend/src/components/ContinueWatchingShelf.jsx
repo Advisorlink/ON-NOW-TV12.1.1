@@ -299,9 +299,9 @@ function CWTile({
                 border: '1px solid rgba(255,255,255,0.06)',
             }}
         >
-            {entry.backdrop ? (
+            {(entry.backdrop || entry.poster) ? (
                 <img
-                    src={img.backdrop(entry.backdrop)}
+                    src={img.backdrop(entry.backdrop || entry.poster)}
                     alt={entry.title}
                     loading="lazy"
                     decoding="async"

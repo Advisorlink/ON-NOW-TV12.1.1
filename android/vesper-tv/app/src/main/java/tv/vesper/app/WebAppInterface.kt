@@ -94,9 +94,42 @@ class WebAppInterface(private val activity: Activity) {
         genres: String?,
         type: String?,
         startAtMs: Long,
+        cwId: String?
+    ) {
+        // Delegate to the V2 method with empty streams payload — keeps
+        // backward-compat for any caller that hasn't been updated to
+        // pass `streamsJson`.  Default Kotlin params don't survive the
+        // JavascriptInterface reflection lookup so we must declare both
+        // overloads as actual @JavascriptInterface methods.
+        playInternalRichV2(
+            url, title, subtitleUrl, poster, backdrop, synopsis,
+            year, rating, runtime, genres, type, startAtMs, cwId,
+            null, -1
+        )
+    }
+
+    /**
+     * v2.7.27 — V2 with alt-streams payload for the in-player
+     * stream picker.  Web layer should call this when available;
+     * `playInternalRich` falls back to this with empty streams.
+     */
+    @JavascriptInterface
+    fun playInternalRichV2(
+        url: String,
+        title: String?,
+        subtitleUrl: String?,
+        poster: String?,
+        backdrop: String?,
+        synopsis: String?,
+        year: String?,
+        rating: String?,
+        runtime: String?,
+        genres: String?,
+        type: String?,
+        startAtMs: Long,
         cwId: String?,
-        streamsJson: String? = null,
-        currentStreamIdx: Int = -1
+        streamsJson: String?,
+        currentStreamIdx: Int
     ) {
         if (url.isBlank()) return
         activity.runOnUiThread {
@@ -115,9 +148,6 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
                     putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
                     putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
-                    // v2.7.25 — pass the full streams list + current
-                    // index so the user can swap streams from inside
-                    // the player (Menu key opens the picker overlay).
                     putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
                     putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK

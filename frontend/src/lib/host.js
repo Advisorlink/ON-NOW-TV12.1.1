@@ -95,13 +95,10 @@ const Host = (() => {
                 return false;
             }
         }
-        // Prefer the rich bridge (passes cinematic preview meta).
-        if (isAndroid && typeof a.playInternalRich === 'function') {
+        // Prefer the rich V2 bridge (passes cinematic preview meta
+        // + alternate-streams payload for the in-player picker).
+        if (isAndroid && typeof a.playInternalRichV2 === 'function') {
             try {
-                /* v2.7.25 — Serialize alternate streams (label + url
-                 * + optional infoHash) so the native player can
-                 * surface an in-player picker overlay.  Keep label
-                 * ≤ 200 chars to bound the JSON size. */
                 const streamsJson = Array.isArray(streamsList) && streamsList.length > 0
                     ? JSON.stringify(streamsList.map((s) => ({
                         label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
@@ -109,7 +106,7 @@ const Host = (() => {
                         infoHash: s.infoHash || null,
                     })))
                     : '';
-                a.playInternalRich(
+                a.playInternalRichV2(
                     url,
                     title || '',
                     subtitleUrl || '',
@@ -125,6 +122,29 @@ const Host = (() => {
                     cwId || '',
                     streamsJson,
                     typeof currentStreamIdx === 'number' ? currentStreamIdx : -1
+                );
+                return true;
+            } catch {
+                // Fall through to legacy V1 bridge below.
+            }
+        }
+        // Legacy rich bridge (V1 — no streams payload).
+        if (isAndroid && typeof a.playInternalRich === 'function') {
+            try {
+                a.playInternalRich(
+                    url,
+                    title || '',
+                    subtitleUrl || '',
+                    poster || '',
+                    backdrop || '',
+                    synopsis || '',
+                    year || '',
+                    rating == null ? '' : String(rating),
+                    runtime || '',
+                    Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
+                    type || '',
+                    typeof startAtMs === 'number' ? Math.floor(startAtMs) : 0,
+                    cwId || ''
                 );
                 return true;
             } catch {

@@ -107,6 +107,7 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var btnSpeed: Button
     private lateinit var btnAspect: Button
     private lateinit var btnChannels: Button
+    private lateinit var btnStreams: Button
 
     /** In-player Live Guide overlay — only initialised when this
      *  activity is hosting a `live` stream.  Null for movie / series
@@ -464,6 +465,16 @@ class VlcPlayerActivity : AppCompatActivity() {
         btnSpeed = findViewById(R.id.btn_speed)
         btnAspect = findViewById(R.id.btn_aspect)
         btnChannels = findViewById(R.id.btn_channels)
+        btnStreams = findViewById(R.id.btn_streams)
+        // v2.7.27 — show the in-player Streams button whenever there
+        // are 2+ alt streams.  Click → same overlay as MENU key.
+        if (streamsList.size > 1) {
+            btnStreams.visibility = android.view.View.VISIBLE
+            btnStreams.setOnClickListener {
+                lastFocusedControl = btnStreams
+                showStreamPicker()
+            }
+        }
 
         /* Live-channel-only setup: surface the Channels button + wire
          * up the overlay controller.  For movies / series the button
