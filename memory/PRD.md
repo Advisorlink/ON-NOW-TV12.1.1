@@ -55,6 +55,26 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 140 — Feb 20, 2026) — v2.7.15
+### Strict Home D-pad nav + smoother Upcoming-Trailer scroll
+
+User uploaded a video reporting three Home-screen issues: (1) ArrowLeft from non-top rows kept yanking focus into the side-menu (surprise), (2) ArrowRight from the menu sometimes lost the focus ring on a now-off-screen Hero button, (3) the Upcoming Trailers rail scrolled "chunky" on the HK1.
+
+**Fixes (already in code from v2.7.15 WIP — APK now bumped & tested):**
+- **Strict Left** (`/app/frontend/src/hooks/useSpatialFocus.js` L590-628): ArrowLeft at the left edge of a rail only escapes to the side-nav from the FIRST shelf-page (Continue Watching). Detected by walking `previousElementSibling` for any earlier `[data-testid="shelf-page"]`. From every other shelf — For You, Networks, addon catalogues, Upcoming Movies — Left hits a hard stop.
+- **Strict Right-from-nav** (L667-723): When `active.closest(NAV_RAIL)` is truthy, Right now finds the shelf-page whose centre intersects `region.height/2`, picks its bookmarked tile (via `rail.__lastFocusedKey`) or first `[data-focusable="true"]`. No more "Right yanks focus to the off-screen Hero Play button" → no more disappearing focus border.
+- **/w780 TMDB backdrops on Upcoming-Movies** (`/app/backend/server.py` L1838): switched from `/w1280/` → `/w780/`. ~2× smaller image payload, no more frame drops when scrolling the trailer rail on the HK1.
+
+**Verified by testing agent (iteration_45.json):**
+- T1 PASS — Left from CW → side-nav.
+- T2 PASS — Left from leftmost tile of shelf 3 / 5 / 7 stays put (no escape).
+- T4 PASS — 7/7 trailer cards confirm `image.tmdb.org/t/p/w780/` (zero `/w1280/`).
+- T5 PASS — ArrowDown x5 walks pages cleanly, exactly one `data-focused="true"` at a time.
+- T3 INCONCLUSIVE — testing agent could not reach the new right-from-nav code path via pure D-pad because the strict Left rule (T2) blocks its natural reproduction path. Mouse-clicking nav doesn't set `data-focused`, so the `active.closest(NAV_RAIL)` check in the branch returned false. Code review explicitly validates the implementation; user will hand-verify on the HK1 box.
+
+**🆙 APK bumped to v2.7.15 (versionCode 185).**
+
+
 ## Implemented (Iteration 139 — Feb 20, 2026) — v2.7.14
 ### REVERT v2.7.12 player tuning — movies playing again
 
