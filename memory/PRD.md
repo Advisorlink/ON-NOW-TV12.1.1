@@ -55,6 +55,21 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 125 — Feb 20, 2026) — v2.7.00
+### Continue Watching cards no longer clip on focus (P0) — stacking-context fix + clean flex layout
+
+- **🩹 Root cause:** `.vesper-shelf-section` carries `contain: layout style`, which makes each shelf its OWN stacking context. So even though the focused tile sets `z-index: 50`, that z-index is **scoped to its parent section** — the next shelf below (DOM order) paints on top of any overflow from the focus `scale(1.08)` animation and clips the bottom edge (progress bar + "X LEFT" caption on CW tiles, focus ring on regular posters).
+- **🛡️ Fix 1 — CSS stacking lift.** Added `.vesper-shelf-section:has([data-focused="true"]) { z-index: 20; }` to `/app/frontend/src/index.css`. The section containing the active tile now paints above its siblings. `:has()` is Chrome 105+ which the HK1 WebView supports; older WebViews degrade gracefully. **Free win across every shelf row** — same rule fixes regression on regular `Shelf.jsx` posters too.
+- **🛡️ Fix 2 — CW tile layout rewritten.** Previously the play badge sat absolutely at `bottom: 38`, title at `bottom: 22` with a `paddingLeft: 46` hack to dodge the badge, and the 6px progress bar at `bottom: 0`. Fragile + the "X LEFT" mono caption clipped into the progress bar. Rewrote as a single flex column at `bottom: 14` with `gap: 6` — play badge inline with title, "X LEFT" underneath, slim 4px progress bar flush at the bottom. Runtime measurement: caption→progress gap = 10.8px.
+- **🛡️ Fix 3 — Section bottom padding restored.** CW `<section>` was `paddingBottom: 0` (literally zero) — focus scale had nowhere to grow. Mirrored the top spacing: `paddingBottom: 'clamp(18px, 2vw, 36px)'`.
+- **✅ Verified by frontend testing agent (iteration_42.json):** Focused CW tile bottom 987.78px sits 53px above next shelf top 1041.39px. `getComputedStyle(section).zIndex === '20'` while focused, reverts to `'auto'` when focus leaves. `:has()` works dynamically. Hero D-pad fix from v2.6.99 still passes regression.
+- **📝 Discovery for future testers:** The CW localStorage key is **`onnowtv-continue-watching-v1:<profileId>`** (profile-scoped), NOT `onnowtv-cw-v1`. See `/app/frontend/src/lib/profileScope.js`.
+- **🆙 APK bumped to v2.7.00 (versionCode 170).**
+
+### CONTEXT.md added at project root
+- Explicit reminder for any future agent that the app runs in a **WebView on an HK1 Android TV box at 1920×1080** — do NOT assume desktop Chrome spacing or overflow behavior. Reference it before touching home-screen layouts.
+
+
 ## Implemented (Iteration 124 — Feb 19, 2026) — v2.6.99
 ### Spatial nav double-fire fix — Hero Right no longer jumps focus out of the row (P0)
 
