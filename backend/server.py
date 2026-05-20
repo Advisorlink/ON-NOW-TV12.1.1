@@ -1744,7 +1744,7 @@ async def tmdb_upcoming_movies(
     page.  IMDB lookup is best-effort + cached — entries without an
     IMDB id are still returned (Detail page falls back to TMDB).
     """
-    cache_key = f"tmdb_upcoming:{limit}:{days}:en-us-gb"
+    cache_key = f"tmdb_upcoming:v2:{limit}:{days}:en-us-gb"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1830,12 +1830,13 @@ async def tmdb_upcoming_movies(
             "title": item.get("title") or item.get("name") or "",
             "poster": f"{TMDB_IMG}/w500{item['poster_path']}",
             "backdrop": (
-                # v2.7.15 — was /original/ (~2-4 MB per image,
-                # caused chunky scroll on the upcoming-trailers
-                # rail).  /w780 is plenty for a 380×214 card and
-                # cuts payload by ~80%.
-                # cuts payload by ~80%.
-                f"{TMDB_IMG}/w780{item['backdrop_path']}"
+                # v2.7.16 — user reports the trailer rail STILL
+                # scrolls chunky on the HK1.  Drop /w780 → /w500
+                # (~3× smaller image: ~50 KB vs ~150 KB).  At 380px
+                # card width on a 1080p TV this is still visually
+                # crisp — the source res is 281×500, displayed at
+                # ~380×214 which is fine.
+                f"{TMDB_IMG}/w500{item['backdrop_path']}"
                 if item.get("backdrop_path") else None
             ),
             "year": rel[:4] if rel else "",

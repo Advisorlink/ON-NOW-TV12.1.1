@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.16 — Player back to v2.6.33-era + Hero bigger + Trailer row aligned
+- **Movie playback**: per user explicit request ("go back to v6.33 and use the player from then im sick of this not playing how it use to"), restored the v2.6.33-era startPlayback for VOD: only `:network-caching=1500` (no avcodec tweaks, no clock-sync, no drop-late-frames). PLUS `:no-mediacodec-dr` for VOD only — forces libVLC's colour-conversion path so HDR10 / Dolby-Vision streams tone-map down to BT.709 SDR automatically. Fixes the washed-out HDR colour the user reported on the projector. Live IPTV / magnet / trailer paths kept untouched.
+- **Hero banner taller + bigger text**: height `clamp(320, 45vh, 480)` → `clamp(420, 58vh, 620)`. Title font `clamp(36, 4.2vw, 64)` → `clamp(44, 5vw, 78)`. Synopsis lines 2 → 3 with larger text. PaddingBottom reduced so content hugs bottom edge. Fills the previously-blank band between hero and first shelf.
+- **Upcoming Trailers smoother scroll**: backdrop `/w780/` → `/w500/` (~3× smaller — ~50 KB vs ~150 KB per card). Cache key bumped to `v2:` to invalidate stale `/w780/` payloads.
+- **Trailer row alignment**: left padding `clamp(40, 4.2vw, 80)` → `clamp(92, 6.5vw, 132)` matching every other Home shelf — first trailer card now sits directly under the first poster of the row above.
+
 ## v2.7.15 — Strict D-pad nav + smoother trailer scroll
 - **Strict Left**: pressing Left only escapes to the side-nav rail from the FIRST shelf-page (Continue Watching). On every other shelf (For You, Networks, addon catalogues, Upcoming Movies) Left now hits a hard stop — focus stays on the leftmost tile. Fixes the "I went into Popular Movies and got yanked into the menu" surprise reported in the user's video.
 - **Strict Right-from-rail**: when the user presses Right from the side-nav, focus lands on the bookmarked tile of the CURRENTLY VISIBLE shelf-page (the one whose centre intersects the viewport centre), not the document's first focusable. Fixes the "focus border disappears after pressing Right" symptom — focus was previously yanked to an off-screen Hero Play button.

@@ -73,7 +73,7 @@ export default function HeroBillboard({ heroes }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: 'clamp(320px, 45vh, 480px)' }}
+            style={{ height: 'clamp(420px, 58vh, 620px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -139,14 +139,15 @@ export default function HeroBillboard({ heroes }) {
             <div className="absolute inset-0 flex items-end">
                 <div
                     key={hero.id}
-                    className="relative z-10 max-w-[58vw] vesper-fade-up"
+                    className="relative z-10 max-w-[62vw] vesper-fade-up"
                     style={{
                         paddingLeft: 'clamp(92px, 6.5vw, 132px)',
-                        /* v2.6.85 — reduced bottom padding so the
-                         * eyebrow + title + meta block sits lower in
-                         * the hero, leaving less empty black band
-                         * between the hero and the first shelf. */
-                        paddingBottom: 'clamp(28px, 3.2vw, 64px)',
+                        /* v2.7.16 — user wants the hero text content
+                         * to sit lower in the hero AND fill more of
+                         * the dark band beneath the artwork.  Reduce
+                         * bottom padding so the title/buttons hug the
+                         * bottom edge of the hero. */
+                        paddingBottom: 'clamp(18px, 2vw, 36px)',
                     }}
                 >
                     <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>
@@ -154,16 +155,16 @@ export default function HeroBillboard({ heroes }) {
                         data-testid="hero-title"
                         className="vesper-display"
                         style={{
-                            fontSize: 'clamp(36px, 4.2vw, 64px)',
+                            fontSize: 'clamp(44px, 5vw, 78px)',
                             letterSpacing: '-0.035em',
-                            lineHeight: 0.95,
+                            lineHeight: 0.94,
                         }}
                     >
                         {hero.title}
                     </h1>
 
                     {meta.length > 0 && (
-                        <div className="flex items-center gap-3 mt-3 vesper-meta flex-wrap">
+                        <div className="flex items-center gap-3 mt-4 vesper-meta flex-wrap">
                             {meta.map((m, i) => (
                                 <React.Fragment key={i}>
                                     {i > 0 && <Dot />}
@@ -186,14 +187,14 @@ export default function HeroBillboard({ heroes }) {
 
                     {hero.synopsis && (
                         <p
-                            className="mt-3 max-w-[52ch]"
+                            className="mt-4 max-w-[56ch]"
                             style={{
-                                fontSize: 'clamp(13px, 1vw, 16px)',
-                                lineHeight: 1.5,
+                                fontSize: 'clamp(14px, 1.1vw, 18px)',
+                                lineHeight: 1.55,
                                 fontWeight: 400,
                                 color: 'var(--vesper-text-2)',
                                 display: '-webkit-box',
-                                WebkitLineClamp: 2,
+                                WebkitLineClamp: 3,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden',
                             }}
@@ -202,7 +203,7 @@ export default function HeroBillboard({ heroes }) {
                         </p>
                     )}
 
-                    <div className="flex items-center gap-3 mt-5" data-hero-actions>
+                    <div className="flex items-center gap-3 mt-6" data-hero-actions>
                         <button
                             data-testid="hero-play-button"
                             data-focusable="true"

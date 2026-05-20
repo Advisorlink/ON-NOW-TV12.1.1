@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Play, Calendar } from 'lucide-react';
+import * as img from '@/lib/img';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -95,7 +96,7 @@ export default function UpcomingMoviesShelf() {
             <header
                 className="flex items-end justify-between mb-3"
                 style={{
-                    paddingLeft: 'clamp(40px, 4.2vw, 80px)',
+                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                 }}
             >
@@ -129,13 +130,13 @@ export default function UpcomingMoviesShelf() {
                 className="vesper-shelf flex"
                 style={{
                     gap: 'clamp(14px, 1.25vw, 24px)',
-                    // Match the horizontal padding used by every
-                    // other shelf row on Home (`Shelf.jsx`) so the
-                    // first trailer card lines up dead-centre with
-                    // the first poster of the rows above.  User
-                    // feedback v2.6.96: the trailer row started
-                    // ~40 px to the left of everything else.
-                    paddingLeft: 'clamp(40px, 4.2vw, 80px)',
+                    /* v2.7.16 — match Shelf.jsx left padding exactly
+                     * so the first trailer card aligns vertically
+                     * with the first poster of every other shelf on
+                     * Home (Continue Watching, For You, Networks,
+                     * Popular Movies, Popular Series). User reported
+                     * the trailer row started ~50 px further left. */
+                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     paddingTop: 'clamp(14px, 1.4vw, 22px)',
                     paddingBottom: 'clamp(14px, 1.4vw, 24px)',
@@ -168,7 +169,7 @@ export default function UpcomingMoviesShelf() {
  * release date strip at the bottom.  Matches the cinematic feel of
  * a YouTube-style trailers row. */
 function TrailerCard({ item, onOpen }) {
-    const art = item.backdrop || item.poster;
+    const art = img.backdrop(item.backdrop || item.poster);
     return (
         <button
             data-testid={`upcoming-trailer-${item.tmdb_id}`}
@@ -183,7 +184,6 @@ function TrailerCard({ item, onOpen }) {
                 borderRadius: 18,
                 background: '#0B1322',
                 border: '1px solid rgba(255,255,255,0.06)',
-                scrollSnapAlign: 'start',
                 cursor: 'pointer',
                 outline: 'none',
             }}

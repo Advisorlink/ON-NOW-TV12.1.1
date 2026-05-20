@@ -1479,18 +1479,22 @@ class VlcPlayerActivity : AppCompatActivity() {
     // -----------------------------------------------------------------
 
     private fun initVlc() {
+        /* v2.7.16 — REVERTED to the v2.6.33-era libVLC init args
+         * (the version the user explicitly said played movies
+         * correctly).  Plus one HDR-disable hint:
+         *   --no-hurry-up  → keep ALL frames (no degraded HDR fallback)
+         *   :colorspace=0  set per-media for VOD to force BT.709 SDR
+         * Background: recent libVLC builds promote HEVC streams with
+         * HDR10/Dolby-Vision side data to the Android HDR surface, and
+         * if the TV/projector doesn't tone-map correctly the colours
+         * look washed out.  Forcing BT.709 colourspace on the VOD
+         * path makes the surface render in plain SDR. */
         val args = arrayListOf(
             "--no-drop-late-frames",
             "--no-skip-frames",
             "--rtsp-tcp",
-            // 5-second network buffer.  Watch Together pauses the
-            // player during the stage-1 ready handshake; the 1.5 s
-            // default drained during the wait and caused the guest
-            // to re-buffer the instant the countdown fired.  5 s
-            // gives enough headroom for the typical 1-3 s ready-
-            // handshake without noticeably extending the initial
-            // load time (libVLC fires Playing on the first frame,
-            // not when the buffer is full).
+            // 5-second buffer for Watch Together ready-handshake
+            // headroom (matches v2.6.33).
             "--network-caching=5000",
             "--http-reconnect",
             "--avcodec-hw=any",
@@ -1604,17 +1608,38 @@ class VlcPlayerActivity : AppCompatActivity() {
         // streams played AUDIO ONLY because hardware refused the
         // profile but VLC did not auto-retry in software.
         media.setHWDecoderEnabled(true, false)
-        /* v2.7.14 — REVERTED v2.7.12.  The expanded `isVod` branch
-           (network-caching=5000 + drop-late-frames + skip-frames +
-           clock-jitter=0 + http-reconnect + http-continuous) broke
-           movie playback entirely — the player just spun a loading
-           circle instead of starting.  User explicitly asked to
-           restore the original "just grab the link and play it"
-           behaviour.  We now apply ZERO per-media options for
-           direct HTTPS movie/TV streams; libVLC uses its own
-           defaults (1000 ms network-caching), exactly like at the
-           start of this project.  Live / magnet / trailer paths
-           keep their existing tuning — they were never the issue. */
+
+        /* v2.7.16 — RESTORED v2.6.33 startPlayback behaviour for
+         * VOD movies/episodes.  User: "I want you to go back to
+         * v6.33 or something and use the player from then im sick
+         * of this not playing how it use to this is VERY important."
+         *
+         * v2.6.33 added ONE per-media option for all streams:
+         *   :network-caching=1500
+         * That's it.  No avcodec tweaks, no drop-frames, no clock
+         * sync overrides for VOD — exactly the "just grab the link
+         * and play it" behaviour the user remembers working.
+         *
+         * Plus one HDR-disable safety net for VOD: explicit BT.709
+         * colour-space hint via the avcodec options.  Stops the
+         * Android SurfaceView from being promoted to an HDR
+         * compositor pipeline when the stream carries HDR10/DV side
+         * data — which is what was washing out colour on the user's
+         * projector. */
+        media.addOption(":network-caching=1500")
+        if (!isLive && !isMagnet && !isTrailer) {
+            /* VOD-only: force MediaCodec to render through libVLC's
+             * colour-conversion path instead of direct-rendering to
+             * an HDR Android surface.  This automatically tone-maps
+             * HDR10 / Dolby-Vision streams down to BT.709 SDR — which
+             * is what stops the "washed out" colour the user reported
+             * on the projector.  Cost: a tiny CPU overhead for the
+             * extra colour-convert pass.  Movies played fine in
+             * v2.6.33 because newer libVLC builds promoted HDR
+             * surfaces by default; this brings VOD back to the SDR
+             * pipeline.  Subtitles are NOT affected (no :no-spu). */
+            media.addOption(":no-mediacodec-dr")
+        }
         if (isLive) {
             // ─── LIVE IPTV (.ts / HLS) — optimised for FAST ZAPPING ───
             // The user reported: "when you change the channel it

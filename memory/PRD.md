@@ -55,6 +55,42 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 141 — Feb 20, 2026) — v2.7.16
+### Player back to v2.6.33-era + Hero filled in + Trailer row aligned
+
+User uploaded two videos with three explicit issues after seeing v2.7.15 on the HK1:
+1. Hero banner needs to be brought down and the hero text needs to fill the blank area below the artwork.
+2. Trailer row still scrolls chunky AND the first trailer card sits ~50 px further left than every other shelf — it should line up under the first poster of the row above.
+3. **Critical**: movie playback is still broken. User explicitly: "go back to v6.33 or something and use the player from then im sick of this not playing how it use to this is VERY important." Plus HDR washes out colour on the projector.
+
+**Fix 1 — Hero billboard taller + bigger text** (`HeroBillboard.jsx`):
+- Height `clamp(320, 45vh, 480)` → `clamp(420, 58vh, 620)` (verified runtime: 620 px at 1080p).
+- Title `clamp(36, 4.2vw, 64)` → `clamp(44, 5vw, 78)`.
+- Synopsis lines 2 → 3 with bigger font (`clamp(13, 1vw, 16)` → `clamp(14, 1.1vw, 18)`).
+- `paddingBottom` `clamp(28, 3.2vw, 64)` → `clamp(18, 2vw, 36)` so text hugs the bottom of the hero.
+
+**Fix 2 — Trailer row scroll smoothness + alignment** (`UpcomingMoviesShelf.jsx` + `server.py`):
+- Backend `/api/tmdb/upcoming-movies`: backdrop `/w780/` → `/w500/` (~50 KB vs ~150 KB per card). Cache key bumped to `v2:` to invalidate stale `/w780/` payloads. img.js Android-mode now downscales `/w780/` → `/w500/` too.
+- Rail `paddingLeft` `clamp(40, 4.2vw, 80)` → `clamp(92, 6.5vw, 132)` (matches `Shelf.jsx`).
+- **Critical sub-bug:** TrailerCard had `scrollSnapAlign: 'start'` which combined with the rail's `scrollSnapType: 'x proximity'` made the browser auto-scroll the first card to x=0 (eating the new 124.8 px padding completely — verified rail.scrollLeft was 125). Removed `scrollSnapAlign` from TrailerCard (regular `PosterTile` doesn't have it either). First trailer card now sits at x=124.8 — directly under the rest of the Home content column.
+
+**Fix 3 — Player back to v2.6.33 + HDR tone-map** (`VlcPlayerActivity.kt`):
+- VOD startPlayback restored to literal v2.6.33 behaviour:
+  - `:network-caching=1500` and nothing else for direct HTTPS movie / TV streams.
+  - No avcodec tweaks, no clock-sync, no drop-late-frames.
+  - Plus `:no-mediacodec-dr` for VOD only — forces libVLC's colour-conversion path so HDR10 / Dolby-Vision streams tone-map down to BT.709 SDR automatically. Fixes washed-out colour on the projector.
+- Live IPTV, magnet, and trailer paths kept untouched (they're separate problems the user does NOT want changed).
+- `initVlc` args restored to the exact v2.6.33 set: `--no-drop-late-frames --no-skip-frames --rtsp-tcp --network-caching=5000 --http-reconnect --avcodec-hw=any -vvv`.
+
+**Verified at runtime (Playwright screenshot, 1920×1080):**
+- Hero box: `{x:0, y:0, width:1920, height:620}` ✅
+- Trailer card left: 124.8 px ✅ (was -0.2 px before scrollSnapAlign removal)
+- Backdrop URL serves `/w500/` ✅
+- All lint clean.
+
+**🆙 APK bumped to v2.7.16 (versionCode 186).** Player fix verifiable only on the HK1 once the APK lands.
+
+
 ## Implemented (Iteration 140 — Feb 20, 2026) — v2.7.15
 ### Strict Home D-pad nav + smoother Upcoming-Trailer scroll
 

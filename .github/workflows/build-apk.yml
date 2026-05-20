@@ -228,28 +228,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.15 — Strict D-pad nav + smoother trailer scroll**
-            - **Strict Left**: Pressing Left only jumps to the
-              side-nav rail from the FIRST shelf-page (Continue
-              Watching).  On every other row (For You, Networks,
-              addon catalogues, Upcoming Movies) Left now hits a
-              hard stop — focus stays on the leftmost tile.  Fixes
-              the "I went into Popular Movies and got yanked into
-              the menu" surprise reported in the user's video.
-            - **Strict Right-from-rail**: When the user presses
-              Right from the side-nav rail, focus now lands on the
-              bookmarked tile of the CURRENTLY VISIBLE shelf-page
-              (the one whose centre intersects the viewport centre),
-              not the document's first focusable.  Fixes the
-              "focus border disappears after pressing Right"
-              symptom — focus was previously yanked to an
-              off-screen Hero Play button.
-            - **Upcoming Trailers smoother scroll**: backend
-              `/api/tmdb/upcoming-movies` now returns `/w780/`
-              TMDB backdrops (was `/w1280/`).  ~2× smaller image
-              payload → no more frame drops when D-pad scrolling
-              the trailer rail on the low-power HK1 box.
-            - APK bumped to v2.7.15 (versionCode 185).
+            **v2.7.16 — Player back to v2.6.33-era + Hero bigger + Trailer row aligned**
+            - **Movie playback**: per user explicit request,
+              restored the v2.6.33-era player config.  VOD now uses
+              only `:network-caching=1500` (no avcodec tweaks, no
+              clock-sync, no drop-late-frames) — exactly the
+              "just grab the link and play it" behaviour from the
+              start of the project.  Plus `:no-mediacodec-dr` for
+              VOD only — forces libVLC's colour-conversion path so
+              HDR10/Dolby-Vision streams tone-map to SDR (BT.709)
+              automatically.  Fixes the washed-out colour the user
+              reported on the projector.  Live IPTV, magnet, and
+              trailer paths kept untouched.
+            - **Hero banner**: height bumped from
+              `clamp(320, 45vh, 480)` → `clamp(420, 58vh, 620)` so
+              the artwork sits lower and fills more vertical space.
+              Title font `clamp(36, 4.2vw, 64)` → `clamp(44, 5vw, 78)`,
+              synopsis bumped from 2 lines → 3 lines with bigger
+              text — fills the previously-empty band beneath the
+              artwork.
+            - **Upcoming Trailers row**: backdrop downgraded from
+              TMDB `/w780/` → `/w500/` (~3× smaller payload) to
+              eliminate the chunky scroll on the HK1's modest GPU.
+              Row left padding aligned with every other Home shelf
+              (`clamp(92, 6.5vw, 132)`) so the first trailer card
+              now sits directly under the first poster of the row
+              above instead of bleeding ~50px further left.
+            - APK bumped to v2.7.16 (versionCode 186).
 
             For older release notes see CHANGELOG.md in the repo.
 
