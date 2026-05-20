@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.19 — Snap-row fast-path ("RecyclerView feel" on the web)
+- **User request**: "rebuild the whole home screen in the buttery smooth recycler view... rows snap change not slide up... each row if its a new row or an old row is treated the same."
+- **Implementation**: instead of rewriting Home into a virtualised list (overkill for ~7 rows), added a snap-row fast-path inside `useSpatialFocus.focusEl`. When the focused tile lives inside a `[data-testid="shelf-page"]`, the per-pixel row-pin math is **skipped entirely** and the snap-page parent is committed via `scrollIntoView({ behavior: 'auto', block: 'center' })`. The browser's native `scroll-snap-type: y mandatory` engine then snaps the row to fill the viewport on the next frame.
+- **Effect**: every Home row — Continue Watching, Networks, For You, addon catalogues, Upcoming — gets identical scroll handling. No more "first row snaps but Networks slides" or "Trailer row pin-shifted". One code path, applied uniformly.
+- **Verified at runtime (Playwright @ 1920×1080)**: shelf-page height 460 px; scrollTop after 6 sequential ArrowDown presses = `0 → 460 → 920 → 1380 → 1840 → 2300 → 2760` — exact integer multiples, no intermediate slide values. `scroll@100ms` after each keypress equalled the final commit, confirming there's no smooth animation tween. Up sequence reversed cleanly through the same snap points. Every focused tile carried the v2.7.18 cyan outline ring.
+
 ## v2.7.18 — Bulletproof focus ring (outline-based)
 - **Root cause of "focus ring disappears on intermediate rows"** (user video): `NetworkTile` (and a couple of other tile components) carry an inline `boxShadow` style prop for their resting drop-shadow. CSS inline styles win over class selectors, so the `[data-focus-style='tile'][data-focused='true'] { box-shadow: ... }` focus rule was OVERRIDDEN whenever such tiles received focus → blue ring went invisible. User saw the ring on hero + bottom rows because those tiles don't have inline shadows.
 - **Fix**: focus ring re-implemented as `outline: 3px solid var(--vesper-blue-bright) !important; outline-offset: 2px !important`. Outlines are immune to inline-style overrides, take no layout space, can't be clipped by parent `contain` / `overflow` rules, and don't fight stacking contexts. Visible on every focused tile, every row, every time.

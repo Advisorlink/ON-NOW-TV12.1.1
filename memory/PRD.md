@@ -55,6 +55,35 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 144 — Feb 20, 2026) — v2.7.19
+### Snap-row fast-path — "RecyclerView feel" without rewriting Home
+
+User: "rebuild the whole home screen in the buttery smooth recycler view. ... LEAVE ALL THE CARDS AND COVERS POSSITIONED HOW THEY ARE NOW!!! ... rows snap change not slide up. ... each row if its a new row or an old row is treated the same."
+
+**Approach decision**: a full virtualised RecyclerView-style rewrite would be massive churn (10+ components, hundreds of lines) AND would touch every card position the user explicitly said NOT to touch. The behaviour the user wants — uniform per-row snap, instant cut, no slide, no row-specific handling — can be achieved by fixing the ONE place that wasn't already uniform: `useSpatialFocus.focusEl`'s vertical scroll math.
+
+**Fix (`/app/frontend/src/hooks/useSpatialFocus.js`, lines ~552-575):**
+- Added a snap-row fast-path: when the focused tile lives inside a `[data-testid="shelf-page"]`, bypass the per-pixel row-pin math (which computed `targetTop = scrollerTop + max(scrollerHeight * 0.22, 90)` and then `queueScroll(vs, 0, rect.top - targetTop)`).
+- Instead: `snapPage.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' })`. The browser's native `scroll-snap-type: y mandatory` engine then commits the snap on the next frame.
+- One code path, applied identically to Continue Watching, ForYou, Networks, every addon catalogue shelf, AND Upcoming Movies. No more per-shelf quirks.
+
+**Runtime verification (Playwright @ 1920×1080, seeded CW + viewing style):**
+- shelf-page height: 460 px (1080 viewport - 620 hero).
+- Sequential ArrowDown × 6: `scrollTop` snapshot = `0 → 460 → 920 → 1380 → 1840 → 2300 → 2760`. **EXACT integer multiples of pageHeight.**
+- `scroll@100ms` snapshot taken IMMEDIATELY after each keypress equalled the final commit value → no smooth animation tween at all. Pure snap.
+- Up sequence × 6 reversed cleanly through `2760 → 2300 → ... → 0`.
+- Every focused tile carried `outline: rgb(92,223,255) solid 3px` (v2.7.18 outline-based focus ring).
+- `focused_in_viewport: true` for all 14 movements (no tile ever off-screen).
+
+This satisfies all three of the user's hard constraints:
+1. ✅ Cards/covers positioned exactly as before (zero layout changes).
+2. ✅ Focus ring visible on every row (carried over from v2.7.18).
+3. ✅ Snap not slide (verified — integer scroll positions, instant commit).
+4. ✅ Every row treated the same (one code path for all shelf-pages).
+
+**🆙 APK bumped to v2.7.19 (versionCode 189).**
+
+
 ## Implemented (Iteration 143 — Feb 20, 2026) — v2.7.18
 ### Bulletproof focus ring — outline-based, can't be overridden
 

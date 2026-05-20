@@ -548,6 +548,31 @@ export default function useSpatialFocus() {
                 el.closest('[data-no-row-snap="true"]') ||
                 vs.closest?.('[data-no-row-snap="true"]');
             if (skipRowPin) return;
+
+            /* v2.7.19 — Snap-row fast-path.  When the focused tile
+             * lives inside a `[data-testid="shelf-page"]` (Home's
+             * snap-container layout), bypass the pixel-pin scroll
+             * math entirely and let the browser's native
+             * `scroll-snap-type: y mandatory` engine do the work.
+             * We just call `scrollIntoView({block:'center'})` on
+             * the snap-page parent — the browser commits the snap
+             * on the next frame, instant cut, no slide, identical
+             * behaviour for every row (Continue Watching, Networks,
+             * For You, addon catalogues, Upcoming).  This is the
+             * "treat every row the same way" guarantee the user
+             * explicitly asked for. */
+            const snapPage = el.closest('[data-testid="shelf-page"]');
+            if (snapPage) {
+                try {
+                    snapPage.scrollIntoView({
+                        behavior: 'auto',
+                        block: 'center',
+                        inline: 'nearest',
+                    });
+                } catch { /* ignore */ }
+                return;
+            }
+
             // Pin the TOP edge of the focused row roughly a fifth of
             // the way down so the shelf eyebrow + title above it is
             // always visible AND the focus ring isn't clipped.

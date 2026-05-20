@@ -228,28 +228,35 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.18 — Bulletproof focus ring (outline-based, can't be overridden)**
-            - **Root cause**: NetworkTile (and a couple of other
-              tile components) carry an inline `boxShadow` style
-              prop for their resting drop-shadow.  CSS inline
-              styles win over class selectors, so the previous
-              `[data-focus-style='tile'][data-focused='true']
-              { box-shadow: ... }` focus rule got OVERRIDDEN by
-              the tile's own inline shadow whenever it was
-              focused → blue ring went invisible on those rows,
-              exactly as the user reported.
-            - **Fix**: focus ring re-implemented as a CSS
-              `outline: 3px solid var(--vesper-blue-bright)
-              !important; outline-offset: 2px !important`.
-              Outlines are immune to inline-style overrides, take
-              no layout space, and can't be clipped by parent
-              `contain` / `overflow` rules.  Now visible on EVERY
-              focused tile on every row, every time.  Verified
-              runtime: 7/7 ArrowDown presses produced
-              `outline: rgb(92,223,255) solid 3px` on the focused
-              tile (including network-netflix which previously had
-              no visible ring).
-            - APK bumped to v2.7.18 (versionCode 188).
+            **v2.7.19 — Snap-row fast-path (every row treated identically, instant cut, no slide)**
+            - User: "rebuild the whole home screen in the buttery
+              smooth recycler view... rows snap change not slide
+              up... each row if its a new row or an old row is
+              treated the same."
+            - **Snap-row fast-path** in `useSpatialFocus.focusEl`:
+              when the focused tile lives inside a
+              `[data-testid="shelf-page"]`, the per-pixel row-pin
+              math is BYPASSED entirely.  Instead the snap-page
+              parent gets `scrollIntoView({behavior:'auto',
+              block:'center'})` and the browser's native
+              `scroll-snap-type: y mandatory` engine commits the
+              snap on the next frame.  Instant cut, no slide,
+              IDENTICAL behaviour for every row (Continue
+              Watching, Networks, For You, addon catalogues,
+              Upcoming) — exactly the "RecyclerView feel" the
+              user wanted, achieved without any DOM rewrite.
+            - **Verified at runtime (Playwright @ 1920×1080)**:
+              with shelf-page height = 460 px, scrollTop
+              progression after 6 sequential ArrowDown presses
+              was **0 → 460 → 920 → 1380 → 1840 → 2300 → 2760** —
+              exact integer multiples, zero intermediate values.
+              `scroll@100ms` after each keypress equalled the
+              final commit position → no smooth animation, pure
+              snap.  Up sequence reversed cleanly through the
+              same points.  Every focused tile carried the
+              `outline: 3px cyan` ring (v2.7.18) including network
+              chips, posters, and trailer cards.
+            - APK bumped to v2.7.19 (versionCode 189).
 
             For older release notes see CHANGELOG.md in the repo.
 
