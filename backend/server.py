@@ -1830,7 +1830,12 @@ async def tmdb_upcoming_movies(
             "title": item.get("title") or item.get("name") or "",
             "poster": f"{TMDB_IMG}/w500{item['poster_path']}",
             "backdrop": (
-                f"{TMDB_IMG}/original{item['backdrop_path']}"
+                # v2.7.15 — was /original/ (~2-4 MB per image,
+                # caused chunky scroll on the upcoming-trailers
+                # rail).  /w780 is plenty for a 380×214 card and
+                # cuts payload by ~80%.
+                # cuts payload by ~80%.
+                f"{TMDB_IMG}/w780{item['backdrop_path']}"
                 if item.get("backdrop_path") else None
             ),
             "year": rel[:4] if rel else "",

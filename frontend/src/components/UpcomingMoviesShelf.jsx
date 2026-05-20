@@ -193,10 +193,11 @@ function TrailerCard({ item, onOpen }) {
                     src={art}
                     alt={item.title}
                     loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
                     className="absolute inset-0 w-full h-full object-cover"
                     style={{
                         opacity: 0.92,
-                        transition: 'transform 480ms cubic-bezier(.16,1,.3,1), opacity 200ms',
                     }}
                 />
             )}
@@ -275,15 +276,11 @@ function TrailerCard({ item, onOpen }) {
                 [data-testid="upcoming-trailer-${item.tmdb_id}"][data-focused="true"] [data-play-badge] {
                     opacity: 1;
                 }
-                [data-testid="upcoming-trailer-${item.tmdb_id}"]:hover img,
-                [data-testid="upcoming-trailer-${item.tmdb_id}"][data-focused="true"] img {
-                    transform: scale(1.03);
-                }
-                /* v2.7.13 — DELIBERATELY no :focus rule here.  We
-                 * use the global [data-focus-style=tile] styles in
-                 * index.css so the trailer card gets the SAME blue
-                 * glow + scale(1.08) treatment as Continue Watching
-                 * tiles, per user spec (trailers need same as cw). */
+                /* v2.7.15 — DELIBERATELY no img scale on focus.  The
+                 * global [data-focus-style=tile] already scales the
+                 * whole card by 1.08; layering another img scale on
+                 * top caused the chunky scroll/flicker the user
+                 * reported on the upcoming-trailers rail. */
             `}</style>
         </button>
     );

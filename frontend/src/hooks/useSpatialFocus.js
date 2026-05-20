@@ -588,12 +588,43 @@ export default function useSpatialFocus() {
 
             // Edge-of-page fallbacks
             if (dir === 'left') {
+                /* v2.7.15 — strict rule per user spec: Left at the
+                 * left edge of a rail goes to the side-nav ONLY
+                 * from the Continue Watching (first) shelf-page.
+                 * From any other shelf (Networks, For You, addon
+                 * catalogues, Upcoming Movies, etc.) Left STOPS —
+                 * the focus stays on the leftmost tile.  Prevents
+                 * the "I went into Popular Movies and now my focus
+                 * is in the menu" surprise the user reported. */
                 const navItems = document.querySelectorAll(
                     `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                 );
                 const inNav = active.closest(NAV_RAIL);
                 if (!inNav && navItems.length > 0) {
-                    focusEl(navItems[0], 'left');
+                    const curPage = active.closest('[data-testid="shelf-page"]');
+                    if (curPage) {
+                        // Only allow nav escape from the FIRST shelf
+                        // page (Continue Watching).  Detect by DOM
+                        // order: no preceding shelf-page sibling.
+                        let prev = curPage.previousElementSibling;
+                        let isFirstShelf = true;
+                        while (prev) {
+                            if (prev.matches('[data-testid="shelf-page"]')) {
+                                isFirstShelf = false;
+                                break;
+                            }
+                            prev = prev.previousElementSibling;
+                        }
+                        if (isFirstShelf) {
+                            focusEl(navItems[0], 'left');
+                        }
+                        // Else: do nothing — focus stays put.
+                    } else {
+                        // No shelf-page ancestor (e.g. Library /
+                        // Settings page) — preserve legacy escape
+                        // behaviour so non-home pages still work.
+                        focusEl(navItems[0], 'left');
+                    }
                 }
             } else if (dir === 'up') {
                 const vs = verticalScroller(active) || document.scrollingElement;
@@ -636,12 +667,59 @@ export default function useSpatialFocus() {
             } else if (dir === 'right') {
                 const inNav = active.closest(NAV_RAIL);
                 if (inNav) {
-                    const all = focusables();
-                    const firstContent = all.find(
-                        (el) => !el.closest(NAV_RAIL)
+                    /* v2.7.15 — Right-from-nav: jump to the CURRENTLY
+                     * VISIBLE shelf-page's tile (bookmarked or first),
+                     * not the document's first focusable.  Earlier we
+                     * picked `focusables().find(el => !el.closest(NAV))`
+                     * which always returned the Hero Play button at
+                     * the top of Home — fine when not scrolled, but
+                     * once the user had snap-scrolled down to e.g.
+                     * "Popular Movies", Right would yank focus back
+                     * to a Hero button that was off-screen and the
+                     * `:focus-visible` styling never painted (user
+                     * reported "focus border disappears").  Now we
+                     * find the shelf-page whose centre intersects the
+                     * viewport centre and target its bookmark/first
+                     * focusable. */
+                    const region = document.querySelector(
+                        '[data-testid="shelves-region"]'
                     );
-                    if (firstContent) {
-                        focusEl(firstContent, 'right');
+                    let pick = null;
+                    if (region) {
+                        const regionRect = region.getBoundingClientRect();
+                        const probeY = regionRect.top + regionRect.height / 2;
+                        const pages = Array.from(
+                            region.querySelectorAll('[data-testid="shelf-page"]')
+                        );
+                        const visible = pages.find((p) => {
+                            const r = p.getBoundingClientRect();
+                            return r.top <= probeY && r.bottom >= probeY;
+                        }) || pages[0];
+                        if (visible) {
+                            const rail = visible.querySelector(
+                                '.vesper-shelf, [data-shelf-rail]'
+                            );
+                            if (rail && rail.__lastFocusedKey) {
+                                pick = rail.querySelector(
+                                    `[data-testid="${rail.__lastFocusedKey}"]`
+                                );
+                            }
+                            if (!pick) {
+                                pick = visible.querySelector(
+                                    '[data-focusable="true"]:not([disabled])'
+                                );
+                            }
+                        }
+                    }
+                    if (!pick) {
+                        // Off-home pages (Library, Settings, Detail)
+                        // — fall back to the legacy "first content
+                        // focusable" behaviour.
+                        const all = focusables();
+                        pick = all.find((el) => !el.closest(NAV_RAIL));
+                    }
+                    if (pick) {
+                        focusEl(pick, 'right');
                     }
                 }
             }
