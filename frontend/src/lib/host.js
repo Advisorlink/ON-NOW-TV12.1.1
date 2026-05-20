@@ -53,6 +53,12 @@ const Host = (() => {
         partyWsUrl,
         partyAvatarEmoji,  // single emoji char ('🦁') used for reactions
         partyDisplayName,  // 'Mum', 'Test', etc.
+        // v2.7.25 — Alternate streams + current index for the
+        // in-player stream picker overlay.  Pressing MENU/INFO
+        // inside the player shows the list; OK swaps without
+        // leaving the player.
+        streamsList,
+        currentStreamIdx,
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
@@ -92,6 +98,17 @@ const Host = (() => {
         // Prefer the rich bridge (passes cinematic preview meta).
         if (isAndroid && typeof a.playInternalRich === 'function') {
             try {
+                /* v2.7.25 — Serialize alternate streams (label + url
+                 * + optional infoHash) so the native player can
+                 * surface an in-player picker overlay.  Keep label
+                 * ≤ 200 chars to bound the JSON size. */
+                const streamsJson = Array.isArray(streamsList) && streamsList.length > 0
+                    ? JSON.stringify(streamsList.map((s) => ({
+                        label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
+                        url: s.url || '',
+                        infoHash: s.infoHash || null,
+                    })))
+                    : '';
                 a.playInternalRich(
                     url,
                     title || '',
@@ -105,7 +122,9 @@ const Host = (() => {
                     Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
                     type || '',
                     typeof startAtMs === 'number' ? Math.floor(startAtMs) : 0,
-                    cwId || ''
+                    cwId || '',
+                    streamsJson,
+                    typeof currentStreamIdx === 'number' ? currentStreamIdx : -1
                 );
                 return true;
             } catch {

@@ -153,6 +153,21 @@ class VlcPlayerActivity : AppCompatActivity() {
     private var contentType: String? = null
     private var isSeries: Boolean = false
     private var skipIntroShown: Boolean = false
+
+    /* v2.7.25 — in-player stream picker.  `streamsList` holds the
+     * full alternate-streams payload sent from the web layer so the
+     * user can swap streams from inside the player (handy when a
+     * particular stream stalls or shows wrong content).  Menu /
+     * Info / `S` keys open the picker overlay. */
+    data class AltStream(
+        val label: String,
+        val url: String,
+        val infoHash: String?
+    )
+    private val streamsList: MutableList<AltStream> = mutableListOf()
+    private var currentStreamIdx: Int = -1
+    private var streamPickerVisible: Boolean = false
+    private var streamPickerFocusedIdx: Int = 0
     private var skipIntroDismissed: Boolean = false
     private var startAtMs: Long = 0L
     private var hasSeekedToStart: Boolean = false
@@ -385,6 +400,36 @@ class VlcPlayerActivity : AppCompatActivity() {
         partyDisplayName = intent.getStringExtra(EXTRA_PARTY_DISPLAY_NAME)
             ?.takeIf { it.isNotBlank() }
             ?: partyRole.replaceFirstChar { it.titlecase() }
+
+        /* v2.7.25 — parse the alt-streams JSON the web layer
+         * passes via `playInternalRich`.  Each entry has a
+         * `label` (Stremio stream.title || stream.name) and a
+         * `url`.  Optional `infoHash` for magnet streams.  We
+         * parse with minimal JSON so we don't pull in a heavy
+         * library — the payload is always well-formed because
+         * the web layer JSON.stringifies it before sending. */
+        val streamsJson = intent.getStringExtra(EXTRA_STREAMS_JSON)
+        currentStreamIdx = intent.getIntExtra(EXTRA_CURRENT_STREAM_IDX, -1)
+        if (!streamsJson.isNullOrBlank()) {
+            try {
+                val arr = org.json.JSONArray(streamsJson)
+                streamsList.clear()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    streamsList.add(
+                        AltStream(
+                            label = o.optString("label", "(untitled)"),
+                            url = o.optString("url", ""),
+                            infoHash = o.optString("infoHash", null)
+                                ?.takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+                streamPickerFocusedIdx = currentStreamIdx.coerceAtLeast(0)
+            } catch (e: Exception) {
+                android.util.Log.w("Vlc", "stream list parse failed: $e")
+            }
+        }
 
         if (streamUrl.isNullOrBlank()) {
             finish()
@@ -1876,6 +1921,208 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
 
+    /* ============================================================
+     * In-player stream picker overlay (v2.7.25)
+     * Listed streams come from the web layer via EXTRA_STREAMS_JSON.
+     * Renders a darkened scrim + a centred card with all alternate
+     * stream labels.  D-pad walks the list; OK swaps to that stream
+     * by stopping the player, replacing the Media URL, and starting
+     * playback again.  Keeps playback position best-effort.
+     * ============================================================ */
+    private var streamPickerOverlay: android.widget.FrameLayout? = null
+    private var streamPickerList: android.widget.LinearLayout? = null
+
+    private fun showStreamPicker() {
+        if (streamsList.isEmpty()) return
+        streamPickerVisible = true
+        if (streamPickerOverlay == null) {
+            buildStreamPickerOverlay()
+        }
+        streamPickerOverlay?.visibility = android.view.View.VISIBLE
+        renderStreamPicker()
+    }
+
+    private fun hideStreamPicker() {
+        streamPickerVisible = false
+        streamPickerOverlay?.visibility = android.view.View.GONE
+    }
+
+    private fun buildStreamPickerOverlay() {
+        val root = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
+        // Scrim
+        val scrim = android.widget.FrameLayout(this).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(0xCC000810.toInt())
+            isFocusable = false
+            isClickable = true
+        }
+        // Card (centred)
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val cardW = (resources.displayMetrics.widthPixels * 0.5f).toInt()
+            val cardH = (resources.displayMetrics.heightPixels * 0.7f).toInt()
+            val lp = android.widget.FrameLayout.LayoutParams(cardW, cardH).apply {
+                gravity = android.view.Gravity.CENTER
+            }
+            layoutParams = lp
+            setBackgroundResource(R.drawable.bg_stream_picker_card)
+            setPadding(36, 28, 36, 24)
+        }
+        // Header
+        val header = android.widget.TextView(this).apply {
+            text = "AVAILABLE STREAMS"
+            setTextColor(0xFF5DC8FF.toInt())
+            textSize = 11f
+            letterSpacing = 0.25f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, 8)
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "Choose a stream to test"
+            setTextColor(0xFFE6EAF2.toInt())
+            textSize = 20f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, 18)
+        }
+        // Scrolling list
+        val scroll = android.widget.ScrollView(this).apply {
+            isFocusable = false
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        streamPickerList = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+        scroll.addView(streamPickerList)
+
+        // Footer hint
+        val hint = android.widget.TextView(this).apply {
+            text = "▲▼ to scroll · OK to play · BACK to close"
+            setTextColor(0xFF7C8497.toInt())
+            textSize = 11f
+            letterSpacing = 0.15f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 16, 0, 0)
+        }
+        card.addView(header)
+        card.addView(title)
+        card.addView(scroll)
+        card.addView(hint)
+        scrim.addView(card)
+        root.addView(scrim)
+        streamPickerOverlay = scrim
+        scrim.visibility = android.view.View.GONE
+    }
+
+    private fun renderStreamPicker() {
+        val list = streamPickerList ?: return
+        list.removeAllViews()
+        for ((idx, s) in streamsList.withIndex()) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = if (idx == 0) 0 else 8 }
+                layoutParams = lp
+                setPadding(18, 14, 18, 14)
+                background = if (idx == streamPickerFocusedIdx) {
+                    streamPickerFocusedDrawable(idx == currentStreamIdx)
+                } else if (idx == currentStreamIdx) {
+                    streamPickerCurrentDrawable()
+                } else {
+                    streamPickerRestingDrawable()
+                }
+            }
+            val labelText = s.label.take(140)
+            val tv = android.widget.TextView(this).apply {
+                text = labelText
+                setTextColor(0xFFE6EAF2.toInt())
+                textSize = 13f
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            row.addView(tv)
+            if (idx == currentStreamIdx) {
+                val badge = android.widget.TextView(this).apply {
+                    text = "● CURRENT"
+                    setTextColor(0xFF06080F.toInt())
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    letterSpacing = 0.14f
+                    setPadding(10, 4, 10, 4)
+                    setBackgroundColor(0xFF5DC8FF.toInt())
+                }
+                row.addView(badge)
+            }
+            list.addView(row)
+        }
+        // Try to scroll the focused row into view.
+        list.post {
+            val focusedView = list.getChildAt(streamPickerFocusedIdx) ?: return@post
+            val scrollParent = list.parent as? android.widget.ScrollView ?: return@post
+            scrollParent.smoothScrollTo(0, focusedView.top - 100)
+        }
+    }
+
+    private fun streamPickerFocusedDrawable(isCurrent: Boolean): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 12f
+            setColor(if (isCurrent) 0xFF0E2A3E.toInt() else 0xFF12253C.toInt())
+            setStroke(3, 0xFF5DC8FF.toInt())  // cyan focus ring
+        }
+    }
+
+    private fun streamPickerCurrentDrawable(): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 12f
+            setColor(0xCC0D121C.toInt())
+            setStroke(2, 0xFF5DC8FF.toInt())
+        }
+    }
+
+    private fun streamPickerRestingDrawable(): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 12f
+            setColor(0xCC0D121C.toInt())
+            setStroke(1, 0x33FFFFFF)
+        }
+    }
+
+    private fun pickStream(idx: Int) {
+        val pick = streamsList.getOrNull(idx) ?: return
+        if (idx == currentStreamIdx) {
+            hideStreamPicker()
+            return
+        }
+        // Save current position to resume on the new stream when
+        // possible (only meaningful for the same movie, which is
+        // exactly what alternate streams are for).
+        val resumeMs = try { mediaPlayer.time } catch (_: Exception) { 0L }
+        currentStreamIdx = idx
+        streamUrl = pick.url
+        hideStreamPicker()
+        try {
+            mediaPlayer.stop()
+        } catch (_: Exception) { /* ignore */ }
+        startAtMs = resumeMs.coerceAtLeast(0L)
+        startPlayback()
+    }
+
+
+
 
     /**
      * Netflix-style "Skip Intro" pill.  Shows for TV series between
@@ -2223,6 +2470,54 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        /* v2.7.25 — In-player stream picker.  Pressing MENU / INFO
+         * opens the picker overlay listing all alternate streams
+         * received from the web layer.  While the overlay is open,
+         * UP/DOWN walks the list, OK swaps to that stream, BACK
+         * closes.  Skip when no alt streams are available. */
+        if (streamsList.size > 1) {
+            if (!streamPickerVisible) {
+                if (keyCode == KeyEvent.KEYCODE_MENU
+                    || keyCode == KeyEvent.KEYCODE_INFO
+                    || keyCode == KeyEvent.KEYCODE_GUIDE
+                    || keyCode == KeyEvent.KEYCODE_S
+                ) {
+                    showStreamPicker()
+                    return true
+                }
+            } else {
+                // Picker is up — own all keys.
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        streamPickerFocusedIdx =
+                            (streamPickerFocusedIdx - 1 + streamsList.size) % streamsList.size
+                        renderStreamPicker()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        streamPickerFocusedIdx =
+                            (streamPickerFocusedIdx + 1) % streamsList.size
+                        renderStreamPicker()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                        pickStream(streamPickerFocusedIdx)
+                        return true
+                    }
+                    KeyEvent.KEYCODE_BACK,
+                    KeyEvent.KEYCODE_ESCAPE,
+                    KeyEvent.KEYCODE_MENU,
+                    KeyEvent.KEYCODE_INFO -> {
+                        hideStreamPicker()
+                        return true
+                    }
+                    else -> return true  // swallow everything else
+                }
+            }
+        }
+
         // Watch-Together: emoji reactions — single TAP (v2.6.70).
         // The host's LOCK button + the guest's view-only mode together
         // mean stray D-pad presses can't affect playback anymore, so
@@ -2524,5 +2819,13 @@ class VlcPlayerActivity : AppCompatActivity() {
         const val EXTRA_PARTY_AVATAR_EMOJI = "partyAvatarEmoji"
         const val EXTRA_PARTY_DISPLAY_NAME = "partyDisplayName"
         const val EXTRA_AUDIO_URL = "audioUrl"  // YouTube HD audio slave
+        // v2.7.25 — stream picker overlay support.  EXTRA_STREAMS_JSON
+        // carries the full list of alternate streams (label + url +
+        // optional infoHash) as JSON.  EXTRA_CURRENT_STREAM_IDX is
+        // the index of the stream we're currently playing.  Menu /
+        // Info key in-player shows an overlay listing them; selecting
+        // one swaps the source via libVLC without leaving the player.
+        const val EXTRA_STREAMS_JSON = "streamsJson"
+        const val EXTRA_CURRENT_STREAM_IDX = "currentStreamIdx"
     }
 }

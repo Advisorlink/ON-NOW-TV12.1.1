@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.25 — Stream picker always reachable + in-player stream switcher
+- **"Choose stream" button is now always visible** on the movie Detail page whenever streams are available, regardless of Autoplay setting. Was previously gated behind Autoplay-OFF — the popup itself was working, but the user couldn't reach it with Autoplay ON.
+- **NEW — In-player stream picker overlay** (native Kotlin, `VlcPlayerActivity`). MENU / INFO / GUIDE / `S` key opens a centred overlay listing every alt stream. ▲▼ walks the list, OK swaps the URL via libVLC stop + restart (best-effort resume from same position), BACK closes. The full streams list is passed from the web layer to the native player through `playInternalRich`'s new `streamsJson` + `currentStreamIdx` extras.
+- **WebAppInterface.playInternalRich**: added trailing `streamsJson` (JSON string of `{label, url, infoHash}` rows) and `currentStreamIdx` arguments. Backward-compatible thanks to Kotlin default parameter values.
+
 ## v2.7.24 — Rows nudged down (hero untouched)
 - **Rows moved down 8 px**: `ShelfPage` `paddingBottom: 8 → 0`. Each row's bottom edge sits flush at viewport bottom.
 - **Hero untouched** per user explicit instruction. Stayed at v2.7.23 settings (`clamp(380, 50vh, 540)`).

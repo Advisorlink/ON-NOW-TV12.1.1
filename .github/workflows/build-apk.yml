@@ -228,14 +228,28 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.24 — Rows nudged down (hero untouched)**
-            - User: "STOP TOUCHING THE HERO SECTION AND JUST MOVE
-              THE ROWS down a tiny bit."
-            - ShelfPage `paddingBottom` 8 → 0.  Each row's bottom
-              edge now sits flush at the viewport bottom (was
-              8 px above).  Hero left exactly as it was in
-              v2.7.23 (clamp 380 / 50vh / 540).
-            - APK bumped to v2.7.24 (versionCode 194).
+            **v2.7.25 — Stream picker actually works + in-player stream switcher**
+            - **"Choose stream" button is now ALWAYS visible** on
+              movie Detail when streams are available, regardless
+              of Autoplay setting.  Sits as a secondary pill next
+              to the Autoplay button.  Shows `(N)` stream count.
+              Click → opens the centred popup (the picker IS
+              working — it was just gated behind Autoplay-OFF
+              before, hence the user couldn't reach it with
+              Autoplay ON).
+            - **NEW: In-player stream picker overlay** (native
+              Kotlin).  Press the **MENU**, **INFO**, or **GUIDE**
+              key (or **S**) on your remote while a movie is
+              playing to bring up a centred overlay listing every
+              alternate stream.  ▲▼ to walk, OK to swap, BACK to
+              close.  The player stops, swaps the source URL,
+              resumes from the same position best-effort.  No
+              need to exit back to the Detail page when a stream
+              dies.
+            - Full streams list is now passed from the web layer
+              to the native player via `playInternalRich`'s new
+              `streamsJson` argument (plus `currentStreamIdx`).
+            - APK bumped to v2.7.25 (versionCode 195).
 
             For older release notes see CHANGELOG.md in the repo.
 

@@ -94,7 +94,9 @@ class WebAppInterface(private val activity: Activity) {
         genres: String?,
         type: String?,
         startAtMs: Long,
-        cwId: String?
+        cwId: String?,
+        streamsJson: String? = null,
+        currentStreamIdx: Int = -1
     ) {
         if (url.isBlank()) return
         activity.runOnUiThread {
@@ -113,6 +115,11 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
                     putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
                     putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
+                    // v2.7.25 — pass the full streams list + current
+                    // index so the user can swap streams from inside
+                    // the player (Menu key opens the picker overlay).
+                    putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
+                    putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 activity.startActivity(intent)

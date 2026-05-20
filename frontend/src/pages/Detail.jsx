@@ -1370,6 +1370,11 @@ export default function Detail() {
                     partyDisplayName: partyCode
                         ? ((getActiveProfile() || {}).name || (partyRoleLocal === 'host' ? 'Host' : 'Guest'))
                         : undefined,
+                    // v2.7.25 — pass full streams list + the index
+                    // we're about to play, so the native player can
+                    // surface its in-player picker overlay.
+                    streamsList: streams,
+                    currentStreamIdx: streams.findIndex((s) => s === stream),
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});
@@ -1833,6 +1838,46 @@ export default function Detail() {
                                     </>
                                 )}
                             </button>
+                            {/* v2.7.25 — Choose stream is ALWAYS
+                                available on movie detail when there
+                                are streams, regardless of Autoplay
+                                setting.  User reported the popup
+                                "isn't working" because with Autoplay
+                                ON they had no way to open the
+                                picker.  Now it's a secondary pill
+                                next to Autoplay. */}
+                            {streams && streams.length > 0 && (
+                                <button
+                                    data-testid="detail-choose-stream"
+                                    data-focusable="true"
+                                    data-focus-style="pill"
+                                    tabIndex={0}
+                                    onClick={openStreamPicker}
+                                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                                    style={{
+                                        height: 'clamp(50px, 4vw, 60px)',
+                                        paddingLeft: 'clamp(22px, 1.6vw, 30px)',
+                                        paddingRight: 'clamp(22px, 1.6vw, 30px)',
+                                        fontSize: 'clamp(14px, 1.05vw, 17px)',
+                                        background: 'rgba(255,255,255,0.10)',
+                                        color: 'var(--vesper-text)',
+                                        border: '1px solid rgba(255,255,255,0.18)',
+                                    }}
+                                >
+                                    Choose stream
+                                    <span
+                                        className="vesper-mono"
+                                        style={{
+                                            fontSize: 11,
+                                            opacity: 0.7,
+                                            letterSpacing: '0.06em',
+                                            marginLeft: 4,
+                                        }}
+                                    >
+                                        ({streams.length})
+                                    </span>
+                                </button>
+                            )}
                             <TrailerPill
                                 onClick={openTrailer}
                                 loading={trailerLoading}
