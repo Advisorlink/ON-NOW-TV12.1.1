@@ -55,6 +55,23 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 134 — Feb 20, 2026) — v2.7.09
+### GitHub Actions build fix — "Argument list too long" on release publish
+
+User reported the GitHub Actions APK build failing at the "Publish/update apk-latest Release" step with `An error occurred trying to start process … Argument list too long`. Screenshot confirms it.
+
+**Root cause:** the `body:` field passed to `softprops/action-gh-release@v2` had grown to ~161,000 chars across 30+ accumulated version notes. When the action shelled out, the runner's exec hit Linux's `ARG_MAX` limit (typically 128 KB).
+
+**Fix:**
+- Truncated the inline `body:` in `/app/.github/workflows/build-apk.yml` to only the latest version's notes (now 1,291 chars — 125× smaller).
+- Migrated older release notes (v2.6.99 through v2.7.08) into `/app/CHANGELOG.md` at the repo root, referenced from the release body.
+- YAML parses cleanly; workflow file went from 2,965 lines → 340 lines.
+
+**APK bumped to v2.7.09 (versionCode 179)** so the new build kicks in and the release publish actually succeeds on next push.
+
+**Convention going forward:** every new version appends a NEW short block to the `body:` inline and migrates the previous block into CHANGELOG.md. This limit can never re-trigger.
+
+
 ## Implemented (Iteration 133 — Feb 20, 2026) — v2.7.08
 ### One row per page — full CSS scroll-snap (no more peek-through)
 

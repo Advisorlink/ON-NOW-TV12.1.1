@@ -1,0 +1,93 @@
+# ON NOW TV V2 — Changelog
+
+Release notes for the Android TV APK build (`apk-latest`).  This file
+is the authoritative changelog; the GitHub Release body shows only the
+latest version to avoid the workflow's `Argument list too long` shell
+limit.
+
+Latest version is shown in `app/build.gradle.kts` (`versionName`).
+
+## v2.7.08 — One row per page: full scroll-snap
+- Every home-screen shelf is wrapped in a new `ShelfPage` component
+  with `min-height: calc(100dvh - 480px)` and the shelves-region uses
+  `scroll-snap-type: y mandatory` + `scroll-snap-stop: always`.
+  D-pad-Down slides the next row fully in, the previous one fully
+  out — nothing else peeks through.
+- Each ShelfPage uses flex + `justify-content: center` so the focus-
+  scale 1.08x has equal headroom top + bottom (never clips).
+
+## v2.7.07 — Player buffering fix + UI fitting fixes
+- **Critical:** revised `is4K()` so HDR-tagged 1080p streams (e.g. Plex
+  1080p HDR Blu-rays) are no longer mis-classified as 4K.  Solo
+  autoplay was rejecting these and falling back to torrents that
+  buffered.  Explicit `1080p` token now wins over HDR/DV markers.
+- Hero billboard shrunk `clamp(340, 50vh, 540) → clamp(320, 45vh,
+  480)` so the "Similar to what you love" eyebrow stops being clipped
+  by projector overscan.
+- Library section eyebrows offset `marginLeft: 36` to align with the
+  heading text instead of the icon.
+- M14 Live Guide: scrim darkened to near-opaque, guide_root gained a
+  solid dark backstop, so live VLC video no longer bleeds through.
+- M14: On Now + Next cards fall back to channel logo / "—" placeholder
+  when the channel has no EPG data.
+
+## v2.7.06 — M14 Option B (right-side info panel)
+- Persistent 568dp right-side info panel on the M14 Live Guide:
+  channel logo (above), 92sp channel name, LIVE NOW pill, Now Playing
+  block (title + time + remaining), TMDB synopsis (under).
+- `bindTmdbSynopsis()` mirrors the backdrop loader: 256-entry LRU +
+  negative cache, race-safe via View tag.
+
+## v2.7.05 — Cleaner M14 stage
+- Hid the full-screen `detail_backdrop` so the focused channel's logo
+  no longer paints across the entire screen.  Only the rail cards
+  carry TMDB backdrops.
+
+## v2.7.04 — M14 rail TMDB backdrops
+- "On Now" + four "Coming Up Next" cards on the M14 bottom rail now
+  show the actual programme's TMDB backdrop behind a dark legibility
+  gradient.  Plex/Netflix Up-Next feel.
+- New `bindTmdbBackdrop()` helper: hits `/api/tmdb/search`, picks the
+  first movie/tv hit's backdrop, caches in LRU with negative cache,
+  fades in over 240ms.
+
+## v2.7.03 — M14 Live Guide native rewrite
+- Full native rewrite of the LiveGuideController + activity_vlc_player
+  XML to match the M14 reference design: top header (logo + name +
+  LIVE pill + clock), vertical channel list (focused row scales
+  1.12x with elevation glow), bottom rail with "On Now" card + four
+  Next cards.
+- Cinematic open/close: header drops from above, list cross-fades,
+  rail rises from below.
+- All retired view IDs kept as 0×0 stubs for backward compatibility.
+
+## v2.7.02 — Only ONE focus ring at a time
+- `useSpatialFocus.setFocusAttr` now does a document-wide sweep of
+  `[data-focused="true"]` and `[data-holding="true"]` so stale
+  attributes from cross-component focus priming can't paint a second
+  ring on screen.
+- Reverted v2.7.01's eyebrow colour mute — brand-blue
+  `.vesper-eyebrow` restored.
+
+## v2.7.01 — CW cards fit projector safe-area
+- Hero shrunk to `clamp(340, 50vh, 540)`; CW shelf paddingTop tightened
+  to `clamp(18, 2vw, 32)` so the row sits ~80px higher.  Tile bottom
+  comfortably above the projector's overscan line.
+
+## v2.7.00 — Continue Watching stacking-context fix
+- `.vesper-shelf-section:has([data-focused="true"]) { z-index: 20 }`
+  lifts the active shelf above its siblings.  Free win across all
+  rows — focus scale + glow no longer clipped by the next shelf.
+- CW tile internal layout rewritten as a single flex column at
+  bottom:14 (play badge inline with title, "X LEFT" beneath, 4px
+  progress bar flush at the bottom).
+
+## v2.6.99 — Hero spatial-nav double-fire fix
+- Added `if (e.defaultPrevented) return;` at the top of the global
+  `useSpatialFocus` onKey handler.  Hero ArrowRight no longer
+  double-fires (was firing once for the local hero handler AND once
+  for the global engine, because React's `e.stopPropagation()` on
+  synthetic events doesn't stop the native event from reaching
+  window-level listeners).
+
+For earlier versions consult the GitHub Releases archive.
