@@ -7,6 +7,10 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.23 — More breathing room below hero + bigger network tiles
+- **Hero shrunk further**: `clamp(400, 55vh, 590)` → `clamp(380, 50vh, 540)` (-50 px at 1080p). Verified runtime: gap from Play button bottom → next row heading top now ~287 px (was ~80 px).
+- **Network tiles bigger**: `clamp(180, 15vw, 260)` → `clamp(220, 18vw, 310)` (+50 px width). Border-radius 18 → 20 to match.
+
 ## v2.7.22 — Cards down a touch + Stream picker is now a centered popup
 - **Cards moved down 12 px**: `ShelfPage` `paddingBottom: 20` → `8`. Cards sit closer to the bottom edge of the snap-page, giving the heading more breathing room above. Verified runtime: `paddingBottom: 8px`, 6 shelf-pages all rendering correctly.
 - **`<StreamPickerModal/>`**: new component (`/app/frontend/src/components/StreamPickerModal.jsx`). Centred popup with cinematic blurred backdrop (same recipe as `StreamUnavailableModal`). Scrollable streams list. **First stream auto-focused on open** via `useEffect` + `requestAnimationFrame` (mounts → focus first `[data-testid^="modal-stream-"]`). Currently-playing stream shows the `● CURRENT` badge + cyan border inside the modal. ESC / Backspace closes.

@@ -120,9 +120,9 @@ function NetworkTile({ net, logo, onClick }) {
             onClick={onClick}
             className="group relative shrink-0 overflow-hidden text-left"
             style={{
-                width: 'clamp(180px, 15vw, 260px)',
+                width: 'clamp(220px, 18vw, 310px)',
                 aspectRatio: '16 / 9',
-                borderRadius: 18,
+                borderRadius: 20,
                 background: net.background,
                 border: '1px solid rgba(255,255,255,0.08)',
                 boxShadow:

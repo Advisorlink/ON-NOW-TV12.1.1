@@ -228,21 +228,17 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.22 — Cards down a touch + Stream picker is now a centered popup**
-            - **Cards moved down 12 px**: `ShelfPage`
-              `paddingBottom` 20 → 8.  Cards now sit even closer
-              to the bottom edge of the snap-page, giving the
-              heading more breathing room above.
-            - **Stream picker is now a centered modal popup**.
-              Clicking "Choose stream" on a movie's Detail page
-              (Autoplay OFF) opens a centred popup with the
-              cinematic blurred backdrop, the streams list, and
-              an auto-focused first stream — D-pad walks through,
-              OK plays, BACK closes.  Currently-playing stream
-              shows the "● CURRENT" badge + cyan border inside
-              the modal too, so you can swap streams to diagnose
-              broken playback without leaving the page.
-            - APK bumped to v2.7.22 (versionCode 192).
+            **v2.7.23 — More breathing room below hero + bigger network tiles**
+            - **Hero shrunk further**: `clamp(400, 55vh, 590)` →
+              `clamp(380, 50vh, 540)` (-50 px at 1080p).  Creates
+              ~50 px more vertical room before the next row's
+              heading.  No longer crammed under the Play / More
+              Info / My List buttons.
+            - **Network tiles bigger**:
+              `clamp(180, 15vw, 260)` → `clamp(220, 18vw, 310)`
+              (+50 px width at 1080p).  Borders 18 → 20 px to
+              match the slightly larger feel.
+            - APK bumped to v2.7.23 (versionCode 193).
 
             For older release notes see CHANGELOG.md in the repo.
 
