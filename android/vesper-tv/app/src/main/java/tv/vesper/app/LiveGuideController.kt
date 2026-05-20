@@ -126,6 +126,19 @@ class LiveGuideController(
     private val m14Next4Bg: ImageView = root.findViewById(R.id.m14_next4_bg)
     private val m14OnNowBg: ImageView = root.findViewById(R.id.m14_onnow_bg)
 
+    /* v2.7.06 — Right-side persistent info panel views. */
+    private val m14InfoEyebrow: TextView = root.findViewById(R.id.m14_info_eyebrow)
+    private val m14InfoLogo: ImageView = root.findViewById(R.id.m14_info_logo)
+    private val m14InfoName: TextView = root.findViewById(R.id.m14_info_name)
+    private val m14InfoNowTitle: TextView = root.findViewById(R.id.m14_info_now_title)
+    private val m14InfoNowTime: TextView = root.findViewById(R.id.m14_info_now_time)
+    private val m14InfoSynopsis: TextView = root.findViewById(R.id.m14_info_synopsis)
+
+    /* v2.7.06 — TMDB synopsis cache (paired with the backdrop
+       cache).  Same string-key strategy as tmdbBackdropCache; an
+       empty string is a negative cache. */
+    private val tmdbSynopsisCache = androidx.collection.LruCache<String, String>(256)
+
     /* v2.7.04 — TMDB backdrop cache for the M14 rail.  Key is the
        lowercased EPG programme title; value is the full TMDB
        backdrop URL (or "" as a negative cache so we don't retry
@@ -604,6 +617,26 @@ class LiveGuideController(
             m14OnNowBg.setImageDrawable(null)
         }
 
+        /* v2.7.06 — Right-side info panel: channel logo + name +
+           LIVE pill + now-playing card + TMDB synopsis. */
+        m14InfoEyebrow.text = "CHANNEL · ${String.format("%03d", ch.number)}"
+        m14InfoName.text = ch.name
+        bindLogo(m14InfoLogo, ch)
+        if (nowProg != null) {
+            m14InfoNowTitle.text = nowProg.title.ifBlank { ch.name }
+            val total = (nowProg.stopTs - nowProg.startTs).coerceAtLeast(1L)
+            val remainingSec = (nowProg.stopTs - nowSec).coerceAtLeast(0L)
+            val remMin = (remainingSec / 60).toInt()
+            m14InfoNowTime.text =
+                "${formatTime(nowProg.startTs)} → ${formatTime(nowProg.stopTs)} · $remMin min remaining"
+            bindTmdbSynopsis(m14InfoSynopsis, nowProg.title)
+        } else {
+            m14InfoNowTitle.text = ch.name
+            m14InfoNowTime.text = "Schedule unavailable"
+            m14InfoSynopsis.text = ""
+            m14InfoSynopsis.tag = null
+        }
+
         detailProgrammeTitle.text =
             nowProg?.title?.ifBlank { ch.name } ?: ch.name
         detailTimeRange.text = if (nowProg != null) {
@@ -822,6 +855,62 @@ class LiveGuideController(
        title — if the target ImageView has been re-bound to a
        different title by the time the bitmap arrives, we drop
        silently. */
+    /* v2.7.06 — async TMDB synopsis loader.  Mirrors the backdrop
+       loader: hits /api/tmdb/search?q=<title>, picks first
+       movie/tv hit's `synopsis` field, caches result (negative
+       cache too).  Race-safe via View tag. */
+    private fun bindTmdbSynopsis(target: TextView, title: String) {
+        val q = title.trim()
+        target.tag = q
+        if (q.isBlank()) {
+            target.text = ""
+            return
+        }
+        val key = q.lowercase(java.util.Locale.ROOT)
+        val cached = tmdbSynopsisCache.get(key)
+        if (cached != null) {
+            target.text = cached
+            return
+        }
+        target.text = ""
+        tmdbExecutor.execute {
+            try {
+                val syn = resolveTmdbSynopsis(q) ?: ""
+                tmdbSynopsisCache.put(key, syn)
+                target.post {
+                    if (target.tag == q) target.text = syn
+                }
+            } catch (_: Throwable) { /* swallow */ }
+        }
+    }
+
+    /* Fetch the JSON, grab the first movie/tv hit's `synopsis`.
+       Returns null on any failure / no-match.  Runs on the tmdb
+       executor — never the main thread. */
+    private fun resolveTmdbSynopsis(title: String): String? {
+        return try {
+            val url = "$backendBase/api/tmdb/search?q=" +
+                java.net.URLEncoder.encode(title, "UTF-8")
+            val u = java.net.URL(url)
+            val c = u.openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 4000
+            c.readTimeout = 6000
+            c.requestMethod = "GET"
+            if (c.responseCode !in 200..299) return null
+            val body = c.inputStream.bufferedReader().use { it.readText() }
+            val json = org.json.JSONObject(body)
+            val arr = json.optJSONArray("data") ?: return null
+            for (i in 0 until arr.length()) {
+                val it = arr.optJSONObject(i) ?: continue
+                val mt = it.optString("media_type", "")
+                if (mt != "movie" && mt != "tv") continue
+                val s = it.optString("synopsis", "")
+                if (s.isNotBlank()) return s
+            }
+            null
+        } catch (_: Throwable) { null }
+    }
+
     private fun loadBackdropBitmapInto(target: ImageView, originalTitle: String, url: String) {
         tmdbExecutor.execute {
             try {

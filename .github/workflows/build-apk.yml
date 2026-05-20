@@ -228,6 +228,38 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
+            **v2.7.06 — M14 Option B + user customisations: logo above name, TMDB synopsis under**
+            - 🎯 **Implemented Option B per user choice.** Added a
+              persistent right-side info panel to the M14 Live
+              Guide overlay (568dp wide, anchored to the right
+              edge between the header and the bottom rail).
+              Layout per user spec:
+                • Channel eyebrow ("CHANNEL · 150")
+                • **Channel logo** (96 dp square, placed ABOVE
+                  the channel name per user request)
+                • Channel name (92 sp, bold, max 2 lines)
+                • ● LIVE NOW pill
+                • "NOW PLAYING" eyebrow
+                • Programme title (26 sp bold)
+                • Time range + "X min remaining"
+                • **TMDB synopsis** (placed UNDER the now-playing
+                  block per user request, max 5 lines, ellipsised)
+            - 🔗 **TMDB synopsis lookup wired in.**  New
+              `bindTmdbSynopsis(target, title)` helper in
+              `LiveGuideController.kt` hits `/api/tmdb/search?q=`
+              (same endpoint as the backdrop lookup), pulls the
+              first movie/tv hit's `synopsis` field, and renders
+              it into the right panel.  256-entry LRU cache with
+              negative-cache; runs on the existing
+              `tmdbExecutor` (2-thread pool); race-safe via View
+              tag so rapid D-pad scrolling never paints the wrong
+              synopsis.
+            - 📏 **Channel list paddingEnd extended** from 56 dp →
+              660 dp to leave room for the info panel.  The list
+              now occupies the LEFT ~60 % of the viewport, the
+              info panel occupies the RIGHT ~40 %.
+            - 🆙 APK bumped to **v2.7.06** (versionCode 176).
+
             **v2.7.05 — No more channel-logo wallpaper · cleaner M14 stage**
             - 🧹 **Hid the full-screen `detail_backdrop` ImageView**
               (set `android:alpha="0"` on it).  Previously the

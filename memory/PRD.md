@@ -55,6 +55,25 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 131 — Feb 20, 2026) — v2.7.06
+### M14 Option B implemented (right-side info panel, logo-above-name, TMDB synopsis under)
+
+User picked Option B from v2.7.05 mockups and asked for two adjustments:
+- Channel **logo above** the big channel-name heading
+- TMDB **synopsis under** the now-playing block
+
+**Native implementation:**
+- Added `m14_info_panel` LinearLayout (568dp wide, anchored right) to `activity_vlc_player.xml` between the M14 header and bottom rail.
+- New view IDs: `m14_info_eyebrow` ("CHANNEL · 150"), `m14_info_logo`, `m14_info_name` (92sp bold), `m14_info_live_pill`, `m14_info_now_eyebrow`, `m14_info_now_title`, `m14_info_now_time`, `m14_info_synopsis`.
+- `LiveGuideController.renderDetail()` populates everything on every channel-focus change.
+- New `bindTmdbSynopsis(target, title)` helper mirrors the backdrop loader: hits `/api/tmdb/search?q=`, pulls the first movie/tv hit's `synopsis` field, caches in a 256-entry LRU with negative-cache, runs on the 2-thread `tmdbExecutor`, race-safe via View tag.
+- Channel list `paddingEnd` extended 56dp → 660dp to make room for the right panel.
+
+**Final preview screenshot delivered inline.** Self-validated: XML parses, all R.id refs resolve, no duplicate IDs.
+
+**🆙 APK bumped to v2.7.06 (versionCode 176).**
+
+
 ## Implemented (Iteration 130 — Feb 20, 2026) — v2.7.05
 ### Clean M14 stage (no wallpaper) + channel-name side-display mockups (A/B/C)
 
