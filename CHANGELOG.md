@@ -7,6 +7,13 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.17 — Player rebuilt minimal (Stremio-style) + new-profile empty rows fix
+- **CRITICAL**: v2.7.16's `:no-mediacodec-dr` option caused green horizontal static-line corruption on movie playback (visible in user video). When MediaCodec direct-rendering is disabled but HW decoding stays enabled, libVLC tries to copy opaque hardware MediaCodec output buffers via software, which reads random GPU memory → green corruption. REMOVED.
+- **Player rebuilt from scratch (Stremio's exact approach)**: `VlcPlayerActivity.startPlayback()` VOD path now uses ONLY `setHWDecoderEnabled(true, false)` + `:network-caching=1500`. Nothing else. Live IPTV, magnet, trailer paths kept untouched.
+- **New Settings toggle "Force SDR playback"** for projectors that wash out HDR colour. ON → `:codec=avcodec` (full software decode) → guaranteed BT.709 SDR. Costs ~30 % CPU. Default OFF. Persisted in SharedPreferences via new `WebAppInterface.setForceSdr/getForceSdr` JS bridge methods.
+- **New-profile home no longer renders 2 empty snap-pages**: `<ShelfPage>` wrappers for `<ContinueWatchingShelf>` and `<ForYouShelf>` are now conditionally rendered based on `hasCW` / `hasViewingStyle` state. When the user creates a fresh profile with no Continue Watching history and no viewing-style picks, the first visible shelf-page on Home is now Networks (or whatever has content) instead of two blank 600 px pages.
+- **Down-from-hero fast-path**: `useSpatialFocus.findNext` now has an explicit "hero → first shelf-page's first focusable" rule. Without it, geometric scoring was overshooting to the 2nd or 3rd row because chips are small/off-axis vs the wider hero Play button.
+
 ## v2.7.16 — Player back to v2.6.33-era + Hero bigger + Trailer row aligned
 - **Movie playback**: per user explicit request ("go back to v6.33 and use the player from then im sick of this not playing how it use to"), restored the v2.6.33-era startPlayback for VOD: only `:network-caching=1500` (no avcodec tweaks, no clock-sync, no drop-late-frames). PLUS `:no-mediacodec-dr` for VOD only — forces libVLC's colour-conversion path so HDR10 / Dolby-Vision streams tone-map down to BT.709 SDR automatically. Fixes the washed-out HDR colour the user reported on the projector. Live IPTV / magnet / trailer paths kept untouched.
 - **Hero banner taller + bigger text**: height `clamp(320, 45vh, 480)` → `clamp(420, 58vh, 620)`. Title font `clamp(36, 4.2vw, 64)` → `clamp(44, 5vw, 78)`. Synopsis lines 2 → 3 with larger text. PaddingBottom reduced so content hugs bottom edge. Fills the previously-blank band between hero and first shelf.

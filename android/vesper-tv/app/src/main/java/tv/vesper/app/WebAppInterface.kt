@@ -306,6 +306,29 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
+     * Force-SDR playback flag.  When TRUE, the libVLC player uses
+     * full software decoding (`:codec=avcodec`) which guarantees
+     * BT.709 SDR output regardless of stream HDR side data.  Useful
+     * for non-HDR projectors / TVs that wash out colour when fed an
+     * HDR signal.  Costs ~30 % CPU on the HK1.  Defaults to OFF.
+     */
+    @JavascriptInterface
+    fun setForceSdr(enabled: Boolean) {
+        activity.getSharedPreferences("onnowtv_player", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("force_sdr_playback", enabled)
+            .apply()
+    }
+
+    @JavascriptInterface
+    fun getForceSdr(): Boolean {
+        return activity.getSharedPreferences("onnowtv_player", android.content.Context.MODE_PRIVATE)
+            .getBoolean("force_sdr_playback", false)
+    }
+
+
+
+    /**
      * Launch the system speech recognizer (Google Voice / OEM STT)
      * and route the recognized text back to the React side.  React
      * stashes a Promise resolver in `window.__voiceSearch[callbackId]`

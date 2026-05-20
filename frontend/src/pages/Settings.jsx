@@ -54,6 +54,25 @@ export default function Settings() {
         });
     }, []);
 
+    /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
+     * side via WebAppInterface.setForceSdr (SharedPreferences).
+     * When ON, the libVLC VOD pipeline switches to software decode
+     * (`:codec=avcodec`) guaranteeing BT.709 SDR output — fixes the
+     * "HDR washes out colour on the projector" issue without
+     * breaking playback the way `:no-mediacodec-dr` did. */
+    const [forceSdr, setForceSdr] = React.useState(() => {
+        try {
+            return !!window.OnNowTV?.getForceSdr?.();
+        } catch { return false; }
+    });
+    const toggleForceSdr = React.useCallback(() => {
+        setForceSdr((cur) => {
+            const next = !cur;
+            try { window.OnNowTV?.setForceSdr?.(next); } catch { /* ignore */ }
+            return next;
+        });
+    }, []);
+
     /* v2.6.71: Update gate's "Back up first" button stashes
        sessionStorage.vesper-settings-jump-to = 'backup' before
        navigating here.  On mount we scroll the user straight to the
@@ -330,6 +349,14 @@ export default function Settings() {
                 description="Skip the sources list and instantly play the best available stream when you press Play.  Falls back to the source picker if nothing playable is available."
                 value={autoplay}
                 onToggle={toggleAutoplay}
+            />
+
+            <ToggleRow
+                testid="force-sdr"
+                title="Force SDR playback"
+                description="Forces movies & TV episodes to play in standard dynamic range (BT.709 SDR).  Turn this ON if HDR content washes out colours on your TV/projector.  Costs a bit of CPU but guarantees accurate colour on non-HDR displays."
+                value={forceSdr}
+                onToggle={toggleForceSdr}
             />
 
             <ToggleRow

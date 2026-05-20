@@ -228,33 +228,33 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.16 — Player back to v2.6.33-era + Hero bigger + Trailer row aligned**
-            - **Movie playback**: per user explicit request,
-              restored the v2.6.33-era player config.  VOD now uses
-              only `:network-caching=1500` (no avcodec tweaks, no
-              clock-sync, no drop-late-frames) — exactly the
-              "just grab the link and play it" behaviour from the
-              start of the project.  Plus `:no-mediacodec-dr` for
-              VOD only — forces libVLC's colour-conversion path so
-              HDR10/Dolby-Vision streams tone-map to SDR (BT.709)
-              automatically.  Fixes the washed-out colour the user
-              reported on the projector.  Live IPTV, magnet, and
-              trailer paths kept untouched.
-            - **Hero banner**: height bumped from
-              `clamp(320, 45vh, 480)` → `clamp(420, 58vh, 620)` so
-              the artwork sits lower and fills more vertical space.
-              Title font `clamp(36, 4.2vw, 64)` → `clamp(44, 5vw, 78)`,
-              synopsis bumped from 2 lines → 3 lines with bigger
-              text — fills the previously-empty band beneath the
-              artwork.
-            - **Upcoming Trailers row**: backdrop downgraded from
-              TMDB `/w780/` → `/w500/` (~3× smaller payload) to
-              eliminate the chunky scroll on the HK1's modest GPU.
-              Row left padding aligned with every other Home shelf
-              (`clamp(92, 6.5vw, 132)`) so the first trailer card
-              now sits directly under the first poster of the row
-              above instead of bleeding ~50px further left.
-            - APK bumped to v2.7.16 (versionCode 186).
+            **v2.7.17 — Player rebuilt minimal (Stremio-style) + new-profile empty rows fix**
+            - **CRITICAL — Green static lines fixed**: v2.7.16's
+              `:no-mediacodec-dr` option (added to "force SDR")
+              caused MediaCodec to write opaque hardware buffers
+              that libVLC then tried to read via software → green
+              horizontal corruption.  REMOVED entirely.
+            - **Player rebuilt from scratch (Stremio approach)**:
+              VOD now uses only `setHWDecoderEnabled(true, false)`
+              + `:network-caching=1500` — the absolute minimum
+              Stremio's Android client uses.  Nothing else for
+              direct HTTPS movie/TV streams.
+            - **New "Force SDR playback" Settings toggle**: for users
+              whose projector/TV washes out HDR colour.  When ON,
+              VOD switches to full software decode (`:codec=avcodec`)
+              → guaranteed BT.709 SDR output.  Costs ~30 % CPU but
+              fixes the HDR washout without breaking playback.
+              Default OFF — most TVs handle HDR fine.
+            - **New profile home no longer shows empty rows**: when
+              Continue Watching and "Similar to what you like" have
+              no data, their ShelfPage wrappers are now skipped.
+              First visible row is now Networks (or whichever shelf
+              has content) — no more pressing Down through 2 blank
+              snap-pages before reaching content.
+            - **Down-from-hero now lands on first shelf-page's
+              first chip** (not a geometric overshoot to 2nd/3rd
+              row).
+            - APK bumped to v2.7.17 (versionCode 187).
 
             For older release notes see CHANGELOG.md in the repo.
 

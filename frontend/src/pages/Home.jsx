@@ -16,6 +16,8 @@ import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
+import { getEntries as listContinueWatching } from '@/lib/continueWatching';
+import { getViewingStyle } from '@/lib/viewingStyle';
 
 export default function Home() {
     useSpatialFocus();
@@ -331,6 +333,52 @@ export default function Home() {
         };
     }, []);
 
+    /* v2.7.17 — Avoid rendering empty ShelfPage wrappers for the
+     * Continue Watching and "Similar to what you like" rails when
+     * the profile has no CW history and no viewing-style picks.
+     * Without this, a brand-new profile lands on Home with TWO
+     * blank 600 px snap-pages between the hero and the first
+     * visible row (Networks), and the spatial-nav engine loses
+     * focus stepping into them.  User report (video): "When we
+     * start a new profile and there is no continue watching yet,
+     * the rows either start with Networks or similar to what I
+     * like section." */
+    const [hasCW, setHasCW] = useState(() => {
+        try { return listContinueWatching().length > 0; }
+        catch { return false; }
+    });
+    const [hasViewingStyle, setHasViewingStyle] = useState(() => {
+        try {
+            const vs = getViewingStyle();
+            return vs.movieGenres.length > 0 || vs.tvGenres.length > 0 || vs.items.length > 0;
+        } catch { return false; }
+    });
+    useEffect(() => {
+        const refresh = () => {
+            try { setHasCW(listContinueWatching().length > 0); }
+            catch { setHasCW(false); }
+            try {
+                const vs = getViewingStyle();
+                setHasViewingStyle(
+                    vs.movieGenres.length > 0
+                    || vs.tvGenres.length > 0
+                    || vs.items.length > 0
+                );
+            } catch { setHasViewingStyle(false); }
+        };
+        refresh();
+        window.addEventListener('vesper:profile-change', refresh);
+        window.addEventListener('vesper:viewing-style-change', refresh);
+        window.addEventListener('vesper:cw-change', refresh);
+        window.addEventListener('storage', refresh);
+        return () => {
+            window.removeEventListener('vesper:profile-change', refresh);
+            window.removeEventListener('vesper:viewing-style-change', refresh);
+            window.removeEventListener('vesper:cw-change', refresh);
+            window.removeEventListener('storage', refresh);
+        };
+    }, []);
+
     return (
         <div
             data-testid="home-page"
@@ -390,8 +438,12 @@ export default function Home() {
                             overscrollBehavior: 'contain',
                         }}
                     >
-                        <ShelfPage height={shelfPageHeight}><ContinueWatchingShelf /></ShelfPage>
-                        <ShelfPage height={shelfPageHeight}><ForYouShelf /></ShelfPage>
+                        {hasCW && (
+                            <ShelfPage height={shelfPageHeight}><ContinueWatchingShelf /></ShelfPage>
+                        )}
+                        {hasViewingStyle && (
+                            <ShelfPage height={shelfPageHeight}><ForYouShelf /></ShelfPage>
+                        )}
                         <ShelfPage height={shelfPageHeight}><NetworksShelf /></ShelfPage>
                         {addons.length === 0 && (
                             <ShelfPage height={shelfPageHeight}><EmptyAddonsBanner /></ShelfPage>

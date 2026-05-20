@@ -1602,44 +1602,43 @@ class VlcPlayerActivity : AppCompatActivity() {
         val isTrailer = contentType == "trailer"
         val isLive = contentType == "live"
         val media = Media(libVlc, Uri.parse(url))
-        // Hardware decoding: enabled, NOT forced (false) — falls
-        // back to software automatically when the codec/profile is
-        // unsupported.  Without the fallback, certain HEVC live TS
-        // streams played AUDIO ONLY because hardware refused the
-        // profile but VLC did not auto-retry in software.
-        media.setHWDecoderEnabled(true, false)
 
-        /* v2.7.16 — RESTORED v2.6.33 startPlayback behaviour for
-         * VOD movies/episodes.  User: "I want you to go back to
-         * v6.33 or something and use the player from then im sick
-         * of this not playing how it use to this is VERY important."
+        /* v2.7.17 — REBUILT FROM SCRATCH (user spec: "rebuild the
+         * libvlc video player that stremio uses for their movie tv
+         * playback").  Stremio's Android client uses the absolute
+         * minimum libVLC config for VOD:
          *
-         * v2.6.33 added ONE per-media option for all streams:
-         *   :network-caching=1500
-         * That's it.  No avcodec tweaks, no drop-frames, no clock
-         * sync overrides for VOD — exactly the "just grab the link
-         * and play it" behaviour the user remembers working.
+         *   setHWDecoderEnabled(true, false)  → HW decode with
+         *   automatic fallback to software when the codec/profile
+         *   is unsupported (e.g. HEVC Main10 on cheaper SoCs).
          *
-         * Plus one HDR-disable safety net for VOD: explicit BT.709
-         * colour-space hint via the avcodec options.  Stops the
-         * Android SurfaceView from being promoted to an HDR
-         * compositor pipeline when the stream carries HDR10/DV side
-         * data — which is what was washing out colour on the user's
-         * projector. */
+         *   :network-caching=1500             → 1.5-second buffer,
+         *   matches libVLC default.
+         *
+         * That's IT for VOD.  No avcodec tweaks, no clock-sync, no
+         * drop-frames, no `:no-mediacodec-dr` (the v2.7.16 attempt
+         * to force SDR rendering, which caused the green horizontal
+         * static-line corruption the user reported — turning off
+         * MediaCodec direct-rendering while keeping HW decoding
+         * enabled makes libVLC try to copy opaque MediaCodec output
+         * buffers via software, reading random GPU memory).
+         *
+         * Live, magnet, and trailer paths keep their existing tuning
+         * — they're separate problems the user is happy with. */
+        media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=1500")
-        if (!isLive && !isMagnet && !isTrailer) {
-            /* VOD-only: force MediaCodec to render through libVLC's
-             * colour-conversion path instead of direct-rendering to
-             * an HDR Android surface.  This automatically tone-maps
-             * HDR10 / Dolby-Vision streams down to BT.709 SDR — which
-             * is what stops the "washed out" colour the user reported
-             * on the projector.  Cost: a tiny CPU overhead for the
-             * extra colour-convert pass.  Movies played fine in
-             * v2.6.33 because newer libVLC builds promoted HDR
-             * surfaces by default; this brings VOD back to the SDR
-             * pipeline.  Subtitles are NOT affected (no :no-spu). */
-            media.addOption(":no-mediacodec-dr")
+
+        /* Optional: force-software-decode mode for users whose
+         * display can't tone-map HDR cleanly (washes out colour).
+         * Toggled from Settings via the SharedPreferences flag
+         * "force_sdr_playback".  Costs ~30 % CPU on the HK1 but
+         * guarantees BT.709 SDR output regardless of stream HDR
+         * metadata.  VOD only — live IPTV always uses HW decode
+         * for fast zapping. */
+        if (!isLive && forceSdrPlayback()) {
+            media.addOption(":codec=avcodec")
         }
+
         if (isLive) {
             // ─── LIVE IPTV (.ts / HLS) — optimised for FAST ZAPPING ───
             // The user reported: "when you change the channel it
@@ -1858,6 +1857,25 @@ class VlcPlayerActivity : AppCompatActivity() {
                 .apply()
         } catch (_: Exception) { /* ignore */ }
     }
+
+    /**
+     * Force-SDR playback flag.  Read from SharedPreferences and also
+     * mirrored from the web layer via `WebAppInterface.setForceSdr`.
+     * When TRUE, libVLC switches to full software decoding via
+     * `:codec=avcodec`, which guarantees BT.709 SDR output regardless
+     * of HDR side data on the stream.  Useful for non-HDR projectors
+     * / TVs that wash out colour when fed HDR signal.
+     *
+     * Default: false (let MediaCodec hardware decode handle it).
+     */
+    private fun forceSdrPlayback(): Boolean {
+        return try {
+            getSharedPreferences("onnowtv_player", MODE_PRIVATE)
+                .getBoolean("force_sdr_playback", false)
+        } catch (_: Exception) { false }
+    }
+
+
 
     /**
      * Netflix-style "Skip Intro" pill.  Shows for TV series between

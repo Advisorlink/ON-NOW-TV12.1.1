@@ -201,6 +201,34 @@ export default function useSpatialFocus() {
                         if (pick) return pick;
                     }
                 }
+
+                /* v2.7.17 — Hero → first shelf-page fast-path.  When
+                 * the user presses Down from a hero button (which is
+                 * NOT inside a shelf-page), find the first shelf-page
+                 * on screen and target its first focusable.  Without
+                 * this, the geometric scorer was overshooting to a
+                 * tile in the 2nd or 3rd shelf-page because chips
+                 * tend to be small / off-axis vs the wider hero
+                 * buttons. */
+                if (
+                    dir === 'down' &&
+                    current.closest('[data-testid="hero-billboard"]')
+                ) {
+                    const region = document.querySelector(
+                        '[data-testid="shelves-region"]'
+                    );
+                    if (region) {
+                        const firstPage = region.querySelector(
+                            '[data-testid="shelf-page"]'
+                        );
+                        if (firstPage) {
+                            const pick = firstPage.querySelector(
+                                '[data-focusable="true"]:not([disabled])'
+                            );
+                            if (pick) return pick;
+                        }
+                    }
+                }
             }
 
             const cur = current.getBoundingClientRect();

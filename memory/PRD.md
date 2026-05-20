@@ -55,6 +55,44 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 142 — Feb 20, 2026) — v2.7.17
+### Player rebuilt minimal + new-profile empty rows skipped + force-SDR toggle
+
+User uploaded two videos after seeing v2.7.16 on the HK1:
+1. Movie playback is BROKEN — green horizontal static lines covering the picture (clear video frame analysis confirmed). User: "rebuild the libvlc video player that stremio uses for their movie tv playback."
+2. New profile (no Continue Watching) home rows lose focus, the first shelf-pages are empty, and "Similar to what you like" should appear when the user has picked a viewing style.
+
+**Root cause of green static lines:** v2.7.16's `:no-mediacodec-dr` option (added to force SDR rendering for HDR streams). When MediaCodec direct-rendering is disabled but hardware decoding stays enabled, libVLC tries to copy opaque MediaCodec output buffers via software → reads random GPU memory → green corruption. Classic libVLC config bug.
+
+**Fix 1 — Player rebuilt minimal (Stremio approach)** (`VlcPlayerActivity.kt`):
+- VOD `startPlayback()` now uses ONLY:
+  - `media.setHWDecoderEnabled(true, false)` — HW decode with software fallback (Stremio's exact pattern).
+  - `media.addOption(":network-caching=1500")` — 1.5 s buffer.
+- That's it. No `:no-mediacodec-dr`. No avcodec tweaks. No clock-sync overrides. The absolute minimum config Stremio's Android client uses.
+- Live IPTV / magnet / trailer paths kept untouched (they're separate problems the user is happy with).
+
+**Fix 2 — Force-SDR toggle for projectors** (`Settings.jsx` + `WebAppInterface.kt` + `VlcPlayerActivity.kt`):
+- New Settings → Streams toggle "Force SDR playback" (testid `toggle-force-sdr`).
+- Persisted in `SharedPreferences("onnowtv_player", "force_sdr_playback")` via new `WebAppInterface.setForceSdr(enabled)` / `getForceSdr()` JS bridge methods.
+- When ON, VOD `startPlayback()` adds `:codec=avcodec` → libVLC forces full software decoding → guaranteed BT.709 SDR output regardless of stream HDR side data. Costs ~30 % CPU on the HK1 but fixes the HDR washout the user reported on the projector.
+- Default OFF — most TVs handle HDR fine, and HW decode is much cheaper.
+
+**Fix 3 — New profile no longer shows 2 empty rows** (`Home.jsx`):
+- New `hasCW` / `hasViewingStyle` state in Home computed from `listContinueWatching().length` and `getViewingStyle()` respectively. Re-fetched on `vesper:profile-change`, `vesper:viewing-style-change`, `storage` events.
+- ShelfPage wrappers for `<ContinueWatchingShelf>` and `<ForYouShelf>` are now conditionally rendered. New profile = no CW, no viewing style → those two ShelfPages don't render at all → the user lands on Networks (or whatever first content shelf) immediately on Home.
+- Verified at runtime: with a fresh profile + no CW + no viewing style, `firstTwoRowTestIds` = `[networks-shelf, shelf-com.linvo.cinemeta-movie-year]` (was previously two empty pages before networks).
+
+**Fix 4 — Down-from-hero fast-path** (`useSpatialFocus.js`):
+- New explicit rule: when ArrowDown is pressed from a hero billboard button, target the FIRST shelf-page's first focusable. Without this, geometric scoring was overshooting to the 2nd or 3rd row because nav chips and network tiles have very different aspect ratios vs the hero buttons.
+
+**Verified at runtime (Playwright @ 1920×1080, fresh profile):**
+- Fresh profile home renders 6 shelf-pages; first two are `networks-shelf` then `shelf-com.linvo.cinemeta-movie-year` (no empty CW/ForYou). ✅
+- Hero billboard renders, profile + welcome tour seeded correctly.
+- All lint clean.
+
+**🆙 APK bumped to v2.7.17 (versionCode 187).**
+
+
 ## Implemented (Iteration 141 — Feb 20, 2026) — v2.7.16
 ### Player back to v2.6.33-era + Hero filled in + Trailer row aligned
 
