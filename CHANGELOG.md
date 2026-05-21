@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.47 — Build fix: replace `continue` inside `.ifBlank { ... }` lambda
+- CI failed v2.7.46 with `ExoPlayerActivity.kt:130 The feature "break continue in inline lambdas" is experimental and should be enabled explicitly`.
+- Cause: `o.optString("url", "").ifBlank { continue }` uses `continue` from inside an inline lambda — a Kotlin 2.0+ stable feature, only experimental on our Kotlin 1.9.23.
+- Fix: replaced the `.ifBlank { continue }` chain with an explicit `if (url.isBlank()) continue` for both the url and label fields. Same behaviour, no experimental flag needed.
+
 ## v2.7.46 — Trailer card → detail page · BACK survives player-kill
 **User clarification on v2.7.45**: trailer card CLICK should open the detail page (not the trailer modal). The trailer plays when you click the **Trailer button** on the detail page (already works). Long-press on the card → notify modal (kept from v2.7.45).
 

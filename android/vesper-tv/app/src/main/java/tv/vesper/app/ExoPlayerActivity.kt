@@ -127,8 +127,10 @@ class ExoPlayerActivity : ComponentActivity() {
                 val parsed = mutableListOf<StreamEntry>()
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
-                    val url = o.optString("url", "").ifBlank { continue }
-                    val label = o.optString("label", "").ifBlank { "Stream ${i + 1}" }
+                    val url = o.optString("url", "")
+                    if (url.isBlank()) continue
+                    val rawLabel = o.optString("label", "")
+                    val label = if (rawLabel.isBlank()) "Stream ${i + 1}" else rawLabel
                     parsed.add(StreamEntry(url, label))
                 }
                 altStreams = parsed
