@@ -113,11 +113,22 @@ class ExoPlayerActivity : ComponentActivity() {
 
         // ─── Beefed-up ExoPlayer ─────────────────────────────────
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
+        // v2.7.42 — Tuned for fast startup + smooth playback.
+        //   • bufferForPlaybackMs lowered 2500 → 1000 so the first
+        //     frame paints almost immediately (was ~17 s startup
+        //     because the BUF badge had to tick all the way to 2.5 s
+        //     of HEVC 1080p data before letting playback begin).
+        //   • minBufferMs lowered 30 s → 15 s — still soaks ordinary
+        //     CDN stalls but doesn't make us wait for half a minute
+        //     of buffer on cold starts.
+        //   • maxBufferMs kept at 90 s — long-form soak room.
+        //   • bufferForPlaybackAfterRebufferMs kept at 5 s — recovery
+        //     pause is still rare-and-quick.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                30_000,   // minBufferMs — 30 s, soaks long CDN stalls
-                90_000,   // maxBufferMs — 90 s ceiling
-                2_500,    // bufferForPlaybackMs — start playing fast
+                15_000,   // minBufferMs
+                90_000,   // maxBufferMs
+                1_000,    // bufferForPlaybackMs — start playing fast
                 5_000,    // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)

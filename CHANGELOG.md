@@ -7,6 +7,17 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.42 — Fast-start ExoPlayer (no more 17s pre-buffer wait)
+**Reported on v2.7.41**: user video showed the BUF badge ticking ~17 s upward before the first frame painted. Once playing, the stream was smooth. Cause: v2.7.40's `bufferForPlaybackMs = 2500` + `minBufferMs = 30_000` told ExoPlayer to fill 2.5 s of 1080p HEVC before starting — which takes ~17 s of wall-clock time on a typical HK1 box's Wi-Fi.
+
+**Tuning**:
+- `bufferForPlaybackMs`: 2_500 → **1_000** (start playing after 1 s of media, not 2.5 s).
+- `minBufferMs`: 30_000 → **15_000** (still soaks ordinary CDN stalls; no need to wait for a full half-minute of buffer on cold start).
+- `maxBufferMs` kept at 90_000 (long-form soak room).
+- `bufferForPlaybackAfterRebufferMs` kept at 5_000.
+
+Expected impact: first-frame latency drops from ~17 s → ~3–5 s on a typical 4G/Wi-Fi connection. Mid-playback rebuffering still rare (15 s headroom is plenty for any short jitter).
+
 ## v2.7.41 — Build fix: ExoPlayerActivity polling scope (no `lifecycleScope` dep)
 - Previous v2.7.40 build failed CI compile with:
   - `ExoPlayerActivity.kt:254 Unresolved reference: lifecycleScope`
