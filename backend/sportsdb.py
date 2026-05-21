@@ -464,7 +464,7 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
         upstream: {ok:int, fail:int, rate_limited:int}
       }
     """
-    cache_key = "sportsdb:fixtures:v9"
+    cache_key = "sportsdb:fixtures:v10"  # v2.7.35 bump — adds UFC/Boxing to fan-out
     survivor_key = "sportsdb:survivor:v1"
     cached = _cache_get(cache_key)
 
@@ -494,11 +494,17 @@ async def get_fixtures(refresh: int = Query(0, description="set 1 to bypass cach
     date_strs = [(today0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(0, 3)]
     primary_sports = ["Soccer", "Basketball", "Ice Hockey", "American Football"]
 
-    # 11 marquee leagues — top global revenue / global reach + Australian
-    # Rugby League (NRL) at the user's request.
+    # 13 marquee leagues — top global revenue / global reach +
+    # Australian Rugby League (NRL) at the user's request +
+    # **UFC (4443) and Boxing (4630)** because those were going
+    # missing from the cold-load page (TheSportsDB only returns
+    # ~2 combat fixtures from the generic `eventsday` endpoints,
+    # so we need the per-league next-fixture endpoint to catch
+    # the upcoming pay-per-view cards).
     MARQUEE_FETCH = ["4328", "4335", "4332", "4331", "4480",      # EPL/LaLiga/SerieA/Bund/UCL
                      "4391", "4387", "4380", "4424", "4370",      # NFL/NBA/NHL/MLB/F1
-                     "4416"]                                       # NRL (AU Rugby League)
+                     "4416",                                       # NRL (AU Rugby League)
+                     "4443", "4630"]                               # UFC + Boxing (v2.7.35)
 
     async with httpx.AsyncClient(
         headers={"User-Agent": "VesperTV/2.0 (sports-guide)"},

@@ -7,6 +7,14 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.35 — Sports channels back + UFC fixtures in fan-out
+- **Root cause of "all the channels are gone"**: backend was populating `fixture.broadcasts: ['Sky Sports', 'TNT Sports', …]` from a curated UK/US/AU league-to-channel mapping, but the **frontend never read that field**. SportsGuide.jsx only used the per-IPTV `matchFixture()` — so when the user's IPTV provider EPG had no match (which is almost always for niche fixtures or before the EPG fully loads), the card said "Not on your channels" and the broadcaster info was thrown away.
+- **Fix — `fixture.broadcasts` fallback in both card variants**: when `matches[]` is empty AND `fixture.broadcasts` has entries, the hero card now shows a cyan `WATCH ON Sky Sports · TNT Sports · ESPN+` pill, and the grid card renders the broadcaster names as styled chips with the league accent color. Only falls back to "Not on your channels" when BOTH lookups come up empty.
+- **UFC + Boxing always in cold-load fan-out**: added league IDs 4443 (UFC) and 4630 (Boxing) to the `MARQUEE_FETCH` list so the per-league next-fixtures endpoint is hit on every cold load. Previously these were only picked up by the generic `eventsday` endpoint, which returns ≤2 combat fixtures per day → user's UFC card was rotting out.
+- **Cache key bumped to v10** so the rollout doesn't wait 30 min for the old cache to expire.
+- **VPS deployed**: `sportsdb.py` synced to `/opt/onnowtv/backend/`, service restarted. `GET /api/sportsdb/fixtures` now returns 271 events including UFC Fight Night 277 (Song vs Figueiredo) with broadcasts `['TNT Sports', 'BT Sport', 'ESPN+']`. NFL events show `['Sky Sports', 'DAZN']`. Channel logos & "where to watch" are back.
+- Boxing fixtures (TheSportsDB league 4630) returned 0 upcoming events — that's an upstream data gap, not our code. The page will surface them automatically when TheSportsDB schedules them.
+
 ## v2.7.34 — Auto-bump APK version from CHANGELOG (in-app update gate FIXED)
 - **Root cause of "builds not arriving on my box":** `build.gradle.kts` was stuck on `versionName = "2.7.28"` since May 13 2026. Every CI build produced an APK with the SAME version label as the running app → in-app `UpdateGate` saw `running >= latest` → **silently dismissed**. Five releases (.29 → .33) all built + published but installed invisibly.
 - **Fix:** version is now driven from `CHANGELOG.md` at build time:

@@ -645,6 +645,39 @@ const HeroFixture = React.memo(function HeroFixture({ fixture, provider, onPlay,
                                 {reminded ? 'REMINDER SET' : 'REMIND ME'}
                             </button>
                         </>
+                    ) : (fixture.broadcasts && fixture.broadcasts.length > 0) ? (
+                        /* v2.7.35 — no match on the user's IPTV channels,
+                           but we know which broadcasters carry this league
+                           from TheSportsDB / static league→channels mapping.
+                           Always show the canonical "Watch on …" pills so
+                           the user knows what they're missing instead of a
+                           sad "not on your channels" dead-end. */
+                        <div
+                            data-testid="fixture-broadcasts-fallback"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 8,
+                                padding: '10px 14px',
+                                background: 'rgba(93,200,255,0.10)',
+                                border: '1px solid rgba(93,200,255,0.32)',
+                                borderRadius: 999,
+                                fontSize: 12, fontWeight: 700,
+                                color: '#5DC8FF',
+                                letterSpacing: '0.04em',
+                                flexWrap: 'wrap',
+                            }}
+                        >
+                            <Tv size={12} color="#5DC8FF" />
+                            WATCH ON&nbsp;
+                            <span style={{ color: '#E6EAF2', fontWeight: 800, letterSpacing: '0.02em' }}>
+                                {fixture.broadcasts.slice(0, 3).join(' · ')}
+                            </span>
+                            {fixture.broadcasts.length > 3 && (
+                                <span style={{ fontFamily: 'monospace', fontSize: 10,
+                                                letterSpacing: '0.18em', color: '#7d8493' }}>
+                                    +{fixture.broadcasts.length - 3}
+                                </span>
+                            )}
+                        </div>
                     ) : (
                         <div style={{
                             display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -1192,6 +1225,37 @@ const FixtureCard = React.memo(function FixtureCard({ fixture, provider, onPlay,
                                             letterSpacing: '0.18em', color: '#FFC850' }}>
                                 <Bell size={10} fill="#FFC850" color="#FFC850" />
                                 REMINDED
+                            </span>
+                        )}
+                    </>
+                ) : (fixture.broadcasts && fixture.broadcasts.length > 0) ? (
+                    /* v2.7.35 — IPTV has no match; surface the
+                       canonical broadcaster names from the backend
+                       (TheSportsDB + static league→channels map). */
+                    <>
+                        <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                        letterSpacing: '0.22em', color: accent }}>
+                            WATCH ON
+                        </span>
+                        {fixture.broadcasts.slice(0, 3).map((b) => (
+                            <span key={b} style={{
+                                display: 'inline-flex', alignItems: 'center',
+                                padding: '4px 10px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.10)',
+                                borderRadius: 999,
+                                fontSize: 10, fontWeight: 700,
+                                color: '#E6EAF2',
+                                letterSpacing: '0.04em',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                {b}
+                            </span>
+                        ))}
+                        {fixture.broadcasts.length > 3 && (
+                            <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                                            letterSpacing: '0.18em', color: '#5e6473' }}>
+                                +{fixture.broadcasts.length - 3}
                             </span>
                         )}
                     </>
