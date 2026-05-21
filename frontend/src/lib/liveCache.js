@@ -22,6 +22,24 @@
 
 const NS = 'onnowtv-livecache-v1';
 
+// v2.7.50 — One-time boot sweep: any legacy entry larger than 1 MB
+// (typically the giant EPG blob from v2.7.49 and earlier) gets
+// removed so we reclaim localStorage quota for shelves / heroes /
+// library on cold boot.  Runs exactly once per page load.
+(function reclaimQuota() {
+    try {
+        if (typeof localStorage === 'undefined') return;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(NS)) continue;
+            const val = localStorage.getItem(key);
+            if (val && val.length > 1_000_000) {
+                try { localStorage.removeItem(key); } catch { /* ignore */ }
+            }
+        }
+    } catch { /* localStorage disabled */ }
+})();
+
 /* In-memory cache fallback — survives the current session even when
  * localStorage quota is exceeded.  Keyed by `${kind}:${providerId}`
  * so each cache kind (cats / chans / epg) stays distinct.  Reads
@@ -78,16 +96,29 @@ function safeRead(key) {
     } catch { return null; }
 }
 
+// v2.7.50 — Hard ceiling for any single localStorage write.  EPG
+// blobs hit 42 MB on rich providers, which:
+//   1. NEVER fits in a browser's 5–10 MB per-origin quota.
+//   2. Throws QuotaExceededError, which on some Chromium builds
+//      poisons subsequent writes in the same tab → other caches
+//      (shelves / heroes / library) silently fail to persist →
+//      cold-boot catalog data goes missing after every reboot.
+// We hard-cap at 1 MB.  Anything bigger stays in-memory only
+// (loadEpg() still returns it for the session) but never tries to
+// touch disk.
+const MAX_PERSIST_BYTES = 1_000_000;
+
 function safeWrite(key, payload) {
     try {
-        localStorage.setItem(key, JSON.stringify(payload));
+        const blob = JSON.stringify(payload);
+        if (blob.length > MAX_PERSIST_BYTES) {
+            // Too big to persist — skip silently so we don't corrupt
+            // localStorage for everyone else.
+            return false;
+        }
+        localStorage.setItem(key, blob);
         return true;
     } catch (e) {
-        // Quota exceeded or storage disabled — degrade GRACEFULLY,
-        // but log so the next debug session doesn't waste days
-        // chasing a silent quota bust like we did with the sports
-        // chips.  In-memory cache (caller responsibility) still
-        // covers the running session.
         try {
             const size = (payload && typeof payload === 'object')
                 ? JSON.stringify(payload).length : 0;
@@ -97,6 +128,10 @@ function safeWrite(key, payload) {
                 e?.message || e
             );
         } catch { /* nested toString failure — give up */ }
+        // Best-effort cleanup: drop the bloated EPG key so we don't
+        // strand 5+ MB in localStorage that we'll never read back
+        // (the in-memory copy is what the session uses).
+        try { localStorage.removeItem(key); } catch { /* ignore */ }
         return false;
     }
 }

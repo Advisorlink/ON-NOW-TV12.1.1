@@ -7,6 +7,25 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.50 — Catalog disappearance fixed · BACK lands on detail page (for real this time)
+**User**: "The Cinemeta catalog's gone — not showing the new movies, not showing new series. BACK from the stream doesn't take me back to the movie detail page."
+
+### Catalog disappearance — root cause + fix
+**Root cause** (found by inspecting browser console logs): the Live TV EPG cache was attempting to write a **42 MB blob** to `localStorage` (which has a 5–10 MB per-origin quota). The write throws `QuotaExceededError`. The fallback code then tried 12 MB, then 3 MB — all still oversized for the remaining quota. On some Chromium builds these failed writes poison subsequent writes in the same tab, so the **shelves / heroes / library caches** silently failed to persist → cold-boot launches lost their catalog data.
+
+**Fix in `liveCache.js`**:
+- **Hard 1 MB ceiling** on every `safeWrite`. Anything bigger is skipped silently (in-memory copy still serves the session, never touches disk).
+- **One-time boot sweep** on app load: iterates every key with the `onnowtv-livecache-v1:` prefix and deletes any entry > 1 MB. Reclaims quota for shelves / heroes / library on cold boot.
+- When a write fails, the key is `removeItem`'d so we never leave half-written corruption.
+
+### BACK from player landing on home — second-stage fix
+**Root cause** (v2.7.46's first attempt wasn't enough): saving `webView.url` in `onPause()` only fires when MainActivity backgrounds **before** Android kills it. On the HK1's tight RAM, MainActivity can be killed while ExoPlayerActivity is in the foreground — `onPause()` already ran but the URL captured was sometimes the FILE URL without the current hash fragment (Android WebView quirk).
+
+**Fix**: now the React side **pushes the route to the native bridge on every navigation**:
+- New `@JavascriptInterface fun saveRoute(hashPath: String)` on `WebAppInterface` — saves the hash + timestamp to `SharedPreferences("onnowtv_route")`.
+- New top-level `useEffect` in `App.js > MobilePlatformRoot` watches `useLocation` and calls `window.OnNowTV.saveRoute("#/title/movie/tt...")` on every route change. No-op outside the Android WebView.
+- `MainActivity.onCreate` already restores the saved URL when it's < 30 min old (v2.7.46) — combined with the eager push, this now captures the user's most recent detail page reliably, so BACK from the player always lands on the right page.
+
 ## v2.7.49 — Trailer card long-press fixed · notify modal portal · YouTube Error 153 fixed
 **Three user-reported issues from v2.7.48 nailed:**
 

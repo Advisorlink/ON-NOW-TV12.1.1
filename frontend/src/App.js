@@ -215,6 +215,19 @@ function MobilePlatformRoot({ children }) {
         };
     }, [isMobile]);
 
+    /* v2.7.50 — Save the current route to the native bridge whenever
+       it changes, so MainActivity can restore it on cold-start when
+       Android killed it during ExoPlayer playback.  No-op outside
+       the Android WebView (the bridge is null on web preview). */
+    useEffect(() => {
+        try {
+            const bridge = typeof window !== 'undefined' ? window.OnNowTV : null;
+            if (!bridge || !('saveRoute' in bridge)) return;
+            const hashPath = `#${location.pathname}${location.search || ''}`;
+            bridge.saveRoute(hashPath);
+        } catch { /* ignore — bridge unavailable */ }
+    }, [location.pathname, location.search]);
+
     const showBottomNav = isMobile &&
         !MOBILE_NAV_HIDDEN_PREFIXES.some((p) =>
             p.endsWith('/')

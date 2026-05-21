@@ -52,6 +52,33 @@ class WebAppInterface(private val activity: Activity) {
         playInternal(url, title, null)
     }
 
+    /**
+     * v2.7.50 — JS pushes the current hash route here every time it
+     * changes (HashRouter listener in App.jsx).  We persist the URL
+     * to SharedPreferences("onnowtv_route") with a timestamp so
+     * MainActivity can restore it on cold-start when Android killed
+     * the activity during ExoPlayer playback.
+     *
+     * The url arg is just the hash path ("#/title/movie/tt123") —
+     * not the full file URL — so we resolve it against the bundled
+     * asset URL prefix before saving.
+     */
+    @JavascriptInterface
+    fun saveRoute(hashPath: String) {
+        if (hashPath.isBlank()) return
+        try {
+            val cleanHash = if (hashPath.startsWith("#")) hashPath else "#$hashPath"
+            val full = "file:///android_asset/web/index.html$cleanHash"
+            activity.getSharedPreferences("onnowtv_route", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString("last_url", full)
+                .putLong("last_ts", System.currentTimeMillis())
+                .apply()
+        } catch (_: Exception) { /* best effort */ }
+    }
+
+
+
     // ──────────────────────────────────────────────────────────────
     // v2.7.39 — Video player backend toggle (LibVLC ⇄ ExoPlayer)
     // ──────────────────────────────────────────────────────────────
