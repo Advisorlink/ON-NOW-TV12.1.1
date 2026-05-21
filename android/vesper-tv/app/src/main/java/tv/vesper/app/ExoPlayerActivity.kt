@@ -169,23 +169,18 @@ class ExoPlayerActivity : ComponentActivity() {
 
         // ─── Beefed-up ExoPlayer ─────────────────────────────────
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
-        // v2.7.43 — Buffer-heavy preset.  User reported on v2.7.42
-        // that BUF hovered ~20 s but dipped to ~10 s mid-playback;
-        // wants the player to pre-buffer harder so it never starves.
-        //   • bufferForPlaybackMs raised 1 s → 20 s — wait until 20 s
-        //     of media is downloaded before the first frame paints
-        //     (≈4-8 s of wall-clock cold-start, then nothing else
-        //     stalls).
-        //   • minBufferMs raised 15 s → 50 s — ExoPlayer keeps
-        //     refilling toward 50 s so dips of 10-20 s don't matter
-        //     anymore.
-        //   • maxBufferMs raised 90 s → 120 s — long soak room.
-        //   • bufferForPlaybackAfterRebufferMs raised 5 s → 10 s.
+        // v2.7.52 — Tuning revisit per user feedback.  v2.7.43 set
+        // bufferForPlaybackMs=20_000 to "pre-buffer hard", which made
+        // autoplay feel slow (10-15 s before the first frame).
+        // Compromise: pre-buffer 6 s before the first frame (~3 s
+        // wall-clock on a normal connection), but keep the 50 s
+        // refill target and 120 s ceiling so mid-playback stays
+        // smooth even with CDN dips.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                50_000,    // minBufferMs
-                120_000,   // maxBufferMs
-                20_000,    // bufferForPlaybackMs — pre-buffer hard
+                50_000,    // minBufferMs — keep refilling toward 50 s
+                120_000,   // maxBufferMs — long soak room
+                6_000,     // bufferForPlaybackMs — start fast
                 10_000,    // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
@@ -277,6 +272,12 @@ class ExoPlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
             )
+            // v2.7.52 — make PlayerView totally non-focusable so D-pad
+            // events never land here.  Compose overlay handles all
+            // remote input.
+            isFocusable = false
+            isFocusableInTouchMode = false
+            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         }
         root.addView(playerView)
 
@@ -343,6 +344,16 @@ class ExoPlayerActivity : ComponentActivity() {
         }
         root.addView(composeView)
         setContentView(root)
+
+        // v2.7.52 — Force focus on the Compose overlay so D-pad
+        // navigation engages immediately.  Without this, the
+        // framework picks PlayerView (or no view at all) and the
+        // dock buttons sit there visually but can't be focused.
+        composeView.post {
+            try {
+                composeView.requestFocus()
+            } catch (_: Exception) {}
+        }
 
         // ─── Poll player position 4× per second so the scrubber stays smooth ───
         lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, event ->

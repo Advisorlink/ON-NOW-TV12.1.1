@@ -1082,12 +1082,9 @@ export default function Detail() {
             partyDisplayName: _profile.name || 'Guest',
         })) {
             partyBreadcrumb('guest:native-launched', {});
-            /* Same back-leak fix as the host path — navigate the
-             * WebView home so VLC's BACK doesn't reveal the React
-             * surface still mounted underneath. */
-            if (Host.isAndroid) {
-                try { navigate('/'); } catch { /* ignore */ }
-            }
+            /* v2.7.52 — keep WebView on detail page so BACK lands
+             * the guest right back on the movie they were watching.
+             * See playStream() for the matching fix. */
             return;
         }
         // Web fallback
@@ -1411,25 +1408,33 @@ export default function Detail() {
                     title: playTitle,
                     type: type,
                     subtitleUrl,
-                    /* v2.7.28 — robust cover-art fallback chain.
+                    /* v2.7.52 — robust cover-art fallback chain.
                      * Different addons store backdrops under
                      * different keys.  Cinemeta uses `background`,
                      * TMDB addons use `backdrop`, some return only
-                     * `poster`.  Walk the full chain so the
-                     * loading screen ALWAYS has something to show. */
+                     * `poster`.  As a LAST resort fall back to
+                     * Metahub's deterministic poster/backdrop URL by
+                     * IMDB id so EVERY stream gets cover art on the
+                     * loading screen regardless of which addon the
+                     * stream came from.  Metahub serves TMDB-sourced
+                     * art via a stable CDN that the box can reach. */
                     poster:
                         meta?.poster ||
                         meta?.posterUrl ||
                         meta?.poster_url ||
                         meta?.background ||
                         meta?.backdrop ||
-                        '',
+                        (id && id.startsWith('tt')
+                            ? `https://images.metahub.space/poster/medium/${id}/img`
+                            : ''),
                     backdrop:
                         meta?.background ||
                         meta?.backdrop ||
                         meta?.backdrop_url ||
                         meta?.poster ||
-                        '',
+                        (id && id.startsWith('tt')
+                            ? `https://images.metahub.space/background/medium/${id}/img`
+                            : ''),
                     synopsis:
                         meta?.description ||
                         meta?.overview ||
@@ -1461,24 +1466,19 @@ export default function Detail() {
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});
-                /* v2.6.85 — back-leak fix.
+                /* v2.7.52 — back-leak fix is no longer needed.
                  *
-                 * Native VLC takes over the surface immediately.  But
-                 * the WebView (with Detail.jsx OR Player.jsx still
-                 * mounted underneath) keeps running — its video el
-                 * even keeps decoding the same stream in software!
-                 * When the host presses BACK to leave VLC, the
-                 * native Activity finishes and the previous WebView
-                 * surface is revealed, briefly flashing the
-                 * "duplicate" old-player UI before the user can hit
-                 * BACK again.
+                 * Old behaviour (v2.6.85): navigate('/') before VLC
+                 * took over so the WebView wouldn't briefly reveal a
+                 * stale JS player on BACK.
                  *
-                 * Routing home immediately fixes the leak: by the
-                 * time VLC finishes, the WebView is on the home
-                 * screen and there's nothing to "show behind." */
-                if (Host.isAndroid) {
-                    try { navigate('/'); } catch { /* ignore */ }
-                }
+                 * New behaviour: native player owns the entire
+                 * surface and there is no JS <video> mounted on
+                 * Detail.jsx, so leaving the WebView on the detail
+                 * page is safe AND lands the user back on the
+                 * movie's detail page when they press BACK from the
+                 * native player — which is what the user wants.
+                 */
                 return;
             }
             // WebView fallback (preview / non-Android) — keep the

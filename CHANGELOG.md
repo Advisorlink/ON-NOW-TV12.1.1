@@ -7,6 +7,27 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.52 — Real fixes: BACK→detail · Player buttons focusable · Faster autoplay · Always cover art
+### 1. BACK from player now lands on detail page — REAL fix
+**Root cause found** (this is why v2.7.46 + v2.7.50 didn't work): `Detail.jsx` was deliberately calling `navigate('/')` BEFORE launching the native player (since v2.6.85, with a 21-line comment explaining "back-leak fix"). When the player closed and MainActivity resumed, the WebView was already on home → user landed on home.
+
+**Fix**: removed the `navigate('/')` in both `playStream()` and the guest party path. The original concern (JS `<video>` decoding behind native player) no longer applies — Detail.jsx is just metadata, no video element. BACK from native player now naturally lands on the detail page. Combined with the v2.7.50 `saveRoute` + `MainActivity` restore logic, this is bulletproof even on activity-kill.
+
+### 2. Player buttons fully D-pad navigable
+- **PlayerView non-focusable**: `isFocusable=false`, `isFocusableInTouchMode=false`, `descendantFocusability=FOCUS_BLOCK_DESCENDANTS`. PlayerView was stealing every D-pad event from Compose.
+- **ComposeView grabs focus explicitly** via `composeView.post { requestFocus() }` after layout.
+- All overlay buttons (Audio, Subs, Stream, Back10, Play, Forward10, CC, Cast, Fullscreen) now properly focusable with cyan focus rings.
+
+### 3. Faster autoplay (~3 s to first frame instead of 10-15 s)
+v2.7.43's `bufferForPlaybackMs=20_000` made cold-start feel slow. New value: **6 s** (≈3 s wall-clock). Mid-playback smoothness preserved by keeping `minBufferMs=50_000` and `maxBufferMs=120_000` — ExoPlayer keeps refilling toward 50 s so dips don't starve.
+
+### 4. Cover art on EVERY stream's loading screen
+**Last-resort fallback**: when an addon returns a stream WITHOUT poster/backdrop metadata, the React `playStream()` now falls back to **Metahub's deterministic image URL by IMDB id**:
+- `https://images.metahub.space/poster/medium/<imdb_id>/img`
+- `https://images.metahub.space/background/medium/<imdb_id>/img`
+
+Metahub serves TMDB-sourced art via a stable CDN. So irrespective of which addon supplied the stream, the loading screen ALWAYS shows the title's official poster + backdrop.
+
 ## v2.7.51 — Player buttons navigable with D-pad · dock visible longer
 **User**: "Play buttons and all that sort of stuff aren't showing on the actual player. I can't move around. I can't choose any buttons or anything. I can put on pause. That's about it."
 
