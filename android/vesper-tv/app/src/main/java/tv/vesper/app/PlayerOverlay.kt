@@ -104,7 +104,15 @@ data class PlayerInfo(
 )
 
 data class TrackOption(val id: String, val label: String, val selected: Boolean)
-data class StreamOption(val idx: Int, val label: String, val selected: Boolean)
+data class StreamOption(
+    val idx: Int,
+    val label: String,
+    val selected: Boolean,
+    val addonSource: String = "",
+    val quality: String = "",
+    val pmCached: Boolean = false,
+    val isEnglish: Boolean = false,
+)
 
 /**
  * Root overlay rendered ABOVE ExoPlayer's PlayerView.
@@ -895,9 +903,8 @@ private fun StreamPickerSheet(
                 )
             } else {
                 streams.forEachIndexed { i, s ->
-                    TrackRow(
-                        label = s.label,
-                        selected = s.selected,
+                    StreamRow(
+                        stream = s,
                         focusRequester = if (i == 0) firstFocus else null,
                         onClick = { onPick(s.idx) },
                     )
@@ -914,6 +921,136 @@ private fun StreamPickerSheet(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream picker row — title + addon-source chip + cached chip + ENG chip
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun StreamRow(
+    stream: StreamOption,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val bg = when {
+        focused         -> Color(0x335DC8FF)
+        stream.selected -> Color(0x1A5DC8FF)
+        else            -> Color(0x14FFFFFF)
+    }
+    val border =
+        if (focused) CyanPrimary
+        else if (stream.selected) Color(0x665DC8FF)
+        else Color(0x22FFFFFF)
+    var mod: Modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(10.dp))
+        .background(bg)
+        .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged { focused = it.isFocused }
+        .focusable()
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+            ) { onClick(); true } else false
+        }
+        .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+
+    Column(modifier = mod) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stream.label.lineSequence().firstOrNull() ?: stream.label,
+                color = TextPrim,
+                fontSize = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (stream.selected) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "● CURRENT",
+                    color = CyanPrimary,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.4.sp,
+                )
+            }
+        }
+        // Chip row — only render when at least one chip is non-empty.
+        val hasAnyChip = stream.addonSource.isNotBlank() ||
+                         stream.quality.isNotBlank() ||
+                         stream.pmCached ||
+                         stream.isEnglish
+        if (hasAnyChip) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (stream.addonSource.isNotBlank()) {
+                    Chip(
+                        text = stream.addonSource,
+                        bg = Color(0x245DC8FF),
+                        border = Color(0x4D5DC8FF),
+                        fg = CyanPrimary,
+                    )
+                }
+                if (stream.quality.isNotBlank()) {
+                    Chip(
+                        text = stream.quality,
+                        bg = Color(0x1AFFFFFF),
+                        border = Color(0x33FFFFFF),
+                        fg = TextPrim,
+                    )
+                }
+                if (stream.pmCached) {
+                    Chip(
+                        text = "⚡ CACHED",
+                        bg = Color(0x297AEB8A),
+                        border = Color(0x597AEB8A),
+                        fg = Color(0xFF7AEB8A),
+                    )
+                }
+                if (stream.isEnglish) {
+                    Chip(
+                        text = "🇬🇧 ENG",
+                        bg = Color(0x14FFFFFF),
+                        border = Color(0x26FFFFFF),
+                        fg = TextSub,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, bg: Color, border: Color, fg: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(4.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            color = fg,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
     }
 }
 

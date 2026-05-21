@@ -311,20 +311,72 @@ export default function StreamPickerModal({
                                                 )}
                                             </div>
                                             <div
-                                                className="vesper-mono"
+                                                className="vesper-mono flex items-center gap-1.5 flex-wrap"
                                                 style={{
                                                     fontSize: 10,
                                                     color: 'var(--vesper-text-3)',
                                                     letterSpacing: '0.08em',
-                                                    marginTop: 4,
+                                                    marginTop: 6,
                                                     textTransform: 'uppercase',
                                                 }}
                                             >
-                                                {mode === 'direct'
-                                                    ? 'direct stream'
-                                                    : mode === 'torrent'
-                                                    ? 'magnet / torrent'
-                                                    : mode}
+                                                {/* v2.7.48 — addon source chip (TORRENTIO, MEDIAFUSION, COMET, …) */}
+                                                {s._addon_source && (
+                                                    <span
+                                                        data-testid={`modal-stream-${i}-source`}
+                                                        style={{
+                                                            padding: '2px 7px',
+                                                            borderRadius: 4,
+                                                            background: 'rgba(93,200,255,0.14)',
+                                                            border: '1px solid rgba(93,200,255,0.30)',
+                                                            color: 'var(--vesper-blue-bright)',
+                                                            fontWeight: 700,
+                                                            letterSpacing: '0.14em',
+                                                        }}
+                                                    >
+                                                        {s._addon_source}
+                                                    </span>
+                                                )}
+                                                {/* Premiumize-cached chip */}
+                                                {s._pm_cached && (
+                                                    <span
+                                                        data-testid={`modal-stream-${i}-cached`}
+                                                        style={{
+                                                            padding: '2px 7px',
+                                                            borderRadius: 4,
+                                                            background: 'rgba(122,235,138,0.16)',
+                                                            border: '1px solid rgba(122,235,138,0.35)',
+                                                            color: '#7AEB8A',
+                                                            fontWeight: 700,
+                                                            letterSpacing: '0.14em',
+                                                        }}
+                                                    >
+                                                        ⚡ CACHED
+                                                    </span>
+                                                )}
+                                                {/* English chip */}
+                                                {s._is_english && (
+                                                    <span
+                                                        style={{
+                                                            padding: '2px 7px',
+                                                            borderRadius: 4,
+                                                            background: 'rgba(255,255,255,0.06)',
+                                                            border: '1px solid rgba(255,255,255,0.15)',
+                                                            color: 'var(--vesper-text-2)',
+                                                            fontWeight: 700,
+                                                            letterSpacing: '0.14em',
+                                                        }}
+                                                    >
+                                                        🇬🇧 ENG
+                                                    </span>
+                                                )}
+                                                <span style={{ opacity: 0.7 }}>
+                                                    {mode === 'direct'
+                                                        ? 'direct stream'
+                                                        : mode === 'torrent'
+                                                        ? 'magnet / torrent'
+                                                        : mode}
+                                                </span>
                                             </div>
                                         </div>
                                     </button>

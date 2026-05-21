@@ -96,7 +96,14 @@ class ExoPlayerActivity : ComponentActivity() {
 
     // Parsed list of alternate streams from EXTRA_STREAMS_JSON.  Each
     // entry has at minimum `url` + `label`.
-    private data class StreamEntry(val url: String, val label: String)
+    private data class StreamEntry(
+        val url: String,
+        val label: String,
+        val addonSource: String,
+        val quality: String,
+        val pmCached: Boolean,
+        val isEnglish: Boolean,
+    )
     private var altStreams: List<StreamEntry> = emptyList()
     private var currentStreamIdx: Int = -1
 
@@ -131,11 +138,26 @@ class ExoPlayerActivity : ComponentActivity() {
                     if (url.isBlank()) continue
                     val rawLabel = o.optString("label", "")
                     val label = if (rawLabel.isBlank()) "Stream ${i + 1}" else rawLabel
-                    parsed.add(StreamEntry(url, label))
+                    parsed.add(StreamEntry(
+                        url        = url,
+                        label      = label,
+                        addonSource= o.optString("addonSource", ""),
+                        quality    = o.optString("quality", ""),
+                        pmCached   = o.optBoolean("pmCached", false),
+                        isEnglish  = o.optBoolean("isEnglish", false),
+                    ))
                 }
                 altStreams = parsed
                 streamsFlow.value = parsed.mapIndexed { i, s ->
-                    StreamOption(i, s.label, i == currentStreamIdx)
+                    StreamOption(
+                        idx         = i,
+                        label       = s.label,
+                        selected    = i == currentStreamIdx,
+                        addonSource = s.addonSource,
+                        quality     = s.quality,
+                        pmCached    = s.pmCached,
+                        isEnglish   = s.isEnglish,
+                    )
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to parse streams JSON", e)
@@ -478,7 +500,15 @@ class ExoPlayerActivity : ComponentActivity() {
         currentStreamIdx = idx
         streamUrl = entry.url
         streamsFlow.value = altStreams.mapIndexed { i, s ->
-            StreamOption(i, s.label, i == idx)
+            StreamOption(
+                idx         = i,
+                label       = s.label,
+                selected    = i == idx,
+                addonSource = s.addonSource,
+                quality     = s.quality,
+                pmCached    = s.pmCached,
+                isEnglish   = s.isEnglish,
+            )
         }
         try {
             val item = MediaItem.Builder()

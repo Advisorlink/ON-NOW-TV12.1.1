@@ -109,6 +109,14 @@ const Host = (() => {
                         // native in-player picker can render a
                         // 🇬🇧 ENGLISH chip.
                         isEnglish: !!s._is_english,
+                        // v2.7.48 — propagate the addon source tag
+                        // (TORRENTIO / MEDIAFUSION / COMET / PLEXIO /
+                        // …) + quality label + Premiumize-cached flag
+                        // so the native picker can show the same
+                        // chips the React picker does.
+                        addonSource: s._addon_source || '',
+                        quality: s._quality_label || '',
+                        pmCached: !!s._pm_cached,
                     })))
                     : '';
                 a.playInternalRichV2(

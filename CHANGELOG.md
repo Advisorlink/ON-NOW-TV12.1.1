@@ -7,6 +7,30 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.48 — Addon source chips everywhere (TORRENTIO · MEDIAFUSION · COMET · …)
+**User**: "Need addon tags (Torrentio, MediaFusion, Comet) in the available streams picker on movies page, TV show page, AND the in-player stream chooser."
+
+Backend was already tagging streams with `_addon_source` + `_quality_label` + `_pm_cached` (v2.7.39). Frontend pickers were NOT rendering those chips. Now they do — three places:
+
+### 1. React `<StreamPickerModal/>` (movies / TV detail page)
+- Each stream row now shows up to four chips below the title:
+  - **Addon source** (`TORRENTIO`, `MEDIAFUSION`, `COMET`, `PLEXIO`, `JACKETT`, `ORION`, `AIO`, `WATCHHUB`, `OPENSUBS`, `CINEMETA`, or first-word-uppercased fallback) — cyan pill
+  - **⚡ CACHED** — green pill, only on Premiumize/Real-Debrid-cached torrent streams
+  - **🇬🇧 ENG** — neutral grey pill for confirmed-English streams
+  - Stream mode (direct / torrent) — muted text
+- Test IDs: `modal-stream-{i}-source`, `modal-stream-{i}-cached`.
+
+### 2. Native Compose `StreamPickerSheet` (in-player picker)
+- `StreamOption` data class extended with `addonSource`, `quality`, `pmCached`, `isEnglish`.
+- New `StreamRow` composable replaces the generic `TrackRow` for streams — title on top + chip row underneath with the same four chips.
+- New `Chip()` helper for mono-cap pill styling matching the React side.
+
+### 3. host.js bridge payload
+- `streamsJson` sent through `playInternalRichV2` now includes `addonSource`, `quality`, `pmCached`, `isEnglish` on every stream entry — so the native player can render the chips without re-querying the backend.
+- `ExoPlayerActivity` parses + propagates those fields into `streamsFlow`. `switchStream()` preserves them when the active stream changes.
+
+**Comet support**: not in the backend's explicit `_ADDON_SOURCE_MAP` list, but the fallback (`first-word-of-addon-name uppercased, max 12 chars`) already produces `COMET` correctly. Same for any other community addon — no backend change needed.
+
 ## v2.7.47 — Build fix: replace `continue` inside `.ifBlank { ... }` lambda
 - CI failed v2.7.46 with `ExoPlayerActivity.kt:130 The feature "break continue in inline lambdas" is experimental and should be enabled explicitly`.
 - Cause: `o.optString("url", "").ifBlank { continue }` uses `continue` from inside an inline lambda — a Kotlin 2.0+ stable feature, only experimental on our Kotlin 1.9.23.
