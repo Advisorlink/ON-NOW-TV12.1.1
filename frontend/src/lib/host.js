@@ -271,15 +271,46 @@ const Host = (() => {
         return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     };
 
+    // ──────────────────────────────────────────────────────────────
+    // v2.7.39 — Video-player backend switcher (LibVLC ⇄ ExoPlayer).
+    // ──────────────────────────────────────────────────────────────
+    /** Returns "libvlc" | "exoplayer" | null (browser preview). */
+    const getPlayerBackend = () => {
+        if (!isAndroid || !a) return null;
+        if (typeof a.getPlayerBackend !== 'function') return 'libvlc'; // older APK
+        try {
+            const b = a.getPlayerBackend();
+            return (b === 'exoplayer' || b === 'exo') ? 'exoplayer' : 'libvlc';
+        } catch {
+            return 'libvlc';
+        }
+    };
+
+    /** Set backend.  `b` must be "libvlc" or "exoplayer". */
+    const setPlayerBackend = (b) => {
+        if (!isAndroid || !a || typeof a.setPlayerBackend !== 'function') {
+            return false;
+        }
+        try {
+            a.setPlayerBackend(b);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     return {
         isAndroid,
         isOnNowTV,
         isLowEnd: lowEnd,
-        playVideo,    // legacy — now always returns false
-        playExternal, // explicit "open in VLC" — opt-in only
+        playVideo,
+        playExternal,
         voiceSearch,
         isVoiceSearchAvailable,
         publicAsset,
+        // v2.7.39 — player backend toggle (A/B test).
+        getPlayerBackend,
+        setPlayerBackend,
     };
 })();
 

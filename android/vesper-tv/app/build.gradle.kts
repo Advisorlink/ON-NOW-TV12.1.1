@@ -26,8 +26,8 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 208
-        versionName = (project.findProperty("versionName") as String?) ?: "2.7.38"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 209
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.39"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -116,6 +116,20 @@ dependencies {
     // Adds ~80 MB per architecture; we ship arm64 only since every
     // HK1/RK/S905 box is arm64-v8a.
     implementation("org.videolan.android:libvlc-all:3.6.0")
+
+    // v2.7.39 — Media3 ExoPlayer as a SECOND player backend so the
+    // user can A/B test which one streams better on their HK1 box.
+    // ExoPlayer is what Stremio / YouTube / Netflix use, and its
+    // adaptive HLS/DASH logic is genuinely better than libVLC's for
+    // HTTP CDN streams (the v2.7.38 buffering bug was a libVLC
+    // prefetch-buffer-pool starvation issue that ExoPlayer doesn't
+    // have because it uses a DataSource-level chunk-cached buffer).
+    // Total extra APK weight: ~3 MB.
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     // OkHttp — minimal HTTP + WebSocket client (~600 KB).  Used by
     // VlcPlayerActivity for the Watch Together party sync socket

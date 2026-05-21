@@ -472,6 +472,7 @@ def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any
             s["_is_english"] = True
             s["_english_strict"] = False  # multi-lang, risky for autoplay
             s["_size_gb"] = _parse_size_gb(s)
+            _tag_addon_quality_premium(s)
             out.append(s)
             continue
         english = has_english_token or has_english_flag or not any_foreign
@@ -485,8 +486,78 @@ def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any
         # 3 GB so flaky huge-rip CDNs don't kill playback within
         # the first 30 seconds.
         s["_size_gb"] = _parse_size_gb(s)
+        # v2.7.39 — addon source / quality label / Premiumize cache flag.
+        _tag_addon_quality_premium(s)
         out.append(s)
     return out
+
+
+# ---------------------------------------------------------------------------
+# v2.7.39 — Stream tagging: addon source, quality label, Premiumize cache
+# ---------------------------------------------------------------------------
+
+_ADDON_SOURCE_MAP = [
+    ("plexio",     "PLEXIO"),
+    ("ep-strem",   "PLEXIO"),
+    ("torrentio",  "TORRENTIO"),
+    ("watchhub",   "WATCHHUB"),
+    ("opensub",    "OPENSUBS"),
+    ("cinemeta",   "CINEMETA"),
+    ("mediafusion","MEDIAFUSION"),
+    ("aiostreams", "AIO"),
+    ("jackett",    "JACKETT"),
+    ("orion",      "ORION"),
+]
+
+
+def _detect_addon_source(s: Dict[str, Any]) -> str:
+    blob = (
+        (s.get("_addon_id") or "")
+        + " " + (s.get("_addon_name") or "")
+        + " " + (s.get("name") or "")
+    ).lower()
+    for needle, label in _ADDON_SOURCE_MAP:
+        if needle in blob:
+            return label
+    raw = s.get("_addon_name") or "STREAM"
+    first = str(raw).split()[0][:12].upper() if raw else "STREAM"
+    return first
+
+
+def _detect_quality(s: Dict[str, Any]) -> str:
+    txt = _stream_haystack(s).lower()
+    if "2160p" in txt or " 4k" in txt or "uhd" in txt:
+        return "4K"
+    if "1080p" in txt:
+        return "1080p"
+    if "720p" in txt:
+        return "720p"
+    if "480p" in txt or " sd " in txt or "cam" in txt or "scr" in txt:
+        return "SD"
+    return ""
+
+
+def _detect_pm_cached(s: Dict[str, Any]) -> bool:
+    """Heuristic for Premiumize/Real-Debrid cached streams.
+
+    Torrent addons return either:
+      • direct https:// URL → debrid-cached → plays instantly.
+      • magnet: URI or infoHash field → raw torrent → buffer hell.
+    We only mark `_pm_cached:true` for the torrent-addon family.
+    """
+    src = _detect_addon_source(s)
+    if src not in ("TORRENTIO", "MEDIAFUSION", "AIO", "JACKETT", "ORION"):
+        return False
+    if s.get("infoHash"):
+        return False
+    url = (s.get("url") or "").lower()
+    return url.startswith(("http://", "https://"))
+
+
+def _tag_addon_quality_premium(s: Dict[str, Any]) -> None:
+    s["_addon_source"]  = _detect_addon_source(s)
+    s["_quality_label"] = _detect_quality(s)
+    s["_pm_cached"]     = _detect_pm_cached(s)
 
 
 # ---------------------------------------------------------------------------

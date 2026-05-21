@@ -52,6 +52,62 @@ class WebAppInterface(private val activity: Activity) {
         playInternal(url, title, null)
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // v2.7.39 — Video player backend toggle (LibVLC ⇄ ExoPlayer)
+    // ──────────────────────────────────────────────────────────────
+    //
+    // Stremio uses ExoPlayer.  The user reports persistent buffering
+    // on the libVLC backend and wants to A/B test ExoPlayer side by
+    // side.  These two bridge methods let the React Settings page
+    // flip the preference at runtime.  The pref is read inside
+    // playInternalRichV2 and routes the launch to either VlcPlayerActivity
+    // or ExoPlayerActivity — same intent contract, completely transparent
+    // to the React layer.
+    //
+    // SharedPreferences (file "vesper_player", key "use_exoplayer_backend"):
+    //   • true  → ExoPlayer (experimental).
+    //   • false → LibVLC (default — stable, supports every codec).
+    //
+    // The active backend is shown as a giant glass badge top-left of
+    // the player so the user always knows which one they're testing.
+
+    /** True when ExoPlayer is the active backend, false for LibVLC. */
+    @JavascriptInterface
+    fun getPlayerBackend(): String {
+        val prefs = activity.getSharedPreferences(
+            "vesper_player", android.content.Context.MODE_PRIVATE
+        )
+        return if (prefs.getBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, false)) {
+            "exoplayer"
+        } else {
+            "libvlc"
+        }
+    }
+
+    /** Set the backend.  Pass "exoplayer" or "libvlc". */
+    @JavascriptInterface
+    fun setPlayerBackend(backend: String) {
+        val useExo = backend.equals("exoplayer", ignoreCase = true)
+                  || backend.equals("exo", ignoreCase = true)
+        activity.getSharedPreferences(
+            "vesper_player", android.content.Context.MODE_PRIVATE
+        ).edit()
+            .putBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, useExo)
+            .apply()
+        // Visible confirmation so the user knows the switch landed.
+        activity.runOnUiThread {
+            Toast.makeText(
+                activity,
+                if (useExo) {
+                    "✓ Now using ExoPlayer · play any title to test"
+                } else {
+                    "✓ Now using LibVLC · play any title to test"
+                },
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     @JavascriptInterface
     fun playInternal(url: String, title: String?, subtitleUrl: String?) {
         if (url.isBlank()) return
@@ -136,22 +192,40 @@ class WebAppInterface(private val activity: Activity) {
         if (url.isBlank()) return
         activity.runOnUiThread {
             try {
-                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
-                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
-                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
-                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
-                    putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
-                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
-                    putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
-                    putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
-                    putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
-                    putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
-                    putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
-                    putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
-                    putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
-                    putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
-                    putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
-                    putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
+                // v2.7.39 — Player backend switch.  When the user
+                // has toggled ExoPlayer ON in Settings, route the
+                // launch to ExoPlayerActivity instead.  Both
+                // activities accept the same key extras (`stream_url`,
+                // `title`, `start_at_ms`) so the bridge is identical.
+                val useExo = ExoPlayerActivity.shouldUseExoPlayer(activity)
+                val targetClass = if (useExo) {
+                    ExoPlayerActivity::class.java
+                } else {
+                    VlcPlayerActivity::class.java
+                }
+                val intent = android.content.Intent(activity, targetClass).apply {
+                    if (useExo) {
+                        // ExoPlayer activity takes a slim subset.
+                        putExtra("stream_url", url)
+                        putExtra("title", title)
+                        putExtra("start_at_ms", startAtMs)
+                    } else {
+                        putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                        putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
+                        putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
+                        putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
+                        putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
+                        putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
+                        putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
+                        putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
+                        putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
+                        putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
+                        putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
+                        putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
+                        putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
+                        putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
+                        putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
+                    }
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)

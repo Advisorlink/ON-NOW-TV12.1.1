@@ -107,6 +107,17 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.Vesper.Fullscreen" />
 
+        <!-- v2.7.39 — ExoPlayer alternative backend (user picks via
+             Settings → Video player).  Same intent contract as
+             VlcPlayerActivity for trivial swap-in. -->
+        <activity
+            android:name=".ExoPlayerActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Vesper.Fullscreen" />
+
         <!-- FileProvider so we can hand the freshly-downloaded APK
              over to the system PackageInstaller via a content:// URI
              (file:// URIs are forbidden from API 24+). -->

@@ -7,6 +7,28 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.39 — ExoPlayer A/B switch + Richer picker chips
+**Two big things:**
+
+### 1. ExoPlayer added as a SECOND player backend (one-tap A/B test)
+- New `ExoPlayerActivity.kt` — Media3 1.4.1 ExoPlayer + DefaultLoadControl tuned with 15-60 s buffer pool (matches the v2.7.38 libVLC tuning so the test is apples-to-apples). Supports HTTP / HLS / DASH, position-resume, BACK→Detail, English audio/sub preference.
+- **Settings → Video player** now shows two pills: **LibVLC** (default, stable, supports every codec, has the in-player stream picker) and **ExoPlayer** (experimental, what Stremio uses, better CDN buffering). Tap to switch — pref persisted in `SharedPreferences("vesper_player").use_exoplayer_backend`. Visible Toast confirms each switch.
+- **Visible "which backend is running" badge** in BOTH players, so testing is unambiguous:
+  - ExoPlayer → glass pill top-left of the player: `▶︎  EXOPLAYER  ·  <title>`
+  - LibVLC → the existing cinematic "ON NOW TV V2 is loading your program" overlay.
+- Bridge methods: `Host.getPlayerBackend()` / `Host.setPlayerBackend("exoplayer"|"libvlc")`. Routing happens inside `WebAppInterface.playInternalRichV2()` — totally transparent to React.
+- Scope: ExoPlayer covers VOD only. Trailers + Watch Together + the in-player stream picker stay on LibVLC for the A/B test (out of scope for the first cut).
+- **APK size delta**: +~3 MB (Media3 deps).
+
+### 2. Richer stream picker chips
+- Backend tags every stream with three new fields:
+  - `_addon_source`: "PLEXIO" | "TORRENTIO" | "WATCHHUB" | "OPENSUBS" | "CINEMETA" | "MEDIAFUSION" | "AIO" | "JACKETT" | "ORION" | uppercase fallback.
+  - `_quality_label`: "4K" | "1080p" | "720p" | "SD".
+  - `_pm_cached`: true when the stream is from a torrent-family addon (Torrentio/MediaFusion/AIO/Jackett/Orion) AND the URL is a direct HTTPS (= Premiumize/Real-Debrid cached). False for raw magnets.
+- Verified live on Dune Part 2: addon=TORRENTIO, q=4K, pm=true, sz=85.37 GB, eng=true. Frontend chips next.
+
+**VPS deployed**: `server.py` synced + restarted. Chip tagging live now.
+
 ## v2.7.38 — Deep buffer tuning (fixes mid-stream buffering)
 **User reported**: streams (even direct EP-Stream / Plexio) buffer 5 minutes in, despite the v2.7.36 `network-caching=4000` bump.
 

@@ -359,6 +359,14 @@ export default function Settings() {
                 onToggle={toggleForceSdr}
             />
 
+            {/* v2.7.39 — Video player backend A/B switch.
+                Two pills, one always highlighted.  Tap to switch;
+                next press of any Play / Trailer / autoplay launch
+                uses the selected backend.  The selected backend is
+                also displayed as a glowing badge top-left of the
+                player so the user knows which one is running. */}
+            <PlayerBackendRow />
+
             <ToggleRow
                 testid="dev-unlock"
                 title="Unlock (testing)"
@@ -1569,6 +1577,142 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
         </button>
     );
 }
+
+/* ─────────────────────── PlayerBackendRow (v2.7.39) ──────────────────────
+ * Two glass pills, one always highlighted.  Tap LibVLC / ExoPlayer to
+ * switch the player backend used by Play / Trailer / autoplay launches.
+ *
+ * ────────── How to test ──────────
+ *   1. Open Settings → "Video player" → tap ExoPlayer.
+ *   2. Press Play on any movie → look top-left for the badge:
+ *        ▶︎ EXOPLAYER · <title>      ← ExoPlayer is running
+ *        (the cinematic "ON NOW TV V2 is loading" overlay)  ← LibVLC is running
+ *   3. Watch 5+ min — if ExoPlayer doesn't buffer, libVLC was the bug.
+ *  ──────────────────────────────────
+ */
+function PlayerBackendRow() {
+    const [backend, setBackend] = React.useState(() => {
+        try {
+            const b = window.OnNowTV?.getPlayerBackend?.();
+            return b === 'exoplayer' ? 'exoplayer' : 'libvlc';
+        } catch { return 'libvlc'; }
+    });
+
+    const supported =
+        typeof window !== 'undefined'
+        && typeof window.OnNowTV?.setPlayerBackend === 'function';
+
+    const onPick = React.useCallback((b) => {
+        if (b === backend || !supported) return;
+        try { window.OnNowTV.setPlayerBackend(b); } catch { /* ignore */ }
+        setBackend(b);
+    }, [backend, supported]);
+
+    return (
+        <div
+            data-testid="player-backend-row"
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 10,
+                padding: '14px 18px',
+                marginBottom: 8,
+            }}
+        >
+            <div style={{
+                fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em',
+                color: 'var(--vesper-text)',
+            }}>
+                Video player <span style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.22em',
+                    color: '#7CF1F1', marginLeft: 10,
+                }}>A / B TEST</span>
+            </div>
+            <div style={{
+                marginTop: 3, fontSize: 11, lineHeight: 1.4,
+                color: 'var(--vesper-text-2)', maxWidth: '70ch',
+            }}>
+                Which backend plays your streams. <strong>LibVLC</strong> supports
+                every codec &amp; has the in-player stream picker. <strong>ExoPlayer</strong>
+                {' '}is what Stremio uses — better adaptive HLS / CDN buffering.
+                The active backend is shown as a glowing badge top-left of the
+                player while playing.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <PlayerBackendPill
+                    label="LibVLC"
+                    sub="default · stable"
+                    active={backend === 'libvlc'}
+                    onClick={() => onPick('libvlc')}
+                    testid="player-backend-libvlc"
+                    accent="#5DC8FF"
+                />
+                <PlayerBackendPill
+                    label="ExoPlayer"
+                    sub="experimental"
+                    active={backend === 'exoplayer'}
+                    onClick={() => onPick('exoplayer')}
+                    testid="player-backend-exo"
+                    accent="#7CF1F1"
+                />
+            </div>
+            {!supported && (
+                <div style={{
+                    marginTop: 10, fontSize: 10, color: '#ffb86b',
+                    letterSpacing: '0.04em',
+                }}>
+                    Available after the next APK install (v2.7.39+).
+                </div>
+            )}
+        </div>
+    );
+}
+
+function PlayerBackendPill({ label, sub, active, onClick, testid, accent }) {
+    const accentRgb = accent === '#7CF1F1' ? '124,241,241' : '93,200,255';
+    return (
+        <button
+            data-testid={testid}
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={onClick}
+            className="text-left"
+            style={{
+                padding: '10px 16px',
+                borderRadius: 999,
+                background: active
+                    ? `rgba(${accentRgb},0.16)`
+                    : 'rgba(255,255,255,0.04)',
+                border: active
+                    ? `1.5px solid ${accent}`
+                    : '1px solid rgba(255,255,255,0.10)',
+                color: active ? accent : 'var(--vesper-text)',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 2,
+                minWidth: 130,
+            }}
+        >
+            <span style={{
+                fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
+            }}>
+                {active && '● '}{label}
+            </span>
+            <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.18em',
+                color: active ? accent : 'var(--vesper-text-2)',
+                textTransform: 'uppercase',
+            }}>
+                {sub}
+            </span>
+        </button>
+    );
+}
+
+
 
 function ThemeCard({ theme, active, initialFocus, onPick }) {
     const p = theme.preview;
