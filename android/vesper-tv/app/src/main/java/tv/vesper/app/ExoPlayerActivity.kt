@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -285,6 +286,13 @@ class ExoPlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
             )
+            // v2.7.51 — Make Compose the focused view so D-pad / OK
+            // hits the overlay buttons.  Without this, the
+            // PlayerView (added BEFORE the overlay) keeps focus and
+            // swallows every D-pad event.
+            isFocusable = true
+            isFocusableInTouchMode = true
+            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             setContent {
                 PlayerOverlay(
                     info = PlayerInfo(
@@ -367,20 +375,25 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // v2.7.51 — Activity-level handler now ONLY consumes BACK,
+        // ESCAPE and dedicated MEDIA_* hardware keys.  D-pad
+        // center/left/right/up/down + Enter are forwarded to
+        // Compose so the overlay buttons can be focused and
+        // navigated with the HK1 remote.  Previously the activity
+        // swallowed DPAD_CENTER → toggled pause, but Compose
+        // buttons never received focus events so the dock looked
+        // dead.
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
                 finish(); true
             }
-            KeyEvent.KEYCODE_SPACE,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER -> {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player.isPlaying) player.pause() else player.play(); true
             }
-            KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> {
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
                 player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0L)); true
             }
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                 player.seekTo(player.currentPosition + 10_000); true
             }
             else -> super.onKeyDown(keyCode, event)

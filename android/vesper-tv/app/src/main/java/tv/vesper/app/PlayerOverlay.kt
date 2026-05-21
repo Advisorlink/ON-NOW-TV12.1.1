@@ -166,11 +166,16 @@ fun PlayerOverlay(
     val showRebufferSpinner = loading && hasEverPlayed
 
     // Auto-hide the bottom dock after 5 s without user activity.
+    // v2.7.51 — first-time visibility window is 10 s so the user
+    // has plenty of time to see + interact before it auto-hides,
+    // and ANY remote key press (including arrow keys + Enter) bumps
+    // the activity timestamp via the `onKeyEvent` modifiers on each
+    // DockButton / via the Box's top-level onKeyEvent below.
     var dockVisible by remember { mutableStateOf(true) }
     var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(lastActivity) {
         dockVisible = true
-        delay(5000)
+        delay(if (!hasEverPlayed) 10_000L else 5_000L)
         if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false
     }
     val bump: () -> Unit = { lastActivity = System.currentTimeMillis() }
@@ -178,7 +183,20 @@ fun PlayerOverlay(
     // Track picker sheet state
     var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .onKeyEvent { ev ->
+            // v2.7.51 — Any remote key press re-shows the dock so
+            // the user can navigate again after auto-hide.  We only
+            // intercept on KeyDown to avoid bumping twice per press.
+            // Returning false lets the press continue to focused
+            // children (DockButton handles its own onKeyEvent).
+            if (ev.type == KeyEventType.KeyDown) {
+                bump()
+            }
+            false
+        }
+    ) {
         // ── Full loading screen (first play only) ──────────────────
         AnimatedVisibility(
             visible = showFullLoader,

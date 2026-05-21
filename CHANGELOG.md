@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.51 — Player buttons navigable with D-pad · dock visible longer
+**User**: "Play buttons and all that sort of stuff aren't showing on the actual player. I can't move around. I can't choose any buttons or anything. I can put on pause. That's about it."
+
+### Root cause
+Two compounding bugs:
+1. **`ExoPlayerActivity.onKeyDown` was swallowing every D-pad key** — DPAD_CENTER toggled pause, DPAD_LEFT/RIGHT seeked. The Compose overlay never saw those events, so its `focusable()` modifiers couldn't engage focus on any button.
+2. **PlayerView was created BEFORE the Compose overlay** in the FrameLayout, so it kept focus by default. Compose buttons couldn't grab D-pad focus.
+
+### Fix
+- **Activity onKeyDown** now ONLY consumes BACK / ESCAPE / hardware MEDIA_* keys. D-pad center / left / right / up / down / Enter all fall through to Compose so the overlay buttons can be focused and clicked with the HK1 remote.
+- **ComposeView focus**: set `isFocusable = true`, `isFocusableInTouchMode = true`, and `descendantFocusability = FOCUS_AFTER_DESCENDANTS` so D-pad focus lands on Compose children instead of being trapped in `PlayerView`.
+- **Dock auto-hide window**: bumped first-show to **10 s** (was 5 s) so the user has plenty of time to see + interact before fade-out. Subsequent shows (after some playback) still use 5 s.
+- **Root `onKeyEvent`**: ANY D-pad press now bumps the activity timer → dock re-appears whenever you tap an arrow. Previously the dock would never come back after auto-hiding.
+
+### BACK button & trailer still pending
+- BACK→detail page should already work via v2.7.50's `saveRoute` bridge — but it depends on the React bundle being rebuilt + repackaged into the APK. Confirmed `.github/workflows/build-apk.yml` runs `yarn build` and copies `frontend/build/` into `assets/web/`, so v2.7.51 APK will have the JS-side `saveRoute` calls.
+- Trailer YouTube 153 fix from v2.7.49 should similarly land in this APK. If it still fails on v2.7.51, the bridge interface name itself may not be `OnNowTV` on your device — please send the screenshot again.
+
 ## v2.7.50 — Catalog disappearance fixed · BACK lands on detail page (for real this time)
 **User**: "The Cinemeta catalog's gone — not showing the new movies, not showing new series. BACK from the stream doesn't take me back to the movie detail page."
 
