@@ -7,6 +7,13 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.41 — Build fix: ExoPlayerActivity polling scope (no `lifecycleScope` dep)
+- Previous v2.7.40 build failed CI compile with:
+  - `ExoPlayerActivity.kt:254 Unresolved reference: lifecycleScope`
+  - `ExoPlayerActivity.kt:272 Suspend function 'delay' should be called only from a coroutine`
+- Root cause: `androidx.lifecycle.lifecycleScope` is an extension property exposed by `androidx.lifecycle:lifecycle-runtime-ktx`, which is NOT in our gradle deps. Without it, the lambda's receiver type couldn't be inferred → cascading `delay` error.
+- Fix: replaced `lifecycleScope.launchWhenStarted` with a manually-managed `CoroutineScope(SupervisorJob + Dispatchers.Main)` (`pollScope`). Position polling now runs through that scope and is cancelled in `onDestroy()`. No new gradle dependency required.
+
 ## v2.7.40 — ExoPlayer is now the default · premium Compose overlay · beefed buffer config
 **ExoPlayer is now the default video backend.** LibVLC is still available as an opt-out via Settings → Video player.
 

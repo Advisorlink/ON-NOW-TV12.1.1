@@ -31,9 +31,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * v2.7.40 — ExoPlayer + Jetpack Compose overlay.
@@ -249,10 +252,13 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     private var pollJob: kotlinx.coroutines.Job? = null
+    private val pollScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main
+    )
     private fun startPositionPolling() {
         pollJob?.cancel()
-        pollJob = androidx.lifecycle.lifecycleScope.launchWhenStarted {
-            while (true) {
+        pollJob = pollScope.launch {
+            while (isActive) {
                 if (::player.isInitialized) {
                     positionMsFlow.value = player.currentPosition.coerceAtLeast(0L)
                     durationMsFlow.value = player.duration.coerceAtLeast(0L)
@@ -260,14 +266,6 @@ class ExoPlayerActivity : ComponentActivity() {
                     bufferAheadMsFlow.value =
                         (player.bufferedPosition - player.currentPosition)
                             .coerceAtLeast(0L)
-                    val bm = player.currentMediaItem?.let { _ ->
-                        // BandwidthMeter doesn't expose bitrate on free API;
-                        // we approximate using buffered bytes per second.
-                        bitrateKbpsFlow.value
-                    }
-                    // simple bitrate sample: total bytes loaded / time
-                    // (placeholder — Compose overlay shows BUF / TIME only).
-                    val _bm = bm  // silence unused
                 }
                 delay(250)
             }
@@ -297,7 +295,12 @@ class ExoPlayerActivity : ComponentActivity() {
 
     override fun onPause()   { super.onPause();   try { player.pause() } catch (_: Exception) {} }
     override fun onResume()  { super.onResume();  hideSystemUi(); try { player.play() } catch (_: Exception) {} }
-    override fun onDestroy() { super.onDestroy(); try { player.release() } catch (_: Exception) {} }
+    override fun onDestroy() {
+        super.onDestroy()
+        try { pollJob?.cancel() } catch (_: Exception) {}
+        try { pollScope.cancel() } catch (_: Exception) {}
+        try { player.release() } catch (_: Exception) {}
+    }
 
     override fun finish() {
         try {
