@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="en" class="dark"><head>
-<meta charset="UTF-8"><title>ExoPlayer overlay · APPROVED PREVIEW · Dune Part Two</title>
+<meta charset="UTF-8"><title>ExoPlayer overlay · APPROVED PREVIEW v2 · Dune Part Two</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -22,10 +22,10 @@ body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sa
 </style></head><body class="flex items-center justify-center min-h-screen bg-black">
 <div class="tv-container relative overflow-hidden bg-navy-900">
 
-  <!-- Real Dune Part Two backdrop from TMDB -->
+  <!-- Real Dune Part Two backdrop -->
   <img src="https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg" class="absolute inset-0 w-full h-full object-cover" alt="Dune Part Two backdrop">
 
-  <!-- LEFT fade so the text reads cleanly without smothering the image -->
+  <!-- LEFT fade — clean reading surface for the info block -->
   <div class="absolute inset-y-0 left-0 w-[55%] fade-left pointer-events-none"></div>
 
   <!-- ExoPlayer backend badge (top-left) -->
@@ -42,19 +42,32 @@ body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sa
     </div>
   </div>
 
-  <!-- ─── INFO BLOCK — bottom-left, ABOVE the control dock's scrubber line ─── -->
-  <div class="absolute left-14 bottom-[280px] w-[44%] z-20">
+  <!-- ─── INFO BLOCK — bottom-left, ABOVE the scrubber line ─── -->
+  <div class="absolute left-14 bottom-[260px] w-[46%] z-20">
+
+    <!-- "NOW PLAYING" eyebrow in theme cyan -->
+    <div class="chip chip-cyan inline-flex uppercase tracking-[0.3em] text-[11px] mb-6">
+      <i class="ph-fill ph-play mr-2"></i> Now Playing
+    </div>
+
     <!-- Real TMDB Dune Part Two transparent logo -->
     <img src="https://image.tmdb.org/t/p/original/eYvF1LhPKuoBxOAmWjFTAK7EPWl.png"
          alt="Dune Part Two logo"
          class="mb-6 drop-shadow-2xl"
-         style="height:128px; width:auto; filter:drop-shadow(0 4px 24px rgba(0,0,0,0.95));">
+         style="height:150px; width:auto; filter:drop-shadow(0 4px 28px rgba(0,0,0,0.95));">
 
-    <!-- Heading -->
-    <h1 class="text-4xl font-medium text-white mb-4 tracking-tight drop-shadow-lg">Dune: Part Two</h1>
+    <!-- BIG HEADING (matches the original v1 — text-5xl font-medium) -->
+    <h1 class="text-5xl font-medium text-white mb-2 tracking-tight drop-shadow-lg leading-none">
+      Dune: Part Two
+    </h1>
 
-    <!-- Metadata row -->
-    <div class="flex items-center gap-3 mb-5 text-white/75 font-mono text-sm">
+    <!-- BLUE / theme-color SUBTITLE underneath the heading -->
+    <div class="text-2xl font-light text-cyan-primary mb-6 tracking-wide drop-shadow-md" style="letter-spacing:0.04em;">
+      The legend rises &mdash; Part Two
+    </div>
+
+    <!-- Metadata Row (chips with theme cyan accents) -->
+    <div class="flex items-center gap-3 mb-6 text-white/75 font-mono text-sm">
       <span>2024</span>
       <span class="text-white/40">&bull;</span>
       <span>2h 46m</span>
@@ -67,17 +80,17 @@ body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sa
       <div class="chip chip-outline text-[11px] py-0.5 px-2">24.5 GB</div>
     </div>
 
-    <!-- Synopsis -->
-    <p class="text-lg text-white/82 leading-relaxed drop-shadow-md line-clamp-3 w-11/12">
+    <!-- Synopsis (matches original v1 — text-xl text-white/80 leading-relaxed line-clamp-3) -->
+    <p class="text-xl text-white/82 leading-relaxed drop-shadow-md line-clamp-3 w-11/12">
       Paul Atreides unites with Chani and the Fremen while on a warpath of revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the known universe, he endeavors to prevent a terrible future only he can foresee.
     </p>
   </div>
 
-  <!-- ─── BOTTOM CONTROL DOCK — Classic style (C01) ─── -->
-  <div class="absolute inset-x-0 bottom-0 h-[260px] fade-bottom z-30 flex flex-col justify-end px-14 pb-12">
+  <!-- ─── BOTTOM CONTROL DOCK (C01) ─── -->
+  <div class="absolute inset-x-0 bottom-0 h-[240px] fade-bottom z-30 flex flex-col justify-end px-14 pb-12">
 
     <!-- Timeline -->
-    <div class="flex items-center gap-6 mb-9">
+    <div class="flex items-center gap-6 mb-8">
       <span class="font-mono text-base font-bold text-cyan-primary tracking-wider w-24 text-right">01:48:22</span>
       <div class="flex-1 scrubber-track">
         <div class="scrubber-fill"><div class="scrubber-thumb"></div></div>
@@ -85,7 +98,7 @@ body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sa
       <span class="font-mono text-base text-white/60 tracking-wider w-24">02:46:00</span>
     </div>
 
-    <!-- Buttons row -->
+    <!-- Buttons -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
         <button class="tv-btn"><i class="ph ph-speaker-high"></i></button>
