@@ -102,6 +102,17 @@ android {
     buildFeatures {
         buildConfig = true
         viewBinding = false
+        // v2.7.40 — Jetpack Compose for the ExoPlayer overlay UI.
+        // We mount a ComposeView over ExoPlayer's PlayerView with all
+        // controls (logo, title, synopsis, chips, scrubber, button
+        // cluster) rendered in Compose so they're truly pixel-perfect
+        // to the approved design mockup.
+        compose = true
+    }
+    composeOptions {
+        // Compose compiler 1.5.13 pairs with Kotlin 1.9.23 (the
+        // version the project is on — see top-level build.gradle.kts).
+        kotlinCompilerExtensionVersion = "1.5.13"
     }
 }
 
@@ -129,10 +140,20 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
 
-    // OkHttp — minimal HTTP + WebSocket client (~600 KB).  Used by
-    // VlcPlayerActivity for the Watch Together party sync socket
-    // (host/guest play/pause/seek coordination).  No HTTP usage
-    // overlap with the rest of the app — the WebView's own fetch
-    // handles everything else.
+    // OkHttp — minimal HTTP + WebSocket client (~600 KB).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // v2.7.40 — Jetpack Compose for the ExoPlayer overlay UI.
+    // We use the Compose BOM so all UI module versions stay aligned.
+    // Total APK weight increase: ~4 MB (Compose runtime).  Coil pulls
+    // the TMDB title-treatment logo asynchronously so the player
+    // surface paints instantly without waiting on network.
+    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }

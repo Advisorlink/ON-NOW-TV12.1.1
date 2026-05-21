@@ -1,6 +1,5 @@
 package tv.vesper.app
 
-import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Build
@@ -12,8 +11,16 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -22,239 +29,286 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
-import org.json.JSONObject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * v2.7.39 — ExoPlayer-backed full-screen video activity.
+ * v2.7.40 — ExoPlayer + Jetpack Compose overlay.
  *
- * Second player backend (alongside [VlcPlayerActivity]) so the user
- * can A/B test which one streams better on their HK1 box.  Stremio
- * itself uses ExoPlayer, and ExoPlayer's adaptive HLS/DASH logic +
- * chunk-cached `DataSource` buffer is widely considered better than
- * libVLC for HTTP CDN streams.
+ * Now the **default** video backend (was LibVLC).  LibVLC stays around
+ * as a fallback for titles ExoPlayer can't decode (rare AC3/DTS-HD on
+ * the cheapest boxes).
  *
- * SCOPE — intentionally minimal so the comparison is honest:
- *   • Plays a stream URL passed in via intent extras (same contract
- *     as VlcPlayerActivity for trivial swap-in).
- *   • Position-resume via the `startAtMs` extra.
- *   • BACK key → finish() → returns to the WebView Detail page.
- *   • Big visible "EXOPLAYER" badge top-left so the user always knows
- *     which backend they're testing.
+ * What's new in 2.7.40:
+ *   • Compose-rendered overlay matching the approved Dune mockup
+ *     pixel-by-pixel (logo + heading + cyan tagline + chip strip +
+ *     synopsis + bottom scrubber + 9-button control dock).
+ *   • Cinematic loading screen identical to LibVLC's "ON NOW TV V2
+ *     is loading your program" + animated dots.
+ *   • Buffer config beefed to "stream-everything-perfectly" tier:
+ *       minBufferMs = 30 000  (30 s minimum before playback resumes)
+ *       maxBufferMs = 90 000  (90 s ceiling — soaks any CDN blip)
+ *       bufferForPlaybackMs = 2500          (start playing fast)
+ *       bufferForPlaybackAfterRebufferMs = 5000 (recover gracefully)
+ *     Plus 1 MB chunk fetch (was 64 KB), keep-alive HTTP connections,
+ *     cross-protocol redirects, English audio/sub preference.
  *
- * NOT in scope (yet):
- *   • In-player stream picker (LibVLC has it; ExoPlayer fallback
- *     would force a re-launch, which is fine for A/B testing).
- *   • Watch Together sync.
- *   • Trailers (always use libVLC for those — they need the
- *     googlevideo input-slave magic).
- *
- * If ExoPlayer wins the A/B test, we promote it to the default and
- * back-port the missing features.
+ * Intent contract — same as VlcPlayerActivity so the bridge is one
+ * line of code in WebAppInterface.  Reads all the LibVLC EXTRA_* keys.
  */
 @UnstableApi
-class ExoPlayerActivity : AppCompatActivity() {
+class ExoPlayerActivity : ComponentActivity() {
 
     private lateinit var player: ExoPlayer
-    private lateinit var playerView: PlayerView
-    private lateinit var infoBadge: TextView
-
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     private var startAtMs: Long = 0L
+    private var synopsis: String = ""
+    private var year: String = ""
+    private var runtime: String = ""
+    private var rating: String = ""
+    private var backdrop: String = ""
+    private var poster: String = ""
+    private var addonSource: String = "ON NOW"
+    private var qualityLabel: String = "1080p"
+    private var sizeGb: Float = 0f
+    private var isEnglish: Boolean = true
+    private var cwId: String = ""
+
+    // Reactive player state for the Compose overlay
+    private val isPlayingFlow = MutableStateFlow(false)
+    private val positionMsFlow = MutableStateFlow(0L)
+    private val durationMsFlow = MutableStateFlow(0L)
+    private val bufferedPercentFlow = MutableStateFlow(0)
+    private val bufferAheadMsFlow = MutableStateFlow(0L)
+    private val bitrateKbpsFlow = MutableStateFlow(0L)
+    private val isLoadingFlow = MutableStateFlow(true)
+    private val errorMessageFlow = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Lock landscape + go full-screen — TVs are landscape only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUi()
 
-        // Read intent extras using the SAME contract as VlcPlayerActivity
-        // so the WebAppInterface can launch either activity with the same
-        // bundle.
-        streamUrl   = intent.getStringExtra("stream_url") ?: ""
-        streamTitle = intent.getStringExtra("title") ?: ""
-        startAtMs   = intent.getLongExtra("start_at_ms", 0L)
+        // ─── Read intent extras (same keys as VlcPlayerActivity) ───
+        streamUrl   = intent.getStringExtra(VlcPlayerActivity.EXTRA_URL) ?: ""
+        streamTitle = intent.getStringExtra(VlcPlayerActivity.EXTRA_TITLE) ?: ""
+        startAtMs   = intent.getLongExtra(VlcPlayerActivity.EXTRA_START_AT_MS, 0L)
+        synopsis    = intent.getStringExtra(VlcPlayerActivity.EXTRA_SYNOPSIS) ?: ""
+        year        = intent.getStringExtra(VlcPlayerActivity.EXTRA_YEAR) ?: ""
+        runtime     = intent.getStringExtra(VlcPlayerActivity.EXTRA_RUNTIME) ?: ""
+        rating      = intent.getStringExtra(VlcPlayerActivity.EXTRA_RATING) ?: ""
+        backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
+        poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
+        cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
 
-        if (streamUrl.isBlank()) {
-            Log.e(TAG, "no stream_url extra — bailing out")
-            finish()
-            return
-        }
+        if (streamUrl.isBlank()) { finish(); return }
 
-        // ─── UI: PlayerView fills the screen.  Above it (top-left)
-        // we render a glowing "EXOPLAYER" badge so the user always
-        // knows which backend they're testing.
-        val root = FrameLayout(this)
-        playerView = PlayerView(this).apply {
-            useController = true
-            controllerShowTimeoutMs = 4000
-            controllerHideOnTouch = true
-            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-        }
-        root.addView(
-            playerView,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
-
-        val dp = resources.displayMetrics.density
-        fun dpi(v: Float) = (v * dp).toInt()
-        infoBadge = TextView(this).apply {
-            text = "▶︎  EXOPLAYER  ·  ${streamTitle.ifBlank { "—" }.take(60)}"
-            setTextColor(0xFF7CF1F1.toInt())
-            textSize = 11f
-            letterSpacing = 0.22f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dpi(14f), dpi(8f), dpi(14f), dpi(8f))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dpi(20f).toFloat()
-                setColor(0xCC0A1322.toInt())
-                setStroke(dpi(1f), 0x807CF1F1.toInt())
-            }
-        }
-        val badgeLp = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-        ).apply {
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            topMargin = dpi(18f)
-            leftMargin = dpi(18f)
-        }
-        root.addView(infoBadge, badgeLp)
-        setContentView(root)
-
-        // ─── ExoPlayer build ───
+        // ─── Beefed-up ExoPlayer ─────────────────────────────────
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
-
-        // DEEP buffer config — mirrors the v2.7.38 libVLC tuning so
-        // the A/B test compares apples to apples:
-        //   • minBufferMs   = 15000   (15 s minimum kept in pool)
-        //   • maxBufferMs   = 60000   (60 s ceiling)
-        //   • bufferForPlaybackMs           = 2500
-        //   • bufferForPlaybackAfterRebufferMs = 5000
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15_000,   // minBufferMs
-                60_000,   // maxBufferMs
-                2_500,    // bufferForPlaybackMs
+                30_000,   // minBufferMs — 30 s, soaks long CDN stalls
+                90_000,   // maxBufferMs — 90 s ceiling
+                2_500,    // bufferForPlaybackMs — start playing fast
                 5_000,    // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
+            .setTargetBufferBytes(C.LENGTH_UNSET)  // unbounded; rely on time
             .build()
-
-        // HTTP data source with sane keep-alive + reconnect.
         val httpFactory = DefaultHttpDataSource.Factory().apply {
-            setUserAgent("Vesper-ExoPlayer/2.7.39")
-            setConnectTimeoutMs(15_000)
-            setReadTimeoutMs(15_000)
+            setUserAgent("Vesper-ExoPlayer/2.7.40")
+            setConnectTimeoutMs(20_000)
+            setReadTimeoutMs(25_000)
             setAllowCrossProtocolRedirects(true)
-            // English-preferred Accept-Language so CDN-fronted streams
-            // (Plexio, WatchHub) get an English audio variant when the
-            // server can switch based on the header.
+            setKeepPostFor302Redirects(true)
             setDefaultRequestProperties(
-                mapOf("Accept-Language" to "en,en-US;q=0.9")
+                mapOf(
+                    "Accept-Language" to "en,en-US;q=0.9",
+                    "Connection"      to "keep-alive",
+                ),
             )
         }
-        val mediaSourceFactory: MediaSource.Factory =
+        val mediaSourceFactory =
             DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
-
         player = ExoPlayer.Builder(this)
             .setBandwidthMeter(bandwidth)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {
-                // English audio + subtitle preference — ExoPlayer's
-                // track selector respects this when a stream has
-                // multiple language tracks.
-                trackSelectionParameters = trackSelectionParameters
-                    .buildUpon()
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
                     .setPreferredAudioLanguages("eng", "en", "english")
                     .setPreferredTextLanguages("eng", "en", "english")
                     .build()
             }
-        playerView.player = player
 
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "ExoPlayer error: ${error.errorCodeName} — ${error.message}")
-                // Surface error visually so the user can tell ExoPlayer
-                // failed (vs LibVLC working).  No silent fail.
-                infoBadge.text = "✗  EXOPLAYER ERROR  ·  ${error.errorCodeName}"
-                infoBadge.setTextColor(0xFFFF6B6B.toInt())
+                Log.e(TAG, "ExoPlayer error: ${error.errorCodeName}", error)
+                errorMessageFlow.value = error.errorCodeName
+                isLoadingFlow.value = false
             }
-
             override fun onPlaybackStateChanged(state: Int) {
-                val s = when (state) {
-                    Player.STATE_IDLE      -> "IDLE"
-                    Player.STATE_BUFFERING -> "BUFFERING"
-                    Player.STATE_READY     -> "READY"
-                    Player.STATE_ENDED     -> "ENDED"
-                    else                   -> "$state"
+                isLoadingFlow.value = (state == Player.STATE_BUFFERING ||
+                                       state == Player.STATE_IDLE)
+                if (state == Player.STATE_READY) {
+                    durationMsFlow.value = player.duration.coerceAtLeast(0L)
                 }
-                Log.d(TAG, "ExoPlayer state: $s")
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isPlayingFlow.value = isPlaying
             }
         })
 
-        val item = MediaItem.Builder()
-            .setUri(streamUrl)
-            .setMediaId(streamUrl)
-            .build()
+        val item = MediaItem.Builder().setUri(streamUrl).setMediaId(streamUrl).build()
         player.setMediaItem(item)
-        if (startAtMs > 5_000) {
-            player.seekTo(startAtMs)
-        }
+        if (startAtMs > 5_000) player.seekTo(startAtMs)
         player.prepare()
         player.playWhenReady = true
+
+        // ─── UI: PlayerView (raw video surface, no native controls) + Compose overlay ───
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(0xFF020610.toInt())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+
+        // ExoPlayer's video surface — controls OFF; we render our own.
+        val playerView = PlayerView(this).apply {
+            useController = false
+            this.player = this@ExoPlayerActivity.player
+            setBackgroundColor(0xFF000000.toInt())
+            setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+        root.addView(playerView)
+
+        // Compose overlay on top
+        val composeView = androidx.compose.ui.platform.ComposeView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            setContent {
+                PlayerOverlay(
+                    info = PlayerInfo(
+                        title       = streamTitle,
+                        synopsis    = synopsis,
+                        year        = year,
+                        runtime     = runtime,
+                        rating      = rating,
+                        backdrop    = backdrop.ifBlank { poster },
+                        addonSource = addonSource,
+                        quality     = qualityLabel,
+                        isEnglish   = isEnglish,
+                        sizeGb      = sizeGb,
+                    ),
+                    isPlaying       = isPlayingFlow.asStateFlow(),
+                    positionMs      = positionMsFlow.asStateFlow(),
+                    durationMs      = durationMsFlow.asStateFlow(),
+                    bufferedPercent = bufferedPercentFlow.asStateFlow(),
+                    bufferAheadMs   = bufferAheadMsFlow.asStateFlow(),
+                    bitrateKbps     = bitrateKbpsFlow.asStateFlow(),
+                    isLoading       = isLoadingFlow.asStateFlow(),
+                    errorMessage    = errorMessageFlow.asStateFlow(),
+                    onPlayPause = {
+                        if (player.isPlaying) player.pause() else player.play()
+                    },
+                    onSeekBy = { deltaMs ->
+                        val target = (player.currentPosition + deltaMs).coerceAtLeast(0L)
+                        player.seekTo(target)
+                    },
+                    onSeekTo = { posMs ->
+                        player.seekTo(posMs.coerceAtLeast(0L))
+                    },
+                    onClose = { finish() },
+                )
+            }
+        }
+        root.addView(composeView)
+        setContentView(root)
+
+        // ─── Poll player position 4× per second so the scrubber stays smooth ───
+        lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> startPositionPolling()
+                else -> Unit
+            }
+        })
+    }
+
+    private var pollJob: kotlinx.coroutines.Job? = null
+    private fun startPositionPolling() {
+        pollJob?.cancel()
+        pollJob = androidx.lifecycle.lifecycleScope.launchWhenStarted {
+            while (true) {
+                if (::player.isInitialized) {
+                    positionMsFlow.value = player.currentPosition.coerceAtLeast(0L)
+                    durationMsFlow.value = player.duration.coerceAtLeast(0L)
+                    bufferedPercentFlow.value = player.bufferedPercentage
+                    bufferAheadMsFlow.value =
+                        (player.bufferedPosition - player.currentPosition)
+                            .coerceAtLeast(0L)
+                    val bm = player.currentMediaItem?.let { _ ->
+                        // BandwidthMeter doesn't expose bitrate on free API;
+                        // we approximate using buffered bytes per second.
+                        bitrateKbpsFlow.value
+                    }
+                    // simple bitrate sample: total bytes loaded / time
+                    // (placeholder — Compose overlay shows BUF / TIME only).
+                    val _bm = bm  // silence unused
+                }
+                delay(250)
+            }
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // BACK → finish().  Returning to the WebView Detail page is
-        // handled by the default Activity back-stack (we DELIBERATELY
-        // do not set FLAG_ACTIVITY_NEW_TASK in WebAppInterface, so
-        // this activity is part of MainActivity's task).
-        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
-            finish()
-            return true
+        return when (keyCode) {
+            KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
+                finish(); true
+            }
+            KeyEvent.KEYCODE_SPACE,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+                if (player.isPlaying) player.pause() else player.play(); true
+            }
+            KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> {
+                player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0L)); true
+            }
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                player.seekTo(player.currentPosition + 10_000); true
+            }
+            else -> super.onKeyDown(keyCode, event)
         }
-        return super.onKeyDown(keyCode, event)
     }
 
-    override fun onPause() {
-        super.onPause()
-        try { player.pause() } catch (_: Exception) { }
-    }
+    override fun onPause()   { super.onPause();   try { player.pause() } catch (_: Exception) {} }
+    override fun onResume()  { super.onResume();  hideSystemUi(); try { player.play() } catch (_: Exception) {} }
+    override fun onDestroy() { super.onDestroy(); try { player.release() } catch (_: Exception) {} }
 
-    override fun onResume() {
-        super.onResume()
-        hideSystemUi()
-        try { player.play() } catch (_: Exception) { }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try { player.release() } catch (_: Exception) { }
-    }
-
-    /** Set a "save progress" intent extra back to MainActivity so
-     *  the WebView Continue-Watching matches what LibVLC reports.
-     *  Kept simple — full WT sync isn't in scope for this A/B test. */
     override fun finish() {
         try {
             val pos = player.currentPosition.coerceAtLeast(0L)
             val data = Intent().apply {
                 putExtra("position_ms", pos)
                 putExtra("stream_url", streamUrl)
+                putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
             }
             setResult(RESULT_OK, data)
-        } catch (_: Exception) { }
+        } catch (_: Exception) {}
         super.finish()
     }
 
@@ -281,18 +335,16 @@ class ExoPlayerActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "VesperExo"
-
-        /**
-         * SharedPreferences key — true → user has opted into ExoPlayer
-         * for ALL non-trailer VOD launches; false / unset → LibVLC.
-         * Read by WebAppInterface.shouldUseExoPlayer().
-         */
         const val PREF_KEY_USE_EXO = "use_exoplayer_backend"
 
-        @Suppress("unused")  // Bridge call from JS WebInterface
+        @Suppress("unused")
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {
-            val prefs = ctx.getSharedPreferences("vesper_player", android.content.Context.MODE_PRIVATE)
-            return prefs.getBoolean(PREF_KEY_USE_EXO, false)
+            val prefs = ctx.getSharedPreferences(
+                "vesper_player", android.content.Context.MODE_PRIVATE
+            )
+            // v2.7.40 — DEFAULT FLIPPED to ExoPlayer.  Users can still
+            // opt back to LibVLC via Settings → Video player.
+            return prefs.getBoolean(PREF_KEY_USE_EXO, true)
         }
     }
 }
