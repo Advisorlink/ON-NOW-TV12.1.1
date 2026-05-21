@@ -1,0 +1,108 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+<meta charset="UTF-8"><title>ExoPlayer overlay · APPROVED PREVIEW · Dune Part Two</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<script>tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Outfit','sans-serif'],mono:['JetBrains Mono','monospace']},colors:{navy:{900:'#020610',800:'#0A1322',700:'#0D121C'},cyan:{primary:'#5DC8FF',accent:'#7CF1F1'}}}}}</script>
+<style>
+body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sans-serif}
+.tv-container{width:1920px;height:1080px;position:relative;transform-origin:top left;transform:scale(min(100vw/1920,100vh/1080))}
+.chip{display:flex;align-items:center;justify-content:center;padding:4px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700}
+.chip-outline{border:1px solid rgba(255,255,255,0.22);color:rgba(255,255,255,0.85)}
+.chip-cyan{background:rgba(93,200,255,0.16);border:1px solid rgba(93,200,255,0.45);color:#5DC8FF}
+.tv-btn{display:flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:32px;background:rgba(255,255,255,0.05);border:2px solid transparent;transition:all .22s cubic-bezier(.4,0,.2,1);color:rgba(255,255,255,0.85);cursor:pointer}
+.tv-btn i{font-size:32px}
+.tv-btn.active{background:#5DC8FF;color:#020610;transform:scale(1.1);border-color:rgba(255,255,255,0.5);box-shadow:0 0 24px rgba(93,200,255,0.45)}
+.tv-btn-large{width:88px;height:88px;border-radius:44px}.tv-btn-large i{font-size:40px}
+.scrubber-track{width:100%;height:8px;background:rgba(255,255,255,0.22);border-radius:4px;position:relative;cursor:pointer}
+.scrubber-fill{height:100%;background:#5DC8FF;border-radius:4px;width:65%;position:relative;box-shadow:0 0 12px rgba(93,200,255,.5)}
+.scrubber-thumb{position:absolute;right:-9px;top:50%;transform:translateY(-50%);width:24px;height:24px;background:#fff;border-radius:50%;box-shadow:0 0 14px rgba(93,200,255,0.8)}
+.fade-bottom{background:linear-gradient(to top,rgba(2,6,16,0.95) 0%,rgba(2,6,16,0.55) 55%,transparent 100%)}
+.fade-left{background:linear-gradient(to right,#020610 0%,rgba(2,6,16,0.92) 25%,rgba(2,6,16,0.55) 50%,transparent 75%)}
+</style></head><body class="flex items-center justify-center min-h-screen bg-black">
+<div class="tv-container relative overflow-hidden bg-navy-900">
+
+  <!-- Real Dune Part Two backdrop from TMDB -->
+  <img src="https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg" class="absolute inset-0 w-full h-full object-cover" alt="Dune Part Two backdrop">
+
+  <!-- LEFT fade so the text reads cleanly without smothering the image -->
+  <div class="absolute inset-y-0 left-0 w-[55%] fade-left pointer-events-none"></div>
+
+  <!-- ExoPlayer backend badge (top-left) -->
+  <div class="absolute top-12 left-14 flex items-center gap-3 z-50">
+    <div class="chip chip-cyan uppercase tracking-widest text-xs">
+      <i class="ph-fill ph-play text-cyan-accent mr-2"></i> Exoplayer
+    </div>
+  </div>
+
+  <!-- Buffer HUD (top-right) -->
+  <div class="absolute top-12 right-14 z-50">
+    <div class="font-mono text-[13px] text-cyan-primary border border-cyan-primary/30 px-3 py-1.5 rounded bg-navy-900/80 backdrop-blur-sm tracking-wide">
+      BUF 12s &middot; 6.2Mbps &middot; ExoPlayer
+    </div>
+  </div>
+
+  <!-- ─── INFO BLOCK — bottom-left, ABOVE the control dock's scrubber line ─── -->
+  <div class="absolute left-14 bottom-[280px] w-[44%] z-20">
+    <!-- Real TMDB Dune Part Two transparent logo -->
+    <img src="https://image.tmdb.org/t/p/original/eYvF1LhPKuoBxOAmWjFTAK7EPWl.png"
+         alt="Dune Part Two logo"
+         class="mb-6 drop-shadow-2xl"
+         style="height:128px; width:auto; filter:drop-shadow(0 4px 24px rgba(0,0,0,0.95));">
+
+    <!-- Heading -->
+    <h1 class="text-4xl font-medium text-white mb-4 tracking-tight drop-shadow-lg">Dune: Part Two</h1>
+
+    <!-- Metadata row -->
+    <div class="flex items-center gap-3 mb-5 text-white/75 font-mono text-sm">
+      <span>2024</span>
+      <span class="text-white/40">&bull;</span>
+      <span>2h 46m</span>
+      <span class="text-white/40">&bull;</span>
+      <span class="border border-white/30 px-1.5 rounded-sm text-xs">PG-13</span>
+      <span class="text-white/40">&bull;</span>
+      <div class="chip chip-cyan text-[11px] py-0.5 px-2">4K HDR</div>
+      <div class="chip chip-outline text-[11px] py-0.5 px-2">🇬🇧 ENG</div>
+      <div class="chip chip-outline text-[11px] py-0.5 px-2">ON NOW</div>
+      <div class="chip chip-outline text-[11px] py-0.5 px-2">24.5 GB</div>
+    </div>
+
+    <!-- Synopsis -->
+    <p class="text-lg text-white/82 leading-relaxed drop-shadow-md line-clamp-3 w-11/12">
+      Paul Atreides unites with Chani and the Fremen while on a warpath of revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the known universe, he endeavors to prevent a terrible future only he can foresee.
+    </p>
+  </div>
+
+  <!-- ─── BOTTOM CONTROL DOCK — Classic style (C01) ─── -->
+  <div class="absolute inset-x-0 bottom-0 h-[260px] fade-bottom z-30 flex flex-col justify-end px-14 pb-12">
+
+    <!-- Timeline -->
+    <div class="flex items-center gap-6 mb-9">
+      <span class="font-mono text-base font-bold text-cyan-primary tracking-wider w-24 text-right">01:48:22</span>
+      <div class="flex-1 scrubber-track">
+        <div class="scrubber-fill"><div class="scrubber-thumb"></div></div>
+      </div>
+      <span class="font-mono text-base text-white/60 tracking-wider w-24">02:46:00</span>
+    </div>
+
+    <!-- Buttons row -->
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <button class="tv-btn"><i class="ph ph-speaker-high"></i></button>
+        <button class="tv-btn"><i class="ph ph-subtitles"></i></button>
+        <button class="tv-btn"><i class="ph ph-plugs"></i></button>
+      </div>
+      <div class="flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+        <button class="tv-btn"><i class="ph-fill ph-clock-counter-clockwise"></i></button>
+        <button class="tv-btn tv-btn-large active"><i class="ph-fill ph-pause"></i></button>
+        <button class="tv-btn"><i class="ph-fill ph-clock-clockwise"></i></button>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="tv-btn"><i class="ph ph-gear-six"></i></button>
+        <button class="tv-btn"><i class="ph ph-screencast"></i></button>
+        <button class="tv-btn"><i class="ph ph-corners-out"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>
