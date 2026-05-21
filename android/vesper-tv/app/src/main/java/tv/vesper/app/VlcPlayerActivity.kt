@@ -1621,13 +1621,16 @@ class VlcPlayerActivity : AppCompatActivity() {
                     setInfoCardForPaused(true)
                 }
                 MediaPlayer.Event.Buffering -> {
-                    if (!previewDismissed) {
-                        previewStatus.text =
-                            "Loading · ${event.buffering.toInt()}%"
-                    } else if (event.buffering < 100f) {
-                        loadingView.visibility = View.VISIBLE
-                    } else {
-                        loadingView.visibility = View.GONE
+                    // v2.7.30 — user request: drop the "Loading · 73%"
+                    // text and let the cinematic "ON NOW TV V2 is
+                    // loading your program" + animated dots speak
+                    // for themselves.  No more jittery % bar.
+                    if (previewDismissed) {
+                        if (event.buffering < 100f) {
+                            loadingView.visibility = View.VISIBLE
+                        } else {
+                            loadingView.visibility = View.GONE
+                        }
                     }
                 }
                 MediaPlayer.Event.EncounteredError -> {
@@ -1949,8 +1952,25 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (streamPickerOverlay == null) {
             buildStreamPickerOverlay()
         }
-        streamPickerOverlay?.visibility = android.view.View.VISIBLE
+        val overlay = streamPickerOverlay ?: return
+        overlay.visibility = android.view.View.VISIBLE
         renderStreamPicker()
+        // Premium fade + scale entrance on the inner card (NOT the
+        // scrim, so the dim background snaps in immediately).
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(180).start()
+        val card = (overlay as? android.widget.FrameLayout)?.getChildAt(0)
+        if (card != null) {
+            card.scaleX = 0.94f
+            card.scaleY = 0.94f
+            card.alpha = 0f
+            card.animate()
+                .scaleX(1f).scaleY(1f)
+                .alpha(1f)
+                .setDuration(220)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f))
+                .start()
+        }
     }
 
     private fun hideStreamPicker() {
@@ -1960,47 +1980,89 @@ class VlcPlayerActivity : AppCompatActivity() {
 
     private fun buildStreamPickerOverlay() {
         val root = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
-        // Scrim
+        val dp = resources.displayMetrics.density
+        fun dpi(v: Float) = (v * dp).toInt()
+
+        // Scrim — heavy darken + slight tint so the player video
+        // recedes and the card feels "lifted" above it.
         val scrim = android.widget.FrameLayout(this).apply {
             layoutParams = android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
             )
-            setBackgroundColor(0xCC000810.toInt())
+            setBackgroundColor(0xE6020610.toInt())
             isFocusable = false
             isClickable = true
+            setOnClickListener { hideStreamPicker() }
         }
-        // Card (centred)
+
+        // Glass card — rounded translucent panel with cyan border
+        // glow and an inner sheen.  Mirrors the H3 "glass dock"
+        // aesthetic used by the host party menu so the in-player
+        // overlays feel like one cohesive design system.
         val card = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            val cardW = (resources.displayMetrics.widthPixels * 0.5f).toInt()
-            val cardH = (resources.displayMetrics.heightPixels * 0.7f).toInt()
+            val cardW = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+                .coerceAtMost(dpi(760f))
+            val cardH = (resources.displayMetrics.heightPixels * 0.78f).toInt()
             val lp = android.widget.FrameLayout.LayoutParams(cardW, cardH).apply {
                 gravity = android.view.Gravity.CENTER
             }
             layoutParams = lp
-            setBackgroundResource(R.drawable.bg_stream_picker_card)
-            setPadding(36, 28, 36, 24)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpi(22f).toFloat()
+                setColor(0xF20A1224.toInt())            // 95 % opaque deep indigo
+                setStroke(dpi(1f), 0x665DC8FF.toInt())  // cyan glow border
+            }
+            setPadding(dpi(28f), dpi(24f), dpi(28f), dpi(20f))
+            elevation = dpi(28f).toFloat()
+            // Swallow scrim clicks when they bubble through.
+            isClickable = true
+            setOnClickListener { /* no-op — keep card open */ }
         }
-        // Header
-        val header = android.widget.TextView(this).apply {
-            text = "AVAILABLE STREAMS"
+
+        // Cyan eyebrow strip with a thin gradient underline.  Adds
+        // the premium "section header" vibe the user is after.
+        val eyebrow = android.widget.TextView(this).apply {
+            text = "PICK YOUR STREAM"
             setTextColor(0xFF5DC8FF.toInt())
-            textSize = 11f
-            letterSpacing = 0.25f
+            textSize = 10f
+            letterSpacing = 0.32f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, 8)
         }
         val title = android.widget.TextView(this).apply {
-            text = "Choose a stream to test"
-            setTextColor(0xFFE6EAF2.toInt())
-            textSize = 20f
+            text = streamTitle ?: "Available streams"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 22f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, 18)
+            setPadding(0, dpi(6f), 0, 0)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        // Scrolling list
+        val subline = android.widget.TextView(this).apply {
+            text = "${streamsList.size} sources · ranked by quality"
+            setTextColor(0xFF8A93A8.toInt())
+            textSize = 12f
+            letterSpacing = 0.06f
+            setPadding(0, dpi(4f), 0, dpi(14f))
+        }
+        // Gradient divider — a 1 dp line that fades cyan→transparent
+        // for a subtle "tron" feel.
+        val divider = android.view.View(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                dpi(1f)
+            ).apply { bottomMargin = dpi(14f) }
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(0xFF5DC8FF.toInt(), 0x335DC8FF.toInt(), 0x00000000)
+            )
+        }
+
         val scroll = android.widget.ScrollView(this).apply {
             isFocusable = false
+            isVerticalScrollBarEnabled = false
+            overScrollMode = android.view.View.OVER_SCROLL_NEVER
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
@@ -2012,17 +2074,20 @@ class VlcPlayerActivity : AppCompatActivity() {
         }
         scroll.addView(streamPickerList)
 
-        // Footer hint
+        // Footer hint pill.
         val hint = android.widget.TextView(this).apply {
-            text = "▲▼ to scroll · OK to play · BACK to close"
+            text = "▲▼ navigate    OK play    BACK close"
             setTextColor(0xFF7C8497.toInt())
             textSize = 11f
-            letterSpacing = 0.15f
+            letterSpacing = 0.18f
             gravity = android.view.Gravity.CENTER
-            setPadding(0, 16, 0, 0)
+            setPadding(0, dpi(14f), 0, dpi(2f))
         }
-        card.addView(header)
+
+        card.addView(eyebrow)
         card.addView(title)
+        card.addView(subline)
+        card.addView(divider)
         card.addView(scroll)
         card.addView(hint)
         scrim.addView(card)
@@ -2031,19 +2096,75 @@ class VlcPlayerActivity : AppCompatActivity() {
         scrim.visibility = android.view.View.GONE
     }
 
+    /**
+     * Parse a stream label into (qualityChips, source, displayLabel).
+     * Stremio addons cram everything into one string like:
+     *   "Torrentio\n4K HEVC · WEB-DL · 12.4 GB · 👤 42"
+     * We extract chip-worthy tokens (4K/1080p/HDR/HEVC/REMUX/etc.)
+     * so they render as standalone glassy pills, and trim the rest.
+     */
+    private data class StreamChips(
+        val qualityChips: List<String>,
+        val sizeChip: String?,
+        val seedsChip: String?,
+        val source: String,
+        val remainder: String,
+    )
+
+    private fun parseStreamLabel(raw: String): StreamChips {
+        val lines = raw.split('\n').map { it.trim() }.filter { it.isNotBlank() }
+        val source = lines.firstOrNull()?.take(28) ?: "Stream"
+        val rest = lines.drop(1).joinToString("  ·  ")
+        val chips = mutableListOf<String>()
+        // Quality keywords — order matters (most specific first).
+        val keywords = listOf(
+            "4K", "2160p", "1080p", "720p", "480p", "HDR10+", "HDR10",
+            "HDR", "DV", "DolbyVision", "REMUX", "BLURAY", "BluRay",
+            "WEB-DL", "WEBRIP", "HEVC", "x265", "x264", "H265", "H264",
+            "10bit", "AV1", "Atmos", "DTS", "TrueHD"
+        )
+        val upper = rest.uppercase()
+        for (k in keywords) {
+            if (upper.contains(k.uppercase()) && chips.none { it.equals(k, true) }) {
+                chips.add(k)
+            }
+            if (chips.size >= 4) break
+        }
+        // Size — match e.g. "12.4 GB" or "850 MB"
+        val sizeRegex = Regex("""\b(\d+(?:\.\d+)?)\s*(GB|MB|TB)\b""", RegexOption.IGNORE_CASE)
+        val sizeMatch = sizeRegex.find(rest)
+        val sizeChip = sizeMatch?.value?.replace(" ", "")?.uppercase()
+        // Seeders — e.g. "👤 42" or "Seeders: 42"
+        val seedRegex = Regex("""(?:👤|seeders?:?\s*)(\d+)""", RegexOption.IGNORE_CASE)
+        val seedMatch = seedRegex.find(rest)
+        val seedsChip = seedMatch?.groupValues?.getOrNull(1)?.let { "$it seeds" }
+        // Remainder: strip everything we already chipified.
+        var remainder = rest
+        sizeMatch?.value?.let { remainder = remainder.replace(it, "") }
+        seedMatch?.value?.let { remainder = remainder.replace(it, "") }
+        for (c in chips) {
+            remainder = remainder.replace(c, "", ignoreCase = true)
+        }
+        remainder = remainder.replace(Regex("""\s*·\s*·\s*"""), " · ").trim().trim('·').trim()
+        return StreamChips(chips, sizeChip, seedsChip, source, remainder)
+    }
+
     private fun renderStreamPicker() {
         val list = streamPickerList ?: return
+        val dp = resources.displayMetrics.density
+        fun dpi(v: Float) = (v * dp).toInt()
         list.removeAllViews()
         for ((idx, s) in streamsList.withIndex()) {
+            val parsed = parseStreamLabel(s.label)
+
             val row = android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
+                orientation = android.widget.LinearLayout.VERTICAL
                 val lp = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = if (idx == 0) 0 else 8 }
+                ).apply { topMargin = if (idx == 0) 0 else dpi(10f) }
                 layoutParams = lp
-                setPadding(18, 14, 18, 14)
+                setPadding(dpi(18f), dpi(14f), dpi(18f), dpi(14f))
                 background = if (idx == streamPickerFocusedIdx) {
                     streamPickerFocusedDrawable(idx == currentStreamIdx)
                 } else if (idx == currentStreamIdx) {
@@ -2051,64 +2172,153 @@ class VlcPlayerActivity : AppCompatActivity() {
                 } else {
                     streamPickerRestingDrawable()
                 }
+                // v2.7.30 — air-mouse / touch users couldn't pick a
+                // stream because the rows had no click listener.
+                // Tapping now picks the stream AND highlights focus
+                // first so the user sees the selection.
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    streamPickerFocusedIdx = idx
+                    pickStream(idx)
+                }
             }
-            val labelText = s.label.take(140)
-            val tv = android.widget.TextView(this).apply {
-                text = labelText
-                setTextColor(0xFFE6EAF2.toInt())
-                textSize = 13f
+
+            // ─── Row top line: source name + current badge ───
+            val topLine = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            val sourceTv = android.widget.TextView(this).apply {
+                text = parsed.source
+                setTextColor(if (idx == streamPickerFocusedIdx) 0xFF5DC8FF.toInt() else 0xFFB4BCD0.toInt())
+                textSize = 11f
+                letterSpacing = 0.18f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     0,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     1f
                 )
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
             }
-            row.addView(tv)
+            topLine.addView(sourceTv)
             if (idx == currentStreamIdx) {
                 val badge = android.widget.TextView(this).apply {
-                    text = "● CURRENT"
+                    text = "NOW PLAYING"
                     setTextColor(0xFF06080F.toInt())
                     textSize = 9f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    letterSpacing = 0.14f
-                    setPadding(10, 4, 10, 4)
-                    setBackgroundColor(0xFF5DC8FF.toInt())
+                    letterSpacing = 0.18f
+                    setPadding(dpi(8f), dpi(3f), dpi(8f), dpi(3f))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dpi(20f).toFloat()
+                        setColor(0xFF5DC8FF.toInt())
+                    }
                 }
-                row.addView(badge)
+                topLine.addView(badge)
             }
+            row.addView(topLine)
+
+            // ─── Row main label (remainder text) ───
+            if (parsed.remainder.isNotBlank()) {
+                val labelTv = android.widget.TextView(this).apply {
+                    text = parsed.remainder.take(140)
+                    setTextColor(0xFFE6EAF2.toInt())
+                    textSize = 14f
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(0, dpi(4f), 0, 0)
+                }
+                row.addView(labelTv)
+            }
+
+            // ─── Row chips strip ───
+            if (parsed.qualityChips.isNotEmpty() || parsed.sizeChip != null || parsed.seedsChip != null) {
+                val chipRow = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dpi(8f) }
+                }
+                for (c in parsed.qualityChips) {
+                    chipRow.addView(makeChip(c, qualityChipColor(c)))
+                }
+                parsed.sizeChip?.let { chipRow.addView(makeChip(it, 0x22FFFFFF)) }
+                parsed.seedsChip?.let { chipRow.addView(makeChip(it, 0x2228D67E)) }
+                row.addView(chipRow)
+            }
+
             list.addView(row)
         }
-        // Try to scroll the focused row into view.
         list.post {
             val focusedView = list.getChildAt(streamPickerFocusedIdx) ?: return@post
             val scrollParent = list.parent as? android.widget.ScrollView ?: return@post
-            scrollParent.smoothScrollTo(0, focusedView.top - 100)
+            scrollParent.smoothScrollTo(0, focusedView.top - dpi(60f))
         }
     }
 
+    /** Build a single chip view (rounded pill with subtle bg colour). */
+    private fun makeChip(text: String, bgColor: Int): android.widget.TextView {
+        val dp = resources.displayMetrics.density
+        fun dpi(v: Float) = (v * dp).toInt()
+        return android.widget.TextView(this).apply {
+            this.text = text
+            setTextColor(0xFFE6EAF2.toInt())
+            textSize = 10f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.14f
+            setPadding(dpi(8f), dpi(3f), dpi(8f), dpi(3f))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpi(20f).toFloat()
+                setColor(bgColor)
+                setStroke(dpi(1f), 0x22FFFFFF)
+            }
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { rightMargin = dpi(6f) }
+            layoutParams = lp
+        }
+    }
+
+    /** Pick a chip background colour based on the quality keyword. */
+    private fun qualityChipColor(chip: String): Int = when {
+        chip.equals("4K", true) || chip.contains("2160", true) -> 0x33FF6B9C   // pink for 4K
+        chip.contains("1080", true) -> 0x335DC8FF                                // cyan for 1080p
+        chip.contains("720", true) -> 0x33B392FF                                 // violet for 720p
+        chip.contains("HDR", true) || chip.contains("DV", true) ||
+            chip.contains("DolbyVision", true) -> 0x33FFC857                    // gold for HDR
+        chip.contains("REMUX", true) || chip.contains("BLU", true) -> 0x3328D67E // green for high-quality
+        else -> 0x22FFFFFF
+    }
+
     private fun streamPickerFocusedDrawable(isCurrent: Boolean): android.graphics.drawable.GradientDrawable {
+        val dp = resources.displayMetrics.density
         return android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = 12f
-            setColor(if (isCurrent) 0xFF0E2A3E.toInt() else 0xFF12253C.toInt())
-            setStroke(3, 0xFF5DC8FF.toInt())  // cyan focus ring
+            cornerRadius = (14f * dp)
+            // Focused: brighter cyan-tinted glass + thick cyan border
+            // so D-pad walking is instantly readable.
+            setColor(if (isCurrent) 0xFF103048.toInt() else 0xFF0E2336.toInt())
+            setStroke((2.5f * dp).toInt(), 0xFF5DC8FF.toInt())
         }
     }
 
     private fun streamPickerCurrentDrawable(): android.graphics.drawable.GradientDrawable {
+        val dp = resources.displayMetrics.density
         return android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = 12f
+            cornerRadius = (14f * dp)
             setColor(0xCC0D121C.toInt())
-            setStroke(2, 0xFF5DC8FF.toInt())
+            setStroke((1.5f * dp).toInt(), 0x665DC8FF.toInt())
         }
     }
 
     private fun streamPickerRestingDrawable(): android.graphics.drawable.GradientDrawable {
+        val dp = resources.displayMetrics.density
         return android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = 12f
-            setColor(0xCC0D121C.toInt())
-            setStroke(1, 0x33FFFFFF)
+            cornerRadius = (14f * dp)
+            setColor(0xB30D121C.toInt())
+            setStroke((1f * dp).toInt(), 0x1FFFFFFF)
         }
     }
 
@@ -2125,10 +2335,32 @@ class VlcPlayerActivity : AppCompatActivity() {
         currentStreamIdx = idx
         streamUrl = pick.url
         hideStreamPicker()
+
+        // v2.7.30 — bring the cinematic preview back so the user
+        // gets immediate visual feedback that their click registered.
+        // Without this the screen just goes black while libVLC tears
+        // down + spins up the new stream.
         try {
-            mediaPlayer.stop()
-        } catch (_: Exception) { /* ignore */ }
+            previewDismissed = false
+            previewStatus.text = "Switching stream\u2026"
+            previewRoot.alpha = 0f
+            previewRoot.visibility = View.VISIBLE
+            previewRoot.animate().alpha(1f).setDuration(140).start()
+            startLoadingDotsAnimation()
+        } catch (_: Exception) { /* preview is best-effort */ }
+
+        // CRITICAL — same defensive teardown as swapChannel() uses
+        // for live IPTV.  Without detach + reattach, libVLC keeps
+        // the audio pipeline but silently drops the video surface
+        // when stop() runs, causing the next play() to produce
+        // audio-only output.  This is the classic "stream switched
+        // but the screen is black" bug.
+        try { mediaPlayer.stop() } catch (_: Throwable) { /* ignore */ }
+        try { mediaPlayer.detachViews() } catch (_: Throwable) { /* ignore */ }
+        try { mediaPlayer.attachViews(videoLayout, null, false, false) } catch (_: Throwable) { /* ignore */ }
+
         startAtMs = resumeMs.coerceAtLeast(0L)
+        hasSeekedToStart = false
         startPlayback()
     }
 

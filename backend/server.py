@@ -45,6 +45,10 @@ CACHE_TTL_CATALOG = 600  # 10 min
 CACHE_TTL_META = 24 * 3600  # 24 h
 CACHE_TTL_STREAM = 300  # 5 min
 HTTP_TIMEOUT = 15.0
+# Stream-aggregation gets a tighter timeout so a single slow addon
+# (e.g. cold Torrentio scraping a fresh title) doesn't hold up the
+# whole pipeline — the user sees streams within ~8 s at worst.
+STREAM_FETCH_TIMEOUT = 8.0
 
 # Curated default addons – Cinemeta is the IMDB-id metadata backbone of the
 # Stremio ecosystem and is offered here as the suggested first install.
@@ -452,7 +456,7 @@ async def streams_aggregate(type_: str, item_id: str):
     ).to_list(100)
 
     out: List[Dict[str, Any]] = []
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=STREAM_FETCH_TIMEOUT) as client:
         async def fetch(a: Dict[str, Any]):
             m = a["manifest"]
             if not _resource_supported(m, "stream"):
@@ -461,8 +465,13 @@ async def streams_aggregate(type_: str, item_id: str):
                 return []
             url = f"{a['url']}/stream/{type_}/{item_id}.json"
             try:
-                data = await _fetch_json(client, url)
-            except HTTPException:
+                # Per-addon hard cap — even if the AsyncClient's
+                # default were higher, no single addon can stall the
+                # aggregate response.
+                data = await asyncio.wait_for(
+                    _fetch_json(client, url), timeout=STREAM_FETCH_TIMEOUT
+                )
+            except (HTTPException, asyncio.TimeoutError):
                 return []
             streams = data.get("streams", []) if isinstance(data, dict) else []
             tagged: List[Dict[str, Any]] = []

@@ -220,8 +220,16 @@ export const Vesper = {
      * Streams — try backend proxy first, then browser-direct on each
      * addon for the ones the backend couldn't reach.  Returns
      * { streams, diagnostics } either way.
+     *
+     * v2.7.30 — accepts an optional `onPartial(streams)` callback.
+     * When provided we invoke it with the backend results AS SOON AS
+     * they arrive (typically <300 ms when cached), then run the
+     * browser-direct probes in the background.  Detail.jsx uses this
+     * to render stream tiles immediately so the user isn't staring
+     * at a spinner while a slow addon (e.g. cold Torrentio) finishes.
+     * Per-addon timeout dropped from 20 s → 8 s for the same reason.
      */
-    getStreams: async (type, itemId) => {
+    getStreams: async (type, itemId, onPartial) => {
         // 1. Try backend aggregator (cached, parallel)
         let backendStreams = [];
         try {
@@ -229,6 +237,12 @@ export const Vesper = {
             backendStreams = r.data?.streams || [];
         } catch (_e) {
             // ignore — fall to browser path
+        }
+
+        // Surface backend results immediately so the UI doesn't wait
+        // on the (potentially slow) browser-direct probes.
+        if (typeof onPartial === 'function' && backendStreams.length > 0) {
+            try { onPartial(backendStreams); } catch (_e) { /* ignore */ }
         }
 
         // 2. Browser-direct probe per addon (catches Cloudflare-walled ones).
@@ -277,7 +291,9 @@ export const Vesper = {
 
                 const url = `${trimSlash(a.url)}/stream/${type}/${itemId}.json`;
                 try {
-                    const data = await fetchJsonDirect(url, { timeout: 20000 });
+                    // v2.7.30 — 8 s cap (was 20 s) so a single slow
+                    // addon can't stall stream-list rendering.
+                    const data = await fetchJsonDirect(url, { timeout: 8000 });
                     const streams = Array.isArray(data?.streams)
                         ? data.streams
                         : [];

@@ -401,7 +401,18 @@ export default function Detail() {
             setStreamLoading(true);
             if (partyCode) partyBreadcrumb('streams:fetch-start', { type, id });
             try {
-                const s = await Vesper.getStreams(type, id);
+                // v2.7.30 — render streams the SECOND backend cache hits,
+                // then top-up with browser-direct results when ready.
+                const onPartial = (partial) => {
+                    if (cancel) return;
+                    if (Array.isArray(partial) && partial.length > 0) {
+                        setStreams(partial);
+                        if (partyCode) {
+                            partyBreadcrumb('streams:partial', { count: partial.length });
+                        }
+                    }
+                };
+                const s = await Vesper.getStreams(type, id, onPartial);
                 if (!cancel) {
                     setStreams(s?.streams || []);
                     setDiagnostics(s?.diagnostics || []);
@@ -1003,9 +1014,13 @@ export default function Detail() {
             title: playTitle,
             type: playType,
             subtitleUrl: stream.subtitle_url || '',
-            poster: stream.poster || meta?.poster || '',
-            backdrop: stream.backdrop || meta?.background || meta?.poster || '',
-            synopsis: stream.synopsis || meta?.description || '',
+            // v2.7.30 — TMDB metadata wins over stream-attached art.
+            // Some Stremio addons embed low-res / wrong thumbs in the
+            // stream payload; TMDB's poster/backdrop is always the
+            // authoritative cinematic art for the title.
+            poster: meta?.poster || stream.poster || '',
+            backdrop: meta?.background || meta?.poster || stream.backdrop || '',
+            synopsis: meta?.description || stream.synopsis || '',
             year: stream.year || meta?.releaseInfo || '',
             rating: stream.rating || meta?.imdbRating || '',
             runtime: stream.runtime || meta?.runtime || '',

@@ -7,6 +7,22 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.30 — TMDB-first cover art · Faster streams · Cleaner loading screen · Glass stream picker
+1. **TMDB metadata wins over stream-attached art**: `Detail.jsx` `playStream()` now prefers `meta?.poster / meta?.background` (from Cinemeta/TMDB) over `stream.poster / stream.backdrop`. Some Stremio addons embed wrong / low-res thumbs in the stream payload — the player now always shows the cinematic TMDB poster/backdrop.
+2. **Faster stream resolution (~2× perceived speed)**:
+   - Backend: `STREAM_FETCH_TIMEOUT = 8.0 s` (was 15 s default) on the `/api/streams` aggregator. Per-addon `asyncio.wait_for` hard cap so a single slow addon can't stall the whole list.
+   - Frontend (`Vesper.getStreams`): now takes an `onPartial(streams)` callback. Backend results surface to `Detail.jsx` IMMEDIATELY (typically <300 ms when cached) — the user sees stream tiles AND autoplay can fire while browser-direct probes finish in the background. Browser-direct per-addon timeout dropped 20 s → 8 s.
+3. **Loading screen — no more `Loading · 73%`**: the cinematic preview keeps the static "ON NOW TV V2 is loading your program" eyebrow + animated ●●● dots. The percentage was overwriting the eyebrow and jittering on flaky streams. Just the dots now.
+4. **Stream picker redesign (Glass + Cyan glow)**:
+   - Glass card (95 % opaque deep indigo, cyan border glow, 22 dp radius, 28 dp elevation), gradient cyan→transparent divider, `PICK YOUR STREAM` eyebrow + movie-title H1 header.
+   - Each row now parses the addon label into: SOURCE eyebrow chip, main text, and rounded quality chips (4K=pink / 1080p=cyan / 720p=violet / HDR=gold / REMUX=green) + size (GB/MB) + seeds chips.
+   - Focus state: brighter glass + 2.5 dp cyan stroke; current stream gets a cyan `NOW PLAYING` pill.
+   - Entrance animation: 220 ms scale-up + fade-in on the card, decelerate-interpolator.
+   - **Bug fix — click didn't register**: each row now has `setOnClickListener` + `isClickable=true`. Air-mouse / touch users can finally tap to pick. D-pad OK still works.
+   - **Bug fix — black screen after switching**: `pickStream()` now mirrors `swapChannel()`'s `detach → attach → play` sequence. Without it, libVLC silently dropped the video surface on `stop()` and the new stream came up audio-only. Also re-shows the cinematic preview with "Switching stream…" status so the user sees feedback.
+- **VPS sync**: `server.py` deployed to `/opt/onnowtv/backend/`, service restarted, `/api/streams/movie/tt0111161` returns in 170 ms (cached) / 1.25 s (cold).
+
+
 ## v2.7.28 — Back-to-detail · Robust cover-art · Curated-addons quick-install
 - **BACK from player → Detail page** (not Home). Removed `FLAG_ACTIVITY_NEW_TASK` from all 4 player launch intents in `WebAppInterface.kt`. Player now lives in the same Android task as `MainActivity` → back-stack unwinds naturally to the WebView's Detail page.
 - **Cover-art fallback chain** in `Detail.jsx` + `SeriesEpisodes.jsx`: walks `poster → posterUrl → poster_url → background → backdrop → backdrop_url`. Player loading screen always has art now, regardless of which addon supplied the metadata.
