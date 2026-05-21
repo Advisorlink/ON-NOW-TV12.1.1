@@ -7,6 +7,15 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.34 — Auto-bump APK version from CHANGELOG (in-app update gate FIXED)
+- **Root cause of "builds not arriving on my box":** `build.gradle.kts` was stuck on `versionName = "2.7.28"` since May 13 2026. Every CI build produced an APK with the SAME version label as the running app → in-app `UpdateGate` saw `running >= latest` → **silently dismissed**. Five releases (.29 → .33) all built + published but installed invisibly.
+- **Fix:** version is now driven from `CHANGELOG.md` at build time:
+  - Workflow step grep-parses the topmost `## vX.Y.Z` line from CHANGELOG.md → passes as `-PversionName=…` to Gradle.
+  - `versionCode = 200 + $GITHUB_RUN_NUMBER` guarantees monotonic integer increase on every push (Android requires this for upgrades).
+  - `build.gradle.kts` falls back to `203 / "2.7.33"` for local `./gradlew assembleDebug` builds.
+- **Release notes auto-generated from CHANGELOG.md** too — the workflow extracts the current version's section into `release-notes.md` and passes it to `softprops/action-gh-release` via `body_path:` instead of stale hardcoded text.
+- **Net effect:** push code → CHANGELOG.md updated → CI bumps versionName + versionCode → new APK published with correct version → in-app gate sees the bump → user prompted to install. **No more manual version bumps. Ever.**
+
 ## v2.7.33 — English-only stream filter + 🇬🇧 English chip (deployed to VPS)
 - **Backend filter `_filter_and_tag_english()`** drops foreign-language streams across EVERY addon (Torrentio, MediaFusion, custom).  Decision matrix:
   1. Title has substantial non-Latin script (Cyrillic / CJK / Arabic / Devanagari / Hebrew / Greek / Thai / Korean — ≥2 chars) → REQUIRE explicit English word token ("ENG" or "English"). 🇬🇧 flag alone isn't enough (often signals subtitles on foreign-audio releases).

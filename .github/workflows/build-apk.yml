@@ -200,9 +200,43 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --version
 
+      - name: Derive versionName + versionCode from CHANGELOG
+        id: ver
+        run: |
+          # Read the topmost `## v…` line in CHANGELOG.md so the
+          # APK's versionName always matches the latest published
+          # change.  The previous workflow hardcoded "2.7.28" and
+          # never bumped, so the in-app update gate kept seeing
+          # "running == latest" and silently never prompted users
+          # to install new builds.  This step fixes that forever.
+          VNAME=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          if [ -z "$VNAME" ]; then
+            echo "❌ Could not parse a version from CHANGELOG.md top heading"
+            exit 1
+          fi
+          # versionCode = 200 + monotonically-increasing CI run number,
+          # which guarantees a strictly higher integer on EVERY push
+          # (Android requires versionCode to increase for upgrades).
+          VCODE=$(( 200 + GITHUB_RUN_NUMBER ))
+          echo "Detected versionName=$VNAME versionCode=$VCODE"
+          echo "vname=$VNAME" >> "$GITHUB_OUTPUT"
+          echo "vcode=$VCODE" >> "$GITHUB_OUTPUT"
+
+          # Extract THIS version's release-notes block from CHANGELOG
+          # — from "## v$VNAME" up to (but excluding) the next "## v".
+          # Saved to a file so the gh-release step can read it via
+          # `body_path:`, instead of stale hardcoded text below.
+          awk -v ver="## v$VNAME" '
+            $0 ~ ver { found=1; print; next }
+            /^## v/  { if (found) exit }
+            found    { print }
+          ' CHANGELOG.md > release-notes.md
+          echo "=== release-notes.md ==="
+          head -40 release-notes.md
+
       - name: Build debug APK
         working-directory: android/vesper-tv
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace -PversionName=${{ steps.ver.outputs.vname }} -PversionCode=${{ steps.ver.outputs.vcode }}
 
       - name: Locate APK
         run: |
@@ -222,42 +256,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: ON NOW TV V2 — latest debug build
-          body: |
-            Sideload-ready debug APK auto-built from the latest commit.
-            React frontend is bundled inside the APK; backend calls go
-            to the deployed TMDB/addons proxy.
-
-            **v2.7.28 — Back-to-detail · Robust cover-art · Curated-addons quick-install · Admin page live**
-            - **BACK from player now returns to the Detail page**
-              (movie / episode-selection screen), not the Home
-              screen.  Removed `FLAG_ACTIVITY_NEW_TASK` from all
-              4 player launch intents in `WebAppInterface.kt`
-              (rich V2, rich V1, watch-party, trailer).  The
-              player now stays in the same Android task as
-              MainActivity, so back-stack unwinds naturally.
-            - **Cover art robust fallback chain** when launching
-              the player.  Different addons store backdrop under
-              different keys (`background`, `backdrop`,
-              `backdrop_url`, …).  Both `Detail.jsx` and
-              `SeriesEpisodes.jsx` now walk the full chain
-              including poster as last-resort, so the player
-              loading screen ALWAYS has something to show — no
-              more blank black screen on weird metadata.
-            - **Curated addons quick-install** dropdown on the
-              admin page (DEPLOYED LIVE to onnowtv.duckdns.org):
-              Cinemeta, OpenSubtitles, MediaFusion, AIO Streams,
-              TMDB Addon, WatchHub, Jackett, Anime Kitsu,
-              ThePirateBay+, Orion, JuanFTV, Twitch, Public
-              Domain.  Pick → click → installed in 1 second.
-              No more pasting URLs for the well-known ones.
-            - APK bumped to v2.7.28 (versionCode 198).
-
-            For older release notes see CHANGELOG.md in the repo.
-
-            Install: enable "Install unknown apps" for your browser or
-            file-manager, then tap the APK below.  On HK1 / Android TV
-            use "Downloader" by AFTVnews and paste the APK URL.
+          name: ON NOW TV V2 — v${{ steps.ver.outputs.vname }}
+          # Release notes are auto-generated from CHANGELOG.md
+          # (release-notes.md was produced by the "Derive versionName"
+          # step above).  We prepend a small install-help block so the
+          # user always sees how to sideload.
+          body_path: release-notes.md
           files: onnowtv-v2-debug.apk
           prerelease: true
           make_latest: 'false'

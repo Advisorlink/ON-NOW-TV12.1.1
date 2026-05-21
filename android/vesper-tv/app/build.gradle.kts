@@ -17,8 +17,17 @@ android {
         // realistic floor.
         minSdk = 19
         targetSdk = 34
-        versionCode = 198
-        versionName = "2.7.28"
+        // versionCode + versionName are normally driven by CI from
+        // CHANGELOG.md (see .github/workflows/build-apk.yml — the
+        // workflow passes `-PversionCode=… -PversionName=…` to Gradle
+        // so every push produces a strictly higher versionCode and
+        // the in-app update gate always fires).  The values below
+        // are the LOCAL fallback for `./gradlew assembleDebug` on
+        // your laptop, and the floor below which CI must never
+        // publish.  Bump them by hand only when you cut a major
+        // version locally.
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 204
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.34"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
