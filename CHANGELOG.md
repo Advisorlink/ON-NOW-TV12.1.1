@@ -7,6 +7,25 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.37 — Autoplay tier priority + Picker OK key + 3 GB cap
+**Three user-reported issues, all fixed:**
+
+1. **Autoplay was picking huge 5+ GB files** that buffered after 10-30 s.
+   - Backend now parses `_size_gb: float | null` from every stream's metadata blob (handles "💾 12.4 GB", "[4.7GB]", "850 MB", "2.5 TB" — picks the LAST size token so `👤 12 💾 4.7 GB` resolves to 4.7, not 12).
+   - Frontend `autoplayCandidate` rewritten as an explicit 4-tier priority chain (user-defined):
+     - **Tier 1**: EP-STREM (Plexio) direct link — your premium addon, any size.
+     - **Tier 2**: Torrentio fallback ≤ **3 GB**, 1080p, direct, strict-English.
+     - **Tier 3**: Any addon, 1080p, strict-English, ≤ 3 GB.
+     - **Tier 4**: Any English 1080p ≤ 3 GB (last resort).
+   - Streams with unknown size pass the cap (Plexio doesn't expose file size — never penalised). 4K streams excluded from autoplay entirely (existing behaviour).
+   - Verified on Dune Part 2 (tt15239678): 25 Torrentio candidates ≤ 3 GB — top pick is a 2.78 GB YTS rip.
+
+2. **In-player stream picker: D-pad OK didn't fire** (mouse worked).
+   - Root cause: some HK1 OEM remotes send `KEYCODE_BUTTON_A` / `KEYCODE_BUTTON_SELECT` / `KEYCODE_BUTTON_START` for OK, not the standard `KEYCODE_DPAD_CENTER` / `KEYCODE_ENTER`. The picker `onKeyDown` block only accepted the standard codes, so OK was silently swallowed by the `else -> return true` branch.
+   - Fix: extended the picker OK key set to include `BUTTON_A`, `BUTTON_SELECT`, `BUTTON_START`, and `KEYCODE_SPACE` (some Bluetooth remotes). D-pad UP/DOWN still walks the list; any of those keys now picks the focused stream.
+
+3. **VPS deployed**: `server.py` synced + service restarted. `/api/streams/movie/tt15239678` now serves `_size_gb` + `_english_strict` on every stream.
+
 ## v2.7.36 — Autoplay never plays in Russian + VOD buffering FIXED
 **Two real bugs reported by the user:**
 1. *"the autoplay ones are playing a different language"* — root cause: the autoplay candidate logic only filtered by quality (`is1080p` + direct), not by language. Multi-lang releases (e.g., "Eng.Fre.Ger.Ita 2160p BluRay") survived the foreign-language filter (they DO contain English audio) but libVLC defaulted to whichever audio track came FIRST in the file — often Russian / Italian.

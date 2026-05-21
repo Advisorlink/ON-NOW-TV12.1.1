@@ -312,6 +312,43 @@ _FOREIGN_LANG_RE = re.compile(
 
 _ENGLISH_TOKEN_RE = re.compile(r"\b(english|eng)\b", re.IGNORECASE)
 
+# v2.7.37 — STREAM SIZE PARSER
+# Extracts the file size in GB from a stream's metadata blob.
+# Stremio addons (esp. Torrentio) embed sizes like:
+#   "💾 12.4 GB", "👤 6 💾 23.17 GB", "Movie.2024.1080p [4.7GB]", "850 MB"
+# Returns None when no size can be inferred — we never DROP streams
+# for missing size, just skip the size-based gating.  Captures the
+# LAST numeric+unit pair on the line because Torrentio puts the size
+# AFTER seeders/peers (`👤 12 💾 4.7 GB`).
+_SIZE_RE = re.compile(
+    r"(?P<n>\d+(?:[.,]\d+)?)\s*(?P<u>GB|MB|TB)\b",
+    re.IGNORECASE,
+)
+
+
+def _parse_size_gb(s: Dict[str, Any]) -> Optional[float]:
+    txt = _stream_haystack(s)
+    if not txt:
+        return None
+    matches = list(_SIZE_RE.finditer(txt))
+    if not matches:
+        return None
+    # Take the LAST match — addons format `seeders 👤 N 💾 SIZE`.
+    m = matches[-1]
+    try:
+        n = float(m.group("n").replace(",", "."))
+    except ValueError:
+        return None
+    u = m.group("u").upper()
+    if u == "TB":
+        return n * 1024.0
+    if u == "GB":
+        return n
+    if u == "MB":
+        return n / 1024.0
+    return None
+
+
 # Non-Latin script ranges — Cyrillic, Arabic, CJK, Japanese, Korean,
 # Devanagari (Hindi), Hebrew, Greek, Thai.  Detected by counting
 # matching codepoints in the haystack; >= 4 chars means the title
@@ -434,6 +471,7 @@ def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any
                 continue
             s["_is_english"] = True
             s["_english_strict"] = False  # multi-lang, risky for autoplay
+            s["_size_gb"] = _parse_size_gb(s)
             out.append(s)
             continue
         english = has_english_token or has_english_flag or not any_foreign
@@ -441,11 +479,12 @@ def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any
             continue
         s["_is_english"] = english
         # v2.7.36 — strict English: zero foreign signals anywhere.
-        # Autoplay prefers these so it never accidentally picks a
-        # multi-lang release where libVLC defaults to the wrong
-        # audio track (the original "autoplay played in Russian"
-        # bug the user reported).
         s["_english_strict"] = (not any_foreign)
+        # v2.7.37 — parse the file size in GB (None when unknown).
+        # Frontend autoplay uses this to cap fallback streams at
+        # 3 GB so flaky huge-rip CDNs don't kill playback within
+        # the first 30 seconds.
+        s["_size_gb"] = _parse_size_gb(s)
         out.append(s)
     return out
 

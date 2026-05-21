@@ -2795,7 +2795,19 @@ class VlcPlayerActivity : AppCompatActivity() {
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER,
                     KeyEvent.KEYCODE_ENTER,
-                    KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    KeyEvent.KEYCODE_NUMPAD_ENTER,
+                    // v2.7.37 — broader OK key acceptance.  Some
+                    // cheap Android TV remotes (incl. several HK1
+                    // OEM variants) send KEYCODE_BUTTON_A or
+                    // KEYCODE_SELECT instead of DPAD_CENTER for
+                    // the "OK" button.  Without these, D-pad UP/DOWN
+                    // navigated the picker fine but OK was silently
+                    // swallowed by the `else -> return true` branch
+                    // — the user-reported bug.
+                    KeyEvent.KEYCODE_BUTTON_A,
+                    KeyEvent.KEYCODE_BUTTON_SELECT,
+                    KeyEvent.KEYCODE_BUTTON_START,
+                    KeyEvent.KEYCODE_SPACE -> {
                         pickStream(streamPickerFocusedIdx)
                         return true
                     }

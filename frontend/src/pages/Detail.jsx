@@ -741,28 +741,48 @@ export default function Detail() {
         if (type !== 'movie') return null;
         if (!streams || streams.length === 0) return null;
         const non4k = streams.filter((s) => !is4K(s));
-        // v2.7.36 — STRICT ENGLISH WINS THE AUTOPLAY RACE.
-        // Backend tags `_english_strict:true` on streams with ZERO
-        // foreign-language signals anywhere in their metadata.
-        // Multi-lang releases (e.g., "Eng.Fre.Ger.Ita") get
-        // `_english_strict:false` because libVLC may default to the
-        // wrong audio track on them — that was the root cause of
-        // "autoplay played in Russian".  We prefer strict-English
-        // streams in order:
-        //   1. direct + 1080p + strict English
-        //   2. direct + 1080p (any English tag)
-        //   3. any 1080p + strict English
-        //   4. any 1080p
-        //   5. nothing → null (user sees the picker)
+        // v2.7.37 — AUTOPLAY PRIORITY (user-defined):
+        //   1. EP-STREM / Plexio direct link (user's premium addon)
+        //   2. Torrentio fallback — but ONLY streams ≤ 3 GB
+        //      (huge BDRemux files were buffering within 30 s on the
+        //      HK1 even on a good connection — too much CDN jitter
+        //      for a 50+ GB pull).
+        //   3. Any English-strict 1080p ≤ 3 GB
+        //   4. Any English 1080p ≤ 3 GB (last resort)
+        //   5. null → user sees the picker
+        //
+        // English requirement: strict-English preferred at every
+        // tier so libVLC never accidentally lands on a foreign
+        // audio track (see v2.7.36 backend tagging).
+        const SIZE_CAP_GB = 3.0;
+        const isEpStrem = (s) =>
+            /plexio|ep[\s-]?strem/i.test(
+                `${s._addon_id || ''} ${s._addon_name || ''} ${s.name || ''}`
+            );
+        const isTorrentio = (s) =>
+            /torrentio/i.test(`${s._addon_id || ''} ${s._addon_name || ''}`);
         const strict = (s) => s._english_strict === true;
         const english = (s) => s._is_english !== false;
         const direct = (s) => streamMode(s) === 'direct';
+        // Size guard — null size = unknown; we ALLOW unknowns through
+        // (rare for Torrentio, common for direct CDN addons like
+        // Plexio that don't expose filesize).
+        const underCap = (s) =>
+            typeof s._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
+
         return (
-            non4k.find((s) => direct(s) && is1080p(s) && strict(s)) ||
-            non4k.find((s) => direct(s) && is1080p(s) && english(s)) ||
-            non4k.find((s) => is1080p(s) && strict(s)) ||
-            non4k.find((s) => is1080p(s) && english(s)) ||
-            non4k.find((s) => is1080p(s)) ||
+            // Tier 1 — EP-STREM (Plexio) direct, English
+            non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
+            non4k.find((s) => isEpStrem(s) && english(s)) ||
+            // Tier 2 — Torrentio under 3 GB, strict English, 1080p direct
+            non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
+            non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
+            non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
+            // Tier 3 — any addon, strict English, 1080p, under cap
+            non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
+            non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
+            // Tier 4 — any English 1080p under cap (multi-lang ok)
+            non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
             null
         );
     }, [streams, type]);
