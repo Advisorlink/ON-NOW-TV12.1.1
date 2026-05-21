@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.44 — Player UX polish: rebuffer spinner · D-pad button wiring · pickers · trailer fix
+**User feedback on v2.7.43**: "Better but not great. Remove status pill border. Slow the dots. Hook up ALL the buttons to D-pad. Need audio picker, subtitle picker, stream picker. Mid-playback rebuffer shouldn't kick back to the full loading screen — show a small spinner. Trailers should open the movie page, not auto-play."
+
+### Loading screen polish
+- Removed border + background from the "ON NOW TV V2 is loading your program" pill — plain cyan text now.
+- Loading dots slowed from 1.2 s/cycle to **2.4 s/cycle**.
+
+### Mid-playback rebuffer no longer shows the full loading splash
+- Tracks `hasEverPlayed` state in PlayerOverlay. First-load → big loading screen. After that, any `STATE_BUFFERING` shows a small `Buffering` chip with a circular spinner in the top-left corner — playback frame stays on screen.
+
+### Every dock button now D-pad-navigable
+- Compose `DockButton`s wired with `focusable() + onFocusChanged() + onKeyEvent()`. Focus state paints a cyan 3 dp border + cyan fill. Center/Enter/NumpadEnter all trigger the click.
+- Initial focus → big center Play/Pause via `FocusRequester` so D-pad center immediately toggles playback when the dock appears.
+
+### Audio · Subtitle · Stream picker sheets
+- `ExoPlayerActivity.refreshTrackLists()` listens to `onTracksChanged` and publishes audio/subtitle options (language · label · codec · channels).
+- `selectTrack()` builds a `TrackSelectionOverride` for the picked track. Special `"off"` id disables the text-track type entirely.
+- `switchStream()` parses `EXTRA_STREAMS_JSON` at startup and swaps `MediaItem` in-place when the user picks a new stream — keeps current position via `setMediaItem(item, resumePos)`.
+- `TrackPickerSheet` + `StreamPickerSheet` are focusable Compose lists with cyan focus rings; BACK key dismisses them.
+
+### Trailer cards open movie page (no auto-trailer)
+- `UpcomingMoviesShelf.openItem()` no longer appends `?autoplay-trailer=1`. Trailer cards now always navigate to the detail page so the user can browse synopsis / cast / streams. (Trailers were unreliable via the in-WebView YouTube player anyway — separate fix tracked.)
+
 ## v2.7.43 — Beefy pre-buffer + OkHttp datasource + real poster on loading screen
 **User on v2.7.42**: buffer hovered ~20 s but dipped to ~10 s mid-playback, and the loading screen was showing a movie still instead of the real movie poster cover. User explicitly: "make it load that it doesn't have to start straight away, can start after 20 seconds so it buffers a bit more".
 

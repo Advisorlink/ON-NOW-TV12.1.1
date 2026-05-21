@@ -9,15 +9,14 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,16 +30,18 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,33 +49,42 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Palette — matches the approved Dune mockup + the existing libVLC loader.
+// Palette
 // ─────────────────────────────────────────────────────────────────────────────
 private val NavyBg      = Color(0xFF06080F)
 private val NavyDeep    = Color(0xFF020610)
-private val Panel       = Color(0xCC0A1322)
 private val CyanPrimary = Color(0xFF5DC8FF)
-private val CyanGlow    = Color(0xFF7CF1F1)
 private val TextPrim    = Color(0xFFFFFFFF)
 private val TextSub     = Color(0xCCC7CFDB)
 private val TextMuted   = Color(0xFFA8B5C7)
@@ -93,16 +103,19 @@ data class PlayerInfo(
     val poster: String = "",
 )
 
+data class TrackOption(val id: String, val label: String, val selected: Boolean)
+data class StreamOption(val idx: Int, val label: String, val selected: Boolean)
+
 /**
  * Root overlay rendered ABOVE ExoPlayer's PlayerView.
  *
- * • Loading screen mirrors the libVLC `preview_root` block pixel-by-pixel:
- *   backdrop + poster + cyan eyebrow + bold title + meta + 3-line synopsis +
- *   "ON NOW TV V2 is loading your program" status pill + animated dots.
- *
- * • Once playback starts, the loader fades out and the bottom CONTROL DOCK
- *   (C01 — Classic Bottom Dock) fades in.  The dock auto-hides after 4 s
- *   without input and re-shows on any onPlayPause / onSeekBy invocation.
+ * v2.7.44 changes:
+ *   • Status pill border removed (plain cyan text).
+ *   • Loading dots animate at 2.4 s/cycle (was 1.2 s).
+ *   • Mid-playback rebuffering shows a small spinner, NOT the full
+ *     loading splash (tracked via `hasEverPlayed`).
+ *   • All dock buttons are focusable + D-pad-navigable.
+ *   • Audio / Subtitle / Stream picker sheets wired to callbacks.
  */
 @Composable
 fun PlayerOverlay(
@@ -115,9 +128,15 @@ fun PlayerOverlay(
     bitrateKbps: StateFlow<Long>,
     isLoading: StateFlow<Boolean>,
     errorMessage: StateFlow<String?>,
+    audioTracks: StateFlow<List<TrackOption>>,
+    subtitleTracks: StateFlow<List<TrackOption>>,
+    streams: StateFlow<List<StreamOption>>,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPickAudio: (String) -> Unit,
+    onPickSubtitle: (String) -> Unit,
+    onPickStream: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
     val playing by collectAsStateSafe(isPlaying, false)
@@ -126,26 +145,53 @@ fun PlayerOverlay(
     val bufAhead by collectAsStateSafe(bufferAheadMs, 0L)
     val loading by collectAsStateSafe(isLoading, true)
     val error by collectAsStateSafe(errorMessage, null)
+    val audios by collectAsStateSafe(audioTracks, emptyList())
+    val subs by collectAsStateSafe(subtitleTracks, emptyList())
+    val streamList by collectAsStateSafe(streams, emptyList())
 
-    // Auto-hide the bottom dock after 4 s without user activity.
+    // Track whether we've EVER seen playback running.  Used to switch
+    // mid-playback rebuffer from "full loading screen" → "small spinner".
+    var hasEverPlayed by remember { mutableStateOf(false) }
+    LaunchedEffect(playing) { if (playing) hasEverPlayed = true }
+
+    val showFullLoader = loading && !hasEverPlayed
+    val showRebufferSpinner = loading && hasEverPlayed
+
+    // Auto-hide the bottom dock after 5 s without user activity.
     var dockVisible by remember { mutableStateOf(true) }
     var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(lastActivity) {
         dockVisible = true
-        delay(4000)
-        if (System.currentTimeMillis() - lastActivity >= 4000) dockVisible = false
+        delay(5000)
+        if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false
     }
+    val bump: () -> Unit = { lastActivity = System.currentTimeMillis() }
+
+    // Track picker sheet state
+    var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // ── Loading screen (replicates VLC preview_root) ──────────
+        // ── Full loading screen (first play only) ──────────────────
         AnimatedVisibility(
-            visible = loading,
+            visible = showFullLoader,
             enter = fadeIn(tween(200)),
             exit  = fadeOut(tween(400)),
         ) { LoadingScreen(info, error) }
 
-        // ── Top status pill (BUF · bitrate · ExoPlayer) ───────────
-        if (!loading) {
+        // ── Mid-playback rebuffer: tiny corner spinner ─────────────
+        AnimatedVisibility(
+            visible = showRebufferSpinner,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            RebufferSpinner(
+                modifier = Modifier.padding(top = 28.dp, start = 36.dp),
+            )
+        }
+
+        // ── Top status pill (BUF · ExoPlayer) ──────────────────────
+        if (!showFullLoader) {
             TopStatusBadge(
                 bufferAheadSec = (bufAhead / 1000L).toInt(),
                 modifier = Modifier
@@ -154,58 +200,90 @@ fun PlayerOverlay(
             )
         }
 
-        // ── Bottom control dock (auto-hide) ───────────────────────
+        // ── Bottom control dock (auto-hide) ────────────────────────
         AnimatedVisibility(
-            visible  = !loading && dockVisible,
+            visible  = !showFullLoader && dockVisible && sheet == SheetKind.None,
             enter    = fadeIn(tween(220)),
             exit     = fadeOut(tween(280)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             ControlDock(
-                info       = info,
-                isPlaying  = playing,
-                positionMs = pos,
-                durationMs = dur,
-                bufferedMs = pos + bufAhead,
-                onPlayPause = {
-                    lastActivity = System.currentTimeMillis()
-                    onPlayPause()
-                },
-                onSeekBy = { dt ->
-                    lastActivity = System.currentTimeMillis()
-                    onSeekBy(dt)
-                },
+                info        = info,
+                isPlaying   = playing,
+                positionMs  = pos,
+                durationMs  = dur,
+                bufferedMs  = pos + bufAhead,
+                hasAudio    = audios.size > 1,
+                hasSubs     = subs.isNotEmpty(),
+                hasStreams  = streamList.size > 1,
+                onPlayPause = { bump(); onPlayPause() },
+                onSeekBy    = { dt -> bump(); onSeekBy(dt) },
+                onPickAudio = { bump(); sheet = SheetKind.Audio },
+                onPickSubs  = { bump(); sheet = SheetKind.Subs },
+                onPickStream= { bump(); sheet = SheetKind.Stream },
+                onClose     = { bump(); onClose() },
             )
         }
 
-        // Any key activity bumps the activity timer.  ExoPlayerActivity
-        // also calls into onPlayPause / onSeekBy which already do it.
-        LaunchedEffect(playing) { lastActivity = System.currentTimeMillis() }
+        // ── Picker sheet (Audio / Subs / Stream) ───────────────────
+        AnimatedVisibility(
+            visible = sheet != SheetKind.None,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200)),
+        ) {
+            when (sheet) {
+                SheetKind.Audio -> TrackPickerSheet(
+                    title = "Audio track",
+                    options = audios,
+                    onPick = { id ->
+                        onPickAudio(id)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Subs -> TrackPickerSheet(
+                    title = "Subtitles",
+                    options = if (subs.any { it.id == "off" }) subs
+                              else listOf(TrackOption("off", "Off", subs.none { it.selected })) + subs,
+                    onPick = { id ->
+                        onPickSubtitle(id)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Stream -> StreamPickerSheet(
+                    streams = streamList,
+                    onPick = { idx ->
+                        onPickStream(idx)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.None -> Unit
+            }
+        }
     }
 }
 
+private enum class SheetKind { None, Audio, Subs, Stream }
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Loading screen — mirrors the libVLC preview_root XML layout.
+// Full loading screen (first play only)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun LoadingScreen(info: PlayerInfo, error: String?) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NavyBg),
-    ) {
-        // Backdrop image (faded)
+    Box(modifier = Modifier.fillMaxSize().background(NavyBg)) {
         if (info.backdrop.isNotBlank()) {
             AsyncImage(
                 model = info.backdrop,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(0.55f),
+                modifier = Modifier.fillMaxSize().alpha(0.55f),
             )
         }
-        // Vignette
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -217,7 +295,6 @@ private fun LoadingScreen(info: PlayerInfo, error: String?) {
                 ),
         )
 
-        // Centered hero row: poster + text column
         Row(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -282,13 +359,12 @@ private fun LoadingScreen(info: PlayerInfo, error: String?) {
                     )
                 }
                 Spacer(Modifier.height(28.dp))
-                StatusPill(error)
+                StatusLabel(error)
                 Spacer(Modifier.height(14.dp))
                 LoadingDots()
             }
         }
 
-        // Bottom shimmer
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -300,39 +376,30 @@ private fun LoadingScreen(info: PlayerInfo, error: String?) {
 }
 
 @Composable
-private fun StatusPill(error: String?) {
+private fun StatusLabel(error: String?) {
+    // v2.7.44 — border + background removed per user request.  Just text.
     val text = if (error.isNullOrBlank()) {
         "ON NOW TV V2 is loading your program"
     } else {
         "Could not start: $error"
     }
-    Box(
-        modifier = Modifier
-            .wrapContentHeight()
-            .background(
-                Color(0x335DC8FF),
-                RoundedCornerShape(8.dp),
-            )
-            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = text,
-            color = if (error.isNullOrBlank()) CyanPrimary else Color(0xFFFF8B7C),
-            fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.6.sp,
-        )
-    }
+    Text(
+        text = text,
+        color = if (error.isNullOrBlank()) CyanPrimary else Color(0xFFFF8B7C),
+        fontSize = 13.sp,
+        fontFamily = FontFamily.Monospace,
+        letterSpacing = 1.6.sp,
+    )
 }
 
 @Composable
 private fun LoadingDots() {
+    // v2.7.44 — slower (2.4 s / cycle) per user request.
     val infinite = rememberInfiniteTransition(label = "dots")
     val phase by infinite.animateFloat(
         initialValue = 0f, targetValue = 3f,
         animationSpec = infiniteRepeatable(
-            tween(1200, easing = LinearEasing),
+            tween(2400, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "phase",
@@ -351,7 +418,34 @@ private fun LoadingDots() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Top status badge (BUF · bitrate · ExoPlayer)
+// Mid-playback rebuffer spinner (NO full overlay)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun RebufferSpinner(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .background(Color(0xCC020610), RoundedCornerShape(20.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(
+            color = CyanPrimary,
+            strokeWidth = 2.5.dp,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Buffering",
+            color = TextSub,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.2.sp,
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top status badge (BUF · ExoPlayer)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun TopStatusBadge(bufferAheadSec: Int, modifier: Modifier = Modifier) {
@@ -372,7 +466,7 @@ private fun TopStatusBadge(bufferAheadSec: Int, modifier: Modifier = Modifier) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C01 — Classic Bottom Dock
+// C01 — Classic Bottom Dock (D-pad navigable)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun ControlDock(
@@ -381,9 +475,23 @@ private fun ControlDock(
     positionMs: Long,
     durationMs: Long,
     bufferedMs: Long,
+    hasAudio: Boolean,
+    hasSubs: Boolean,
+    hasStreams: Boolean,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
+    onPickAudio: () -> Unit,
+    onPickSubs: () -> Unit,
+    onPickStream: () -> Unit,
+    onClose: () -> Unit,
 ) {
+    // Default focus → Play/Pause (center button) so D-pad center
+    // immediately toggles playback when the dock appears.
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { playFocus.requestFocus() } catch (_: Exception) {}
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -404,7 +512,6 @@ private fun ControlDock(
                 .fillMaxWidth()
                 .padding(horizontal = 64.dp, vertical = 40.dp),
         ) {
-            // Title + meta strip (small, above the scrubber)
             Text(
                 text = info.title,
                 color = TextPrim,
@@ -432,7 +539,6 @@ private fun ControlDock(
 
             Spacer(Modifier.height(22.dp))
 
-            // Scrubber row: 01:48:22  [============== fill ===]  02:46:00
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = formatMs(positionMs),
@@ -456,14 +562,12 @@ private fun ControlDock(
                         (bufferedMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
                     val playFrac =
                         (positionMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
-                    // Buffer ahead (lighter)
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(bufFrac)
                             .background(Color(0x665DC8FF)),
                     )
-                    // Playback fill
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -483,17 +587,32 @@ private fun ControlDock(
 
             Spacer(Modifier.height(26.dp))
 
-            // Three-cluster button row: [Audio Subs Cast] [<<10 PLAY 10>>] [Settings FS]
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                // LEFT cluster: Audio / Subs / Stream picker
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DockButton(Icons.Default.VolumeUp, "Audio", onClick = {})
-                    DockButton(Icons.Default.Subtitles, "Subs", onClick = {})
-                    DockButton(Icons.Default.Cast, "Cast", onClick = {})
+                    DockButton(
+                        Icons.Default.Audiotrack,
+                        "Audio",
+                        enabled = hasAudio,
+                        onClick = onPickAudio,
+                    )
+                    DockButton(
+                        Icons.Default.Subtitles,
+                        "Subtitles",
+                        onClick = onPickSubs,
+                    )
+                    DockButton(
+                        Icons.Default.PlaylistPlay,
+                        "Stream",
+                        enabled = hasStreams,
+                        onClick = onPickStream,
+                    )
                 }
+                // CENTER cluster: Back10 / PLAY-PAUSE (focused) / Fwd10
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(18.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -506,8 +625,9 @@ private fun ControlDock(
                     DockButton(
                         if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         if (isPlaying) "Pause" else "Play",
-                        large = true,
+                        large  = true,
                         active = true,
+                        focusRequester = playFocus,
                         onClick = onPlayPause,
                     )
                     DockButton(
@@ -516,10 +636,25 @@ private fun ControlDock(
                         onClick = { onSeekBy(10_000) },
                     )
                 }
+                // RIGHT cluster: CC / Settings / Fullscreen
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DockButton(Icons.Default.ClosedCaption, "CC", onClick = {})
-                    DockButton(Icons.Default.Settings, "Settings", onClick = {})
-                    DockButton(Icons.Default.Fullscreen, "Fullscreen", onClick = {})
+                    DockButton(
+                        Icons.Default.ClosedCaption,
+                        "CC",
+                        onClick = onPickSubs,
+                    )
+                    DockButton(
+                        Icons.Default.Cast,
+                        "Cast",
+                        enabled = false,  // not yet implemented
+                        onClick = {},
+                    )
+                    DockButton(
+                        Icons.Default.Fullscreen,
+                        "Fullscreen",
+                        enabled = false,  // already fullscreen
+                        onClick = {},
+                    )
                 }
             }
         }
@@ -532,35 +667,253 @@ private fun DockButton(
     contentDescription: String,
     large: Boolean = false,
     active: Boolean = false,
+    enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
     val sz = if (large) 80.dp else 56.dp
     val iconSz = if (large) 40.dp else 26.dp
-    val bg = if (active) CyanPrimary else Color(0x1AFFFFFF)
-    val fg = if (active) NavyDeep else TextPrim
-    Box(
-        modifier = Modifier
-            .size(sz)
-            .clip(CircleShape)
-            .background(bg)
-            .border(
-                width = if (active) 0.dp else 1.dp,
-                color = Color(0x33FFFFFF),
-                shape = CircleShape,
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
+    val bg = when {
+        !enabled -> Color(0x0DFFFFFF)
+        focused  -> CyanPrimary
+        active   -> CyanPrimary
+        else     -> Color(0x1AFFFFFF)
+    }
+    val fg = when {
+        !enabled -> Color(0x66FFFFFF)
+        focused || active -> NavyDeep
+        else -> TextPrim
+    }
+    val borderColor =
+        if (focused) CyanPrimary
+        else if (active) Color.Transparent
+        else Color(0x33FFFFFF)
+
+    var mod: Modifier = Modifier
+        .size(sz)
+        .clip(CircleShape)
+        .background(bg)
+        .border(
+            width = if (focused) 3.dp else 1.dp,
+            color = borderColor,
+            shape = CircleShape,
+        )
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged { focused = it.isFocused }
+        .focusable(enabled = enabled)
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+                && enabled
+            ) { onClick(); true } else false
+        }
+        .clickable(
+            enabled = enabled,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+
+    Box(modifier = mod, contentAlignment = Alignment.Center) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = fg,
             modifier = Modifier.size(iconSz),
         )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Track picker sheet (Audio / Subtitles)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TrackPickerSheet(
+    title: String,
+    options: List<TrackOption>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { firstFocus.requestFocus() } catch (_: Exception) {}
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.width(520.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = title.uppercase(),
+                color = CyanPrimary,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 3.sp,
+            )
+            Spacer(Modifier.height(28.dp))
+            if (options.isEmpty()) {
+                Text(
+                    "No tracks available",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                )
+            } else {
+                options.forEachIndexed { i, opt ->
+                    TrackRow(
+                        label = opt.label,
+                        selected = opt.selected,
+                        focusRequester = if (i == 0) firstFocus else null,
+                        onClick = { onPick(opt.id) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Press BACK to close",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrackRow(
+    label: String,
+    selected: Boolean,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val bg = when {
+        focused  -> Color(0x335DC8FF)
+        selected -> Color(0x1A5DC8FF)
+        else     -> Color(0x14FFFFFF)
+    }
+    val border = if (focused) CyanPrimary else if (selected) Color(0x665DC8FF) else Color(0x22FFFFFF)
+    var mod: Modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(10.dp))
+        .background(bg)
+        .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged { focused = it.isFocused }
+        .focusable()
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+            ) { onClick(); true } else false
+        }
+        .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+
+    Row(modifier = mod, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            color = TextPrim,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Text(
+                text = "● ACTIVE",
+                color = CyanPrimary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StreamPickerSheet(
+    streams: List<StreamOption>,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { firstFocus.requestFocus() } catch (_: Exception) {}
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.width(720.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "SWITCH STREAM",
+                color = CyanPrimary,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 3.sp,
+            )
+            Spacer(Modifier.height(28.dp))
+            if (streams.isEmpty()) {
+                Text(
+                    "No alternate streams",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                )
+            } else {
+                streams.forEachIndexed { i, s ->
+                    TrackRow(
+                        label = s.label,
+                        selected = s.selected,
+                        focusRequester = if (i == 0) firstFocus else null,
+                        onClick = { onPick(s.idx) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Press BACK to close",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -578,13 +931,11 @@ private fun formatMs(ms: Long): String {
            else "%02d:%02d".format(m, s)
 }
 
-/**
- * Tiny wrapper around `collectAsState` that survives when the
- * StateFlow's first emission hasn't landed yet (Compose can dispose
- * subscribers before the producer emits).
- */
 @Composable
-private fun <T> collectAsStateSafe(flow: StateFlow<T>, initial: T): androidx.compose.runtime.State<T> {
+private fun <T> collectAsStateSafe(
+    flow: StateFlow<T>,
+    initial: T,
+): androidx.compose.runtime.State<T> {
     val state = remember { androidx.compose.runtime.mutableStateOf(initial) }
     LaunchedEffect(flow) { flow.collect { state.value = it } }
     return state

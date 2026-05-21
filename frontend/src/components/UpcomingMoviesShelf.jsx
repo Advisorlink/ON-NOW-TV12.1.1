@@ -76,11 +76,14 @@ export default function UpcomingMoviesShelf() {
     if (!loading && items.length === 0 && !unlock) return null;
 
     const openItem = (m) => {
-        const q = m.trailer_key ? '?autoplay-trailer=1' : '';
+        // v2.7.44 — user request: trailer cards should ALWAYS open
+        // the movie detail page, not auto-play the trailer.  Trailers
+        // were unreliable anyway (YouTube player issue), so we drop
+        // the `?autoplay-trailer=1` query and just navigate.
         if (m.imdb_id) {
-            navigate(`/title/movie/${m.imdb_id}${q}`);
+            navigate(`/title/movie/${m.imdb_id}`);
         } else if (m.tmdb_id) {
-            navigate(`/resolve/movie/${m.tmdb_id}${q}`);
+            navigate(`/resolve/movie/${m.tmdb_id}`);
         }
     };
 

@@ -90,6 +90,15 @@ class ExoPlayerActivity : ComponentActivity() {
     private val bitrateKbpsFlow = MutableStateFlow(0L)
     private val isLoadingFlow = MutableStateFlow(true)
     private val errorMessageFlow = MutableStateFlow<String?>(null)
+    private val audioTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
+    private val subtitleTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
+    private val streamsFlow = MutableStateFlow<List<StreamOption>>(emptyList())
+
+    // Parsed list of alternate streams from EXTRA_STREAMS_JSON.  Each
+    // entry has at minimum `url` + `label`.
+    private data class StreamEntry(val url: String, val label: String)
+    private var altStreams: List<StreamEntry> = emptyList()
+    private var currentStreamIdx: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,6 +117,28 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+
+        // Parse alternate streams JSON for the in-player stream picker.
+        val streamsJson = intent.getStringExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON)
+        currentStreamIdx = intent.getIntExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, -1)
+        if (!streamsJson.isNullOrBlank()) {
+            try {
+                val arr = org.json.JSONArray(streamsJson)
+                val parsed = mutableListOf<StreamEntry>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val url = o.optString("url", "").ifBlank { continue }
+                    val label = o.optString("label", "").ifBlank { "Stream ${i + 1}" }
+                    parsed.add(StreamEntry(url, label))
+                }
+                altStreams = parsed
+                streamsFlow.value = parsed.mapIndexed { i, s ->
+                    StreamOption(i, s.label, i == currentStreamIdx)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse streams JSON", e)
+            }
+        }
 
         if (streamUrl.isBlank()) { finish(); return }
 
@@ -190,6 +221,9 @@ class ExoPlayerActivity : ComponentActivity() {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 isPlayingFlow.value = isPlaying
             }
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                refreshTrackLists(tracks)
+            }
         })
 
         val item = MediaItem.Builder().setUri(streamUrl).setMediaId(streamUrl).build()
@@ -255,6 +289,9 @@ class ExoPlayerActivity : ComponentActivity() {
                     bitrateKbps     = bitrateKbpsFlow.asStateFlow(),
                     isLoading       = isLoadingFlow.asStateFlow(),
                     errorMessage    = errorMessageFlow.asStateFlow(),
+                    audioTracks     = audioTracksFlow.asStateFlow(),
+                    subtitleTracks  = subtitleTracksFlow.asStateFlow(),
+                    streams         = streamsFlow.asStateFlow(),
                     onPlayPause = {
                         if (player.isPlaying) player.pause() else player.play()
                     },
@@ -265,6 +302,9 @@ class ExoPlayerActivity : ComponentActivity() {
                     onSeekTo = { posMs ->
                         player.seekTo(posMs.coerceAtLeast(0L))
                     },
+                    onPickAudio    = { id -> selectTrack(C.TRACK_TYPE_AUDIO, id) },
+                    onPickSubtitle = { id -> selectTrack(C.TRACK_TYPE_TEXT, id) },
+                    onPickStream   = { idx -> switchStream(idx) },
                     onClose = { finish() },
                 )
             }
@@ -363,6 +403,92 @@ class ExoPlayerActivity : ComponentActivity() {
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             )
+        }
+    }
+
+    // ─── Track + stream picker helpers ─────────────────────────────
+    /** Refresh audio/subtitle picker option lists from current Tracks. */
+    private fun refreshTrackLists(tracks: androidx.media3.common.Tracks) {
+        val audio = mutableListOf<TrackOption>()
+        val text = mutableListOf<TrackOption>()
+        for (group in tracks.groups) {
+            for (i in 0 until group.length) {
+                if (!group.isTrackSupported(i)) continue
+                val fmt = group.getTrackFormat(i)
+                val lang = fmt.language ?: ""
+                val codec = (fmt.codecs ?: fmt.sampleMimeType ?: "").lowercase()
+                val ch = if (fmt.channelCount > 0) "${fmt.channelCount}ch" else ""
+                val labelParts = mutableListOf<String>()
+                if (lang.isNotBlank()) labelParts.add(lang.uppercase())
+                if (!fmt.label.isNullOrBlank()) labelParts.add(fmt.label!!)
+                if (codec.isNotBlank()) labelParts.add(codec.substringAfterLast("/"))
+                if (ch.isNotBlank()) labelParts.add(ch)
+                val label = labelParts.joinToString(" · ").ifBlank { "Track ${i + 1}" }
+                val opt = TrackOption(
+                    id = "${group.type}|${group.mediaTrackGroup.id}|$i",
+                    label = label,
+                    selected = group.isTrackSelected(i),
+                )
+                when (group.type) {
+                    C.TRACK_TYPE_AUDIO -> audio.add(opt)
+                    C.TRACK_TYPE_TEXT  -> text.add(opt)
+                }
+            }
+        }
+        audioTracksFlow.value = audio
+        subtitleTracksFlow.value = text
+    }
+
+    /** Pick a track from the picker.  Pass "off" for subtitles to disable. */
+    private fun selectTrack(trackType: Int, id: String) {
+        try {
+            if (id == "off" && trackType == C.TRACK_TYPE_TEXT) {
+                player.trackSelectionParameters = player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+                return
+            }
+            val (_, groupId, indexStr) = id.split("|", limit = 3)
+            val idx = indexStr.toInt()
+            val targetGroup = player.currentTracks.groups
+                .firstOrNull { it.type == trackType && it.mediaTrackGroup.id == groupId }
+                ?: return
+            val override = androidx.media3.common.TrackSelectionOverride(
+                targetGroup.mediaTrackGroup,
+                listOf(idx),
+            )
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(trackType, false)
+                .setOverrideForType(override)
+                .build()
+        } catch (e: Exception) {
+            Log.w(TAG, "selectTrack failed for $id", e)
+        }
+    }
+
+    /** Switch to one of the alternate streams parsed at startup. */
+    private fun switchStream(idx: Int) {
+        if (idx !in altStreams.indices) return
+        val resumePos = player.currentPosition.coerceAtLeast(0L)
+        val entry = altStreams[idx]
+        currentStreamIdx = idx
+        streamUrl = entry.url
+        streamsFlow.value = altStreams.mapIndexed { i, s ->
+            StreamOption(i, s.label, i == idx)
+        }
+        try {
+            val item = MediaItem.Builder()
+                .setUri(entry.url)
+                .setMediaId(entry.url)
+                .build()
+            player.setMediaItem(item, resumePos)
+            player.prepare()
+            player.playWhenReady = true
+        } catch (e: Exception) {
+            Log.e(TAG, "switchStream failed", e)
+            errorMessageFlow.value = "Could not switch stream"
         }
     }
 
