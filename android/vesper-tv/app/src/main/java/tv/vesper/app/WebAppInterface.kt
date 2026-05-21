@@ -77,7 +77,10 @@ class WebAppInterface(private val activity: Activity) {
         val prefs = activity.getSharedPreferences(
             "vesper_player", android.content.Context.MODE_PRIVATE
         )
-        return if (prefs.getBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, false)) {
+        // v2.7.40 — default flipped to ExoPlayer (matches
+        // ExoPlayerActivity.shouldUseExoPlayer).  LibVLC remains
+        // available as an opt-out via Settings → Video player.
+        return if (prefs.getBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, true)) {
             "exoplayer"
         } else {
             "libvlc"
@@ -204,28 +207,24 @@ class WebAppInterface(private val activity: Activity) {
                     VlcPlayerActivity::class.java
                 }
                 val intent = android.content.Intent(activity, targetClass).apply {
-                    if (useExo) {
-                        // ExoPlayer activity takes a slim subset.
-                        putExtra("stream_url", url)
-                        putExtra("title", title)
-                        putExtra("start_at_ms", startAtMs)
-                    } else {
-                        putExtra(VlcPlayerActivity.EXTRA_URL, url)
-                        putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
-                        putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
-                        putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
-                        putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
-                        putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
-                        putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
-                        putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
-                        putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
-                        putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
-                        putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
-                        putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
-                        putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
-                        putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
-                        putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
-                    }
+                    // v2.7.40 — both VlcPlayerActivity and
+                    // ExoPlayerActivity read the same VlcPlayerActivity.EXTRA_*
+                    // keys, so a single putExtra block works for either.
+                    putExtra(VlcPlayerActivity.EXTRA_URL, url)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
+                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
+                    putExtra(VlcPlayerActivity.EXTRA_POSTER, poster)
+                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop)
+                    putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, synopsis)
+                    putExtra(VlcPlayerActivity.EXTRA_YEAR, year)
+                    putExtra(VlcPlayerActivity.EXTRA_RATING, rating)
+                    putExtra(VlcPlayerActivity.EXTRA_RUNTIME, runtime)
+                    putExtra(VlcPlayerActivity.EXTRA_GENRES, genres)
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, type)
+                    putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, startAtMs)
+                    putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
+                    putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
+                    putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)

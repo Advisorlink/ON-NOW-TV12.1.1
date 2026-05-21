@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.40 — ExoPlayer is now the default · premium Compose overlay · beefed buffer config
+**ExoPlayer is now the default video backend.** LibVLC is still available as an opt-out via Settings → Video player.
+
+### Premium Compose overlay (built on top of ExoPlayer)
+- New `PlayerOverlay.kt` — Jetpack Compose UI rendered on top of `PlayerView`:
+  - **Loading screen** mirrors the libVLC cinematic loader pixel-by-pixel: backdrop image + 220×330 poster + cyan `NOW PLAYING · ON NOW TV V2` eyebrow + 44sp title + meta row + 3-line synopsis + glass status pill + animated cyan dots + bottom shimmer.
+  - **Bottom control dock (C01)** — auto-hides after 4 s without input: title + meta row, scrubber with playback fill + buffer-ahead fill + cyan thumb time-codes, three button clusters (Audio/Subs/Cast · Back10/Play-Pause/Forward10 · CC/Settings/Fullscreen). Center Play/Pause button enlarged + cyan-filled.
+  - **Top status badge** — `BUF Ns · ExoPlayer` glass pill so you always know which backend + buffer headroom.
+
+### Beefed buffer config
+- `DefaultLoadControl` retuned for "stream-everything-perfectly":
+  - `minBufferMs = 30_000` (30 s minimum before playback resumes — soaks any CDN stall).
+  - `maxBufferMs = 90_000` (90 s ceiling).
+  - `bufferForPlaybackMs = 2_500` (start playing fast).
+  - `bufferForPlaybackAfterRebufferMs = 5_000` (recovers gracefully).
+  - `prioritizeTimeOverSizeThresholds = true` + unbounded byte target.
+- `DefaultHttpDataSource`: 20 s connect timeout, 25 s read timeout, cross-protocol redirects on, HTTP keep-alive, English `Accept-Language`.
+- Preferred audio/text language locked to English.
+
+### Routing fix
+- `WebAppInterface.playInternalRichV2` now passes the FULL set of rich extras (synopsis, backdrop, poster, year, runtime, rating, type, streamsJson, currentStreamIdx) to ExoPlayerActivity — was previously only passing `url + title + start_at_ms`, which left the new overlay starved of metadata.
+- `Host.getPlayerBackend()` default flipped to `"exoplayer"` so the React Settings page shows the correct active backend on a fresh install.
+
 ## v2.7.39 — ExoPlayer A/B switch + Richer picker chips + minSdk 21
 **Two big things + a build fix:**
 

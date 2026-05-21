@@ -75,6 +75,60 @@ Do this BEFORE calling finish on any session that touched
 frontend/backend/Android code that the box would see.
 
 
+## Implemented (Iteration 145 — Feb 21, 2026) — v2.7.40
+### ExoPlayer is the default · premium Compose overlay · beefed buffer
+
+User: "you were halfway through building the new player. Build that please.
+Tighten up settings so it plays everything smoothly. Make it the default.
+Loading screen looks like the libVLC one."
+
+**What shipped:**
+- **New `PlayerOverlay.kt`** (Jetpack Compose) rendered on top of ExoPlayer's
+  `PlayerView`. Three pieces:
+  1. **Loading screen** mirrors `activity_vlc_player.xml`'s `preview_root`
+     pixel-by-pixel — backdrop (alpha 0.55) + radial vignette + 220×330
+     poster + "NOW PLAYING · ON NOW TV V2" cyan eyebrow + 44sp title +
+     meta row + 3-line synopsis + glass status pill (`ON NOW TV V2 is
+     loading your program`) + animated 3-dot pulse + bottom shimmer.
+  2. **C01 Bottom Control Dock** — title + meta + scrubber (playback
+     fill + buffer-ahead lighter fill) + three button clusters
+     (Audio/Subs/Cast · Back10/Play-Pause(large+cyan)/Forward10 ·
+     CC/Settings/Fullscreen). Auto-hides after 4 s without input.
+  3. **Top status badge** — `BUF Ns · ExoPlayer` glass pill so the
+     user always knows the backend + buffer headroom.
+
+- **Beefed buffer config** in `ExoPlayerActivity.kt`:
+  - `DefaultLoadControl`: minBuffer 30s / maxBuffer 90s /
+    bufferForPlayback 2.5s / bufferForPlaybackAfterRebuffer 5s,
+    `prioritizeTimeOverSizeThresholds=true`, unbounded byte target.
+  - `DefaultHttpDataSource`: 20s connect / 25s read timeouts,
+    cross-protocol redirects, HTTP keep-alive, `Accept-Language: en`.
+  - Track-selection: preferred audio/text language locked to English.
+
+- **Default flipped to ExoPlayer**:
+  - `ExoPlayerActivity.shouldUseExoPlayer` returns true when unset.
+  - `WebAppInterface.getPlayerBackend()` matches (was returning
+    "libvlc" by default → React Settings page showed wrong active
+    backend on a fresh install).
+
+- **Routing fix**: `WebAppInterface.playInternalRichV2` now passes the
+  FULL set of rich extras (synopsis, backdrop, poster, year, runtime,
+  rating, type, streamsJson, currentStreamIdx) to ExoPlayerActivity —
+  previously was only passing `stream_url`/`title`/`start_at_ms`,
+  which left the new overlay starved of metadata.
+
+**🆙 APK bumped to v2.7.40 (versionCode 210).**  CI parses the version
+from `CHANGELOG.md` top heading; local fallback floor in
+`build.gradle.kts` also bumped.
+
+**Open items (per user's voice note):**
+- Live TV / IPTV player UI is the next thing to polish (the user
+  explicitly deferred this — "Not right now, but first we'll just do
+  [the VOD player]").  Will tackle after they confirm v2.7.40 plays
+  smoothly on the HK1.
+
+
+
 ## Implemented (Iteration 144 — Feb 20, 2026) — v2.7.19
 ### Snap-row fast-path — "RecyclerView feel" without rewriting Home
 
