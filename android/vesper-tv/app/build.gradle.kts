@@ -26,8 +26,8 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 207
-        versionName = (project.findProperty("versionName") as String?) ?: "2.7.37"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 208
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.38"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.

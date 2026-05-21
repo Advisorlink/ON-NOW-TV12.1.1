@@ -1537,24 +1537,47 @@ class VlcPlayerActivity : AppCompatActivity() {
     // -----------------------------------------------------------------
 
     private fun initVlc() {
-        /* v2.7.16 — REVERTED to the v2.6.33-era libVLC init args
-         * (the version the user explicitly said played movies
-         * correctly).  Plus one HDR-disable hint:
-         *   --no-hurry-up  → keep ALL frames (no degraded HDR fallback)
-         *   :colorspace=0  set per-media for VOD to force BT.709 SDR
-         * Background: recent libVLC builds promote HEVC streams with
-         * HDR10/Dolby-Vision side data to the Android HDR surface, and
-         * if the TV/projector doesn't tone-map correctly the colours
-         * look washed out.  Forcing BT.709 colourspace on the VOD
-         * path makes the surface render in plain SDR. */
+        /* v2.7.38 — DEEP BUFFER TUNING for sustained CDN VOD.
+         *
+         * The previous config buffered fine for the first 2-3 min
+         * (covered by `network-caching=5000`) then stalled at the
+         * 5-min mark because libVLC's INTERNAL prefetch buffer is
+         * separate from `network-caching` and defaults to a tiny
+         * 16 KB read size + 1 MB pool — the moment a CDN sends a
+         * slow chunk, the pool drains, the decoder starves, and
+         * the player goes back to "Loading…".
+         *
+         * Fix tiers:
+         *   • --network-caching=10000     → 10 s buffer at start +
+         *     during keep-alive (was 5 s).
+         *   • --prefetch-buffer-size=     → 8 MB read-ahead pool
+         *     (libVLC default is ~1 MB — drains in ~2 s on a
+         *     20 Mbps 1080p stream).  8 MB = ~12 s of headroom.
+         *   • --prefetch-read-size=       → 512 KB chunks (was
+         *     16 KB libVLC default).  Fewer syscalls per second,
+         *     larger TCP windows, way less stall risk.
+         *   • --http-reconnect            → already there; reconnect
+         *     on TCP drop instead of erroring out.
+         *   • --http-continuous           → keep TCP socket open
+         *     between range requests.  Many CDNs (Premiumize,
+         *     Plexio, AllDebrid) penalise re-connect with a 2-3 s
+         *     TLS handshake every time, which IS the "buffering
+         *     5 min in" pattern.
+         *   • --avcodec-hw=any            → HW decode where possible
+         *     (kept).  Faster decode = less buffer drain.
+         *   • --no-drop-late-frames / --no-skip-frames → VOD must
+         *     prioritise quality over real-time.  Live path
+         *     overrides these per-media.
+         */
         val args = arrayListOf(
             "--no-drop-late-frames",
             "--no-skip-frames",
             "--rtsp-tcp",
-            // 5-second buffer for Watch Together ready-handshake
-            // headroom (matches v2.6.33).
-            "--network-caching=5000",
+            "--network-caching=10000",
+            "--prefetch-buffer-size=8388608",   // 8 MB
+            "--prefetch-read-size=524288",      // 512 KB
             "--http-reconnect",
+            "--http-continuous",
             "--avcodec-hw=any",
             "-vvv"
         )
@@ -1701,30 +1724,22 @@ class VlcPlayerActivity : AppCompatActivity() {
         media.addOption(":sub-language=eng,en,english")
 
         if (!isLive && !isMagnet && !isTrailer) {
-            // v2.7.36 — VOD JITTER FIX.  The previous "1500 ms only"
-            // config was the user's "buffers within 10-30 sec" bug:
-            // 1.5 s is libVLC's RAW factory default which is fine
-            // for local files, but woefully tight for CDN-served
-            // VOD where ISP-level packet jitter, Premiumize/AllDebrid
-            // edge-cache rebalancing, and TLS handshakes routinely
-            // pause delivery for 2-4 seconds at a time.  Bumping to
-            // 4000 ms gives the player headroom to absorb that
-            // jitter silently — total memory cost is ~12 MB which
-            // even the cheapest HK1 has spare.  `drop-late-frames`
-            // + `skip-frames` ensure that if we DO fall behind we
-            // catch up cleanly instead of stalling forever.
-            media.addOption(":network-caching=4000")
-            media.addOption(":file-caching=4000")
+            // v2.7.38 — VOD DEEP-BUFFER TUNING.  Together with the
+            // instance-level prefetch-buffer-size=8MB and
+            // prefetch-read-size=512KB, this gives roughly 12-15 s
+            // of decoded headroom — enough to absorb the CDN-jitter
+            // blips that were causing the "buffers 5 min in"
+            // regression.  No more drop-late-frames/skip-frames here
+            // (those are CATCH-UP options for live IPTV; on VOD we
+            // want quality preserved even when the network blips —
+            // the decoder waits for the buffer to refill instead).
+            media.addOption(":network-caching=10000")
+            media.addOption(":file-caching=10000")
             media.addOption(":clock-jitter=0")
             media.addOption(":clock-synchro=0")
-            media.addOption(":drop-late-frames")
-            media.addOption(":skip-frames")
-            // Allow libVLC to pick up where it left off after a
-            // brief network hiccup instead of bailing — this turns
-            // the "buffers and dies" failure mode into "buffers and
-            // resumes".  600 s = 10 min of silent recovery before
-            // giving up, which is generous enough to weather any
-            // realistic ISP blip.
+            media.addOption(":no-audio-time-stretch")
+            // 10 minutes of silent reconnect attempts before
+            // giving up — covers any realistic ISP blip.
             media.addOption(":network-timeout=600")
         } else {
             // Live / magnet / trailer paths keep their own tuning

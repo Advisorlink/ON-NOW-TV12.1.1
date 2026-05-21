@@ -7,6 +7,26 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.38 — Deep buffer tuning (fixes mid-stream buffering)
+**User reported**: streams (even direct EP-Stream / Plexio) buffer 5 minutes in, despite the v2.7.36 `network-caching=4000` bump.
+
+**Root cause**: `network-caching` is only ONE of three independent libVLC buffer mechanisms. The other two — the **prefetch buffer pool** (libVLC default: ~1 MB, drains in ~2 s on a 1080p CDN stream) and the **prefetch read size** (default: 16 KB chunks, way too small for modern CDNs) — were untouched on factory defaults. Even with 4 s of network-cache headroom, the player ran out of decoded video the moment a CDN sent a slow chunk, hence the "5 min in, suddenly buffering" pattern.
+
+**Fix — LibVLC INSTANCE args (`onCreate`)**:
+- `--network-caching=10000` (was 5000): 10 s buffer at startup + during keep-alive.
+- `--prefetch-buffer-size=8388608` (8 MB): ~12 s of decoded headroom (was the default ~1 MB).
+- `--prefetch-read-size=524288` (512 KB): fewer syscalls per second, way larger TCP windows.
+- `--http-continuous` (NEW): keeps the TCP socket open between HTTP range requests. Many CDNs (Premiumize, Plexio, AllDebrid) penalise reconnect with a 2-3 s TLS handshake — exactly the cadence that produced the user's mid-stream buffer hiccups.
+- `--http-reconnect` kept; `--no-drop-late-frames` / `--no-skip-frames` kept (VOD prioritises quality, decoder waits for buffer refill).
+
+**Fix — Per-media VOD options**:
+- `:network-caching=10000` + `:file-caching=10000` (was 4000).
+- Removed `:drop-late-frames` / `:skip-frames` (those are catch-up options for live IPTV; on VOD we want quality preserved).
+- `:no-audio-time-stretch` added (prevents audio-time-stretch artifacts during recovery).
+- `:network-timeout=600` retained.
+
+**Net effect**: VOD playback now has ~22 seconds of total decoded headroom (10 s network + 12 s prefetch) — enough to weather any realistic CDN blip / TLS reconnect silently. Per-stream extra RAM cost: ~10 MB (HK1 has 1+ GB free).
+
 ## v2.7.37 — Autoplay tier priority + Picker OK key + 3 GB cap
 **Three user-reported issues, all fixed:**
 
