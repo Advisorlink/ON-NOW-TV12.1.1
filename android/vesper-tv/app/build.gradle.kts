@@ -27,8 +27,8 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 212
-        versionName = (project.findProperty("versionName") as String?) ?: "2.7.42"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 213
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.43"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -139,6 +139,10 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    // v2.7.43 — OkHttp datasource for ExoPlayer.  HTTP/2 multiplexing,
+    // smarter connection pooling, better timeout/retry on flaky Wi-Fi.
+    // Same library Stremio's Android client uses.
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     // OkHttp — minimal HTTP + WebSocket client (~600 KB).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

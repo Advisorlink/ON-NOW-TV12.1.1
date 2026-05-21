@@ -113,40 +113,53 @@ class ExoPlayerActivity : ComponentActivity() {
 
         // ─── Beefed-up ExoPlayer ─────────────────────────────────
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
-        // v2.7.42 — Tuned for fast startup + smooth playback.
-        //   • bufferForPlaybackMs lowered 2500 → 1000 so the first
-        //     frame paints almost immediately (was ~17 s startup
-        //     because the BUF badge had to tick all the way to 2.5 s
-        //     of HEVC 1080p data before letting playback begin).
-        //   • minBufferMs lowered 30 s → 15 s — still soaks ordinary
-        //     CDN stalls but doesn't make us wait for half a minute
-        //     of buffer on cold starts.
-        //   • maxBufferMs kept at 90 s — long-form soak room.
-        //   • bufferForPlaybackAfterRebufferMs kept at 5 s — recovery
-        //     pause is still rare-and-quick.
+        // v2.7.43 — Buffer-heavy preset.  User reported on v2.7.42
+        // that BUF hovered ~20 s but dipped to ~10 s mid-playback;
+        // wants the player to pre-buffer harder so it never starves.
+        //   • bufferForPlaybackMs raised 1 s → 20 s — wait until 20 s
+        //     of media is downloaded before the first frame paints
+        //     (≈4-8 s of wall-clock cold-start, then nothing else
+        //     stalls).
+        //   • minBufferMs raised 15 s → 50 s — ExoPlayer keeps
+        //     refilling toward 50 s so dips of 10-20 s don't matter
+        //     anymore.
+        //   • maxBufferMs raised 90 s → 120 s — long soak room.
+        //   • bufferForPlaybackAfterRebufferMs raised 5 s → 10 s.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15_000,   // minBufferMs
-                90_000,   // maxBufferMs
-                1_000,    // bufferForPlaybackMs — start playing fast
-                5_000,    // bufferForPlaybackAfterRebufferMs
+                50_000,    // minBufferMs
+                120_000,   // maxBufferMs
+                20_000,    // bufferForPlaybackMs — pre-buffer hard
+                10_000,    // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setTargetBufferBytes(C.LENGTH_UNSET)  // unbounded; rely on time
+            .setTargetBufferBytes(C.LENGTH_UNSET)
             .build()
-        val httpFactory = DefaultHttpDataSource.Factory().apply {
-            setUserAgent("Vesper-ExoPlayer/2.7.40")
-            setConnectTimeoutMs(20_000)
-            setReadTimeoutMs(25_000)
-            setAllowCrossProtocolRedirects(true)
-            setKeepPostFor302Redirects(true)
-            setDefaultRequestProperties(
+
+        // v2.7.43 — OkHttp datasource (HTTP/2, smart pooling, fewer
+        // stalls on flaky Wi-Fi).  Same library Stremio uses.
+        val okClient = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            // Healthy pool — 8 concurrent connections / host, idle
+            // sockets kept warm for 5 minutes so seeks don't
+            // re-handshake.
+            .connectionPool(
+                okhttp3.ConnectionPool(8, 5, java.util.concurrent.TimeUnit.MINUTES)
+            )
+            .build()
+        val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okClient)
+            .setUserAgent("Vesper-ExoPlayer/2.7.43")
+            .setDefaultRequestProperties(
                 mapOf(
                     "Accept-Language" to "en,en-US;q=0.9",
                     "Connection"      to "keep-alive",
                 ),
             )
-        }
         val mediaSourceFactory =
             DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
         player = ExoPlayer.Builder(this)
@@ -227,6 +240,12 @@ class ExoPlayerActivity : ComponentActivity() {
                         quality     = qualityLabel,
                         isEnglish   = isEnglish,
                         sizeGb      = sizeGb,
+                        // v2.7.43 — pass the vertical poster (movie
+                        // cover) through to the overlay so the
+                        // loading screen shows the actual cover art
+                        // on the left, not just a still from the
+                        // movie.
+                        poster      = poster,
                     ),
                     isPlaying       = isPlayingFlow.asStateFlow(),
                     positionMs      = positionMsFlow.asStateFlow(),

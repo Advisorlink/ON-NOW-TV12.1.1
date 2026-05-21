@@ -7,6 +7,25 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.43 — Beefy pre-buffer + OkHttp datasource + real poster on loading screen
+**User on v2.7.42**: buffer hovered ~20 s but dipped to ~10 s mid-playback, and the loading screen was showing a movie still instead of the real movie poster cover. User explicitly: "make it load that it doesn't have to start straight away, can start after 20 seconds so it buffers a bit more".
+
+**Three fixes:**
+
+### 1. Buffer-heavy preset (pre-buffer 20 s before first frame)
+- `bufferForPlaybackMs`: 1_000 → **20_000** — wait until 20 s of media is downloaded before the very first frame paints. Cold start is ~4-8 s of wall clock, then nothing stalls.
+- `minBufferMs`: 15_000 → **50_000** — ExoPlayer keeps refilling toward 50 s so mid-playback dips of 10-20 s never starve playback.
+- `maxBufferMs`: 90_000 → **120_000** — long soak room.
+- `bufferForPlaybackAfterRebufferMs`: 5_000 → **10_000**.
+
+### 2. OkHttp datasource (replaces DefaultHttpDataSource)
+- New `androidx.media3:media3-datasource-okhttp:1.4.1` dep.
+- `OkHttpDataSource.Factory` wired to an `OkHttpClient` with: HTTP/2 multiplexing, 20s connect / 25s read+write timeouts, retry-on-connection-failure, 8-connections-per-host connection pool with 5-min idle keep-alive (so seeks don't re-handshake), follow SSL redirects.
+- Why: same library Stremio's Android client uses. Smarter pooling + smarter HTTP/2 multiplexing vs. the platform's default HTTP stack → far fewer stalls on flaky Wi-Fi.
+
+### 3. Loading screen shows the real movie cover poster
+- `ExoPlayerActivity` was constructing `PlayerInfo` without passing `poster` through — so the overlay's vertical 220×330 poster slot fell back to the backdrop (a movie still). Now passes `poster = poster` explicitly.
+
 ## v2.7.42 — Fast-start ExoPlayer (no more 17s pre-buffer wait)
 **Reported on v2.7.41**: user video showed the BUF badge ticking ~17 s upward before the first frame painted. Once playing, the stream was smooth. Cause: v2.7.40's `bufferForPlaybackMs = 2500` + `minBufferMs = 30_000` told ExoPlayer to fill 2.5 s of 1080p HEVC before starting — which takes ~17 s of wall-clock time on a typical HK1 box's Wi-Fi.
 
