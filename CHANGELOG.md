@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.45 — Trailer cards: click plays HD trailer, long-press shows Notify
+**Reverts v2.7.44's "trailer cards navigate to detail" change** per user feedback. Restores the working flow:
+- **Click** → opens `<TrailerModal/>` which extracts the HD MP4 + m4a from YouTube via `/api/trailer-stream/<key>` and hands off to the NATIVE libVLC trailer player via `window.OnNowTV.playTrailer(...)`. No YouTube embed, no 360p chunkiness, no app redirect. This is the same flow that worked previously.
+- **Long press** (600 ms hold — mouse, touch, or D-pad center repeat) → opens `<StreamUnavailableModal/>` with the "Notify me when ready" CTA. Notify key uses `imdb_id` when available, else `tmdb:<id>`.
+- Fallback: when a TMDB item has no `trailer_key` (rare), click navigates to the movie detail page so the user can still browse / set a reminder.
+
 ## v2.7.44 — Player UX polish: rebuffer spinner · D-pad button wiring · pickers · trailer fix
 **User feedback on v2.7.43**: "Better but not great. Remove status pill border. Slow the dots. Hook up ALL the buttons to D-pad. Need audio picker, subtitle picker, stream picker. Mid-playback rebuffer shouldn't kick back to the full loading screen — show a small spinner. Trailers should open the movie page, not auto-play."
 

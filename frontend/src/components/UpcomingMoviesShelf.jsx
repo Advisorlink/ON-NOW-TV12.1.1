@@ -15,11 +15,13 @@
  * banner when localStorage `onnowtv-dev-unlock === '1'` is set
  * (toggleable from Settings → Unlock for testing).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Play, Calendar } from 'lucide-react';
 import * as img from '@/lib/img';
+import TrailerModal from './TrailerModal';
+import StreamUnavailableModal from './StreamUnavailableModal';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -32,6 +34,9 @@ export default function UpcomingMoviesShelf() {
         try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
         catch { return false; }
     });
+    // v2.7.45 — trailer card modals (click → trailer, long-press → notify)
+    const [trailer, setTrailer] = useState(null); // { youtubeKey, title, poster, backdrop }
+    const [notify, setNotify] = useState(null);   // { id, meta }
 
     useEffect(() => {
         const sync = () => {
@@ -76,15 +81,45 @@ export default function UpcomingMoviesShelf() {
     if (!loading && items.length === 0 && !unlock) return null;
 
     const openItem = (m) => {
-        // v2.7.44 — user request: trailer cards should ALWAYS open
-        // the movie detail page, not auto-play the trailer.  Trailers
-        // were unreliable anyway (YouTube player issue), so we drop
-        // the `?autoplay-trailer=1` query and just navigate.
-        if (m.imdb_id) {
-            navigate(`/title/movie/${m.imdb_id}`);
-        } else if (m.tmdb_id) {
-            navigate(`/resolve/movie/${m.tmdb_id}`);
+        // v2.7.45 — short click: open the full-screen trailer modal
+        // directly (which then hands off to the NATIVE libVLC HD
+        // trailer player on the HK1 via window.OnNowTV.playTrailer).
+        // We do NOT navigate to Detail anymore — the user wants the
+        // trailer to play instantly on tap.  If the movie has no
+        // trailer_key, fall back to opening the detail page so the
+        // user can still see info / set a reminder.
+        if (m?.trailer_key) {
+            setTrailer({
+                youtubeKey: m.trailer_key,
+                title: m.title || '',
+                poster: m.poster || '',
+                backdrop: m.backdrop || '',
+            });
+            return;
         }
+        if (m?.imdb_id) navigate(`/title/movie/${m.imdb_id}`);
+        else if (m?.tmdb_id) navigate(`/resolve/movie/${m.tmdb_id}`);
+    };
+
+    const longPressItem = (m) => {
+        // v2.7.45 — long press: open the "Stream Unavailable / Notify
+        // me when ready" modal directly from the shelf.  These are
+        // upcoming movies — by definition they aren't streamable yet,
+        // so this is the right CTA.  Notify key is the IMDB id when
+        // we have one, else `tmdb:<id>` fallback.
+        const id = m?.imdb_id || (m?.tmdb_id ? `tmdb:${m.tmdb_id}` : null);
+        if (!id) return;
+        setNotify({
+            id,
+            meta: {
+                type: 'movie',
+                name: m.title || '',
+                poster: m.poster || '',
+                background: m.backdrop || '',
+                releaseInfo: m.release_date || '',
+                year: m.release_date ? String(m.release_date).slice(0, 4) : '',
+            },
+        });
     };
 
     return (
@@ -160,9 +195,31 @@ export default function UpcomingMoviesShelf() {
                     <DiagBanner diag={diag} />
                 )}
                 {items.map((m) => (
-                    <TrailerCard key={m.tmdb_id} item={m} onOpen={openItem} />
+                    <TrailerCard
+                        key={m.tmdb_id}
+                        item={m}
+                        onOpen={openItem}
+                        onLongPress={longPressItem}
+                    />
                 ))}
             </div>
+            {/* v2.7.45 — Trailer + Notify modals */}
+            {trailer && (
+                <TrailerModal
+                    youtubeKey={trailer.youtubeKey}
+                    title={trailer.title}
+                    poster={trailer.poster}
+                    backdrop={trailer.backdrop}
+                    onClose={() => setTrailer(null)}
+                />
+            )}
+            {notify && (
+                <StreamUnavailableModal
+                    id={notify.id}
+                    meta={notify.meta}
+                    onClose={() => setNotify(null)}
+                />
+            )}
         </section>
     );
 }
@@ -170,13 +227,72 @@ export default function UpcomingMoviesShelf() {
 /* ── 16:9 trailer rectangle card ─────────────────────────────────
  * Big landscape art, centred Play badge on hover/focus, title +
  * release date strip at the bottom.  Matches the cinematic feel of
- * a YouTube-style trailers row. */
-function TrailerCard({ item, onOpen }) {
+ * a YouTube-style trailers row.
+ *
+ * v2.7.45 — click = play trailer, long-press (600ms) = notify modal.
+ * Works for: mouse hold, touch hold, AND D-pad center hold on the
+ * HK1 remote.
+ */
+function TrailerCard({ item, onOpen, onLongPress }) {
     const art = img.backdrop(item.backdrop || item.poster);
+    const timerRef = useRef(null);
+    const firedLongRef = useRef(false);
+
+    const startHold = () => {
+        firedLongRef.current = false;
+        timerRef.current = setTimeout(() => {
+            firedLongRef.current = true;
+            onLongPress?.(item);
+        }, 600);
+    };
+    const endHold = () => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+    const handleClick = () => {
+        if (firedLongRef.current) {
+            firedLongRef.current = false;
+            return;  // long-press already fired the notify modal
+        }
+        onOpen(item);
+    };
+    const handleKeyDown = (e) => {
+        // D-pad Center / Enter — start long-press timer when held.
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
+            if (e.repeat) {
+                // Auto-repeat means key is being held — fire long-press
+                // after the first repeat tick (browsers fire ~500ms in).
+                if (!firedLongRef.current) {
+                    firedLongRef.current = true;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onLongPress?.(item);
+                }
+            }
+        }
+    };
+    const handleKeyUp = (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
+            // Reset the long-press latch on key release so the next
+            // press starts clean.
+            setTimeout(() => { firedLongRef.current = false; }, 50);
+        }
+    };
+
     return (
         <button
             data-testid={`upcoming-trailer-${item.tmdb_id}`}
-            onClick={() => onOpen(item)}
+            onClick={handleClick}
+            onMouseDown={startHold}
+            onMouseUp={endHold}
+            onMouseLeave={endHold}
+            onTouchStart={startHold}
+            onTouchEnd={endHold}
+            onTouchCancel={endHold}
+            onKeyDown={handleKeyDown}
+            onKeyUp={handleKeyUp}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
