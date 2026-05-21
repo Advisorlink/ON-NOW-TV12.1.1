@@ -7,8 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
-## v2.7.39 — ExoPlayer A/B switch + Richer picker chips
-**Two big things:**
+## v2.7.39 — ExoPlayer A/B switch + Richer picker chips + minSdk 21
+**Two big things + a build fix:**
+
+### Build fix (CI was failing)
+- `minSdk` bumped 19 → 21 (Android 5.0 Lollipop, 2014). Required by `androidx.media3:1.4.x`. Zero practical device coverage loss — every cheap HK1 / RK / S905 box ships Android 7+.
 
 ### 1. ExoPlayer added as a SECOND player backend (one-tap A/B test)
 - New `ExoPlayerActivity.kt` — Media3 1.4.1 ExoPlayer + DefaultLoadControl tuned with 15-60 s buffer pool (matches the v2.7.38 libVLC tuning so the test is apples-to-apples). Supports HTTP / HLS / DASH, position-resume, BACK→Detail, English audio/sub preference.

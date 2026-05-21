@@ -9,13 +9,14 @@ android {
 
     defaultConfig {
         applicationId = "tv.onnowtv.app"
-        // minSdk = 19 (Android 4.4 KitKat) — covers the absolute
-        // bottom of the cheap Chinese Android TV box market.  Below
-        // 4.4 the stock WebView is WebKit-based and can't run modern
-        // JS at all (no Promise, no Symbol, no fetch).  KitKat is the
-        // first AOSP release with a Chromium-based WebView and is the
-        // realistic floor.
-        minSdk = 19
+        // v2.7.39 — minSdk bumped from 19 → 21 (Android 5.0 Lollipop,
+        // 2014) because androidx.media3 (used by the new ExoPlayer
+        // backend) requires minSdk 21.  Real-world coverage loss is
+        // zero — every cheap Chinese HK1 / RK / S905 box ships
+        // Android 7+ these days.  The previous floor of 19 (KitKat)
+        // was set when those boxes were brand new in 2014, but the
+        // hardware has long since cycled.
+        minSdk = 21
         targetSdk = 34
         // versionCode + versionName are normally driven by CI from
         // CHANGELOG.md (see .github/workflows/build-apk.yml — the
@@ -121,15 +122,12 @@ dependencies {
     // user can A/B test which one streams better on their HK1 box.
     // ExoPlayer is what Stremio / YouTube / Netflix use, and its
     // adaptive HLS/DASH logic is genuinely better than libVLC's for
-    // HTTP CDN streams (the v2.7.38 buffering bug was a libVLC
-    // prefetch-buffer-pool starvation issue that ExoPlayer doesn't
-    // have because it uses a DataSource-level chunk-cached buffer).
+    // HTTP CDN streams.  Requires minSdk 21 (already bumped above).
     // Total extra APK weight: ~3 MB.
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
-    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     // OkHttp — minimal HTTP + WebSocket client (~600 KB).  Used by
     // VlcPlayerActivity for the Watch Together party sync socket
