@@ -213,6 +213,15 @@ export default function SeriesEpisodes({
         return () => window.removeEventListener('keydown', onKey, true);
     }, []);
 
+    // ---------------------------------------------------------------
+    // SEASON-PICKER D-pad (v2.7.32)
+    // ---------------------------------------------------------------
+    // With the season picker now a single-line horizontal scroll
+    // strip, the spatial focus engine handles LEFT / RIGHT walking
+    // natively.  No row-wrap handler needed — the previous wrapped
+    // 2nd row was the bug we just removed.  See `data-testid=
+    // "season-picker"` style block below for the layout change.
+
     const pickAutoplayCandidate = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
         // User spec: any stream that even mentions "1080" anywhere
@@ -430,8 +439,26 @@ export default function SeriesEpisodes({
 
             <div
                 data-testid="season-picker"
-                className="flex flex-wrap items-center"
-                style={{ gap: 'clamp(8px, 0.7vw, 12px)', marginBottom: 24 }}
+                // v2.7.32 — switched from `flex-wrap` (which created
+                // a 2nd row of pills that got hidden behind the
+                // absolute-positioned Cast lane) to a single-line
+                // horizontal scroll strip.  Matches Netflix / Apple
+                // TV season picker pattern and what the original
+                // file header comment promised: "scrollable
+                // horizontally when there are many seasons".  The
+                // spatial focus engine handles LEFT / RIGHT walking
+                // and scrolls the focused pill into view.
+                className="flex items-center"
+                style={{
+                    gap: 'clamp(8px, 0.7vw, 12px)',
+                    marginBottom: 24,
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
+                    flexWrap: 'nowrap',
+                    scrollPaddingLeft: 16,
+                    scrollPaddingRight: 16,
+                    paddingBottom: 4,
+                }}
             >
                 {leadingPill}
                 {seasons.map(({ season }) => {
@@ -446,6 +473,18 @@ export default function SeriesEpisodes({
                             data-focus-style="pill"
                             data-initial-focus={season === activeSeason && !episodesShown ? 'true' : undefined}
                             tabIndex={0}
+                            onFocus={(e) => {
+                                // Scroll the focused pill into view
+                                // so D-pad walking reveals off-screen
+                                // seasons in the horizontal strip.
+                                try {
+                                    e.currentTarget.scrollIntoView({
+                                        behavior: 'smooth',
+                                        block: 'nearest',
+                                        inline: 'center',
+                                    });
+                                } catch (err) { /* ignore */ }
+                            }}
                             onClick={() => {
                                 if (episodesShown && season === activeSeason) {
                                     /* Toggling the same active season

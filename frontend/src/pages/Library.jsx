@@ -1138,6 +1138,7 @@ function ActorGrid({ items }) {
 
 function ActorCard({ actor }) {
     const navigate = useNavigate();
+    const [focused, setFocused] = useState(false);
     const onTap = () => {
         if (actor.id != null) navigate(`/person/${actor.id}`);
     };
@@ -1161,6 +1162,13 @@ function ActorCard({ actor }) {
             data-focus-style="tile"
             tabIndex={0}
             {...press}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onMouseEnter={() => setFocused(true)}
+            onMouseLeave={(e) => {
+                setFocused(false);
+                press.onMouseLeave?.(e);
+            }}
             className="block relative overflow-hidden text-left"
             style={{
                 aspectRatio: '2 / 3',
@@ -1179,12 +1187,15 @@ function ActorCard({ actor }) {
                     loading="lazy"
                     className="w-full h-full object-cover"
                     style={{
-                        // Library actors are shown as classic
-                        // black-and-white portraits — gives the
-                        // page a curated, magazine-style feel and
-                        // visually separates the Library grid from
-                        // colour cast-rows on Detail pages.
-                        filter: 'grayscale(1) contrast(1.05)',
+                        // v2.7.32 — black-and-white at rest, full
+                        // colour on hover / D-pad focus.  Matches
+                        // the CastRow behaviour on Detail pages so
+                        // the Library actor grid "comes alive" as
+                        // the user navigates through it.
+                        filter: focused
+                            ? 'grayscale(0) contrast(1.05)'
+                            : 'grayscale(1) contrast(1.05)',
+                        transition: 'filter 200ms ease',
                     }}
                 />
             ) : (

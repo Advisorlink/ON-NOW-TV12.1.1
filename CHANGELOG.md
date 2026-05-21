@@ -7,6 +7,10 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.32 — Reachable seasons · Hover-color Library actors
+1. **Season picker reachable when many seasons exist** — switched the season picker from `flex-wrap` (which created a 2nd row that got hidden behind the absolute-positioned Cast lane) to a **single-line horizontal scroll strip**. Matches Netflix / Apple TV pattern and what the original file header already promised: "scrollable horizontally when there are many seasons". LEFT/RIGHT walks all seasons via D-pad; focused pill smooth-scrolls into view (`inline: 'center'`). Trailer pill stays as the first item in the row.
+2. **Library actor avatars: B&W at rest, colour on hover/focus** — `ActorCard` in Library.jsx now tracks `focused` state via `onFocus / onBlur / onMouseEnter / onMouseLeave` (mirrors `CastRow.jsx` ActorCard). Image `filter` swaps `grayscale(1)` → `grayscale(0)` with a 200 ms ease transition. Library grid now "comes alive" as the user D-pad-walks through it.
+
 ## v2.7.31 — Trailer pill beside Season pills (TV details)
 - **TV-show Detail page**: the Trailer pill no longer sits on its own row above the season picker — it now renders as the **FIRST pill in the Seasons row**, side-by-side with `Season 1`, `Season 2`, … Per user request: "put the trailer button BESIDE (first pill) of the Seasons NOT on top".
 - New `compact` size variant on `<TrailerPill>` matches the Season pill metrics (height `clamp(36px, 3vw, 44px)`, font `clamp(13px, 0.95vw, 15px)`).
