@@ -228,31 +228,30 @@ jobs:
             React frontend is bundled inside the APK; backend calls go
             to the deployed TMDB/addons proxy.
 
-            **v2.7.27 — 4 fixes (Torrentio English-only · Player loading screen restored · CW cover art · Visible Streams button in player)**
-            - **#1 Torrentio English-only**: backend now seeds
-              Torrentio with `language=russian,french,spanish,
-              italian,german,...` (30+ foreign languages) — every
-              non-English release is filtered out at the source.
-              The seeder force-updates the existing DB row even
-              when Cloudflare 403s the manifest fetch.
-            - **#2 Player loading screen lost cover art / synopsis**:
-              ROOT CAUSE — v2.7.25 grew `playInternalRich` from
-              13 → 15 args, which broke the JS↔Kotlin bridge for
-              the existing JS call.  Android's JavascriptInterface
-              uses reflection and Kotlin default params don't
-              create overloads.  Fix: kept legacy 13-arg
-              `playInternalRich`, added new 15-arg
-              `playInternalRichV2` for the streams payload.  Web
-              layer tries V2 first, falls back to V1.  Both work.
-            - **#3 Continue Watching cover art missing**: tile now
-              falls back to `entry.poster` when `entry.backdrop`
-              is empty.  No more black CW tiles.
-            - **#4 NEW: Visible "Streams" button in the player**:
-              shows in the bottom control bar whenever the movie
-              has 2+ alt streams.  Sits between Aspect and
-              Channels.  Click → same overlay as MENU key.  No
-              more hunting for hidden remote keys.
-            - APK bumped to v2.7.27 (versionCode 197).
+            **v2.7.28 — Back-to-detail · Robust cover-art · Curated-addons quick-install · Admin page live**
+            - **BACK from player now returns to the Detail page**
+              (movie / episode-selection screen), not the Home
+              screen.  Removed `FLAG_ACTIVITY_NEW_TASK` from all
+              4 player launch intents in `WebAppInterface.kt`
+              (rich V2, rich V1, watch-party, trailer).  The
+              player now stays in the same Android task as
+              MainActivity, so back-stack unwinds naturally.
+            - **Cover art robust fallback chain** when launching
+              the player.  Different addons store backdrop under
+              different keys (`background`, `backdrop`,
+              `backdrop_url`, …).  Both `Detail.jsx` and
+              `SeriesEpisodes.jsx` now walk the full chain
+              including poster as last-resort, so the player
+              loading screen ALWAYS has something to show — no
+              more blank black screen on weird metadata.
+            - **Curated addons quick-install** dropdown on the
+              admin page (DEPLOYED LIVE to onnowtv.duckdns.org):
+              Cinemeta, OpenSubtitles, MediaFusion, AIO Streams,
+              TMDB Addon, WatchHub, Jackett, Anime Kitsu,
+              ThePirateBay+, Orion, JuanFTV, Twitch, Public
+              Domain.  Pick → click → installed in 1 second.
+              No more pasting URLs for the well-known ones.
+            - APK bumped to v2.7.28 (versionCode 198).
 
             For older release notes see CHANGELOG.md in the repo.
 

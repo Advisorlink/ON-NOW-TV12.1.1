@@ -1349,9 +1349,30 @@ export default function Detail() {
                     title: playTitle,
                     type: type,
                     subtitleUrl,
-                    poster: meta?.poster || '',
-                    backdrop: meta?.background || meta?.poster || '',
-                    synopsis: meta?.description || '',
+                    /* v2.7.28 — robust cover-art fallback chain.
+                     * Different addons store backdrops under
+                     * different keys.  Cinemeta uses `background`,
+                     * TMDB addons use `backdrop`, some return only
+                     * `poster`.  Walk the full chain so the
+                     * loading screen ALWAYS has something to show. */
+                    poster:
+                        meta?.poster ||
+                        meta?.posterUrl ||
+                        meta?.poster_url ||
+                        meta?.background ||
+                        meta?.backdrop ||
+                        '',
+                    backdrop:
+                        meta?.background ||
+                        meta?.backdrop ||
+                        meta?.backdrop_url ||
+                        meta?.poster ||
+                        '',
+                    synopsis:
+                        meta?.description ||
+                        meta?.overview ||
+                        meta?.synopsis ||
+                        '',
                     year: meta?.releaseInfo || meta?.year || '',
                     rating: meta?.imdbRating || '',
                     runtime: meta?.runtime || '',

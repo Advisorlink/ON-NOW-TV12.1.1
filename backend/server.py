@@ -2765,7 +2765,41 @@ _ADMIN_ADDONS_HTML = """<!doctype html>
 
   <section>
     <div class="card">
-      <label>Manifest URL</label>
+      <label>Quick-install — popular addons</label>
+      <div style="display:flex; gap:10px; align-items:stretch; flex-wrap:wrap">
+        <select id="curated-select" style="flex:1; min-width:240px; padding:14px 16px;
+          border-radius:12px; background:rgba(6,8,15,0.65); color:var(--text);
+          border:1px solid var(--line); font-size:14px;">
+          <option value="">Choose an addon…</option>
+          <option value="https://v3-cinemeta.strem.io/manifest.json">Cinemeta — TMDB metadata + posters (recommended)</option>
+          <option value="https://opensubtitles-v3.strem.io/manifest.json">OpenSubtitles v3 — auto subtitles</option>
+          <option value="https://mediafusion.elfhosted.com/manifest.json">MediaFusion — Real-Debrid sources (alternative to Torrentio)</option>
+          <option value="https://aiostreams.elfhosted.com/manifest.json">AIO Streams — meta-addon (combines many sources)</option>
+          <option value="https://94c8cb9f702d-tmdb-addon.baby-beamup.club/c/eyJsYW5ndWFnZSI6ImVuLVVTIn0%3D/manifest.json">TMDB Addon — full TMDB metadata + ratings</option>
+          <option value="https://watchhub.strem.io/manifest.json">WatchHub — free streaming services search</option>
+          <option value="https://stremio-jackett.elfhosted.com/manifest.json">Stremio Jackett — public + private trackers</option>
+          <option value="https://anime-kitsu.strem.fun/manifest.json">Anime Kitsu — anime catalogue + sources</option>
+          <option value="https://7a82163c306e-stremio-thepiratebay-plus.baby-beamup.club/manifest.json">ThePirateBay+ — public torrent index</option>
+          <option value="https://orion-stremio-addon.web.app/manifest.json">Orion — premium scraper (paid)</option>
+          <option value="https://stremio.juanftv.com/manifest.json">JuanFTV — Latin / Spanish channels</option>
+          <option value="https://www.strem.io/twitch-stremio-v2/manifest.json">Twitch — live streamers</option>
+          <option value="https://7a82163c306e-stremio-public-domain.baby-beamup.club/manifest.json">Public Domain — classic films</option>
+        </select>
+        <button class="cta" id="curated-install" style="margin:0; white-space:nowrap">Install selected</button>
+      </div>
+      <div class="helper">
+        Pick one of the well-known addons above to install with a single click —
+        the manifest URL fills in automatically.  For addons that need a config
+        (Torrentio with your debrid key, TMDB with language, etc.) visit the
+        addon's <code>/configure</code> page first, copy the URL the
+        configurator gives you, then paste it in the box below.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <label>Manifest URL — paste your own</label>
       <input id="manifest-url" type="text"
              placeholder="https://your-addon.example.com/manifest.json"
              autocomplete="off" autocorrect="off" autocapitalize="off"
@@ -2890,6 +2924,17 @@ _ADMIN_ADDONS_HTML = """<!doctype html>
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') onInstall();
   });
+
+  // Curated quick-install dropdown.
+  var curatedSelect = document.getElementById('curated-select');
+  var curatedBtn = document.getElementById('curated-install');
+  curatedBtn.addEventListener('click', function() {
+    var u = curatedSelect.value;
+    if (!u) { showToast('Pick an addon from the dropdown first', true); return; }
+    input.value = u;
+    onInstall();
+  });
+
   fetchAddons();
 })();
 </script>

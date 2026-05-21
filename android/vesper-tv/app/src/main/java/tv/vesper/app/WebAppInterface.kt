@@ -61,7 +61,9 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_URL, url)
                     putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
                     putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    // v2.7.28 — no FLAG_ACTIVITY_NEW_TASK so back
+                    // returns to wherever the player was launched
+                    // from (Detail page in WebView) — not Home.
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -150,7 +152,7 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_CW_ID, cwId)
                     putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
                     putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -218,7 +220,7 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL, partyWsUrl)
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI, partyAvatarEmoji ?: "")
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME, partyDisplayName ?: "")
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -257,7 +259,7 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_POSTER, poster ?: "")
                     putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop ?: "")
                     putExtra(VlcPlayerActivity.EXTRA_TYPE, "trailer")
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {

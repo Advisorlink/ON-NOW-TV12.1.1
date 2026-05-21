@@ -326,9 +326,23 @@ export default function SeriesEpisodes({
                     title,
                     type: 'series',
                     subtitleUrl,
-                    poster: meta?.poster || '',
-                    backdrop: meta?.background || meta?.poster || '',
-                    synopsis: ep.overview || meta?.description || '',
+                    // v2.7.28 — full cover-art fallback chain.
+                    poster:
+                        meta?.poster ||
+                        meta?.posterUrl ||
+                        meta?.background ||
+                        meta?.backdrop ||
+                        '',
+                    backdrop:
+                        meta?.background ||
+                        meta?.backdrop ||
+                        meta?.poster ||
+                        '',
+                    synopsis:
+                        ep.overview ||
+                        meta?.description ||
+                        meta?.overview ||
+                        '',
                     year: ep.firstAired ? String(ep.firstAired).slice(0, 4) : (meta?.releaseInfo || ''),
                     rating: meta?.imdbRating || '',
                     runtime: ep.runtime || meta?.runtime || '',
