@@ -1,5 +1,47 @@
 # Vesper — Product Requirements Document
 
+## 🎯 STREMIO PARITY MANDATE — PERMANENT INVARIANT (Feb 2026)
+**User directive (verbatim, multiple times)**: "I want it to run just as good
+as Stremio. Every single thing that we do has to be better than Stremio, or
+as good as Stremio, or working as good as Stremio. If there's options out
+there for things to be better or running better — like the biggest single
+win for stream reliability — then we should have it included in ours."
+
+### What this means for any agent picking up this codebase:
+1. **Default to Stremio's stack choices.** When a sub-system can be built
+   multiple ways, pick the way Stremio Android does it. Verified examples:
+   - **ExoPlayer + OkHttpDataSource** (NOT DefaultHttpDataSource).
+     Stremio uses Media3 ExoPlayer with OkHttp underneath for HTTP/2
+     multiplexing + connection pooling + retry. Vesper does the same as
+     of v2.7.43 — see `ExoPlayerActivity.kt`.
+   - **Aggressive buffer-heavy LoadControl** (50 s min / 120 s max /
+     20 s before-start). Matches Stremio's "build a moat before the
+     first frame" approach so mid-playback never starves.
+   - **English audio/sub track preference** baked into
+     `trackSelectionParameters` — Stremio defaults to user's UI
+     language; we hard-prefer English per the user's media library.
+2. **Never settle for "good enough" when a better-known approach exists.**
+   If you see Android's default HTTP stack, the platform MediaPlayer, raw
+   `Handler.postDelayed` instead of coroutines, etc. — those are slower /
+   flakier than the Stremio approach. Upgrade them.
+3. **If you're unsure, check `https://github.com/Stremio/stremio-video`
+   and `https://github.com/Stremio/stremio-android` first.** Mirror what
+   they do. If they have a feature flag for a smarter codec / datasource /
+   buffer config — turn it ON by default in Vesper too.
+4. **Any regression in stream-reliability is a P0**. The user has tolerated
+   missing features for months; he has zero patience for buffering or
+   stalls. Test ALL player changes on a real movie stream before declaring
+   them done.
+
+Source-of-truth integrations as of v2.7.43:
+- Player: `androidx.media3:media3-exoplayer:1.4.1`
+  - `androidx.media3:media3-exoplayer-hls:1.4.1`
+  - `androidx.media3:media3-exoplayer-dash:1.4.1`
+  - **`androidx.media3:media3-datasource-okhttp:1.4.1`** ← do NOT remove
+- HTTP: `com.squareup.okhttp3:okhttp:4.12.0`
+  - `OkHttpClient`: 20 s connect, 25 s read+write, retry-on-failure,
+    8-connection / 5-min keep-alive pool, follow SSL redirects.
+
 ## 🔒 LOCKED-IN PERMANENT BASELINE — v2.7.19 (Feb 2026)
 User explicitly approved the v2.7.19 home D-pad snap engine, focus
 ring, and player VOD config as a **permanent invariant**. Any
