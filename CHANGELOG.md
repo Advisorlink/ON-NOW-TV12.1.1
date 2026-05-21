@@ -7,6 +7,21 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.49 — Trailer card long-press fixed · notify modal portal · YouTube Error 153 fixed
+**Three user-reported issues from v2.7.48 nailed:**
+
+### 1. Notify modal "looked weird at the bottom" → centered properly now
+- **Root cause**: `StreamUnavailableModal` used `position: fixed; inset: 0` BUT was being rendered inside `<UpcomingMoviesShelf>`. Some ancestor (likely a `transform`, `filter`, or `will-change` on the shelf) was creating a containing block for `position: fixed`, so the modal anchored to the shelf instead of the viewport → showed cut off at the bottom.
+- **Fix**: `StreamUnavailableModal` now renders via `createPortal(<modal>, document.body)`. Position-fixed now escapes every ancestor stacking context and centers correctly on every TV resolution.
+
+### 2. Long-press only worked with mouse, not D-pad OK button
+- **Root cause**: my inline keydown/keyup handler in `TrailerCard` was racing with the global spatial-focus engine, which fires `el.click()` on every Enter keydown including held repeats. Long-press latch got reset every tick.
+- **Fix**: replaced the in-line handlers with the shared `useLongPress` hook (the same one used everywhere else in the app for "Add to My List" press-and-hold). Calls `stopPropagation` on keydown so the spatial-focus listener never sees the event. Result: D-pad OK button hold (600 ms) reliably fires the notify modal on the HK1 remote — exactly like every other long-press in the app.
+
+### 3. Trailer playback "Error 153 / Video player configuration error"
+- **Root cause**: the native handoff check was `typeof window.OnNowTV.playTrailer === 'function'`. Android's `@JavascriptInterface` methods return `typeof === 'object'` on many WebView builds (NOT `'function'`) — so the check failed silently → fell through to the YouTube iframe → YouTube refused with Error 153 ("TV unembeddable").
+- **Fix**: switched the native-bridge detection to `/OnNowTV\//.test(navigator.userAgent) && 'playTrailer' in window.OnNowTV`. The UA stamp (`OnNowTV/<version>`) is set by `MainActivity.kt`, and `'in'` works regardless of how WebView types the bridge method. Trailers now ALWAYS go through the native libVLC player with the HD video + m4a slave extraction.
+
 ## v2.7.48 — Addon source chips everywhere (TORRENTIO · MEDIAFUSION · COMET · …)
 **User**: "Need addon tags (Torrentio, MediaFusion, Comet) in the available streams picker on movies page, TV show page, AND the in-player stream chooser."
 

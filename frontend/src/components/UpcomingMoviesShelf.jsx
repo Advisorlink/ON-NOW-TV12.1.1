@@ -15,12 +15,13 @@
  * banner when localStorage `onnowtv-dev-unlock === '1'` is set
  * (toggleable from Settings → Unlock for testing).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Play, Calendar } from 'lucide-react';
 import * as img from '@/lib/img';
 import StreamUnavailableModal from './StreamUnavailableModal';
+import useLongPress from '@/hooks/useLongPress';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -215,64 +216,22 @@ export default function UpcomingMoviesShelf() {
  */
 function TrailerCard({ item, onOpen, onLongPress }) {
     const art = img.backdrop(item.backdrop || item.poster);
-    const timerRef = useRef(null);
-    const firedLongRef = useRef(false);
 
-    const startHold = () => {
-        firedLongRef.current = false;
-        timerRef.current = setTimeout(() => {
-            firedLongRef.current = true;
-            onLongPress?.(item);
-        }, 600);
-    };
-    const endHold = () => {
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-            timerRef.current = null;
-        }
-    };
-    const handleClick = () => {
-        if (firedLongRef.current) {
-            firedLongRef.current = false;
-            return;  // long-press already fired the notify modal
-        }
-        onOpen(item);
-    };
-    const handleKeyDown = (e) => {
-        // D-pad Center / Enter — start long-press timer when held.
-        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
-            if (e.repeat) {
-                // Auto-repeat means key is being held — fire long-press
-                // after the first repeat tick (browsers fire ~500ms in).
-                if (!firedLongRef.current) {
-                    firedLongRef.current = true;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onLongPress?.(item);
-                }
-            }
-        }
-    };
-    const handleKeyUp = (e) => {
-        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
-            // Reset the long-press latch on key release so the next
-            // press starts clean.
-            setTimeout(() => { firedLongRef.current = false; }, 50);
-        }
-    };
+    // v2.7.49 — use the shared `useLongPress` hook (same one used
+    // across the rest of the app for Add-to-My-List long-presses).
+    // Handles mouse, touch AND D-pad OK button hold uniformly, and
+    // cooperates with the global spatial-focus engine so OK key
+    // doesn't double-fire as both click + long-press.
+    const press = useLongPress(
+        () => onLongPress?.(item),
+        () => onOpen(item),
+        { duration: 600 },
+    );
 
     return (
         <button
             data-testid={`upcoming-trailer-${item.tmdb_id}`}
-            onClick={handleClick}
-            onMouseDown={startHold}
-            onMouseUp={endHold}
-            onMouseLeave={endHold}
-            onTouchStart={startHold}
-            onTouchEnd={endHold}
-            onTouchCancel={endHold}
-            onKeyDown={handleKeyDown}
-            onKeyUp={handleKeyUp}
+            {...press}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

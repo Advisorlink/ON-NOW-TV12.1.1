@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BellRing, BellOff, ArrowLeft, Sparkles } from 'lucide-react';
 import { addToNotifyList, removeFromNotifyList, isInNotifyList } from '@/lib/library';
 import * as img from '@/lib/img';
@@ -67,7 +68,12 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
         (meta?.poster && img.poster(meta.poster)) ||
         '';
 
-    return (
+    // v2.7.49 — portal to <body> so position:fixed escapes any
+    // ancestor stacking context (transform / filter / will-change on
+    // shelves was making the modal anchor to the shelf instead of the
+    // viewport, which is why it appeared cut off at the bottom).
+    if (typeof document === 'undefined') return null;
+    return createPortal(
         <div
             data-testid="stream-unavailable-modal"
             onKeyDown={(e) => {
@@ -294,6 +300,7 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
             `}</style>
-        </div>
+        </div>,
+        document.body,
     );
 }
