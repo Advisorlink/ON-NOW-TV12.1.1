@@ -104,6 +104,11 @@ const Host = (() => {
                         label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
                         url: s.url || '',
                         infoHash: s.infoHash || null,
+                        // v2.7.33 — propagate the English flag the
+                        // backend stamped on each stream, so the
+                        // native in-player picker can render a
+                        // 🇬🇧 ENGLISH chip.
+                        isEnglish: !!s._is_english,
                     })))
                     : '';
                 a.playInternalRichV2(

@@ -7,6 +7,20 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.33 — English-only stream filter + 🇬🇧 English chip (deployed to VPS)
+- **Backend filter `_filter_and_tag_english()`** drops foreign-language streams across EVERY addon (Torrentio, MediaFusion, custom).  Decision matrix:
+  1. Title has substantial non-Latin script (Cyrillic / CJK / Arabic / Devanagari / Hebrew / Greek / Thai / Korean — ≥2 chars) → REQUIRE explicit English word token ("ENG" or "English"). 🇬🇧 flag alone isn't enough (often signals subtitles on foreign-audio releases).
+  2. Title has foreign-language word/flag but ALSO English signal → multi-lang release with English audio → KEEP.
+  3. Title has foreign signal only → DROP.
+  4. Title has no language signal → KEEP (English by default for western releases).
+- **`_is_english: true` tag** stamped on every kept stream so the frontend can render a 🇬🇧 ENGLISH chip.
+- Detects: 32 foreign flag emojis, 50+ foreign language word tokens (russian, francais, hindi, tamil, etc.), and 10 non-Latin Unicode ranges.
+- **Cached payloads also re-filtered** so the rollout doesn't have to wait 5 min for cache expiry.
+- **Real-world impact on tt15239678 (Dune Part 2)**: 237 → 211 streams (26 pure-foreign dropped). Warm cache 0.8 s, cold 14 s.
+- **Frontend Detail.jsx stream picker**: 🇬🇧 ENGLISH chip added as the FIRST chip in the metadata row (cyan glass pill, bold).
+- **Native Kotlin in-player picker (`VlcPlayerActivity`)**: `AltStream` data class now carries `isEnglish: Boolean`. The picker overlay renders a `🇬🇧 ENGLISH` chip first when the flag is set. Web→native bridge (`host.js`) passes the flag through the `streamsJson` payload.
+- **VPS deployed**: `server.py` synced to `/opt/onnowtv/backend/`, service restarted, `/api/streams/movie/tt15239678` returns filtered list in 0.8 s (warm) / 14 s (cold).
+
 ## v2.7.32 — Reachable seasons · Hover-color Library actors
 1. **Season picker reachable when many seasons exist** — switched the season picker from `flex-wrap` (which created a 2nd row that got hidden behind the absolute-positioned Cast lane) to a **single-line horizontal scroll strip**. Matches Netflix / Apple TV pattern and what the original file header already promised: "scrollable horizontally when there are many seasons". LEFT/RIGHT walks all seasons via D-pad; focused pill smooth-scrolls into view (`inline: 'center'`). Trailer pill stays as the first item in the row.
 2. **Library actor avatars: B&W at rest, colour on hover/focus** — `ActorCard` in Library.jsx now tracks `focused` state via `onFocus / onBlur / onMouseEnter / onMouseLeave` (mirrors `CastRow.jsx` ActorCard). Image `filter` swaps `grayscale(1)` → `grayscale(0)` with a 200 ms ease transition. Library grid now "comes alive" as the user D-pad-walks through it.

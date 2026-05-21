@@ -163,7 +163,8 @@ class VlcPlayerActivity : AppCompatActivity() {
     data class AltStream(
         val label: String,
         val url: String,
-        val infoHash: String?
+        val infoHash: String?,
+        val isEnglish: Boolean,
     )
     private val streamsList: MutableList<AltStream> = mutableListOf()
     private var currentStreamIdx: Int = -1
@@ -422,7 +423,8 @@ class VlcPlayerActivity : AppCompatActivity() {
                             label = o.optString("label", "(untitled)"),
                             url = o.optString("url", ""),
                             infoHash = o.optString("infoHash", null)
-                                ?.takeIf { it.isNotBlank() }
+                                ?.takeIf { it.isNotBlank() },
+                            isEnglish = o.optBoolean("isEnglish", false),
                         )
                     )
                 }
@@ -2233,13 +2235,18 @@ class VlcPlayerActivity : AppCompatActivity() {
             }
 
             // ─── Row chips strip ───
-            if (parsed.qualityChips.isNotEmpty() || parsed.sizeChip != null || parsed.seedsChip != null) {
+            if (s.isEnglish || parsed.qualityChips.isNotEmpty() || parsed.sizeChip != null || parsed.seedsChip != null) {
                 val chipRow = android.widget.LinearLayout(this).apply {
                     orientation = android.widget.LinearLayout.HORIZONTAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply { topMargin = dpi(8f) }
+                }
+                // v2.7.33 — English chip first so the user can spot
+                // English audio at a glance.
+                if (s.isEnglish) {
+                    chipRow.addView(makeChip("\uD83C\uDDEC\uD83C\uDDE7 ENGLISH", 0x337CF1F1))
                 }
                 for (c in parsed.qualityChips) {
                     chipRow.addView(makeChip(c, qualityChipColor(c)))

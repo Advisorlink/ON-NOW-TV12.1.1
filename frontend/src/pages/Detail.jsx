@@ -2386,7 +2386,7 @@ export default function Detail() {
                                                         )}
 
                                                         {/* Metadata chip row */}
-                                                        {chips.length > 0 && (
+                                                        {(chips.length > 0 || s._is_english) && (
                                                             <div
                                                                 className="flex flex-wrap items-center"
                                                                 style={{
@@ -2394,6 +2394,31 @@ export default function Detail() {
                                                                     marginTop: 12,
                                                                 }}
                                                             >
+                                                                {/* v2.7.33 — 🇬🇧 English chip.
+                                                                    Backend tags every kept stream
+                                                                    with `_is_english:true`; we
+                                                                    surface it as a prominent first
+                                                                    chip so the user can confidently
+                                                                    pick English audio at a glance. */}
+                                                                {s._is_english && (
+                                                                    <span
+                                                                        data-testid={`stream-${i}-english`}
+                                                                        className="vesper-mono"
+                                                                        style={{
+                                                                            fontSize: 11,
+                                                                            fontWeight: 700,
+                                                                            letterSpacing: '0.12em',
+                                                                            padding: '4px 10px',
+                                                                            borderRadius: 999,
+                                                                            background: 'rgba(124,241,241,0.14)',
+                                                                            color: '#7CF1F1',
+                                                                            border: '1px solid rgba(124,241,241,0.30)',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}
+                                                                    >
+                                                                        🇬🇧 ENGLISH
+                                                                    </span>
+                                                                )}
                                                                 {chips.map((c, ci) => (
                                                                     <span
                                                                         key={ci}

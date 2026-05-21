@@ -220,6 +220,229 @@ def _build_extra_path(extra: Optional[Dict[str, str]]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# v2.7.33 — STREAM LANGUAGE FILTER
+# ---------------------------------------------------------------------------
+# The user installed their own Torrentio addon with a personal Premiumize
+# key but Torrentio's config UI doesn't let them whitelist English only —
+# only EXCLUDE foreign languages.  We do the final English-only pass here
+# so EVERY stream addon (Torrentio, MediaFusion, anything custom) is
+# automatically filtered.  Also tags each stream with `_is_english: True`
+# so the UI can render a 🇬🇧 chip.
+#
+# Heuristic:
+#   • Has 🇷🇺/🇫🇷/🇪🇸/etc. flag emoji OR a foreign language word
+#     (Russian / French / RUS / FRA / Hindi / 國語 / ...) → EXCLUDE.
+#   • Otherwise → INCLUDE.  Mark as English if there's an explicit
+#     English signal (ENG / English / 🇬🇧 / 🇺🇸) OR the title is
+#     untagged for any language (typical western release).
+# ---------------------------------------------------------------------------
+
+# Foreign-language flag emojis we want to EXCLUDE.  English-speaking
+# flags (🇬🇧 🇺🇸 🇦🇺 🇨🇦 🇳🇿 🇮🇪) are kept.
+#
+# Each flag emoji is a SURROGATE PAIR of two regional-indicator chars,
+# so we keep them as standalone 2-char strings and check membership
+# via plain `in` substring tests — avoids the ambiguity of putting the
+# individual regional indicators in a character class (e.g. "🇬" alone
+# matches both 🇬🇧 UK and 🇬🇷 Greece).
+_FOREIGN_FLAGS_LIST = [
+    "\U0001F1F7\U0001F1FA",  # 🇷🇺 Russia
+    "\U0001F1EB\U0001F1F7",  # 🇫🇷 France
+    "\U0001F1EA\U0001F1F8",  # 🇪🇸 Spain
+    "\U0001F1EE\U0001F1F9",  # 🇮🇹 Italy
+    "\U0001F1E9\U0001F1EA",  # 🇩🇪 Germany
+    "\U0001F1F5\U0001F1F9",  # 🇵🇹 Portugal
+    "\U0001F1E7\U0001F1F7",  # 🇧🇷 Brazil
+    "\U0001F1F2\U0001F1FD",  # 🇲🇽 Mexico
+    "\U0001F1F5\U0001F1F1",  # 🇵🇱 Poland
+    "\U0001F1EE\U0001F1F3",  # 🇮🇳 India
+    "\U0001F1EF\U0001F1F5",  # 🇯🇵 Japan
+    "\U0001F1F0\U0001F1F7",  # 🇰🇷 Korea
+    "\U0001F1E8\U0001F1F3",  # 🇨🇳 China
+    "\U0001F1F9\U0001F1FC",  # 🇹🇼 Taiwan
+    "\U0001F1F9\U0001F1F7",  # 🇹🇷 Turkey
+    "\U0001F1F8\U0001F1E6",  # 🇸🇦 Saudi (Arabic)
+    "\U0001F1EA\U0001F1EC",  # 🇪🇬 Egypt (Arabic)
+    "\U0001F1F3\U0001F1F1",  # 🇳🇱 Netherlands
+    "\U0001F1E9\U0001F1F0",  # 🇩🇰 Denmark
+    "\U0001F1F8\U0001F1EA",  # 🇸🇪 Sweden
+    "\U0001F1F3\U0001F1F4",  # 🇳🇴 Norway
+    "\U0001F1EB\U0001F1EE",  # 🇫🇮 Finland
+    "\U0001F1E8\U0001F1FF",  # 🇨🇿 Czech
+    "\U0001F1ED\U0001F1FA",  # 🇭🇺 Hungary
+    "\U0001F1EC\U0001F1F7",  # 🇬🇷 Greece
+    "\U0001F1F9\U0001F1ED",  # 🇹🇭 Thailand
+    "\U0001F1FB\U0001F1F3",  # 🇻🇳 Vietnam
+    "\U0001F1EE\U0001F1E9",  # 🇮🇩 Indonesia
+    "\U0001F1EE\U0001F1F1",  # 🇮🇱 Israel (Hebrew)
+    "\U0001F1FA\U0001F1E6",  # 🇺🇦 Ukraine
+    "\U0001F1F7\U0001F1F4",  # 🇷🇴 Romania
+    "\U0001F1ED\U0001F1F0",  # 🇭🇰 Hong Kong
+]
+
+# English / English-speaking flag emojis.
+_ENGLISH_FLAGS_LIST = [
+    "\U0001F1EC\U0001F1E7",  # 🇬🇧 UK
+    "\U0001F1FA\U0001F1F8",  # 🇺🇸 USA
+    "\U0001F1E6\U0001F1FA",  # 🇦🇺 Australia
+    "\U0001F1E8\U0001F1E6",  # 🇨🇦 Canada
+    "\U0001F1F3\U0001F1FF",  # 🇳🇿 New Zealand
+    "\U0001F1EE\U0001F1EA",  # 🇮🇪 Ireland
+]
+
+# Word-level foreign-language tokens.  Word boundaries matter — `\bGER\b`
+# avoids matching "MERGER", `\bENG\b` is whitelist-safe.
+_FOREIGN_LANG_RE = re.compile(
+    r"\b("
+    r"russian|francais|french|spanish|espanol|español|italian|italiano|"
+    r"german|deutsch|portuguese|portugues|português|polish|polski|"
+    r"hindi|tamil|telugu|malayalam|kannada|marathi|punjabi|bengali|"
+    r"korean|japanese|nihongo|chinese|mandarin|cantonese|turkish|"
+    r"arabic|farsi|persian|urdu|dutch|nederlands|danish|swedish|svenska|"
+    r"norwegian|finnish|suomi|czech|cesky|hungarian|magyar|greek|"
+    r"thai|vietnamese|indonesian|hebrew|ukrainian|romanian|romana|"
+    r"bulgarian|serbian|croatian|slovak|slovenian|catalan|estonian|"
+    r"latvian|lithuanian|filipino|tagalog|"
+    r"rus|fra|fre|spa|esp|ita|ger|deu|jpn|jap|kor|chn|por|pol|hin|tam|"
+    r"tel|ara|chi|nld|swe|nor|fin|cze|hun|gre|tha|vie|ind|heb|"
+    r"ukr|rom|bul|srb|hrv|slk|slv|cat|est|lav|lit"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_ENGLISH_TOKEN_RE = re.compile(r"\b(english|eng)\b", re.IGNORECASE)
+
+# Non-Latin script ranges — Cyrillic, Arabic, CJK, Japanese, Korean,
+# Devanagari (Hindi), Hebrew, Greek, Thai.  Detected by counting
+# matching codepoints in the haystack; >= 4 chars means the title
+# is meaningfully foreign-script (catches stream titles that have
+# only the foreign-name + nothing English-tagged, like Cyrillic-only
+# Russian Torrentio listings).
+_NON_LATIN_RE = re.compile(
+    r"["
+    r"\u0400-\u04FF"   # Cyrillic
+    r"\u0500-\u052F"   # Cyrillic Supplement
+    r"\u0600-\u06FF"   # Arabic
+    r"\u0900-\u097F"   # Devanagari (Hindi)
+    r"\u0590-\u05FF"   # Hebrew
+    r"\u0370-\u03FF"   # Greek
+    r"\u0E00-\u0E7F"   # Thai
+    r"\u3040-\u309F"   # Hiragana
+    r"\u30A0-\u30FF"   # Katakana
+    r"\u4E00-\u9FFF"   # CJK Unified Ideographs
+    r"\uAC00-\uD7AF"   # Hangul Syllables
+    r"]"
+)
+
+
+def _has_any_substring(text: str, needles: List[str]) -> bool:
+    for n in needles:
+        if n in text:
+            return True
+    return False
+
+
+def _stream_haystack(s: Dict[str, Any]) -> str:
+    """Build the searchable text blob for a stream — title + name +
+    description + behavior hints — for language detection."""
+    parts = [
+        s.get("title", "") or "",
+        s.get("name", "") or "",
+        s.get("description", "") or "",
+    ]
+    bh = s.get("behaviorHints") or {}
+    if isinstance(bh, dict):
+        parts.append(str(bh.get("filename", "") or ""))
+    return " ".join(parts)
+
+
+def _is_foreign_language_stream(s: Dict[str, Any]) -> bool:
+    """True when the stream's metadata contains a foreign-language
+    flag emoji, word token, or substantial non-Latin script chars."""
+    txt = _stream_haystack(s)
+    if not txt:
+        return False
+    if _has_any_substring(txt, _FOREIGN_FLAGS_LIST):
+        return True
+    if _FOREIGN_LANG_RE.search(txt):
+        return True
+    # 2+ non-Latin codepoints — catches Cyrillic-only Russian titles,
+    # CJK, Arabic, Devanagari, etc. that have no Latin lang token.
+    # 2 is a tight threshold: catches even short foreign titles like
+    # "电影" (Chinese: "movie") while still letting through stray
+    # single special chars (em-dashes, smart quotes, etc.).
+    if len(_NON_LATIN_RE.findall(txt)) >= 2:
+        return True
+    return False
+
+
+def _is_english_stream(s: Dict[str, Any]) -> bool:
+    """True when stream EITHER has explicit English signal OR is
+    untagged for any language (which we treat as English by default —
+    typical for western releases)."""
+    txt = _stream_haystack(s)
+    if not txt:
+        return True  # no metadata → don't penalise
+    if _has_any_substring(txt, _ENGLISH_FLAGS_LIST):
+        return True
+    if _ENGLISH_TOKEN_RE.search(txt):
+        return True
+    # No foreign-language signal anywhere → assume English
+    has_foreign = (
+        _has_any_substring(txt, _FOREIGN_FLAGS_LIST)
+        or _FOREIGN_LANG_RE.search(txt)
+        or len(_NON_LATIN_RE.findall(txt)) >= 2
+    )
+    if not has_foreign:
+        return True
+    return False
+
+
+def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Drop foreign-language streams and tag the rest with
+    `_is_english: True`.  Multi-lang releases that explicitly list
+    English in the title (e.g., "Eng.Fre.Ger.Ita") are KEPT.  But
+    Cyrillic / CJK / Arabic-titled streams are dropped UNLESS they
+    contain an explicit English word token ("English" or "ENG") —
+    the 🇬🇧 flag emoji alone is not enough since it often signals
+    English subtitles on a foreign-audio release, not English audio.
+    Idempotent."""
+    out: List[Dict[str, Any]] = []
+    for s in streams:
+        if not isinstance(s, dict):
+            continue
+        txt = _stream_haystack(s)
+        non_latin_count = len(_NON_LATIN_RE.findall(txt))
+        has_english_token = bool(_ENGLISH_TOKEN_RE.search(txt))
+        has_english_flag = _has_any_substring(txt, _ENGLISH_FLAGS_LIST)
+        has_foreign_flag = _has_any_substring(txt, _FOREIGN_FLAGS_LIST)
+        has_foreign_token = bool(_FOREIGN_LANG_RE.search(txt))
+
+        # Decision matrix (in order):
+        # 1. Title contains substantial non-Latin script → REQUIRE
+        #    an explicit English TOKEN (ENG / English).  Flag alone
+        #    isn't enough because it's usually a subtitle indicator.
+        # 2. Title has foreign-language word/flag but ALSO English
+        #    token or English flag → multi-lang release with English
+        #    audio → KEEP.
+        # 3. Title has foreign signal but NO English signal → DROP.
+        # 4. Title has no foreign signal → KEEP (English by default).
+        if non_latin_count >= 2:
+            if not has_english_token:
+                continue
+            s["_is_english"] = True
+            out.append(s)
+            continue
+        foreign = has_foreign_flag or has_foreign_token
+        english = has_english_token or has_english_flag or not foreign
+        if foreign and not english:
+            continue
+        s["_is_english"] = english
+        out.append(s)
+    return out
+
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(title="ON NOW TV V2")
@@ -449,7 +672,9 @@ async def streams_aggregate(type_: str, item_id: str):
     cache_key = f"str:{type_}:{item_id}"
     cached = await cache.get(cache_key)
     if cached:
-        return {"cached": True, "streams": cached}
+        # v2.7.33 — apply English filter even to cached payloads so
+        # the rollout doesn't have to wait for cache expiry.
+        return {"cached": True, "streams": _filter_and_tag_english(cached)}
 
     addons = await db.addons.find(
         {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
@@ -494,6 +719,9 @@ async def streams_aggregate(type_: str, item_id: str):
     for r in results:
         if isinstance(r, list):
             out.extend(r)
+
+    # v2.7.33 — drop foreign-language streams + tag English ones.
+    out = _filter_and_tag_english(out)
 
     await cache.set(cache_key, out, CACHE_TTL_STREAM)
     return {"cached": False, "streams": out}
