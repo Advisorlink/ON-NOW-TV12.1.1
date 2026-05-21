@@ -20,7 +20,6 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Play, Calendar } from 'lucide-react';
 import * as img from '@/lib/img';
-import TrailerModal from './TrailerModal';
 import StreamUnavailableModal from './StreamUnavailableModal';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -34,8 +33,7 @@ export default function UpcomingMoviesShelf() {
         try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
         catch { return false; }
     });
-    // v2.7.45 — trailer card modals (click → trailer, long-press → notify)
-    const [trailer, setTrailer] = useState(null); // { youtubeKey, title, poster, backdrop }
+    // v2.7.45 — long-press → notify modal
     const [notify, setNotify] = useState(null);   // { id, meta }
 
     useEffect(() => {
@@ -81,24 +79,15 @@ export default function UpcomingMoviesShelf() {
     if (!loading && items.length === 0 && !unlock) return null;
 
     const openItem = (m) => {
-        // v2.7.45 — short click: open the full-screen trailer modal
-        // directly (which then hands off to the NATIVE libVLC HD
-        // trailer player on the HK1 via window.OnNowTV.playTrailer).
-        // We do NOT navigate to Detail anymore — the user wants the
-        // trailer to play instantly on tap.  If the movie has no
-        // trailer_key, fall back to opening the detail page so the
-        // user can still see info / set a reminder.
-        if (m?.trailer_key) {
-            setTrailer({
-                youtubeKey: m.trailer_key,
-                title: m.title || '',
-                poster: m.poster || '',
-                backdrop: m.backdrop || '',
-            });
-            return;
+        // v2.7.46 — per user spec: click ALWAYS opens the detail page.
+        // The detail page has the Trailer button which is what
+        // launches the full-screen trailer player.  Long-press on the
+        // card opens the Notify modal directly (see longPressItem).
+        if (m?.imdb_id) {
+            navigate(`/title/movie/${m.imdb_id}`);
+        } else if (m?.tmdb_id) {
+            navigate(`/resolve/movie/${m.tmdb_id}`);
         }
-        if (m?.imdb_id) navigate(`/title/movie/${m.imdb_id}`);
-        else if (m?.tmdb_id) navigate(`/resolve/movie/${m.tmdb_id}`);
     };
 
     const longPressItem = (m) => {
@@ -203,16 +192,7 @@ export default function UpcomingMoviesShelf() {
                     />
                 ))}
             </div>
-            {/* v2.7.45 — Trailer + Notify modals */}
-            {trailer && (
-                <TrailerModal
-                    youtubeKey={trailer.youtubeKey}
-                    title={trailer.title}
-                    poster={trailer.poster}
-                    backdrop={trailer.backdrop}
-                    onClose={() => setTrailer(null)}
-                />
-            )}
+            {/* v2.7.45 — Notify modal (opens on long-press) */}
             {notify && (
                 <StreamUnavailableModal
                     id={notify.id}

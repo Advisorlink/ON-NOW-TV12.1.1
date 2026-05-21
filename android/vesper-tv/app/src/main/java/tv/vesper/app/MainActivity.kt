@@ -278,7 +278,30 @@ class MainActivity : AppCompatActivity() {
         // iterate on the React side without rebuilding the APK.
         val devPrefs = getSharedPreferences("onnowtv-dev", MODE_PRIVATE)
         val devUrl = devPrefs.getString("dev_url", null)?.takeIf { it.startsWith("http") }
-        val bootUrl = devUrl ?: "file:///android_asset/web/index.html"
+
+        // v2.7.46 — Restore the WebView's last URL if MainActivity
+        // was killed by Android during ExoPlayer playback (common on
+        // the HK1 box's limited RAM during HEVC 1080p decode).
+        // Without this, the player closes → user lands on the boot
+        // URL (home) instead of the detail page they came from.
+        //
+        // We only restore if:
+        //   1. The saved entry exists and is < 30 minutes old.
+        //   2. There's no `dev_url` override.
+        //   3. The saved URL is a same-origin hash route (starts with
+        //      the bundled `file:///android_asset/web/index.html#…`
+        //      or the dev URL) — never trust a random saved URL.
+        val savedPrefs = getSharedPreferences("onnowtv_route", MODE_PRIVATE)
+        val savedUrl = savedPrefs.getString("last_url", null)
+        val savedTs  = savedPrefs.getLong("last_ts", 0L)
+        val savedFresh = (System.currentTimeMillis() - savedTs) < 30 * 60 * 1000L
+        val defaultBoot = "file:///android_asset/web/index.html"
+        val restoreUrl = savedUrl?.takeIf {
+            savedFresh && devUrl == null &&
+                (it.startsWith(defaultBoot) ||
+                 it.startsWith("file:///android_asset/web/index.html"))
+        }
+        val bootUrl = devUrl ?: restoreUrl ?: defaultBoot
 
         setContentView(webView)
         webViewReady = true
@@ -335,6 +358,21 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (webViewReady) webView.onPause()
+        // v2.7.46 — persist current WebView URL so we can restore it
+        // if Android kills MainActivity during ExoPlayer playback
+        // (common on the HK1's limited RAM).  See onCreate() for the
+        // restore logic.
+        try {
+            val cur = webView.url
+            if (!cur.isNullOrBlank() &&
+                cur.startsWith("file:///android_asset/web/index.html")
+            ) {
+                getSharedPreferences("onnowtv_route", MODE_PRIVATE).edit()
+                    .putString("last_url", cur)
+                    .putLong("last_ts", System.currentTimeMillis())
+                    .apply()
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.46 — Trailer card → detail page · BACK survives player-kill
+**User clarification on v2.7.45**: trailer card CLICK should open the detail page (not the trailer modal). The trailer plays when you click the **Trailer button** on the detail page (already works). Long-press on the card → notify modal (kept from v2.7.45).
+
+**Also fixed**: BACK button from the player landing on home instead of the detail page.
+
+### Trailer cards
+- **Click** → navigate to `/title/movie/<imdb>` (or `/resolve/movie/<tmdb>` when IMDB unresolved). Reverted the v2.7.45 direct-trailer-launch behaviour.
+- **Long-press 600ms** → `<StreamUnavailableModal/>` with the "Notify me when ready" CTA (kept). Works for mouse / touch / D-pad center hold.
+- Removed `TrailerModal` import + state from this shelf (no longer launched from here).
+
+### BACK button now lands on the detail page
+**Root cause**: on the HK1 box's limited RAM, Android frequently kills `MainActivity` while `ExoPlayerActivity` is in the foreground playing 1080p HEVC. When the user presses BACK to close the player, `MainActivity` gets recreated from scratch → loaded the boot URL (`file:///android_asset/web/index.html` = home) → losing the detail page route entirely.
+
+**Fix**:
+- `onPause()` now persists `webView.url` to `SharedPreferences("onnowtv_route")` with a timestamp. Only same-origin file URLs are saved (no random URLs).
+- `onCreate()` checks for a saved URL < 30 minutes old and uses it as the boot URL when there's no `dev_url` override. Falls back to the default home URL on cold boot / stale entries.
+- Result: closing the player always lands on the detail page the user came from — even when MainActivity was killed mid-playback.
+
 ## v2.7.45 — Trailer cards: click plays HD trailer, long-press shows Notify
 **Reverts v2.7.44's "trailer cards navigate to detail" change** per user feedback. Restores the working flow:
 - **Click** → opens `<TrailerModal/>` which extracts the HD MP4 + m4a from YouTube via `/api/trailer-stream/<key>` and hands off to the NATIVE libVLC trailer player via `window.OnNowTV.playTrailer(...)`. No YouTube embed, no 360p chunkiness, no app redirect. This is the same flow that worked previously.
