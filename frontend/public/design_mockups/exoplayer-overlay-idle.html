@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExoPlayer Idle Overlay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        navy: { 900: '#020610', 800: '#0A1322', 700: '#0D121C' },
+                        cyan: { primary: '#5DC8FF', accent: '#7CF1F1' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background: #000; color: #fff; overflow: hidden; font-family: 'Outfit', sans-serif; }
+        .tv-container { width: 1920px; height: 1080px; position: relative; transform-origin: top left; transform: scale(min(100vw/1920, 100vh/1080)); }
+        .glass-panel { background: rgba(10, 19, 34, 0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .chip { display: flex; align-items: center; justify-content: center; padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; }
+        .chip-outline { border: 1px solid rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.8); }
+        .chip-cyan { background: rgba(93, 200, 255, 0.15); border: 1px solid rgba(93, 200, 255, 0.4); color: #5DC8FF; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-black">
+    <div class="tv-container bg-navy-900 relative">
+        <!-- Background Video/Image -->
+        <img src="https://images.unsplash.com/photo-1682687220063-4742bd7fd538?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBzY2klMjBmaSUyMG1vdmllJTIwbGFuZHNjYXBlfGVufDB8fHx8MTc3OTM1MjQ3MXww&ixlib=rb-4.1.0&q=85" class="absolute inset-0 w-full h-full object-cover opacity-80" alt="movie background">
+        
+        <!-- Left Fade Overlay -->
+        <div class="absolute inset-y-0 left-0 w-[45%] bg-gradient-to-r from-navy-900 via-navy-900/90 to-transparent pointer-events-none"></div>
+
+        <!-- ExoPlayer Badge -->
+        <div class="absolute top-12 left-14 flex items-center gap-3">
+            <div class="chip chip-cyan uppercase tracking-widest text-xs">
+                <i class="ph-fill ph-play text-cyan-accent mr-2"></i> Exoplayer
+            </div>
+        </div>
+
+        <!-- Buffer HUD -->
+        <div class="absolute top-12 right-14">
+            <div class="font-mono text-[13px] text-cyan-primary border border-cyan-primary/30 px-3 py-1.5 rounded bg-navy-900/80 backdrop-blur-sm tracking-wide">
+                BUF 12s &middot; 6.2Mbps &middot; ExoPlayer
+            </div>
+        </div>
+
+        <!-- Content Info Panel -->
+        <div class="absolute top-[45%] left-14 -translate-y-1/2 w-[40%] pr-10 flex flex-col items-start z-10">
+            <!-- Movie Logo Mockup (SVG) -->
+            <div class="mb-6 w-[400px]">
+                <svg viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg" class="w-full drop-shadow-2xl">
+                    <text x="0" y="80" font-family="'Outfit', sans-serif" font-weight="900" font-size="72" fill="#ffffff" letter-spacing="-2">DUNE</text>
+                    <text x="195" y="80" font-family="'Outfit', sans-serif" font-weight="300" font-size="72" fill="#ffffff" letter-spacing="-2">PART TWO</text>
+                </svg>
+            </div>
+
+            <!-- Heading -->
+            <h1 class="text-5xl font-medium text-white mb-4 tracking-tight drop-shadow-lg">Dune: Part Two</h1>
+
+            <!-- Metadata Row -->
+            <div class="flex items-center gap-3 mb-6 text-white/70 font-mono text-sm">
+                <span>2024</span>
+                <span class="text-white/40">&bull;</span>
+                <span>2h 46m</span>
+                <span class="text-white/40">&bull;</span>
+                <span class="border border-white/30 px-1.5 rounded-sm text-xs">PG-13</span>
+                <span class="text-white/40">&bull;</span>
+                <div class="chip chip-cyan text-[11px] py-0.5 px-2">4K HDR</div>
+                <div class="chip chip-outline text-[11px] py-0.5 px-2">🇬🇧 ENG</div>
+                <div class="chip chip-outline text-[11px] py-0.5 px-2">ON NOW</div>
+                <div class="chip chip-outline text-[11px] py-0.5 px-2">24.5 GB</div>
+            </div>
+
+            <!-- Synopsis -->
+            <p class="text-xl text-white/80 leading-relaxed drop-shadow-md line-clamp-3 w-11/12">
+                Paul Atreides unites with Chani and the Fremen while on a warpath of revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the known universe, he endeavors to prevent a terrible future only he can foresee.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
