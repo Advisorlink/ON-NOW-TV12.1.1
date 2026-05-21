@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExoPlayer Controls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        navy: { 900: '#020610', 800: '#0A1322', 700: '#0D121C' },
+                        cyan: { primary: '#5DC8FF', accent: '#7CF1F1' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background: #000; color: #fff; overflow: hidden; font-family: 'Outfit', sans-serif; }
+        .tv-container { width: 1920px; height: 1080px; position: relative; transform-origin: top left; transform: scale(min(100vw/1920, 100vh/1080)); }
+        
+        /* Glass effect for panels */
+        .glass-panel { background: rgba(10, 19, 34, 0.6); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card { background: rgba(10, 19, 34, 0.85); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(93, 200, 255, 0.2); border-radius: 24px; box-shadow: 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1); }
+        
+        /* Controls */
+        .tv-btn { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 32px; background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1); color: rgba(255,255,255,0.8); cursor: pointer; }
+        .tv-btn i { font-size: 32px; }
+        .tv-btn.active, .tv-btn:hover { background: #5DC8FF; color: #020610; transform: scale(1.1); border-color: rgba(255,255,255,0.5); box-shadow: 0 0 24px rgba(93, 200, 255, 0.4); }
+        .tv-btn-large { width: 88px; height: 88px; border-radius: 44px; }
+        .tv-btn-large i { font-size: 40px; }
+        
+        /* Scrubber */
+        .scrubber-track { width: 100%; height: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; position: relative; transition: height 0.2s ease; cursor: pointer; }
+        .scrubber-track:hover, .scrubber-track.focused { height: 14px; }
+        .scrubber-fill { height: 100%; background: #5DC8FF; border-radius: 4px; width: 65%; position: relative; }
+        .scrubber-thumb { position: absolute; right: -8px; top: 50%; transform: translateY(-50%) scale(0); width: 24px; height: 24px; background: #fff; border-radius: 50%; box-shadow: 0 0 12px rgba(93, 200, 255, 0.8); transition: transform 0.2s ease; }
+        .scrubber-track:hover .scrubber-thumb, .scrubber-track.focused .scrubber-thumb { transform: translateY(-50%) scale(1); }
+
+        /* Chips */
+        .chip-cyan { background: rgba(93, 200, 255, 0.15); border: 1px solid rgba(93, 200, 255, 0.4); color: #5DC8FF; font-family: 'JetBrains Mono', monospace; }
+        
+        .fade-bottom { background: linear-gradient(to top, rgba(2, 6, 16, 0.9) 0%, rgba(2, 6, 16, 0.5) 50%, transparent 100%); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-black">
+    <div class="tv-container relative overflow-hidden bg-navy-900">
+        <!-- Background Video/Image -->
+        <img src="https://images.unsplash.com/photo-1682687220063-4742bd7fd538?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBzY2klMjBmaSUyMG1vdmllJTIwbGFuZHNjYXBlfGVufDB8fHx8MTc3OTM1MjQ3MXww&ixlib=rb-4.1.0&q=85" class="absolute inset-0 w-full h-full object-cover opacity-60" alt="movie background">
+        
+        <!-- Stream Picker Glass Card Overlay (Center) -->
+        <div class="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
+            <!-- Simulated visibility toggle. Remove opacity-0 to see it -->
+            <div class="glass-card w-[600px] p-8 flex flex-col opacity-100 transform scale-100 transition-all pointer-events-auto">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="text-2xl font-bold tracking-tight text-white">Stream Source</h2>
+                    <div class="chip-cyan px-3 py-1 rounded-md text-xs font-bold tracking-widest uppercase">Select</div>
+                </div>
+                
+                <div class="flex flex-col gap-4">
+                    <!-- Stream Option 1 (Focused) -->
+                    <div class="flex items-center justify-between p-5 rounded-xl bg-cyan-primary text-navy-900 shadow-[0_0_24px_rgba(93,200,255,0.3)] transform scale-105 transition-all cursor-pointer border border-white/50">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-lg">ON NOW &middot; Cloud</span>
+                            <span class="font-mono text-xs opacity-80 mt-1">4K HDR &middot; 24.5 GB &middot; Dolby Vision</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle text-2xl"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Stream Option 2 -->
+                    <div class="flex items-center justify-between p-5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all cursor-pointer">
+                        <div class="flex flex-col">
+                            <span class="font-medium text-lg">RealDebrid &middot; Torrentio</span>
+                            <span class="font-mono text-xs text-white/50 mt-1">1080p SDR &middot; 8.2 GB &middot; AAC 5.1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Buffer HUD -->
+        <div class="absolute top-12 right-14 z-50">
+            <div class="font-mono text-[13px] text-cyan-primary border border-cyan-primary/30 px-3 py-1.5 rounded bg-navy-900/80 backdrop-blur-sm tracking-wide shadow-lg">
+                BUF 12s &middot; 6.2Mbps &middot; ExoPlayer
+            </div>
+        </div>
+
+        <!-- Bottom Controls Dock -->
+        <div class="absolute inset-x-0 bottom-0 h-[400px] fade-bottom z-30 flex flex-col justify-end px-16 pb-16">
+            
+            <!-- Timeline Section -->
+            <div class="flex items-center gap-6 mb-10">
+                <span class="font-mono text-lg font-bold text-cyan-primary tracking-wider w-24 text-right">01:48:22</span>
+                <div class="flex-1 scrubber-track focused">
+                    <div class="scrubber-fill">
+                        <div class="scrubber-thumb"></div>
+                    </div>
+                </div>
+                <span class="font-mono text-lg text-white/60 tracking-wider w-24">02:46:00</span>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="flex items-center justify-between">
+                
+                <!-- Left Secondary Controls -->
+                <div class="flex items-center gap-4">
+                    <button class="tv-btn" aria-label="Audio Track" data-testid="audio-btn">
+                        <i class="ph ph-speaker-high"></i>
+                    </button>
+                    <button class="tv-btn" aria-label="Subtitles" data-testid="subtitle-btn">
+                        <i class="ph ph-subtitles"></i>
+                    </button>
+                    <button class="tv-btn" aria-label="Stream Picker" data-testid="stream-picker-btn">
+                        <i class="ph ph-plugs"></i>
+                    </button>
+                </div>
+
+                <!-- Primary Playback Controls -->
+                <div class="flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+                    <button class="tv-btn" aria-label="Skip Backward" data-testid="skip-back-btn">
+                        <i class="ph-fill ph-clock-counter-clockwise"></i>
+                    </button>
+                    <!-- Play/Pause (Active State) -->
+                    <button class="tv-btn tv-btn-large active" aria-label="Play" data-testid="play-pause-btn">
+                        <i class="ph-fill ph-pause"></i>
+                    </button>
+                    <button class="tv-btn" aria-label="Skip Forward" data-testid="skip-forward-btn">
+                        <i class="ph-fill ph-clock-clockwise"></i>
+                    </button>
+                </div>
+
+                <!-- Right Secondary Controls -->
+                <div class="flex items-center gap-4">
+                    <button class="tv-btn" aria-label="Settings" data-testid="settings-btn">
+                        <i class="ph ph-gear-six"></i>
+                    </button>
+                    <button class="tv-btn" aria-label="Cast" data-testid="cast-btn">
+                        <i class="ph ph-screencast"></i>
+                    </button>
+                    <button class="tv-btn" aria-label="Fullscreen" data-testid="fullscreen-btn">
+                        <i class="ph ph-corners-out"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>
