@@ -7,6 +7,18 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.53 — Thinner focus rings · Notify modal long-press fix · Faster autoplay button
+### 1. Focus rings halved
+Per user request: all focus rings reduced from `3 px → 1.5 px` (tiles) and `2 px → 1 px` (pills). Same outline-offset, same color, just tighter / more refined.
+
+### 2. Long-press on trailer card no longer auto-confirms
+**Root cause**: holding OK for 600 ms fires `onLongPress` → opens `StreamUnavailableModal` → modal auto-focuses the primary button. The user's STILL-HELD OK key then produces a keyup → click → "Notify me when ready" fires before the user sees the modal.
+
+**Fix**: 400 ms "not armed" window after the modal mounts. Window-level capture handlers swallow every `keydown`, `keyup`, and `click` during the window. After 400 ms the modal accepts input normally. Result: long-press opens the modal AND keeps it open until the user explicitly taps a button.
+
+### 3. Autoplay button + Play button appear faster
+Backend `STREAM_FETCH_TIMEOUT` lowered from **8 s → 5 s**. Most healthy addons answer in 1–3 s; the 8 s ceiling was just waiting for slow / dead addons. 5 s catches fast addons while still tolerating normal jitter. Detail page's Play button + autoplay candidate now light up ~3 s sooner.
+
 ## v2.7.52 — Real fixes: BACK→detail · Player buttons focusable · Faster autoplay · Always cover art
 ### 1. BACK from player now lands on detail page — REAL fix
 **Root cause found** (this is why v2.7.46 + v2.7.50 didn't work): `Detail.jsx` was deliberately calling `navigate('/')` BEFORE launching the native player (since v2.6.85, with a 21-line comment explaining "back-leak fix"). When the player closed and MainActivity resumed, the WebView was already on home → user landed on home.

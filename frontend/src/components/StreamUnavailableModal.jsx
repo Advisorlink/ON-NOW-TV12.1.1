@@ -27,6 +27,18 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
     const primaryBtnRef = useRef(null);
     const backBtnRef = useRef(null);
     const [focusIdx, setFocusIdx] = useState(0);
+    // v2.7.53 — Long-press launch guard.  When the user opens this
+    // modal via a 600 ms press-and-hold on a card, the OK key is
+    // STILL DOWN when the modal mounts.  The auto-focus below would
+    // fire on the primary button, and the user's still-down OK
+    // produces a keyup → click → modal auto-confirms before the
+    // user even sees it.  Drop any keydown/Enter/Space for 400 ms
+    // after mount, then re-enable.
+    const [armed, setArmed] = useState(false);
+    useEffect(() => {
+        const t = setTimeout(() => setArmed(true), 400);
+        return () => clearTimeout(t);
+    }, []);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -34,6 +46,34 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
         }, 80);
         return () => clearTimeout(t);
     }, [focusIdx]);
+
+    // Block the trailing keyup from the long-press from triggering
+    // the focused button's click.  We listen on the window so we
+    // catch the event before any button's onClick fires.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (armed) return;
+            // While not armed: swallow Enter/Space (and any click
+            // that the still-held OK key might dispatch).
+            if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        const onClick = (e) => {
+            if (armed) return;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        window.addEventListener('keydown', onKey, true);
+        window.addEventListener('keyup', onKey, true);
+        window.addEventListener('click', onClick, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            window.removeEventListener('keyup', onKey, true);
+            window.removeEventListener('click', onClick, true);
+        };
+    }, [armed]);
 
     const handleNotifyToggle = () => {
         if (added) {

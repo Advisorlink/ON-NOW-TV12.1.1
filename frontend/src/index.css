@@ -439,7 +439,7 @@ body.vesper-scrubbing [data-focus-style='nav'] {
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
-    box-shadow: 0 0 0 3px var(--vesper-blue-bright);
+    box-shadow: 0 0 0 1.5px var(--vesper-blue-bright);
     z-index: 5;
 }
 
@@ -452,12 +452,14 @@ body.vesper-scrubbing [data-focus-style='nav'] {
    rows").  Adding an outline-based ring with !important guarantees
    visibility regardless of any inline shadow / parent stacking
    context / overflow.  Outlines don't take layout space and can't
-   be clipped by `contain: layout style` containers. */
+   be clipped by `contain: layout style` containers.
+   v2.7.53 — Halved widths per user request (3px→1.5px tile,
+   2px→1px pill) so focus rings feel tighter / more refined. */
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'],
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {
-    outline: 3px solid var(--vesper-blue-bright) !important;
+    outline: 1.5px solid var(--vesper-blue-bright) !important;
     outline-offset: 2px !important;
 }
 
@@ -465,7 +467,7 @@ body.vesper-scrubbing [data-focus-style='nav'] {
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {
     transform: scale(1.03);
-    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
+    box-shadow: 0 0 0 1px var(--vesper-blue-bright);
     z-index: 5;
 }
 

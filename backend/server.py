@@ -48,7 +48,11 @@ HTTP_TIMEOUT = 15.0
 # Stream-aggregation gets a tighter timeout so a single slow addon
 # (e.g. cold Torrentio scraping a fresh title) doesn't hold up the
 # whole pipeline — the user sees streams within ~8 s at worst.
-STREAM_FETCH_TIMEOUT = 8.0
+# v2.7.53 — Lowered 8s → 5s per user feedback ("autoplay button takes
+# too long to show").  Most healthy addons respond in 1–3 s; the 8 s
+# ceiling was just making us wait for the slowest dead addon.  5 s is
+# still plenty for normal latency + still catches the fast addons.
+STREAM_FETCH_TIMEOUT = 5.0
 
 # Curated default addons – Cinemeta is the IMDB-id metadata backbone of the
 # Stremio ecosystem and is offered here as the suggested first install.
