@@ -1,72 +1,54 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Interstellar — Grid Bento Panel</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;700;900&family=Manrope:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-<style>* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width:100vw; height:100vh; overflow:hidden; background:#020610;
-  font-family:'Manrope', system-ui, -apple-system, sans-serif;
-  color:#fff; -webkit-font-smoothing:antialiased; }
-.stage { position:fixed; inset:0; }
-.bg-img { position:absolute; inset:0; width:100%; height:100%;
-  object-fit:cover; filter: brightness(0.85); }
-.mono { font-family:'JetBrains Mono', 'SF Mono', Menlo, monospace;
-  letter-spacing:0.18em; text-transform:uppercase; }
-.eyebrow { font-family:'JetBrains Mono', monospace;
-  font-size:10px; font-weight:700; letter-spacing:0.32em;
-  text-transform:uppercase; color:#7CF1F1; }
-.chip { display:inline-flex; align-items:center; gap:4px;
-  font-family:'JetBrains Mono', monospace;
-  font-size:11px; font-weight:700; letter-spacing:0.14em;
-  padding:5px 10px; border-radius:999px; white-space:nowrap; }
-.synopsis { font-size:17px; line-height:1.6; color:rgba(255,255,255,0.86);
-  font-weight:300; max-width:580px;
-  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
-  overflow:hidden; }
-.title { font-family:'Outfit', 'Manrope', sans-serif;
-  font-weight:300; font-size:64px; line-height:1.0;
-  letter-spacing:-0.03em; color:#fff; }
-.meta-row { display:flex; flex-wrap:wrap; align-items:center;
-  gap:10px; margin-top:14px; }
-.backend-badge { position:absolute; top:30px; left:30px;
-  font-family:'JetBrains Mono', monospace; font-weight:700;
-  font-size:11px; letter-spacing:0.22em;
-  padding:8px 14px; border-radius:999px;
-  background:rgba(13,18,28,0.8); border:1px solid rgba(124,241,241,0.5);
-  color:#7CF1F1; backdrop-filter:blur(12px); }
-.buf-hud { position:absolute; top:30px; right:30px;
-  font-family:'JetBrains Mono', monospace; font-weight:700;
-  font-size:11px; letter-spacing:0.18em;
-  padding:8px 14px; border-radius:6px;
-  background:rgba(10,19,34,0.7); border:1px solid rgba(93,200,255,0.35);
-  color:#5DC8FF; backdrop-filter:blur(12px); }
-.logo-fake { font-family:'Outfit', sans-serif; font-weight:900;
-  font-size:42px; letter-spacing:-0.02em; line-height:1;
-  display:inline-flex; gap:6px; align-items:baseline; }
-.logo-fake .sub { font-weight:300; }</style></head><body>
-<div class="stage">
-  <img class="bg-img" src="https://images.unsplash.com/photo-1612561904457-ca56430fdb86?crop=entropy&cs=srgb&fm=jpg" alt="Interstellar">
-  
-        <div style="position:absolute; left:0; top:0; bottom:0; width:42%; background:rgba(13,18,28,0.85); backdrop-filter:blur(24px); border-right:1px solid rgba(93,200,255,0.25);"></div>
-        <div style="position:absolute; left:60px; top:140px; right:0; width:34vw; display:grid; gap:18px;">
-          <div style="background:rgba(93,200,255,0.06); border:1px solid rgba(93,200,255,0.2); border-radius:18px; padding:24px;">
-            <div class="logo-fake" style="font-size:36px;">INTERSTELLAR</div>
-          </div>
-          <div style="background:rgba(93,200,255,0.06); border:1px solid rgba(93,200,255,0.2); border-radius:18px; padding:20px;">
-            <div class="eyebrow" style="margin-bottom:10px;">Synopsis</div>
-            <div class="synopsis" style="font-size:14px;">A team of explorers travel through a wormhole in space in an attempt to ensure humanity&#x27;s survival as Earth&#x27;s resources are slowly depleted.</div>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div style="background:rgba(93,200,255,0.06); border:1px solid rgba(93,200,255,0.2); border-radius:14px; padding:14px;">
-              <div class="eyebrow" style="margin-bottom:6px;">Year · Run · Rating</div>
-              <div class="mono" style="font-size:13px;">2014 · 2h 49m · PG-13</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080, initial-scale=1">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Cinzel:wght@400;700;900&family=Cormorant+Garamond:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@300;400;600&family=Outfit:wght@200;400;700;900&family=Playfair+Display:wght@400;700;900&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { width: 1920px; height: 1080px; overflow: hidden; background: #000; color: #fff; margin:0; position:relative; }
+        .glass { background: rgba(20,20,20,0.6); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); }
+        .glass-light { background: rgba(255,255,255,0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.15); }
+        .text-shadow { text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+        .text-shadow-glow { text-shadow: 0 0 20px currentColor; }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <img src="https://images.pexels.com/photos/27730387/pexels-photo-27730387.jpeg" class="absolute inset-0 w-full h-full object-cover scale-105 filter saturate-110 brightness-90" />
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent z-10"></div>
+    
+    <!-- Top HUD Elements -->
+    <div class="absolute top-12 left-14 z-50">
+        <div class="flex items-center space-x-4 bg-black/60 backdrop-blur-xl px-5 py-2.5 rounded border border-white/10 font-['Outfit'] font-light shadow-2xl">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+            <span class="text-white/90 text-[15px] font-bold tracking-widest">▶︎ EXOPLAYER</span>
+        </div>
+    </div>
+    <div class="absolute top-12 right-14 z-50">
+        <div class="flex items-center space-x-5 glass-light px-6 py-2.5 rounded font-['Outfit'] font-light">
+            <span class="text-white/70 text-sm tracking-widest font-semibold">BUF 12s &middot; 6.2Mbps &middot; ExoPlayer</span>
+            <div class="flex space-x-1.5 items-end h-4">
+                <div class="w-1 h-2 bg-white/40"></div>
+                <div class="w-1 h-3 bg-white/60"></div>
+                <div class="w-1 h-4 bg-white animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]"></div>
             </div>
-            <div style="background:rgba(93,200,255,0.06); border:1px solid rgba(93,200,255,0.2); border-radius:14px; padding:14px;">
-              <div class="eyebrow" style="margin-bottom:6px;">Source · Quality</div>
-              <div class="mono" style="font-size:13px;">TORRENTIO · 1080p</div>
-            </div>
-          </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="absolute bottom-24 left-20 w-[55%] z-40 font-['Outfit'] font-light">
+        <p class="text-[13px] text-blue-200 tracking-[0.4em] mb-5 uppercase font-bold text-shadow-glow">MANKIND WAS BORN ON EARTH. IT WAS NEVER MEANT TO DIE HERE.</p>
+        <h1 class="font-['Playfair_Display'] font-normal tracking-[0.4em] text-7xl text-white/95 drop-shadow-[0_0_40px_rgba(255,255,255,0.5)] leading-[1.1] mb-8">INTERSTELLAR</h1>
+        
+        <div class="flex flex-wrap items-center gap-4 mb-8">
+            <span class="px-3 py-1 text-xs tracking-[0.3em] text-white/80 uppercase border border-white/20 rounded-full bg-white/5">2014</span><span class="px-3 py-1 text-xs tracking-[0.3em] text-white/80 uppercase border border-white/20 rounded-full bg-white/5">169 MIN</span><span class="px-3 py-1 text-xs tracking-[0.3em] text-white/80 uppercase border border-white/20 rounded-full bg-white/5">PG-13</span><span class="px-3 py-1 text-xs tracking-[0.3em] text-white/80 uppercase border border-white/20 rounded-full bg-white/5">IMAX HDR</span><span class="px-3 py-1 text-xs tracking-[0.3em] text-white/80 uppercase border border-white/20 rounded-full bg-white/5">MKV · 95GB</span>
         </div>
         
-  <div class="backend-badge">▶︎ EXOPLAYER</div>
-  <div class="buf-hud">BUF 12s · 6.2Mbps · ExoPlayer</div>
-</div>
-</body></html>
+        <p class="text-[22px] text-white/80 leading-relaxed font-light line-clamp-3 max-w-3xl text-shadow">
+            A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival. They must confront the vastness of time and space, driven by love and desperation.
+        </p>
+    </div>
+</body>
+</html>

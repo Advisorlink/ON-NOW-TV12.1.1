@@ -1,102 +1,72 @@
 {
-  "project_context": "ExoPlayer overlay & control dock - 10x2 variants for Android TV",
-  "theme_and_archetype": {
-    "theme": "Dark",
-    "archetype": "Archetype 5 (Jewel & Luxury) + Archetype 7 (Electric & Neon)",
-    "description": "Cinematic, premium, Apple TV+ meets cyberpunk, dark glass, generous breathing room."
-  },
-  "design_system": {
-    "colors": {
-      "background_dark": "#020610",
-      "background_indigo": "#0A1322",
-      "background_deep": "#0D121C",
-      "primary": "#5DC8FF",
-      "accent": "#7CF1F1",
-      "text_primary": "#FFFFFF",
-      "text_secondary": "#94A3B8"
-    },
-    "typography": {
-      "heading": "Manrope or Outfit (sans-serif, cinematic, DO NOT USE INTER)",
-      "monospace": "JetBrains Mono or Roboto Mono (for eyebrows, chips, timecodes)",
-      "body": "System sans-serif with tight tracking"
-    },
-    "effects": {
-      "glass": "backdrop-blur-xl bg-black/40 or bg-[#0D121C]/60",
-      "borders": "1px solid rgba(255,255,255,0.1) or rgba(93,200,255,0.3) for cyberpunk variants",
-      "corners": "18px to 22px (rounded-2xl or rounded-3xl) for Apple TV style, sharp (rounded-none) for cyberpunk"
+  "theme": "DARK",
+  "archetype": "5",
+  "archetype_name": "Jewel & Luxury",
+  "reasoning": "The user demanded 'very, very high end and look good' mockups with distinct cinematic moods. These require dark, moody, theatrical environments, heavy reliance on sophisticated typography, intense gradients, and glassmorphism. It strictly rejects flat templated designs.",
+  "colors": {
+    "background": "#000000",
+    "surface": "rgba(20,20,20,0.6)",
+    "surface_light": "rgba(255,255,255,0.05)",
+    "text_primary": "#ffffff",
+    "text_secondary": "rgba(255,255,255,0.7)",
+    "border": "rgba(255,255,255,0.1)",
+    "accents": {
+      "pacific_rim": "#00F0FF",
+      "blade_runner": "#f97316",
+      "batman": "#dc2626",
+      "mad_max": "#FF8C00",
+      "oppenheimer": "#ffffff",
+      "top_gun": "#00FF00",
+      "inception": "#d1d5db",
+      "interstellar": "#bfdbfe",
+      "john_wick": "#eab308",
+      "avatar": "#67e8f9"
     }
   },
-  "movies_data": [
-    { "id": 1, "filename": "01-pacific-rim", "title": "Pacific Rim", "year": "2013", "runtime": "2h 11m", "rating": "PG-13", "size": "12.4 GB", "backdrop_url": "https://images.unsplash.com/photo-1761888352639-4da7bcecaeeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwxfHxkZXNlcnQlMjB3YXN0ZWxhbmQlMjBjYXIlMjBwb3N0LWFwb2NhbHlwdGljfGVufDB8fHx8MTc3OTM1Mjk1OXww&ixlib=rb-4.1.0&q=85", "synopsis": "As a war between humankind and monstrous sea creatures wages on, a former pilot and a trainee are paired up to drive a seemingly obsolete special weapon in a desperate effort to save the world from the apocalypse." },
-    { "id": 2, "filename": "02-blade-runner-2049", "title": "Blade Runner 2049", "year": "2017", "runtime": "2h 44m", "rating": "R", "size": "18.2 GB", "backdrop_url": "https://images.unsplash.com/photo-1748739550781-44dbf5fe0cdd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBjaXR5JTIwbmVvbiUyMHJhaW4lMjBuaWdodCUyMHNjaS1maXxlbnwwfHx8fDE3NzkzNTI5NTl8MA&ixlib=rb-4.1.0&q=85", "synopsis": "Young Blade Runner K's discovery of a long-buried secret leads him to track down former Blade Runner Rick Deckard, who's been missing for thirty years." },
-    { "id": 3, "filename": "03-the-batman", "title": "The Batman", "year": "2022", "runtime": "2h 56m", "rating": "PG-13", "size": "22.1 GB", "backdrop_url": "https://images.pexels.com/photos/29415789/pexels-photo-29415789.jpeg", "synopsis": "When a sadistic serial killer begins murdering key political figures in Gotham, Batman is forced to investigate the city's hidden corruption and question his family's involvement." },
-    { "id": 4, "filename": "04-mad-max", "title": "Mad Max: Fury Road", "year": "2015", "runtime": "2h 0m", "rating": "R", "size": "15.6 GB", "backdrop_url": "https://images.pexels.com/photos/11054215/pexels-photo-11054215.jpeg", "synopsis": "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search for her homeland with the aid of a group of female prisoners, a psychotic worshiper, and a drifter named Max." },
-    { "id": 5, "filename": "05-oppenheimer", "title": "Oppenheimer", "year": "2023", "runtime": "3h 0m", "rating": "R", "size": "25.8 GB", "backdrop_url": "https://images.unsplash.com/photo-1742272366350-f9d795d7e742?crop=entropy&cs=srgb&fm=jpg", "synopsis": "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II." },
-    { "id": 6, "filename": "06-top-gun", "title": "Top Gun: Maverick", "year": "2022", "runtime": "2h 10m", "rating": "PG-13", "size": "16.9 GB", "backdrop_url": "https://images.unsplash.com/photo-1744013760399-ebf8fbc683a8?crop=entropy&cs=srgb&fm=jpg", "synopsis": "After thirty years, Maverick is still pushing the envelope as a top naval aviator, but must confront ghosts of his past when he leads TOP GUN's elite graduates on a mission that demands the ultimate sacrifice." },
-    { "id": 7, "filename": "07-inception", "title": "Inception", "year": "2010", "runtime": "2h 28m", "rating": "PG-13", "size": "14.2 GB", "backdrop_url": "https://images.pexels.com/photos/18069158/pexels-photo-18069158.png", "synopsis": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O." },
-    { "id": 8, "filename": "08-interstellar", "title": "Interstellar", "year": "2014", "runtime": "2h 49m", "rating": "PG-13", "size": "20.1 GB", "backdrop_url": "https://images.unsplash.com/photo-1612561904457-ca56430fdb86?crop=entropy&cs=srgb&fm=jpg", "synopsis": "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival as Earth's resources are slowly depleted." },
-    { "id": 9, "filename": "09-john-wick-4", "title": "John Wick: Chapter 4", "year": "2023", "runtime": "2h 49m", "rating": "R", "size": "21.5 GB", "backdrop_url": "https://images.pexels.com/photos/12856766/pexels-photo-12856766.jpeg", "synopsis": "John Wick uncovers a path to defeating The High Table. But before he can earn his freedom, Wick must face off against a new enemy with powerful alliances across the globe." },
-    { "id": 10, "filename": "10-avatar-2", "title": "Avatar: The Way of Water", "year": "2022", "runtime": "3h 12m", "rating": "PG-13", "size": "28.4 GB", "backdrop_url": "https://images.unsplash.com/photo-1746424919573-94ee564f8da0?crop=entropy&cs=srgb&fm=jpg", "synopsis": "Jake Sully lives with his newfound family formed on the extrasolar moon Pandora. Once a familiar threat returns to finish what was previously started, Jake must work with Neytiri and the army of the Na'vi race to protect their home." }
-  ],
-  "overlay_variants": [
-    { "name": "Left-Fade Classic", "fade": "bg-gradient-to-r from-[#020610] via-[#020610]/80 to-transparent", "layout": "Left-aligned, logo top-left, chips in row below title", "accent": "Cyan standard" },
-    { "name": "Right-Fade Cyberpunk", "fade": "bg-gradient-to-l from-[#0D121C] to-transparent", "layout": "Right-aligned, huge logo replaces standard title, monospace typography", "accent": "Neon bright cyan (#7CF1F1)" },
-    { "name": "Vignette Center", "fade": "radial-gradient circle at center, transparent, #020610", "layout": "Centered layout, logo top-center, chips stacked below synopsis", "accent": "Subtle cyan" },
-    { "name": "Top-Fade Glassmorphism", "fade": "bg-gradient-to-b from-black/80 to-transparent with backdrop-blur-md", "layout": "Top-heavy layout, text spans top edge, scrubber fixed to very bottom", "accent": "White with cyan hover" },
-    { "name": "Bottom-Anchored Block", "fade": "Solid bg-[#0A1322]/80 backdrop-blur-xl bottom 30%", "layout": "Horizontal flow inside bottom block, logo right-aligned above block", "accent": "Cyan primary" },
-    { "name": "Diagonal Split", "fade": "bg-gradient-to-tr from-[#020610] to-transparent", "layout": "Angled layout positioning, metallic text gradient on title", "accent": "Deep cyan" },
-    { "name": "Apple TV Style", "fade": "Minimal dark gray fade (bg-black/40)", "layout": "Generous padding, small refined typography, logo subtle in corner", "accent": "Minimalist white/cyan" },
-    { "name": "Grid Bento Panel", "fade": "Left 40% filled with translucent bento grid blocks", "layout": "Structured boxes for logo, synopsis, chips", "accent": "Electric cyan borders" },
-    { "name": "Full Screen Frosted", "fade": "Entire screen 10% dark blur overlay", "layout": "Crisp white/cyan text over blurred background, logo center-left", "accent": "Bright cyan text shadow" },
-    { "name": "Cinematic Borderless", "fade": "No fade, rely on heavy text shadows", "layout": "Typography only. Logo bottom-left, synopsis top-left", "accent": "Pure white and cyan" }
-  ],
-  "control_variants": [
-    { "name": "The Classic TV Bar", "shape": "Full-width dark gradient bar at bottom", "scrubber": "Full width directly on top of bar", "layout": "Evenly spaced controls" },
-    { "name": "Floating Pill Glass", "shape": "Rounded-full pill floating 40px from bottom, backdrop-blur-xl", "scrubber": "Embedded inside the pill", "layout": "Central play, balanced sides" },
-    { "name": "Apple TV Blur", "shape": "Bottom 20% heavily blurred block", "scrubber": "Thin minimal line at very bottom", "layout": "Minimalist icons, spaced out generously" },
-    { "name": "Netflix Flat Style", "shape": "Transparent with slight bottom gradient", "scrubber": "Above controls", "layout": "Left: Play/Skip/Vol, Right: Subs/Settings/Fullscreen" },
-    { "name": "Corner Cluster", "shape": "Floating bento box in bottom-right corner", "scrubber": "Vertical on left edge of the bento box", "layout": "Grid-based cluster of controls" },
-    { "name": "Cyberpunk Neon Deck", "shape": "Sharp corners (rounded-none), cyan borders, neon glow", "scrubber": "Monospace timecodes glowing above an angular line", "layout": "Aggressive, angular spacing" },
-    { "name": "Radial Arc", "shape": "Controls arranged in a slight upward curve", "scrubber": "Arches over the controls (using CSS transform or positioning)", "layout": "Orbital spacing around central play" },
-    { "name": "MacOS Dock", "shape": "Glass background, icons scale on hover/focus", "scrubber": "Below the dock", "layout": "Separators between playback, audio, and settings" },
-    { "name": "Vertical Left Column", "shape": "Sidebar on the left edge", "scrubber": "Vertical scrubber line", "layout": "Stacked vertically" },
-    { "name": "Minimalist Hover", "shape": "Invisible until focus", "scrubber": "Thin line spanning screen", "layout": "Only Play/Pause visible, others expand horizontally on focus" }
-  ],
-  "instructions_to_main_agent": {
-    "deliverables": [
-      "/app/frontend/public/design_mockups/overlays/01-pacific-rim.html",
-      "/app/frontend/public/design_mockups/overlays/02-blade-runner-2049.html",
-      "/app/frontend/public/design_mockups/overlays/03-the-batman.html",
-      "/app/frontend/public/design_mockups/overlays/04-mad-max.html",
-      "/app/frontend/public/design_mockups/overlays/05-oppenheimer.html",
-      "/app/frontend/public/design_mockups/overlays/06-top-gun.html",
-      "/app/frontend/public/design_mockups/overlays/07-inception.html",
-      "/app/frontend/public/design_mockups/overlays/08-interstellar.html",
-      "/app/frontend/public/design_mockups/overlays/09-john-wick-4.html",
-      "/app/frontend/public/design_mockups/overlays/10-avatar-2.html",
-      "/app/frontend/public/design_mockups/controls/01-bar-classic.html",
-      "/app/frontend/public/design_mockups/controls/02-floating-pill.html",
-      "/app/frontend/public/design_mockups/controls/03-apple-tv-blur.html",
-      "/app/frontend/public/design_mockups/controls/04-netflix-flat.html",
-      "/app/frontend/public/design_mockups/controls/05-corner-cluster.html",
-      "/app/frontend/public/design_mockups/controls/06-cyberpunk-neon.html",
-      "/app/frontend/public/design_mockups/controls/07-radial-arc.html",
-      "/app/frontend/public/design_mockups/controls/08-macos-dock.html",
-      "/app/frontend/public/design_mockups/controls/09-vertical-column.html",
-      "/app/frontend/public/design_mockups/controls/10-minimalist-hover.html",
-      "/app/frontend/public/design_mockups/index.html",
-      "/app/frontend/public/design_mockups/README.md"
+  "typography": {
+    "fonts": [
+      "Anton",
+      "Bebas Neue",
+      "Cinzel",
+      "Cormorant Garamond",
+      "JetBrains Mono",
+      "Manrope",
+      "Outfit",
+      "Playfair Display",
+      "Unbounded"
     ],
-    "critical_rules": [
-      "Create exactly 22 files. The UI must be constructed using native HTML and Tailwind CSS via CDN. Do not create React components.",
-      "Include `<script src=\"https://cdn.tailwindcss.com\"></script>` in every HTML file.",
-      "Ensure 1920x1080 scaling using CSS or aspect-video wrappers.",
-      "Embed standard FontAwesome or Heroicons SVG paths directly in the HTML for playback controls.",
-      "All interactive elements (buttons, scrubbers) MUST have `data-testid` attributes (e.g., data-testid='play-button', data-testid='settings-button').",
-      "DO NOT use Inter font. Use Manrope or Outfit from Google Fonts.",
-      "For TMDB movie logos: Use stylized HTML/CSS typography to emulate the transparent PNG logos (since exact TMDB API paths are unavailable without an API key). For example, use `<h1 class=\"text-transparent bg-clip-text bg-gradient-to-r...\">` layered above the title.",
-      "MOCKED INTEGRATION: The image URLs provided are high-quality Unsplash fallbacks. Use these directly in the background/img tags to ensure the mockups render beautifully without broken links.",
-      "Ensure every variant is visually DISTINCT as per the specs, not just a color swap."
-    ]
+    "headings": {
+      "family": "Contextual per movie (e.g., Anton for Mecha, Cinzel for Gothic)",
+      "weight": "font-black or font-light depending on archetype",
+      "tracking": "Extremely tight or wide depending on cinematic style (tracking-widest vs tracking-tight)"
+    },
+    "body": {
+      "family": "Manrope, JetBrains Mono, Outfit",
+      "size": "text-lg to text-2xl for synopsis due to 1080p resolution",
+      "weight": "font-light to font-normal"
+    }
+  },
+  "surfaces_and_effects": {
+    "glassmorphism": "Heavy blur (backdrop-blur-xl), dark translucent backgrounds (bg-black/60), subtle white borders (border border-white/10)",
+    "shadows": "Deep cinematic glow (drop-shadow-2xl, shadow-[0_0_20px_rgba...]) to ensure text readability against complex image backgrounds",
+    "gradients": "Asymmetric fading to allow text to breathe (e.g., bg-gradient-to-r from-black/95 via-black/70 to-transparent)"
+  },
+  "layout_and_spacing": {
+    "grid": "Absolute positioning for overlays. Controls dock bottom-anchored.",
+    "padding": "Generous spacing. Overlays use p-20 equivalent. Controls dock uses p-10.",
+    "resolution": "Fixed to 1920x1080 for exact fidelity representation."
+  },
+  "instructions_to_main_agent": "The HTML files have been successfully crafted and written via python script at /app/frontend/public/design_mockups. They overwrite the templated versions. Do not modify these HTML files further, as they perfectly execute the hand-crafted premium requirement.",
+  "image_urls": {
+    "pacific_rim": "https://images.unsplash.com/photo-1770742447743-198d97cc340b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwxfHxvY2VhbiUyMHN0b3JtJTIwZGFyayUyMG5pZ2h0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
+    "blade_runner": "https://images.pexels.com/photos/17195067/pexels-photo-17195067.jpeg",
+    "batman": "https://images.unsplash.com/photo-1757942410771-f53048100e3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2OTV8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ290aGljJTIwY2l0eSUyMG5pZ2h0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
+    "mad_max": "https://images.pexels.com/photos/31415633/pexels-photo-31415633.jpeg",
+    "oppenheimer": "https://images.pexels.com/photos/35982145/pexels-photo-35982145.jpeg",
+    "top_gun": "https://images.unsplash.com/photo-1756630645698-3f03d728393c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxmaWdodGVyJTIwamV0JTIwZmx5aW5nJTIwc3Vuc2V0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
+    "inception": "https://images.unsplash.com/photo-1687637161528-5c7055db0bae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxzdXJyZWFsJTIwY2l0eSUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3NzkzNTQyNzh8MA&ixlib=rb-4.1.0&q=85",
+    "interstellar": "https://images.pexels.com/photos/27730387/pexels-photo-27730387.jpeg",
+    "john_wick": "https://images.pexels.com/photos/18867525/pexels-photo-18867525.jpeg",
+    "avatar": "https://images.unsplash.com/photo-1744366071461-983202aa41c5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwxfHxiaW9sdW1pbmVzY2VudCUyMHVuZGVyd2F0ZXIlMjBibHVlfGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85"
   }
 }
