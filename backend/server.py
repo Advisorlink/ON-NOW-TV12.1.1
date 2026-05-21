@@ -28,7 +28,7 @@ from urllib.parse import quote
 import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -2630,6 +2630,281 @@ async def sports_find(req: SportsQueryRequest):
 
 # ----- App wiring ----------------------------------------------------------
 app.include_router(api)
+
+
+# ============================================================================
+# v2.7.28 — Admin addon manager (token-protected HTML page)
+# ----------------------------------------------------------------------------
+# Routed under /admin/addons (NOT /api/) so it serves an HTML page directly
+# without colliding with the API namespace.  Token comes from .env via
+# ADMIN_TOKEN (fallback to legacy XTREAM_ADMIN_TOKEN so operators don't have
+# to rotate keys).  Usage:
+#   https://onnowtv.duckdns.org/admin/addons?token=onnowtv-admin-7b2f9e1c
+# Paste a manifest URL → click Install → addon is added to MongoDB and every
+# APK picks it up on the next home-screen reload.
+# ============================================================================
+def _admin_token_ok(token: Optional[str]) -> bool:
+    expected = (
+        os.environ.get("ADMIN_TOKEN")
+        or os.environ.get("XTREAM_ADMIN_TOKEN")
+        or ""
+    ).strip()
+    if not expected:
+        return False
+    return (token or "").strip() == expected
+
+
+_ADMIN_ADDONS_HTML = """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ON NOW TV V2 — Addon manager</title>
+<style>
+  :root {
+    --bg-0: #06080F;
+    --bg-1: #0E1626;
+    --bg-2: rgba(15,22,38,0.92);
+    --text: #E6EAF2;
+    --text-2: #A6AFC0;
+    --text-3: #7C8497;
+    --cyan: #5DC8FF;
+    --cyan-bright: #7FDCFF;
+    --line: rgba(255,255,255,0.08);
+    --danger: #FF6B6B;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin:0; padding:0; background:var(--bg-0); color:var(--text);
+    font-family: 'Geist', system-ui, -apple-system, sans-serif;
+    line-height: 1.55;
+  }
+  body { min-height: 100vh; padding: 48px 24px 80px;
+    background:
+      radial-gradient(ellipse 1200px 700px at 50% -200px, rgba(93,200,255,0.08) 0%, transparent 60%),
+      var(--bg-0);
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  header { display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 36px; padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; font-weight: 700; }
+  .eyebrow { color: var(--cyan); font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; margin-bottom: 6px; font-weight: 600;
+  }
+  .pill {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 4px; background: rgba(93,200,255,0.16);
+    color: var(--cyan-bright); border: 1px solid rgba(93,200,255,0.35);
+    font-weight: 700;
+  }
+  section { margin-top: 28px; }
+  .card { background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 18px; padding: 24px 26px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+  }
+  label { display:block; font-size: 12px; color: var(--text-3);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+    font-weight: 600;
+  }
+  input[type=text] { width: 100%; padding: 14px 16px; border-radius: 12px;
+    background: rgba(6,8,15,0.65); color: var(--text);
+    border: 1px solid var(--line); font-size: 14px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  input[type=text]:focus { outline: 2px solid var(--cyan);
+    outline-offset: 2px; border-color: transparent;
+  }
+  button.cta { margin-top: 14px; padding: 12px 28px; border-radius: 999px;
+    background: var(--cyan); color: var(--bg-0); border: 0;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.02em;
+    cursor: pointer; transition: transform 80ms ease;
+  }
+  button.cta:hover { transform: translateY(-1px); }
+  button.cta:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.danger { padding: 6px 14px; border-radius: 999px;
+    background: rgba(255,107,107,0.12); color: var(--danger);
+    border: 1px solid rgba(255,107,107,0.35);
+    font-weight: 600; font-size: 12px; cursor: pointer;
+  }
+  button.danger:hover { background: rgba(255,107,107,0.22); }
+  ul.addons { list-style: none; margin: 0; padding: 0; }
+  ul.addons li { display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-radius: 12px; background: rgba(13,18,28,0.65);
+    border: 1px solid var(--line); margin-bottom: 10px;
+  }
+  .addon-name { font-weight: 600; }
+  .addon-url { font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-3); margin-top: 3px;
+    overflow-wrap: anywhere;
+  }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 14px 24px; border-radius: 999px; font-weight: 600; font-size: 13px;
+    background: rgba(13,18,28,0.95); color: var(--text);
+    border: 1px solid var(--cyan); box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    transition: opacity 200ms ease; opacity: 0; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  .helper { font-size: 12px; color: var(--text-3); margin-top: 10px;
+    line-height: 1.6;
+  }
+  .helper code { background: rgba(255,255,255,0.06); padding: 2px 6px;
+    border-radius: 4px; font-size: 11px;
+  }
+  .row-meta { min-width: 0; flex: 1; }
+</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">On Now TV V2</div>
+      <h1>Addon manager</h1>
+    </div>
+    <span class="pill">Admin</span>
+  </header>
+
+  <section>
+    <div class="card">
+      <label>Manifest URL</label>
+      <input id="manifest-url" type="text"
+             placeholder="https://your-addon.example.com/manifest.json"
+             autocomplete="off" autocorrect="off" autocapitalize="off"
+             spellcheck="false">
+      <button class="cta" id="install-btn">Install addon</button>
+      <div class="helper">
+        Paste a Stremio addon manifest URL. <code>stremio://...</code> deep
+        links work too — they're auto-converted to <code>https://</code>.
+        Once installed, every device running the APK picks it up on the next
+        home reload. No app restart needed.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <label style="padding-left:4px">Installed addons</label>
+    <ul class="addons" id="addons-list"></ul>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  var TOKEN = new URLSearchParams(location.search).get('token') || '';
+  var listEl = document.getElementById('addons-list');
+  var btn = document.getElementById('install-btn');
+  var input = document.getElementById('manifest-url');
+  var toast = document.getElementById('toast');
+
+  function showToast(msg, isError) {
+    toast.textContent = msg;
+    toast.classList.toggle('error', !!isError);
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function() { toast.classList.remove('show'); }, 3000);
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, function(c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  async function fetchAddons() {
+    listEl.innerHTML = '<li style="opacity:0.6">Loading…</li>';
+    try {
+      var r = await fetch('/api/addons');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      var rows = data.addons || data || [];
+      if (!rows.length) {
+        listEl.innerHTML = '<li style="opacity:0.6">No addons installed yet.</li>';
+        return;
+      }
+      listEl.innerHTML = rows.map(function(a) {
+        var name = a.name || (a.manifest && a.manifest.name) || a.id || a.addon_id || '(unnamed)';
+        var url = a.url || '';
+        var id = a.id || a.addon_id || '';
+        return '<li>' +
+          '<div class="row-meta">' +
+            '<div class="addon-name">' + escapeHtml(name) + '</div>' +
+            '<div class="addon-url">' + escapeHtml(url) + '</div>' +
+          '</div>' +
+          '<button class="danger" data-remove="' + escapeHtml(id) + '">Remove</button>' +
+          '</li>';
+      }).join('');
+      Array.prototype.forEach.call(
+        listEl.querySelectorAll('[data-remove]'),
+        function(b) { b.addEventListener('click', onRemove); }
+      );
+    } catch (e) {
+      listEl.innerHTML = '<li style="color:var(--danger)">Failed to load: ' + escapeHtml(e.message) + '</li>';
+    }
+  }
+
+  async function onInstall() {
+    var url = (input.value || '').trim();
+    if (!url) { showToast('Paste a manifest URL first', true); return; }
+    if (url.indexOf('stremio://') === 0) {
+      url = 'https://' + url.slice(10);
+    }
+    btn.disabled = true;
+    btn.textContent = 'Installing…';
+    try {
+      var r = await fetch('/api/addons/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url }),
+      });
+      var data = await r.json().catch(function() { return {}; });
+      if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+      showToast('Installed: ' + (data.addon && data.addon.name || 'addon'));
+      input.value = '';
+      await fetchAddons();
+    } catch (e) {
+      showToast('Install failed: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Install addon';
+    }
+  }
+
+  async function onRemove(e) {
+    var id = e.target.getAttribute('data-remove');
+    if (!id) return;
+    if (!confirm('Remove "' + id + '"?')) return;
+    try {
+      var r = await fetch('/api/addons/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!r.ok) {
+        var data = await r.json().catch(function() { return {}; });
+        throw new Error(data.detail || ('HTTP ' + r.status));
+      }
+      showToast('Removed');
+      await fetchAddons();
+    } catch (err) {
+      showToast('Remove failed: ' + err.message, true);
+    }
+  }
+
+  btn.addEventListener('click', onInstall);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') onInstall();
+  });
+  fetchAddons();
+})();
+</script>
+</body></html>
+"""
+
+
+@app.get("/admin/addons", response_class=HTMLResponse)
+@app.get("/api/admin/addons", response_class=HTMLResponse)
+async def admin_addons_page(token: Optional[str] = None):
+    if not _admin_token_ok(token):
+        # Generic 404 instead of 401 so probers can't tell the page exists.
+        raise HTTPException(404, "Not Found")
+    return HTMLResponse(_ADMIN_ADDONS_HTML)
+
 
 # Xtream Codes IPTV proxy (auth, categories, streams, EPG)
 from xtream import router as xtream_router  # noqa: E402
