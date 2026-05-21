@@ -1687,7 +1687,50 @@ class VlcPlayerActivity : AppCompatActivity() {
          * Live, magnet, and trailer paths keep their existing tuning
          * — they're separate problems the user is happy with. */
         media.setHWDecoderEnabled(true, false)
-        media.addOption(":network-caching=1500")
+
+        // v2.7.36 — PREFER ENGLISH AUDIO TRACK on multi-lang releases.
+        // libVLC honours `:audio-language=` as a comma-separated list
+        // of ISO 639 codes to prefer when a media has multiple audio
+        // tracks.  This is the final safety net so even if the user
+        // happens to pick a multi-lang release (Eng.Fre.Ger.Ita),
+        // the player auto-selects the English track at startup
+        // instead of falling back to whatever's first in the file.
+        // Applies to ALL paths — VOD, live, magnet, trailer — costs
+        // nothing when there's only one audio track.
+        media.addOption(":audio-language=eng,en,english")
+        media.addOption(":sub-language=eng,en,english")
+
+        if (!isLive && !isMagnet && !isTrailer) {
+            // v2.7.36 — VOD JITTER FIX.  The previous "1500 ms only"
+            // config was the user's "buffers within 10-30 sec" bug:
+            // 1.5 s is libVLC's RAW factory default which is fine
+            // for local files, but woefully tight for CDN-served
+            // VOD where ISP-level packet jitter, Premiumize/AllDebrid
+            // edge-cache rebalancing, and TLS handshakes routinely
+            // pause delivery for 2-4 seconds at a time.  Bumping to
+            // 4000 ms gives the player headroom to absorb that
+            // jitter silently — total memory cost is ~12 MB which
+            // even the cheapest HK1 has spare.  `drop-late-frames`
+            // + `skip-frames` ensure that if we DO fall behind we
+            // catch up cleanly instead of stalling forever.
+            media.addOption(":network-caching=4000")
+            media.addOption(":file-caching=4000")
+            media.addOption(":clock-jitter=0")
+            media.addOption(":clock-synchro=0")
+            media.addOption(":drop-late-frames")
+            media.addOption(":skip-frames")
+            // Allow libVLC to pick up where it left off after a
+            // brief network hiccup instead of bailing — this turns
+            // the "buffers and dies" failure mode into "buffers and
+            // resumes".  600 s = 10 min of silent recovery before
+            // giving up, which is generous enough to weather any
+            // realistic ISP blip.
+            media.addOption(":network-timeout=600")
+        } else {
+            // Live / magnet / trailer paths keep their own tuning
+            // below (they're separate problems already solved).
+            media.addOption(":network-caching=1500")
+        }
 
         /* Optional: force-software-decode mode for users whose
          * display can't tone-map HDR cleanly (washes out colour).

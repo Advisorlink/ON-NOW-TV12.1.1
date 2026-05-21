@@ -400,13 +400,14 @@ def _is_english_stream(s: Dict[str, Any]) -> bool:
 
 def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Drop foreign-language streams and tag the rest with
-    `_is_english: True`.  Multi-lang releases that explicitly list
-    English in the title (e.g., "Eng.Fre.Ger.Ita") are KEPT.  But
-    Cyrillic / CJK / Arabic-titled streams are dropped UNLESS they
-    contain an explicit English word token ("English" or "ENG") —
-    the 🇬🇧 flag emoji alone is not enough since it often signals
-    English subtitles on a foreign-audio release, not English audio.
-    Idempotent."""
+    `_is_english: True` (broad — used to render a flag chip) AND
+    `_english_strict: True` (narrow — used by autoplay to pick the
+    safest English-only stream).  Multi-lang releases that explicitly
+    list English in the title (e.g., "Eng.Fre.Ger.Ita") are KEPT but
+    marked `_english_strict: False` since libVLC may pick the
+    wrong default audio track on them.  Cyrillic / CJK / Arabic-
+    titled streams are dropped UNLESS they contain an explicit
+    English word token. Idempotent."""
     out: List[Dict[str, Any]] = []
     for s in streams:
         if not isinstance(s, dict):
@@ -417,27 +418,34 @@ def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any
         has_english_flag = _has_any_substring(txt, _ENGLISH_FLAGS_LIST)
         has_foreign_flag = _has_any_substring(txt, _FOREIGN_FLAGS_LIST)
         has_foreign_token = bool(_FOREIGN_LANG_RE.search(txt))
+        any_foreign = has_foreign_flag or has_foreign_token or non_latin_count >= 2
 
-        # Decision matrix (in order):
+        # Decision matrix:
         # 1. Title contains substantial non-Latin script → REQUIRE
         #    an explicit English TOKEN (ENG / English).  Flag alone
         #    isn't enough because it's usually a subtitle indicator.
         # 2. Title has foreign-language word/flag but ALSO English
         #    token or English flag → multi-lang release with English
-        #    audio → KEEP.
+        #    audio → KEEP (but NOT strict-English).
         # 3. Title has foreign signal but NO English signal → DROP.
-        # 4. Title has no foreign signal → KEEP (English by default).
+        # 4. Title has no foreign signal → KEEP and tag as strict-English.
         if non_latin_count >= 2:
             if not has_english_token:
                 continue
             s["_is_english"] = True
+            s["_english_strict"] = False  # multi-lang, risky for autoplay
             out.append(s)
             continue
-        foreign = has_foreign_flag or has_foreign_token
-        english = has_english_token or has_english_flag or not foreign
-        if foreign and not english:
+        english = has_english_token or has_english_flag or not any_foreign
+        if any_foreign and not english:
             continue
         s["_is_english"] = english
+        # v2.7.36 — strict English: zero foreign signals anywhere.
+        # Autoplay prefers these so it never accidentally picks a
+        # multi-lang release where libVLC defaults to the wrong
+        # audio track (the original "autoplay played in Russian"
+        # bug the user reported).
+        s["_english_strict"] = (not any_foreign)
         out.append(s)
     return out
 

@@ -741,10 +741,27 @@ export default function Detail() {
         if (type !== 'movie') return null;
         if (!streams || streams.length === 0) return null;
         const non4k = streams.filter((s) => !is4K(s));
+        // v2.7.36 — STRICT ENGLISH WINS THE AUTOPLAY RACE.
+        // Backend tags `_english_strict:true` on streams with ZERO
+        // foreign-language signals anywhere in their metadata.
+        // Multi-lang releases (e.g., "Eng.Fre.Ger.Ita") get
+        // `_english_strict:false` because libVLC may default to the
+        // wrong audio track on them — that was the root cause of
+        // "autoplay played in Russian".  We prefer strict-English
+        // streams in order:
+        //   1. direct + 1080p + strict English
+        //   2. direct + 1080p (any English tag)
+        //   3. any 1080p + strict English
+        //   4. any 1080p
+        //   5. nothing → null (user sees the picker)
+        const strict = (s) => s._english_strict === true;
+        const english = (s) => s._is_english !== false;
+        const direct = (s) => streamMode(s) === 'direct';
         return (
-            non4k.find(
-                (s) => streamMode(s) === 'direct' && is1080p(s)
-            ) ||
+            non4k.find((s) => direct(s) && is1080p(s) && strict(s)) ||
+            non4k.find((s) => direct(s) && is1080p(s) && english(s)) ||
+            non4k.find((s) => is1080p(s) && strict(s)) ||
+            non4k.find((s) => is1080p(s) && english(s)) ||
             non4k.find((s) => is1080p(s)) ||
             null
         );
@@ -762,8 +779,18 @@ export default function Detail() {
         if (!partyCode) return null;
         if (!streams || streams.length === 0) return null;
         if (autoplayCandidate) return autoplayCandidate;
+        // v2.7.36 — same English-preference as autoplayCandidate so
+        // party mode never accidentally lands on a Russian/Hindi/
+        // Italian audio track for the host while guests expect
+        // English.  Hard guarantee: party still picks SOMETHING so
+        // guests aren't desynced waiting for the host to interact.
+        const strict = (s) => s._english_strict === true;
+        const english = (s) => s._is_english !== false;
         return (
+            streams.find((s) => streamMode(s) === 'direct' && strict(s)) ||
+            streams.find((s) => streamMode(s) === 'direct' && english(s)) ||
             streams.find((s) => streamMode(s) === 'direct') ||
+            streams.find((s) => streamMode(s) === 'torrent' && english(s)) ||
             streams.find((s) => streamMode(s) === 'torrent') ||
             streams[0] ||
             null

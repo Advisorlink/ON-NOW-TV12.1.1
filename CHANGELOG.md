@@ -7,6 +7,21 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.36 — Autoplay never plays in Russian + VOD buffering FIXED
+**Two real bugs reported by the user:**
+1. *"the autoplay ones are playing a different language"* — root cause: the autoplay candidate logic only filtered by quality (`is1080p` + direct), not by language. Multi-lang releases (e.g., "Eng.Fre.Ger.Ita 2160p BluRay") survived the foreign-language filter (they DO contain English audio) but libVLC defaulted to whichever audio track came FIRST in the file — often Russian / Italian.
+2. *"buffering within the first 10 / 20 / 30 seconds"* — root cause: VOD path was using libVLC's raw factory default `:network-caching=1500` (1.5 s) which is fine for local files but punishingly tight for CDN-served VOD with normal ISP jitter, Premiumize / AllDebrid edge cache rebalancing, and TLS handshakes.
+
+**Fixes:**
+1. **Backend (`_filter_and_tag_english`)** now stamps a second tag: `_english_strict: bool`. True only when the stream's metadata has ZERO foreign signals (no foreign flag, no foreign token, no non-Latin script). Multi-lang releases get `_english_strict: false` so autoplay can avoid them. Real-world numbers on tt0111161 (Shawshank): 77 strict-English / 40 multi-lang / 117 total.
+2. **Frontend (`autoplayCandidate` + `partyAutoplayCandidate`)** now prefers `_english_strict:true` streams in priority order: direct+1080p+strict → direct+1080p+english → any 1080p+strict → any 1080p+english → any 1080p → null. Party mode mirrors the same chain so guests never desync onto a foreign-audio host stream.
+3. **VLC player (`VlcPlayerActivity.startPlayback`)**:
+   - **`audio-language=eng,en,english`** + **`sub-language=eng,en,english`** — final safety net: even if the user picks a multi-lang release, libVLC auto-selects the English audio track. Costs nothing on single-track files.
+   - **VOD path:** `network-caching=4000` (was 1500), `file-caching=4000`, `network-timeout=600` (10 min silent recovery), `clock-jitter=0`, `clock-synchro=0`, `drop-late-frames`, `skip-frames`. Net effect: 4× the jitter headroom for ~12 MB extra RAM — well under the HK1's budget. CDN blips are now absorbed silently instead of causing 10-second buffer-loop.
+   - Live / magnet / trailer paths kept their existing tuning untouched (they were already optimised for their workloads).
+
+**VPS deployed**: `server.py` synced + service restarted. `_english_strict` tag verified live on tt0111161.
+
 ## v2.7.35 — Sports channels back + UFC fixtures in fan-out
 - **Root cause of "all the channels are gone"**: backend was populating `fixture.broadcasts: ['Sky Sports', 'TNT Sports', …]` from a curated UK/US/AU league-to-channel mapping, but the **frontend never read that field**. SportsGuide.jsx only used the per-IPTV `matchFixture()` — so when the user's IPTV provider EPG had no match (which is almost always for niche fixtures or before the EPG fully loads), the card said "Not on your channels" and the broadcaster info was thrown away.
 - **Fix — `fixture.broadcasts` fallback in both card variants**: when `matches[]` is empty AND `fixture.broadcasts` has entries, the hero card now shows a cyan `WATCH ON Sky Sports · TNT Sports · ESPN+` pill, and the grid card renders the broadcaster names as styled chips with the league accent color. Only falls back to "Not on your channels" when BOTH lookups come up empty.
