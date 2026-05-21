@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8">
+<title>C — Vertical Left Column</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<script>tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Outfit','sans-serif'],mono:['JetBrains Mono','monospace']},colors:{navy:{900:'#020610',800:'#0A1322',700:'#0D121C'},cyan:{primary:'#5DC8FF',accent:'#7CF1F1'}}}}}</script>
+<style>
+body{margin:0;background:#000;color:#fff;overflow:hidden;font-family:'Outfit',sans-serif}
+.tv-container{width:1920px;height:1080px;position:relative;transform-origin:top left;transform:scale(min(100vw/1920,100vh/1080))}
+.glass-panel{background:rgba(10,19,34,0.4);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.05)}
+.glass-card{background:rgba(10,19,34,0.85);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(93,200,255,0.2);border-radius:24px;box-shadow:0 24px 64px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.1)}
+.chip{display:flex;align-items:center;justify-content:center;padding:4px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700}
+.chip-outline{border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.8)}
+.chip-cyan{background:rgba(93,200,255,0.15);border:1px solid rgba(93,200,255,0.4);color:#5DC8FF}
+.tv-btn{display:flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:32px;background:rgba(255,255,255,0.05);border:2px solid transparent;transition:all .22s cubic-bezier(.4,0,.2,1);color:rgba(255,255,255,0.8);cursor:pointer}
+.tv-btn i{font-size:32px}
+.tv-btn.active,.tv-btn:hover{background:#5DC8FF;color:#020610;transform:scale(1.1);border-color:rgba(255,255,255,0.5);box-shadow:0 0 24px rgba(93,200,255,0.4)}
+.tv-btn-large{width:88px;height:88px;border-radius:44px}
+.tv-btn-large i{font-size:40px}
+.scrubber-track{width:100%;height:8px;background:rgba(255,255,255,0.2);border-radius:4px;position:relative;cursor:pointer}
+.scrubber-fill{height:100%;background:#5DC8FF;border-radius:4px;width:65%;position:relative}
+.scrubber-thumb{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:24px;height:24px;background:#fff;border-radius:50%;box-shadow:0 0 12px rgba(93,200,255,0.8)}
+.fade-bottom{background:linear-gradient(to top,rgba(2,6,16,0.92) 0%,rgba(2,6,16,0.55) 50%,transparent 100%)}
+.fade-left{background:linear-gradient(to right,#020610 0%,rgba(2,6,16,0.92) 30%,transparent 65%)}
+.fade-right{background:linear-gradient(to left,#020610 0%,rgba(2,6,16,0.92) 30%,transparent 65%)}
+.fade-top{background:linear-gradient(to bottom,rgba(2,6,16,0.92) 0%,rgba(2,6,16,0.55) 50%,transparent 100%)}
+.fade-vignette{background:radial-gradient(ellipse at center,transparent 30%,rgba(2,6,16,0.85) 100%)}
+
+</style></head><body class="flex items-center justify-center min-h-screen bg-black">
+<div class="tv-container relative overflow-hidden bg-navy-900">
+<img src="https://images.unsplash.com/photo-1682687220063-4742bd7fd538?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBzY2klMjBmaSUyMG1vdmllJTIwbGFuZHNjYXBlfGVufDB8fHx8MTc3OTM1MjQ3MXww&ixlib=rb-4.1.0&q=85" class="absolute inset-0 w-full h-full object-cover opacity-80" alt="bg">
+
+<div class="absolute top-12 left-14 flex items-center gap-3 z-50">
+  <div class="chip chip-cyan uppercase tracking-widest text-xs">
+    <i class="ph-fill ph-play text-cyan-accent mr-2"></i> Exoplayer
+  </div>
+</div>
+<div class="absolute top-12 right-14 z-50">
+  <div class="font-mono text-[13px] text-cyan-primary border border-cyan-primary/30 px-3 py-1.5 rounded bg-navy-900/80 backdrop-blur-sm tracking-wide">BUF 12s &middot; 6.2Mbps &middot; ExoPlayer</div>
+</div>
+
+<div class="absolute left-0 inset-y-0 w-[120px] z-30" style="background:rgba(10,19,34,0.78);backdrop-filter:blur(24px);border-right:1px solid rgba(93,200,255,0.18);">
+  <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
+    <button class="tv-btn "><i class="ph ph-speaker-high"></i></button><button class="tv-btn "><i class="ph ph-subtitles"></i></button>
+    <div class="my-2 w-10 h-px bg-white/15"></div>
+    <button class="tv-btn "><i class="ph-fill ph-clock-counter-clockwise"></i></button><button class="tv-btn tv-btn-large active"><i class="ph-fill ph-pause"></i></button><button class="tv-btn "><i class="ph-fill ph-clock-clockwise"></i></button>
+    <div class="my-2 w-10 h-px bg-white/15"></div>
+    <button class="tv-btn "><i class="ph ph-gear-six"></i></button><button class="tv-btn "><i class="ph ph-corners-out"></i></button>
+  </div>
+</div>
+<div class="absolute left-[140px] top-1/2 -translate-y-1/2 h-[60%] w-[6px] bg-white/15 rounded-full overflow-hidden z-30">
+  <div class="absolute bottom-0 w-full bg-cyan-primary rounded-full" style="height:65%;box-shadow:0 0 12px rgba(93,200,255,.6);"></div>
+</div>
+<div class="absolute left-[170px] bottom-12 z-30 font-mono">
+  <div class="text-sm font-bold text-cyan-primary">01:48:22</div>
+  <div class="text-xs text-white/55 mt-1">02:46:00</div>
+</div>
+</div></body></html>

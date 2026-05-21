@@ -1,185 +1,179 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=1920, height=1080, initial-scale=1">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Cinzel:wght@400;700;900&family=Cormorant+Garamond:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@300;400;600&family=Outfit:wght@200;400;700;900&family=Playfair+Display:wght@400;700;900&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { width: 1920px; height: 1080px; overflow: hidden; background: #000; color: #fff; margin:0; position:relative; }
-        .glass { background: rgba(20,20,20,0.6); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); }
-        .glass-light { background: rgba(255,255,255,0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.15); }
-        .text-shadow { text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
-        .text-shadow-glow { text-shadow: 0 0 20px currentColor; }
-        ::-webkit-scrollbar { display: none; }
-    </style>
-</head>
-<body class="antialiased">
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>ExoPlayer mockups · 10 × 2 · Dune Part Two</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body { margin:0; background:#020610; color:#fff; font-family:'Outfit',sans-serif; min-height:100vh; padding:56px 64px 96px; }
+h1 { font-weight:200; font-size:48px; letter-spacing:-0.03em; margin-bottom:8px; }
+h2 { font-weight:300; font-size:28px; letter-spacing:-0.02em; margin:64px 0 24px; }
+.eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.32em; text-transform:uppercase; color:#7CF1F1; margin-bottom:16px; }
+.subtitle { color:#94A3B8; font-size:15px; max-width:680px; line-height:1.55; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(440px,1fr)); gap:28px; }
+.card { display:block; text-decoration:none; color:inherit; border-radius:18px; overflow:hidden;
+  background:#0A1322; border:1px solid rgba(255,255,255,0.07);
+  transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+.card:hover { transform:translateY(-4px); border-color:rgba(93,200,255,0.45);
+  box-shadow:0 22px 60px rgba(93,200,255,0.18); }
+.card-frame { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#000; }
+.card-frame iframe { position:absolute; left:0; top:0; width:1920px; height:1080px;
+  transform:scale(calc(440 / 1920)); transform-origin:top left; border:0; pointer-events:none; }
+.card-meta { display:flex; align-items:center; gap:14px; padding:14px 18px;
+  background:rgba(2,6,16,0.6); border-top:1px solid rgba(93,200,255,0.15); }
+.num { font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:11px; color:#7CF1F1; letter-spacing:0.18em; }
+.card-title { font-weight:400; font-size:15px; }
+.pickrow { display:flex; align-items:center; gap:14px; margin-top:14px;
+  font-family:'JetBrains Mono',monospace; font-size:11px; color:#94A3B8;
+  letter-spacing:0.18em; text-transform:uppercase; }
+.pickrow b { color:#7CF1F1; }
+</style></head><body>
+<div class="eyebrow">▶︎ EXOPLAYER · DESIGN GALLERY · 2.7.39</div>
+<h1>ExoPlayer overlay &amp; control dock</h1>
+<p class="subtitle">10 overlay variants &times; 10 control-dock variants, all on the Dune Part Two backdrop.
+Pick one of each and tell me — I'll build it into the Kotlin ExoPlayerActivity overlay.</p>
+<div class="pickrow"><span>How to choose:</span><b>O01 + C02</b><span>// reply with overlay # + control #</span></div>
 
-<div class="p-16 min-h-screen bg-[#050505] overflow-auto">
-    <h1 class="text-6xl font-['Outfit'] font-black text-white mb-16 tracking-[0.2em] text-center drop-shadow-2xl">EXOPLAYER PREMIUM MOCKUPS</h1>
-    <div class="grid grid-cols-2 gap-16 max-w-[1800px] mx-auto">
+<h2>Overlay variants <span class="eyebrow ml-3" style="display:inline; vertical-align:middle;">SYNOPSIS &middot; LOGO &middot; CHIPS</span></h2>
+<div class="grid"><a href="overlays/o01-classic-left-fade.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o01-classic-left-fade.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O01</span>
+    <span class="card-title">Classic Left-Fade</span>
+  </div>
+</a>
+<a href="overlays/o02-bottom-glass-block.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o02-bottom-glass-block.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O02</span>
+    <span class="card-title">Bottom-Glass Block</span>
+  </div>
+</a>
+<a href="overlays/o03-right-aligned-cinematic.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o03-right-aligned-cinematic.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O03</span>
+    <span class="card-title">Right-Aligned Cinematic</span>
+  </div>
+</a>
+<a href="overlays/o04-floating-glass-card.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o04-floating-glass-card.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O04</span>
+    <span class="card-title">Floating Glass Card</span>
+  </div>
+</a>
+<a href="overlays/o05-top-banner-hud.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o05-top-banner-hud.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O05</span>
+    <span class="card-title">Top Banner Hud</span>
+  </div>
+</a>
+<a href="overlays/o06-vignette-centred.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o06-vignette-centred.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O06</span>
+    <span class="card-title">Vignette Centred</span>
+  </div>
+</a>
+<a href="overlays/o07-apple-tv-minimal.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o07-apple-tv-minimal.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O07</span>
+    <span class="card-title">Apple-TV Minimal</span>
+  </div>
+</a>
+<a href="overlays/o08-vertical-sidebar.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o08-vertical-sidebar.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O08</span>
+    <span class="card-title">Vertical Sidebar</span>
+  </div>
+</a>
+<a href="overlays/o09-diagonal-split.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o09-diagonal-split.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O09</span>
+    <span class="card-title">Diagonal Split</span>
+  </div>
+</a>
+<a href="overlays/o10-cyberpunk-cinematic.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="overlays/o10-cyberpunk-cinematic.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">O10</span>
+    <span class="card-title">Cyberpunk Cinematic</span>
+  </div>
+</a></div>
 
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">PACIFIC RIM</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/01-pacific-rim.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/01-pacific-rim.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/01-pacific-rim.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/01-pacific-rim.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">BLADE RUNNER 2049</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/02-blade-runner-2049.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/02-blade-runner-2049.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/02-blade-runner-2049.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/02-blade-runner-2049.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">THE BATMAN</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/03-the-batman.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/03-the-batman.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/03-the-batman.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/03-the-batman.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">MAD MAX: FURY ROAD</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/04-mad-max.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/04-mad-max.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/04-mad-max.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/04-mad-max.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">OPPENHEIMER</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/05-oppenheimer.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/05-oppenheimer.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/05-oppenheimer.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/05-oppenheimer.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">TOP GUN: MAVERICK</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/06-top-gun.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/06-top-gun.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/06-top-gun.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/06-top-gun.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">INCEPTION</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/07-inception.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/07-inception.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/07-inception.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/07-inception.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">INTERSTELLAR</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/08-interstellar.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/08-interstellar.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/08-interstellar.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/08-interstellar.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">JOHN WICK: CHAPTER 4</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/09-john-wick-4.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/09-john-wick-4.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/09-john-wick-4.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/09-john-wick-4.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-        <div class="flex flex-col space-y-6">
-            <h2 class="text-3xl font-['JetBrains_Mono'] text-white/70 uppercase tracking-widest">AVATAR: THE WAY OF WATER</h2>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./overlays/10-avatar-2.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./overlays/10-avatar-2.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW OVERLAY (1920x1080)</span>
-                </a>
-            </div>
-            <div class="relative w-full aspect-video border border-white/20 rounded-2xl overflow-hidden hover:border-white/60 transition duration-500 shadow-2xl">
-                <iframe src="./controls/10-avatar-2.html" class="w-[1920px] h-[1080px] absolute top-0 left-0" style="transform: scale(calc(100% / 1920 * 100)); transform-origin: top left; pointer-events: none;"></iframe>
-                <a href="./controls/10-avatar-2.html" target="_blank" class="absolute inset-0 z-10 flex items-center justify-center bg-black/70 opacity-0 hover:opacity-100 transition duration-300 backdrop-blur-sm">
-                    <span class="bg-white text-black px-8 py-4 rounded-full font-bold tracking-widest text-lg">VIEW CONTROLS (1920x1080)</span>
-                </a>
-            </div>
-        </div>
-    
-    </div>
-</div>
+<h2>Control dock variants <span class="eyebrow ml-3" style="display:inline; vertical-align:middle;">PLAY &middot; SCRUB &middot; LANGUAGE &middot; SETTINGS</span></h2>
+<div class="grid"><a href="controls/c01-classic-bottom-dock.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c01-classic-bottom-dock.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C01</span>
+    <span class="card-title">Classic Bottom Dock</span>
+  </div>
+</a>
+<a href="controls/c02-floating-glass-pill.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c02-floating-glass-pill.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C02</span>
+    <span class="card-title">Floating Glass Pill</span>
+  </div>
+</a>
+<a href="controls/c03-apple-tv-heavy-blur.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c03-apple-tv-heavy-blur.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C03</span>
+    <span class="card-title">Apple TV Heavy Blur</span>
+  </div>
+</a>
+<a href="controls/c04-netflix-flat-split.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c04-netflix-flat-split.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C04</span>
+    <span class="card-title">Netflix Flat Split</span>
+  </div>
+</a>
+<a href="controls/c05-bento-corner-cluster.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c05-bento-corner-cluster.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C05</span>
+    <span class="card-title">Bento Corner Cluster</span>
+  </div>
+</a>
+<a href="controls/c06-cyberpunk-neon-deck.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c06-cyberpunk-neon-deck.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C06</span>
+    <span class="card-title">Cyberpunk Neon Deck</span>
+  </div>
+</a>
+<a href="controls/c07-radial-arc.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c07-radial-arc.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C07</span>
+    <span class="card-title">Radial Arc</span>
+  </div>
+</a>
+<a href="controls/c08-macos-glass-dock.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c08-macos-glass-dock.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C08</span>
+    <span class="card-title">MacOS Glass Dock</span>
+  </div>
+</a>
+<a href="controls/c09-vertical-left-column.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c09-vertical-left-column.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C09</span>
+    <span class="card-title">Vertical Left Column</span>
+  </div>
+</a>
+<a href="controls/c10-minimalist-hover.html" target="_blank" class="card group">
+  <div class="card-frame"><iframe src="controls/c10-minimalist-hover.html" scrolling="no" tabindex="-1"></iframe></div>
+  <div class="card-meta">
+    <span class="num">C10</span>
+    <span class="card-title">Minimalist Hover</span>
+  </div>
+</a></div>
 </body></html>
