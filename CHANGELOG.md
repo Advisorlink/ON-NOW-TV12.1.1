@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.31 — Trailer pill beside Season pills (TV details)
+- **TV-show Detail page**: the Trailer pill no longer sits on its own row above the season picker — it now renders as the **FIRST pill in the Seasons row**, side-by-side with `Season 1`, `Season 2`, … Per user request: "put the trailer button BESIDE (first pill) of the Seasons NOT on top".
+- New `compact` size variant on `<TrailerPill>` matches the Season pill metrics (height `clamp(36px, 3vw, 44px)`, font `clamp(13px, 0.95vw, 15px)`).
+- New `leadingPill` prop on `<SeriesEpisodes>` injects any React node as the first item in the season-picker flex row. Detail.jsx owns trailer state; SeriesEpisodes just renders it.
+
 ## v2.7.30 — TMDB-first cover art · Faster streams · Cleaner loading screen · Glass stream picker
 1. **TMDB metadata wins over stream-attached art**: `Detail.jsx` `playStream()` now prefers `meta?.poster / meta?.background` (from Cinemeta/TMDB) over `stream.poster / stream.backdrop`. Some Stremio addons embed wrong / low-res thumbs in the stream payload — the player now always shows the cinematic TMDB poster/backdrop.
 2. **Faster stream resolution (~2× perceived speed)**:

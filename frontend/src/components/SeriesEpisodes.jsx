@@ -77,6 +77,11 @@ export default function SeriesEpisodes({
     initialSeason,
     highlightEpisode,
     onEpisodesShownChange,
+    // v2.7.31 — optional React node rendered as the FIRST item in
+    // the Seasons pill row (currently the Trailer pill).  Lets the
+    // parent Detail.jsx keep ownership of the trailer state/handler
+    // while visually anchoring it next to the season chips.
+    leadingPill,
 }) {
     const navigate = useNavigate();
     const videos = useMemo(() => {
@@ -425,9 +430,10 @@ export default function SeriesEpisodes({
 
             <div
                 data-testid="season-picker"
-                className="flex flex-wrap"
+                className="flex flex-wrap items-center"
                 style={{ gap: 'clamp(8px, 0.7vw, 12px)', marginBottom: 24 }}
             >
+                {leadingPill}
                 {seasons.map(({ season }) => {
                     const active = season === activeSeason;
                     const label =

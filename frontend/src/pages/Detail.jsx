@@ -1994,19 +1994,11 @@ export default function Detail() {
                         </div>
                     )}
 
-                    {/* For TV SERIES the Trailer button sits on
-                        its own row, above the season picker, so
-                        it doesn't compete with the Autoplay
-                        button (movies only). */}
-                    {type === 'series' && !focusedActor && !focusedMovie && (
-                        <div className="mt-6 flex items-center gap-3 flex-wrap">
-                            <TrailerPill
-                                onClick={openTrailer}
-                                loading={trailerLoading}
-                                primary
-                            />
-                        </div>
-                    )}
+                    {/* v2.7.31 — Trailer pill for SERIES is now
+                        injected as the FIRST item in the Seasons
+                        pill row inside <SeriesEpisodes>, per user
+                        request ("put the trailer button BESIDE first
+                        pill of Seasons, NOT on top"). */}
 
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is
@@ -2018,6 +2010,13 @@ export default function Detail() {
                             initialSeason={focusSeason ? Number(focusSeason) : undefined}
                             highlightEpisode={focusEpisode ? Number(focusEpisode) : undefined}
                             onEpisodesShownChange={setSeriesEpisodesShown}
+                            leadingPill={
+                                <TrailerPill
+                                    onClick={openTrailer}
+                                    loading={trailerLoading}
+                                    compact
+                                />
+                            }
                         />
                     ) : autoplayEnabled && autoplayCandidate ? (
                         // Autoplay is on AND we have a 1080p candidate
@@ -2592,7 +2591,7 @@ export default function Detail() {
 }
 
 /* ─────────────────────── TrailerPill ─────────────────────── */
-function TrailerPill({ onClick, loading, primary }) {
+function TrailerPill({ onClick, loading, primary, compact }) {
     return (
         <button
             data-testid="detail-trailer"
@@ -2604,14 +2603,25 @@ function TrailerPill({ onClick, loading, primary }) {
             disabled={loading}
             className="flex items-center gap-2 rounded-full font-sans font-semibold"
             style={{
-                height: primary
-                    ? 'clamp(46px, 3.6vw, 56px)'
-                    : 'clamp(44px, 3.4vw, 52px)',
-                paddingLeft: 'clamp(18px, 1.4vw, 24px)',
-                paddingRight: 'clamp(22px, 1.6vw, 28px)',
-                fontSize: primary
-                    ? 'clamp(14px, 1vw, 16px)'
-                    : 'clamp(13px, 0.95vw, 15px)',
+                // v2.7.31 — `compact` matches the Season pill metrics
+                // so the Trailer pill can sit BESIDE seasons as the
+                // first item in the row instead of on its own line.
+                height: compact
+                    ? 'clamp(36px, 3vw, 44px)'
+                    : primary
+                        ? 'clamp(46px, 3.6vw, 56px)'
+                        : 'clamp(44px, 3.4vw, 52px)',
+                paddingLeft: compact
+                    ? 'clamp(16px, 1.4vw, 22px)'
+                    : 'clamp(18px, 1.4vw, 24px)',
+                paddingRight: compact
+                    ? 'clamp(16px, 1.4vw, 22px)'
+                    : 'clamp(22px, 1.6vw, 28px)',
+                fontSize: compact
+                    ? 'clamp(13px, 0.95vw, 15px)'
+                    : primary
+                        ? 'clamp(14px, 1vw, 16px)'
+                        : 'clamp(13px, 0.95vw, 15px)',
                 background: primary
                     ? 'var(--vesper-blue)'
                     : 'rgba(93,200,255,0.16)',
@@ -2626,12 +2636,12 @@ function TrailerPill({ onClick, loading, primary }) {
         >
             {loading ? (
                 <>
-                    <Loader2 className="vesper-spin" size={16} />
+                    <Loader2 className="vesper-spin" size={compact ? 14 : 16} />
                     Loading…
                 </>
             ) : (
                 <>
-                    <Film size={16} />
+                    <Film size={compact ? 14 : 16} />
                     Trailer
                 </>
             )}
