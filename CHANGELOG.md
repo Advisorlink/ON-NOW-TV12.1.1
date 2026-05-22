@@ -7,6 +7,43 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.74 — Native Live TV Guide overlay (ExoPlayer)
+
+Premium in-player guide ported into the new ExoPlayer activity. Built to the user's locked-in mockup, no iteration.
+
+### Visual
+- **Slide-in left overlay**, video keeps playing on the right (no backdrop image — explicit user choice).
+- **Header**: "LIVE TV GUIDE" cyan caps + "N CHANNELS" subtitle (top-left), live clock + date (top-right).
+- **Channel rail**: 340 dp wide column of rounded cards (84 dp tall, 8 dp gap). Each card shows zero-padded channel number, 56 dp logo plate, name, ON-NOW dot, chevron pointer when focused. Cyan focus ring.
+- **Centre column** (420 dp): LIVE pill, programme title (clamp 2, 36 sp), season/episode line, synopsis (clamp 4), time range + "X min remaining", cyan gradient progress bar.
+- **Up Next strip** at the bottom-left: 260 × 150 dp cards with TMDB backdrop + start-time chip + title + S/E label or year. Horizontal scroll via LazyRow.
+- **Category column** (190 dp): slides in inset to the LEFT of the channel rail when the user pushes LEFT a second time. Shows "ALL · N" + every category.
+
+### Interaction
+- **LEFT** while video plays → opens guide, channel rail focused.
+- **LEFT** while a channel row is focused → opens category column.
+- **UP / DOWN** in channel rail → moves focus, auto-scrolls to keep selection roughly 4 rows from the top.
+- **Hover 1 s on a channel** → auto-tunes (no OK required).
+- **OK on a channel** → tunes immediately.
+- **RIGHT from channel rail** → focus jumps to Up Next strip.
+- **BACK / MENU / GUIDE / TV / INFO** → closes overlay (or toggles).
+
+### Implementation
+- **New backend endpoint**: `GET /api/epg/art?title=&year=` returns `{backdrop, poster, media_type, tmdb_id, tmdb_title}` via TMDB multi-search. Aggressively cached (7 days). Title normalisation strips parens, brackets, season/episode hints, "LIVE" / "NEW" suffixes.
+- **New Kotlin file**: `LiveGuideManager.kt` — data model, StateFlows, SharedPreferences parsing (uses existing `live_guide` prefs from `WebAppInterface.setLiveGuide`), TMDB art fetch with in-flight dedupe + cache.
+- **New Kotlin file**: `LiveGuideOverlay.kt` — full Compose UI (~600 lines). Coil for image loading.
+- **ExoPlayerActivity** wires it up:
+  - Detects `EXTRA_TYPE == "live"` to initialise the manager.
+  - In-place channel tune via `player.setMediaItem` + `prepare()` — no activity restart, no black flash.
+  - `dispatchKeyEvent` handles LEFT / MENU / BACK keys for the guide BEFORE the party-mode logic.
+  - Cleanup in `onDestroy`.
+- **WebAppInterface** gains `setBackendBase(url)` so the native overlay knows the backend origin for `/api/epg/art` calls. `nativeGuideBoot.js` calls it once on app boot.
+
+### Spec source
+- HK1 box, 1920 × 1080 landscape, baseline density (1 dp ≈ 1 px). All dimensions tuned for this target.
+- Mockup: user-supplied at `https://customer-assets.emergentagent.com/job_rebrand-app-5/artifacts/1yo0q5vp_a9d1c1e2-c9c4-454f-a8fe-ae3f1db3c4c9.png`.
+- Detailed handoff context: `/app/memory/LIVE_GUIDE_HANDOFF.md`.
+
 ## v2.7.73 — Left-side party drawer (Play / Catch-Up / Subs / Audio)
 
 Built to your exact spec. In party mode the player chrome model is now:

@@ -81,6 +81,10 @@ class ExoPlayerActivity : ComponentActivity() {
     private var sizeGb: Float = 0f
     private var isEnglish: Boolean = true
     private var cwId: String = ""
+    // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
+    private var isLive: Boolean = false
+    private var liveStreamId: String = ""
+    private var liveGuide: LiveGuideManager? = null
 
     // v2.7.54 — Bumped from outside via Activity.dispatchKeyEvent on
     // EVERY remote key press, including arrows.  This is more
@@ -143,6 +147,38 @@ class ExoPlayerActivity : ComponentActivity() {
         // Non-party playback keeps the old behaviour: any non-back
         // key pings the activity timer so the dock auto-re-shows.
         if (event.action == KeyEvent.ACTION_DOWN) {
+            // v2.7.74 — Live TV Guide key handling.  Must run BEFORE
+            // the party logic so a live channel inside a party still
+            // gets the channel rail (theoretically possible).
+            if (isLive && liveGuide != null) {
+                val mgr = liveGuide!!
+                val gMode = mgr.mode.value
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (gMode == LiveGuideManager.MODE_CLOSED) {
+                            mgr.open()
+                            return true
+                        }
+                        // Otherwise fall through: the focused
+                        // ChannelRow's onKeyEvent will catch LEFT
+                        // and call mgr.openCategories().
+                    }
+                    KeyEvent.KEYCODE_MENU,
+                    KeyEvent.KEYCODE_GUIDE,
+                    KeyEvent.KEYCODE_TV,
+                    KeyEvent.KEYCODE_INFO -> {
+                        mgr.toggle()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_BACK,
+                    KeyEvent.KEYCODE_ESCAPE -> {
+                        if (gMode != LiveGuideManager.MODE_CLOSED) {
+                            mgr.close()
+                            return true
+                        }
+                    }
+                }
+            }
             if (inParty) {
                 val drawerOpen = partyDrawerOpenFlow.value
                 // v2.7.73 — BACK closes the drawer (instead of
@@ -287,6 +323,26 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+
+        // v2.7.74 — Live TV awareness.  When EXTRA_TYPE == "live" we
+        // wire a LiveGuideManager so the user can slide in the
+        // channel rail with the LEFT key and tune to a different
+        // channel without restarting the activity.
+        if (intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.lowercase() == "live") {
+            isLive = true
+            liveStreamId = extractLiveStreamId(streamUrl)
+            try {
+                val backendBase = readBackendBase()
+                liveGuide = LiveGuideManager(
+                    ctx = applicationContext,
+                    backendBase = backendBase,
+                    initialChannelStreamId = liveStreamId,
+                ).also { it.loadFromPreferences() }
+            } catch (t: Throwable) {
+                Log.w(TAG, "LiveGuideManager init failed", t)
+                liveGuide = null
+            }
+        }
 
         // v2.7.60 — Native Watch Together voice manager.  When the
         // intent carries a party_code, we connect a WebSocket to the
@@ -601,6 +657,16 @@ class ExoPlayerActivity : ComponentActivity() {
                     onPickStream   = { idx -> switchStream(idx) },
                     onClose = { finish() },
                 )
+                // v2.7.74 — Native Live TV Guide overlay.  Sits on
+                // top of the PlayerOverlay (sibling Composable so
+                // both render in the same ComposeView, the guide
+                // visually on top because it's declared second).
+                liveGuide?.let { mgr ->
+                    LiveGuideOverlay(
+                        manager = mgr,
+                        onTuneChannel = { ch -> tuneToLiveChannel(ch) },
+                    )
+                }
             }
         }
         root.addView(composeView)
@@ -679,6 +745,7 @@ class ExoPlayerActivity : ComponentActivity() {
         try { pollJob?.cancel() } catch (_: Exception) {}
         try { pollScope.cancel() } catch (_: Exception) {}
         try { partyVoice?.release() } catch (_: Exception) {}
+        try { liveGuide?.release() } catch (_: Exception) {}
         try { player.release() } catch (_: Exception) {}
     }
 
@@ -694,6 +761,39 @@ class ExoPlayerActivity : ComponentActivity() {
         } catch (_: Exception) {}
         super.finish()
     }
+
+    // ── v2.7.74 Live TV helpers ──────────────────────────────────────
+    private fun extractLiveStreamId(url: String): String {
+        val last = url.substringAfterLast('/').substringBeforeLast('.')
+        return if (last.matches(Regex("^\\d+$"))) last else ""
+    }
+    private fun readBackendBase(): String {
+        val prefs = getSharedPreferences("app_meta", android.content.Context.MODE_PRIVATE)
+        return prefs.getString("backend_base", "")
+            ?.trim()
+            ?.trimEnd('/')
+            ?.takeIf { it.isNotBlank() }
+            ?: "https://rebrand-app-5.preview.emergentagent.com"
+    }
+    /** Tune the running ExoPlayer to a different live channel in-place
+     *  — no activity restart, no black flash.  Just swaps the media
+     *  source and lets the existing buffer config absorb the gap. */
+    private fun tuneToLiveChannel(ch: LiveGuideManager.LiveChannel) {
+        try {
+            streamUrl = ch.streamUrl
+            liveStreamId = ch.streamId
+            val item = MediaItem.fromUri(ch.streamUrl)
+            player.setMediaItem(item, /* resetPosition */ true)
+            player.prepare()
+            player.playWhenReady = true
+            liveGuide?.markPlaying(ch.streamId)
+            Log.i(TAG, "tuned live channel ${ch.streamId} → ${ch.streamUrl}")
+        } catch (t: Throwable) {
+            Log.w(TAG, "tuneToLiveChannel failed", t)
+        }
+    }
+
+
 
     private fun hideSystemUi() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

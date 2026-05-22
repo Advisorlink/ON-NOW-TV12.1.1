@@ -2630,6 +2630,94 @@ async def tmdb_for_you(
     return {"cached": False, "data": mixed}
 
 
+# ─── EPG programme art lookup (used by native Live Guide overlay) ─────────────
+import re as _re_epg_art
+
+_EPG_ART_NORMALIZE = _re_epg_art.compile(r"\s*\([^)]*\)\s*|\s*\[[^]]*]\s*")
+
+def _normalize_epg_title(title: str) -> str:
+    """Strip parens/brackets, trailing season/episode hints, common
+    suffixes like 'Live', 'New' so the TMDB query is cleaner."""
+    t = _EPG_ART_NORMALIZE.sub(" ", title)
+    t = _re_epg_art.sub(r"\s+S\d{1,2}\s*E\d{1,3}\b.*$", "", t, flags=_re_epg_art.IGNORECASE)
+    t = _re_epg_art.sub(r"\s+\b(LIVE|NEW)\b.*$", "", t, flags=_re_epg_art.IGNORECASE)
+    return t.strip()
+
+
+@api.get("/epg/art")
+async def epg_art(
+    title: str = Query("", min_length=1),
+    year: str = Query("", description="Optional release year for tighter match"),
+):
+    """Resolve a programme title to TMDB artwork.
+
+    Used by the native Live TV Guide overlay (Android Kotlin Compose)
+    to populate the right-side cinematic backdrop + the "Up Next"
+    strip thumbnails.  Cached aggressively (7 days) per
+    (normalized_title, year) since EPG titles repeat constantly.
+
+    Returns:
+        { backdrop: "https://image.tmdb.org/.../w1280/abc.jpg" | "",
+          poster:   "https://image.tmdb.org/.../w500/def.jpg" | "",
+          media_type: "movie" | "tv" | "",
+          tmdb_id: 12345 | 0,
+          tmdb_title: "Project Hail Mary" }
+    """
+    norm = _normalize_epg_title(title)
+    if not norm:
+        return {"backdrop": "", "poster": "", "media_type": "", "tmdb_id": 0, "tmdb_title": ""}
+    cache_key = f"epg_art:{norm.lower()}:{(year or '').strip()}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+    # TMDB multi-search and pick first non-person hit; if year was
+    # supplied, prefer a result whose release/first-air year matches.
+    try:
+        data = await _tmdb_get(
+            "/search/multi",
+            {"query": norm, "include_adult": "false", "page": "1"},
+        )
+    except Exception:
+        return {"backdrop": "", "poster": "", "media_type": "", "tmdb_id": 0, "tmdb_title": ""}
+    results = (data or {}).get("results") or []
+    candidates = [
+        r for r in results
+        if r.get("media_type") in ("movie", "tv")
+        and (r.get("backdrop_path") or r.get("poster_path"))
+    ]
+    if not candidates:
+        out = {"backdrop": "", "poster": "", "media_type": "", "tmdb_id": 0, "tmdb_title": ""}
+        await cache.set(cache_key, out, 60 * 60 * 24 * 7)
+        return out
+
+    def _year_of(r: Dict[str, Any]) -> str:
+        d = r.get("release_date") or r.get("first_air_date") or ""
+        return d[:4] if len(d) >= 4 else ""
+
+    pick = None
+    if year and year.strip():
+        for r in candidates:
+            if _year_of(r) == year.strip():
+                pick = r
+                break
+    if pick is None:
+        pick = candidates[0]
+
+    backdrop_path = pick.get("backdrop_path") or ""
+    poster_path = pick.get("poster_path") or ""
+    out = {
+        "backdrop": f"{TMDB_IMG}/w1280{backdrop_path}" if backdrop_path else "",
+        "poster":   f"{TMDB_IMG}/w500{poster_path}"   if poster_path   else "",
+        "media_type": pick.get("media_type") or "",
+        "tmdb_id":  pick.get("id") or 0,
+        "tmdb_title": (pick.get("title") or pick.get("name") or "").strip(),
+    }
+    await cache.set(cache_key, out, 60 * 60 * 24 * 7)
+    return out
+
+
+
+
 @api.get("/tmdb/search")
 async def tmdb_search(q: str = Query("", min_length=1)):
     """Plain multi-search wrapper — returns shaped movie + tv items

@@ -633,6 +633,22 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
+     * v2.7.74 — Persist the React app's REACT_APP_BACKEND_URL so the
+     * native ExoPlayer overlay (Live Guide TMDB lookups, Watch
+     * Together STT) can talk to the same backend the WebView is
+     * using.  Called once on app boot by `lib/host.js`.
+     */
+    @JavascriptInterface
+    fun setBackendBase(url: String?) {
+        try {
+            val base = (url ?: "").trim().trimEnd('/')
+            if (base.isBlank()) return
+            val prefs = activity.getSharedPreferences("app_meta", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("backend_base", base).apply()
+        } catch (_: Throwable) {}
+    }
+
+    /**
      * Download the new APK and hand it to the system installer.
      *
      * Called by `UpdateGate.jsx` when the user clicks "Download and

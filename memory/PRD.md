@@ -1,3 +1,12 @@
+# ON NOW TV V2 — PRD
+
+> Latest: **v2.7.74 — Native Live TV Guide overlay ported into ExoPlayer** (Feb 22, 2026)
+>
+> Premium slide-in left rail with channel + category drill-down, auto-tune on 1 s hover, TMDB-resolved Up Next thumbnails, full HK1-tuned 1920×1080 layout. Backend endpoint `GET /api/epg/art?title=&year=` + Kotlin `LiveGuideManager.kt` + `LiveGuideOverlay.kt`.
+>
+> Detailed handoff context for this feature: `/app/memory/LIVE_GUIDE_HANDOFF.md`.
+
+
 # Vesper — Product Requirements Document
 
 ## 🎯 STREMIO PARITY MANDATE — PERMANENT INVARIANT (Feb 2026)

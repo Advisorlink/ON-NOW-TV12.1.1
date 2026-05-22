@@ -25,6 +25,15 @@ export function pushNativeGuideFromCache() {
     const bridge = window.OnNowTV;
     if (!bridge || typeof bridge.setLiveGuide !== 'function') return;
 
+    // v2.7.74 — Hand the backend base URL to native so the new
+    // ExoPlayer Live Guide overlay can resolve TMDB programme art.
+    try {
+        if (typeof bridge.setBackendBase === 'function') {
+            const base = (process.env.REACT_APP_BACKEND_URL || '').trim();
+            if (base) bridge.setBackendBase(base);
+        }
+    } catch (_) { /* non-fatal */ }
+
     const provider = getActiveProvider();
     if (!provider) return;
 
