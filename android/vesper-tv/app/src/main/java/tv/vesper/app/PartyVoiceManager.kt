@@ -100,6 +100,10 @@ class PartyVoiceManager(
     private val _reactions    = MutableStateFlow<List<Reaction>>(emptyList())
     private val _recState     = MutableStateFlow(RecState.Idle)
     private val _wsConnected  = MutableStateFlow(false)
+    // v2.7.73 — host's current playback position, sourced from the
+    // server's `state` broadcasts.  The guest's "Catch up" button
+    // seeks the local player to this value so the room re-syncs.
+    private val _hostPositionMs = MutableStateFlow(0L)
     // v2.7.64 — surface the actual error so the UI can show *why*
     // transcription failed instead of a generic "TRY AGAIN".  Kept as
     // a short human-readable string (≤ 80 chars), cleared back to ""
@@ -111,6 +115,7 @@ class PartyVoiceManager(
     val reactions: StateFlow<List<Reaction>>      = _reactions.asStateFlow()
     val recState: StateFlow<RecState>             = _recState.asStateFlow()
     val wsConnected: StateFlow<Boolean>           = _wsConnected.asStateFlow()
+    val hostPositionMs: StateFlow<Long>           = _hostPositionMs.asStateFlow()
     val lastError: StateFlow<String>              = _lastError.asStateFlow()
     val selfMemberIdValue: String
         get() = selfMemberId
@@ -234,6 +239,13 @@ class PartyVoiceManager(
                     emoji = emoji,
                     senderName = member?.optString("name", "") ?: "",
                 )
+            }
+            "state" -> {
+                // v2.7.73 — track the host's authoritative playback
+                // position so the guest's "Catch up" button can seek
+                // the local player to it.
+                val pos = msg.optLong("position_ms", -1L)
+                if (pos >= 0L) _hostPositionMs.value = pos
             }
             else -> { /* state / reaction / pong — not our concern */ }
         }

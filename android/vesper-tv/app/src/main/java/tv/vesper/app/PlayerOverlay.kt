@@ -9,6 +9,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,6 +82,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,6 +150,12 @@ fun PlayerOverlay(
     // v2.7.60 — Native Watch Together voice dock.  Null when not in a
     // party (or when party_code wasn't supplied via intent extras).
     partyVoice: PartyVoiceManager? = null,
+    // v2.7.73 — Watch Together left-side host menu (slide-in drawer
+    // toggled by the MENU button on the remote).  Owner of this flag
+    // is ExoPlayerActivity; PlayerOverlay reads it and renders the
+    // drawer accordingly.
+    partyDrawerOpen: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
+    partyRole: String = "guest",
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -236,8 +246,12 @@ fun PlayerOverlay(
         }
 
         // ── Bottom control dock (auto-hide) ────────────────────────
+        // v2.7.73 — In party mode the bottom dock is entirely
+        // suppressed; the new left-side PartyHostDrawer replaces it.
+        // Solo playback keeps the original auto-hide behaviour.
+        val inParty = partyVoice != null
         AnimatedVisibility(
-            visible  = !showFullLoader && dockVisible && sheet == SheetKind.None,
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
             enter    = fadeIn(tween(220)),
             exit     = fadeOut(tween(280)),
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -308,6 +322,22 @@ fun PlayerOverlay(
                 manager = partyVoice,
                 onActivity = bump,
                 modifier = Modifier.fillMaxSize(),
+            )
+            // v2.7.73 — Left-side slide-in drawer with party-specific
+            // controls (Play/Pause, Catch Up, Subtitles, Audio).
+            // Toggled by the remote's MENU button (see ExoPlayerActivity).
+            PartyHostDrawer(
+                manager      = partyVoice,
+                openFlow     = partyDrawerOpen,
+                role         = partyRole,
+                isPlaying    = playing,
+                onPlayPause  = onPlayPause,
+                onCatchUp    = { hostMs ->
+                    if (hostMs > 0L) onSeekTo(hostMs)
+                },
+                onOpenSubs   = { sheet = SheetKind.Subs },
+                onOpenAudio  = { sheet = SheetKind.Audio },
+                modifier     = Modifier.fillMaxSize(),
             )
         }
     }
@@ -1518,3 +1548,171 @@ private fun parseAvatarBg(avatarId: String): Color {
     return palette[((hash % palette.size) + palette.size) % palette.size]
 }
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2.7.73 — Watch Together left-side host menu (slide-in drawer)
+//
+// Toggled by KEYCODE_MENU (handled in ExoPlayerActivity.dispatchKeyEvent).
+// Closed by BACK or another MENU press.  When closed, the drawer is
+// fully out-of-tree so spatial focus can't trap into it.
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun PartyHostDrawer(
+    manager: PartyVoiceManager,
+    openFlow: StateFlow<Boolean>,
+    role: String,                                  // "host" or "guest"
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onCatchUp: (Long) -> Unit,
+    onOpenSubs: () -> Unit,
+    onOpenAudio: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val open by collectAsStateSafe(openFlow, false)
+    val hostPos by collectAsStateSafe(manager.hostPositionMs, 0L)
+    val firstBtnFocus = remember { FocusRequester() }
+
+    AnimatedVisibility(
+        visible  = open,
+        enter    = slideInHorizontally(
+            initialOffsetX = { -it },
+            animationSpec  = tween(220),
+        ) + fadeIn(tween(220)),
+        exit     = slideOutHorizontally(
+            targetOffsetX = { -it },
+            animationSpec = tween(200),
+        ) + fadeOut(tween(200)),
+        modifier = modifier,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Semi-transparent backdrop so the player dims behind it
+            // without going fully black (so the user can still see
+            // what's playing).
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x66000000)),
+            )
+            // The drawer itself — a slim vertical strip on the LEFT.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .width(124.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color(0xF20B1322), Color(0xCC0B1322)),
+                        ),
+                    )
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(Color(0x445DC8FF), Color(0x115DC8FF)),
+                        ),
+                        shape = RoundedCornerShape(0.dp),
+                    )
+                    .padding(vertical = 28.dp, horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = if (role == "host") "HOST" else "GUEST",
+                    color = CyanPrimary,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.8.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+
+                // 1) Play / Pause — both roles.
+                DrawerButton(
+                    icon  = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    label = if (isPlaying) "PAUSE" else "PLAY",
+                    onClick = onPlayPause,
+                    focusRequester = firstBtnFocus,
+                )
+
+                // 2) Catch up — guest only.  Hidden when host.
+                if (role != "host") {
+                    DrawerButton(
+                        icon  = Icons.Filled.Forward10,
+                        label = "CATCH UP",
+                        onClick = { onCatchUp(hostPos) },
+                    )
+                }
+
+                // 3) Subtitles — both roles.
+                DrawerButton(
+                    icon  = Icons.Filled.ClosedCaption,
+                    label = "SUBS",
+                    onClick = onOpenSubs,
+                )
+
+                // 4) Audio track — both roles.
+                DrawerButton(
+                    icon  = Icons.Filled.Audiotrack,
+                    label = "AUDIO",
+                    onClick = onOpenAudio,
+                )
+            }
+        }
+        // Auto-focus the first button so D-pad navigation engages
+        // the moment the drawer slides in.
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(240)
+            try { firstBtnFocus.requestFocus() } catch (_: Exception) {}
+        }
+    }
+}
+
+@Composable
+private fun DrawerButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val bg = if (focused) Color(0xFF1A3357) else Color(0xCC0F1A30)
+    val borderColor = if (focused) CyanPrimary else Color(0x445DC8FF)
+    var mod: Modifier = Modifier
+        .width(100.dp)
+        .height(82.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .background(bg)
+        .border(if (focused) 2.dp else 1.dp, borderColor, RoundedCornerShape(12.dp))
+    if (focusRequester != null) mod = mod.focusRequester(focusRequester)
+    mod = mod
+        .onFocusChanged { focused = it.isFocused }
+        .focusable()
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown &&
+                (ev.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                 ev.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
+                onClick(); true
+            } else false
+        }
+    Column(
+        modifier = mod,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (focused) Color.White else Color(0xFFB8D9F2),
+            modifier = Modifier.size(28.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            color = if (focused) Color.White else Color(0xFF94B8D6),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+    }
+}

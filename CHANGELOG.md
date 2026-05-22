@@ -7,6 +7,41 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.73 — Left-side party drawer (Play / Catch-Up / Subs / Audio)
+
+Built to your exact spec. In party mode the player chrome model is now:
+
+- **MENU** button on the remote → slides a vertical drawer in from the LEFT.
+- **MENU again** (or **BACK**) → slides it back out.
+- While the drawer is open:
+  - D-pad ▲ / ▼ navigates between buttons.
+  - OK fires the selected button.
+  - Emoji firing is suppressed (so you don't shoot reactions while picking subtitles).
+- While the drawer is closed:
+  - D-pad arrows fire emoji reactions (unchanged from v2.7.72).
+  - OK on the avatar records voice (unchanged).
+- The bottom Play/Pause control deck is **completely suppressed in party mode** — the left drawer is the only chrome.
+
+### Buttons (per role)
+- **Host**: Play/Pause · Subtitles · Audio
+- **Guest**: Play/Pause · **Catch Up** · Subtitles · Audio
+
+"Catch Up" reads the host's authoritative `position_ms` from the `state` broadcasts the server emits and seeks the guest's local player to it.
+
+### Visual design
+- Slim 124 dp strip on the left edge, full height.
+- Indigo gradient background with a faint cyan rim.
+- 100 × 82 dp cards stacked vertically, 14 dp gap.
+- Each card: monochrome icon (Material Filled) over a small monospace caps label.
+- Focused card: heavier 2 dp cyan border, brighter background, white icon/text.
+- Slide-in 220 ms, slide-out 200 ms with a fade.
+- Auto-focus the first button when the drawer opens so D-pad navigation engages instantly.
+
+### Files changed
+- `ExoPlayerActivity.kt`: `partyDrawerOpenFlow` state, `partyRole` extra, MENU/BACK rewiring in `dispatchKeyEvent`.
+- `PartyVoiceManager.kt`: new `hostPositionMs: StateFlow<Long>` sourced from `state` WS events.
+- `PlayerOverlay.kt`: new `PartyHostDrawer` + `DrawerButton` composables; bottom dock suppressed in party mode.
+
 ## v2.7.72 — Your gorgeous V2 logo + the actual emoji bounce-back fix
 
 ### New launcher icon (your design)

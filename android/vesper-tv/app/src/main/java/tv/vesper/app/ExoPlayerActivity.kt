@@ -144,19 +144,37 @@ class ExoPlayerActivity : ComponentActivity() {
         // key pings the activity timer so the dock auto-re-shows.
         if (event.action == KeyEvent.ACTION_DOWN) {
             if (inParty) {
+                val drawerOpen = partyDrawerOpenFlow.value
+                // v2.7.73 — BACK closes the drawer (instead of
+                // killing the player) when the drawer is up.
+                if (drawerOpen &&
+                    (event.keyCode == KeyEvent.KEYCODE_BACK ||
+                     event.keyCode == KeyEvent.KEYCODE_ESCAPE)) {
+                    partyDrawerOpenFlow.value = false
+                    return true
+                }
+                // v2.7.73 — MENU toggles the left-side drawer in
+                // party mode (replaces the old "open chrome"
+                // behaviour entirely, per user spec — they don't
+                // want the bottom Play/Pause control deck during
+                // a party at all).
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MENU,
+                    KeyEvent.KEYCODE_INFO,
+                    KeyEvent.KEYCODE_GUIDE,
+                    KeyEvent.KEYCODE_TV,
+                    KeyEvent.KEYCODE_SETTINGS,
+                    KeyEvent.KEYCODE_BUTTON_MODE -> {
+                        partyDrawerOpenFlow.value = !drawerOpen
+                        return true
+                    }
+                }
                 // Tap-to-react: instantly fire emoji + consume the
                 // event so spatial focus can't move the highlight.
+                // SKIPPED while the drawer is open — arrows then
+                // navigate the drawer buttons normally.
                 val emoji = dpadEmoji[event.keyCode]
-                if (emoji != null) {
-                    // v2.7.72 — Only fire on the FIRST keydown of a
-                    // press.  Holding the arrow auto-repeats keydown
-                    // events (~50 ms apart on most Android remotes),
-                    // which is why the user reported "extra three or
-                    // four after you've stopped pushing the button"
-                    // — Android continues delivering buffered
-                    // repeats even after KEY_UP.  Gating on
-                    // repeatCount == 0 means one press = exactly one
-                    // emoji, regardless of how long it's held.
+                if (emoji != null && !drawerOpen) {
                     if (event.repeatCount == 0) {
                         val now = System.currentTimeMillis()
                         if (now - lastReactionFireAt >= 400L) {
@@ -167,20 +185,6 @@ class ExoPlayerActivity : ComponentActivity() {
                         }
                     }
                     return true   // CONSUME — never reaches Compose focus
-                }
-                // Dedicated remote MENU / INFO / GUIDE button opens
-                // chrome.  Different remotes use different keycodes
-                // for the "options" button, so we accept several.
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_MENU,
-                    KeyEvent.KEYCODE_INFO,
-                    KeyEvent.KEYCODE_GUIDE,
-                    KeyEvent.KEYCODE_TV,
-                    KeyEvent.KEYCODE_SETTINGS,
-                    KeyEvent.KEYCODE_BUTTON_MODE -> {
-                        pingUserActivity()
-                        return true
-                    }
                 }
                 // OK / ENTER / center on the avatar should ONLY
                 // record voice.  We leave the event uncomsumed so
@@ -204,6 +208,12 @@ class ExoPlayerActivity : ComponentActivity() {
     // v2.7.60 — Native Watch Together voice manager.  Null when the
     // intent didn't supply party_code (solo playback).
     private var partyVoice: PartyVoiceManager? = null
+    // v2.7.73 — Watch Together left-side drawer (Play/Pause/Catch Up/
+    // Subs/Audio).  MENU on the remote toggles open; BACK closes.
+    // When open, D-pad arrows navigate the drawer buttons; when
+    // closed, D-pad arrows fire emoji reactions.
+    private val partyDrawerOpenFlow = MutableStateFlow(false)
+    private var partyRole: String = "guest"
 
     // Reactive player state for the Compose overlay
     private val isPlayingFlow = MutableStateFlow(false)
@@ -285,6 +295,7 @@ class ExoPlayerActivity : ComponentActivity() {
         val partyCode = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_CODE)
             ?.takeIf { it.isNotBlank() }
         if (partyCode != null) {
+            partyRole = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_ROLE) ?: "guest"
             // v2.7.64 — Voice manager init wrapped so a mic / WS / SDK
             // failure here can never crash the player.  Playback
             // continues without the voice dock if anything goes wrong.
@@ -572,6 +583,9 @@ class ExoPlayerActivity : ComponentActivity() {
                     userActivity    = userActivityFlow.asStateFlow(),
                     // v2.7.60 — native Watch Together voice dock
                     partyVoice      = partyVoice,
+                    // v2.7.73 — left-side drawer state + role.
+                    partyDrawerOpen = partyDrawerOpenFlow.asStateFlow(),
+                    partyRole       = partyRole,
                     onPlayPause = {
                         if (player.isPlaying) player.pause() else player.play()
                     },
