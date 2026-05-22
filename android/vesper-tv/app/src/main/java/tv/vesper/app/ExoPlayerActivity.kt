@@ -176,10 +176,21 @@ class ExoPlayerActivity : ComponentActivity() {
                 ?: "You"
             val avatarEmoji = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI)
                 ?: "\uD83C\uDFAC"
-            // Derive backend base URL from the ws URL by swapping protocols.
+            // v2.7.62 — Robust ws/wss → http/https conversion.  The
+            // old `.replaceFirst(Regex("^ws"), "http")` turned
+            // `wss://...` into `httpss://...` (regex matched the
+            // first two chars `ws` and prepended `http`), which broke
+            // the transcribe POST and produced "TRY AGAIN" in the
+            // status pill.  Handle both schemes explicitly.
             val backendBase = wsUrl
                 .substringBefore("/api/")
-                .replaceFirst(Regex("^ws"), "http")
+                .let { base ->
+                    when {
+                        base.startsWith("wss://") -> "https://" + base.removePrefix("wss://")
+                        base.startsWith("ws://")  -> "http://"  + base.removePrefix("ws://")
+                        else                      -> base
+                    }
+                }
             partyVoice = PartyVoiceManager(
                 ctx               = applicationContext,
                 partyCode         = partyCode,

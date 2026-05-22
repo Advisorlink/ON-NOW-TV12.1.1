@@ -7,6 +7,21 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.62 — Fix "TRY AGAIN" on voice transcribe — ws→http URL bug
+**From your video**: dock shows ✅, recording starts ✅, but transcribe fails with **TRY AGAIN**.
+
+**Root cause** — single character bug in URL conversion:
+```
+wsUrl       = "wss://rebrand-app-5.preview.emergentagent.com/api/watch-party/ws/ABC"
+backendBase = wsUrl.substringBefore("/api/").replaceFirst(Regex("^ws"), "http")
+            = "httpss://rebrand-app-5.preview.emergentagent.com"  ← extra "s"
+```
+The regex `^ws` matched the literal `ws` at the start of `wss://`, replaced it with `http`, leaving the trailing `s://` intact. The transcribe POST then went to `httpss://...` which fails DNS → HTTP error → "TRY AGAIN".
+
+**Fix**: replaced the regex with an explicit `when` block handling both `wss://` → `https://` and `ws://` → `http://`. The transcribe URL is now correctly formed.
+
+**About the other menu popping up**: that's the player chrome (top bar + control deck) showing because you pressed OK on the ☰ menu button — exactly what it's designed to do. If you'd prefer it to do something else (e.g. open a member list or settings sheet), let me know and I'll re-wire it.
+
 ## v2.7.61 — Party + simple-play paths now respect ExoPlayer setting
 **User**: "It's still opening libVLC even though I have ExoPlayer selected in Settings."
 
