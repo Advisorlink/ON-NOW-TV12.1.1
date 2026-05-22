@@ -7,6 +7,36 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.60 — NATIVE Watch Together voice dock inside ExoPlayer
+**The right fix**: the v2.7.55-58 voice dock was React-only, so it never rendered on top of the native ExoPlayer running on the HK1. This release rebuilds it natively in Kotlin/Compose so it appears DURING playback.
+
+### `PartyVoiceManager.kt` (new)
+- Native OkHttp WebSocket to `/api/watch-party/ws/{code}`.
+- Native `MediaRecorder` mic capture (AAC mono 16 kHz, 10 s ceiling).
+- Native multipart POST to `/api/stt/transcribe`.
+- Outbound `voice_message` broadcast on the WS.
+- Inbound `voice_message` parsed into `VoiceBubble` state flow; auto-expires after 8.2 s.
+- Owns its own `CoroutineScope` — released in `ExoPlayerActivity.onDestroy`.
+
+### `PlayerOverlay.kt` — new `PartyVoiceLayer` composable
+- Bottom-right horizontal dock: avatars (up to 4) + ☰ menu button. Cyan border ring.
+- Self avatar shows a small mic badge (cyan → red while recording).
+- Auto-focuses the first dock item ~280 ms after mount so D-pad LEFT/RIGHT navigation engages instantly.
+- Hold OK on self avatar → `startRecording()` on key DOWN, `stopRecording()` on key UP.
+- Floating voice bubbles rendered above the dock with sender name + avatar emoji + transcript.
+- Status pill above the dock: `● LISTENING…` (red) → `⟳ TRANSCRIBING…` (navy) → bubble appears + fades.
+
+### `ExoPlayerActivity.kt` — wiring
+- Reads `EXTRA_PARTY_CODE / EXTRA_PARTY_WS_URL / EXTRA_PARTY_MEMBER_ID / EXTRA_PARTY_DISPLAY_NAME / EXTRA_PARTY_AVATAR_EMOJI` (already forwarded by `WebAppInterface.playInternalRichV2`).
+- When `partyCode` is non-blank → instantiate `PartyVoiceManager` and pass it as a new `partyVoice` parameter to `PlayerOverlay`.
+- Released in `onDestroy()`.
+
+### What this gives you
+A party host on the HK1 box launching a movie now sees a glassmorphism dock in the bottom-right of the actual ExoPlayer. Hold OK on your own avatar → speak → release → 1-3 sec → transcript bubble appears on your screen AND every other party member's screen. Same flow for incoming voice messages.
+
+### About the React component
+`PartyVoiceDock.jsx` (and `VoiceReactionButton.jsx`) is unchanged — still mounted in `Player.jsx` for the **mobile-web** experience (where playback IS React-based). The native dock here is for the HK1.
+
 ## v2.7.59 — Voice dock now reachable from D-pad (ArrowRight from anywhere)
 **Looking at your video**: the dock IS rendered (confirmed by frame analysis — avatars + hamburger visible bottom-right). The bug was **focus**: the player's bottom-center control deck stole initial focus, and there was no D-pad path from there over to the dock.
 

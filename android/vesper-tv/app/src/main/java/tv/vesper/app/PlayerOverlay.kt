@@ -23,9 +23,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,6 +63,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -140,6 +143,9 @@ fun PlayerOverlay(
     subtitleTracks: StateFlow<List<TrackOption>>,
     streams: StateFlow<List<StreamOption>>,
     userActivity: StateFlow<Long>,
+    // v2.7.60 — Native Watch Together voice dock.  Null when not in a
+    // party (or when party_code wasn't supplied via intent extras).
+    partyVoice: PartyVoiceManager? = null,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -293,6 +299,16 @@ fun PlayerOverlay(
                 )
                 SheetKind.None -> Unit
             }
+        }
+
+        // v2.7.60 — Watch Together voice dock + voice bubbles overlay.
+        // Renders only when partyVoice != null (i.e. an active party).
+        if (partyVoice != null) {
+            PartyVoiceLayer(
+                manager = partyVoice,
+                onActivity = bump,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
@@ -1098,3 +1114,290 @@ private fun <T> collectAsStateSafe(
     LaunchedEffect(flow) { flow.collect { state.value = it } }
     return state
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2.7.60 — Native Watch Together voice dock + bubbles
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun PartyVoiceLayer(
+    manager: PartyVoiceManager,
+    onActivity: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val members by collectAsStateSafe(manager.members, emptyList())
+    val bubbles by collectAsStateSafe(manager.bubbles, emptyList())
+    val recState by collectAsStateSafe(manager.recState, PartyVoiceManager.RecState.Idle)
+
+    Box(modifier = modifier) {
+        bubbles.forEachIndexed { i, b -> VoiceBubbleCard(b, index = i) }
+
+        PartyVoiceDockRow(
+            manager = manager,
+            members = members,
+            recState = recState,
+            onActivity = onActivity,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 36.dp, bottom = 56.dp),
+        )
+
+        if (recState != PartyVoiceManager.RecState.Idle) {
+            StatusPill(
+                state = recState,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 36.dp, bottom = 116.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PartyVoiceDockRow(
+    manager: PartyVoiceManager,
+    members: List<PartyVoiceManager.Member>,
+    recState: PartyVoiceManager.RecState,
+    onActivity: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val visible = members.take(4)
+    val firstFocus = remember { FocusRequester() }
+    var pressing by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(40.dp))
+            .background(Color(0xB3080E1A))
+            .border(1.dp, Color(0x4D5DC8FF), RoundedCornerShape(40.dp))
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        visible.forEachIndexed { i, m ->
+            val isSelf = m.id == manager.selfMemberIdValue
+            DockAvatar(
+                member = m,
+                isSelf = isSelf,
+                isRecording = isSelf && recState == PartyVoiceManager.RecState.Recording,
+                pressing = isSelf && pressing,
+                focusRequester = if (i == 0) firstFocus else null,
+                onHoldStart = if (isSelf) {{
+                        onActivity(); pressing = true; manager.startRecording()
+                }} else null,
+                onHoldEnd = if (isSelf) {{
+                        pressing = false; manager.stopRecording()
+                }} else null,
+            )
+        }
+        DockMenuButton(onActivity = onActivity)
+    }
+
+    LaunchedEffect(visible.isNotEmpty()) {
+        if (visible.isNotEmpty()) {
+            kotlinx.coroutines.delay(280)
+            try { firstFocus.requestFocus() } catch (_: Exception) {}
+        }
+    }
+}
+
+@Composable
+private fun DockAvatar(
+    member: PartyVoiceManager.Member,
+    isSelf: Boolean,
+    isRecording: Boolean,
+    pressing: Boolean,
+    focusRequester: FocusRequester?,
+    onHoldStart: (() -> Unit)?,
+    onHoldEnd: (() -> Unit)?,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val scale = when {
+        pressing    -> 0.94f
+        focused     -> 1.08f
+        isRecording -> 1.05f
+        else        -> 1f
+    }
+    val borderColor = when {
+        isRecording -> Color(0xFFFF5050)
+        focused     -> CyanPrimary
+        else        -> Color(0x55FFFFFF)
+    }
+    val interactive = onHoldStart != null
+
+    var mod: Modifier = Modifier
+        .size(52.dp)
+        .clip(CircleShape)
+        .background(parseAvatarBg(member.avatar))
+        .border(if (focused || isRecording) 2.dp else 1.dp, borderColor, CircleShape)
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    if (interactive) {
+        mod = mod
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onKeyEvent { ev ->
+                val isOkKey = (ev.key == Key.Enter ||
+                               ev.key == Key.DirectionCenter ||
+                               ev.key == Key.NumPadEnter)
+                if (isOkKey) {
+                    when (ev.type) {
+                        KeyEventType.KeyDown -> { onHoldStart?.invoke(); true }
+                        KeyEventType.KeyUp   -> { onHoldEnd?.invoke();   true }
+                        else                 -> false
+                    }
+                } else false
+            }
+    }
+
+    Box(
+        modifier = mod.then(
+            Modifier.graphicsLayer {
+                scaleX = scale; scaleY = scale
+            }
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        val glyph = member.avatarEmoji.ifBlank {
+            member.name.firstOrNull()?.toString() ?: "?"
+        }
+        Text(
+            text = glyph,
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        if (isSelf) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(if (isRecording) Color(0xFFFF5050) else Color(0xCC0B1322))
+                    .border(1.5.dp, CyanPrimary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "🎤", fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DockMenuButton(onActivity: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val scale = if (focused) 1.08f else 1f
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(Color(0xD90B1322))
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) CyanPrimary else Color(0x885DC8FF),
+                shape = CircleShape,
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onKeyEvent { ev ->
+                val isOkKey = (ev.key == Key.Enter ||
+                               ev.key == Key.DirectionCenter ||
+                               ev.key == Key.NumPadEnter)
+                if (isOkKey && ev.type == KeyEventType.KeyDown) {
+                    onActivity(); true
+                } else false
+            }
+            .then(
+                Modifier.graphicsLayer {
+                    scaleX = scale; scaleY = scale
+                }
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = "☰", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun StatusPill(state: PartyVoiceManager.RecState, modifier: Modifier = Modifier) {
+    val (label, bg) = when (state) {
+        PartyVoiceManager.RecState.Recording     -> "● LISTENING…"    to Color(0xE6FF5050)
+        PartyVoiceManager.RecState.Transcribing  -> "⟳ TRANSCRIBING…" to Color(0xE60B1322)
+        PartyVoiceManager.RecState.Blocked       -> "MIC BLOCKED"     to Color(0xE60B1322)
+        PartyVoiceManager.RecState.Error         -> "TRY AGAIN"       to Color(0xE60B1322)
+        PartyVoiceManager.RecState.Idle          -> "" to Color.Transparent
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(bg)
+            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(20.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+    }
+}
+
+@Composable
+private fun VoiceBubbleCard(bubble: PartyVoiceManager.VoiceBubble, index: Int) {
+    val laneOffset = (12 + (index % 4) * 17).dp
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = laneOffset, bottom = 180.dp)
+                .widthIn(min = 200.dp, max = 360.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xEB0B1322), Color(0xEB142846)),
+                    ),
+                )
+                .border(1.dp, Color(0x735DC8FF), RoundedCornerShape(18.dp))
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+        ) {
+            val avatarPrefix = if (bubble.senderAvatarEmoji.isNotBlank())
+                "${bubble.senderAvatarEmoji}  " else ""
+            val label = if (bubble.mine) "You" else bubble.senderName.ifBlank { "Voice" }
+            Text(
+                text = "$avatarPrefix$label",
+                color = CyanPrimary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = bubble.text,
+                color = Color.White,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+            )
+        }
+    }
+}
+
+private fun parseAvatarBg(avatarId: String): Color {
+    val hash = avatarId.hashCode()
+    val palette = listOf(
+        Color(0xFF1B3A6E),
+        Color(0xFF5D2C8A),
+        Color(0xFF2A8060),
+        Color(0xFF8A492C),
+        Color(0xFF6E1B40),
+        Color(0xFF1B6E68),
+        Color(0xFF8A6C2C),
+        Color(0xFF2C508A),
+    )
+    return palette[((hash % palette.size) + palette.size) % palette.size]
+}
+

@@ -114,6 +114,10 @@ class ExoPlayerActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    // v2.7.60 — Native Watch Together voice manager.  Null when the
+    // intent didn't supply party_code (solo playback).
+    private var partyVoice: PartyVoiceManager? = null
+
     // Reactive player state for the Compose overlay
     private val isPlayingFlow = MutableStateFlow(false)
     private val positionMsFlow = MutableStateFlow(0L)
@@ -157,6 +161,37 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+
+        // v2.7.60 — Native Watch Together voice manager.  When the
+        // intent carries a party_code, we connect a WebSocket to the
+        // party hub and render the avatar dock + voice bubbles via
+        // PlayerOverlay's PartyVoiceLayer composable.
+        val partyCode = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_CODE)
+            ?.takeIf { it.isNotBlank() }
+        if (partyCode != null) {
+            val wsUrl = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL).orEmpty()
+            val memberId = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_MEMBER_ID)
+                ?: "self-${System.currentTimeMillis()}"
+            val displayName = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME)
+                ?: "You"
+            val avatarEmoji = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI)
+                ?: "\uD83C\uDFAC"
+            // Derive backend base URL from the ws URL by swapping protocols.
+            val backendBase = wsUrl
+                .substringBefore("/api/")
+                .replaceFirst(Regex("^ws"), "http")
+            partyVoice = PartyVoiceManager(
+                ctx               = applicationContext,
+                partyCode         = partyCode,
+                partyWsUrl        = wsUrl,
+                backendBase       = backendBase,
+                selfMemberId      = memberId,
+                selfDisplayName   = displayName,
+                selfAvatarId      = "a1",
+                selfAvatarEmoji   = avatarEmoji,
+                initialMembersJson = null,
+            ).also { it.connect() }
+        }
 
         // Parse alternate streams JSON for the in-player stream picker.
         val streamsJson = intent.getStringExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON)
@@ -359,6 +394,8 @@ class ExoPlayerActivity : ComponentActivity() {
                     streams         = streamsFlow.asStateFlow(),
                     // v2.7.54 — pump activity from Activity.dispatchKeyEvent
                     userActivity    = userActivityFlow.asStateFlow(),
+                    // v2.7.60 — native Watch Together voice dock
+                    partyVoice      = partyVoice,
                     onPlayPause = {
                         if (player.isPlaying) player.pause() else player.play()
                     },
@@ -451,6 +488,7 @@ class ExoPlayerActivity : ComponentActivity() {
         super.onDestroy()
         try { pollJob?.cancel() } catch (_: Exception) {}
         try { pollScope.cancel() } catch (_: Exception) {}
+        try { partyVoice?.release() } catch (_: Exception) {}
         try { player.release() } catch (_: Exception) {}
     }
 
