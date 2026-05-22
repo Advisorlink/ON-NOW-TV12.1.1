@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.64 — Surface the REAL voice-to-text error on the player pill
+
+**You reported**: after v2.7.62/63 the transcription pill *still* shows the same "TRY AGAIN" — meaning the URL-conversion fix wasn't the (only) root cause, or wasn't picked up by the build.
+
+Because we can't read your logcat from here, this release upgrades the pill so it shows you **exactly why** the transcribe call is failing — directly on the TV screen, no logcat needed.
+
+**What changes for you**:
+- When the pill turns red, it now reads one of:
+  - `✕ HTTP 401` / `✕ HTTP 502` / `✕ HTTP 413` — the backend rejected the audio (auth, provider error, or too large)
+  - `✕ UnknownHostException: …` — DNS / SSL / network reach failure
+  - `✕ SSLHandshakeException: …` — TLS issue (ECDSA vs RSA again?)
+  - `✕ NO BACKEND URL` — the ws→https conversion produced an empty string (intent extra missing)
+  - `✕ NO SPEECH` — Whisper got the file but transcribed nothing (silence / wrong codec)
+  - `✕ TOO SHORT` — the recording was < 400 ms / < 800 B and was dropped before upload
+- The pill now lingers for **5 seconds** on error (was 2.2 s) so you have time to read it.
+
+**Under the hood**:
+- `PartyVoiceManager` now derives the transcribe URL with a salvage path: if `backendBase` is somehow blank, it re-parses `partyWsUrl` directly. Eliminates the "empty URL" failure mode entirely.
+- Verbose `Log.i` / `Log.e` on `PartyVoice` tag with `postUrl`, response code, body head, exception class — so we can `adb logcat -s PartyVoice` if you can plug the box in.
+- Backend `/api/stt/transcribe` was re-verified end-to-end with curl from this preview host: returns `200 {"text":"…"}` correctly for `audio/mp4` and `audio/wav` payloads.
+
+**Action**: please sideload v2.7.64, repeat the voice flow, and **tell me the exact red-pill text** you see. With that I can fix the actual cause in one shot.
+
 ## v2.7.63 — Avatar OK is recording-ONLY · ☰ menu actually opens the chrome
 **You spotted it correctly**: pressing OK on the avatar was popping up the player chrome (Play/Pause/Audio control deck). And the ☰ button did nothing visible.
 

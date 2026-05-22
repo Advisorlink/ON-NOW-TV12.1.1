@@ -82,11 +82,17 @@ class PartyVoiceManager(
     private val _bubbles      = MutableStateFlow<List<VoiceBubble>>(emptyList())
     private val _recState     = MutableStateFlow(RecState.Idle)
     private val _wsConnected  = MutableStateFlow(false)
+    // v2.7.64 — surface the actual error so the UI can show *why*
+    // transcription failed instead of a generic "TRY AGAIN".  Kept as
+    // a short human-readable string (≤ 80 chars), cleared back to ""
+    // when state returns to Idle.
+    private val _lastError    = MutableStateFlow("")
 
     val members: StateFlow<List<Member>>          = _members.asStateFlow()
     val bubbles: StateFlow<List<VoiceBubble>>     = _bubbles.asStateFlow()
     val recState: StateFlow<RecState>             = _recState.asStateFlow()
     val wsConnected: StateFlow<Boolean>           = _wsConnected.asStateFlow()
+    val lastError: StateFlow<String>              = _lastError.asStateFlow()
     val selfMemberIdValue: String                 = selfMemberId
 
     // ── WebSocket ─────────────────────────────────────────────────
@@ -258,8 +264,15 @@ class PartyVoiceManager(
             return
         }
         if (elapsed < 400 || file.length() < 800) {
+            Log.w(TAG, "STT dropped: recording too short (elapsed=${elapsed}ms size=${file.length()}B)")
             try { file.delete() } catch (_: Exception) {}
-            _recState.value = RecState.Idle
+            scope.launch {
+                _lastError.value = "TOO SHORT"
+                _recState.value = RecState.Error
+                kotlinx.coroutines.delay(1800L)
+                _recState.value = RecState.Idle
+                _lastError.value = ""
+            }
             return
         }
         // Upload + transcribe in background
@@ -276,7 +289,42 @@ class PartyVoiceManager(
     }
 
     private suspend fun uploadAndBroadcast(file: File) {
-        withContext(Dispatchers.Main) { _recState.value = RecState.Transcribing }
+        withContext(Dispatchers.Main) {
+            _recState.value = RecState.Transcribing
+            _lastError.value = ""
+        }
+        // v2.7.64 — Build the transcribe URL explicitly with safety net.
+        // If we somehow got an empty backendBase (intent extra missing,
+        // unexpected ws URL format), derive https origin from partyWsUrl
+        // directly so we never POST to a relative URL.
+        val postUrl: String = run {
+            val base = backendBase.trim().trimEnd('/')
+            if (base.startsWith("https://") || base.startsWith("http://")) {
+                "$base/api/stt/transcribe"
+            } else {
+                // Salvage: parse partyWsUrl ourselves.
+                val ws = partyWsUrl.trim()
+                val origin = when {
+                    ws.startsWith("wss://") -> "https://" + ws.removePrefix("wss://").substringBefore("/")
+                    ws.startsWith("ws://")  -> "http://"  + ws.removePrefix("ws://").substringBefore("/")
+                    else -> ""
+                }
+                if (origin.isBlank()) "" else "$origin/api/stt/transcribe"
+            }
+        }
+        Log.i(TAG, "STT upload starting: file=${file.length()}B postUrl=$postUrl backendBase=$backendBase wsUrl=$partyWsUrl")
+        if (postUrl.isBlank()) {
+            Log.e(TAG, "STT abort: no transcribe URL could be derived (backendBase='$backendBase', partyWsUrl='$partyWsUrl')")
+            try { file.delete() } catch (_: Exception) {}
+            withContext(Dispatchers.Main) {
+                _lastError.value = "NO BACKEND URL"
+                _recState.value = RecState.Error
+                kotlinx.coroutines.delay(5000L)
+                _recState.value = RecState.Idle
+                _lastError.value = ""
+            }
+            return
+        }
         try {
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -287,19 +335,41 @@ class PartyVoiceManager(
                 )
                 .build()
             val req = Request.Builder()
-                .url("$backendBase/api/stt/transcribe")
+                .url(postUrl)
                 .post(body)
                 .build()
             val resp = client.newCall(req).execute()
-            val text = if (resp.isSuccessful) {
-                val json = JSONObject(resp.body?.string() ?: "{}")
-                (json.optString("text", "") ?: "").trim()
-            } else ""
+            val code = resp.code
+            val raw = try { resp.body?.string().orEmpty() } catch (_: Exception) { "" }
             resp.close()
             try { file.delete() } catch (_: Exception) {}
+            Log.i(TAG, "STT response: code=$code bodyLen=${raw.length} bodyHead=${raw.take(200)}")
 
+            if (code !in 200..299) {
+                val short = "HTTP $code"
+                withContext(Dispatchers.Main) {
+                    _lastError.value = short
+                    _recState.value = RecState.Error
+                    kotlinx.coroutines.delay(5000L)
+                    _recState.value = RecState.Idle
+                    _lastError.value = ""
+                }
+                return
+            }
+            val text = try {
+                JSONObject(raw).optString("text", "").trim()
+            } catch (e: Exception) {
+                Log.w(TAG, "STT body parse failed", e)
+                ""
+            }
             if (text.isBlank()) {
-                withContext(Dispatchers.Main) { _recState.value = RecState.Idle }
+                withContext(Dispatchers.Main) {
+                    _lastError.value = "NO SPEECH"
+                    _recState.value = RecState.Error
+                    kotlinx.coroutines.delay(2500L)
+                    _recState.value = RecState.Idle
+                    _lastError.value = ""
+                }
                 return
             }
             // Broadcast on WS
@@ -321,14 +391,18 @@ class PartyVoiceManager(
             withContext(Dispatchers.Main) {
                 pushBubble(mine)
                 _recState.value = RecState.Idle
+                _lastError.value = ""
             }
         } catch (e: Exception) {
-            Log.w(TAG, "upload/transcribe failed", e)
+            Log.e(TAG, "STT upload/transcribe threw: ${e.javaClass.simpleName}: ${e.message}", e)
             try { file.delete() } catch (_: Exception) {}
+            val short = "${e.javaClass.simpleName}: ${(e.message ?: "").take(60)}"
             withContext(Dispatchers.Main) {
+                _lastError.value = short
                 _recState.value = RecState.Error
-                kotlinx.coroutines.delay(2200L)
+                kotlinx.coroutines.delay(5000L)
                 _recState.value = RecState.Idle
+                _lastError.value = ""
             }
         }
     }

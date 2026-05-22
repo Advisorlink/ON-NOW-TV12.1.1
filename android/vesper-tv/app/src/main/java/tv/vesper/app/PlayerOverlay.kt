@@ -1128,6 +1128,7 @@ private fun PartyVoiceLayer(
     val members by collectAsStateSafe(manager.members, emptyList())
     val bubbles by collectAsStateSafe(manager.bubbles, emptyList())
     val recState by collectAsStateSafe(manager.recState, PartyVoiceManager.RecState.Idle)
+    val lastError by collectAsStateSafe(manager.lastError, "")
 
     Box(modifier = modifier) {
         bubbles.forEachIndexed { i, b -> VoiceBubbleCard(b, index = i) }
@@ -1145,6 +1146,7 @@ private fun PartyVoiceLayer(
         if (recState != PartyVoiceManager.RecState.Idle) {
             StatusPill(
                 state = recState,
+                errorText = lastError,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 36.dp, bottom = 116.dp),
@@ -1330,12 +1332,23 @@ private fun DockMenuButton(onOpenChrome: () -> Unit) {
 }
 
 @Composable
-private fun StatusPill(state: PartyVoiceManager.RecState, modifier: Modifier = Modifier) {
+private fun StatusPill(
+    state: PartyVoiceManager.RecState,
+    errorText: String = "",
+    modifier: Modifier = Modifier,
+) {
     val (label, bg) = when (state) {
         PartyVoiceManager.RecState.Recording     -> "● LISTENING…"    to Color(0xE6FF5050)
         PartyVoiceManager.RecState.Transcribing  -> "⟳ TRANSCRIBING…" to Color(0xE60B1322)
         PartyVoiceManager.RecState.Blocked       -> "MIC BLOCKED"     to Color(0xE60B1322)
-        PartyVoiceManager.RecState.Error         -> "TRY AGAIN"       to Color(0xE60B1322)
+        PartyVoiceManager.RecState.Error         -> {
+            // v2.7.64 — surface the actual error code (HTTP 401 / SSL /
+            // unknown host / NO SPEECH) so we can debug from the TV
+            // without needing logcat access.
+            val detail = errorText.trim()
+            if (detail.isBlank()) "TRY AGAIN" to Color(0xE60B1322)
+            else "✕ $detail".take(48) to Color(0xE60B1322)
+        }
         PartyVoiceManager.RecState.Idle          -> "" to Color.Transparent
     }
     Box(
