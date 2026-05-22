@@ -7,6 +7,18 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.75 — Compile fix for v2.7.74 Live Guide overlay
+
+Build was failing with `LiveGuideOverlay.kt:435:20 Unresolved reference: type` (and would have failed on `nativeKeyEvent` next). Compose's `KeyEvent.type` is an extension property requiring explicit import — same pattern as `PlayerOverlay.kt`.
+
+Added:
+```kotlin
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
+```
+
+No behavioural changes — just the missing imports.
+
 ## v2.7.74 — Native Live TV Guide overlay (ExoPlayer)
 
 Premium in-player guide ported into the new ExoPlayer activity. Built to the user's locked-in mockup, no iteration.

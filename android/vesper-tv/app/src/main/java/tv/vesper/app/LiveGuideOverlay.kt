@@ -52,6 +52,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -432,7 +434,7 @@ private fun ChannelRow(
         }
         .focusable()
         .onKeyEvent { ev ->
-            if (ev.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
+            if (ev.type == KeyEventType.KeyDown) {
                 when (ev.nativeKeyEvent.keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_CENTER,
                     android.view.KeyEvent.KEYCODE_ENTER -> { onClick(); true }
