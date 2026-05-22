@@ -319,7 +319,7 @@ class PartyVoiceManager(
             withContext(Dispatchers.Main) {
                 _lastError.value = "NO BACKEND URL"
                 _recState.value = RecState.Error
-                kotlinx.coroutines.delay(5000L)
+                kotlinx.coroutines.delay(10_000L)
                 _recState.value = RecState.Idle
                 _lastError.value = ""
             }
@@ -350,7 +350,7 @@ class PartyVoiceManager(
                 withContext(Dispatchers.Main) {
                     _lastError.value = short
                     _recState.value = RecState.Error
-                    kotlinx.coroutines.delay(5000L)
+                    kotlinx.coroutines.delay(10_000L)
                     _recState.value = RecState.Idle
                     _lastError.value = ""
                 }
@@ -366,7 +366,7 @@ class PartyVoiceManager(
                 withContext(Dispatchers.Main) {
                     _lastError.value = "NO SPEECH"
                     _recState.value = RecState.Error
-                    kotlinx.coroutines.delay(2500L)
+                    kotlinx.coroutines.delay(10_000L)
                     _recState.value = RecState.Idle
                     _lastError.value = ""
                 }
@@ -400,7 +400,7 @@ class PartyVoiceManager(
             withContext(Dispatchers.Main) {
                 _lastError.value = short
                 _recState.value = RecState.Error
-                kotlinx.coroutines.delay(5000L)
+                kotlinx.coroutines.delay(10_000L)
                 _recState.value = RecState.Idle
                 _lastError.value = ""
             }

@@ -7,6 +7,20 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.65 — BIG, readable error panel on voice-transcribe failure
+
+**Why**: In v2.7.64 the diagnostic text was rendered in an 11 sp pill — too small to read on camera, and a video capture flattened it back to a generic-looking red badge. This release makes the error literally impossible to miss.
+
+**Changes**:
+- Voice-error pill replaced with a **bordered red panel** containing two lines:
+  - Line 1: `VOICE ERROR` (small label)
+  - Line 2: the *actual* failure (e.g. `HTTP 502`, `UnknownHostException: …`, `SSLHandshakeException`, `NO BACKEND URL`, `NO SPEECH`, `TOO SHORT`) at **18 sp bold monospace** — easy to read across the room and survives a phone photo.
+- White 2 dp border on a strong red background so it stands out against any backdrop.
+- Error panel now stays visible for **10 seconds** (up from 5 s in v2.7.64, 2.2 s before).
+- Non-error states (Listening, Transcribing, Mic Blocked) keep the original compact pill look.
+
+**Action**: rebuild → sideload → trigger voice once → snap a still photo of the red panel and send it. The big bottom line tells me the exact cause.
+
 ## v2.7.64 — Surface the REAL voice-to-text error on the player pill
 
 **You reported**: after v2.7.62/63 the transcription pill *still* shows the same "TRY AGAIN" — meaning the URL-conversion fix wasn't the (only) root cause, or wasn't picked up by the build.

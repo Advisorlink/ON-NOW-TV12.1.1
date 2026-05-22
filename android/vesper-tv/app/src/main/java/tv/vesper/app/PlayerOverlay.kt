@@ -1337,19 +1337,45 @@ private fun StatusPill(
     errorText: String = "",
     modifier: Modifier = Modifier,
 ) {
+    // v2.7.65 — error variant is now a big multi-line panel so the
+    // diagnostic text (HTTP code / exception class) is readable from
+    // across the room and survives a phone-camera capture.  Non-error
+    // states keep the original compact pill look.
+    if (state == PartyVoiceManager.RecState.Error) {
+        val detail = errorText.trim().ifBlank { "TRY AGAIN" }
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xF2B91C1C))
+                .border(2.dp, Color.White, RoundedCornerShape(14.dp))
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+        ) {
+            Column {
+                Text(
+                    text = "VOICE ERROR",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.6.sp,
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+                Text(
+                    text = detail,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        return
+    }
     val (label, bg) = when (state) {
         PartyVoiceManager.RecState.Recording     -> "● LISTENING…"    to Color(0xE6FF5050)
         PartyVoiceManager.RecState.Transcribing  -> "⟳ TRANSCRIBING…" to Color(0xE60B1322)
         PartyVoiceManager.RecState.Blocked       -> "MIC BLOCKED"     to Color(0xE60B1322)
-        PartyVoiceManager.RecState.Error         -> {
-            // v2.7.64 — surface the actual error code (HTTP 401 / SSL /
-            // unknown host / NO SPEECH) so we can debug from the TV
-            // without needing logcat access.
-            val detail = errorText.trim()
-            if (detail.isBlank()) "TRY AGAIN" to Color(0xE60B1322)
-            else "✕ $detail".take(48) to Color(0xE60B1322)
-        }
-        PartyVoiceManager.RecState.Idle          -> "" to Color.Transparent
+        PartyVoiceManager.RecState.Idle, PartyVoiceManager.RecState.Error -> "" to Color.Transparent
     }
     Box(
         modifier = modifier
