@@ -97,6 +97,12 @@ export default function Player() {
     const imdbId = params.get('imdbId');
     // Watch Together — only present when arrived via a party.
     const partyCode = params.get('party') || '';
+    /* v2.7.58 — Debug-only flag: `?test-dock=1` forces the
+     * Watch Together voice dock to render even in solo playback so
+     * the user can verify mic recording / transcription / bubble
+     * without setting up a 2-device party.  Never set in production
+     * navigation; only for hand-testing. */
+    const showDockForTesting = params.get('test-dock') === '1';
     const partyStartPositionMs = parseInt(params.get('position_ms') || '0', 10) || 0;
 
     const videoRef = useRef(null);
@@ -1250,11 +1256,24 @@ export default function Player() {
                 horizontal pill: party-member avatars + menu button.
                 D-pad LEFT/RIGHT navigates.  Hold OK on your own
                 avatar = record voice (10s max).  Tap menu icon =
-                show the player chrome (top bar + control deck). */}
-            {partyCode && (
+                show the player chrome (top bar + control deck).
+                v2.7.58 — also rendered when `?test-dock=1` so a
+                solo user can hand-test the recording flow. */}
+            {(partyCode || showDockForTesting) && (
                 <PartyVoiceDock
-                    members={partyMembers}
-                    selfMemberId={partyMemberIdRef.current}
+                    members={
+                        partyMembers.length > 0
+                            ? partyMembers
+                            : [{
+                                id: 'self-test',
+                                name: 'You',
+                                avatar: 'a1',
+                                ready: true,
+                            }]
+                    }
+                    selfMemberId={
+                        partyMemberIdRef.current || 'self-test'
+                    }
                     selfAvatarEmoji={partySelfAvatarEmoji || ''}
                     wsRef={partyWsRef}
                     onOpenMenu={() => setChromeVisible(true)}

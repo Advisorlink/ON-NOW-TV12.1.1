@@ -7,6 +7,30 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.58 — `?test-dock=1` query flag for hand-testing voice dock solo
+Adds a tiny debug flag so the user can verify the v2.7.57 voice dock
+(mic recording + Whisper transcription + bubble rendering) WITHOUT
+setting up a Watch Together party.
+
+### Usage
+Append `?test-dock=1` to the player URL on the HK1 (or from any browser):
+```
+…/#/player?stream=<url>&test-dock=1
+```
+…and the bottom-right dock will render with a synthetic `[{id:'self-test', name:'You', avatar:'a1'}]` roster.  Hold OK on the avatar →
+records → transcribes → bubble appears locally.
+
+### Important: this does NOT change normal playback
+The dock continues to render ONLY when `partyCode` is set OR
+`test-dock=1` is in the URL.  Solo movie watchers see the regular
+player UI as before — no clutter.
+
+### Note on "the dock needs a multi-member party" claim
+The dock has ALWAYS worked with a 1-member party (just the host).
+`partyCode` is set from the URL — it doesn't gate on `members.length > 1`.
+Starting Watch Together as a host and pressing "Start watching" without
+guests is already enough to see + use the dock.
+
 ## v2.7.57 — Watch Together voice dock redesigned (D-pad navigable)
 **User feedback on v2.7.55/56**: "the buttons and everything are crap on Watch Together. They look like crap. I can't move anywhere, can't get to the emoji, can't do voice recording. The emojis should stay on screen the whole time. Need a menu button beside the emojis. Move LEFT/RIGHT between them. Hold OK on your own avatar to talk."
 
