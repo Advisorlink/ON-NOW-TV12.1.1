@@ -16,6 +16,7 @@ import {
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
 import PartyReactions from '@/components/PartyReactions';
+import VoiceReactionButton from '@/components/VoiceReactionButton';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
@@ -551,6 +552,25 @@ export default function Player() {
             setPartyReactions((prev) => prev.filter((b) => b.id !== bubble.id));
         }, 2700);
     }, []);
+    // v2.7.55 — Voice-message bubbles stay on screen 8 s minimum
+    // per user spec (vs. ~3 s for emoji reactions).
+    const spawnVoiceBubble = React.useCallback((text, memberName, avatarEmoji) => {
+        const bubble = PartyReactions.nextVoiceBubble(text, memberName, avatarEmoji);
+        setPartyReactions((prev) => [...prev, bubble]);
+        setTimeout(() => {
+            setPartyReactions((prev) => prev.filter((b) => b.id !== bubble.id));
+        }, 8200);
+    }, []);
+
+    // Current user's avatar emoji (used to label outgoing voice
+    // messages so receivers see which party member sent them).
+    const [partySelfAvatarEmoji, setPartySelfAvatarEmoji] = useState('');
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem('vesper-party-self-avatar-emoji') || '';
+            if (raw) setPartySelfAvatarEmoji(raw);
+        } catch { /* private mode */ }
+    }, [partyCode]);
 
     // Hook up the D-pad-hold-2-seconds reaction sender.  Only active
     // when we're in a party (partyCode set).
@@ -664,6 +684,17 @@ export default function Player() {
                 const myId = partyMemberIdRef.current;
                 if (msg.member && msg.member.id === myId) return;
                 spawnReaction(msg.emoji, msg.member?.name || '');
+                return;
+            }
+            // v2.7.55 — Incoming voice message (transcribed by /api/stt).
+            if (msg.type === 'voice_message' && msg.text) {
+                const myId = partyMemberIdRef.current;
+                if (msg.member && msg.member.id === myId) return; // already echoed locally
+                spawnVoiceBubble(
+                    msg.text,
+                    msg.member?.name || '',
+                    msg.member?.avatar_emoji || '',
+                );
                 return;
             }
             if (msg.type !== 'state') return;
@@ -1214,6 +1245,28 @@ export default function Player() {
                 above the video but below the top bar so the BACK
                 button remains pressable.  pointer-events: none. */}
             {partyCode && <PartyReactions reactions={partyReactions} />}
+
+            {/* v2.7.55 — Voice-to-text reaction button.  Floats in
+                the bottom-right corner during party playback.  Hold
+                to record (max 10 s) → transcribed via Whisper →
+                broadcast to all party members as a text bubble. */}
+            {partyCode && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        right: '3vw',
+                        bottom: '10vh',
+                        zIndex: 96,
+                        pointerEvents: 'auto',
+                    }}
+                >
+                    <VoiceReactionButton
+                        wsRef={partyWsRef}
+                        avatarEmoji={partySelfAvatarEmoji || ''}
+                        onLocalEcho={(text) => spawnVoiceBubble(text, 'YOU', partySelfAvatarEmoji || '')}
+                    />
+                </div>
+            )}
 
             {/* Top bar — auto-hides during playback so the screen
                 stays cinematic clean.  Forced visible while a

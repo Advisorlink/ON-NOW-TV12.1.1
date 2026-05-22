@@ -243,7 +243,25 @@ class MainActivity : AppCompatActivity() {
             isHorizontalScrollBarEnabled = false
 
             webViewClient = VesperWebViewClient()
-            webChromeClient = WebChromeClient()
+            // v2.7.55 — Custom WebChromeClient that grants the WebView
+            // microphone access (needed for the Watch Together voice
+            // reactions feature).  RECORD_AUDIO is already declared
+            // in the manifest, so this only forwards the WebView's
+            // request to the Android system mic.
+            webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                    if (request == null) return
+                    val wanted = request.resources
+                    val allowed = wanted.filter {
+                        it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                    }.toTypedArray()
+                    if (allowed.isNotEmpty()) {
+                        request.grant(allowed)
+                    } else {
+                        request.deny()
+                    }
+                }
+            }
             addJavascriptInterface(WebAppInterface(this@MainActivity), "OnNowTV")
 
             isFocusable = true

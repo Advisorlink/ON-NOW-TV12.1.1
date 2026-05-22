@@ -7,6 +7,27 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.55 — Watch Together voice-to-text reactions
+**New feature**: hold the "HOLD TO TALK" mic button in a party → speak up to 10 s → Whisper transcribes → the transcript pops up as a chat bubble for every party member (8 s on screen).
+
+### Architecture (provider-agnostic)
+- **Backend `/app/backend/stt.py`** — new `POST /api/stt/transcribe` route. Accepts multipart audio (webm / wav / mp3 / m4a / ogg / mp4, max 24 MB), returns `{"text": "..."}`. Today's implementation calls `OpenAISpeechToText` (whisper-1) via the Emergent Universal LLM key. The `transcribe_audio()` helper is the swap point — replacing it with a different STT provider (self-hosted whisper.cpp, ElevenLabs, Deepgram, …) requires zero frontend changes.
+
+### WebSocket extension
+- New `voice_message` message type on `/api/watch-party/ws/{code}`: `{text, member, ts}`. Rate-limited to 1 message / 3 s per member. 160-char hard cap.
+
+### Frontend
+- **`<VoiceReactionButton/>`** — new component. Press-and-hold via mouse / touch / D-pad OK key. Uses `MediaRecorder` with the best supported mime type (webm/opus on Chromium, m4a on Safari). Pulsing red ring while recording. Inline status pill ("LISTENING…", "TRANSCRIBING…", "MIC BLOCKED", "TRY AGAIN").
+- **`<PartyReactions/>`** extended with a new `VoiceBubble` renderer (text card with the sender's avatar emoji + name on top, transcript below, 8 s float-up animation).
+- **`Player.jsx`** mounts the button bottom-right corner during party playback. Local echo so the sender sees their own bubble immediately. Incoming voice messages from other party members render the same bubble.
+
+### Android
+- `RECORD_AUDIO` permission was already declared in the manifest.
+- `MainActivity` now installs a custom `WebChromeClient` that grants the WebView's `RESOURCE_AUDIO_CAPTURE` permission request (forwards to the system mic). Required for `navigator.mediaDevices.getUserMedia({audio: true})` to succeed inside the WebView.
+
+### Provider-independence note
+The user explicitly said "I will also want to make sure that we're not relying directly on Emergent". The architecture above honours that: only the body of `transcribe_audio()` in `stt.py` touches Whisper / Emergent. Frontend speaks plain HTTP. WS contract is generic.
+
 ## v2.7.54 — Dock re-shows on D-pad after auto-hide · Trailer native handoff simplified
 ### 1. Player dock now ALWAYS re-appears on any D-pad press
 **Root cause** of "buttons hidden once movie starts": after the 10 s auto-hide, the Compose dock's children unmounted → no focused view → D-pad key presses fell into nothing → activity timer was never bumped → dock stayed hidden forever.

@@ -39,9 +39,11 @@ export default function PartyReactions({ reactions }) {
                     zIndex: 95,
                 }}
             >
-                {reactions.map((r) => (
-                    <ReactionBubble key={r.id} reaction={r} />
-                ))}
+                {reactions.map((r) =>
+                    r.kind === 'voice'
+                        ? <VoiceBubble key={r.id} reaction={r} />
+                        : <ReactionBubble key={r.id} reaction={r} />
+                )}
             </div>
         </>
     );
@@ -112,3 +114,70 @@ PartyReactions.nextBubble = function nextBubble(emoji, memberName) {
         _toX: toX,
     };
 };
+
+/**
+ * v2.7.55 — Voice-message bubble (transcribed text from a party
+ * member's mic hold).  Stays on screen 8 seconds (per user spec)
+ * with a slow upward drift + fade.  Rendered by <VoiceBubble/>.
+ */
+PartyReactions.nextVoiceBubble = function nextVoiceBubble(text, memberName, avatarEmoji) {
+    return {
+        id: `v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        kind: 'voice',
+        text: String(text || '').slice(0, 160),
+        memberName: memberName || null,
+        avatarEmoji: avatarEmoji || '',
+        // Lane chosen so two voice bubbles can co-exist without
+        // overlapping — column position 14..72%.
+        lane: 14 + Math.random() * 58,
+    };
+};
+
+function VoiceBubble({ reaction }) {
+    return (
+        <div
+            style={{
+                position: 'absolute',
+                bottom: '12vh',
+                left: `${reaction.lane}%`,
+                maxWidth: '28vw',
+                padding: '12px 18px',
+                background: 'linear-gradient(135deg, rgba(11,19,34,0.92), rgba(20,40,70,0.92))',
+                border: '1px solid rgba(93,200,255,0.45)',
+                borderRadius: 18,
+                color: '#fff',
+                fontSize: 18,
+                lineHeight: 1.35,
+                fontWeight: 500,
+                boxShadow: '0 14px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(93,200,255,0.18)',
+                animation: 'party-voice-float 8s ease-in-out forwards',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+            }}
+        >
+            <div
+                style={{
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#5DC8FF',
+                    letterSpacing: '0.14em',
+                    marginBottom: 6,
+                    textTransform: 'uppercase',
+                }}
+            >
+                {reaction.avatarEmoji ? `${reaction.avatarEmoji}  ` : ''}
+                {reaction.memberName ? reaction.memberName : 'Voice'}
+            </div>
+            <div>{reaction.text}</div>
+            <style>{`
+@keyframes party-voice-float {
+    0%   { transform: translateY(20px) scale(0.92); opacity: 0; }
+    8%   { transform: translateY(0)    scale(1);    opacity: 1; }
+    88%  { transform: translateY(-30vh) scale(1);   opacity: 1; }
+    100% { transform: translateY(-44vh) scale(0.96); opacity: 0; }
+}
+            `}</style>
+        </div>
+    );
+}

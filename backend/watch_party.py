@@ -61,6 +61,9 @@ class Member:
     # Server-side rate-limit timestamp for emoji reactions (one
     # reaction per 800 ms per member).  Float unix seconds.
     last_reaction_at: float = 0.0
+    # v2.7.55 — Server-side rate-limit for voice messages (one
+    # voice message per 3 s per member).
+    last_voice_at: float = 0.0
 
 
 @dataclass
@@ -495,6 +498,38 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                             "ts": int(time.time() * 1000),
                         },
                     )
+
+            elif mtype == "voice_message":
+                # v2.7.55 — Voice-to-text reaction.  Same broadcast
+                # pattern as `reaction`, but the payload carries a
+                # short transcript instead of a single emoji.  We:
+                #   • rate-limit (one voice message every 3 s per
+                #     member) so a held button doesn't spam.
+                #   • clip the transcript at 160 chars.
+                #   • drop completely silent/empty transcripts.
+                text = (msg.get("text") or "").strip()
+                if not text:
+                    continue
+                text = text[:160]
+                now_ts = time.time()
+                if now_ts - (getattr(member, "last_voice_at", 0) or 0) < 3.0:
+                    continue
+                member.last_voice_at = now_ts
+                sender_avatar_emoji = str(msg.get("avatar_emoji") or "")[:6]
+                await hub.broadcast(
+                    party,
+                    {
+                        "type": "voice_message",
+                        "text": text,
+                        "member": {
+                            "id": member.id,
+                            "name": member.name,
+                            "avatar": member.avatar,
+                            "avatar_emoji": sender_avatar_emoji,
+                        },
+                        "ts": int(now_ts * 1000),
+                    },
+                )
 
             elif mtype == "reaction":
                 # Floating emoji broadcast.  Any party member can send.
