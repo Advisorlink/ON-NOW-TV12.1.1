@@ -69,6 +69,14 @@ class PartyVoiceManager(
         val mine: Boolean,
         val createdAt: Long,
     )
+    /** v2.7.67 — floating emoji reaction (ArrowUp/Down/Left/Right hold). */
+    data class Reaction(
+        val id: String,
+        val emoji: String,
+        val lane: Int,        // 0..7 — horizontal column for the float animation
+        val senderName: String,
+        val createdAt: Long,
+    )
     enum class RecState { Idle, Recording, Transcribing, Blocked, Error }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -80,6 +88,7 @@ class PartyVoiceManager(
 
     private val _members      = MutableStateFlow(parseMembers(initialMembersJson))
     private val _bubbles      = MutableStateFlow<List<VoiceBubble>>(emptyList())
+    private val _reactions    = MutableStateFlow<List<Reaction>>(emptyList())
     private val _recState     = MutableStateFlow(RecState.Idle)
     private val _wsConnected  = MutableStateFlow(false)
     // v2.7.64 — surface the actual error so the UI can show *why*
@@ -90,6 +99,7 @@ class PartyVoiceManager(
 
     val members: StateFlow<List<Member>>          = _members.asStateFlow()
     val bubbles: StateFlow<List<VoiceBubble>>     = _bubbles.asStateFlow()
+    val reactions: StateFlow<List<Reaction>>      = _reactions.asStateFlow()
     val recState: StateFlow<RecState>             = _recState.asStateFlow()
     val wsConnected: StateFlow<Boolean>           = _wsConnected.asStateFlow()
     val lastError: StateFlow<String>              = _lastError.asStateFlow()
@@ -163,6 +173,18 @@ class PartyVoiceManager(
                 )
                 pushBubble(bubble)
             }
+            "reaction" -> {
+                // v2.7.67 — incoming emoji from any party member.
+                val emoji = msg.optString("emoji", "")
+                if (emoji.isBlank()) return
+                val member = msg.optJSONObject("member")
+                val senderId = member?.optString("id", "") ?: ""
+                if (senderId == selfMemberId) return  // already echoed locally
+                pushReaction(
+                    emoji = emoji,
+                    senderName = member?.optString("name", "") ?: "",
+                )
+            }
             else -> { /* state / reaction / pong — not our concern */ }
         }
     }
@@ -201,6 +223,38 @@ class PartyVoiceManager(
             kotlinx.coroutines.delay(8200L)
             _bubbles.value = _bubbles.value.filterNot { it.id == b.id }
         }
+    }
+
+    // v2.7.67 — Reactions: short-lived floating emoji from any party member.
+    private val reactionLaneCounter = java.util.concurrent.atomic.AtomicInteger(0)
+    private fun pushReaction(emoji: String, senderName: String) {
+        val id = "r-${System.currentTimeMillis()}-${(0..9999).random()}"
+        val lane = (reactionLaneCounter.getAndIncrement() % 7)
+        val r = Reaction(
+            id = id,
+            emoji = emoji,
+            lane = lane,
+            senderName = senderName,
+            createdAt = System.currentTimeMillis(),
+        )
+        _reactions.value = _reactions.value + r
+        scope.launch {
+            kotlinx.coroutines.delay(3200L)
+            _reactions.value = _reactions.value.filterNot { it.id == id }
+        }
+    }
+
+    /** Called by ExoPlayerActivity when the user long-presses a D-pad arrow. */
+    fun sendReaction(emoji: String) {
+        if (emoji.isBlank()) return
+        val out = JSONObject().apply {
+            put("type", "reaction")
+            put("emoji", emoji)
+            put("avatar_emoji", selfAvatarEmoji)
+        }
+        try { ws?.send(out.toString()) } catch (_: Exception) {}
+        // Local echo so the sender sees their own emoji instantly.
+        pushReaction(emoji = emoji, senderName = selfDisplayName.ifBlank { "You" })
     }
 
     // ── MediaRecorder ─────────────────────────────────────────────

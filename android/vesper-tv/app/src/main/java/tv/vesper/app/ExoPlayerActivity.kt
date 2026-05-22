@@ -99,16 +99,79 @@ class ExoPlayerActivity : ComponentActivity() {
      * dock re-appear when the user presses any D-pad key after
      * auto-hide.  Returning `false` lets the event continue to its
      * regular destination (Compose buttons / Activity onKeyDown).
+     *
+     * v2.7.67 also adds D-pad-hold emoji reactions for Watch Together
+     * (parity with React's usePartyReactions hook).
      */
+    // v2.7.67 — D-pad-hold emoji reactions (parity with React's
+    // usePartyReactions hook).  Track first KEYDOWN timestamp per
+    // arrow direction; when the elapsed hold time exceeds REACT_HOLD_MS,
+    // we fire the corresponding emoji through PartyVoiceManager.
+    // Cleared on KEYUP or after firing.  Cooldown prevents spam.
+    private val reactionPressAt = mutableMapOf<Int, Long>()
+    private var lastReactionFireAt: Long = 0L
+
+    // Reaction constants are stored as private vals on the instance
+    // rather than a companion object — the activity already has one
+    // companion for shouldUseExoPlayer() and Kotlin allows only one
+    // per class.
+    private val dpadEmoji: Map<Int, String> = mapOf(
+        KeyEvent.KEYCODE_DPAD_UP    to "\u2764\ufe0f",                       // ❤️
+        KeyEvent.KEYCODE_DPAD_DOWN  to String(Character.toChars(0x1F631)),   // 😱
+        KeyEvent.KEYCODE_DPAD_LEFT  to String(Character.toChars(0x1F606)),   // 😂
+        KeyEvent.KEYCODE_DPAD_RIGHT to String(Character.toChars(0x1F62D)),   // 😭
+    )
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val inParty = partyVoice != null
         if (event.action == KeyEvent.ACTION_DOWN) {
             // Don't ping for hardware media keys we already handle
             // — but DO ping for D-pad / arrow / Enter so the dock
             // shows back up.
+            //
+            // v2.7.67 — when a Watch Together party is active, the
+            // voice dock is always on screen and users navigate
+            // through avatars with D-pad arrows.  Bumping the
+            // chrome timer on every arrow key meant the Play/Pause
+            // control deck popped up the moment you moved focus
+            // onto an avatar.  In party mode we now only ping for
+            // OK / Enter (and explicit menu opens via the ☰ button
+            // already call bump() directly), so arrows can navigate
+            // the voice dock cleanly without showing the chrome.
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK,
                 KeyEvent.KEYCODE_ESCAPE -> { /* don't ping for back */ }
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (!inParty) pingUserActivity()
+                }
                 else -> pingUserActivity()
+            }
+        }
+        // v2.7.67 — D-pad-hold reactions.  Only active when a party
+        // is live AND the focused view is NOT the avatar (so holding
+        // OK on the avatar still records voice and isn't hijacked).
+        if (inParty && partyVoice != null) {
+            val emoji = dpadEmoji[event.keyCode]
+            if (emoji != null) {
+                val now = System.currentTimeMillis()
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    val first = reactionPressAt[event.keyCode] ?: 0L
+                    if (first == 0L) {
+                        reactionPressAt[event.keyCode] = now
+                    } else if (first > 0 && now - first >= 2000L &&
+                               now - lastReactionFireAt >= 1000L) {
+                        reactionPressAt[event.keyCode] = -1L  // sentinel — don't refire until keyup
+                        lastReactionFireAt = now
+                        try { partyVoice?.sendReaction(emoji) } catch (t: Throwable) {
+                            Log.w(TAG, "sendReaction failed", t)
+                        }
+                    }
+                } else if (event.action == KeyEvent.ACTION_UP) {
+                    reactionPressAt.remove(event.keyCode)
+                }
             }
         }
         return super.dispatchKeyEvent(event)

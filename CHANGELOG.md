@@ -7,6 +7,37 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.67 — Stop the chrome popping on avatar focus · Native D-pad emoji reactions are back
+
+Two issues you raised, both fixed.
+
+### 1. Player chrome no longer pops up when navigating to the avatar
+
+**You said**: "as soon as you moved over onto the avatar, it automatically brought the menu up."
+
+**Root cause**: every D-pad key the user pressed got intercepted by `ExoPlayerActivity.dispatchKeyEvent` and pumped into `userActivityFlow`, which `PlayerOverlay`'s `dockVisible` listened to → Play/Pause control deck slid up. So moving focus across the screen *to* the avatar always re-showed the chrome.
+
+**Fix**: in party mode, D-pad arrow keys no longer ping the user-activity timer. Only OK/Enter and the ☰ button do. You can now navigate avatars without the chrome popping. Non-party playback keeps the old behaviour.
+
+### 2. D-pad-hold emoji reactions ported into the native ExoPlayer
+
+**You said**: "The emojis, the ones that you used to click left, right, up, down, that used to float up the side of the screen, they're not there anymore."
+
+**Root cause**: those reactions lived entirely in `usePartyReactions.js` (the React side). When Watch Together moved to the native ExoPlayer in v2.7.61, the Compose overlay only carried the voice dock — reactions were never ported.
+
+**Fix**: native parity with the React behaviour you remember.
+
+- **Hold ArrowUp** for 2 s → ❤️
+- **Hold ArrowDown** for 2 s → 😱
+- **Hold ArrowLeft** for 2 s → 😂
+- **Hold ArrowRight** for 2 s → 😭
+- 1 s cooldown between fires (matches React).
+- Emojis float up the right edge of the screen on staggered lanes, scale 0.9 → 1.15, fade out over ~3 seconds.
+- Incoming reactions from other party members show up identically.
+- Holding OK on the avatar still records voice — reactions only fire on D-pad arrows.
+
+**Net effect**: the Watch Together UX is now fully feature-complete on the native player — voice messages, emoji reactions, member dock, ☰ menu — and the chrome only opens when you explicitly ask it to.
+
 ## v2.7.66 — REAL ROOT CAUSE FOUND: missing runtime mic permission
 
 **The actual bug — explained**:

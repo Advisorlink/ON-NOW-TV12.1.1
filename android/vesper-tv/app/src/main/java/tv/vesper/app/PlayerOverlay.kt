@@ -1127,11 +1127,15 @@ private fun PartyVoiceLayer(
 ) {
     val members by collectAsStateSafe(manager.members, emptyList())
     val bubbles by collectAsStateSafe(manager.bubbles, emptyList())
+    val reactions by collectAsStateSafe(manager.reactions, emptyList())
     val recState by collectAsStateSafe(manager.recState, PartyVoiceManager.RecState.Idle)
     val lastError by collectAsStateSafe(manager.lastError, "")
 
     Box(modifier = modifier) {
         bubbles.forEachIndexed { i, b -> VoiceBubbleCard(b, index = i) }
+
+        // v2.7.67 — Floating emoji reactions (right edge → drift up).
+        reactions.forEach { r -> FloatingReaction(reaction = r) }
 
         PartyVoiceDockRow(
             manager = manager,
@@ -1440,6 +1444,50 @@ private fun VoiceBubbleCard(bubble: PartyVoiceManager.VoiceBubble, index: Int) {
         }
     }
 }
+
+// v2.7.67 — Floating emoji reaction.  Anchors to the right edge of
+// the screen and drifts upward over ~3 s while fading out.  Lanes
+// (0..6) horizontally stagger overlapping reactions so they don't
+// all stack on the same pixel column.
+@Composable
+private fun FloatingReaction(reaction: PartyVoiceManager.Reaction) {
+    val anim = remember(reaction.id) { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(reaction.id) {
+        anim.animateTo(
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.tween(
+                durationMillis = 3000,
+                easing = androidx.compose.animation.core.LinearOutSlowInEasing,
+            ),
+        )
+    }
+    val progress = anim.value
+    val laneOffset = (reaction.lane % 7) * 28
+    // Float from ~80% screen-height upwards by ~70% of the screen.
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = (80 + laneOffset).dp)
+                .offset(
+                    y = (-180 - (progress * 480f)).dp,
+                )
+                .graphicsLayer {
+                    alpha = (1f - progress * 0.85f).coerceIn(0f, 1f)
+                    val scale = 0.9f + progress * 0.25f
+                    scaleX = scale
+                    scaleY = scale
+                },
+        ) {
+            Text(
+                text = reaction.emoji,
+                fontSize = 56.sp,
+            )
+        }
+    }
+}
+
+
 
 private fun parseAvatarBg(avatarId: String): Color {
     val hash = avatarId.hashCode()
