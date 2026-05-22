@@ -357,15 +357,16 @@ class PartyVoiceManager(
             rec.setAudioSource(MediaRecorder.AudioSource.MIC)
             rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            // v2.7.68 — Aggressive bitrate / samplerate cuts.  Whisper
-            // happily handles 8 kHz mono AAC (it internally resamples
-            // to 16 kHz).  Halving the bitrate roughly halves upload
-            // time, which is the #1 contributor to perceived lag.
-            // Previous: 16 kHz / 32 kbps → ~40 KB for 10 s of speech.
-            // New:       8 kHz / 16 kbps → ~20 KB for 10 s of speech.
-            rec.setAudioSamplingRate(8000)
+            // v2.7.70 — Quality restored.  v2.7.68 dropped this to
+            // 8 kHz / 16 kbps to halve upload size, but that mangled
+            // Whisper's accuracy because the model is *trained* on
+            // 16 kHz audio.  The user reported it "making up what it
+            // hears".  Back to broadcast-quality voice: 24 kHz /
+            // 48 kbps mono AAC — still small (~60 KB for 10 s, well
+            // under 100 KB even on slow uploads) and crystal clear.
+            rec.setAudioSamplingRate(24000)
             rec.setAudioChannels(1)
-            rec.setAudioEncodingBitRate(16_000)
+            rec.setAudioEncodingBitRate(48_000)
             rec.setOutputFile(outFile.absolutePath)
             rec.prepare()
             rec.start()

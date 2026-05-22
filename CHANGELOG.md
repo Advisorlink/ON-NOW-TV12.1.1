@@ -7,6 +7,26 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.70 — Walk back the audio over-compression + anti-hallucination prompt
+
+**You said**: voice transcribe is "making up what it hears". My fault — v2.7.68 dropped the recorder to 8 kHz / 16 kbps mono AAC to halve upload size, but **Whisper is trained on 16 kHz audio**.  Below that, the model effectively hallucinates from a muffled signal.
+
+**Fix #1 — Audio quality restored**:
+- 8 kHz / 16 kbps  →  **24 kHz / 48 kbps mono AAC**.
+- Still small (~60 KB for 10 s — well under 100 KB on slow networks) but crystal-clear voice.
+- Will trade ~200–300 ms of additional upload time on the HK1's wifi for *dramatically* better recognition.
+
+**Fix #2 — Anti-hallucination prompt on the backend**:
+Whisper sometimes invents stock phrases like "thanks for watching" or "subtitles by …" on short / quiet clips because its training set is heavily YouTube. We now pass a prompt hint biasing the model toward casual Watch Together-style conversation:
+
+> *"Casual conversation between friends watching a movie together. They send short comments, reactions, and jokes to each other in English."*
+
+This is a documented Whisper-1 feature, costs nothing extra, and significantly reduces the YouTube-boilerplate phrases on short clips.
+
+---
+
+**Backlog (next move on STT speed)**: switching the backend to **Groq** running `whisper-large-v3-turbo` would transcribe a 10-second clip in ~200–400 ms (vs 1–2 s on OpenAI) and Groq has a **generous free tier** — 14,400 requests/day. Same Whisper-family model, no quality loss, just runs on faster hardware. Needs a Groq API key from console.groq.com. ElevenLabs Scribe is also batch-only and slower than Groq, so Groq is the clear pick.
+
 ## v2.7.69 — Stop the emoji duplicate-storm + slow elegant float
 
 ### Emojis no longer multiply on every tap

@@ -67,6 +67,17 @@ async def transcribe_audio(
             response_format="json",
             language=language or "en",
             temperature=0.0,
+            # v2.7.70 — Prompt biases the model toward casual,
+            # conversational English (which is what Watch Together
+            # voice messages overwhelmingly are).  Without a prompt
+            # Whisper sometimes invents "thanks for watching" /
+            # "subtitles by …" boilerplate on short / quiet clips
+            # because its training data was largely YouTube.
+            prompt=(
+                "Casual conversation between friends watching a movie "
+                "together. They send short comments, reactions, and "
+                "jokes to each other in English."
+            ),
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("whisper transcription failed")
