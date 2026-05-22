@@ -7,6 +7,21 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.57 — Watch Together voice dock redesigned (D-pad navigable)
+**User feedback on v2.7.55/56**: "the buttons and everything are crap on Watch Together. They look like crap. I can't move anywhere, can't get to the emoji, can't do voice recording. The emojis should stay on screen the whole time. Need a menu button beside the emojis. Move LEFT/RIGHT between them. Hold OK on your own avatar to talk."
+
+### New `<PartyVoiceDock/>` component (replaces standalone `VoiceReactionButton`)
+- **Bottom-right horizontal pill** — glassmorphism, cyan border ring.
+- **Always-visible**: shows the party's member avatars (up to 4) + a menu button at the right end.
+- **D-pad LEFT / RIGHT** navigates between the items.  Window-level keydown capture so the dock cooperates with the global spatial-focus engine.
+- **Self avatar carries a tiny mic indicator badge** (cyan-bordered, flips red while recording) so the user knows which avatar to hold.
+- **Hold OK on your own avatar** → starts recording (cyan ring → red pulsing ring, "LISTENING…" status pill above the dock).  Release / 10s cap → POSTs to `/api/stt/transcribe` → broadcasts `voice_message` over the party WS → text bubble pops up for every member.
+- **Other members' avatars** are non-interactive (just visible presence indicators).
+- **Tap OK on the menu button** → re-shows the player chrome (top bar + control deck) via `onOpenMenu={() => setChromeVisible(true)}`.
+
+### Replaced/removed
+- Removed the v2.7.55 `<VoiceReactionButton/>` component from `Player.jsx`.  The file remains in the repo for reference but is no longer used.
+
 ## v2.7.56 — Build fix: dispatchKeyEvent signature
 - CI failed v2.7.55 with `'dispatchKeyEvent' overrides nothing` + `Type mismatch: inferred type is KeyEvent? but KeyEvent was expected`.
 - Cause: I declared the override as `dispatchKeyEvent(event: KeyEvent?)` (nullable) but Android's `Activity.dispatchKeyEvent` takes a non-null `KeyEvent`. The compiler refuses to consider it a valid override.

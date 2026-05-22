@@ -16,7 +16,7 @@ import {
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
 import PartyReactions from '@/components/PartyReactions';
-import VoiceReactionButton from '@/components/VoiceReactionButton';
+import PartyVoiceDock from '@/components/PartyVoiceDock';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
@@ -1246,26 +1246,20 @@ export default function Player() {
                 button remains pressable.  pointer-events: none. */}
             {partyCode && <PartyReactions reactions={partyReactions} />}
 
-            {/* v2.7.55 — Voice-to-text reaction button.  Floats in
-                the bottom-right corner during party playback.  Hold
-                to record (max 10 s) → transcribed via Whisper →
-                broadcast to all party members as a text bubble. */}
+            {/* v2.7.57 — Watch Together voice dock.  Bottom-right
+                horizontal pill: party-member avatars + menu button.
+                D-pad LEFT/RIGHT navigates.  Hold OK on your own
+                avatar = record voice (10s max).  Tap menu icon =
+                show the player chrome (top bar + control deck). */}
             {partyCode && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        right: '3vw',
-                        bottom: '10vh',
-                        zIndex: 96,
-                        pointerEvents: 'auto',
-                    }}
-                >
-                    <VoiceReactionButton
-                        wsRef={partyWsRef}
-                        avatarEmoji={partySelfAvatarEmoji || ''}
-                        onLocalEcho={(text) => spawnVoiceBubble(text, 'YOU', partySelfAvatarEmoji || '')}
-                    />
-                </div>
+                <PartyVoiceDock
+                    members={partyMembers}
+                    selfMemberId={partyMemberIdRef.current}
+                    selfAvatarEmoji={partySelfAvatarEmoji || ''}
+                    wsRef={partyWsRef}
+                    onOpenMenu={() => setChromeVisible(true)}
+                    onLocalEcho={(text) => spawnVoiceBubble(text, 'YOU', partySelfAvatarEmoji || '')}
+                />
             )}
 
             {/* Top bar — auto-hides during playback so the screen
