@@ -7,6 +7,13 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.59 — Voice dock now reachable from D-pad (ArrowRight from anywhere)
+**Looking at your video**: the dock IS rendered (confirmed by frame analysis — avatars + hamburger visible bottom-right). The bug was **focus**: the player's bottom-center control deck stole initial focus, and there was no D-pad path from there over to the dock.
+
+**Fix**: window-level capture listener — when the user is NOT focused inside the dock and presses **ArrowRight**, focus jumps to the dock's first item (your avatar). Once inside the dock, ArrowLeft/Right cycles through items (existing behaviour from v2.7.57). Holding OK on your avatar starts recording.
+
+Does NOT auto-steal initial focus — you can still use the bottom-center play / seek / etc. as normal. Only one extra D-pad press to reach the dock from anywhere.
+
 ## v2.7.58 — `?test-dock=1` query flag for hand-testing voice dock solo
 Adds a tiny debug flag so the user can verify the v2.7.57 voice dock
 (mic recording + Whisper transcription + bubble rendering) WITHOUT

@@ -94,6 +94,32 @@ export default function PartyVoiceDock({
         return () => window.removeEventListener('keydown', onKey, true);
     }, [itemCount]);
 
+    // v2.7.59 — Global "jump to dock" hotkey.  When the user is
+    // NOT focused inside the dock, pressing D-pad RIGHT moves them
+    // INTO the dock's first item.  Lets the user always reach the
+    // dock from any focused element in the player without having
+    // to physically navigate through the layout.
+    useEffect(() => {
+        const dock = dockRef.current;
+        if (!dock) return undefined;
+        const onJump = (e) => {
+            if (dock.contains(document.activeElement)) return;
+            if (e.key !== 'ArrowRight') return;
+            const el = itemRefs.current[0];
+            if (!el) return;
+            // Only steal focus from elements that are NOT also
+            // bottom-right (don't fight other dock-like widgets).
+            try {
+                el.focus({ preventScroll: true });
+                setFocusIdx(0);
+                e.preventDefault();
+                e.stopPropagation();
+            } catch { /* */ }
+        };
+        window.addEventListener('keydown', onJump, true);
+        return () => window.removeEventListener('keydown', onJump, true);
+    }, []);
+
     // ── Recording state shared by all avatar tiles ─────────────
     // (Only one mic recording at a time — when the user holds an
     // avatar, this state tracks it regardless of which avatar they
