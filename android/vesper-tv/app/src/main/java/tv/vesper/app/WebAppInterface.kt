@@ -143,7 +143,14 @@ class WebAppInterface(private val activity: Activity) {
         if (url.isBlank()) return
         activity.runOnUiThread {
             try {
-                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                // v2.7.61 — Honour user's player preference here too.
+                val useExo = ExoPlayerActivity.shouldUseExoPlayer(activity)
+                val targetClass = if (useExo) {
+                    ExoPlayerActivity::class.java
+                } else {
+                    VlcPlayerActivity::class.java
+                }
+                val intent = android.content.Intent(activity, targetClass).apply {
                     putExtra(VlcPlayerActivity.EXTRA_URL, url)
                     putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
                     putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)
@@ -300,7 +307,21 @@ class WebAppInterface(private val activity: Activity) {
         if (url.isBlank()) return
         activity.runOnUiThread {
             try {
-                val intent = android.content.Intent(activity, VlcPlayerActivity::class.java).apply {
+                // v2.7.61 — Respect the user's player preference even
+                // for party playback.  Previously this path was
+                // hard-coded to VlcPlayerActivity so toggling
+                // Settings → Video Player → ExoPlayer had no effect
+                // when joining/hosting Watch Together.  Now we
+                // honour `shouldUseExoPlayer` everywhere, and
+                // ExoPlayerActivity carries the new native voice dock
+                // (v2.7.60 / PartyVoiceManager).
+                val useExo = ExoPlayerActivity.shouldUseExoPlayer(activity)
+                val targetClass = if (useExo) {
+                    ExoPlayerActivity::class.java
+                } else {
+                    VlcPlayerActivity::class.java
+                }
+                val intent = android.content.Intent(activity, targetClass).apply {
                     putExtra(VlcPlayerActivity.EXTRA_URL, url)
                     putExtra(VlcPlayerActivity.EXTRA_TITLE, title)
                     putExtra(VlcPlayerActivity.EXTRA_SUB_URL, subtitleUrl)

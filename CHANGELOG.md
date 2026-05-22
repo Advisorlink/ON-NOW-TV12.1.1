@@ -7,6 +7,20 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.61 — Party + simple-play paths now respect ExoPlayer setting
+**User**: "It's still opening libVLC even though I have ExoPlayer selected in Settings."
+
+**Root cause**: `WebAppInterface` had **three** `Intent` paths to launch playback:
+1. `playInternal` (used for simple sport/IPTV streams) — hard-coded `VlcPlayerActivity`
+2. `playInternalRichV2` (used for movies/series — picks ExoPlayer correctly since v2.7.39 — was fine)
+3. `playInternalRichV2WithParty` (used the moment you join/host Watch Together) — hard-coded `VlcPlayerActivity`
+
+So in Watch Together, the Settings toggle was ignored. Same for direct-play sport streams.
+
+**Fix**: paths 1 and 3 now call `ExoPlayerActivity.shouldUseExoPlayer(activity)` and pick the activity class accordingly. ExoPlayer carries the new native voice dock (v2.7.60) — so toggling to ExoPlayer + joining a party now actually lands you in ExoPlayerActivity with the dock visible.
+
+**Net effect**: the Settings → Video Player → ExoPlayer toggle is now honoured in all three paths.
+
 ## v2.7.60 — NATIVE Watch Together voice dock inside ExoPlayer
 **The right fix**: the v2.7.55-58 voice dock was React-only, so it never rendered on top of the native ExoPlayer running on the HK1. This release rebuilds it natively in Kotlin/Compose so it appears DURING playback.
 
