@@ -7,6 +7,31 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.71 — New glowing V2 launcher icon + TV banner
+
+Custom-built app icon for **ON NOW TV V2** delivered across every density Android requests:
+
+- **Background**: radial-feel gradient from a saturated indigo (#0C1430) into near-black at the edges, with a rounded 16 % corner radius so it still looks polished on launchers that don't apply an adaptive mask.
+- **Mark**: oversized "V" with a smaller "2" tucked to its lower right, both rendered in electric cyan (#5DC8FF).
+- **Glow**: three stacked Gaussian-blur passes (radii 6 % / 3 % / 1 % of the icon size) tinted cyan and alpha-composited under the crisp glyph — gives the impression of LED edge-lighting, not a stamp.
+- **Detail**: subtle cyan rim at 38/255 opacity hugging the inner edge for premium feel.
+- **Round variant**: same content clipped to a circle, plus a slightly heavier cyan rim so it doesn't get lost on launchers that prefer round.
+- **TV banner**: 320×180 and 640×360 versions with "ON NOW V2" + "PREMIUM STREAMING" subtitle, matching glow treatment.
+
+Files written:
+```
+mipmap-mdpi/ic_launcher.png       48×48
+mipmap-hdpi/ic_launcher.png       72×72
+mipmap-xhdpi/ic_launcher.png      96×96
+mipmap-xxhdpi/ic_launcher.png    144×144
+mipmap-xxxhdpi/ic_launcher.png   192×192
+(plus matching ic_launcher_round.png at each)
+drawable-mdpi/tv_banner.png      320×180
+drawable-xhdpi/tv_banner.png     640×360
+```
+
+Generator script lives at `/tmp/gen_icon.py` if you want to tweak the colours / proportions later.
+
 ## v2.7.70 — Walk back the audio over-compression + anti-hallucination prompt
 
 **You said**: voice transcribe is "making up what it hears". My fault — v2.7.68 dropped the recorder to 8 kHz / 16 kbps mono AAC to halve upload size, but **Whisper is trained on 16 kHz audio**.  Below that, the model effectively hallucinates from a muffled signal.
