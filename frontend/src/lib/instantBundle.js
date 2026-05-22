@@ -26,7 +26,7 @@
  * the EPG loop on Live TV launch is skipped entirely.
  */
 import { saveCategories, saveChannels, mergeAndSaveEpg, persistEpgSubset } from './liveCache';
-import { getActiveProvider, listProviders } from './xtream';
+import { getActiveProvider, listProviders, saveProvider, setActiveProvider } from './xtream';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const META_KEY = 'onnowtv-instant-bundle-meta';
@@ -41,7 +41,7 @@ const META_KEY = 'onnowtv-instant-bundle-meta';
  * Falls back to the active provider, then the first provider in
  * the list, then null (no-op).
  */
-function pickSeedProviderId(bundleHost) {
+function pickSeedProviderId(bundleHost, bundle) {
     const host = String(bundleHost || '').toLowerCase();
     const all = listProviders();
     if (host) {
@@ -53,7 +53,42 @@ function pickSeedProviderId(bundleHost) {
     const active = getActiveProvider();
     if (active) return active.id;
     if (all.length) return all[0].id;
-    return null;
+
+    /* v2.7.76 — Self-heal an empty provider list.
+     *
+     * If the user has zero local providers (uninstall/reinstall
+     * wiped localStorage, or first-ever launch in a fresh browser),
+     * the bundle still ships every channel with a fully-formed
+     * `stream_url` pre-baked from the backend's managed credentials
+     * — playback works fine without local creds.  We just need a
+     * provider row so `loadCategories(provider.id)` finds the data
+     * we're about to seed.
+     *
+     * Auto-create one from the bundle's `provider` block (id, name,
+     * host, port, scheme).  No `user`/`pass` is stored because we
+     * don't have them and the user shouldn't need them — every
+     * stream URL is already absolute. */
+    try {
+        const meta = bundle?.provider;
+        if (!meta) return null;
+        const id = String(meta.id || '').trim();
+        if (!id) return null;
+        const seeded = {
+            id,
+            name:   String(meta.name   || 'On Now TV'),
+            host:   String(meta.host   || ''),
+            port:   String(meta.port   || ''),
+            scheme: String(meta.scheme || 'https'),
+            user:   '',
+            pass:   '',
+            managed: true,
+        };
+        saveProvider(seeded);
+        setActiveProvider(id);
+        return id;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -122,7 +157,7 @@ export async function bootInstantBundle() {
     }
 
     /* Decide which provider id this bundle should seed under. */
-    const seedId = pickSeedProviderId(bundle.provider?.host);
+    const seedId = pickSeedProviderId(bundle.provider?.host, bundle);
     if (!seedId) return false;
 
     /* 1. Categories — shape matches what LiveTV.jsx reads via

@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.76 — Live TV self-heals when localStorage is empty (the "no EPG channels" fix)
+
+**You reported**: "I don't even have EPG channels anymore." Every other IPTV app works fine on the same box — so the IPTV provider isn't down, OUR app is the only one with no channels.
+
+**Root cause**:
+The React Live TV stores categories / channels / EPG in `localStorage`, keyed by **provider id**. The instant-bundle endpoint serves all of that pre-warmed (14,158 channels, 2,325 with EPG) and is fetched on first mount via `bootInstantBundle()`. Inside that function, `pickSeedProviderId(host)` decides which local provider id to seed the data under.
+
+The bug: when the user has **zero local providers** (which is exactly what happens after an APK uninstall+reinstall or any localStorage clear), `pickSeedProviderId` returned `null` and the entire 42 MB bundle was silently discarded. The user landed on the Live TV page with an empty cache, then the UI just sat there with no channels.
+
+**Fix** (`/app/frontend/src/lib/instantBundle.js`):
+- `pickSeedProviderId` now takes the full `bundle` as a second arg and, when no local provider exists, **auto-creates one from the bundle's own `provider` block** (`id`, `name`, `host`, `port`, `scheme`).
+- No credentials are stored — the bundle ships fully-formed absolute `stream_url`s on every channel, so playback works without local creds.
+- Saved via `saveProvider(...)` + `setActiveProvider(...)`, so the next mount sees a healthy active provider and the seeded data renders immediately.
+
+**Net effect**: First-launch UX is now zero-touch. The TV downloads the bundle once, finds itself with no local provider, mints a managed one automatically, populates 14,158 channels + EPG, and the guide just appears.
+
+**No native code changes** — bumped to 2.7.76 only so the APK build picks up the latest React bundle on CI.
+
 ## v2.7.75 — Compile fix for v2.7.74 Live Guide overlay
 
 Build was failing with `LiveGuideOverlay.kt:435:20 Unresolved reference: type` (and would have failed on `nativeKeyEvent` next). Compose's `KeyEvent.type` is an extension property requiring explicit import — same pattern as `PlayerOverlay.kt`.
