@@ -7,6 +7,17 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.63 — Avatar OK is recording-ONLY · ☰ menu actually opens the chrome
+**You spotted it correctly**: pressing OK on the avatar was popping up the player chrome (Play/Pause/Audio control deck). And the ☰ button did nothing visible.
+
+**Root cause**: both buttons were calling the same `onActivity` callback. `onActivity` bumps the player's dock-auto-hide timer, which has the side-effect of showing the player chrome.  So:
+- Avatar OK → recording started ✅ AND player chrome popped up ❌
+- ☰ menu OK → only bumped the timer → no visible effect ❌
+
+**Fix**:
+- **Avatar OK**: no longer calls `onActivity`. Now exclusively starts/stops the mic recording. Nothing else happens — no player chrome appears.
+- **☰ menu OK**: now explicitly bound to `onOpenChrome` (which is the same `bump()` that does show the chrome). So tapping ☰ now visibly toggles the Play/Pause control deck — its intended purpose.
+
 ## v2.7.62 — Fix "TRY AGAIN" on voice transcribe — ws→http URL bug
 **From your video**: dock shows ✅, recording starts ✅, but transcribe fails with **TRY AGAIN**.
 

@@ -1122,7 +1122,7 @@ private fun <T> collectAsStateSafe(
 @Composable
 private fun PartyVoiceLayer(
     manager: PartyVoiceManager,
-    onActivity: () -> Unit,
+    onActivity: () -> Unit,           // explicit "show player chrome"
     modifier: Modifier = Modifier,
 ) {
     val members by collectAsStateSafe(manager.members, emptyList())
@@ -1136,7 +1136,7 @@ private fun PartyVoiceLayer(
             manager = manager,
             members = members,
             recState = recState,
-            onActivity = onActivity,
+            onOpenChrome = onActivity,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 36.dp, bottom = 56.dp),
@@ -1158,7 +1158,7 @@ private fun PartyVoiceDockRow(
     manager: PartyVoiceManager,
     members: List<PartyVoiceManager.Member>,
     recState: PartyVoiceManager.RecState,
-    onActivity: () -> Unit,
+    onOpenChrome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val visible = members.take(4)
@@ -1182,15 +1182,19 @@ private fun PartyVoiceDockRow(
                 isRecording = isSelf && recState == PartyVoiceManager.RecState.Recording,
                 pressing = isSelf && pressing,
                 focusRequester = if (i == 0) firstFocus else null,
+                // v2.7.63 — Holding OK on the avatar ONLY records.
+                // It does NOT bump the player-chrome auto-hide timer
+                // any more, so the Play/Pause/Audio control deck no
+                // longer pops up when you mean to talk.
                 onHoldStart = if (isSelf) {{
-                        onActivity(); pressing = true; manager.startRecording()
+                        pressing = true; manager.startRecording()
                 }} else null,
                 onHoldEnd = if (isSelf) {{
                         pressing = false; manager.stopRecording()
                 }} else null,
             )
         }
-        DockMenuButton(onActivity = onActivity)
+        DockMenuButton(onOpenChrome = onOpenChrome)
     }
 
     LaunchedEffect(visible.isNotEmpty()) {
@@ -1285,7 +1289,7 @@ private fun DockAvatar(
 }
 
 @Composable
-private fun DockMenuButton(onActivity: () -> Unit) {
+private fun DockMenuButton(onOpenChrome: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val scale = if (focused) 1.08f else 1f
     Box(
@@ -1305,7 +1309,13 @@ private fun DockMenuButton(onActivity: () -> Unit) {
                                ev.key == Key.DirectionCenter ||
                                ev.key == Key.NumPadEnter)
                 if (isOkKey && ev.type == KeyEventType.KeyDown) {
-                    onActivity(); true
+                    // v2.7.63 — Menu button NOW actually shows the
+                    // player chrome (Play/Pause/Audio/Subs/Stream
+                    // control deck).  Previously it just bumped the
+                    // activity timer with no other effect, so
+                    // pressing it appeared to do nothing.
+                    onOpenChrome()
+                    true
                 } else false
             }
             .then(
