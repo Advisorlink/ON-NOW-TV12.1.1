@@ -100,8 +100,8 @@ class ExoPlayerActivity : ComponentActivity() {
      * auto-hide.  Returning `false` lets the event continue to its
      * regular destination (Compose buttons / Activity onKeyDown).
      */
-    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-        if (event != null && event.action == KeyEvent.ACTION_DOWN) {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
             // Don't ping for hardware media keys we already handle
             // — but DO ping for D-pad / arrow / Enter so the dock
             // shows back up.

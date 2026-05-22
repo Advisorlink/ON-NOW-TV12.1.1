@@ -7,6 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.56 — Build fix: dispatchKeyEvent signature
+- CI failed v2.7.55 with `'dispatchKeyEvent' overrides nothing` + `Type mismatch: inferred type is KeyEvent? but KeyEvent was expected`.
+- Cause: I declared the override as `dispatchKeyEvent(event: KeyEvent?)` (nullable) but Android's `Activity.dispatchKeyEvent` takes a non-null `KeyEvent`. The compiler refuses to consider it a valid override.
+- Fix: changed signature to `dispatchKeyEvent(event: KeyEvent): Boolean` and dropped the now-redundant null check inside the body.
+
 ## v2.7.55 — Watch Together voice-to-text reactions
 **New feature**: hold the "HOLD TO TALK" mic button in a party → speak up to 10 s → Whisper transcribes → the transcript pops up as a chat bubble for every party member (8 s on screen).
 
