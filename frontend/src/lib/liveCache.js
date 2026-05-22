@@ -22,10 +22,73 @@
 
 const NS = 'onnowtv-livecache-v1';
 
+import { loadChannelsIdb, saveChannelsIdb, loadEpgIdb, saveEpgIdb, isIdbSupported } from './liveCacheIdb';
+
+/* v2.7.77 — Hydration kick-off for the IndexedDB-backed big blobs.
+ *
+ * IDB is async, but the rest of the app reads `loadChannels` /
+ * `loadEpg` synchronously off the in-memory cache.  We solve the
+ * impedance mismatch by firing an async hydrate on module load:
+ * once IDB returns the previously-persisted channels + EPG, we drop
+ * them into `memCache` and notify subscribers so the LiveTV page
+ * re-renders with the now-populated data.
+ *
+ * This means a subsequent Live TV open hits memCache immediately
+ * (synchronous, instant) instead of re-fetching the 6.6 MB
+ * gzipped bundle from the backend.  That kills the 30–40 s wait.
+ *
+ * Consumers (LiveTV.jsx) can `await waitForHydration()` before
+ * declaring the cache "empty" so we never wastefully refetch the
+ * bundle when IDB has it ready in <100 ms. */
+let _hydrationDone = false;
+let _hydrationPromise = null;
+async function hydrateFromIdb() {
+    if (!isIdbSupported()) {
+        _hydrationDone = true;
+        return;
+    }
+    try {
+        const activeId = (typeof localStorage !== 'undefined'
+            ? localStorage.getItem('onnowtv-xtream-active') : '') || '';
+        if (!activeId) {
+            _hydrationDone = true;
+            return;
+        }
+        const [ch, ep] = await Promise.all([
+            loadChannelsIdb(activeId),
+            loadEpgIdb(activeId),
+        ]);
+        if (ch && typeof ch === 'object') {
+            memCache.set(memKey(activeId, 'chans'), ch);
+        }
+        if (ep && typeof ep === 'object') {
+            memCache.set(memKey(activeId, 'epg'), ep);
+        }
+        _hydrationDone = true;
+        if (ch || ep) notifyCacheUpdate('hydrate', activeId);
+    } catch {
+        _hydrationDone = true;
+    }
+}
+
+/** Promise that resolves once the initial IndexedDB hydration has
+ *  completed (or failed).  Safe to await from anywhere — resolves
+ *  immediately on subsequent calls.  Used by LiveTV.jsx to ensure
+ *  we don't refetch the 6 MB bundle when IDB already has it. */
+export function waitForHydration() {
+    if (_hydrationDone) return Promise.resolve();
+    if (!_hydrationPromise) _hydrationPromise = hydrateFromIdb();
+    return _hydrationPromise;
+}
+
 // v2.7.50 — One-time boot sweep: any legacy entry larger than 1 MB
 // (typically the giant EPG blob from v2.7.49 and earlier) gets
 // removed so we reclaim localStorage quota for shelves / heroes /
 // library on cold boot.  Runs exactly once per page load.
+//
+// v2.7.77 — Channels and EPG now live in IndexedDB, so any oversized
+// entry left in localStorage is purely legacy garbage from older
+// app versions and can be safely reaped.
 (function reclaimQuota() {
     try {
         if (typeof localStorage === 'undefined') return;
@@ -49,6 +112,11 @@ const memCache = new Map();
 function memKey(providerId, kind) {
     return `${kind}:${providerId}`;
 }
+
+/* v2.7.77 — Kick off the IndexedDB hydration the moment memCache is
+ * declared.  Done on next microtask so the rest of this module
+ * finishes its top-level setup first (subscribers Set, etc.). */
+Promise.resolve().then(() => { waitForHydration(); });
 
 /* ── Pub-sub for cache updates ──────────────────────────────────
  * Consumers like the SportsGuide need to re-render when fresh
@@ -172,7 +240,12 @@ export function loadChannels(providerId) {
 export function saveChannels(providerId, byCatId) {
     if (!byCatId || typeof byCatId !== 'object') return;
     memCache.set(memKey(providerId, 'chans'), byCatId);
-    safeWrite(k(providerId, 'chans'), { at: Date.now(), data: byCatId });
+    // v2.7.77 — Channels are typically 5–10 MB JSON which exceeds
+    // both our 1 MB localStorage cap and the WebView per-origin
+    // quota anyway.  Write through to IndexedDB (no quota issues)
+    // and skip the localStorage attempt entirely so we don't waste
+    // a quota write.
+    saveChannelsIdb(providerId, byCatId);
     notifyCacheUpdate('chans', providerId);
 }
 
@@ -236,9 +309,15 @@ export function mergeAndSaveEpg(providerId, partial) {
     // empty `for (const epgId in epg)` loop.  Now the in-memory
     // map has the data immediately, regardless of disk success.
     memCache.set(memKey(providerId, 'epg'), existing);
+    // v2.7.77 — EPG is the biggest blob (up to ~40 MB on rich
+    // providers).  localStorage can't hold it; IndexedDB can.
+    // Write through to IDB so the next cold boot has it ready
+    // synchronously (via memCache, hydrated on module load).
+    saveEpgIdb(providerId, existing);
+    // localStorage still gets a best-effort subset write so the
+    // legacy /sports cold-boot path keeps working.  Failure here
+    // is silent (the IDB write above is the source of truth).
     if (!safeWrite(k(providerId, 'epg'), { at: Date.now(), data: existing })) {
-        // Quota exceeded — try writing only the smallest 50% of
-        // entries so at least *some* hot data persists.
         const keys = Object.keys(existing);
         keys.sort((a, b) => (existing[a]?.length || 0) - (existing[b]?.length || 0));
         const trimmed = {};

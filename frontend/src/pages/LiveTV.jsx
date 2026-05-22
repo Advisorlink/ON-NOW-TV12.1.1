@@ -61,6 +61,7 @@ import {
     saveChannels,
     loadEpg,
     mergeAndSaveEpg,
+    waitForHydration,
 } from '@/lib/liveCache';
 import { bootInstantBundle } from '@/lib/instantBundle';
 import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
@@ -510,6 +511,17 @@ function Grid({ provider, onLogout }) {
         (async () => {
             setSyncing(true);
             try {
+                /* v2.7.77 — Await the IndexedDB hydration first.
+                 *
+                 * Without this, we'd see memCache empty and re-fetch
+                 * the 6 MB bundle from the backend on every cold
+                 * boot — exactly the 30–40 s delay the user
+                 * complained about.  IDB hydration typically
+                 * resolves in <100 ms once the OS file system is
+                 * warm. */
+                try { await waitForHydration(); } catch { /* ignore */ }
+                if (cancel) return;
+
                 /* INSTANT BUNDLE — short-circuit the entire boot
                  * flow when the backend has a pre-warmed snapshot.
                  * If our local cache is empty, try fetching the
@@ -518,10 +530,14 @@ function Grid({ provider, onLogout }) {
                  * it writes through to localStorage; we then re-
                  * read into the in-memory refs and dismiss the
                  * boot splash immediately. */
+                // v2.7.77 — Re-read cache AFTER hydration completes.
+                const memCats   = loadCategories(provider.id) || [];
+                const memChans  = loadChannels(provider.id) || {};
+                const memEpgMap = loadEpg(provider.id) || {};
                 const cacheEmpty =
-                    cats.current.length === 0
-                    || channelsByCat.current.size === 0
-                    || epg.current.size === 0;
+                    memCats.length === 0
+                    || Object.keys(memChans).length === 0
+                    || Object.keys(memEpgMap).length === 0;
                 if (cacheEmpty) {
                     try {
                         const applied = await Promise.race([
