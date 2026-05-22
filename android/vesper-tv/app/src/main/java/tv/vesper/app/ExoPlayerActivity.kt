@@ -148,11 +148,22 @@ class ExoPlayerActivity : ComponentActivity() {
                 // event so spatial focus can't move the highlight.
                 val emoji = dpadEmoji[event.keyCode]
                 if (emoji != null) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastReactionFireAt >= 500L) {
-                        lastReactionFireAt = now
-                        try { partyVoice?.sendReaction(emoji) } catch (t: Throwable) {
-                            Log.w(TAG, "sendReaction failed", t)
+                    // v2.7.72 — Only fire on the FIRST keydown of a
+                    // press.  Holding the arrow auto-repeats keydown
+                    // events (~50 ms apart on most Android remotes),
+                    // which is why the user reported "extra three or
+                    // four after you've stopped pushing the button"
+                    // — Android continues delivering buffered
+                    // repeats even after KEY_UP.  Gating on
+                    // repeatCount == 0 means one press = exactly one
+                    // emoji, regardless of how long it's held.
+                    if (event.repeatCount == 0) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastReactionFireAt >= 400L) {
+                            lastReactionFireAt = now
+                            try { partyVoice?.sendReaction(emoji) } catch (t: Throwable) {
+                                Log.w(TAG, "sendReaction failed", t)
+                            }
                         }
                     }
                     return true   // CONSUME — never reaches Compose focus

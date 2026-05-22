@@ -7,6 +7,27 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.72 — Your gorgeous V2 logo + the actual emoji bounce-back fix
+
+### New launcher icon (your design)
+Applied your uploaded glowing V2 neon-square logo as the app icon at every Android density (mdpi → xxxhdpi), plus matching round variant and the TV launcher banner. The wrapper/CI bundle now ships your design.
+
+### Emoji bounce-back — three layers fixed
+**Your symptom**: "still sending an extra three or four after you've stopped pushing the button".
+
+**Root causes** (yes, plural):
+
+1. **Android auto-repeat**. Holding a D-pad arrow even briefly delivers a flurry of `KEY_DOWN` events with `repeatCount > 0`, and the OS keeps delivering buffered repeats after `KEY_UP`. We were treating each as a tap.
+2. **Server echo to sender**. `hub.broadcast` sent the reaction to *all* members including the originator. The client-side dedupe sometimes lost the race when the local-echo arrived after the server-echo.
+3. **400 ms cooldown was too aggressive** for the auto-repeat storm — letting through 2-3 reactions per held press.
+
+**Fixes**:
+- `ExoPlayerActivity.dispatchKeyEvent` now only fires when `event.repeatCount == 0` — one press = exactly one emoji, no matter how long you hold it.
+- Server-side `hub.broadcast(...)` gained an `exclude_member_id` parameter. Both the `reaction` and `voice_message` broadcasts now exclude the sender. The sender draws their own bubble/emoji via the local-echo only.
+- Cooldown stays at 400 ms as a belt-and-suspenders (and matches typical "press the button rapidly" cadence).
+
+Net effect: one tap = one emoji. Hold for 5 seconds = one emoji. Mash 5 taps = 5 emojis. No more rogue duplicates from the server bouncing your own broadcasts back.
+
 ## v2.7.71 — New glowing V2 launcher icon + TV banner
 
 Custom-built app icon for **ON NOW TV V2** delivered across every density Android requests:

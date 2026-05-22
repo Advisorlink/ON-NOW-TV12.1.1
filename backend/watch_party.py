@@ -151,10 +151,16 @@ class WatchPartyHub:
     def get_party(self, code: str) -> Optional[Party]:
         return self.parties.get(code.upper())
 
-    async def broadcast(self, party: Party, payload: Dict) -> None:
+    async def broadcast(self, party: Party, payload: Dict, exclude_member_id: Optional[str] = None) -> None:
         dead: List[str] = []
         for mid, m in party.members.items():
             if not m.socket:
+                continue
+            # v2.7.72 — Optional sender-exclusion so reactions don't
+            # bounce back to the originator (the client already drew
+            # them via local echo, which caused a "3-4 extra emojis
+            # after you stop pressing" duplicate on every tap).
+            if exclude_member_id is not None and mid == exclude_member_id:
                 continue
             try:
                 await m.socket.send_text(json.dumps(payload))
@@ -529,6 +535,7 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                         },
                         "ts": int(now_ts * 1000),
                     },
+                    exclude_member_id=member.id,
                 )
 
             elif mtype == "reaction":
@@ -567,6 +574,7 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                         },
                         "ts": int(now_ts * 1000),
                     },
+                    exclude_member_id=member.id,
                 )
     except WebSocketDisconnect:
         pass
