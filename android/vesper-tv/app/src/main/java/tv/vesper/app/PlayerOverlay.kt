@@ -139,6 +139,7 @@ fun PlayerOverlay(
     audioTracks: StateFlow<List<TrackOption>>,
     subtitleTracks: StateFlow<List<TrackOption>>,
     streams: StateFlow<List<StreamOption>>,
+    userActivity: StateFlow<Long>,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -156,6 +157,9 @@ fun PlayerOverlay(
     val audios by collectAsStateSafe(audioTracks, emptyList())
     val subs by collectAsStateSafe(subtitleTracks, emptyList())
     val streamList by collectAsStateSafe(streams, emptyList())
+    // v2.7.54 — Activity dispatchKeyEvent pumps every D-pad press
+    // here, so the dock auto-hide timer always sees fresh activity.
+    val userActivityTs by collectAsStateSafe(userActivity, System.currentTimeMillis())
 
     // Track whether we've EVER seen playback running.  Used to switch
     // mid-playback rebuffer from "full loading screen" → "small spinner".
@@ -166,14 +170,13 @@ fun PlayerOverlay(
     val showRebufferSpinner = loading && hasEverPlayed
 
     // Auto-hide the bottom dock after 5 s without user activity.
-    // v2.7.51 — first-time visibility window is 10 s so the user
-    // has plenty of time to see + interact before it auto-hides,
-    // and ANY remote key press (including arrow keys + Enter) bumps
-    // the activity timestamp via the `onKeyEvent` modifiers on each
-    // DockButton / via the Box's top-level onKeyEvent below.
+    // v2.7.54 — Driven by userActivityTs (pumped by
+    // Activity.dispatchKeyEvent on every key press) so the dock
+    // re-appears even after auto-hide.
     var dockVisible by remember { mutableStateOf(true) }
     var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(lastActivity) {
+    LaunchedEffect(userActivityTs) {
+        lastActivity = userActivityTs
         dockVisible = true
         delay(if (!hasEverPlayed) 10_000L else 5_000L)
         if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false

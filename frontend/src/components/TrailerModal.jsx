@@ -36,20 +36,16 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
     useEffect(() => {
         if (!youtubeKey) return undefined;
         if (nativeLaunchedRef.current) return undefined;
-        // v2.7.49 — Android's @JavascriptInterface methods return
-        // `typeof === 'object'` on many WebView versions (NOT
-        // 'function'), so the old strict check failed silently and
-        // fell through to the YouTube iframe → Error 153.
-        // Detect via the userAgent stamp set by VlcPlayerActivity
-        // ('OnNowTV/<version>') + presence of the bridge object +
-        // presence of the playTrailer property.
-        const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
-        const isOnNowTV = /OnNowTV\//.test(ua);
-        const bridge = (typeof window !== 'undefined' ? window.OnNowTV : null);
-        const hasNative = isOnNowTV
-            && bridge
-            && ('playTrailer' in bridge);
-        if (!hasNative) return undefined;
+        // v2.7.54 — Simplest reliable check: just see if the bridge
+        // OBJECT exists.  `window.OnNowTV` is only ever injected by
+        // MainActivity.addJavascriptInterface(...) — never present
+        // on web preview / desktop.  Avoid `typeof === 'function'`
+        // (Android returns 'object'), avoid `'playTrailer' in bridge`
+        // (some WebViews enumerate @JavascriptInterface methods
+        // lazily and the property only appears AFTER the first call
+        // attempt).  Just trust the object.
+        const bridge = (typeof window !== 'undefined') ? window.OnNowTV : null;
+        if (!bridge) return undefined;
         let cancel = false;
         (async () => {
             try {
@@ -120,17 +116,7 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
 
     if (!youtubeKey) return null;
 
-    // If we're handing off to the native player, render a minimal
-    // overlay while we wait.  Once nativeLaunchedRef flips and we
-    // call onClose() this disappears entirely.
-    // v2.7.49 — same `'in' bridge` check as above to dodge the
-    // Android @JavascriptInterface typeof='object' quirk.
-    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
-    const isOnNowTV = /OnNowTV\//.test(ua);
-    const bridge = (typeof window !== 'undefined' ? window.OnNowTV : null);
-    const nativeHandoff = isOnNowTV
-        && bridge
-        && ('playTrailer' in bridge);
+    const nativeHandoff = (typeof window !== 'undefined') && !!window.OnNowTV;
     if (nativeHandoff && !resolveError) {
         return (
             <div

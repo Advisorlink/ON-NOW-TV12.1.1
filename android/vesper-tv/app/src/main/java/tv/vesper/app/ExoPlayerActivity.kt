@@ -82,6 +82,38 @@ class ExoPlayerActivity : ComponentActivity() {
     private var isEnglish: Boolean = true
     private var cwId: String = ""
 
+    // v2.7.54 — Bumped from outside via Activity.dispatchKeyEvent on
+    // EVERY remote key press, including arrows.  This is more
+    // reliable than waiting for Compose's focused child to catch
+    // onKeyEvent — once the dock auto-hides, there's no focused
+    // child to catch anything.
+    private val userActivityFlow = MutableStateFlow(System.currentTimeMillis())
+
+    private fun pingUserActivity() {
+        userActivityFlow.value = System.currentTimeMillis()
+    }
+
+    /**
+     * Catch EVERY key event before it reaches PlayerView / Compose so
+     * we can bump the user-activity timer.  This is what makes the
+     * dock re-appear when the user presses any D-pad key after
+     * auto-hide.  Returning `false` lets the event continue to its
+     * regular destination (Compose buttons / Activity onKeyDown).
+     */
+    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+        if (event != null && event.action == KeyEvent.ACTION_DOWN) {
+            // Don't ping for hardware media keys we already handle
+            // — but DO ping for D-pad / arrow / Enter so the dock
+            // shows back up.
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_BACK,
+                KeyEvent.KEYCODE_ESCAPE -> { /* don't ping for back */ }
+                else -> pingUserActivity()
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     // Reactive player state for the Compose overlay
     private val isPlayingFlow = MutableStateFlow(false)
     private val positionMsFlow = MutableStateFlow(0L)
@@ -325,6 +357,8 @@ class ExoPlayerActivity : ComponentActivity() {
                     audioTracks     = audioTracksFlow.asStateFlow(),
                     subtitleTracks  = subtitleTracksFlow.asStateFlow(),
                     streams         = streamsFlow.asStateFlow(),
+                    // v2.7.54 — pump activity from Activity.dispatchKeyEvent
+                    userActivity    = userActivityFlow.asStateFlow(),
                     onPlayPause = {
                         if (player.isPlaying) player.pause() else player.play()
                     },

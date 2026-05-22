@@ -7,6 +7,22 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.54 — Dock re-shows on D-pad after auto-hide · Trailer native handoff simplified
+### 1. Player dock now ALWAYS re-appears on any D-pad press
+**Root cause** of "buttons hidden once movie starts": after the 10 s auto-hide, the Compose dock's children unmounted → no focused view → D-pad key presses fell into nothing → activity timer was never bumped → dock stayed hidden forever.
+
+**Fix**:
+- `ExoPlayerActivity.dispatchKeyEvent` now intercepts EVERY key event before it reaches PlayerView / Compose. On any KeyDown (except BACK / ESCAPE), it bumps a `userActivityFlow: StateFlow<Long>`.
+- `PlayerOverlay` accepts the flow as a new prop and drives its auto-hide timer from `userActivityTs` instead of the internal `lastActivity` state.
+- Result: pressing ANY remote button (arrows / OK / Enter / etc.) instantly re-shows the dock — works whether dock is hidden or focused on a button, and works without needing any Compose child to have keyboard focus.
+
+### 2. Trailer YouTube handoff — simplified bridge detection
+v2.7.49 / 2.7.52 detection was probably failing silently on certain WebView builds (the UA stamp check or the `'in' bridge` check returning false). Replaced with the simplest reliable rule:
+```js
+const nativeHandoff = !!window.OnNowTV;
+```
+`window.OnNowTV` is ONLY ever injected by `MainActivity.addJavascriptInterface(...)` — it is never present in web preview / desktop. If the object exists, we are on Android → hand off natively. The `OkHttpClient` extractor and the libVLC slave-audio rendering haven't changed.
+
 ## v2.7.53 — Thinner focus rings · Notify modal long-press fix · Faster autoplay button
 ### 1. Focus rings halved
 Per user request: all focus rings reduced from `3 px → 1.5 px` (tiles) and `2 px → 1 px` (pills). Same outline-offset, same color, just tighter / more refined.
