@@ -1407,12 +1407,15 @@ private fun StatusPill(
 
 @Composable
 private fun VoiceBubbleCard(bubble: PartyVoiceManager.VoiceBubble, index: Int) {
-    val laneOffset = (12 + (index % 4) * 17).dp
+    // v2.7.68 — Anchor bubbles to the BOTTOM-RIGHT, stacked just
+    // above the avatar voice dock so it's obvious who's talking.
+    // Stagger upward as more bubbles arrive (each one ~96 dp higher).
+    val laneOffset = (130 + (index % 4) * 90).dp
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = laneOffset, bottom = 180.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 36.dp, bottom = laneOffset)
                 .widthIn(min = 200.dp, max = 360.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(
@@ -1422,6 +1425,7 @@ private fun VoiceBubbleCard(bubble: PartyVoiceManager.VoiceBubble, index: Int) {
                 )
                 .border(1.dp, Color(0x735DC8FF), RoundedCornerShape(18.dp))
                 .padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.End,
         ) {
             val avatarPrefix = if (bubble.senderAvatarEmoji.isNotBlank())
                 "${bubble.senderAvatarEmoji}  " else ""

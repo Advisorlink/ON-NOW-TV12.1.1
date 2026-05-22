@@ -103,12 +103,9 @@ class ExoPlayerActivity : ComponentActivity() {
      * v2.7.67 also adds D-pad-hold emoji reactions for Watch Together
      * (parity with React's usePartyReactions hook).
      */
-    // v2.7.67 — D-pad-hold emoji reactions (parity with React's
-    // usePartyReactions hook).  Track first KEYDOWN timestamp per
-    // arrow direction; when the elapsed hold time exceeds REACT_HOLD_MS,
-    // we fire the corresponding emoji through PartyVoiceManager.
-    // Cleared on KEYUP or after firing.  Cooldown prevents spam.
-    private val reactionPressAt = mutableMapOf<Int, Long>()
+    // v2.7.68 — D-pad arrows in party mode = INSTANT emoji reactions
+    // (no hold required).  Spatial focus is consumed so the avatar
+    // stays focused while you fire.  800 ms cooldown prevents spam.
     private var lastReactionFireAt: Long = 0L
 
     // Reaction constants are stored as private vals on the instance
@@ -124,53 +121,69 @@ class ExoPlayerActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val inParty = partyVoice != null
+        // v2.7.68 — Party mode key dispatcher rebuilt from scratch.
+        //
+        // Goals:
+        //   • OK on the avatar must NOT pop the player chrome.  In
+        //     v2.7.67 the OK keypress still pinged userActivityFlow
+        //     via the catch-all `else` branch, which re-showed the
+        //     control deck.  Now no D-pad key pings in party mode.
+        //   • Pushing RIGHT to send an emoji must NOT move focus
+        //     into the ☰ button.  Compose's spatial focus shifts on
+        //     any arrow; the only way to stop that is to consume the
+        //     event here.  We do that AND immediately fire the
+        //     corresponding emoji (tap-to-react, 1 s cooldown).
+        //   • The player chrome is now opened by either:
+        //       a) KEYCODE_MENU on the remote (dedicated button) or
+        //          KEYCODE_INFO (some Android TV remotes use this)
+        //       b) Pressing OK on the on-screen ☰ button (which the
+        //          PlayerOverlay's onClick handler wires directly to
+        //          openChromeFromUi() — see below).
+        //
+        // Non-party playback keeps the old behaviour: any non-back
+        // key pings the activity timer so the dock auto-re-shows.
         if (event.action == KeyEvent.ACTION_DOWN) {
-            // Don't ping for hardware media keys we already handle
-            // — but DO ping for D-pad / arrow / Enter so the dock
-            // shows back up.
-            //
-            // v2.7.67 — when a Watch Together party is active, the
-            // voice dock is always on screen and users navigate
-            // through avatars with D-pad arrows.  Bumping the
-            // chrome timer on every arrow key meant the Play/Pause
-            // control deck popped up the moment you moved focus
-            // onto an avatar.  In party mode we now only ping for
-            // OK / Enter (and explicit menu opens via the ☰ button
-            // already call bump() directly), so arrows can navigate
-            // the voice dock cleanly without showing the chrome.
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_BACK,
-                KeyEvent.KEYCODE_ESCAPE -> { /* don't ping for back */ }
-                KeyEvent.KEYCODE_DPAD_LEFT,
-                KeyEvent.KEYCODE_DPAD_RIGHT,
-                KeyEvent.KEYCODE_DPAD_UP,
-                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (!inParty) pingUserActivity()
-                }
-                else -> pingUserActivity()
-            }
-        }
-        // v2.7.67 — D-pad-hold reactions.  Only active when a party
-        // is live AND the focused view is NOT the avatar (so holding
-        // OK on the avatar still records voice and isn't hijacked).
-        if (inParty && partyVoice != null) {
-            val emoji = dpadEmoji[event.keyCode]
-            if (emoji != null) {
-                val now = System.currentTimeMillis()
-                if (event.action == KeyEvent.ACTION_DOWN) {
-                    val first = reactionPressAt[event.keyCode] ?: 0L
-                    if (first == 0L) {
-                        reactionPressAt[event.keyCode] = now
-                    } else if (first > 0 && now - first >= 2000L &&
-                               now - lastReactionFireAt >= 1000L) {
-                        reactionPressAt[event.keyCode] = -1L  // sentinel — don't refire until keyup
+            if (inParty) {
+                // Tap-to-react: instantly fire emoji + consume the
+                // event so spatial focus can't move the highlight.
+                val emoji = dpadEmoji[event.keyCode]
+                if (emoji != null) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastReactionFireAt >= 800L) {
                         lastReactionFireAt = now
                         try { partyVoice?.sendReaction(emoji) } catch (t: Throwable) {
                             Log.w(TAG, "sendReaction failed", t)
                         }
                     }
-                } else if (event.action == KeyEvent.ACTION_UP) {
-                    reactionPressAt.remove(event.keyCode)
+                    return true   // CONSUME — never reaches Compose focus
+                }
+                // Dedicated remote MENU / INFO / GUIDE button opens
+                // chrome.  Different remotes use different keycodes
+                // for the "options" button, so we accept several.
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MENU,
+                    KeyEvent.KEYCODE_INFO,
+                    KeyEvent.KEYCODE_GUIDE,
+                    KeyEvent.KEYCODE_TV,
+                    KeyEvent.KEYCODE_SETTINGS,
+                    KeyEvent.KEYCODE_BUTTON_MODE -> {
+                        pingUserActivity()
+                        return true
+                    }
+                }
+                // OK / ENTER / center on the avatar should ONLY
+                // record voice.  We leave the event uncomsumed so
+                // the focused avatar still gets it, but we DO NOT
+                // ping the activity timer (so the chrome stays
+                // hidden).
+                // Anything else (volume keys, etc.) falls through.
+            } else {
+                // Non-party: original behaviour — ping on every
+                // non-back key so the auto-hide dock can come back.
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_BACK,
+                    KeyEvent.KEYCODE_ESCAPE -> { /* don't ping for back */ }
+                    else -> pingUserActivity()
                 }
             }
         }

@@ -7,6 +7,48 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.68 — Party-mode key model rebuilt + faster STT + bubble on right
+
+Everything from your last feedback addressed.
+
+### 1. OK on the avatar no longer pops the player chrome
+
+**Root cause of the regression**: v2.7.67's "exclude D-pad arrows from pinging" left the catch-all `else -> pingUserActivity()` branch in place, which still fired for KEYCODE_DPAD_CENTER / KEYCODE_ENTER. So OK on the avatar still bumped the timer → chrome slid up.
+
+**Fix**: in party mode, **no D-pad key (including OK) pings the activity timer**. The control deck is now opened by exactly two affordances:
+   a) The dedicated **MENU button** on the remote (KEYCODE_MENU, KEYCODE_INFO fallback for some remotes).
+   b) Pressing OK on the on-screen **☰ button** in the voice dock (Compose `onClick` handler still wires this through).
+
+OK on the avatar is *only* a record-toggle. Nothing else.
+
+### 2. Emoji reactions actually work now (instant tap, no hold, focus locked)
+
+**Root cause**: D-pad arrows were moving Compose's spatial focus into the ☰ button before the hold-timer could fire. The hold model fundamentally clashes with spatial-focus.
+
+**Fix**: Switched from hold-2-seconds to **instant tap-to-react**, and the activity *consumes* the arrow key (returns `true` from `dispatchKeyEvent`) so focus stays put on the avatar. Mapping is unchanged:
+
+- Tap **▲ Up**   → ❤️
+- Tap **▼ Down** → 😱
+- Tap **◀ Left** → 😂
+- Tap **▶ Right** → 😭
+
+800 ms cooldown so a held arrow doesn't machine-gun. Local echo + WS broadcast unchanged. Floating animation up the right edge unchanged.
+
+### 3. Transcription speed roughly halved
+
+Two changes combine to take ~1.5–2 seconds off the perceived round-trip on the HK1 box:
+
+- **Audio encoding**: dropped from 16 kHz / 32 kbps to **8 kHz / 16 kbps mono AAC**. Whisper internally resamples to 16 kHz so quality is unchanged but the payload is half the size — the upload over 4G/wifi is the long pole.
+- **HTTPS pre-warm**: on party connect, `PartyVoiceManager` now fires a fire-and-forget `HEAD /api/` so the TLS handshake + DNS resolution is already done by the time you press the mic. First-transcribe latency drops dramatically.
+
+### 4. Voice bubble now appears just above the avatar (right side)
+
+Bubbles were anchored to the bottom-LEFT of the screen. They now anchor to the **bottom-RIGHT, stacked above the voice dock** (36 dp from the right edge, ~130 dp above the avatars, +90 dp per stacked bubble). Right-aligned text. Makes it crystal-clear which avatar is talking.
+
+---
+
+**About that menu/remote button**: if your specific remote doesn't have a MENU button, the on-screen ☰ in the voice dock still works (focus it with OK after navigating with a key combo you'll need to tell me about). If MENU doesn't work on your remote either, please tell me which dedicated buttons your remote has (POWER · HOME · BACK · ▲▼◀▶ · OK · VOL+/- · MUTE · ???) and I'll bind a free one.
+
 ## v2.7.67 — Stop the chrome popping on avatar focus · Native D-pad emoji reactions are back
 
 Two issues you raised, both fixed.

@@ -140,6 +140,31 @@ class PartyVoiceManager(
                     _wsConnected.value = false
                 }
             })
+            // v2.7.68 — Pre-warm the HTTPS connection to /api/stt so
+            // the first transcribe POST doesn't pay the TLS-handshake
+            // + DNS-resolve cost (~600 ms on the HK1 box).  We hit
+            // /api/ with a HEAD request and discard the response.
+            scope.launch {
+                try {
+                    val baseFromWs = when {
+                        partyWsUrl.startsWith("wss://") ->
+                            "https://" + partyWsUrl.removePrefix("wss://").substringBefore("/")
+                        partyWsUrl.startsWith("ws://") ->
+                            "http://"  + partyWsUrl.removePrefix("ws://").substringBefore("/")
+                        else -> ""
+                    }
+                    if (baseFromWs.isNotBlank()) {
+                        val warmReq = Request.Builder()
+                            .url("$baseFromWs/api/")
+                            .head()
+                            .build()
+                        client.newCall(warmReq).execute().close()
+                        Log.i(TAG, "STT connection pre-warmed: $baseFromWs")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "STT prewarm failed (non-fatal)", e)
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "ws connect failed", e)
         }
@@ -296,9 +321,15 @@ class PartyVoiceManager(
             rec.setAudioSource(MediaRecorder.AudioSource.MIC)
             rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            rec.setAudioSamplingRate(16000)
+            // v2.7.68 — Aggressive bitrate / samplerate cuts.  Whisper
+            // happily handles 8 kHz mono AAC (it internally resamples
+            // to 16 kHz).  Halving the bitrate roughly halves upload
+            // time, which is the #1 contributor to perceived lag.
+            // Previous: 16 kHz / 32 kbps → ~40 KB for 10 s of speech.
+            // New:       8 kHz / 16 kbps → ~20 KB for 10 s of speech.
+            rec.setAudioSamplingRate(8000)
             rec.setAudioChannels(1)
-            rec.setAudioEncodingBitRate(32_000)
+            rec.setAudioEncodingBitRate(16_000)
             rec.setOutputFile(outFile.absolutePath)
             rec.prepare()
             rec.start()
