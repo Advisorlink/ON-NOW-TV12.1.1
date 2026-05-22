@@ -234,6 +234,25 @@ class ExoPlayerActivity : ComponentActivity() {
                 Log.w(TAG, "PartyVoiceManager init failed — voice dock disabled", t)
                 partyVoice = null
             }
+            // v2.7.66 — request RECORD_AUDIO at runtime.  The manifest
+            // declares it, but Android 6+ requires the user to grant it
+            // explicitly the first time the app needs the mic.  Without
+            // this, MediaRecorder.start() throws an opaque
+            // IllegalStateException and the voice pill silently failed.
+            try {
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    androidx.core.app.ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(android.Manifest.permission.RECORD_AUDIO),
+                        REQ_RECORD_AUDIO,
+                    )
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "RECORD_AUDIO permission request failed", t)
+            }
         }
 
         // Parse alternate streams JSON for the in-player stream picker.
@@ -692,6 +711,9 @@ class ExoPlayerActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "VesperExo"
+        // v2.7.66 — request code for the mic permission prompt that
+        // pops the first time a Watch Together party opens the player.
+        private const val REQ_RECORD_AUDIO = 7411
         const val PREF_KEY_USE_EXO = "use_exoplayer_backend"
 
         @Suppress("unused")

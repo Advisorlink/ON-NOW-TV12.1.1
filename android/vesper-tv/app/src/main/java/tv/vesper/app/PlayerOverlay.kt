@@ -1341,8 +1341,13 @@ private fun StatusPill(
     // diagnostic text (HTTP code / exception class) is readable from
     // across the room and survives a phone-camera capture.  Non-error
     // states keep the original compact pill look.
-    if (state == PartyVoiceManager.RecState.Error) {
-        val detail = errorText.trim().ifBlank { "TRY AGAIN" }
+    if (state == PartyVoiceManager.RecState.Error ||
+        state == PartyVoiceManager.RecState.Blocked) {
+        val isBlocked = state == PartyVoiceManager.RecState.Blocked
+        val detail = errorText.trim().ifBlank {
+            if (isBlocked) "MIC BLOCKED" else "TRY AGAIN"
+        }
+        val headerLabel = if (isBlocked) "MICROPHONE BLOCKED" else "VOICE ERROR"
         Box(
             modifier = modifier
                 .clip(RoundedCornerShape(14.dp))
@@ -1352,7 +1357,7 @@ private fun StatusPill(
         ) {
             Column {
                 Text(
-                    text = "VOICE ERROR",
+                    text = headerLabel,
                     color = Color.White,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
@@ -1374,8 +1379,9 @@ private fun StatusPill(
     val (label, bg) = when (state) {
         PartyVoiceManager.RecState.Recording     -> "● LISTENING…"    to Color(0xE6FF5050)
         PartyVoiceManager.RecState.Transcribing  -> "⟳ TRANSCRIBING…" to Color(0xE60B1322)
-        PartyVoiceManager.RecState.Blocked       -> "MIC BLOCKED"     to Color(0xE60B1322)
-        PartyVoiceManager.RecState.Idle, PartyVoiceManager.RecState.Error -> "" to Color.Transparent
+        PartyVoiceManager.RecState.Blocked,
+        PartyVoiceManager.RecState.Idle,
+        PartyVoiceManager.RecState.Error         -> "" to Color.Transparent
     }
     Box(
         modifier = modifier

@@ -211,6 +211,27 @@ class PartyVoiceManager(
 
     fun startRecording() {
         if (_recState.value != RecState.Idle) return
+        // v2.7.66 — explicit RECORD_AUDIO check.  Without this the
+        // MediaRecorder.start() below throws an opaque IllegalStateException
+        // on Android 6+ devices that haven't been granted the permission,
+        // which is exactly what was happening on the HK1 box: the manifest
+        // declared the permission but no activity ever asked the user to
+        // grant it.  We now surface a clear "MIC PERMISSION" pill so the
+        // root cause is visible on the TV.
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            ctx, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            Log.w(TAG, "startRecording aborted: RECORD_AUDIO not granted")
+            scope.launch {
+                _lastError.value = "MIC PERMISSION"
+                _recState.value = RecState.Blocked
+                kotlinx.coroutines.delay(10_000L)
+                _recState.value = RecState.Idle
+                _lastError.value = ""
+            }
+            return
+        }
         try {
             val outFile = File.createTempFile("voice-", ".m4a", ctx.cacheDir)
             val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -241,11 +262,16 @@ class PartyVoiceManager(
         } catch (e: Exception) {
             Log.w(TAG, "startRecording failed", e)
             cleanupRecorder()
-            _recState.value = if (e.message?.contains("permission", true) == true)
-                RecState.Blocked else RecState.Error
+            val msgRaw = e.message.orEmpty()
+            val isPerm = msgRaw.contains("permission", true)
+            val short = if (isPerm) "MIC PERMISSION"
+                        else "MIC INIT: ${e.javaClass.simpleName}".take(40)
             scope.launch {
-                kotlinx.coroutines.delay(2200L)
+                _lastError.value = short
+                _recState.value = if (isPerm) RecState.Blocked else RecState.Error
+                kotlinx.coroutines.delay(10_000L)
                 _recState.value = RecState.Idle
+                _lastError.value = ""
             }
         }
     }

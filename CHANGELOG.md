@@ -7,6 +7,35 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.66 — REAL ROOT CAUSE FOUND: missing runtime mic permission
+
+**The actual bug — explained**:
+
+The diagnostic panel in v2.7.65 worked perfectly. From your video the bottom line read literally "TRY AGAIN" (empty), which can only happen on one code path: the `startRecording()` catch block that never populated `_lastError`. Once I traced *that* path, the cause was obvious:
+
+> The app's `AndroidManifest.xml` declares `<uses-permission android:name="android.permission.RECORD_AUDIO"/>`, but **no activity ever calls `requestPermissions()` for it**. Since Android 6 (Marshmallow / API 23), `RECORD_AUDIO` is a "dangerous" permission and MUST be granted at runtime — declaring it in the manifest is not enough. So `MediaRecorder.start()` was throwing an opaque `IllegalStateException`, we silently flipped to `RecState.Error`, and the pill said "TRY AGAIN" with no detail.
+
+This was never a backend/URL/SSL/Whisper issue. The mic was never even allowed to open.
+
+**Fixes in this build**:
+
+1. **Runtime permission prompt** added to `ExoPlayerActivity.onCreate` — when you enter a Watch Together party, Android pops the standard mic-grant dialog the first time. Tap **Allow** and you're done forever.
+2. **`startRecording()` now self-checks** `RECORD_AUDIO` *before* invoking `MediaRecorder`. If the permission is missing, the red panel shows `MIC PERMISSION` (not the generic "TRY AGAIN").
+3. **The diagnostic panel was made bigger** in v2.7.65 — kept here. Bottom line is the actual cause, big bold monospace, lingers 10 s.
+4. **`Blocked` state now uses the same big-panel design** with header "MICROPHONE BLOCKED". Previously it was a small pill easy to miss.
+
+**Action**:
+1. Sideload v2.7.66.
+2. Open a Watch Together party for the first time.
+3. Android will pop a permission prompt: *"Allow ON NOW TV V2 to record audio?"* → tap **Allow**.
+4. Hit the avatar to record → release. The bubble should appear with your transcript.
+
+(If the OS prompt doesn't appear because the box has weird AOSP behaviour, go to Settings → Apps → ON NOW TV V2 → Permissions → Microphone → toggle ON. Then come back and try.)
+
+**Still on the table** (separate issues you mentioned):
+- "The menu" — please clarify which menu and what it's doing wrong (popping when it shouldn't? not opening? wrong content?). A 5-second clip pointing at it would be perfect.
+- "No emojis anymore" — was the in-player emoji reaction dock visible on a previous build? It's currently only rendered by the React side; once we moved Watch Together to ExoPlayer in v2.7.61, the native overlay only ships the voice dock. I'll port reactions into the native Compose overlay next.
+
 ## v2.7.65 — BIG, readable error panel on voice-transcribe failure
 
 **Why**: In v2.7.64 the diagnostic text was rendered in an 11 sp pill — too small to read on camera, and a video capture flattened it back to a generic-looking red badge. This release makes the error literally impossible to miss.
