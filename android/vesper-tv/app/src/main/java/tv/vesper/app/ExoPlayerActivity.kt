@@ -146,6 +146,35 @@ class ExoPlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // v2.7.64 — Mobile-safe boot.  ExoPlayer + Compose can crash
+        // on certain older phones (HEVC decoder absent, no OpenGL ES 3
+        // for ComposeView, etc.).  We wrap the entire activity init in
+        // a try-catch.  If ANY step throws — Compose render, ExoPlayer
+        // factory, OkHttp datasource, MediaItem build, anything — we
+        // fall back to VlcPlayerActivity with all the same intent
+        // extras forwarded.  The user never sees a crash dialog; their
+        // movie just plays in LibVLC instead, AND Watch Together still
+        // works since VlcPlayerActivity has its own party WS impl.
+        try {
+            initExoPlayerActivity(savedInstanceState)
+        } catch (t: Throwable) {
+            Log.e(TAG, "ExoPlayer init failed — falling back to LibVLC", t)
+            try {
+                val fallback = Intent(this, VlcPlayerActivity::class.java)
+                fallback.putExtras(intent)
+                fallback.flags = (
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+                            or Intent.FLAG_ACTIVITY_NO_HISTORY
+                )
+                startActivity(fallback)
+            } catch (_: Throwable) { /* nothing more to try */ }
+            finish()
+        }
+    }
+
+    private fun initExoPlayerActivity(savedInstanceState: Bundle?) {
+        // (formerly the body of onCreate)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUi()
@@ -169,39 +198,42 @@ class ExoPlayerActivity : ComponentActivity() {
         val partyCode = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_CODE)
             ?.takeIf { it.isNotBlank() }
         if (partyCode != null) {
-            val wsUrl = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL).orEmpty()
-            val memberId = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_MEMBER_ID)
-                ?: "self-${System.currentTimeMillis()}"
-            val displayName = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME)
-                ?: "You"
-            val avatarEmoji = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI)
-                ?: "\uD83C\uDFAC"
-            // v2.7.62 — Robust ws/wss → http/https conversion.  The
-            // old `.replaceFirst(Regex("^ws"), "http")` turned
-            // `wss://...` into `httpss://...` (regex matched the
-            // first two chars `ws` and prepended `http`), which broke
-            // the transcribe POST and produced "TRY AGAIN" in the
-            // status pill.  Handle both schemes explicitly.
-            val backendBase = wsUrl
-                .substringBefore("/api/")
-                .let { base ->
-                    when {
-                        base.startsWith("wss://") -> "https://" + base.removePrefix("wss://")
-                        base.startsWith("ws://")  -> "http://"  + base.removePrefix("ws://")
-                        else                      -> base
+            // v2.7.64 — Voice manager init wrapped so a mic / WS / SDK
+            // failure here can never crash the player.  Playback
+            // continues without the voice dock if anything goes wrong.
+            try {
+                val wsUrl = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_WS_URL).orEmpty()
+                val memberId = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_MEMBER_ID)
+                    ?: "self-${System.currentTimeMillis()}"
+                val displayName = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME)
+                    ?: "You"
+                val avatarEmoji = intent.getStringExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI)
+                    ?: "\uD83C\uDFAC"
+                // v2.7.62 — Robust ws/wss → http/https conversion.
+                val backendBase = wsUrl
+                    .substringBefore("/api/")
+                    .let { base ->
+                        when {
+                            base.startsWith("wss://") -> "https://" + base.removePrefix("wss://")
+                            base.startsWith("ws://")  -> "http://"  + base.removePrefix("ws://")
+                            else                      -> base
+                        }
                     }
-                }
-            partyVoice = PartyVoiceManager(
-                ctx               = applicationContext,
-                partyCode         = partyCode,
-                partyWsUrl        = wsUrl,
-                backendBase       = backendBase,
-                selfMemberId      = memberId,
-                selfDisplayName   = displayName,
-                selfAvatarId      = "a1",
-                selfAvatarEmoji   = avatarEmoji,
-                initialMembersJson = null,
-            ).also { it.connect() }
+                partyVoice = PartyVoiceManager(
+                    ctx                = applicationContext,
+                    partyCode          = partyCode,
+                    partyWsUrl         = wsUrl,
+                    backendBase        = backendBase,
+                    selfMemberId       = memberId,
+                    selfDisplayName    = displayName,
+                    selfAvatarId       = "a1",
+                    selfAvatarEmoji    = avatarEmoji,
+                    initialMembersJson = null,
+                ).also { it.connect() }
+            } catch (t: Throwable) {
+                Log.w(TAG, "PartyVoiceManager init failed — voice dock disabled", t)
+                partyVoice = null
+            }
         }
 
         // Parse alternate streams JSON for the in-player stream picker.
@@ -308,6 +340,33 @@ class ExoPlayerActivity : ComponentActivity() {
                 Log.e(TAG, "ExoPlayer error: ${error.errorCodeName}", error)
                 errorMessageFlow.value = error.errorCodeName
                 isLoadingFlow.value = false
+                // v2.7.64 — On mobile, hardware codec failures
+                // (HEVC not supported, source mime/container quirk
+                // etc.) surface as PlaybackException.  Fall back to
+                // LibVLC so the user can still watch the movie.
+                // We only kick the fallback for source/codec errors
+                // — not for transient network blips.
+                val code = error.errorCode
+                val isFatal = (
+                    code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
+                    code == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                    code == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+                    code == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                    code == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
+                )
+                if (isFatal) {
+                    try {
+                        val fallback = Intent(
+                            this@ExoPlayerActivity, VlcPlayerActivity::class.java
+                        )
+                        fallback.putExtras(intent)
+                        startActivity(fallback)
+                    } catch (_: Throwable) { /* */ }
+                    finish()
+                }
             }
             override fun onPlaybackStateChanged(state: Int) {
                 isLoadingFlow.value = (state == Player.STATE_BUFFERING ||
