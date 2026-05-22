@@ -46,13 +46,22 @@ class PartyVoiceManager(
     private val partyCode: String,
     private val partyWsUrl: String,
     private val backendBase: String,         // e.g. https://rebrand-app-5.preview…
-    private val selfMemberId: String,
+    initialMemberId: String,
     private val selfDisplayName: String,
     private val selfAvatarId: String,
     private val selfAvatarEmoji: String,
     initialMembersJson: String?,
 ) {
     companion object { private const val TAG = "PartyVoice" }
+
+    // v2.7.69 — selfMemberId is mutable because the server may
+    // re-assign us a new one in the "joined" payload (especially
+    // if the React Detail page lost its session before launching
+    // the native player).  If we don't track the assigned id, the
+    // server echoes our own reactions back as if from another
+    // member and emojis "go crazy" with duplicates.
+    @Volatile
+    private var selfMemberId: String = initialMemberId
 
     /** State an external observer (Compose overlay) collects. */
     data class Member(
@@ -103,7 +112,8 @@ class PartyVoiceManager(
     val recState: StateFlow<RecState>             = _recState.asStateFlow()
     val wsConnected: StateFlow<Boolean>           = _wsConnected.asStateFlow()
     val lastError: StateFlow<String>              = _lastError.asStateFlow()
-    val selfMemberIdValue: String                 = selfMemberId
+    val selfMemberIdValue: String
+        get() = selfMemberId
 
     // ── WebSocket ─────────────────────────────────────────────────
     private var ws: WebSocket? = null
@@ -174,10 +184,17 @@ class PartyVoiceManager(
         val msg = JSONObject(raw)
         when (msg.optString("type")) {
             "joined" -> {
-                // Update self id if server gave us one
+                // v2.7.69 — adopt the server-assigned member_id so
+                // our self-echo filter actually filters our own
+                // broadcasts.  Previously we stored the assignment
+                // and threw it away, which caused every reaction we
+                // sent to come back as if from a stranger and the
+                // emoji panel duplicated each tap.
                 val mid = msg.optString("member_id", "")
-                // Member roster handling — keep what we have for now.
-                val _unused = mid  // suppressed-unused warning
+                if (mid.isNotBlank() && mid != selfMemberId) {
+                    Log.i(TAG, "selfMemberId updated by server: $selfMemberId -> $mid")
+                    selfMemberId = mid
+                }
             }
             "members" -> {
                 _members.value = parseMembers(msg.toString())
@@ -204,7 +221,15 @@ class PartyVoiceManager(
                 if (emoji.isBlank()) return
                 val member = msg.optJSONObject("member")
                 val senderId = member?.optString("id", "") ?: ""
-                if (senderId == selfMemberId) return  // already echoed locally
+                // Primary self-echo filter: server-assigned member id
+                // matches ours (kept in sync via the "joined" handler).
+                if (senderId.isNotBlank() && senderId == selfMemberId) return
+                // v2.7.69 — backstop filter.  Some server builds omit
+                // `member.id` on broadcast or send a placeholder.  If
+                // we just locally fired this exact emoji within the
+                // last 1.5 s, assume the inbound is our own echo.
+                val now = System.currentTimeMillis()
+                if (now - lastLocalEmojiAt < 1500L && lastLocalEmoji == emoji) return
                 pushReaction(
                     emoji = emoji,
                     senderName = member?.optString("name", "") ?: "",
@@ -252,6 +277,11 @@ class PartyVoiceManager(
 
     // v2.7.67 — Reactions: short-lived floating emoji from any party member.
     private val reactionLaneCounter = java.util.concurrent.atomic.AtomicInteger(0)
+    // v2.7.69 — backstop self-echo dedupe.  Remembers the most
+    // recent emoji we broadcast and its timestamp, so server echoes
+    // missing a `member.id` can still be filtered out.
+    @Volatile private var lastLocalEmoji: String = ""
+    @Volatile private var lastLocalEmojiAt: Long = 0L
     private fun pushReaction(emoji: String, senderName: String) {
         val id = "r-${System.currentTimeMillis()}-${(0..9999).random()}"
         val lane = (reactionLaneCounter.getAndIncrement() % 7)
@@ -264,14 +294,20 @@ class PartyVoiceManager(
         )
         _reactions.value = _reactions.value + r
         scope.launch {
-            kotlinx.coroutines.delay(3200L)
+            // v2.7.69 — keep reactions alive for the full 7 s float
+            // animation + a small buffer so they don't pop off mid-fade.
+            kotlinx.coroutines.delay(7500L)
             _reactions.value = _reactions.value.filterNot { it.id == id }
         }
     }
 
-    /** Called by ExoPlayerActivity when the user long-presses a D-pad arrow. */
+    /** Called by ExoPlayerActivity when the user taps a D-pad arrow. */
     fun sendReaction(emoji: String) {
         if (emoji.isBlank()) return
+        // v2.7.69 — record for the backstop self-echo dedupe in
+        // case the server doesn't tag broadcasts with our member id.
+        lastLocalEmoji = emoji
+        lastLocalEmojiAt = System.currentTimeMillis()
         val out = JSONObject().apply {
             put("type", "reaction")
             put("emoji", emoji)

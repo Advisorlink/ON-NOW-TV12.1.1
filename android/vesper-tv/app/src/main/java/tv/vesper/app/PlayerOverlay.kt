@@ -1449,10 +1449,10 @@ private fun VoiceBubbleCard(bubble: PartyVoiceManager.VoiceBubble, index: Int) {
     }
 }
 
-// v2.7.67 — Floating emoji reaction.  Anchors to the right edge of
-// the screen and drifts upward over ~3 s while fading out.  Lanes
-// (0..6) horizontally stagger overlapping reactions so they don't
-// all stack on the same pixel column.
+// v2.7.69 — Floating emoji reaction.  Anchors to the right edge and
+// drifts up slowly so reactions linger and stack instead of vanishing.
+// Lane (0..6) staggers horizontally so back-to-back taps don't pile on
+// the same pixel column.
 @Composable
 private fun FloatingReaction(reaction: PartyVoiceManager.Reaction) {
     val anim = remember(reaction.id) { androidx.compose.animation.core.Animatable(0f) }
@@ -1460,25 +1460,35 @@ private fun FloatingReaction(reaction: PartyVoiceManager.Reaction) {
         anim.animateTo(
             targetValue = 1f,
             animationSpec = androidx.compose.animation.core.tween(
-                durationMillis = 3000,
-                easing = androidx.compose.animation.core.LinearOutSlowInEasing,
+                // v2.7.69 — was 3000 ms.  User asked the emojis to
+                // "slowly float up the screen" so we stretch the
+                // animation to 7 s, hold full opacity for the first
+                // 75 %, then fade out across the last 25 %.
+                durationMillis = 7000,
+                easing = androidx.compose.animation.core.LinearEasing,
             ),
         )
     }
     val progress = anim.value
     val laneOffset = (reaction.lane % 7) * 28
-    // Float from ~80% screen-height upwards by ~70% of the screen.
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = (80 + laneOffset).dp)
                 .offset(
-                    y = (-180 - (progress * 480f)).dp,
+                    // Travel ~720 dp upwards (roughly 80 % of a 1080p
+                    // screen on TV) over the full 7 s.
+                    y = (-220 - (progress * 720f)).dp,
                 )
                 .graphicsLayer {
-                    alpha = (1f - progress * 0.85f).coerceIn(0f, 1f)
-                    val scale = 0.9f + progress * 0.25f
+                    // Hold full opacity for 0.0–0.75, then fade out
+                    // smoothly to 0 across 0.75–1.0.
+                    val fadeStart = 0.75f
+                    val alphaCalc = if (progress < fadeStart) 1f
+                                    else 1f - ((progress - fadeStart) / (1f - fadeStart))
+                    alpha = alphaCalc.coerceIn(0f, 1f)
+                    val scale = 0.92f + progress * 0.18f
                     scaleX = scale
                     scaleY = scale
                 },

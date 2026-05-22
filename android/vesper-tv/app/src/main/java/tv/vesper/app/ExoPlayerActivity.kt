@@ -149,7 +149,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 val emoji = dpadEmoji[event.keyCode]
                 if (emoji != null) {
                     val now = System.currentTimeMillis()
-                    if (now - lastReactionFireAt >= 800L) {
+                    if (now - lastReactionFireAt >= 500L) {
                         lastReactionFireAt = now
                         try { partyVoice?.sendReaction(emoji) } catch (t: Throwable) {
                             Log.w(TAG, "sendReaction failed", t)
@@ -300,7 +300,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     partyCode          = partyCode,
                     partyWsUrl         = wsUrl,
                     backendBase        = backendBase,
-                    selfMemberId       = memberId,
+                    initialMemberId    = memberId,
                     selfDisplayName    = displayName,
                     selfAvatarId       = "a1",
                     selfAvatarEmoji    = avatarEmoji,

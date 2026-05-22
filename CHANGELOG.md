@@ -7,6 +7,37 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.69 — Stop the emoji duplicate-storm + slow elegant float
+
+### Emojis no longer multiply on every tap
+
+**Root cause**: when the Watch Together WebSocket emits a `joined` payload, the server re-assigns a fresh `member_id` to the client.  Until this version we **stored that assignment and threw it away** — `selfMemberId` stayed at whatever the React Detail page handed off via intent.  So every reaction we broadcast came back to us tagged with the server's id, didn't match our id, and was treated as if from a stranger.  Tap one ❤️ → server echoes one ❤️ → we draw a second ❤️.  Tap several arrows → "five or six automatic ones".
+
+**Fix**: `PartyVoiceManager` now adopts the server-assigned id in the `joined` handler (`selfMemberId` made `@Volatile var`).  Added a backstop dedupe too: if a `reaction` arrives within 1.5 s of locally firing the same emoji, treat it as our own echo even if `member.id` is blank or wrong.
+
+### Reactions float slowly up the screen
+
+- Animation duration: **3 s → 7 s** with `LinearEasing`.
+- Travel distance: **480 dp → 720 dp** (≈ 80 % of a 1080p screen).
+- Opacity: full for the first 75 % of the float, then fades smoothly across the last 25 %.
+- Cooldown between taps: **800 ms → 500 ms** — snappy rapid-fire while still rate-limiting auto-repeat.
+- Auto-removal timer matched to animation (7.5 s) so emoji don't pop off mid-fade.
+
+### About the "transcribe as I'm speaking" request
+
+The OpenAI **Whisper-1** model that runs via the Emergent universal key is **batch-only** — it transcribes a complete uploaded clip, not a live stream.  There is no `whisper-turbo` / `gpt-4o-transcribe` available through this key today, and no streaming/realtime endpoint for any STT provider through this key either.
+
+To get the **ChatGPT-voice-mode style real-time partial transcripts** you want, we'd need to integrate one of:
+
+- **Deepgram** Realtime STT (≈ $0.0043 / minute, sub-300 ms latency, websocket protocol)
+- **AssemblyAI** Realtime (≈ $0.015 / minute, ~600 ms latency)
+- **OpenAI Realtime API** (gpt-4o-realtime-preview, streaming voice in/out)
+- **Google Cloud Speech-to-Text** Streaming
+
+All require a separate API key.  Tell me which one to wire up and I'll do it next.
+
+In the meantime v2.7.68's 8 kHz / 16 kbps audio + the TLS pre-warm should already make the current batch flow noticeably snappier on a warm connection.
+
 ## v2.7.68 — Party-mode key model rebuilt + faster STT + bubble on right
 
 Everything from your last feedback addressed.
