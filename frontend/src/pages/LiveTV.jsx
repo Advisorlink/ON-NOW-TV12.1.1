@@ -608,6 +608,15 @@ function Grid({ provider, onLogout }) {
                     || Object.keys(memEpgMap).length === 0;
                 if (cacheEmpty) {
                     try {
+                        /* v2.7.80 — Enforce a minimum splash time so
+                         * even on fast connections (where the
+                         * bundle comes down in <500 ms) the user
+                         * actually sees the loading screen.
+                         * Otherwise the splash dismisses
+                         * imperceptibly and the user thinks
+                         * nothing happened. */
+                        const minSplashMs = 1500;
+                        const splashStartedAt = Date.now();
                         /* v2.7.78 — First-time launch budget bumped
                          * to 90 s.  The user explicitly asked for a
                          * "loading page that could take up to a
@@ -664,6 +673,16 @@ function Grid({ provider, onLogout }) {
                             try { pushLiveGuideToNative(); } catch { /* ignore */ }
                             setStage('epg', 'done',
                                 `${epg.current.size} channels cached`);
+                            /* Hold the splash for the remainder of
+                             * the minimum-visible time so the user
+                             * can actually see "First-time setup —
+                             * caching your full TV guide" instead
+                             * of a 200 ms flash. */
+                            const elapsed = Date.now() - splashStartedAt;
+                            const remaining = minSplashMs - elapsed;
+                            if (remaining > 0) {
+                                await new Promise((r) => setTimeout(r, remaining));
+                            }
                             setBootBlocked(false);
                             rerender();
                             return; // we're done — skip the legacy flow
