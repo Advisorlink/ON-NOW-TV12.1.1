@@ -1,11 +1,12 @@
 {
-  "generation": 6,
+  "generation": 1,
   "dock_tiles": [
     {
       "key": "movies",
-      "label": "Movies, Shows & More",
+      "label": "Movies & TV Shows",
       "sub": "Stream and enjoy",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#38B8FF"
@@ -14,7 +15,8 @@
       "key": "music",
       "label": "Music",
       "sub": "Listen and enjoy",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": null,
       "target_url": null,
       "accent": "#38B8FF"
@@ -23,7 +25,8 @@
       "key": "livetv",
       "label": "Live TV",
       "sub": "Watch live channels",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#2BB6FF"
@@ -32,7 +35,8 @@
       "key": "apps",
       "label": "Apps",
       "sub": "All your apps",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": null,
       "target_url": null,
       "accent": "#2EEAC2"
@@ -41,7 +45,8 @@
       "key": "browser",
       "label": "Browser",
       "sub": "Surf the web",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": null,
       "target_url": null,
       "accent": "#38C2FF"
@@ -50,31 +55,13 @@
       "key": "settings",
       "label": "Settings",
       "sub": "System preferences",
-      "icon_url": null,
+      "image_url": null,
+      "wallpaper_url": null,
       "target_package": null,
       "target_url": null,
       "accent": "#5BC5FF"
     }
   ],
-  "active_wallpaper_id": "07319ceed3f0",
-  "wallpapers": [
-    {
-      "id": "07319ceed3f0",
-      "filename": "07319ceed3f0.png",
-      "url": "/assets/wallpapers/07319ceed3f0.png",
-      "uploaded_at": 1779541953
-    }
-  ],
   "apks": [],
-  "notifications": [
-    {
-      "id": "f19ab92f2567",
-      "title": "Welcome aboard",
-      "body": "Your launcher is online! Tap OK to dismiss.",
-      "image_url": null,
-      "created_at": 1779540650,
-      "expires_at": 1779544250,
-      "seen_by": []
-    }
-  ]
+  "notifications": []
 }

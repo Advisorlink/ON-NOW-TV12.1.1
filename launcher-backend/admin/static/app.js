@@ -73,123 +73,180 @@ $$('.tab').forEach(btn => btn.addEventListener('click', () => {
 async function refreshAll() {
     const store = await api('/api/admin/store');
     renderDock(store);
-    renderWallpapers(store);
     renderApks(store);
     renderNotifications(store);
 }
 
-/* ─────────────  Dock  ───────────── */
+/* ─────────────  Dock  ─────────────
+   Each tile now renders as a stacked card with:
+     - Move ↑ / ↓ buttons (reorder, persisted server-side)
+     - Tile image preview (JPEG card art) + Upload / Remove
+     - Wallpaper preview (focus background) + Upload / Remove
+     - Label / Sub / Target Package / Target URL / Accent inputs
+   The text inputs commit on "Save text fields"; images & wallpapers
+   commit instantly on upload (each has its own endpoint).            */
 function renderDock(store) {
     const list = $('#dockList');
     list.innerHTML = '';
-    store.dock_tiles.forEach((t, idx) => {
+    const tiles = store.dock_tiles || [];
+    tiles.forEach((t, idx) => {
         const li = document.createElement('li');
+        li.dataset.key = t.key;
         li.dataset.idx = String(idx);
+        const imgPreview = t.image_url
+            ? `<img src="${escapeAttr(t.image_url)}" alt="">`
+            : '<div class="empty">No image yet</div>';
+        const wpPreview  = t.wallpaper_url
+            ? `<img src="${escapeAttr(t.wallpaper_url)}" alt="">`
+            : '<div class="empty">No wallpaper yet</div>';
         li.innerHTML = `
-            <div class="icon-cell">${(t.label || '?')[0].toUpperCase()}</div>
+            <div class="tile-head">
+                <div class="reorder">
+                    <button class="reorder-btn"
+                            data-act="up"
+                            data-key="${escapeAttr(t.key)}"
+                            ${idx === 0 ? 'disabled' : ''}
+                            aria-label="Move up">↑</button>
+                    <button class="reorder-btn"
+                            data-act="down"
+                            data-key="${escapeAttr(t.key)}"
+                            ${idx === tiles.length - 1 ? 'disabled' : ''}
+                            aria-label="Move down">↓</button>
+                </div>
+                <div class="tile-title">
+                    <span class="position">${idx + 1}</span>
+                    <span class="key">${escapeAttr(t.key)}</span>
+                    <span class="dot" style="background:${escapeAttr(t.accent || '#38B8FF')}"></span>
+                </div>
+            </div>
+            <div class="tile-media">
+                <div class="media-slot">
+                    <div class="media-label">Tile image <small>(JPEG, ~16:9)</small></div>
+                    <div class="media-preview image">${imgPreview}</div>
+                    <div class="media-actions">
+                        <label class="uploader sm">
+                            <input type="file" data-act="upload-image" data-key="${escapeAttr(t.key)}"
+                                   accept="image/jpeg,image/png,image/webp" hidden>
+                            <span>${t.image_url ? 'Replace' : 'Upload'}</span>
+                        </label>
+                        ${t.image_url ? `<button class="ghost" data-act="clear-image" data-key="${escapeAttr(t.key)}">Remove</button>` : ''}
+                    </div>
+                </div>
+                <div class="media-slot">
+                    <div class="media-label">Wallpaper <small>(JPEG, ~16:9, 1920×1080)</small></div>
+                    <div class="media-preview wallpaper">${wpPreview}</div>
+                    <div class="media-actions">
+                        <label class="uploader sm">
+                            <input type="file" data-act="upload-wallpaper" data-key="${escapeAttr(t.key)}"
+                                   accept="image/jpeg,image/png,image/webp" hidden>
+                            <span>${t.wallpaper_url ? 'Replace' : 'Upload'}</span>
+                        </label>
+                        ${t.wallpaper_url ? `<button class="ghost" data-act="clear-wallpaper" data-key="${escapeAttr(t.key)}">Remove</button>` : ''}
+                    </div>
+                </div>
+            </div>
             <div class="fields">
                 <div><label>Label</label><input data-k="label" value="${escapeAttr(t.label || '')}"></div>
                 <div><label>Sub</label><input data-k="sub" value="${escapeAttr(t.sub || '')}"></div>
                 <div><label>Target package</label><input data-k="target_package" value="${escapeAttr(t.target_package || '')}" placeholder="e.g. tv.onnowtv.app"></div>
                 <div><label>Target URL</label><input data-k="target_url" value="${escapeAttr(t.target_url || '')}" placeholder="e.g. https://news.com"></div>
-                <div><label>Icon URL</label><input data-k="icon_url" value="${escapeAttr(t.icon_url || '')}" placeholder="https://…/icon.png"></div>
                 <div><label>Accent hex</label><input data-k="accent" value="${escapeAttr(t.accent || '')}" placeholder="#2BB6FF"></div>
             </div>
         `;
         list.appendChild(li);
     });
+    bindDockHandlers();
+}
+
+function bindDockHandlers() {
+    /* Reorder buttons */
+    $$('#dockList .reorder-btn').forEach((b) => {
+        b.addEventListener('click', async () => {
+            const key = b.dataset.key;
+            const dir = b.dataset.act;
+            const store = await api('/api/admin/store');
+            const order = store.dock_tiles.map((t) => t.key);
+            const i = order.indexOf(key);
+            if (i < 0) return;
+            const j = dir === 'up' ? i - 1 : i + 1;
+            if (j < 0 || j >= order.length) return;
+            [order[i], order[j]] = [order[j], order[i]];
+            try {
+                await api('/api/admin/dock/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order }),
+                });
+                toast(`Moved ${key} ${dir}`);
+                refreshAll();
+            } catch (e) { toast('Reorder failed: ' + e.message, true); }
+        });
+    });
+
+    /* Image / wallpaper upload */
+    $$('#dockList input[type="file"]').forEach((inp) => {
+        inp.addEventListener('change', async () => {
+            const f = inp.files && inp.files[0];
+            if (!f) return;
+            const key = inp.dataset.key;
+            const kind = inp.dataset.act === 'upload-image' ? 'image' : 'wallpaper';
+            const form = new FormData();
+            form.append('file', f);
+            try {
+                await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
+                    method: 'POST',
+                    body: form,
+                });
+                toast(`${kind === 'image' ? 'Tile image' : 'Wallpaper'} uploaded for ${key}`);
+                refreshAll();
+            } catch (e) { toast('Upload failed: ' + e.message, true); }
+        });
+    });
+
+    /* Clear image / wallpaper */
+    $$('#dockList button[data-act^="clear-"]').forEach((b) => {
+        b.addEventListener('click', async () => {
+            const key = b.dataset.key;
+            const kind = b.dataset.act === 'clear-image' ? 'image' : 'wallpaper';
+            if (!confirm(`Remove ${kind} for "${key}"?`)) return;
+            try {
+                await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
+                    method: 'DELETE',
+                });
+                toast(`${kind} cleared for ${key}`);
+                refreshAll();
+            } catch (e) { toast('Failed: ' + e.message, true); }
+        });
+    });
 }
 
 $('#saveDock').addEventListener('click', async () => {
-    const tiles = $$('#dockList li').map(li => {
-        const inputs = li.querySelectorAll('input');
-        const out = { key: $('#dockList').children[li.dataset.idx]?.dataset.key };
-        inputs.forEach(i => {
+    /* Walk the rendered list IN ORDER and build a 6-tile payload that
+       preserves each tile's key.  Image/wallpaper paths are managed
+       separately by the upload endpoints — the backend's set_dock()
+       merges them back in so we don't have to send them here. */
+    const store = await api('/api/admin/store');
+    const byKey = Object.fromEntries(store.dock_tiles.map((t) => [t.key, t]));
+    const payload = $$('#dockList li').map((li) => {
+        const key = li.dataset.key;
+        const existing = byKey[key] || {};
+        const out = { key, label: existing.label, sub: existing.sub,
+                      target_package: null, target_url: null, accent: null };
+        li.querySelectorAll('.fields input').forEach((i) => {
             out[i.dataset.k] = i.value.trim() || null;
         });
-        // Preserve the original `key` (we don't expose it as editable)
-        // by reading it from current state via fetch.
         return out;
     });
-    // The dock tile schema requires `key` — read it from the store before
-    // sending to avoid losing keys.  Use the live store as source of truth.
-    const store = await api('/api/admin/store');
-    const payload = store.dock_tiles.map((t, idx) => ({
-        key: t.key,
-        label: tiles[idx].label || t.label,
-        sub: tiles[idx].sub || t.sub,
-        icon_url: tiles[idx].icon_url || null,
-        target_package: tiles[idx].target_package || null,
-        target_url: tiles[idx].target_url || null,
-        accent: tiles[idx].accent || null,
-    }));
     try {
         await api('/api/admin/dock', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-        toast('Dock saved — devices will pull on next poll');
+        toast('Dock text fields saved');
+        refreshAll();
     } catch (e) { toast('Save failed: ' + e.message, true); }
 });
-
-/* ─────────────  Wallpapers  ───────────── */
-$('#wallpaperFile').addEventListener('change', async (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const form = new FormData();
-    form.append('file', f);
-    try {
-        await api('/api/admin/wallpapers', { method: 'POST', body: form });
-        toast('Wallpaper uploaded');
-        refreshAll();
-    } catch (err) { toast('Upload failed: ' + err.message, true); }
-});
-
-function renderWallpapers(store) {
-    const grid = $('#wallpaperGrid');
-    grid.innerHTML = '';
-    const ws = store.wallpapers || [];
-    if (!ws.length) {
-        grid.innerHTML = '<p style="color:var(--txt-tertiary);grid-column:1/-1;">No wallpapers uploaded yet.</p>';
-        return;
-    }
-    ws.forEach(w => {
-        const active = store.active_wallpaper_id === w.id;
-        const card = document.createElement('div');
-        card.className = 'card' + (active ? ' active' : '');
-        card.innerHTML = `
-            ${active ? '<span class="badge">ACTIVE</span>' : ''}
-            <img src="${escapeAttr(w.url)}" alt="">
-            <div class="meta">
-                <span>${new Date(w.uploaded_at * 1000).toLocaleString()}</span>
-                <div>
-                    ${active ? '' : `<button class="activate" data-id="${w.id}">Activate</button>`}
-                    <button class="delete" data-id="${w.id}">Delete</button>
-                </div>
-            </div>`;
-        grid.appendChild(card);
-    });
-    grid.querySelectorAll('button.activate').forEach(b => b.addEventListener('click', async () => {
-        try {
-            await api('/api/admin/wallpapers/active', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: b.dataset.id }),
-            });
-            toast('Wallpaper activated');
-            refreshAll();
-        } catch (e) { toast('Failed: ' + e.message, true); }
-    }));
-    grid.querySelectorAll('button.delete').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Delete this wallpaper?')) return;
-        try {
-            await api('/api/admin/wallpapers/' + b.dataset.id, { method: 'DELETE' });
-            toast('Wallpaper deleted');
-            refreshAll();
-        } catch (e) { toast('Delete failed: ' + e.message, true); }
-    }));
-}
 
 /* ─────────────  APKs  ───────────── */
 $('#apkSubmit').addEventListener('click', async () => {

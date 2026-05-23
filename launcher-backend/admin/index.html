@@ -34,7 +34,6 @@
         </div>
         <nav>
             <button class="tab active" data-tab="dock">Dock</button>
-            <button class="tab"        data-tab="wallpapers">Wallpapers</button>
             <button class="tab"        data-tab="apks">APKs</button>
             <button class="tab"        data-tab="notify">Notify</button>
             <button id="logout" class="logout">Sign out</button>
@@ -45,23 +44,13 @@
     <section id="tab-dock" class="tab-panel active">
         <div class="panel-head">
             <h2>Dock tiles</h2>
-            <p>Reorder by drag — these are the 6 cards that appear at the bottom of every launcher.</p>
+            <p>Drag the <strong>↑ ↓</strong> arrows to reorder.  Upload a tile image (the card art) <em>and</em> a wallpaper (the background painted behind the dock when this tile is focused).  Both should be JPEG.  Recommended: tile image 1280&times;720, wallpaper 1920&times;1080.</p>
         </div>
-        <ul id="dockList" class="dock-grid"></ul>
-        <button id="saveDock" class="primary">Save dock</button>
-    </section>
-
-    <!-- WALLPAPERS TAB -->
-    <section id="tab-wallpapers" class="tab-panel">
-        <div class="panel-head">
-            <h2>Wallpapers</h2>
-            <p>Upload a 1920×1080 image to use as the launcher background. Setting one active overrides the built-in aurora glow.</p>
+        <ul id="dockList" class="dock-list"></ul>
+        <div class="dock-save-row">
+            <button id="saveDock" class="primary">Save text fields</button>
+            <p class="hint-inline">Image &amp; wallpaper uploads save instantly — this button only saves label / sub / target / accent edits.</p>
         </div>
-        <label class="uploader">
-            <input type="file" id="wallpaperFile" accept="image/jpeg,image/png,image/webp" hidden>
-            <span>Upload wallpaper</span>
-        </label>
-        <div id="wallpaperGrid" class="thumb-grid"></div>
     </section>
 
     <!-- APKS TAB -->

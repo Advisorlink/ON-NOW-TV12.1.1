@@ -67,6 +67,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/launcher-backend/data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "icons").mkdir(exist_ok=True)
 (DATA_DIR / "wallpapers").mkdir(exist_ok=True)
+(DATA_DIR / "tile_images").mkdir(exist_ok=True)
 (DATA_DIR / "apks").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
@@ -102,17 +103,22 @@ class DockTile(BaseModel):
     key: str
     label: str
     sub: str
-    icon_url: Optional[str] = None        # absolute URL or null → use built-in
+    # v0.2 — Per-tile imagery.  Each tile owns:
+    #   • image_url     : JPEG card art shown ON the dock tile
+    #   • wallpaper_url : JPEG fullscreen background shown BEHIND the
+    #                     dock when this tile is the focused one
+    # Both are absolute URLs returned to the device (or null = use the
+    # platform default).  Admins upload them as JPEGs via
+    # /api/admin/dock/{key}/image and /api/admin/dock/{key}/wallpaper.
+    image_url: Optional[str]     = None
+    wallpaper_url: Optional[str] = None
+    # Deprecated.  Older client builds (pre-v0.2) read `icon_url`; we
+    # keep returning it (always null) so JSON parsing doesn't fail on
+    # those clients.
+    icon_url: Optional[str] = None
     target_package: Optional[str] = None  # Android package name to launch
     target_url: Optional[str]     = None  # http(s):// URL to open in browser
     accent: Optional[str]         = None  # "#RRGGBB" hex — accent for the section
-
-
-class Wallpaper(BaseModel):
-    id: str
-    filename: str
-    url: str
-    uploaded_at: int                       # unix timestamp
 
 
 class ApkEntry(BaseModel):
@@ -140,7 +146,10 @@ class LauncherConfig(BaseModel):
     """Single document returned by /api/launcher/config that the
     launcher device polls every few minutes."""
     dock_tiles: list[DockTile]
-    active_wallpaper_url: Optional[str]
+    # Deprecated as of v0.2 — wallpapers are now per-tile.  Kept in
+    # the schema (always null) so older Android builds don't crash on
+    # JSON parse.
+    active_wallpaper_url: Optional[str] = None
     apks: list[ApkEntry]
     notifications: list[Notification]      # un-expired notifications only
     generation: int                        # bumps every time admin saves anything
@@ -162,21 +171,19 @@ def _default_store() -> dict:
     return {
         "generation": 1,
         "dock_tiles": [
-            {"key": "movies",   "label": "Movies & TV Shows", "sub": "Stream and enjoy",     "icon_url": None,
+            {"key": "movies",   "label": "Movies & TV Shows", "sub": "Stream and enjoy",     "image_url": None, "wallpaper_url": None,
              "target_package": "tv.onnowtv.app", "target_url": None, "accent": "#38B8FF"},
-            {"key": "music",    "label": "Music",             "sub": "Listen and enjoy",    "icon_url": None,
+            {"key": "music",    "label": "Music",             "sub": "Listen and enjoy",    "image_url": None, "wallpaper_url": None,
              "target_package": None,             "target_url": None, "accent": "#38B8FF"},
-            {"key": "livetv",   "label": "Live TV",           "sub": "Watch live channels", "icon_url": None,
+            {"key": "livetv",   "label": "Live TV",           "sub": "Watch live channels", "image_url": None, "wallpaper_url": None,
              "target_package": "tv.onnowtv.app", "target_url": None, "accent": "#2BB6FF"},
-            {"key": "apps",     "label": "Apps",              "sub": "All your apps",       "icon_url": None,
+            {"key": "apps",     "label": "Apps",              "sub": "All your apps",       "image_url": None, "wallpaper_url": None,
              "target_package": None,             "target_url": None, "accent": "#2EEAC2"},
-            {"key": "browser",  "label": "Browser",           "sub": "Surf the web",        "icon_url": None,
+            {"key": "browser",  "label": "Browser",           "sub": "Surf the web",        "image_url": None, "wallpaper_url": None,
              "target_package": None,             "target_url": None, "accent": "#38C2FF"},
-            {"key": "settings", "label": "Settings",          "sub": "System preferences",  "icon_url": None,
+            {"key": "settings", "label": "Settings",          "sub": "System preferences",  "image_url": None, "wallpaper_url": None,
              "target_package": None,             "target_url": None, "accent": "#5BC5FF"},
         ],
-        "active_wallpaper_id": None,
-        "wallpapers": [],
         "apks": [],
         "notifications": [],
     }
@@ -253,9 +260,10 @@ app.add_middleware(
 )
 
 # Static asset routes
-app.mount("/assets/icons",      StaticFiles(directory=str(DATA_DIR / "icons")),      name="icons")
-app.mount("/assets/wallpapers", StaticFiles(directory=str(DATA_DIR / "wallpapers")), name="wallpapers")
-app.mount("/assets/apks",       StaticFiles(directory=str(DATA_DIR / "apks")),       name="apks")
+app.mount("/assets/icons",       StaticFiles(directory=str(DATA_DIR / "icons")),       name="icons")
+app.mount("/assets/wallpapers",  StaticFiles(directory=str(DATA_DIR / "wallpapers")),  name="wallpapers")
+app.mount("/assets/tile_images", StaticFiles(directory=str(DATA_DIR / "tile_images")), name="tile-images")
+app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
 
 # Static admin UI
 ADMIN_DIR = Path(__file__).parent / "admin"
@@ -274,39 +282,32 @@ def _abs(path: Optional[str]) -> Optional[str]:
     return f"{PUBLIC_BASE_URL}{path}"
 
 
-def _active_wallpaper_url(store: dict) -> Optional[str]:
-    active_id = store.get("active_wallpaper_id")
-    if not active_id:
-        return None
-    for w in store.get("wallpapers", []):
-        if w["id"] == active_id:
-            return _abs(w["url"])
-    return None
-
-
 def _build_config(store: dict) -> LauncherConfig:
     nt = now_ts()
     return LauncherConfig(
         dock_tiles=[
             DockTile(
                 key=t["key"], label=t["label"], sub=t["sub"],
-                icon_url=_abs(t.get("icon_url")),
+                image_url=_abs(t.get("image_url")),
+                wallpaper_url=_abs(t.get("wallpaper_url")),
+                icon_url=None,  # deprecated — see DockTile docstring
                 target_package=t.get("target_package"),
                 target_url=t.get("target_url"),
                 accent=t.get("accent"),
             )
             for t in store["dock_tiles"]
         ],
-        active_wallpaper_url=_active_wallpaper_url(store),
-        apks=[ApkEntry(**a, apk_url=_abs(a["apk_url"])) if False else  # noqa: E501  (placeholder block, real conversion below)
-              ApkEntry(
-                  id=a["id"], name=a["name"], package_id=a.get("package_id"),
-                  version_name=a.get("version_name"),
-                  icon_url=_abs(a.get("icon_url")),
-                  apk_url=_abs(a["apk_url"]) or a["apk_url"],
-                  description=a.get("description"), added_at=a["added_at"],
-              )
-              for a in store.get("apks", [])],
+        active_wallpaper_url=None,   # deprecated as of v0.2 (per-tile wallpapers)
+        apks=[
+            ApkEntry(
+                id=a["id"], name=a["name"], package_id=a.get("package_id"),
+                version_name=a.get("version_name"),
+                icon_url=_abs(a.get("icon_url")),
+                apk_url=_abs(a["apk_url"]) or a["apk_url"],
+                description=a.get("description"), added_at=a["added_at"],
+            )
+            for a in store.get("apks", [])
+        ],
         notifications=[
             Notification(**n) for n in store.get("notifications", [])
             if int(n.get("expires_at", 0)) > nt
@@ -402,63 +403,133 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
     if len(dock_tiles) != 6:
         raise HTTPException(400, "Exactly 6 dock tiles required")
     store = _load_store()
-    store["dock_tiles"] = [t.model_dump() for t in dock_tiles]
+    # Preserve per-tile image_url / wallpaper_url across this save —
+    # those are managed by separate upload endpoints and the dock form
+    # never reaches them.  Without this merge, every form save would
+    # wipe the uploaded JPEGs.
+    existing_assets: dict[str, dict] = {
+        t["key"]: {
+            "image_url": t.get("image_url"),
+            "wallpaper_url": t.get("wallpaper_url"),
+        }
+        for t in store.get("dock_tiles", [])
+    }
+    new_dock = []
+    for t in dock_tiles:
+        d = t.model_dump()
+        prev = existing_assets.get(d["key"], {})
+        d["image_url"] = prev.get("image_url")
+        d["wallpaper_url"] = prev.get("wallpaper_url")
+        d.pop("icon_url", None)  # deprecated; never persist
+        new_dock.append(d)
+    store["dock_tiles"] = new_dock
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 
 
-# ── Wallpapers ───────────────────────────────────────────────────
-@app.post("/api/admin/wallpapers", dependencies=[Depends(require_admin)])
-async def upload_wallpaper(file: UploadFile = File(...)) -> dict:
+# ── Dock — per-tile assets + reorder ─────────────────────────────
+def _find_tile(store: dict, key: str) -> dict:
+    for t in store.get("dock_tiles", []):
+        if t["key"] == key:
+            return t
+    raise HTTPException(404, f"unknown tile key: {key}")
+
+
+async def _save_tile_asset(file: UploadFile, kind: str, key: str) -> str:
+    """Persist a tile image (kind='image') or wallpaper (kind='wallpaper')
+    JPEG to disk and return the public `/assets/...` path."""
+    if kind not in {"image", "wallpaper"}:
+        raise HTTPException(400, "kind must be image or wallpaper")
     if not file.filename:
         raise HTTPException(400, "filename missing")
     ext = Path(file.filename).suffix.lower() or ".jpg"
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(400, f"unsupported wallpaper format: {ext}")
-    wid = uuid.uuid4().hex[:12]
-    target = DATA_DIR / "wallpapers" / f"{wid}{ext}"
+        raise HTTPException(400, f"unsupported image format: {ext}")
+    folder_name = "tile_images" if kind == "image" else "wallpapers"
+    # Tag the file with the tile key + a short random suffix so the new
+    # upload doesn't shadow the old one in the browser's HTTP cache.
+    fname = f"tile-{key}-{uuid.uuid4().hex[:8]}{ext}"
+    target = DATA_DIR / folder_name / fname
     async with aiofiles.open(target, "wb") as f:
         while chunk := await file.read(1024 * 1024):
             await f.write(chunk)
+    return f"/assets/{folder_name}/{fname}"
+
+
+def _delete_tile_asset_file(public_path: Optional[str]) -> None:
+    if not public_path:
+        return
+    if not public_path.startswith("/assets/"):
+        return
+    rel = public_path.removeprefix("/assets/")
+    file_path = DATA_DIR / rel
+    try:
+        file_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+@app.post("/api/admin/dock/{key}/image", dependencies=[Depends(require_admin)])
+async def upload_tile_image(key: str, file: UploadFile = File(...)) -> dict:
+    """Upload the tile-art JPEG that shows ON the dock tile."""
     store = _load_store()
-    entry = {
-        "id": wid,
-        "filename": target.name,
-        "url": f"/assets/wallpapers/{target.name}",
-        "uploaded_at": now_ts(),
-    }
-    store.setdefault("wallpapers", []).append(entry)
+    tile = _find_tile(store, key)
+    new_path = await _save_tile_asset(file, "image", key)
+    # Drop the previous image file so we don't accumulate orphans.
+    _delete_tile_asset_file(tile.get("image_url"))
+    tile["image_url"] = new_path
     _save_store(store)
-    return {"ok": True, "wallpaper": entry}
+    return {"ok": True, "image_url": _abs(new_path), "generation": store["generation"]}
 
 
-@app.post("/api/admin/wallpapers/active", dependencies=[Depends(require_admin)])
-def set_active_wallpaper(payload: dict) -> dict:
-    wallpaper_id = payload.get("id")    # null → revert to default aurora
+@app.delete("/api/admin/dock/{key}/image", dependencies=[Depends(require_admin)])
+def clear_tile_image(key: str) -> dict:
     store = _load_store()
-    if wallpaper_id is not None:
-        if not any(w["id"] == wallpaper_id for w in store.get("wallpapers", [])):
-            raise HTTPException(404, "unknown wallpaper id")
-    store["active_wallpaper_id"] = wallpaper_id
+    tile = _find_tile(store, key)
+    _delete_tile_asset_file(tile.get("image_url"))
+    tile["image_url"] = None
     _save_store(store)
-    return {"ok": True}
+    return {"ok": True, "generation": store["generation"]}
 
 
-@app.delete("/api/admin/wallpapers/{wid}", dependencies=[Depends(require_admin)])
-def delete_wallpaper(wid: str) -> dict:
+@app.post("/api/admin/dock/{key}/wallpaper", dependencies=[Depends(require_admin)])
+async def upload_tile_wallpaper(key: str, file: UploadFile = File(...)) -> dict:
+    """Upload the fullscreen wallpaper JPEG shown behind the dock when
+    this tile is the focused one."""
     store = _load_store()
-    kept = [w for w in store.get("wallpapers", []) if w["id"] != wid]
-    removed = [w for w in store.get("wallpapers", []) if w["id"] == wid]
-    for w in removed:
-        try:
-            (DATA_DIR / "wallpapers" / w["filename"]).unlink()
-        except FileNotFoundError:
-            pass
-    store["wallpapers"] = kept
-    if store.get("active_wallpaper_id") == wid:
-        store["active_wallpaper_id"] = None
+    tile = _find_tile(store, key)
+    new_path = await _save_tile_asset(file, "wallpaper", key)
+    _delete_tile_asset_file(tile.get("wallpaper_url"))
+    tile["wallpaper_url"] = new_path
     _save_store(store)
-    return {"ok": True, "removed": len(removed)}
+    return {"ok": True, "wallpaper_url": _abs(new_path), "generation": store["generation"]}
+
+
+@app.delete("/api/admin/dock/{key}/wallpaper", dependencies=[Depends(require_admin)])
+def clear_tile_wallpaper(key: str) -> dict:
+    store = _load_store()
+    tile = _find_tile(store, key)
+    _delete_tile_asset_file(tile.get("wallpaper_url"))
+    tile["wallpaper_url"] = None
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"]}
+
+
+@app.post("/api/admin/dock/reorder", dependencies=[Depends(require_admin)])
+def reorder_dock(payload: dict) -> dict:
+    """Reorder dock tiles.  Payload: { order: [key1, key2, ...] } — must
+    contain exactly the set of existing keys, no additions or removals."""
+    order = payload.get("order")
+    if not isinstance(order, list):
+        raise HTTPException(400, "order must be a list of tile keys")
+    store = _load_store()
+    existing = store.get("dock_tiles", [])
+    if sorted(order) != sorted(t["key"] for t in existing):
+        raise HTTPException(400, "order must list every existing tile key exactly once")
+    by_key = {t["key"]: t for t in existing}
+    store["dock_tiles"] = [by_key[k] for k in order]
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"], "order": order}
 
 
 # ── APKs ─────────────────────────────────────────────────────────

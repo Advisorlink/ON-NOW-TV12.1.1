@@ -3110,14 +3110,45 @@ def _rewrite_admin_html(body: bytes) -> bytes:
 
 def _rewrite_admin_js(body: bytes) -> bytes:
     """Rewrite fetch URLs in app.js so admin API calls go through the
-    proxy namespace.  We do simple string replace because the JS uses
-    string literals with leading slash + single quotes."""
+    proxy namespace.  Covers both single-quoted string literals AND
+    template-literal backticks (used in the per-tile asset endpoints
+    like `/api/admin/dock/${key}/image`)."""
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         return body
     text = text.replace("'/api/admin/", "'/api/launcher-admin/api/admin/")
     text = text.replace("'/api/launcher/", "'/api/launcher-admin/api/launcher/")
+    text = text.replace("`/api/admin/", "`/api/launcher-admin/api/admin/")
+    text = text.replace("`/api/launcher/", "`/api/launcher-admin/api/launcher/")
+    return text.encode("utf-8")
+
+
+def _rewrite_admin_json(body: bytes) -> bytes:
+    """Rewrite asset URLs in JSON responses so the user's browser
+    (which can't reach pod-internal localhost) can load uploaded
+    images / wallpapers / APK icons through the proxy.
+
+    Two forms appear in the upstream JSON:
+      (a) Absolute URLs prefixed with `PUBLIC_BASE_URL` (the public
+          config endpoint runs assets through _abs() before returning)
+      (b) Bare relative `/assets/...` paths (the admin /store endpoint
+          returns the raw on-disk paths).
+    We rewrite BOTH to point through the proxy namespace.
+    In production with the real public host configured this is a
+    no-op for case (a) and still works for case (b)."""
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        return body
+    text = text.replace(
+        f'"{_LAUNCHER_BACKEND}/assets/',
+        '"/api/launcher-admin/assets/',
+    )
+    text = text.replace(
+        '"/assets/',
+        '"/api/launcher-admin/assets/',
+    )
     return text.encode("utf-8")
 
 
@@ -3163,6 +3194,8 @@ async def launcher_admin_proxy(full_path: str, request: Request):
         response_body = _rewrite_admin_html(response_body)
     elif "javascript" in ctype or full_path.endswith(".js"):
         response_body = _rewrite_admin_js(response_body)
+    elif "application/json" in ctype:
+        response_body = _rewrite_admin_json(response_body)
 
     # Filter response headers — drop the ones that no longer match the
     # rewritten body, and rewrite the Location header on redirects so it
