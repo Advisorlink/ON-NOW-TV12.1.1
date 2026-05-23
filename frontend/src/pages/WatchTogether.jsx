@@ -28,6 +28,7 @@ import TVKeyboard from '@/components/TVKeyboard';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
+import { markFeatureUsed } from '@/lib/engagement';
 
 /** WebSocket URL derived from REACT_APP_BACKEND_URL.  Falls back
  *  to wss:// when the page is loaded over https://. */
@@ -211,6 +212,7 @@ export default function WatchTogether() {
             setPartyCode(j.code);
             setView('room');
             connect(j.code, 'host');
+            markFeatureUsed('watch_together');
         } catch (err) {
             // v2.6.71: user reported the host button "wasn't clickable"
             // — turned out to be a silent fetch failure (Cloudflare 520
@@ -232,6 +234,7 @@ export default function WatchTogether() {
         setPartyCode(code);
         setView('room');
         connect(code, 'guest');
+        markFeatureUsed('watch_together');
     };
 
     return (

@@ -27,6 +27,7 @@
  */
 
 import { readScopedString, writeScopedString } from './profileScope';
+import { markFeatureUsed } from './engagement';
 
 const KEY = 'vesper-library';
 
@@ -91,6 +92,7 @@ export function addToLibrary(id, { type, meta } = {}) {
         meta: meta || {},
     };
     write(s);
+    markFeatureUsed('my_list');
 }
 
 export function removeFromLibrary(id) {
@@ -175,6 +177,7 @@ export function addToWatchLater({ id, episode, showMeta, movie }) {
         return;
     }
     write(s);
+    markFeatureUsed('watch_later');
 }
 
 export function removeFromWatchLater({ id, season, number }) {
@@ -231,6 +234,7 @@ export function addActorToLibrary({ id, name, profile }) {
         addedAt: new Date().toISOString(),
     };
     write(s);
+    markFeatureUsed('actor');
 }
 
 export function removeActorFromLibrary(personId) {

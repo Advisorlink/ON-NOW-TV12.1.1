@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles,
+    Sparkles, Lightbulb,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -22,6 +22,13 @@ import {
     fmtBytes,
 } from '@/lib/profileBackup';
 import { replayOnboarding } from '@/components/Onboarding';
+import {
+    NUDGE_FEATURES,
+    getEngagementState,
+    setMasterEnabled,
+    setFeatureEnabled,
+    resetEngagement,
+} from '@/lib/engagement';
 
 /**
  * Settings → Appearance → Theme picker + Playback toggles.
@@ -536,6 +543,13 @@ export default function Settings() {
             </div>
 
             {/* ---- BACKUP & RESTORE ---- */}
+            <SectionHeader
+                eyebrow="Settings · Tips"
+                title="Tips &amp; nudges"
+                icon={Lightbulb}
+            />
+            <TipsPanel />
+
             <SectionHeader
                 eyebrow="Settings · Account"
                 title="Backup &amp; Restore"
@@ -1862,3 +1876,118 @@ function SavedToast({ trigger }) {
         </div>
     );
 }
+
+/* ============================================================
+   Tips & Nudges Settings panel — controls the FeatureNudge
+   ============================================================ */
+function TipsPanel() {
+    const [state, setState] = React.useState(() => getEngagementState());
+
+    const refresh = React.useCallback(() => {
+        setState(getEngagementState());
+    }, []);
+
+    const handleMaster = () => {
+        setMasterEnabled(!state.masterEnabled);
+        refresh();
+    };
+
+    const handlePerFeature = (key) => {
+        const current = state.perFeatureEnabled[key];
+        const used = !!state.usedFeatures[key];
+        const muted = state.mutedForever.includes(key);
+        const effectivelyOn = !used && !muted && current !== false;
+        setFeatureEnabled(key, !effectivelyOn);
+        refresh();
+    };
+
+    const handleReset = () => {
+        if (!window.confirm('Reset all tip history?  You\'ll see suggestions for unused features again.')) return;
+        resetEngagement();
+        refresh();
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: 16, maxWidth: 760 }}>
+            <p
+                style={{
+                    color: 'var(--vesper-text-2)',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    margin: 0,
+                }}
+            >
+                Occasionally we'll surface a friendly tip about a feature you
+                haven't tried yet — like saving a show, following an actor,
+                or hosting a Watch Party.  Tips never interrupt playback and
+                only one shows per app launch.
+            </p>
+
+            <ToggleRow
+                testid="tips-master"
+                title="Show feature tips"
+                description={
+                    state.masterEnabled
+                        ? 'You\'ll occasionally see a tip suggesting a new feature to try.'
+                        : 'All tips are paused — nothing will pop up.'
+                }
+                value={state.masterEnabled}
+                onToggle={handleMaster}
+            />
+
+            <div
+                data-testid="tips-feature-list"
+                style={{
+                    opacity: state.masterEnabled ? 1 : 0.45,
+                    pointerEvents: state.masterEnabled ? 'auto' : 'none',
+                    display: 'grid',
+                    gap: 8,
+                }}
+            >
+                {NUDGE_FEATURES.map((f) => {
+                    const used = !!state.usedFeatures[f.key];
+                    const muted = state.mutedForever.includes(f.key);
+                    const explicitlyDisabled = state.perFeatureEnabled[f.key] === false;
+                    const effectivelyOn = !used && !muted && !explicitlyDisabled;
+                    const sub = used
+                        ? 'Already tried — won\'t suggest again'
+                        : muted
+                            ? 'Dismissed — toggle on to re-enable'
+                            : explicitlyDisabled
+                                ? 'Tip is hidden'
+                                : 'Tip is active';
+                    return (
+                        <ToggleRow
+                            key={f.key}
+                            testid={`tips-feature-${f.key}`}
+                            title={f.name}
+                            description={sub}
+                            value={effectivelyOn}
+                            onToggle={() => handlePerFeature(f.key)}
+                        />
+                    );
+                })}
+            </div>
+
+            <button
+                data-testid="tips-reset"
+                data-focusable="true"
+                onClick={handleReset}
+                style={{
+                    justifySelf: 'start',
+                    background: 'transparent',
+                    color: 'var(--vesper-text-2)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    borderRadius: 999,
+                    padding: '10px 22px',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                }}
+            >
+                Reset tip history
+            </button>
+        </div>
+    );
+}
+

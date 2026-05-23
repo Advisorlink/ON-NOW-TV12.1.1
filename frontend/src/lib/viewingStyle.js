@@ -21,6 +21,7 @@
  */
 
 import { readScopedString, writeScopedString } from './profileScope';
+import { markFeatureUsed } from './engagement';
 
 const KEY = 'onnowtv-viewing-style-v1';
 
@@ -52,6 +53,12 @@ export function saveViewingStyle(next) {
         window.dispatchEvent(new Event('vesper:viewing-style-change'));
     } catch {
         /* noop */
+    }
+    /* Only count as "used" once the user has actually picked at
+       least one genre or title — saving an empty preferences object
+       (e.g. clearing them) shouldn't satisfy the nudge. */
+    if (clean.movieGenres.length || clean.tvGenres.length || clean.items.length) {
+        markFeatureUsed('viewing_style');
     }
     return clean;
 }

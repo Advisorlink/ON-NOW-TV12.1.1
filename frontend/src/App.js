@@ -22,6 +22,7 @@ import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
 import ReminderWatcher from '@/components/ReminderWatcher';
+import FeatureNudge from '@/components/FeatureNudge';
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
@@ -300,6 +301,7 @@ function App() {
                             <AddToListModal />
                             <ReminderWatcher />
                             <NotifyHitWatcher />
+                            <FeatureNudge />
                             <Routes>
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
