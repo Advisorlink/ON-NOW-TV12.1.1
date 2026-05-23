@@ -451,25 +451,36 @@ function Grid({ provider, onLogout }) {
                 }
             }
 
-            /* v2.7.78 — Push the FULL 72-hour EPG (no per-channel
-             * cap) to the native side.  Previously we hard-clipped
-             * to 4 programmes per channel over a 6-hour horizon to
-             * fit inside SharedPreferences, but SharedPreferences
-             * has been replaced by a file-backed store on the
-             * native side (`setLiveGuideEpg` writes to filesDir).
-             * Result: every channel keeps its full Now / Next / next-72h
-             * programme list, so the in-player guide is INSTANT for
-             * every channel, every time — no per-channel lookups.
+            /* v2.7.78 — EPG payload sizing depends on which native
+             * bridge is available.  Detect FIRST, then build the
+             * appropriate-size payload — never blindly push 40 MB
+             * of JSON into SharedPreferences (silent truncation +
+             * corruption risk on older APKs that haven't been
+             * upgraded yet).
              *
-             * Keep the "stop in the past" filter so stale items
-             * don't waste bridge bytes, but no other trimming. */
+             *   • NEW APK (`setLiveGuideEpg` present): full 72-hour
+             *     EPG, every programme field, written to a file via
+             *     the dedicated bridge.  No size limit.
+             *   • OLD APK / mobile browser: legacy 6-hour, 4-per-
+             *     channel trim that fits inside the SharedPreferences
+             *     ceiling.  Worse than the new path but still better
+             *     than crashing.
+             */
+            const hasFileBridge = typeof bridge.setLiveGuideEpg === 'function';
             const epgPayload = {};
             const nowSec = Math.floor(Date.now() / 1000);
+            const legacyHorizonSec = nowSec + 6 * 3600;
             for (const [sid, list] of epg.current.entries()) {
                 if (!Array.isArray(list) || list.length === 0) continue;
                 const kept = [];
                 for (const it of list) {
                     if ((it.stopTimestamp || 0) < nowSec) continue;
+                    if (!hasFileBridge) {
+                        // Legacy path — keep the original safety
+                        // bounds so SharedPreferences never gets
+                        // overflowed.
+                        if ((it.startTimestamp || 0) > legacyHorizonSec) break;
+                    }
                     kept.push({
                         title: it.title || '',
                         desc: it.desc || it.description || '',
@@ -482,6 +493,7 @@ function Grid({ provider, onLogout }) {
                         startTimestamp: it.startTimestamp || 0,
                         stopTimestamp: it.stopTimestamp || 0,
                     });
+                    if (!hasFileBridge && kept.length >= 4) break;
                 }
                 if (kept.length > 0) {
                     epgPayload[String(sid)] = kept;
@@ -492,27 +504,16 @@ function Grid({ provider, onLogout }) {
              * the native overlay can show a "★ Favourites" pill. */
             const favs = (getFavList(provider.id) || []).map((s) => String(s));
 
-            /* Push categories + channels + favourites via the
-             * existing SharedPreferences bridge (small, fast), and
-             * push the heavy EPG via the new file-backed bridge.
-             *
-             * Order matters: write the EPG file FIRST so a fast
-             * client (D-padding into a channel the moment the
-             * splash dismisses) is guaranteed to find a fully
-             * flushed EPG file.  `setLiveGuideEpg` is synchronous
-             * on the new APK — the JS thread blocks until the
-             * atomic rename has completed.
-             *
-             * On older APKs (no `setLiveGuideEpg`) we fall back to
-             * the single-call setLiveGuide() that ships the EPG
-             * inline.  That path is the only one that should be
-             * affected by SharedPreferences truncation, but it's
-             * better than nothing for outdated installs. */
+            /* Push the EPG via the appropriate bridge.  Order
+             * matters: write the EPG file FIRST so a fast client
+             * D-padding into a channel right when the splash
+             * dismisses is guaranteed to find a fully flushed EPG
+             * on disk.  `setLiveGuideEpg` is synchronous on the new
+             * APK — the JS thread blocks until the atomic rename
+             * has completed. */
             const epgJson = JSON.stringify(epgPayload);
             const epgChannelsCount = Object.keys(epgPayload).length;
-            if (typeof bridge.setLiveGuideEpg === 'function') {
-                /* New APK: file path.  Block on the file write,
-                 * then write the small metadata (no EPG inline). */
+            if (hasFileBridge) {
                 let epgWriteOk = false;
                 try {
                     const ack = bridge.setLiveGuideEpg(epgJson);
@@ -522,20 +523,17 @@ function Grid({ provider, onLogout }) {
                             epgWriteOk = !!parsed.ok;
                             // eslint-disable-next-line no-console
                             console.info('[liveGuide] EPG file write:', parsed);
-                        } catch { /* malformed ack — assume ok */
+                        } catch {
                             epgWriteOk = true;
                         }
                     } else {
-                        // Old call signature returned void —
-                        // assume the write started.  We'll still
-                        // overwrite the legacy prefs "epg" key.
                         epgWriteOk = true;
                     }
                 } catch { /* ignore */ }
-                /* Pass empty EPG to setLiveGuide ONLY if the file
-                 * write succeeded — otherwise leave the old
-                 * SharedPreferences "epg" key intact so the player
-                 * has something to fall back on. */
+                /* Only blank the legacy SharedPreferences "epg" key
+                 * when the file write actually succeeded; otherwise
+                 * keep whatever was in there as a last-resort
+                 * fallback. */
                 bridge.setLiveGuide(
                     String(provider.id || ''),
                     JSON.stringify(categoriesPayload),
@@ -544,9 +542,9 @@ function Grid({ provider, onLogout }) {
                     JSON.stringify(favs),
                 );
             } else {
-                /* Old APK: single-call inline EPG (will be truncated
-                 * if > ~2 MB — best we can do without an updated
-                 * APK on the box). */
+                /* Legacy path — single bridge call with inline EPG.
+                 * The 4-per-channel / 6-hour trim above keeps the
+                 * payload well under the SharedPreferences ceiling. */
                 bridge.setLiveGuide(
                     String(provider.id || ''),
                     JSON.stringify(categoriesPayload),
@@ -560,6 +558,7 @@ function Grid({ provider, onLogout }) {
                 '[liveGuide] pushed to native:',
                 channelsPayload.length, 'channels,',
                 epgChannelsCount, 'with EPG',
+                hasFileBridge ? '(file bridge, full 72h)' : '(legacy bridge, 6h × 4 per channel)',
             );
         } catch (e) {
             /* Bridge errors are silent — the overlay will just be
