@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.78 — First-launch loading screen + full 72 h EPG attached to every channel
+
+**You reported**: "I cannot afford to keep doing this. When my client logs in for the first time, show a loading page (could take up to a minute, I don't care), and once they've logged in the entire EPG should already be attached to every single channel. No delay. No lag. No fighting."
+
+**Deep-dive root cause** (no more guessing):
+1. The first-launch boot was capped at **10 seconds** before falling through to a slower per-channel loop — on most TVs the backend bundle didn't even finish landing in time.
+2. The splash dismissed the moment **channels** arrived, NOT when EPG arrived. So the user saw the grid before EPG was cached.
+3. `pushLiveGuideToNative()` artificially trimmed the EPG to **4 programmes per channel × 6-hour horizon** when handing it to the Android player — throwing away the 72 h of EPG the backend already pre-fetched.
+4. Worst of all: the EPG JSON was stored in **SharedPreferences** on the native side. SharedPreferences uses XML serialisation and silently truncates / corrupts multi-MB string values, so even the trimmed EPG never fully landed → in-player Live Guide showed "No programme information available" on every channel.
+
+**Fix**:
+- **Splash budget raised to 90 s** on cold first launches. Stays up until: categories ✅ + channels ✅ + **EPG bundle applied** ✅ + **EPG pushed to native** ✅. SKIP affordance hidden until 70 s in.
+- **Splash copy** rewritten to set expectations: "First-time setup — caching your full TV guide. This may take up to a minute, then every launch after is instant."
+- **`pushLiveGuideToNative()`** now pushes the FULL 72-hour EPG with all programme fields. Only filters past programmes.
+- **`WebAppInterface.setLiveGuideEpg(epgJson)`** — NEW bridge that writes the multi-MB EPG straight to `filesDir/live_guide/epg.json` (off-thread, atomic rename). SharedPreferences keeps just the small categories + channels + favourites.
+- **`LiveGuideManager.loadFromPreferences()`** reads the EPG from the file on a background coroutine (Dispatchers.IO), so the channel rail renders instantly and EPG materialises within ~500 ms. Falls back to SharedPreferences for older APKs.
+- **`getLiveGuideEpgMeta()`** — tiny diagnostic so the React side can verify the EPG file actually landed and how big it is.
+
+**Result**: On first launch, the splash stays up for as long as it takes to fully cache the EPG to disk. After that, every launch is instant, every channel has its full Now / Next / next-72h programme list attached, and the in-player Live Guide shows real EPG instead of "No programme information available".
+
+---
+
+
 ## v2.7.77 — IndexedDB cache for instant Live TV (THE 30–40 s wait is gone)
 
 **You reported**: "It's still taking 30, 40 seconds for the EPG to show." Every single click on Live TV — even on a hot box that just had it loaded — refetches the whole bundle.

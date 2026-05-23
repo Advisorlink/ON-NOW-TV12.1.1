@@ -451,18 +451,26 @@ function Grid({ provider, onLogout }) {
                 }
             }
 
-            /* Build EPG payload — only NEXT 6 hours of programmes
-             * per channel to keep the JSON manageable (the box's
-             * SharedPreferences performance degrades >2 MB). */
+            /* v2.7.78 — Push the FULL 72-hour EPG (no per-channel
+             * cap) to the native side.  Previously we hard-clipped
+             * to 4 programmes per channel over a 6-hour horizon to
+             * fit inside SharedPreferences, but SharedPreferences
+             * has been replaced by a file-backed store on the
+             * native side (`setLiveGuideEpg` writes to filesDir).
+             * Result: every channel keeps its full Now / Next / next-72h
+             * programme list, so the in-player guide is INSTANT for
+             * every channel, every time — no per-channel lookups.
+             *
+             * Keep the "stop in the past" filter so stale items
+             * don't waste bridge bytes, but no other trimming. */
             const epgPayload = {};
             const nowSec = Math.floor(Date.now() / 1000);
-            const horizonSec = nowSec + 6 * 3600;
             for (const [sid, list] of epg.current.entries()) {
-                const trimmed = [];
-                for (const it of (list || [])) {
-                    if (it.stopTimestamp < nowSec) continue;
-                    if (it.startTimestamp > horizonSec) break;
-                    trimmed.push({
+                if (!Array.isArray(list) || list.length === 0) continue;
+                const kept = [];
+                for (const it of list) {
+                    if ((it.stopTimestamp || 0) < nowSec) continue;
+                    kept.push({
                         title: it.title || '',
                         desc: it.desc || it.description || '',
                         season: it.season || '',
@@ -474,10 +482,9 @@ function Grid({ provider, onLogout }) {
                         startTimestamp: it.startTimestamp || 0,
                         stopTimestamp: it.stopTimestamp || 0,
                     });
-                    if (trimmed.length >= 4) break;
                 }
-                if (trimmed.length > 0) {
-                    epgPayload[String(sid)] = trimmed;
+                if (kept.length > 0) {
+                    epgPayload[String(sid)] = kept;
                 }
             }
 
@@ -485,13 +492,32 @@ function Grid({ provider, onLogout }) {
              * the native overlay can show a "★ Favourites" pill. */
             const favs = (getFavList(provider.id) || []).map((s) => String(s));
 
-            bridge.setLiveGuide(
-                String(provider.id || ''),
-                JSON.stringify(categoriesPayload),
-                JSON.stringify(channelsPayload),
-                JSON.stringify(epgPayload),
-                JSON.stringify(favs),
-            );
+            /* Push categories + channels + favourites via the old
+             * SharedPreferences bridge (small, fast) and EPG via
+             * the new file-backed bridge so multi-MB payloads no
+             * longer get silently truncated by the JS<>Java bridge.
+             * Fallback: if the new bridge isn't available (old APK),
+             * still try the legacy single-call setLiveGuide which
+             * carries the EPG inline. */
+            const epgJson = JSON.stringify(epgPayload);
+            if (typeof bridge.setLiveGuideEpg === 'function') {
+                bridge.setLiveGuide(
+                    String(provider.id || ''),
+                    JSON.stringify(categoriesPayload),
+                    JSON.stringify(channelsPayload),
+                    /* epgJson */ '{}',           // EPG goes via the file bridge
+                    JSON.stringify(favs),
+                );
+                try { bridge.setLiveGuideEpg(epgJson); } catch { /* ignore */ }
+            } else {
+                bridge.setLiveGuide(
+                    String(provider.id || ''),
+                    JSON.stringify(categoriesPayload),
+                    JSON.stringify(channelsPayload),
+                    epgJson,
+                    JSON.stringify(favs),
+                );
+            }
         } catch (e) {
             /* Bridge errors are silent — the overlay will just be
              * empty / stale until the next push. */
@@ -540,9 +566,21 @@ function Grid({ provider, onLogout }) {
                     || Object.keys(memEpgMap).length === 0;
                 if (cacheEmpty) {
                     try {
+                        /* v2.7.78 — First-time launch budget bumped
+                         * to 90 s.  The user explicitly asked for a
+                         * "loading page that could take up to a
+                         * minute" so the EPG is FULLY cached before
+                         * the grid renders.  Once cached, every
+                         * subsequent launch is instant (no fetch,
+                         * just hydrate from IndexedDB).
+                         *
+                         * Warm-cache launches use the much shorter
+                         * 8 s budget via `bootInstantBundle()`'s
+                         * own /meta fast-path; this only applies on
+                         * cold first launches. */
                         const applied = await Promise.race([
                             bootInstantBundle(),
-                            new Promise((r) => setTimeout(() => r(false), 10000)),
+                            new Promise((r) => setTimeout(() => r(false), 90000)),
                         ]);
                         if (cancel) return;
                         if (applied) {
@@ -575,11 +613,17 @@ function Grid({ provider, onLogout }) {
                                 epgDone:         epg.current.size,
                                 epgTotal:        epg.current.size,
                             });
+                            /* Hand off to the native overlay FIRST
+                             * so the box's player has the EPG ready
+                             * BEFORE the user can D-pad into a
+                             * channel.  Only then dismiss the
+                             * splash. */
+                            setStage('epg', 'active', 'Caching guide on device…');
+                            try { pushLiveGuideToNative(); } catch { /* ignore */ }
+                            setStage('epg', 'done',
+                                `${epg.current.size} channels cached`);
                             setBootBlocked(false);
                             rerender();
-                            // Hand off to the native overlay so
-                            // the box's guide is also fully ready.
-                            try { pushLiveGuideToNative(); } catch { /* ignore */ }
                             return; // we're done — skip the legacy flow
                         }
                     } catch (exc) {

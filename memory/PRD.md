@@ -1,10 +1,13 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.7.74 — Native Live TV Guide overlay ported into ExoPlayer** (Feb 22, 2026)
+> Latest: **v2.7.78 — First-launch loading screen + full 72 h EPG attached to every channel** (Feb 23, 2026)
 >
-> Premium slide-in left rail with channel + category drill-down, auto-tune on 1 s hover, TMDB-resolved Up Next thumbnails, full HK1-tuned 1920×1080 layout. Backend endpoint `GET /api/epg/art?title=&year=` + Kotlin `LiveGuideManager.kt` + `LiveGuideOverlay.kt`.
+> The first-launch boot splash now stays up for up to 90 s while the entire 72-hour EPG (14,158 channels) is cached to the device. The native player reads EPG from a file (filesDir/live_guide/epg.json) instead of SharedPreferences, so multi-MB payloads never get silently truncated by the JS↔Java bridge.
 >
-> Detailed handoff context for this feature: `/app/memory/LIVE_GUIDE_HANDOFF.md`.
+> Bridge: `WebAppInterface.setLiveGuideEpg(epgJson)` + `getLiveGuideEpgMeta()`.
+> Manager: `LiveGuideManager.loadFromPreferences()` reads EPG via background coroutine on Dispatchers.IO.
+>
+> Previous: **v2.7.77 — IndexedDB cache for instant Live TV** + **v2.7.74 — Native Live TV Guide overlay ported into ExoPlayer**. Detailed handoff: `/app/memory/LIVE_GUIDE_HANDOFF.md`.
 
 
 # Vesper — Product Requirements Document

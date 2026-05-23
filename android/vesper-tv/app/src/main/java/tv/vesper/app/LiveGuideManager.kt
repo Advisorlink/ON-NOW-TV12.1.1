@@ -163,6 +163,11 @@ class LiveGuideManager(
     private val _artUpdateTick = MutableStateFlow(0)
     val artUpdateTick: StateFlow<Int> = _artUpdateTick.asStateFlow()
 
+    // v2.7.78 — Dedicated IO scope for EPG file hydration so we
+    // never block the WebView / UI thread when parsing 30+ MB of
+    // JSON.  Cancelled in `release()`.
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private fun artKey(title: String, year: String): String =
         title.trim().lowercase() + "|" + year.trim()
 
@@ -172,10 +177,8 @@ class LiveGuideManager(
             val prefs = ctx.getSharedPreferences("live_guide", Context.MODE_PRIVATE)
             val cats = parseCategories(prefs.getString("categories", "[]") ?: "[]")
             val chs = parseChannels(prefs.getString("channels", "[]") ?: "[]")
-            val ep = parseEpg(prefs.getString("epg", "{}") ?: "{}")
             _categories.value = cats
             _channels.value = chs
-            _epg.value = ep
             // Default focused channel = the currently playing one (if it
             // exists in the catalogue), else the first channel.
             val playingId = _playingChannelId.value
@@ -183,6 +186,30 @@ class LiveGuideManager(
             if (initial != null) {
                 _focusedChannelId.value = initial.streamId
                 _selectedCategoryId.value = null   // "All"
+            }
+            // v2.7.78 — EPG is now stored in a file (see
+            // WebAppInterface.setLiveGuideEpg).  Read from the file
+            // on a background coroutine so the rail can paint
+            // instantly while the (potentially 30+ MB) JSON parses.
+            // SharedPreferences "epg" key is kept as a fallback for
+            // older APKs.
+            val epgFile = java.io.File(java.io.File(ctx.filesDir, "live_guide"), "epg.json")
+            if (epgFile.exists() && epgFile.length() > 2L) {
+                ioScope.launch {
+                    try {
+                        val raw = epgFile.readText(Charsets.UTF_8)
+                        val parsed = parseEpg(raw)
+                        _epg.value = parsed
+                        Log.i(TAG, "EPG hydrated from file: ${parsed.size} channels, ${epgFile.length() / 1024}KB")
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "EPG file parse failed", t)
+                    }
+                }
+            } else {
+                // Legacy fallback — older APK still pushes EPG via
+                // SharedPreferences directly (small trim).
+                val ep = parseEpg(prefs.getString("epg", "{}") ?: "{}")
+                _epg.value = ep
             }
         } catch (t: Throwable) {
             Log.w(TAG, "loadFromPreferences failed", t)
@@ -227,6 +254,7 @@ class LiveGuideManager(
 
     fun release() {
         try { artScope.cancel() } catch (_: Exception) {}
+        try { ioScope.cancel() } catch (_: Exception) {}
     }
 
     /* ───────────────── Parsing helpers ─────────────────── */

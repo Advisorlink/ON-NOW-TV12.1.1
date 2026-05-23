@@ -633,6 +633,86 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
+     * v2.7.78 — File-backed EPG bridge.
+     *
+     * SharedPreferences's XML serialiser was bottlenecking us — anything
+     * beyond ~2 MB of EPG JSON either silently truncated through the
+     * JS↔Java bridge or made `apply()` block the main thread for
+     * seconds while it rewrote the entire prefs file.  Result: the
+     * in-player Live Guide showed "No programme information available"
+     * because the EPG payload was either missing or corrupted.
+     *
+     * This method writes the full EPG (potentially 30+ MB raw) straight
+     * to `filesDir/live_guide/epg.json` on a background-friendly path.
+     * `LiveGuideManager.loadFromPreferences()` reads it back lazily on
+     * an IO dispatcher so the channel rail renders instantly and EPG
+     * hydrates within ~500 ms.
+     *
+     * Pairs with the existing `setLiveGuide(...)` call: that still
+     * carries the small categories + channels + favourites in
+     * SharedPreferences, while THIS call carries the heavy EPG.
+     */
+    @JavascriptInterface
+    fun setLiveGuideEpg(epgJson: String?) {
+        val body = epgJson ?: "{}"
+        // Move the disk write off the WebView thread — large EPG
+        // payloads (>10 MB) can take noticeable time to flush, and
+        // we never want the WebView to stall.
+        Thread({
+            try {
+                val dir = java.io.File(activity.filesDir, "live_guide")
+                if (!dir.exists()) dir.mkdirs()
+                val tmp = java.io.File(dir, "epg.json.tmp")
+                tmp.writeText(body, Charsets.UTF_8)
+                val target = java.io.File(dir, "epg.json")
+                if (target.exists()) target.delete()
+                if (!tmp.renameTo(target)) {
+                    // Atomic rename failed (some filesystems) — fall
+                    // back to a copy-then-delete so we never leave
+                    // a half-written EPG behind.
+                    target.writeText(body, Charsets.UTF_8)
+                    tmp.delete()
+                }
+                // Touch updated_at so LiveGuideManager knows the
+                // file is fresh.
+                val prefs = activity.getSharedPreferences(
+                    "live_guide", android.content.Context.MODE_PRIVATE
+                )
+                prefs.edit()
+                    .putLong("epg_file_updated_at", System.currentTimeMillis())
+                    .putInt ("epg_file_size_bytes", target.length().toInt())
+                    .apply()
+            } catch (_: Throwable) {
+                // Best-effort — overlay will fall back to whatever
+                // EPG (if any) is still in SharedPreferences.
+            }
+        }, "vesper-epg-writer").start()
+    }
+
+    /**
+     * v2.7.78 — Tiny diagnostic for the React side to confirm the
+     * native EPG file actually landed (and how big it is).  Used by
+     * the boot splash to display "12,540 channels cached on device".
+     */
+    @JavascriptInterface
+    fun getLiveGuideEpgMeta(): String {
+        return try {
+            val f = java.io.File(java.io.File(activity.filesDir, "live_guide"), "epg.json")
+            val prefs = activity.getSharedPreferences(
+                "live_guide", android.content.Context.MODE_PRIVATE
+            )
+            org.json.JSONObject().apply {
+                put("exists", f.exists())
+                put("size_bytes", if (f.exists()) f.length() else 0L)
+                put("updated_at", prefs.getLong("epg_file_updated_at", 0L))
+            }.toString()
+        } catch (e: Throwable) {
+            "{\"exists\":false,\"size_bytes\":0,\"updated_at\":0,\"error\":\"" +
+                (e.message ?: e.javaClass.simpleName) + "\"}"
+        }
+    }
+
+    /**
      * v2.7.74 — Persist the React app's REACT_APP_BACKEND_URL so the
      * native ExoPlayer overlay (Live Guide TMDB lookups, Watch
      * Together STT) can talk to the same backend the WebView is

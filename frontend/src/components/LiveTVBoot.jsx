@@ -102,11 +102,12 @@ export default function LiveTVBoot({ onSkip }) {
             <p style={{
                 margin: '14px 0 0',
                 fontSize: 14, color: '#9DA5B5',
-                textAlign: 'center', maxWidth: 480,
+                textAlign: 'center', maxWidth: 520,
                 lineHeight: 1.55,
             }}>
-                Pulling your channels and programme guide from On&nbsp;Now&nbsp;TV.
-                This usually takes a couple of seconds.
+                First-time setup &mdash; caching your full TV guide for
+                every channel.&nbsp; This may take up to a minute, then
+                every launch after is&nbsp;instant.
             </p>
 
             {onSkip && <SkipButton onSkip={onSkip} />}
@@ -149,7 +150,12 @@ function SkipButton({ onSkip }) {
     const btnRef = React.useRef(null);
 
     React.useEffect(() => {
-        const t = setTimeout(() => setShow(true), 10000);
+        // v2.7.78 — SKIP only appears after 70 s so the user (or a
+        // distracted client) can't accidentally bail out of the
+        // first-time cache build mid-flight.  After ~70 s if we're
+        // still loading, something's actually wrong on the network
+        // and bailing is the right call.
+        const t = setTimeout(() => setShow(true), 70000);
         return () => clearTimeout(t);
     }, []);
 
