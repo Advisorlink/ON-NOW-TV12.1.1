@@ -7,6 +7,26 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.79 — Hotfix: in-player guide now actually shows EPG (Compose recomposition bug)
+
+**You reported (v2.7.78)**: "Doing EXACTLY as it was doing last night" after fresh install on v2.7.78. The splash dismissed in 2 s and the in-player guide still showed empty EPG.
+
+**Root cause** — a genuine Compose reactivity bug I missed on three audit passes:
+- `LiveGuideManager` reads the EPG file asynchronously on `Dispatchers.IO` (so the channel rail can paint instantly while a 30+ MB JSON parses).
+- When the parse completes, `_epg.value = parsed` fires on the StateFlow.
+- BUT the composable `GuideBody` was calling `manager.nowProgramme(streamId)` and `manager.upNext(streamId)` **directly** — those methods read `_epg.value` synchronously without going through `collectAsState()`. Compose was not tracking those reads, so when `_epg` updated, the UI never recomposed.
+- Result: file write succeeded, EPG was in memory, but the right column stayed stuck on "No programme information available". EXACTLY what the user kept seeing.
+
+**Fix**:
+- Added `val epgMap by manager.epg.collectAsState()` at the top of `GuideBody`.
+- Wrapped `nowProgramme(...)` and `upNext(...)` in `remember(focusedChannel?.streamId, epgMap) { ... }` so they re-derive whenever EITHER the focused channel changes OR the EPG map updates.
+- TMDB art prefetch `LaunchedEffect` also keys on `epgMap` now, so it fires the moment EPG data lands.
+
+**Result**: When the user opens the in-player guide, the right column populates with the real programme title / synopsis / time range as soon as the file finishes parsing (typically <500 ms). Up Next strip renders real programmes too.
+
+---
+
+
 ## v2.7.78 — First-launch loading screen + full 72 h EPG attached to every channel
 
 **You reported**: "I cannot afford to keep doing this. When my client logs in for the first time, show a loading page (could take up to a minute, I don't care), and once they've logged in the entire EPG should already be attached to every single channel. No delay. No lag. No fighting."

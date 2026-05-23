@@ -109,9 +109,37 @@ private fun GuideBody(
     val mode by manager.mode.collectAsState()
     // re-render trigger when TMDB art finishes resolving asynchronously
     val artTick by manager.artUpdateTick.collectAsState()
+    // v2.7.78 (hotfix) — `_epg` is populated asynchronously when
+    // LiveGuideManager reads the file off Dispatchers.IO.  We MUST
+    // observe it via collectAsState() so the composable recomposes
+    // when the EPG lands — otherwise the right column / up-next
+    // strip stay stuck on "No programme information available"
+    // even though the data is sitting in memory.  This was the
+    // single most-impactful regression of the v2.7.74 native
+    // overlay: the EPG was there, the UI just didn't know.
+    val epgMap by manager.epg.collectAsState()
 
     val focusedChannel = remember(focusedId, visibleChannels) {
         visibleChannels.firstOrNull { it.streamId == focusedId } ?: visibleChannels.firstOrNull()
+    }
+
+    // Derive now-programme + up-next list inside the composable so
+    // they recompute when EITHER the focused channel changes OR
+    // the EPG map updates.  `remember(epgMap, ch.streamId)` keys
+    // on both — Compose will recompute whenever either changes.
+    val nowProg = remember(focusedChannel?.streamId, epgMap) {
+        focusedChannel?.let { manager.nowProgramme(it.streamId) }
+    }
+    // upNextList ALSO keys on `artTick` so when TMDB art finishes
+    // resolving asynchronously (which bumps `artTick`), the
+    // remember invalidates and UpNextStrip receives a fresh
+    // List reference → Compose detects the param change →
+    // UpNextCard recomposes → cachedArt() returns the new
+    // thumbnail.  Without `artTick` in the key, the cards would
+    // stay blank-thumbnail forever even though the art finished
+    // downloading.
+    val upNextList = remember(focusedChannel?.streamId, epgMap, artTick) {
+        focusedChannel?.let { manager.upNext(it.streamId) } ?: emptyList()
     }
 
     // Auto-tune: when the focused channel stays stable for 1 s and
@@ -134,12 +162,12 @@ private fun GuideBody(
 
     // Prefetch TMDB art for the focused channel's now-on programme
     // + the up-next list so the right-side strip is populated.
-    LaunchedEffect(focusedChannel?.streamId, artTick) {
+    LaunchedEffect(focusedChannel?.streamId, artTick, epgMap) {
         val ch = focusedChannel ?: return@LaunchedEffect
-        manager.nowProgramme(ch.streamId)?.let {
+        nowProg?.let {
             if (it.title.isNotBlank()) manager.fetchArt(it.title, it.year)
         }
-        manager.upNext(ch.streamId).forEach {
+        upNextList.forEach {
             if (it.title.isNotBlank()) manager.fetchArt(it.title, it.year)
         }
     }
@@ -201,7 +229,7 @@ private fun GuideBody(
             focusedChannel?.let { ch ->
                 ProgrammeInfoColumn(
                     channel = ch,
-                    nowProg = manager.nowProgramme(ch.streamId),
+                    nowProg = nowProg,
                 )
             }
         }
@@ -210,7 +238,7 @@ private fun GuideBody(
         focusedChannel?.let { ch ->
             UpNextStrip(
                 channelName = ch.name,
-                upNext = manager.upNext(ch.streamId),
+                upNext = upNextList,
                 artLookup = { p -> manager.cachedArt(p.title, p.year) },
                 modifier = Modifier.align(Alignment.BottomStart),
             )
