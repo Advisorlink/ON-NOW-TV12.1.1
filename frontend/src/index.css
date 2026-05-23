@@ -1066,33 +1066,41 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
     box-shadow: none !important;
 }
 
-/* v2.7.86 — Touch behaviour on mobile.
+/* v2.7.87 — Touch behaviour on coarse-pointer devices.
    Earlier (v2.7.84) we set `touch-action: manipulation` on all
    tappable elements to drop the 300 ms double-tap-zoom delay.  In
    practice Samsung Internet + some Chrome WebView builds interpret
    `manipulation` on a button as "this element captures the touch"
    and BLOCK the parent page from scrolling vertically when the
-   user's finger lands on a poster (user report 23 May: "I still
-   can't swipe up and down on the phone when my finger's on one of
-   the covers").
-   Fix — replace `manipulation` with `pan-x pan-y`, which is
-   functionally equivalent for our use case (no pinch-zoom inside
-   the app anyway) but explicitly allows the page to handle both
-   axes of panning, so a vertical swipe with the finger on a tile
-   scrolls the page like the user expects.
-   Modern Chrome 52+ already kills the 300 ms double-tap-zoom delay
-   when the viewport meta is `width=device-width` (we set this in
-   public/index.html), so we don't lose anything by switching off
-   `manipulation`. */
+   user's finger lands on a poster.
+   v2.7.86 — Switched to `pan-x pan-y` but gated to
+   body[data-platform="mobile"], which on the Vesper Android WebView
+   doesn't always get the attribute set before the user's first
+   touch (the React `useEffect` runs after first paint).
+   v2.7.87 — Drop the body gate entirely and apply on any device
+   that primarily uses touch (pointer:coarse media query).  TVs use
+   D-pad / remote, so the `coarse` check exempts them — and TVs
+   don't fire touch events anyway so the rule is a no-op there. */
+@media (pointer: coarse) {
+    [data-focusable='true'],
+    button,
+    a[role='button'] {
+        touch-action: pan-x pan-y !important;
+    }
+    .vesper-shelf {
+        touch-action: pan-x pan-y !important;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Mobile-mode also keeps the rules (kept for backwards-compat with
+   the existing `?mobile=1` desktop preview path).  Identical to
+   what's above but doesn't need the @media gate. */
 body[data-platform="mobile"] [data-focusable='true'],
 body[data-platform="mobile"] button,
 body[data-platform="mobile"] a[role='button'] {
     touch-action: pan-x pan-y;
 }
-/* But the horizontally-scrolling shelf row must allow BOTH axes —
-   horizontal scroll of the row + vertical scroll of the parent
-   page.  Default `auto` does that; we make it explicit so nothing
-   downstream overrides it. */
 body[data-platform="mobile"] .vesper-shelf {
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;

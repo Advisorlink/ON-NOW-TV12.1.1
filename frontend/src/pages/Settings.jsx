@@ -1655,20 +1655,20 @@ function PlayerBackendRow() {
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                 <PlayerBackendPill
+                    label="ExoPlayer"
+                    sub="default · recommended"
+                    active={backend === 'exoplayer'}
+                    onClick={() => onPick('exoplayer')}
+                    testid="player-backend-exo"
+                    accent="#2BB6FF"
+                />
+                <PlayerBackendPill
                     label="LibVLC"
-                    sub="default · stable"
+                    sub="opt-in · legacy codec support"
                     active={backend === 'libvlc'}
                     onClick={() => onPick('libvlc')}
                     testid="player-backend-libvlc"
                     accent="#5DC8FF"
-                />
-                <PlayerBackendPill
-                    label="ExoPlayer"
-                    sub="experimental"
-                    active={backend === 'exoplayer'}
-                    onClick={() => onPick('exoplayer')}
-                    testid="player-backend-exo"
-                    accent="#7CF1F1"
                 />
             </div>
             {!supported && (

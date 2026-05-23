@@ -924,14 +924,25 @@ class ExoPlayerActivity : ComponentActivity() {
         // pops the first time a Watch Together party opens the player.
         private const val REQ_RECORD_AUDIO = 7411
         const val PREF_KEY_USE_EXO = "use_exoplayer_backend"
+        // v2.7.87 — Explicit-opt-out flag.  Set to true ONLY when the
+        // user taps "LibVLC" in Settings AFTER v2.7.87 ships.  This
+        // lets us ignore any stale `use_exoplayer_backend=false` value
+        // left behind by older builds (which is why some users were
+        // stuck on LibVLC even after the v2.7.86 migration ran).
+        const val PREF_KEY_EXPLICIT_LIBVLC = "explicit_libvlc_v2_7_87"
 
         @Suppress("unused")
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {
             val prefs = ctx.getSharedPreferences(
                 "vesper_player", android.content.Context.MODE_PRIVATE
             )
-            // v2.7.40 — DEFAULT FLIPPED to ExoPlayer.  Users can still
-            // opt back to LibVLC via Settings → Video player.
+            // v2.7.87 — ExoPlayer is now the unconditional default.
+            // Only honour an old `use_exoplayer_backend=false` value
+            // if the user has ALSO set the explicit-opt-out flag,
+            // which proves they made that choice on this build (not
+            // on some older build with a buggy Settings UI).
+            val explicit = prefs.getBoolean(PREF_KEY_EXPLICIT_LIBVLC, false)
+            if (!explicit) return true
             return prefs.getBoolean(PREF_KEY_USE_EXO, true)
         }
     }

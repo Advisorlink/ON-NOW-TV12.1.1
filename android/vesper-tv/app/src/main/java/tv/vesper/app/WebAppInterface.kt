@@ -101,13 +101,10 @@ class WebAppInterface(private val activity: Activity) {
     /** True when ExoPlayer is the active backend, false for LibVLC. */
     @JavascriptInterface
     fun getPlayerBackend(): String {
-        val prefs = activity.getSharedPreferences(
-            "vesper_player", android.content.Context.MODE_PRIVATE
-        )
-        // v2.7.40 — default flipped to ExoPlayer (matches
-        // ExoPlayerActivity.shouldUseExoPlayer).  LibVLC remains
-        // available as an opt-out via Settings → Video player.
-        return if (prefs.getBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, true)) {
+        // v2.7.87 — Mirror the new shouldUseExoPlayer() logic so the
+        // Settings UI shows the correct active backend after the
+        // bulletproof default rolled out.
+        return if (ExoPlayerActivity.shouldUseExoPlayer(activity)) {
             "exoplayer"
         } else {
             "libvlc"
@@ -123,6 +120,11 @@ class WebAppInterface(private val activity: Activity) {
             "vesper_player", android.content.Context.MODE_PRIVATE
         ).edit()
             .putBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, useExo)
+            // v2.7.87 — Mark the user's choice as explicit so the
+            // new bulletproof default honours it.  Picking ExoPlayer
+            // clears the flag (so a future user can re-pick LibVLC
+            // freely); picking LibVLC SETS the flag (so it sticks).
+            .putBoolean(ExoPlayerActivity.PREF_KEY_EXPLICIT_LIBVLC, !useExo)
             .apply()
         // Visible confirmation so the user knows the switch landed.
         activity.runOnUiThread {

@@ -7,6 +7,23 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.87 — Bulletproof ExoPlayer + touch scroll fixes (round 2)
+
+Two carry-over issues from v2.7.86 that didn't actually work on the user's phone:
+
+**1. ExoPlayer not active despite v2.7.86 migration + clear-data**
+- v2.7.86 added a one-shot migration in `MainActivity.onCreate` that flipped `vesper_player:use_exoplayer_backend=true`.  Worked in theory.  Didn't ship results.
+- v2.7.87 fix: changed `ExoPlayerActivity.shouldUseExoPlayer()` to be unconditionally true UNLESS a NEW `explicit_libvlc_v2_7_87` pref is set (which only happens when the user taps "LibVLC" in Settings on this build or later).  This means ANY stale `use_exoplayer_backend=false` value from older builds is ignored — the only way to get LibVLC is to explicitly pick it from this build forward.
+- `setPlayerBackend()` updated to write the new explicit flag (true on LibVLC pick, false on ExoPlayer pick).
+- `getPlayerBackend()` rewritten to use the same logic so Settings reflects reality.
+- Settings panel: pill subtitles flipped — was "LibVLC default · stable / ExoPlayer experimental" (incorrect since v2.7.40), now "ExoPlayer default · recommended / LibVLC opt-in · legacy codec support".
+
+**2. Mobile scroll-over-poster STILL broken after v2.7.86 touch-action fix**
+- v2.7.86 set `touch-action: pan-x pan-y` but gated it to `body[data-platform="mobile"]`.  In the Vesper Android WebView, the `data-platform` attribute is set by a React `useEffect` that runs AFTER first paint, so the user's first touch on a poster can hit a button that still has the inherited default `touch-action: auto` (which is OK) — but the body-gate-only rule didn't apply early enough to win the cascade against any other component-level touch-action.
+- v2.7.87 fix: added an UNGATED `@media (pointer: coarse)` rule that applies `touch-action: pan-x pan-y !important` to every focusable element + button on touch-primary devices.  TVs use D-pad / remote so `pointer: coarse` returns false there (TVs are exempt).  The old body-gated rule stays as a belt-and-braces for `?mobile=1` desktop QA.
+
+---
+
 ## v2.7.86 — Mobile scroll-over-poster + ExoPlayer-forced migration
 
 **1. Mobile vertical scroll over poster covers** — finally working.  Replaced `touch-action: manipulation` with `touch-action: pan-x pan-y` on all tappable elements in mobile mode.  Samsung Internet (and some Chrome WebView builds) treat `manipulation` on a button as "this element captures the touch", which was blocking the parent page from scrolling vertically whenever the user's finger landed on a poster.  Switching to explicit `pan-x pan-y` allows the page to handle both axes of panning through the button, so vertical swipes with the finger on a tile now scroll the page natively.  Modern Chrome already kills the 300 ms double-tap-zoom delay when the viewport meta is `width=device-width` (we set this in `public/index.html`), so we don't lose anything by removing `manipulation`.
