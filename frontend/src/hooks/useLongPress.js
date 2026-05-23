@@ -22,23 +22,43 @@ import { useEffect, useRef } from 'react';
  *  • We `preventDefault` on the Enter keydown so the browser's
  *    own "Enter activates focused button" path doesn't double-fire
  *    a click.  Same reason we wrap onClick to swallow it on mouse.
+ *
+ * v2.7.85 — TOUCH FAST-PATH.  On phones / tablets (coarse pointer)
+ * we used to install custom touchstart / touchmove / touchend
+ * handlers to disambiguate tap from scroll + scroll from
+ * long-press.  In practice every variant of that logic ended up
+ * stealing the scroll gesture when the user's finger landed on a
+ * poster ("I can't scroll up when my thumb is on a cover" — user
+ * report).  The fix: on touch devices DON'T install ANY touch
+ * handlers at all.  The browser's native click event already
+ * fires after a touchstart → touchend that didn't move; scrolling
+ * gestures never produce a click.  Result: page scroll is
+ * BUTTER-SMOOTH (no JS in the touch loop), short tap navigates,
+ * long-press is unavailable on touch (still works via mouse / D-pad).
  */
+
+/* Detect coarse pointers (= touch primary input).  Evaluated once
+   per module load — phones don't switch input mode mid-session. */
+function detectTouchPrimary() {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (typeof window.matchMedia === 'function') {
+            return window.matchMedia('(pointer: coarse)').matches;
+        }
+    } catch { /* ignore */ }
+    return (
+        ('ontouchstart' in window) ||
+        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+    );
+}
+const TOUCH_PRIMARY = detectTouchPrimary();
+
 export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}) {
     const timerRef = useRef(null);
     const heldRef = useRef(false);
     const longPressFiredRef = useRef(false);
     const lastReleaseRef = useRef(0);
     const elRef = useRef(null);
-    /* Touch tracking: remember the starting (x,y) so we can detect
-       scroll gestures and cancel cleanly without ever firing onTap. */
-    const touchStartRef = useRef({ x: 0, y: 0, t: 0, moved: false });
-    /* Touch "confirm-press" timer — on touch we delay the visual
-       hold-glow + long-press countdown by 130 ms so a vertical
-       page-scroll gesture (which starts with finger ON a tile)
-       never paints the glow.  If the user actually intends a
-       press, 130 ms is below human-perception of latency so the
-       feedback still feels instant. */
-    const touchConfirmRef = useRef(null);
 
     useEffect(() => {
         return () => {
@@ -46,6 +66,35 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         };
     }, []);
 
+    /* ─── TOUCH FAST-PATH ────────────────────────────────────────
+       On phones we install ONLY a native onClick.  The browser
+       handles scroll vs tap natively; we never intercept the
+       touch loop.  No visual hold-glow, no long-press — the
+       "Add to My List" affordance on mobile lives elsewhere
+       (the Detail page has a dedicated button). */
+    if (TOUCH_PRIMARY) {
+        return {
+            ref: (el) => { elRef.current = el; },
+            onClick: (e) => {
+                /* Synthetic click from native button activation.
+                   Stop further bubbling so the global spatial-
+                   focus listener doesn't fire a SECOND click. */
+                e.stopPropagation();
+                const now = Date.now();
+                if (now - lastReleaseRef.current < 250) return;
+                lastReleaseRef.current = now;
+                if (typeof onTap === 'function') onTap();
+            },
+            onContextMenu: (e) => {
+                /* Suppress the browser's right-click menu when a
+                   long-press fires on touch — but we don't act on
+                   it (long-press isn't supported on mobile). */
+                e.preventDefault();
+            },
+        };
+    }
+
+    /* ─── DESKTOP / TV PATH ──────────────────────────────────── */
     const start = () => {
         if (heldRef.current) return; // already holding
         heldRef.current = true;
@@ -63,10 +112,6 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
             clearTimeout(timerRef.current);
             timerRef.current = null;
         }
-        if (touchConfirmRef.current) {
-            clearTimeout(touchConfirmRef.current);
-            touchConfirmRef.current = null;
-        }
         heldRef.current = false;
         if (elRef.current) elRef.current.removeAttribute('data-holding');
     };
@@ -76,8 +121,6 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         const fired = longPressFiredRef.current;
         cancel();
         if (!fired) {
-            // Short tap.  Debounce so a double-fire from concurrent
-            // mouseup+click events doesn't navigate twice.
             const now = Date.now();
             if (now - lastReleaseRef.current < 250) return;
             lastReleaseRef.current = now;
@@ -91,11 +134,9 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         },
         onKeyDown: (e) => {
             if (e.key !== 'Enter' && e.key !== ' ') return;
-            // Swallow so the global spatial-focus listener does not
-            // fire its own .click() — we own activation here.
             e.preventDefault();
             e.stopPropagation();
-            if (e.repeat) return; // already holding
+            if (e.repeat) return;
             start();
         },
         onKeyUp: (e) => {
@@ -105,7 +146,6 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
             release();
         },
         onMouseDown: (e) => {
-            // Only respond to primary (left) click.
             if (e.button !== 0) return;
             start();
         },
@@ -114,105 +154,13 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
             release();
         },
         onMouseLeave: () => {
-            // Mouse dragged off mid-hold → cancel without firing tap.
-            cancel();
-        },
-        /* Touch handlers ─────────────────────────────────────────
-         *
-         * The key insight here is that on a phone, every touch is
-         * potentially the START of a scroll gesture.  We must NOT
-         * preventDefault on touchstart/touchend/touchmove (doing so
-         * would freeze page scrolling), and we must cancel the long-
-         * press timer the moment we detect the finger has moved
-         * more than a few pixels in any direction — that's the
-         * browser's signal that the user is scrolling, not tapping.
-         *
-         * v2.7.84 — defer the visible hold-glow + long-press countdown
-         * by 130 ms.  Without this, every vertical page-scroll
-         * gesture that happens to start ON a tile would briefly
-         * paint the glow ring (because touchstart fires before the
-         * browser has had a chance to interpret the gesture as a
-         * scroll).  130 ms is below typical human latency
-         * perception so taps still feel instant.
-         */
-        onTouchStart: (e) => {
-            if (e.touches && e.touches.length > 1) return;   // pinch
-            const t = e.touches?.[0] || e;
-            touchStartRef.current = {
-                x: t.clientX || 0,
-                y: t.clientY || 0,
-                t: Date.now(),
-                moved: false,
-            };
-            /* Defer the actual press-start.  If the finger moves
-               within 130 ms (= scroll gesture) or the tap releases
-               within 130 ms (= quick tap, handled in onTouchEnd
-               directly), no visual feedback ever paints. */
-            if (touchConfirmRef.current) clearTimeout(touchConfirmRef.current);
-            touchConfirmRef.current = setTimeout(() => {
-                touchConfirmRef.current = null;
-                if (touchStartRef.current.moved) return;
-                start();
-            }, 130);
-        },
-        onTouchMove: (e) => {
-            /* If the finger has moved more than 6 px in any
-               direction since touchstart, treat it as a scroll
-               gesture and cancel any pending press intent.  6 px is
-               a touch tighter than the 8 px we used previously —
-               on a high-DPI Samsung screen even an unintentional
-               finger micro-tremor reads as 4-5 px, so 6 keeps the
-               tap firmly distinct from scroll. */
-            const t = e.touches?.[0];
-            if (!t) return;
-            const dx = (t.clientX || 0) - touchStartRef.current.x;
-            const dy = (t.clientY || 0) - touchStartRef.current.y;
-            if (Math.hypot(dx, dy) > 6) {
-                touchStartRef.current.moved = true;
-                cancel();
-            }
-        },
-        onTouchEnd: (_e) => {
-            /* IMPORTANT: do NOT call preventDefault here.  Doing so
-               prevents browsers from completing the scroll-up
-               gesture cleanly on iOS Safari + some Android
-               WebViews — they snap back instead of holding the
-               scroll position.  We also don't need to suppress the
-               synthetic click — onClick is already a no-op (see
-               below) and the tap action is fired from `release()`. */
-            if (touchStartRef.current.moved) {
-                /* Pure scroll gesture — neutralise so onTap never
-                   fires from a leftover heldRef. */
-                cancel();
-                return;
-            }
-            /* Quick tap that released BEFORE the 130 ms confirm
-               timer ever fired — neither start() nor the long-
-               press timer ever ran.  Manually fire onTap here. */
-            if (touchConfirmRef.current) {
-                clearTimeout(touchConfirmRef.current);
-                touchConfirmRef.current = null;
-                const now = Date.now();
-                if (now - lastReleaseRef.current < 250) return;
-                lastReleaseRef.current = now;
-                if (typeof onTap === 'function') onTap();
-                return;
-            }
-            release();
-        },
-        onTouchCancel: () => {
             cancel();
         },
         onClick: (e) => {
-            // We handle activation manually via key/mouse up.  Suppress
-            // the synthetic click event (fires from native button
-            // activation OR from the spatial-focus hook).
             e.preventDefault();
             e.stopPropagation();
         },
         onContextMenu: (e) => {
-            // Long-press on touch devices fires contextmenu — block
-            // the right-click menu but DON'T treat it as anything.
             e.preventDefault();
         },
     };

@@ -27,8 +27,8 @@ from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter, Body, FastAPI, HTTPException, Query
-from fastapi.responses import Response, HTMLResponse
+from fastapi import APIRouter, Body, FastAPI, HTTPException, Query, Request
+from fastapi.responses import Response, HTMLResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -3073,6 +3073,119 @@ async def sports_find(req: SportsQueryRequest):
             for i in indices
         ],
     }
+
+
+# ============================================================================
+# v2.7.85 — Launcher Admin proxy (preview-URL convenience)
+# ----------------------------------------------------------------------------
+# The launcher backend runs as a separate FastAPI service on port 8002.  In
+# production it lives at https://launcher-onnowtv.duckdns.org behind nginx,
+# but the pod preview only routes /api/* to this backend.  So we expose the
+# launcher admin UI via a transparent reverse proxy at
+# /api/launcher-admin/* that strips the prefix and forwards to
+# localhost:8002/*.  HTML + JS responses are rewritten on the fly so the
+# admin's hard-coded absolute URLs (`/admin/static/...`, `/api/admin/...`,
+# `/api/launcher/...`) keep working from inside the proxied namespace.
+#
+# This is preview-only — when deploying the launcher backend to the VPS,
+# point devices at the real subdomain (DEPLOY.md step 5).
+# ============================================================================
+import httpx as _httpx_launcher
+
+_LAUNCHER_BACKEND = "http://localhost:8002"
+_LAUNCHER_PROXY_PREFIX = "/api/launcher-admin"
+
+
+def _rewrite_admin_html(body: bytes) -> bytes:
+    """Rewrite absolute paths in the admin index so static assets resolve
+    through the proxy namespace."""
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        return body
+    text = text.replace('href="/admin/', 'href="/api/launcher-admin/admin/')
+    text = text.replace('src="/admin/', 'src="/api/launcher-admin/admin/')
+    return text.encode("utf-8")
+
+
+def _rewrite_admin_js(body: bytes) -> bytes:
+    """Rewrite fetch URLs in app.js so admin API calls go through the
+    proxy namespace.  We do simple string replace because the JS uses
+    string literals with leading slash + single quotes."""
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        return body
+    text = text.replace("'/api/admin/", "'/api/launcher-admin/api/admin/")
+    text = text.replace("'/api/launcher/", "'/api/launcher-admin/api/launcher/")
+    return text.encode("utf-8")
+
+
+@app.api_route(
+    "/api/launcher-admin/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    include_in_schema=False,
+)
+async def launcher_admin_proxy(full_path: str, request: Request):
+    """Transparent reverse proxy → launcher backend on :8002.
+
+    Strips the `/api/launcher-admin/` prefix and forwards everything.
+    HTML + JS responses are rewritten so the admin's absolute URLs
+    (`/admin/static/...`, `/api/admin/...`, `/api/launcher/...`) keep
+    resolving when accessed through this proxy."""
+    target_url = f"{_LAUNCHER_BACKEND}/{full_path}"
+    body = await request.body()
+    # Drop hop-by-hop headers + the original Host header.
+    skip_req = {"host", "content-length", "connection", "accept-encoding"}
+    fwd_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in skip_req
+    }
+    try:
+        async with _httpx_launcher.AsyncClient(timeout=30.0) as client:
+            upstream = await client.request(
+                request.method,
+                target_url,
+                params=dict(request.query_params),
+                content=body,
+                headers=fwd_headers,
+                follow_redirects=False,
+            )
+    except _httpx_launcher.ConnectError:
+        return JSONResponse(
+            {"error": "Launcher backend unreachable on :8002"},
+            status_code=502,
+        )
+
+    response_body = upstream.content
+    ctype = upstream.headers.get("content-type", "").lower()
+    if "text/html" in ctype:
+        response_body = _rewrite_admin_html(response_body)
+    elif "javascript" in ctype or full_path.endswith(".js"):
+        response_body = _rewrite_admin_js(response_body)
+
+    # Filter response headers — drop the ones that no longer match the
+    # rewritten body, and rewrite the Location header on redirects so it
+    # stays inside our proxy namespace.
+    skip_resp = {
+        "content-encoding", "transfer-encoding", "content-length",
+        "connection",
+    }
+    resp_headers = {}
+    for k, v in upstream.headers.items():
+        kl = k.lower()
+        if kl in skip_resp:
+            continue
+        if kl == "location" and v.startswith("/"):
+            v = f"{_LAUNCHER_PROXY_PREFIX}{v}"
+        resp_headers[k] = v
+
+    return Response(
+        content=response_body,
+        status_code=upstream.status_code,
+        headers=resp_headers,
+        media_type=upstream.headers.get("content-type"),
+    )
 
 
 # ----- App wiring ----------------------------------------------------------
