@@ -1,5 +1,5 @@
 {
-  "generation": 3,
+  "generation": 6,
   "dock_tiles": [
     {
       "key": "movies",
@@ -56,8 +56,15 @@
       "accent": "#5BC5FF"
     }
   ],
-  "active_wallpaper_id": null,
-  "wallpapers": [],
+  "active_wallpaper_id": "07319ceed3f0",
+  "wallpapers": [
+    {
+      "id": "07319ceed3f0",
+      "filename": "07319ceed3f0.png",
+      "url": "/assets/wallpapers/07319ceed3f0.png",
+      "uploaded_at": 1779541953
+    }
+  ],
   "apks": [],
   "notifications": [
     {
