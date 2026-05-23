@@ -27,6 +27,7 @@ them — but it doesn't know how to forge new ones.
 from __future__ import annotations
 
 import asyncio
+import base64
 import gzip
 import hashlib
 import json
@@ -512,6 +513,104 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         if not items:
             continue
         by_stream_id[str(ch["stream_id"])] = items
+
+    # v2.7.80 — Per-channel pre-warm for the ~75 % of channels the
+    # bulk XMLTV feed doesn't cover.
+    #
+    # The provider's `get_short_epg` Xtream API returns EPG for a
+    # *stream_id* directly (not an XMLTV id) — and crucially it
+    # often has data for channels the bulk XMLTV omits (kids
+    # channels, sport pop-ups, regional simulcasts, +1 timeshifts,
+    # etc.).  Previously the React app called this on hover, which
+    # is why "channels load EPG when you wait on them".  We now
+    # pre-warm it for ALL gaps during the backend refresh so the
+    # in-player and grid both have EPG ready instantly for every
+    # channel — no hover-load delay.
+    #
+    # Concurrency capped at 25 to avoid hammering the provider.
+    # Failures are silent per-channel so one broken stream_id
+    # doesn't poison the whole batch.
+    missing_sids = [
+        str(ch["stream_id"]) for ch in _state["channels"]
+        if str(ch["stream_id"]) not in by_stream_id
+    ]
+    if missing_sids:
+        log.info(
+            "instant_bundle: pre-warming get_short_epg for %d gap channels…",
+            len(missing_sids),
+        )
+        sem = asyncio.Semaphore(25)
+        prewarm_added = 0
+        prewarm_total_progs = 0
+
+        async def _warm_one(sid: str) -> None:
+            nonlocal prewarm_added, prewarm_total_progs
+            url = f"{_base_url(p)}/player_api.php"
+            params = {
+                "username": p["username"],
+                "password": p["password"],
+                "action":   "get_short_epg",
+                "stream_id": sid,
+                "limit":    "24",  # next ~24 programmes (~12-72 h)
+            }
+            async with sem:
+                try:
+                    resp = await _http().get(url, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception:
+                    return
+            items_raw = data.get("epg_listings") if isinstance(data, dict) else None
+            if not items_raw:
+                return
+            kept: List[Dict[str, Any]] = []
+            for it in items_raw:
+                try:
+                    start_ts = int(it.get("start_timestamp") or 0)
+                    stop_ts  = int(it.get("stop_timestamp")  or 0)
+                except (TypeError, ValueError):
+                    continue
+                if stop_ts < now_sec:
+                    continue
+                if start_ts > horizon:
+                    continue
+                # `get_short_epg` returns base64-encoded title/desc.
+                title_b64 = (it.get("title") or "").strip()
+                desc_b64  = (it.get("description") or "").strip()
+                try:
+                    title = base64.b64decode(title_b64).decode("utf-8", "replace") if title_b64 else ""
+                except Exception:
+                    title = title_b64
+                try:
+                    desc = base64.b64decode(desc_b64).decode("utf-8", "replace") if desc_b64 else ""
+                except Exception:
+                    desc = desc_b64
+                kept.append({
+                    "title": title,
+                    "desc":  desc,
+                    "category": "",
+                    "startTimestamp": start_ts,
+                    "stopTimestamp":  stop_ts,
+                })
+            if kept:
+                kept.sort(key=lambda x: x["startTimestamp"])
+                by_stream_id[sid] = kept
+                prewarm_added += 1
+                prewarm_total_progs += len(kept)
+
+        # Run in chunks so we don't queue 14 k coroutines at once.
+        CHUNK = 500
+        for i in range(0, len(missing_sids), CHUNK):
+            await asyncio.gather(*[_warm_one(s) for s in missing_sids[i:i + CHUNK]])
+            log.info(
+                "instant_bundle: pre-warm progress %d/%d (added=%d so far)",
+                min(i + CHUNK, len(missing_sids)), len(missing_sids), prewarm_added,
+            )
+
+        log.info(
+            "instant_bundle: pre-warm done — added EPG for %d additional channels (%d programmes)",
+            prewarm_added, prewarm_total_progs,
+        )
 
     async with _state_lock:
         # Primary: keyed by stream_id (what every client looks up).
