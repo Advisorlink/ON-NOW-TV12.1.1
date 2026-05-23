@@ -29,7 +29,7 @@ import { saveCategories, saveChannels, mergeAndSaveEpg, persistEpgSubset } from 
 import { getActiveProvider, listProviders, saveProvider, setActiveProvider } from './xtream';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const META_KEY = 'onnowtv-instant-bundle-meta';
+const META_KEY = 'onnowtv-instant-bundle-meta-v2';
 
 /**
  * Pick the provider whose cache the bundle should seed.  The

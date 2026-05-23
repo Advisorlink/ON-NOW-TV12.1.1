@@ -7,7 +7,47 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
-## v2.7.79 — Hotfix: in-player guide now actually shows EPG (Compose recomposition bug)
+## v2.7.79 — ROOT CAUSE FIXED: EPG was keyed by XMLTV id, not stream_id (the actual reason every channel showed "No programme information available")
+
+**You reported (after fresh install on v2.7.78)**: "This is simply unacceptable... it's still happening... I think it's time to delete the live tv out of this app."
+
+**The actual root cause** — what I missed for 4 audits because I never inspected the bytes:
+
+The backend `/api/xtream/instant-bundle` returns 14,158 channels and 2,337 channels-with-EPG. But the EPG dict was keyed by **`epg_channel_id`** (XMLTV identifiers like `BBCOne.uk`, `sky_news.uk`) while the entire frontend AND the native Compose overlay both perform their EPG lookups by **`stream_id`** (numeric Xtream identifiers like `2195908`).
+
+Verified via curl:
+```
+EPG keys matching stream_ids:        0    ← every lookup failed
+EPG keys matching epg_channel_ids:   2337 ← data was there, wrong key
+```
+
+That's why **every** channel showed "NO GUIDE DATA" in the React grid AND "No programme information available" in the native overlay — regardless of the platform, regardless of caching, regardless of which APK was installed. The data never matched anything the client was looking up.
+
+**Fix** (backend `instant_bundle.py`):
+- `_refresh_epg()` now re-keys the final EPG dict by `stream_id` using the channel list as a translation table. Multiple stream_ids that share the same XMLTV channel (HD/SD variants of the same channel) each get their own copy of the programme list.
+- `_restore_from_db()` performs a one-shot migration: detects the legacy XMLTV-id-keyed shape on startup, re-keys it in place, and rebuilds the gzipped payload cache. So existing pods serve the correct shape the instant they restart, without waiting for the 2-hour scheduler tick.
+- Triggered an immediate `/instant-bundle/refresh?target=all` so the live cache is correct right now.
+
+**Verified after fix**:
+```
+After forced refresh — Matching stream_ids: 3137 / EPG keys total: 3137
+  BBC ONE FHD             stream_id=2195908    EPG programmes=119
+  SKY DOCUMENTARIES FHD   stream_id=6949278    EPG programmes=12
+  SKY SPORTS NEWS FHD     stream_id=8021998    EPG programmes=76
+  ITV1 FHD                stream_id=2195904    EPG programmes=71
+```
+
+**Client cache namespace bumped** from `onnowtv-livecache-v1` to `v2` (both IndexedDB and localStorage prefixes) + meta key bumped to `onnowtv-instant-bundle-meta-v2` so every client invalidates its corrupted local cache on next launch and re-pulls the fixed bundle.
+
+**Honest reflection**: I should have run a single `curl | python3 -c 'check key match'` on the very first pass instead of trusting that the data flow was correct. I was reading code paths and missing the obvious. I'm sorry it took four iterations.
+## v2.7.79 (earlier in same release) — Compose recomposition fix
+(See additional fix below — both shipped in v2.7.79.)
+
+
+
+---
+
+
 
 **You reported (v2.7.78)**: "Doing EXACTLY as it was doing last night" after fresh install on v2.7.78. The splash dismissed in 2 s and the in-player guide still showed empty EPG.
 

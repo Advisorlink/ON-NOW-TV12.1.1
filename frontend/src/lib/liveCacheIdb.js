@@ -32,7 +32,7 @@
  *   • "epg"       keyed by providerId → { at, data }
  */
 
-const DB_NAME = 'onnowtv-livecache-v1';
+const DB_NAME = 'onnowtv-livecache-v2';
 const DB_VERSION = 1;
 const STORE_CHANNELS = 'channels';
 const STORE_EPG = 'epg';

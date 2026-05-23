@@ -20,7 +20,7 @@
  * needing to read-and-migrate stale blobs.
  */
 
-const NS = 'onnowtv-livecache-v1';
+const NS = 'onnowtv-livecache-v2';
 
 import { loadChannelsIdb, saveChannelsIdb, loadEpgIdb, saveEpgIdb, isIdbSupported } from './liveCacheIdb';
 

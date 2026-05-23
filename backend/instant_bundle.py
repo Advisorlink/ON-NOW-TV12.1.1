@@ -268,6 +268,35 @@ async def _restore_from_db() -> None:
         _state["generated_at"]        = int(doc.get("generated_at")        or 0)
         _state["channels_fetched_at"] = int(doc.get("channels_fetched_at") or 0)
         _state["epg_fetched_at"]      = int(doc.get("epg_fetched_at")      or 0)
+        # v2.7.79 — One-time migration of the persisted bundle to
+        # `stream_id`-keyed EPG.  Older builds stored EPG keyed by
+        # `epg_channel_id` (XMLTV id), which made every client-side
+        # lookup return empty.  Detect the legacy shape (no EPG key
+        # matches any stream_id) and re-key in place so the very
+        # first /instant-bundle response after this restart already
+        # ships the correct shape — even before the next scheduled
+        # EPG refresh.
+        if _state["channels"] and _state["epg"]:
+            stream_ids = {str(c.get("stream_id")) for c in _state["channels"]}
+            ekeys = set(_state["epg"].keys())
+            if ekeys and not (ekeys & stream_ids):
+                # Legacy shape detected — re-key.
+                old_epg = _state["epg"]
+                by_stream_id: Dict[str, List[Dict[str, Any]]] = {}
+                for ch in _state["channels"]:
+                    eid = (ch.get("epg_channel_id") or "").strip()
+                    if not eid:
+                        continue
+                    items = old_epg.get(eid)
+                    if items:
+                        by_stream_id[str(ch["stream_id"])] = items
+                _state["epg"] = by_stream_id
+                _state["epg_by_xmltv_id"] = old_epg
+                log.info(
+                    "instant_bundle: migrated persisted EPG to stream_id keys "
+                    "(xmltv_channels=%d → stream_id_channels=%d)",
+                    len(old_epg), len(by_stream_id),
+                )
         # Build the gzipped response cache once now so the very
         # first /instant-bundle request after a backend restart
         # doesn't have to do it on the request thread.
@@ -457,8 +486,40 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         if keep:
             trimmed[ch_id] = keep
 
+    # v2.7.79 — Re-key the EPG by `stream_id` instead of XMLTV
+    # `epg_channel_id`.
+    #
+    # WHY this matters (and why the whole Live Guide was broken):
+    # The XMLTV feed identifies channels with strings like
+    # `bbc1.uk`, `itv1.uk`, `sonymax.uk`. The Xtream channel list
+    # identifies channels with numeric `stream_id`s like `123456`.
+    # Both the React Live TV grid and the native Compose overlay
+    # do their EPG lookups by `stream_id` — but the bundle was
+    # shipping EPG keyed by `epg_channel_id`, so EVERY lookup
+    # returned an empty list and EVERY channel rendered as
+    # "NO GUIDE DATA" / "No programme information available".
+    #
+    # Multiple stream_ids can share the same `epg_channel_id`
+    # (e.g. BBC ONE HD and BBC ONE SD both map to `bbc1.uk`).
+    # We give every matching stream_id its own copy of the
+    # programme list so client-side joins are a one-line lookup.
+    by_stream_id: Dict[str, List[Dict[str, Any]]] = {}
+    for ch in _state["channels"]:
+        eid = (ch.get("epg_channel_id") or "").strip()
+        if not eid:
+            continue
+        items = trimmed.get(eid)
+        if not items:
+            continue
+        by_stream_id[str(ch["stream_id"])] = items
+
     async with _state_lock:
-        _state["epg"]            = trimmed
+        # Primary: keyed by stream_id (what every client looks up).
+        _state["epg"] = by_stream_id
+        # Diagnostic: legacy XMLTV-id-keyed map kept on the side
+        # so we can debug provider XMLTV alignment issues without
+        # re-parsing the whole feed.  Not shipped to clients.
+        _state["epg_by_xmltv_id"] = trimmed
         _state["epg_fetched_at"] = int(time.time())
         _state["generated_at"]   = int(time.time())
         _state["last_error"]     = None
@@ -468,8 +529,9 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         await _rebuild_cached_payload()
     await _persist()
     log.info(
-        "instant_bundle: EPG OK (%d channels with EPG, ~%d programmes total)",
-        len(trimmed), sum(len(v) for v in trimmed.values()),
+        "instant_bundle: EPG OK (xmltv_channels=%d, stream_id_channels=%d, ~%d programmes total)",
+        len(trimmed), len(by_stream_id),
+        sum(len(v) for v in by_stream_id.values()),
     )
 
 
