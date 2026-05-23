@@ -141,11 +141,30 @@ function Grid({ provider, onLogout }) {
         const ch = loadChannels(provider.id) || {};
         const e = loadEpg(provider.id) || {};
         cats.current = c;
-        for (const k in ch) channelsByCat.current.set(k, ch[k]);
+        /* v2.7.80 — Canonicalise every channel's stream_id to a
+         * STRING the moment we hydrate it.  The backend ships
+         * stream_ids as strings (`"6983864"`); the legacy
+         * getStreams() path used to ship them as numbers; some
+         * code paths converted to Number(); the result was that
+         * `epg.current.get(channel.stream_id)` could miss its key
+         * by type (string ≠ number in JS Maps) — which is the
+         * single bug that made every kids channel render
+         * "NO GUIDE DATA" even though the bundle HAD their EPG.
+         * One canonicalisation upstream fixes every downstream
+         * lookup in one shot. */
+        for (const k in ch) {
+            const arr = ch[k] || [];
+            for (const ent of arr) {
+                if (ent && ent.stream_id != null) {
+                    ent.stream_id = String(ent.stream_id);
+                }
+            }
+            channelsByCat.current.set(k, arr);
+        }
         const nowSec = Math.floor(Date.now() / 1000);
         for (const sid in e) {
             const arr = (e[sid] || []).filter((it) => Number(it.stopTimestamp || 0) > nowSec);
-            if (arr.length) epg.current.set(Number(sid) || sid, arr);
+            if (arr.length) epg.current.set(String(sid), arr);
         }
     }
 
@@ -267,7 +286,7 @@ function Grid({ provider, onLogout }) {
                 for (const c of (arr || [])) {
                     const key = String(c.stream_id);
                     if (seen.has(key)) continue;
-                    const items = epg.current.get(c.stream_id) || [];
+                    const items = epg.current.get(String(c.stream_id)) || [];
                     const hit = items.find((it) => {
                         const t = (it.title || '').toLowerCase();
                         const d = (it.description || '').toLowerCase();
@@ -310,7 +329,8 @@ function Grid({ provider, onLogout }) {
     useEffect(() => {
         const ch = debouncedChannel;
         if (!ch) return undefined;
-        if (epg.current.has(ch.stream_id)) return undefined;
+        const sidKey = String(ch.stream_id);
+        if (epg.current.has(sidKey)) return undefined;
         const myReq = ++epgReqId.current;
         const t = setTimeout(async () => {
             try {
@@ -318,15 +338,15 @@ function Grid({ provider, onLogout }) {
                 if (epgReqId.current !== myReq) return;
                 const arr = (items && items.length) ? items : [];
                 /* Always cache so future focuses skip the network. */
-                epg.current.set(ch.stream_id, arr);
+                epg.current.set(sidKey, arr);
                 if (arr.length) {
-                    mergeAndSaveEpg(provider.id, { [ch.stream_id]: arr });
+                    mergeAndSaveEpg(provider.id, { [sidKey]: arr });
                 }
                 rerender();
             } catch {
                 /* Network error — cache empty so we don't hammer. */
                 if (epgReqId.current === myReq) {
-                    epg.current.set(ch.stream_id, []);
+                    epg.current.set(sidKey, []);
                     rerender();
                 }
             }
@@ -344,7 +364,7 @@ function Grid({ provider, onLogout }) {
      * top cards light up first, then the rest as they arrive). */
     useEffect(() => {
         const sample = channels.slice(0, 20);
-        const missing = sample.filter((c) => !epg.current.has(c.stream_id));
+        const missing = sample.filter((c) => !epg.current.has(String(c.stream_id)));
         if (missing.length === 0) return undefined;
         let cancel = false;
         (async () => {
@@ -356,12 +376,13 @@ function Grid({ provider, onLogout }) {
                     const i = cursor++;
                     if (i >= missing.length) return;
                     const ch = missing[i];
+                    const sidKey = String(ch.stream_id);
                     try {
                         const items = await getFullEpg(provider, ch.stream_id, 200);
                         if (cancel) return;
                         if (items && items.length) {
-                            epg.current.set(ch.stream_id, items);
-                            mergeAndSaveEpg(provider.id, { [ch.stream_id]: items });
+                            epg.current.set(sidKey, items);
+                            mergeAndSaveEpg(provider.id, { [sidKey]: items });
                             sinceLastFlush += 1;
                             // Incremental UI update — every 4 hits
                             // we re-render so cards light up as
@@ -385,7 +406,7 @@ function Grid({ provider, onLogout }) {
     }, [sel.catIdx, channels.length]);
 
     const guideItems = debouncedChannel
-        ? (epg.current.get(debouncedChannel.stream_id) || EMPTY_ARRAY)
+        ? (epg.current.get(String(debouncedChannel.stream_id)) || EMPTY_ARRAY)
         : EMPTY_ARRAY;
 
     /* Group guide entries by day for the TODAY / TOMORROW headers. */
@@ -642,12 +663,24 @@ function Grid({ provider, onLogout }) {
                             const e  = loadEpg(provider.id) || {};
                             cats.current = c;
                             channelsByCat.current.clear();
-                            for (const k in ch) channelsByCat.current.set(k, ch[k]);
+                            /* v2.7.80 — Canonicalise stream_id → String
+                             * here too (mirror of the synchronous
+                             * hydrate above).  See the long comment
+                             * up top for the reason. */
+                            for (const k in ch) {
+                                const arr = ch[k] || [];
+                                for (const ent of arr) {
+                                    if (ent && ent.stream_id != null) {
+                                        ent.stream_id = String(ent.stream_id);
+                                    }
+                                }
+                                channelsByCat.current.set(k, arr);
+                            }
                             epg.current.clear();
                             for (const sid in e) {
                                 const arr = e[sid];
                                 if (Array.isArray(arr) && arr.length) {
-                                    epg.current.set(Number(sid) || sid, arr);
+                                    epg.current.set(String(sid), arr);
                                 }
                             }
                             setStage('auth',       'done', 'Instant bundle');
@@ -1002,7 +1035,7 @@ function Grid({ provider, onLogout }) {
         // EPG, then trigger a sync by re-running the effect.  Refs
         // are reset so the next render reads from disk again.
         try {
-            localStorage.removeItem(`onnowtv-livecache-v1:${provider.id}:epg`);
+            localStorage.removeItem(`onnowtv-livecache-v2:${provider.id}:epg`);
         } catch { /* ignore */ }
         epg.current.clear();
         rerender();
