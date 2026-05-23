@@ -7,6 +7,16 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.85 — Library TV fit + Feature Nudges + Preview testing
+
+- **Library at 1920×1080**: posters no longer clip at corners/top. Page padding bumped (paddingTop 48→64, paddingRight 60→84). All tile grids: 140 px floor, 18 px gap, 12/14 px inset breathing room. `CollapsibleGrid` switched from `overflow: hidden` to CSS `mask-image` so focused-tile scale(1.08) is no longer snipped at the bottom edge.
+- **Feature Nudge engagement system**: small toast (bottom-right on TV/desktop, full-width above bottom-nav on mobile) suggests an unused feature 3 days after install, 7-day spacing between nudges, 1 per app session. 5 tracked features: My List, Follow actors, Watch Later, For You preferences, Watch Together (Sources/add-ons deliberately excluded per user spec).
+- **Settings → Tips & nudges panel**: master toggle, 5 per-feature toggles, "Reset tip history" button.
+- **Preview testing**: every per-feature row has a "PREVIEW" pill — taps fire the toast immediately, bypasses all gates, eyebrow reads "PREVIEW · A QUICK TIP", does NOT pollute live snooze/mute state.
+- **UpdateGate doc comment**: corrected the stale "fullscreen forced-update" comment to match the actual popup-with-Skip behaviour. No functional change.
+
+---
+
 ## v2.7.84 — Mobile responsiveness pass + CI build fixes
 
 User reported (verbatim): "all the edits and stuff that we did for the TV, it sort of threw all the mobile phone visuals out … when you swipe up on a cover, it was, like, highlighting it and not letting it move … every page is fully responsive for a mobile phone but also make sure you don't touch anything to do with the TV version because it's perfect."
