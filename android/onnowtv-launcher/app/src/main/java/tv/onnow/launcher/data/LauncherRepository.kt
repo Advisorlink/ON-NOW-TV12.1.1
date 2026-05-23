@@ -34,7 +34,8 @@ class LauncherRepository(
         private const val TAG = "LauncherRepository"
 
         /** Override at runtime via SharedPreferences "launcher.base_url". */
-        const val DEFAULT_BASE_URL = "https://launcher.onnowtv.duckdns.org"
+        const val DEFAULT_BASE_URL =
+            "https://rebrand-app-5.preview.emergentagent.com/api/launcher-admin"
 
         private const val PREFS = "launcher_repo"
         private const val KEY_CONFIG_JSON = "config_json"
