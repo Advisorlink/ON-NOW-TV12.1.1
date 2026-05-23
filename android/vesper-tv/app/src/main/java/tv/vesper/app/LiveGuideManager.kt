@@ -39,6 +39,7 @@ class LiveGuideManager(
     private val ctx: Context,
     private val backendBase: String,
     private val initialChannelStreamId: String,
+    private val initialChannelStreamUrl: String = "",
 ) {
     companion object {
         private const val TAG = "LiveGuide"
@@ -179,13 +180,34 @@ class LiveGuideManager(
             val chs = parseChannels(prefs.getString("channels", "[]") ?: "[]")
             _categories.value = cats
             _channels.value = chs
-            // Default focused channel = the currently playing one (if it
-            // exists in the catalogue), else the first channel.
+            // Default focused channel = the currently playing one.
+            // We try TWO matching strategies before giving up:
+            //   1. Match by streamId (fast, works when the player's
+            //      URL parses cleanly into digits).
+            //   2. Match by full streamUrl (fallback for URL shapes
+            //      where the streamId extraction fails — e.g.
+            //      `play.m3u8?stream_id=xxx`).
+            // If BOTH fail, we leave focused null so the auto-tune
+            // LaunchedEffect never fires.  Previously we defaulted
+            // to chs.firstOrNull() (channel #1) which caused the
+            // 1-second-after-guide-open ERROR_CODE_IO_NETWORK_
+            // CONNECTION_FAILED bug — the player got auto-tuned to
+            // a completely different channel the moment the guide
+            // animated in.
             val playingId = _playingChannelId.value
-            val initial = chs.firstOrNull { it.streamId == playingId } ?: chs.firstOrNull()
+            val byId = chs.firstOrNull { it.streamId == playingId }
+            val byUrl = if (byId == null && initialChannelStreamUrl.isNotBlank())
+                chs.firstOrNull { it.streamUrl == initialChannelStreamUrl } else null
+            val initial = byId ?: byUrl
             if (initial != null) {
                 _focusedChannelId.value = initial.streamId
+                _playingChannelId.value = initial.streamId  // canonicalise
                 _selectedCategoryId.value = null   // "All"
+            } else {
+                Log.w(
+                    TAG,
+                    "playing channel not found in cache (id='$playingId', url='$initialChannelStreamUrl') — leaving focus empty so auto-tune doesn't fire",
+                )
             }
             // v2.7.78 — EPG is now stored in a file (see
             // WebAppInterface.setLiveGuideEpg).  Read from the file

@@ -116,9 +116,18 @@ private fun GuideBody(
 
     // Auto-tune: when the focused channel stays stable for 1 s and
     // is different from the currently-playing one, tune to it.
-    LaunchedEffect(focusedChannel?.streamId) {
+    //
+    // v2.7.78 — Defensive guards added:
+    //   • Skip if focused channel is null (no match found at all).
+    //   • Skip if playingId is null/blank (initial state before
+    //     loadFromPreferences resolves the canonical match) —
+    //     otherwise the auto-tune would fire the moment the guide
+    //     opens, tearing down the user's active stream.
+    LaunchedEffect(focusedChannel?.streamId, playingId) {
         val ch = focusedChannel ?: return@LaunchedEffect
-        if (ch.streamId == playingId) return@LaunchedEffect
+        val pid = playingId ?: return@LaunchedEffect
+        if (pid.isBlank()) return@LaunchedEffect
+        if (ch.streamId == pid) return@LaunchedEffect
         delay(1000L)
         onTuneChannel(ch)
     }

@@ -492,24 +492,61 @@ function Grid({ provider, onLogout }) {
              * the native overlay can show a "★ Favourites" pill. */
             const favs = (getFavList(provider.id) || []).map((s) => String(s));
 
-            /* Push categories + channels + favourites via the old
-             * SharedPreferences bridge (small, fast) and EPG via
-             * the new file-backed bridge so multi-MB payloads no
-             * longer get silently truncated by the JS<>Java bridge.
-             * Fallback: if the new bridge isn't available (old APK),
-             * still try the legacy single-call setLiveGuide which
-             * carries the EPG inline. */
+            /* Push categories + channels + favourites via the
+             * existing SharedPreferences bridge (small, fast), and
+             * push the heavy EPG via the new file-backed bridge.
+             *
+             * Order matters: write the EPG file FIRST so a fast
+             * client (D-padding into a channel the moment the
+             * splash dismisses) is guaranteed to find a fully
+             * flushed EPG file.  `setLiveGuideEpg` is synchronous
+             * on the new APK — the JS thread blocks until the
+             * atomic rename has completed.
+             *
+             * On older APKs (no `setLiveGuideEpg`) we fall back to
+             * the single-call setLiveGuide() that ships the EPG
+             * inline.  That path is the only one that should be
+             * affected by SharedPreferences truncation, but it's
+             * better than nothing for outdated installs. */
             const epgJson = JSON.stringify(epgPayload);
+            const epgChannelsCount = Object.keys(epgPayload).length;
             if (typeof bridge.setLiveGuideEpg === 'function') {
+                /* New APK: file path.  Block on the file write,
+                 * then write the small metadata (no EPG inline). */
+                let epgWriteOk = false;
+                try {
+                    const ack = bridge.setLiveGuideEpg(epgJson);
+                    if (typeof ack === 'string') {
+                        try {
+                            const parsed = JSON.parse(ack);
+                            epgWriteOk = !!parsed.ok;
+                            // eslint-disable-next-line no-console
+                            console.info('[liveGuide] EPG file write:', parsed);
+                        } catch { /* malformed ack — assume ok */
+                            epgWriteOk = true;
+                        }
+                    } else {
+                        // Old call signature returned void —
+                        // assume the write started.  We'll still
+                        // overwrite the legacy prefs "epg" key.
+                        epgWriteOk = true;
+                    }
+                } catch { /* ignore */ }
+                /* Pass empty EPG to setLiveGuide ONLY if the file
+                 * write succeeded — otherwise leave the old
+                 * SharedPreferences "epg" key intact so the player
+                 * has something to fall back on. */
                 bridge.setLiveGuide(
                     String(provider.id || ''),
                     JSON.stringify(categoriesPayload),
                     JSON.stringify(channelsPayload),
-                    /* epgJson */ '{}',           // EPG goes via the file bridge
+                    epgWriteOk ? '{}' : epgJson,
                     JSON.stringify(favs),
                 );
-                try { bridge.setLiveGuideEpg(epgJson); } catch { /* ignore */ }
             } else {
+                /* Old APK: single-call inline EPG (will be truncated
+                 * if > ~2 MB — best we can do without an updated
+                 * APK on the box). */
                 bridge.setLiveGuide(
                     String(provider.id || ''),
                     JSON.stringify(categoriesPayload),
@@ -518,6 +555,12 @@ function Grid({ provider, onLogout }) {
                     JSON.stringify(favs),
                 );
             }
+            // eslint-disable-next-line no-console
+            console.info(
+                '[liveGuide] pushed to native:',
+                channelsPayload.length, 'channels,',
+                epgChannelsCount, 'with EPG',
+            );
         } catch (e) {
             /* Bridge errors are silent — the overlay will just be
              * empty / stale until the next push. */

@@ -643,50 +643,58 @@ class WebAppInterface(private val activity: Activity) {
      * because the EPG payload was either missing or corrupted.
      *
      * This method writes the full EPG (potentially 30+ MB raw) straight
-     * to `filesDir/live_guide/epg.json` on a background-friendly path.
-     * `LiveGuideManager.loadFromPreferences()` reads it back lazily on
-     * an IO dispatcher so the channel rail renders instantly and EPG
-     * hydrates within ~500 ms.
+     * to `filesDir/live_guide/epg.json`.  We write SYNCHRONOUSLY (the
+     * JS-bridge call doesn't return until the file is durably on disk)
+     * so the caller can be 100% sure the file is ready before
+     * dismissing the loading splash.  The bridge call runs on the
+     * WebView's JS thread, NOT the UI thread, so a 200–400 ms write
+     * never causes an ANR.
      *
      * Pairs with the existing `setLiveGuide(...)` call: that still
      * carries the small categories + channels + favourites in
      * SharedPreferences, while THIS call carries the heavy EPG.
      */
     @JavascriptInterface
-    fun setLiveGuideEpg(epgJson: String?) {
+    fun setLiveGuideEpg(epgJson: String?): String {
         val body = epgJson ?: "{}"
-        // Move the disk write off the WebView thread — large EPG
-        // payloads (>10 MB) can take noticeable time to flush, and
-        // we never want the WebView to stall.
-        Thread({
-            try {
-                val dir = java.io.File(activity.filesDir, "live_guide")
-                if (!dir.exists()) dir.mkdirs()
-                val tmp = java.io.File(dir, "epg.json.tmp")
-                tmp.writeText(body, Charsets.UTF_8)
-                val target = java.io.File(dir, "epg.json")
-                if (target.exists()) target.delete()
-                if (!tmp.renameTo(target)) {
-                    // Atomic rename failed (some filesystems) — fall
-                    // back to a copy-then-delete so we never leave
-                    // a half-written EPG behind.
-                    target.writeText(body, Charsets.UTF_8)
-                    tmp.delete()
-                }
-                // Touch updated_at so LiveGuideManager knows the
-                // file is fresh.
-                val prefs = activity.getSharedPreferences(
-                    "live_guide", android.content.Context.MODE_PRIVATE
-                )
-                prefs.edit()
-                    .putLong("epg_file_updated_at", System.currentTimeMillis())
-                    .putInt ("epg_file_size_bytes", target.length().toInt())
-                    .apply()
-            } catch (_: Throwable) {
-                // Best-effort — overlay will fall back to whatever
-                // EPG (if any) is still in SharedPreferences.
+        val started = System.currentTimeMillis()
+        return try {
+            val dir = java.io.File(activity.filesDir, "live_guide")
+            if (!dir.exists()) dir.mkdirs()
+            val tmp = java.io.File(dir, "epg.json.tmp")
+            tmp.writeText(body, Charsets.UTF_8)
+            val target = java.io.File(dir, "epg.json")
+            if (target.exists()) target.delete()
+            if (!tmp.renameTo(target)) {
+                // Atomic rename failed (some filesystems) — fall
+                // back to a direct write so we never leave a
+                // half-written EPG behind.
+                target.writeText(body, Charsets.UTF_8)
+                try { tmp.delete() } catch (_: Throwable) {}
             }
-        }, "vesper-epg-writer").start()
+            // Persist a tiny pointer so LiveGuideManager can verify
+            // the file is fresh (and how big it should be).
+            val prefs = activity.getSharedPreferences(
+                "live_guide", android.content.Context.MODE_PRIVATE
+            )
+            prefs.edit()
+                .putLong("epg_file_updated_at", System.currentTimeMillis())
+                .putInt ("epg_file_size_bytes", target.length().toInt())
+                .commit()  // commit() not apply() — block until written
+            org.json.JSONObject().apply {
+                put("ok", true)
+                put("size_bytes", target.length())
+                put("write_ms", System.currentTimeMillis() - started)
+            }.toString()
+        } catch (e: Throwable) {
+            // Best-effort failure — caller can decide whether to
+            // retry or warn the user.  We don't crash the WebView.
+            org.json.JSONObject().apply {
+                put("ok", false)
+                put("error", e.message ?: e.javaClass.simpleName)
+                put("write_ms", System.currentTimeMillis() - started)
+            }.toString()
+        }
     }
 
     /**

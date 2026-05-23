@@ -337,6 +337,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     ctx = applicationContext,
                     backendBase = backendBase,
                     initialChannelStreamId = liveStreamId,
+                    initialChannelStreamUrl = streamUrl,
                 ).also { it.loadFromPreferences() }
             } catch (t: Throwable) {
                 Log.w(TAG, "LiveGuideManager init failed", t)
