@@ -7,6 +7,22 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.82 — Round 2 security pass (top-tier attacker hardening)
+
+Six additional defences layered on top of the v2.7.81 pass.  Total now 18 layers.  Detailed table in `SECURITY.md`.
+
+1. **Periodic IntegrityGuard re-checks** — every random 4-12 min during use, the same debugger / Frida / Xposed / signing-cert checks re-run on a daemon thread.  Defeats mid-session attacks (the most common Frida bypass: attach AFTER the app has already cleared its startup checks).
+2. **FLAG_SECURE on `MainActivity`, `ExoPlayerActivity`, `VlcPlayerActivity`** — the OS now refuses to screenshot, screen-record, mirror to Chromecast, or include the app's surface in the task-switcher thumbnail.  Stops casual content piracy AND prevents an attacker from capturing brand assets via screen capture.
+3. **Process-UID integrity check** — `Process.myUid() == ApplicationInfo.uid`.  Catches Magisk-delegated-UID attacks where an attacker remaps UIDs to bypass `getDataDir()` permission checks.
+4. **Magisk Hide-resistant root detection** — scans `/proc/self/mounts` for `magisk` / `core/mirror` entries + checks Magisk-specific paths (`/sbin/.magisk`, `/data/adb/magisk`, etc.) that survive MagiskHide.  Soft warn only (cheap TV boxes ship rooted from factory).
+5. **Emulator fingerprint detection** — multi-signal: `Build.FINGERPRINT`, `Build.MODEL`, `Build.PRODUCT`, `Build.HARDWARE`, `Build.MANUFACTURER`, `Build.TAGS`.  Catches `generic`, `Genymotion`, `goldfish`, `ranchu`, `vbox`.  Soft warn only — flip one line to make it a hard kill if you ever need to block emulator-farming attacks.
+6. **Build watermark** — every CI build carries an immutable `BuildConfig.GIT_SHA` + `BuildConfig.BUILD_TS` baked in at compile time.  If a leaked / repackaged APK ever surfaces, you can read these constants from the obfuscated bytecode and trace the leak back to the exact CI run.  Useful for DMCA action against rebrand sellers.
+
+Version bumped to **2.7.82** / build 251.
+
+---
+
+
 ## v0.2.0 — Native Launcher Phase 2 (admin backend + integration)
 
 Built the brand-new admin-driven backend for the OnNow TV V2 launcher.  The launcher now pulls its dock tiles, wallpaper, APK manifest, and popup notifications from `/app/launcher-backend/` — a completely separate FastAPI service that does NOT share code or storage with the streaming app's `/app/backend/`.

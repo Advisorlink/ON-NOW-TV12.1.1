@@ -280,6 +280,13 @@ class ExoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.7.82 SECURITY — FLAG_SECURE prevents screen recording /
+        // mirroring / task-switcher screenshots of paid content.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+        )
+
         // v2.7.64 — Mobile-safe boot.  ExoPlayer + Compose can crash
         // on certain older phones (HEVC decoder absent, no OpenGL ES 3
         // for ComposeView, etc.).  We wrap the entire activity init in

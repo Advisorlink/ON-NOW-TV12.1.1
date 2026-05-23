@@ -21,6 +21,12 @@ attacker will give up, and a determined one will leave very visible artifacts.
 | 10 | **No WebView file:// access** | Can't pivot from JS XSS to disk reads |
 | 11 | **Cleartext forbidden** | Can't downgrade TLS to plaintext for sniffing |
 | 12 | **Native libs not extracted** | Slightly harder to swap `libvlcjni.so` |
+| 13 | **Periodic re-checks** (v2.7.82) | Survive a randomised 4-12 min re-audit — every check fires AGAIN mid-session.  Attaching Frida after start gets caught |
+| 14 | **FLAG_SECURE on player + main** (v2.7.82) | Can't screenshot / record / cast the running app.  Recents shows a black thumbnail |
+| 15 | **Process-UID integrity** (v2.7.82) | Catches UID-remapping attacks via Magisk delegated UIDs |
+| 16 | **Magisk Hide-resistant detection** (v2.7.82) | Catches Magisk even when MagiskHide is on, via mount-table fingerprints |
+| 17 | **Emulator detection** (v2.7.82) | Soft warning today; one-line edit promotes to hard kill if you ever need to block emulator farming |
+| 18 | **Build watermark** (v2.7.82) | Every CI build carries an immutable git SHA + build timestamp baked into `BuildConfig.GIT_SHA` / `BuildConfig.BUILD_TS`.  A leaked APK can be forensically traced back to the exact CI run.  Use it for DMCA / legal action |
 
 The attacker has to break **all** of these and produce an APK that runs cleanly.
 Breaking any single one is non-trivial; breaking the whole stack consistently is

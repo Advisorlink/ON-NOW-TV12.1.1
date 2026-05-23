@@ -364,6 +364,9 @@ class VlcPlayerActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
+        // v2.7.82 SECURITY — FLAG_SECURE prevents screen recording /
+        // mirroring / task-switcher screenshots of paid content.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         volumeControlStream = AudioManager.STREAM_MUSIC
 
         streamUrl = intent.getStringExtra(EXTRA_URL)

@@ -113,6 +113,19 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.7.82 SECURITY — FLAG_SECURE blocks the OS from screen-
+        // shotting the activity (including from the recents
+        // task-switcher, screen-recording APIs, and Chromecast
+        // mirroring), and forces the surface contents to be
+        // unreadable to screen-share daemons.  Combined with R8
+        // obfuscation + integrity guards, this means a determined
+        // attacker can't even capture the UI's pixels to extract
+        // brand assets / UI screenshots for re-skin.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+        )
+
         /* If the previous run crashed, the global handler in
            OnNowApplication captured the stack trace to disk.  Show
            it on screen with a Share / Copy / Dismiss row so the user

@@ -27,8 +27,26 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 250
-        versionName = (project.findProperty("versionName") as String?) ?: "2.7.81"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 251
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.82"
+
+        // v2.7.82 SECURITY — Build watermark.  Every APK that comes out
+        // of CI carries the exact git commit SHA + build timestamp baked
+        // into BuildConfig.  If a leaked / re-packaged APK ever surfaces
+        // in the wild, you can read these constants from the obfuscated
+        // class file (apktool d → smali) and trace the leak back to a
+        // specific CI run.  Doesn't prevent the leak, but makes
+        // attribution trivial — useful for legal action.
+        val gitSha: String = try {
+            val proc = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                .redirectErrorStream(true)
+                .start()
+            proc.inputStream.bufferedReader().readText().trim().take(12)
+                .ifBlank { "local" }
+        } catch (_: Throwable) { "local" }
+        val buildTs: String = java.time.Instant.now().toString()
+        buildConfigField("String", "GIT_SHA",  "\"$gitSha\"")
+        buildConfigField("String", "BUILD_TS", "\"$buildTs\"")
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.

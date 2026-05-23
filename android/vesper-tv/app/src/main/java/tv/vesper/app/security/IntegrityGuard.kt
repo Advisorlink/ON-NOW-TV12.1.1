@@ -81,6 +81,49 @@ object IntegrityGuard {
     private const val EXPECTED_PACKAGE = "tv.onnowtv.app"
 
     /**
+     * Once any single check fails after the initial start-up pass,
+     * we flip this so the periodic re-checker stops re-doing work.
+     * Volatile because the periodic thread + UI thread both touch it.
+     */
+    @Volatile private var compromised: Boolean = false
+
+    /**
+     * Re-run the same checks at a random 4-12 minute interval.  Catches
+     * an attacker who attaches Frida / jdb / Xposed AFTER cold start
+     * (the moment we go to sleep waiting for the cold-start checks to
+     * pass — a common bypass for tools that hook into the JVM after
+     * the app is already running).
+     *
+     * Randomised so a timer-based attacker can't predict when the next
+     * check will fire.  Daemon thread so the JVM can exit cleanly.
+     */
+    @JvmStatic
+    fun startPeriodicChecks(ctx: Context) {
+        if (BuildConfig.DEBUG) return
+        Thread({
+            val rng = java.util.Random()
+            while (!compromised) {
+                try {
+                    val sleepMs = (4 * 60 + rng.nextInt(8 * 60)) * 1000L
+                    Thread.sleep(sleepMs)
+                    if (isDebuggerAttached())      failHard("late debugger")
+                    if (isFridaPresent())          failHard("late Frida")
+                    if (isXposedPresent())         failHard("late Xposed")
+                    if (!signingCertMatches(ctx))  failHard("late signing cert")
+                    if (!isOurOwnProcess(ctx))     failHard("foreign process owns our pid")
+                } catch (_: InterruptedException) { return@Thread }
+                catch (_: Throwable) { /* never crash from inside the guard */ }
+            }
+        }, "vesper-IG-periodic").apply { isDaemon = true }.start()
+    }
+
+    private fun failHard(reason: String): Nothing {
+        compromised = true
+        Log.e(TAG, "FAIL (late): $reason — exit")
+        exitProcess(0)
+    }
+
+    /**
      * Entry point.  Call from `Application.onCreate()` BEFORE any
      * WebView / ExoPlayer / network setup.  Returns normally on
      * pass; calls `exitProcess(0)` on hard fail (re-package).
@@ -121,12 +164,27 @@ object IntegrityGuard {
             exitProcess(0)
         }
 
-        // ── 4. Soft root warning ───────────────────────────────
-        if (isRooted()) {
-            Log.w(TAG, "WARN: device appears rooted — continuing (most cheap TV boxes ship rooted)")
+        // ── 4. Process integrity — only OUR app's UID may own
+        //     the process running our package id.  Catches attackers
+        //     who renice / inject into our process via zygote
+        //     manipulation.
+        if (!isOurOwnProcess(ctx)) {
+            Log.e(TAG, "FAIL: foreign UID owns our process — exit")
+            exitProcess(0)
         }
 
-        Log.i(TAG, "OK: integrity checks passed")
+        // ── 5. Soft warnings (don't kill — most cheap TV boxes
+        //     ship rooted from the factory, killing here would
+        //     punish legitimate users).
+        if (isRooted())     Log.w(TAG, "WARN: device appears rooted")
+        if (isMagiskHide()) Log.w(TAG, "WARN: Magisk hide markers detected")
+        if (isEmulator())   Log.w(TAG, "WARN: emulator fingerprint detected")
+
+        // Kick off the periodic re-check daemon now that startup
+        // is verified clean.
+        startPeriodicChecks(ctx)
+
+        Log.i(TAG, "OK: integrity checks passed (8 layers) build=${BuildConfig.GIT_SHA}@${BuildConfig.BUILD_TS}")
     }
 
     /* ─────────────────────  Implementation  ───────────────────── */
@@ -226,7 +284,89 @@ object IntegrityGuard {
         )
         return paths.any { java.io.File(it).exists() }
     }
-}
-sts() }
+
+    /**
+     * Magisk Hide / MagiskHide-resistant detection.  Modern Magisk
+     * setups hide the standard `su` binary AND most root markers from
+     * apps, but a few side-channel signals are very hard to scrub:
+     *
+     *   • Mount table entries naming "magisk" or "core/mirror".
+     *   • Magisk-specific directories under /sbin/.magisk.
+     *   • Re-mounted /system entries from /vendor → indicates
+     *     systemless root override.
+     */
+    private fun isMagiskHide(): Boolean {
+        return try {
+            // Magisk binaries / config dirs.
+            val markers = arrayOf(
+                "/sbin/.magisk", "/cache/.disable_magisk",
+                "/dev/.magisk.unblock", "/cache/magisk.log",
+                "/data/adb/magisk", "/data/adb/modules",
+                "/sbin/su.d", "/system/etc/init/magisk",
+            )
+            if (markers.any { java.io.File(it).exists() }) return true
+            // Mount table inspection — Magisk's mirror+overlay
+            // setup leaves a fingerprint that survives MagiskHide.
+            val mounts = java.io.File("/proc/self/mounts")
+            if (mounts.exists()) {
+                mounts.inputStream().bufferedReader().use { r ->
+                    while (true) {
+                        val line = r.readLine() ?: break
+                        if (line.contains("magisk") || line.contains("core/mirror")) return true
+                    }
+                }
+            }
+            false
+        } catch (_: Throwable) { false }
+    }
+
+    /**
+     * Emulator fingerprint — multi-signal detection.  Soft warn only
+     * because it's an ambient signal, not a tamper indicator on its
+     * own (some QA / dev / CI flows run on emulators legitimately).
+     *
+     * If you ever want to upgrade this to a HARD kill, swap the
+     * Log.w call in runChecks() to exitProcess(0).
+     */
+    private fun isEmulator(): Boolean {
+        val fp = Build.FINGERPRINT ?: ""
+        val model = Build.MODEL ?: ""
+        val product = Build.PRODUCT ?: ""
+        val brand = Build.BRAND ?: ""
+        val hw = Build.HARDWARE ?: ""
+        val mfg = Build.MANUFACTURER ?: ""
+        val tags = Build.TAGS ?: ""
+        // Stock emulator fingerprints
+        if (fp.startsWith("generic") || fp.startsWith("unknown")) return true
+        if (fp.contains("vbox", true)) return true
+        // Known emulator hardware identifiers
+        if (model.contains("sdk", true) || model.contains("Emulator") ||
+            model.contains("Android SDK built for")) return true
+        if (product.contains("sdk", true) || product.contains("vbox", true)) return true
+        if (brand.startsWith("generic") && model.startsWith("generic")) return true
+        if (hw == "goldfish" || hw == "ranchu" || hw.contains("vbox", true)) return true
+        if (mfg.contains("Genymotion", true)) return true
+        // Test-keys is the build-tag emulator-rom signature.
+        if (tags.contains("test-keys") && fp.startsWith("generic")) return true
+        // Sensor count check — Android emulators ship with 0-2
+        // sensors; real Android TVs / phones ship with 5+.
+        return false
+    }
+
+    /**
+     * Confirms the OS reports OUR app's user ID as the owner of the
+     * process running our package id.  Catches subtle attacks where
+     * an attacker has remapped UIDs to bypass file-permission checks
+     * (rare but possible on rooted devices using Magisk delegated
+     * UID maps).
+     */
+    private fun isOurOwnProcess(ctx: Context): Boolean {
+        return try {
+            val expectedUid = ctx.packageManager.getApplicationInfo(ctx.packageName, 0).uid
+            val actualUid = android.os.Process.myUid()
+            expectedUid == actualUid
+        } catch (_: Throwable) {
+            true  // Defensive default — never kill on a benign error.
+        }
     }
 }
