@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OnNow TV V2 — Launcher Mockup Pass 2 (1920×1080)</title>
+<style>
+/* ============================================================ */
+/*  SHARED BASE                                                  */
+/* ============================================================ */
+:root {
+    --accent: #2BB6FF;
+    --bg-deep: #04060B;
+    --txt-primary: #F4F7FB;
+    --txt-secondary: #8EA0B7;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-deep);
+    color: var(--txt-primary);
+    -webkit-font-smoothing: antialiased;
+}
+.stage {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    background: var(--bg-deep);
+    overflow: hidden;
+}
+
+/* ───── Top bar (shared base) ───── */
+.topbar {
+    position: absolute;
+    top: 24px; left: 32px; right: 32px;
+    height: 84px;
+    border-radius: 28px;
+    background: rgba(8,14,26,0.55);
+    border: 1px solid rgba(255,255,255,0.04);
+    backdrop-filter: blur(18px);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 36px;
+    z-index: 10;
+}
+.topbar .left { display:flex; align-items:center; gap:16px; font-size:18px; font-weight:500; }
+.topbar .left svg { width:26px; height:26px; }
+.topbar .center { display:flex; align-items:center; gap:8px; }
+.topbar .center .logo-play {
+    width:56px; height:56px; border-radius:50%;
+    background: radial-gradient(circle, rgba(43,182,255,0.32), transparent 60%);
+    display:grid; place-items:center;
+}
+.topbar .center .logo-play svg { width:30px; height:30px; color:#38C2FF; }
+.topbar .center .logo-text { font-size:30px; font-weight:700; letter-spacing:-0.3px; }
+.topbar .center .logo-text .v2-blue { color: var(--accent); text-shadow: 0 0 14px rgba(43,182,255,0.45); }
+.topbar .right { display:flex; align-items:center; justify-content:flex-end; gap:24px; font-size:18px; }
+.topbar .right .divider { width:1px; height:26px; background:rgba(255,255,255,0.18); }
+.topbar .right .time { font-size:28px; font-weight:600; letter-spacing:0.5px; }
+
+/* ───── Paginator ───── */
+.paginator {
+    position: absolute;
+    top: 280px; left: 70px;
+    display: flex; flex-direction: column; align-items: center; gap: 26px;
+    z-index: 3;
+}
+.paginator .seg { width:4px; height:64px; border-radius:4px; background:rgba(255,255,255,0.10); }
+.paginator .seg.active { background: var(--accent); box-shadow: 0 0 18px var(--accent); }
+.paginator .dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18); }
+
+/* ───── Content column ───── */
+.content {
+    position: absolute;
+    left: 168px; top: 230px;
+    width: 720px; height: 540px;
+    display: flex; flex-direction: column; gap: 30px;
+    z-index: 2;
+}
+.kicker { font-size:16px; font-weight:700; letter-spacing:6px; color: var(--accent); text-shadow: 0 0 14px var(--accent); }
+.title { font-size:96px; font-weight:800; letter-spacing:-2px; line-height:1.0; }
+.title-period { color: var(--accent); text-shadow: 0 0 22px var(--accent); }
+.tagline { font-size:30px; font-weight:500; line-height:1.3; margin-top:-6px; }
+.desc { font-size:21px; color: var(--txt-secondary); line-height:1.65; max-width:600px; }
+.cta {
+    margin-top: 14px; align-self: flex-start;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 20px 36px;
+    color: var(--txt-primary);
+    font-size: 21px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 18px;
+}
+.cta .arrow svg { width:24px; height:24px; }
+
+/* ───── Hero ───── */
+.hero {
+    position: absolute;
+    right: 0; top: 130px;
+    width: 1060px; height: 720px;
+    display: grid; place-items: center;
+    overflow: hidden;
+    mask: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+    -webkit-mask: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+}
+.hero svg { width: 100%; height: 100%; }
+
+/* ───── Dock ───── */
+.dock {
+    position: absolute;
+    left: 32px; right: 32px; bottom: 36px;
+    height: 184px;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px;
+    z-index: 5;
+}
+.tile {
+    position: relative;
+    background: rgba(10,18,32,0.55);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 22px;
+    backdrop-filter: blur(14px);
+    padding: 26px 30px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    grid-template-rows: 1fr 1fr;
+    column-gap: 22px;
+    align-items: center;
+}
+.tile .icon { grid-row:1/3; width:64px; height:64px; display:grid; place-items:center; color: var(--txt-primary); }
+.tile .icon svg { width:100%; height:100%; stroke-width:1.5; }
+.tile .label { align-self:end; font-size:26px; font-weight:600; letter-spacing:-0.2px; line-height:1; }
+.tile .sub { align-self:start; font-size:16px; color: var(--txt-secondary); margin-top:6px; }
+.tile.focused {
+    border-color: var(--accent);
+    background: rgba(10,26,48,0.65);
+    box-shadow: 0 0 0 1.5px var(--accent), 0 0 48px rgba(43,182,255,0.42), inset 0 0 24px rgba(43,182,255,0.10);
+}
+.tile.focused .icon { color: var(--accent); }
+
+/* ============================================================ */
+/*  VARIATION 1 — AURORA GLOW                                    */
+/* ============================================================ */
+.v1 .stage::before {
+    content: '';
+    position: absolute; inset: -100px 0 30% 0;
+    background:
+        radial-gradient(ellipse 50% 70% at 20% 20%, rgba(0,180,255,0.20), transparent 70%),
+        radial-gradient(ellipse 70% 60% at 80% 10%, rgba(190,70,255,0.16), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 50% 40%, rgba(255,80,170,0.10), transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+}
+
+/* ============================================================ */
+/*  VARIATION 2 — CINEMATIC BLEED (hero full bleed)              */
+/* ============================================================ */
+.v2 .hero {
+    inset: 0;
+    width: 100%; height: 100%;
+    top: 0;
+    mask: linear-gradient(to right, transparent 30%, black 75%, black 100%);
+    -webkit-mask: linear-gradient(to right, transparent 30%, black 75%, black 100%);
+    opacity: 0.95;
+}
+.v2 .content { z-index: 4; }
+.v2 .stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, var(--bg-deep) 8%, transparent 50%);
+    pointer-events: none;
+    z-index: 1;
+}
+.v2 .title { font-size: 112px; }
+
+/* ============================================================ */
+/*  VARIATION 3 — BENTO GRID HERO                                */
+/* ============================================================ */
+.v3 .hero { display: none; }
+.v3 .bento {
+    position: absolute;
+    right: 56px; top: 200px;
+    width: 940px; height: 580px;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 18px;
+}
+.v3 .bento .card {
+    background: rgba(10,18,32,0.5);
+    border: 1px solid rgba(43,182,255,0.18);
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+}
+.v3 .bento .card.big { grid-row: 1 / 3; }
+.v3 .bento .card-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent 60%);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    color: white;
+}
+.v3 .bento .live-badge {
+    position: absolute;
+    top: 14px; left: 14px;
+    background: #E63946;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+}
+.v3 .bento .card-title { font-size: 18px; font-weight: 700; }
+.v3 .bento .card-sub { font-size: 13px; color: #8EA0B7; margin-top: 4px; }
+.v3 .bento .card.big .card-title { font-size: 30px; font-weight: 800; }
+
+/* ============================================================ */
+/*  VARIATION 4 — FLOATING DOCK WITH THUMBNAILS                  */
+/* ============================================================ */
+.v4 .dock { gap: 14px; height: 210px; bottom: 28px; }
+.v4 .tile {
+    background: rgba(15,28,48,0.65);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.65), 0 4px 0 rgba(43,182,255,0.04);
+    padding-top: 0;
+    overflow: hidden;
+    grid-template-rows: 110px auto;
+    grid-template-columns: 1fr;
+}
+.v4 .tile .thumb {
+    grid-column: 1; grid-row: 1;
+    background-size: cover; background-position: center;
+    border-radius: 18px 18px 0 0;
+    margin: 4px;
+}
+.v4 .tile .icon { grid-row: 2; grid-column: 1; width: 38px; height: 38px; margin-left: 22px; margin-top: 16px; }
+.v4 .tile .label { grid-row: 2; grid-column: 1; padding-left: 76px; align-self: center; margin-top: 12px; font-size: 22px; }
+.v4 .tile .sub   { grid-row: 2; grid-column: 1; padding-left: 76px; font-size: 13px; margin-top: 0; }
+.v4 .tile.focused { box-shadow: 0 0 0 1.5px var(--accent), 0 24px 60px rgba(43,182,255,0.50); }
+
+/* ============================================================ */
+/*  VARIATION 5 — VERTICAL CHANNEL RAIL ON RIGHT                 */
+/* ============================================================ */
+.v5 .hero { width: 700px; right: 280px; }
+.v5 .channel-rail {
+    position: absolute;
+    right: 32px; top: 140px;
+    width: 232px; height: 740px;
+    background: rgba(10,18,32,0.5);
+    border: 1px solid rgba(43,182,255,0.12);
+    border-radius: 22px;
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    backdrop-filter: blur(14px);
+}
+.v5 .channel-rail .header {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 3px;
+    padding: 0 8px 6px;
+    border-bottom: 1px solid rgba(43,182,255,0.18);
+}
+.v5 .channel-rail .ch {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+}
+.v5 .channel-rail .ch.active { background: rgba(43,182,255,0.18); box-shadow: inset 0 0 0 1px rgba(43,182,255,0.5); }
+.v5 .channel-rail .ch-logo { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; font-size: 18px; }
+.v5 .channel-rail .ch-name { font-size: 13px; font-weight: 600; }
+.v5 .channel-rail .ch-prog { font-size: 11px; color: #8EA0B7; margin-top: 2px; }
+.v5 .channel-rail .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #FF4040; box-shadow: 0 0 6px #FF4040; }
+
+/* ============================================================ */
+/*  VARIATION 6 — MAGAZINE EDITORIAL                             */
+/* ============================================================ */
+.v6 .content { top: 200px; gap: 36px; }
+.v6 .title { font-size: 144px; font-weight: 300; letter-spacing: -3px; }
+.v6 .title-period { font-weight: 800; }
+.v6 .tagline { font-size: 22px; font-weight: 300; }
+.v6 .desc { font-size: 18px; }
+.v6 .kicker::before, .v6 .kicker::after {
+    content: '';
+    display: inline-block;
+    width: 80px; height: 1px;
+    background: var(--accent);
+    vertical-align: middle;
+    margin: 0 14px 6px;
+}
+.v6 .dock { height: 96px; }
+.v6 .tile {
+    grid-template-rows: 1fr;
+    grid-template-columns: 36px 1fr;
+    padding: 20px 26px;
+    column-gap: 16px;
+}
+.v6 .tile .icon { grid-row: 1; width: 36px; height: 36px; }
+.v6 .tile .label { font-size: 18px; }
+.v6 .tile .sub { display: none; }
+
+/* ============================================================ */
+/*  VARIATION 7 — SCAN LINES & PARTICLES                         */
+/* ============================================================ */
+.v7 .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 1;
+}
+.v7 .hero { filter: contrast(1.05) saturate(1.1); }
+.v7 .stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(circle at 12% 25%, rgba(43,182,255,0.5) 0, transparent 1px),
+        radial-gradient(circle at 28% 70%, rgba(43,182,255,0.4) 0, transparent 1px),
+        radial-gradient(circle at 48% 30%, rgba(255,255,255,0.3) 0, transparent 1px),
+        radial-gradient(circle at 65% 65%, rgba(43,182,255,0.4) 0, transparent 1px),
+        radial-gradient(circle at 85% 20%, rgba(255,255,255,0.3) 0, transparent 1px),
+        radial-gradient(circle at 92% 80%, rgba(43,182,255,0.5) 0, transparent 1px),
+        radial-gradient(circle at 38% 50%, rgba(255,255,255,0.4) 0, transparent 1px),
+        radial-gradient(circle at 75% 40%, rgba(43,182,255,0.3) 0, transparent 1px);
+    background-size: 2px 2px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ============================================================ */
+/*  VARIATION 8 — TINTED ATMOSPHERE                              */
+/* ============================================================ */
+.v8 .stage { background: radial-gradient(ellipse 80% 60% at 60% 50%, rgba(43,182,255,0.10), var(--bg-deep) 60%); }
+.v8 .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, rgba(43,182,255,0.03) 60%, rgba(43,182,255,0.07) 100%);
+    pointer-events: none;
+}
+.v8 .title { color: #DCEEFF; }
+.v8 .tile.focused {
+    box-shadow: 0 0 0 1.5px var(--accent), 0 0 80px rgba(43,182,255,0.7), inset 0 0 32px rgba(43,182,255,0.20);
+}
+
+/* ============================================================ */
+/*  VARIATION 9 — HOLOGRAPHIC TITLE                              */
+/* ============================================================ */
+.v9 .title {
+    background: linear-gradient(120deg, #FF6CB6 0%, #FFD86C 25%, #6CFFC9 50%, #6CB6FF 75%, #B66CFF 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 60px rgba(108,182,255,0.4);
+    filter: drop-shadow(2px 0 0 rgba(255,80,180,0.35)) drop-shadow(-2px 0 0 rgba(80,255,200,0.35));
+}
+.v9 .title-period { color: inherit; text-shadow: none; }
+.v9 .kicker {
+    background: linear-gradient(90deg, #FF6CB6, #6CB6FF, #6CFFC9);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+}
+.v9 .tile.focused {
+    border-color: transparent;
+    background:
+        linear-gradient(rgba(10,26,48,0.85), rgba(10,26,48,0.85)) padding-box,
+        linear-gradient(120deg, #FF6CB6, #FFD86C, #6CFFC9, #6CB6FF, #B66CFF) border-box;
+    border: 2px solid transparent;
+    box-shadow: 0 0 60px rgba(108,182,255,0.5);
+}
+
+/* ============================================================ */
+/*  VARIATION 10 — PREMIUM MINIMAL (Apple TV+ style)             */
+/* ============================================================ */
+.v10 .hero { opacity: 0.3; mask: linear-gradient(to right, transparent, black 30%, black 100%); -webkit-mask: linear-gradient(to right, transparent, black 30%, black 100%); }
+.v10 .content { top: 280px; gap: 24px; width: 1200px; left: 240px; }
+.v10 .kicker { font-size: 13px; letter-spacing: 8px; color: rgba(255,255,255,0.45); text-shadow: none; }
+.v10 .title { font-size: 168px; font-weight: 800; letter-spacing: -4px; }
+.v10 .title-period { color: var(--accent); }
+.v10 .tagline { font-size: 26px; color: rgba(255,255,255,0.78); font-weight: 400; }
+.v10 .desc { display: none; }
+.v10 .cta {
+    background: white;
+    color: black;
+    font-weight: 600;
+    border: none;
+    box-shadow: 0 12px 36px rgba(255,255,255,0.12);
+}
+.v10 .paginator { display: none; }
+.v10 .dock { height: 120px; bottom: 32px; gap: 12px; }
+.v10 .tile { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(20px); padding: 16px 20px; grid-template-rows: 1fr; grid-template-columns: 40px 1fr; column-gap: 14px; }
+.v10 .tile .icon { grid-row: 1; width: 40px; height: 40px; }
+.v10 .tile .label { font-size: 17px; font-weight: 500; }
+.v10 .tile .sub { display: none; }
+.v10 .tile.focused {
+    background: rgba(255,255,255,0.92);
+    border-color: transparent;
+    box-shadow: 0 16px 50px rgba(255,255,255,0.30);
+}
+.v10 .tile.focused .icon, .v10 .tile.focused .label { color: #06080F; }
+
+/* ───── Variation label badge ───── */
+.variation-badge {
+    position: absolute;
+    top: 132px; right: 36px;
+    background: rgba(43,182,255,0.18);
+    color: var(--accent);
+    border: 1px solid rgba(43,182,255,0.4);
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    z-index: 12;
+}
+</style>
+</head>
+<body>
+
+<div id="stage" class="stage">
+    <div class="variation-badge" id="badge"></div>
+
+    <div class="topbar">
+        <div class="left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+            </svg>
+            <span>Good evening</span>
+        </div>
+        <div class="center">
+            <div class="logo-play"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+            <div class="logo-text">OnNow TV<span class="v2-blue">V2</span></div>
+        </div>
+        <div class="right">
+            <span>Sunday, May 17</span>
+            <span class="divider"></span>
+            <span class="time">08:34 PM</span>
+        </div>
+    </div>
+
+    <div class="paginator">
+        <div class="seg active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+    </div>
+
+    <div class="content">
+        <div class="kicker">FEATURED</div>
+        <div class="title" id="title-el">Live TV<span class="title-period"></span></div>
+        <div class="tagline">Real-time channels. Real moments.</div>
+        <div class="desc">Watch live news, sports, and entertainment as it happens. Stay connected to the world in real time.</div>
+        <div class="cta">
+            <span>Explore what&rsquo;s new</span>
+            <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+        </div>
+    </div>
+
+    <div class="hero" id="hero-el"></div>
+
+    <!-- Bento (only used by V3) -->
+    <div class="bento" id="bento-el">
+        <div class="card big" style="background: linear-gradient(135deg, #1B5E2F, #0B361A);">
+            <span class="live-badge">LIVE</span>
+            <svg viewBox="0 0 200 200" style="position:absolute; inset:0; opacity:0.55;">
+                <circle cx="105" cy="120" r="10" fill="#0A1828"/>
+                <rect x="95" y="125" width="18" height="50" rx="6" fill="#1E66DE"/>
+                <circle cx="135" cy="160" r="10" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/>
+            </svg>
+            <div class="card-overlay">
+                <div class="card-title">Sky Sports Live</div>
+                <div class="card-sub">Liverpool vs Manchester City &middot; 70&prime; &middot; 2-1</div>
+            </div>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #2A4060, #142440);">
+            <span class="live-badge">LIVE</span>
+            <svg viewBox="0 0 100 100" style="width:100%; height:65%;"><circle cx="50" cy="40" r="14" fill="#C7956A"/><rect x="35" y="50" width="30" height="30" rx="2" fill="#1A3052"/></svg>
+            <div class="card-overlay">
+                <div class="card-title">BBC News at Six</div>
+                <div class="card-sub">Live coverage</div>
+            </div>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #6E2C5C, #2E1428);">
+            <div class="card-overlay">
+                <div class="card-title">Music Live</div>
+                <div class="card-sub">Top 40 chart show</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channel rail (only used by V5) -->
+    <div class="channel-rail" id="rail-el">
+        <div class="header">LIVE CHANNELS</div>
+        <div class="ch active">
+            <div class="ch-logo" style="background:#0B6BB0;">🌐</div>
+            <div>
+                <div class="ch-name">News Now</div>
+                <div class="ch-prog">Breaking: Markets</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+        <div class="ch">
+            <div class="ch-logo" style="background:#33B549;">⚽</div>
+            <div>
+                <div class="ch-name">Sky Sports</div>
+                <div class="ch-prog">Liverpool vs MC</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+        <div class="ch">
+            <div class="ch-logo" style="background:#3A7CC8;">🌍</div>
+            <div>
+                <div class="ch-name">World Today</div>
+                <div class="ch-prog">Documentaries</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+        <div class="ch">
+            <div class="ch-logo" style="background:#7A47C9;">🎵</div>
+            <div>
+                <div class="ch-name">Music Live</div>
+                <div class="ch-prog">Top 40 Chart</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+        <div class="ch">
+            <div class="ch-logo" style="background:#A52E50;">🎬</div>
+            <div>
+                <div class="ch-name">Movie Time</div>
+                <div class="ch-prog">Top Gun: Maverick</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+        <div class="ch">
+            <div class="ch-logo" style="background:#D38B2C;">🙂</div>
+            <div>
+                <div class="ch-name">Kids Zone</div>
+                <div class="ch-prog">Bluey marathon</div>
+            </div>
+            <div class="live-dot"></div>
+        </div>
+    </div>
+
+    <div class="dock" id="dock-el"></div>
+</div>
+
+<script>
+const HERO_LIVETV = `
+<svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <radialGradient id="g1" cx="60%" cy="50%" r="55%">
+            <stop offset="0%"  stop-color="#2BB6FF" stop-opacity="0.30"/>
+            <stop offset="60%" stop-color="#0B1A30" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="bgg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#0E2540"/>
+            <stop offset="100%" stop-color="#04080F"/>
+        </linearGradient>
+        <linearGradient id="pitch" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#1B5E2F"/>
+            <stop offset="100%" stop-color="#0B361A"/>
+        </linearGradient>
+    </defs>
+    <rect width="1060" height="720" fill="url(#bgg)"/>
+    <rect width="1060" height="720" fill="url(#g1)"/>
+    <rect x="280" y="120" width="560" height="320" rx="12" fill="#0A1422" stroke="#1E3A5F" stroke-width="2"/>
+    <rect x="290" y="130" width="540" height="300" rx="6" fill="url(#pitch)"/>
+    <circle cx="500" cy="280" r="10" fill="#0A1828"/>
+    <rect x="492" y="285" width="16" height="45" rx="6" fill="#1E66DE"/>
+    <circle cx="540" cy="350" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/>
+    <line x1="320" y1="160" x2="320" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+    <line x1="380" y1="155" x2="380" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+    <line x1="680" y1="155" x2="680" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+    <line x1="740" y1="160" x2="740" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+    <text x="310" y="155" fill="#FFFFFF" font-family="Inter" font-size="14" font-weight="700">Live Now</text>
+    <rect x="780" y="135" width="42" height="18" rx="4" fill="#E63946"/>
+    <text x="785" y="148" fill="#FFFFFF" font-family="Inter" font-size="11" font-weight="700">LIVE</text>
+    <rect x="855" y="120" width="170" height="150" rx="8" fill="#1B2E47" stroke="#1E3A5F" stroke-width="1.5"/>
+    <circle cx="940" cy="170" r="22" fill="#C7956A"/>
+    <rect x="918" y="195" width="44" height="40" rx="2" fill="#1A3052"/>
+    <rect x="990" y="130" width="32" height="14" rx="3" fill="#E63946"/>
+    <text x="995" y="141" fill="#FFFFFF" font-family="Inter" font-size="9" font-weight="700">LIVE</text>
+    <rect x="855" y="290" width="170" height="150" rx="8" fill="#1B2E47" stroke="#1E3A5F" stroke-width="1.5"/>
+    <path d="M880,395 Q940,360 1000,395 L1000,410 L880,410 Z" fill="#E04030"/>
+    <circle cx="900" cy="408" r="10" fill="#222"/>
+    <circle cx="980" cy="408" r="10" fill="#222"/>
+    <rect x="990" y="300" width="32" height="14" rx="3" fill="#E63946"/>
+    <text x="995" y="311" fill="#FFFFFF" font-family="Inter" font-size="9" font-weight="700">LIVE</text>
+</svg>
+`;
+
+const DOCK_ITEMS = [
+    { label: 'Movies & TV Shows', sub: 'Stream and enjoy',     icon: 'film' },
+    { label: 'Music',             sub: 'Listen and enjoy',    icon: 'music' },
+    { label: 'Live TV',           sub: 'Watch live channels', icon: 'tv' },
+    { label: 'Apps',              sub: 'All your apps',       icon: 'grid' },
+    { label: 'Browser',           sub: 'Surf the web',        icon: 'globe' },
+    { label: 'Settings',          sub: 'System preferences',  icon: 'gear' },
+];
+const ICONS = {
+    film:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>',
+    music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+    tv:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><polyline points="7 22 12 18 17 22"/></svg>',
+    grid:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    gear:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 7.03 4.24l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.18.42.27.86.27 1.31"/></svg>',
+};
+
+/* Variation thumbnails for V4 (channel logos behind icons) */
+const V4_THUMBS = [
+    'linear-gradient(135deg, #355778, #1A3052)',
+    'linear-gradient(135deg, #6E2C5C, #2E1428)',
+    'linear-gradient(135deg, #1B5E2F, #0B361A)',
+    'linear-gradient(135deg, #355778, #14264E)',
+    'linear-gradient(135deg, #6BAEFF, #0B4A8C)',
+    'linear-gradient(135deg, #555555, #1A1A1A)',
+];
+
+const VARIATION_NAMES = {
+    v1: 'V1 — AURORA GLOW',
+    v2: 'V2 — CINEMATIC FULL BLEED',
+    v3: 'V3 — BENTO HERO GRID',
+    v4: 'V4 — FLOATING DOCK + THUMBNAILS',
+    v5: 'V5 — VERTICAL CHANNEL RAIL',
+    v6: 'V6 — MAGAZINE EDITORIAL',
+    v7: 'V7 — SCANLINES & STARFIELD',
+    v8: 'V8 — TINTED ATMOSPHERE',
+    v9: 'V9 — HOLOGRAPHIC',
+    v10: 'V10 — PREMIUM MINIMAL',
+};
+
+const qs = new URLSearchParams(window.location.search);
+const variation = `v${qs.get('v') || '1'}`;
+document.getElementById('stage').classList.add(variation);
+document.getElementById('badge').textContent = VARIATION_NAMES[variation] || variation.toUpperCase();
+
+document.getElementById('hero-el').innerHTML = HERO_LIVETV;
+
+if (variation !== 'v3') {
+    document.getElementById('bento-el').style.display = 'none';
+}
+if (variation !== 'v5') {
+    document.getElementById('rail-el').style.display = 'none';
+}
+
+const dockEl = document.getElementById('dock-el');
+dockEl.innerHTML = DOCK_ITEMS.map((it, i) => {
+    const thumb = (variation === 'v4')
+        ? `<div class="thumb" style="background-image:${V4_THUMBS[i]}; background-size: cover;"></div>`
+        : '';
+    return `<div class="tile ${i === 2 ? 'focused' : ''}">
+        ${thumb}
+        <div class="icon">${ICONS[it.icon]}</div>
+        <div class="label">${it.label}</div>
+        <div class="sub">${it.sub}</div>
+    </div>`;
+}).join('');
+
+/* Add the period dot to the title for variations except V10 (which keeps it) */
+document.getElementById('title-el').innerHTML = 'Live TV<span class="title-period">.</span>';
+</script>
+</body>
+</html>
