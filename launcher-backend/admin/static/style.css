@@ -219,6 +219,63 @@ header nav { display: flex; gap: 8px; align-items: center; }
 @media (max-width: 900px) {
     .tile-media { grid-template-columns: 1fr; }
 }
+
+/* ─── Per-tile APK row ─── */
+.tile-apk-row {
+    display: grid;
+    gap: 10px;
+    padding: 16px 18px;
+    background: var(--bg-row);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+.tile-apk-row .media-label code {
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+.apk-preview.empty-state {
+    color: var(--txt-tertiary);
+    font-size: 13px;
+}
+.apk-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 4px 0;
+}
+.apk-card .apk-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #04060B;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+.apk-card .apk-meta { display: grid; gap: 4px; min-width: 0; }
+.apk-card .apk-name {
+    color: var(--txt-primary);
+    font-weight: 600;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60ch;
+}
+.apk-card .apk-sub {
+    color: var(--txt-secondary);
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.apk-card .dot-sep { color: var(--txt-tertiary); }
 .media-slot { display: grid; gap: 10px; }
 .media-label {
     font-size: 12px;

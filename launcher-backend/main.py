@@ -68,6 +68,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "icons").mkdir(exist_ok=True)
 (DATA_DIR / "wallpapers").mkdir(exist_ok=True)
 (DATA_DIR / "tile_images").mkdir(exist_ok=True)
+(DATA_DIR / "tile_apks").mkdir(exist_ok=True)
 (DATA_DIR / "apks").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
@@ -112,6 +113,16 @@ class DockTile(BaseModel):
     # /api/admin/dock/{key}/image and /api/admin/dock/{key}/wallpaper.
     image_url: Optional[str]     = None
     wallpaper_url: Optional[str] = None
+    # v0.3 — Per-tile APK.  When the user taps the tile, the launcher
+    # first tries to launch `target_package` if installed; if not, and
+    # `apk_url` is set, the launcher downloads + sideloads the APK
+    # before launching.  `apk_package_id` and `apk_version` are
+    # optional metadata the admin enters so the launcher can do
+    # version-bump checks without parsing the APK itself.
+    apk_url: Optional[str]        = None
+    apk_filename: Optional[str]   = None   # original upload filename, for display
+    apk_package_id: Optional[str] = None
+    apk_version: Optional[str]    = None
     # Deprecated.  Older client builds (pre-v0.2) read `icon_url`; we
     # keep returning it (always null) so JSON parsing doesn't fail on
     # those clients.
@@ -263,6 +274,7 @@ app.add_middleware(
 app.mount("/assets/icons",       StaticFiles(directory=str(DATA_DIR / "icons")),       name="icons")
 app.mount("/assets/wallpapers",  StaticFiles(directory=str(DATA_DIR / "wallpapers")),  name="wallpapers")
 app.mount("/assets/tile_images", StaticFiles(directory=str(DATA_DIR / "tile_images")), name="tile-images")
+app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks")),   name="tile-apks")
 app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
 
 # Static admin UI
@@ -290,6 +302,10 @@ def _build_config(store: dict) -> LauncherConfig:
                 key=t["key"], label=t["label"], sub=t["sub"],
                 image_url=_abs(t.get("image_url")),
                 wallpaper_url=_abs(t.get("wallpaper_url")),
+                apk_url=_abs(t.get("apk_url")),
+                apk_filename=t.get("apk_filename"),
+                apk_package_id=t.get("apk_package_id"),
+                apk_version=t.get("apk_version"),
                 icon_url=None,  # deprecated — see DockTile docstring
                 target_package=t.get("target_package"),
                 target_url=t.get("target_url"),
@@ -403,14 +419,16 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
     if len(dock_tiles) != 6:
         raise HTTPException(400, "Exactly 6 dock tiles required")
     store = _load_store()
-    # Preserve per-tile image_url / wallpaper_url across this save —
-    # those are managed by separate upload endpoints and the dock form
-    # never reaches them.  Without this merge, every form save would
-    # wipe the uploaded JPEGs.
+    # Preserve per-tile image_url / wallpaper_url / apk_url across this
+    # save — those are managed by separate upload endpoints and the
+    # dock text-fields form never reaches them.  Without this merge,
+    # every form save would wipe the uploaded JPEGs / APKs.
     existing_assets: dict[str, dict] = {
         t["key"]: {
             "image_url": t.get("image_url"),
             "wallpaper_url": t.get("wallpaper_url"),
+            "apk_url": t.get("apk_url"),
+            "apk_filename": t.get("apk_filename"),
         }
         for t in store.get("dock_tiles", [])
     }
@@ -418,8 +436,10 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
     for t in dock_tiles:
         d = t.model_dump()
         prev = existing_assets.get(d["key"], {})
-        d["image_url"] = prev.get("image_url")
+        d["image_url"]    = prev.get("image_url")
         d["wallpaper_url"] = prev.get("wallpaper_url")
+        d["apk_url"]      = prev.get("apk_url")
+        d["apk_filename"] = prev.get("apk_filename")
         d.pop("icon_url", None)  # deprecated; never persist
         new_dock.append(d)
     store["dock_tiles"] = new_dock
@@ -511,6 +531,80 @@ def clear_tile_wallpaper(key: str) -> dict:
     tile = _find_tile(store, key)
     _delete_tile_asset_file(tile.get("wallpaper_url"))
     tile["wallpaper_url"] = None
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"]}
+
+
+# ── Per-tile APK ─────────────────────────────────────────────────
+@app.post("/api/admin/dock/{key}/apk", dependencies=[Depends(require_admin)])
+async def upload_tile_apk(
+    key: str,
+    file: UploadFile = File(...),
+    apk_package_id: Optional[str] = Form(None),
+    apk_version: Optional[str] = Form(None),
+) -> dict:
+    """Upload the APK that gets sideloaded when the user taps this
+    tile and `target_package` is not yet installed on the device.
+    Admin can optionally supply `apk_package_id` and `apk_version` so
+    the launcher can do version-bump checks without parsing the APK
+    itself."""
+    store = _load_store()
+    tile = _find_tile(store, key)
+    if not file.filename:
+        raise HTTPException(400, "filename missing")
+    ext = Path(file.filename).suffix.lower() or ".apk"
+    if ext != ".apk":
+        raise HTTPException(400, f"unsupported APK format: {ext} (must be .apk)")
+    safe_name = f"tile-{key}-{uuid.uuid4().hex[:8]}.apk"
+    target = DATA_DIR / "tile_apks" / safe_name
+    async with aiofiles.open(target, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            await f.write(chunk)
+    # Drop the previous APK file so we don't accumulate orphans.
+    _delete_tile_asset_file(tile.get("apk_url"))
+    tile["apk_url"]      = f"/assets/tile_apks/{safe_name}"
+    tile["apk_filename"] = file.filename
+    if apk_package_id:
+        tile["apk_package_id"] = apk_package_id.strip() or None
+    if apk_version:
+        tile["apk_version"] = apk_version.strip() or None
+    _save_store(store)
+    return {
+        "ok": True,
+        "apk_url": _abs(tile["apk_url"]),
+        "apk_filename": tile["apk_filename"],
+        "apk_package_id": tile.get("apk_package_id"),
+        "apk_version": tile.get("apk_version"),
+        "generation": store["generation"],
+    }
+
+
+@app.delete("/api/admin/dock/{key}/apk", dependencies=[Depends(require_admin)])
+def clear_tile_apk(key: str) -> dict:
+    store = _load_store()
+    tile = _find_tile(store, key)
+    _delete_tile_asset_file(tile.get("apk_url"))
+    tile["apk_url"]        = None
+    tile["apk_filename"]   = None
+    tile["apk_package_id"] = None
+    tile["apk_version"]    = None
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"]}
+
+
+@app.post("/api/admin/dock/{key}/apk-meta", dependencies=[Depends(require_admin)])
+def set_tile_apk_meta(key: str, payload: dict) -> dict:
+    """Update apk_package_id / apk_version on a tile that already has
+    an APK uploaded.  Useful when the admin forgets to set them at
+    upload time."""
+    store = _load_store()
+    tile = _find_tile(store, key)
+    if "apk_package_id" in payload:
+        v = (payload.get("apk_package_id") or "").strip()
+        tile["apk_package_id"] = v or None
+    if "apk_version" in payload:
+        v = (payload.get("apk_version") or "").strip()
+        tile["apk_version"] = v or None
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 

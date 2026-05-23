@@ -99,6 +99,19 @@ function renderDock(store) {
         const wpPreview  = t.wallpaper_url
             ? `<img src="${escapeAttr(t.wallpaper_url)}" alt="">`
             : '<div class="empty">No wallpaper yet</div>';
+        const apkPreview = t.apk_url
+            ? `<div class="apk-card">
+                   <div class="apk-icon">APK</div>
+                   <div class="apk-meta">
+                       <div class="apk-name" title="${escapeAttr(t.apk_filename || '')}">${escapeAttr(t.apk_filename || '(uploaded)')}</div>
+                       <div class="apk-sub">
+                           <span>${escapeAttr(t.apk_package_id || '— no package id —')}</span>
+                           <span class="dot-sep">·</span>
+                           <span>v${escapeAttr(t.apk_version || '?')}</span>
+                       </div>
+                   </div>
+               </div>`
+            : '<div class="empty">No APK yet</div>';
         li.innerHTML = `
             <div class="tile-head">
                 <div class="reorder">
@@ -145,11 +158,25 @@ function renderDock(store) {
                     </div>
                 </div>
             </div>
+            <div class="tile-apk-row">
+                <div class="media-label">APK <small>(installed + launched when this tile is tapped — leave blank to just open <code>target package</code>)</small></div>
+                <div class="apk-preview ${t.apk_url ? 'has' : 'empty-state'}">${apkPreview}</div>
+                <div class="media-actions">
+                    <label class="uploader sm">
+                        <input type="file" data-act="upload-apk" data-key="${escapeAttr(t.key)}"
+                               accept=".apk,application/vnd.android.package-archive" hidden>
+                        <span>${t.apk_url ? 'Replace APK' : 'Upload APK'}</span>
+                    </label>
+                    ${t.apk_url ? `<button class="ghost" data-act="clear-apk" data-key="${escapeAttr(t.key)}">Remove APK</button>` : ''}
+                </div>
+            </div>
             <div class="fields">
                 <div><label>Label</label><input data-k="label" value="${escapeAttr(t.label || '')}"></div>
                 <div><label>Sub</label><input data-k="sub" value="${escapeAttr(t.sub || '')}"></div>
                 <div><label>Target package</label><input data-k="target_package" value="${escapeAttr(t.target_package || '')}" placeholder="e.g. tv.onnowtv.app"></div>
                 <div><label>Target URL</label><input data-k="target_url" value="${escapeAttr(t.target_url || '')}" placeholder="e.g. https://news.com"></div>
+                <div><label>APK package id <small>(metadata)</small></label><input data-k="apk_package_id" value="${escapeAttr(t.apk_package_id || '')}" placeholder="e.g. tv.onnowtv.app"></div>
+                <div><label>APK version <small>(metadata)</small></label><input data-k="apk_version" value="${escapeAttr(t.apk_version || '')}" placeholder="e.g. 2.7.85"></div>
                 <div><label>Accent hex</label><input data-k="accent" value="${escapeAttr(t.accent || '')}" placeholder="#2BB6FF"></div>
             </div>
         `;
@@ -183,31 +210,50 @@ function bindDockHandlers() {
         });
     });
 
-    /* Image / wallpaper upload */
+    /* Image / wallpaper / APK upload */
     $$('#dockList input[type="file"]').forEach((inp) => {
         inp.addEventListener('change', async () => {
             const f = inp.files && inp.files[0];
             if (!f) return;
             const key = inp.dataset.key;
-            const kind = inp.dataset.act === 'upload-image' ? 'image' : 'wallpaper';
+            const act = inp.dataset.act;        // upload-image | upload-wallpaper | upload-apk
+            const kind = act === 'upload-image' ? 'image'
+                       : act === 'upload-wallpaper' ? 'wallpaper'
+                       : 'apk';
             const form = new FormData();
             form.append('file', f);
+            // For APK uploads, also send any metadata the admin has
+            // already typed into the field row.  The endpoint persists
+            // them on the tile so the launcher can do version checks.
+            if (kind === 'apk') {
+                const li = inp.closest('li');
+                const pkgInput = li.querySelector('input[data-k="apk_package_id"]');
+                const verInput = li.querySelector('input[data-k="apk_version"]');
+                if (pkgInput && pkgInput.value.trim()) form.append('apk_package_id', pkgInput.value.trim());
+                if (verInput && verInput.value.trim()) form.append('apk_version',    verInput.value.trim());
+            }
             try {
                 await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
                     method: 'POST',
                     body: form,
                 });
-                toast(`${kind === 'image' ? 'Tile image' : 'Wallpaper'} uploaded for ${key}`);
+                const friendly = kind === 'image' ? 'Tile image'
+                              : kind === 'wallpaper' ? 'Wallpaper'
+                              : 'APK';
+                toast(`${friendly} uploaded for ${key}`);
                 refreshAll();
             } catch (e) { toast('Upload failed: ' + e.message, true); }
         });
     });
 
-    /* Clear image / wallpaper */
+    /* Clear image / wallpaper / APK */
     $$('#dockList button[data-act^="clear-"]').forEach((b) => {
         b.addEventListener('click', async () => {
             const key = b.dataset.key;
-            const kind = b.dataset.act === 'clear-image' ? 'image' : 'wallpaper';
+            const act = b.dataset.act;          // clear-image | clear-wallpaper | clear-apk
+            const kind = act === 'clear-image' ? 'image'
+                       : act === 'clear-wallpaper' ? 'wallpaper'
+                       : 'apk';
             if (!confirm(`Remove ${kind} for "${key}"?`)) return;
             try {
                 await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
