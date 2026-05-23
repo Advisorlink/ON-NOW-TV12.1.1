@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.7.80 SECURITY — Block ALL adb / Google Drive / D2D backups of
+     this app's storage.  Combined with `allowBackup="false"` and
+     `fullBackupContent="false"` in the manifest this means an
+     attacker with adb access cannot pull the app's cached tokens,
+     watch history, EPG file, etc. via `adb backup`. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

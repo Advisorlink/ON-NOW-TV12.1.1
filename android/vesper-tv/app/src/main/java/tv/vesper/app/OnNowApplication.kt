@@ -32,6 +32,24 @@ import java.io.StringWriter
  */
 class OnNowApplication : Application() {
 
+    override fun onCreate() {
+        super.onCreate()
+        // v2.7.80 SECURITY — Tamper-detection runs once, BEFORE any
+        // WebView / ExoPlayer / network setup.  On debug builds this
+        // is a no-op (see IntegrityGuard); on release it kills the
+        // process immediately if the APK has been re-signed,
+        // re-packaged, or is being run under Frida / Xposed /
+        // jdb.  See `security/IntegrityGuard.kt` for the full
+        // policy.
+        try {
+            tv.vesper.app.security.IntegrityGuard.runChecks(this)
+        } catch (_: Throwable) {
+            // Defence in depth — never let the guard itself crash
+            // the legitimate app.  Soft failures are tolerated;
+            // hard failures already exited via exitProcess().
+        }
+    }
+
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
 

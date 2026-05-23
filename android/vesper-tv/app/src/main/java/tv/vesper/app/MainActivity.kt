@@ -212,8 +212,17 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                allowFileAccess = true
+                // v2.7.80 SECURITY — Lock down file:// access.
+                // We never load file URLs from anywhere except our
+                // bundled assets, and we MUST forbid them entirely
+                // from chaining into universal-origin reads
+                // (CVE-class XSS-to-disk-read pattern).
+                allowFileAccess = false
                 allowContentAccess = false
+                @Suppress("DEPRECATION")
+                allowFileAccessFromFileURLs = false
+                @Suppress("DEPRECATION")
+                allowUniversalAccessFromFileURLs = false
                 @Suppress("DEPRECATION")
                 setEnableSmoothTransition(true)
                 // Boost render priority so the WebView's compositor
@@ -230,6 +239,15 @@ class MainActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 setDefaultZoom(WebSettings.ZoomDensity.FAR)
                 userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
+            }
+
+            // v2.7.80 SECURITY — Refuse all WebView downloads.  The
+            // app uses its own Update Gate / Premiumize HTTP fetches
+            // for legitimate downloads; an unprompted WebView
+            // download triggered by a malicious page (or an injected
+            // redirect) is always a bug, not a feature.
+            setDownloadListener { _, _, _, _, _ ->
+                android.util.Log.w("MainActivity", "WebView download blocked")
             }
 
             // Smooth-scroll the inner WebView content frame.  Both

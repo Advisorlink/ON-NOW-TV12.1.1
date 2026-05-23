@@ -27,8 +27,8 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 249
-        versionName = (project.findProperty("versionName") as String?) ?: "2.7.79"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 250
+        versionName = (project.findProperty("versionName") as String?) ?: "2.7.81"
 
         // Most HK1 / TX / RK / S905 boxes ship a 32-bit Android ROM
         // (armeabi-v7a) even when the SoC itself is 64-bit capable.
@@ -78,7 +78,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // v2.7.80 SECURITY — Enable R8 full-mode minify + resource
+            // shrink so the APK ships with class / method / field names
+            // obfuscated, all `Log.d/v/i` calls stripped, dead code
+            // removed and unreferenced resources dropped.  Pairs with
+            // the rules in `proguard-rules.pro`.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -88,6 +94,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         debug {
+            // Local dev — leave Log statements / class names intact for
+            // easier troubleshooting.  Security hardening below only
+            // activates on `release` so devs can still curl / Logcat /
+            // attach a debugger to local builds without friction.
+            isMinifyEnabled = false
             // No suffix — keeps the same package id so reinstall replaces.
         }
     }

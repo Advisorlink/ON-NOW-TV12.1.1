@@ -7,6 +7,28 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.81 — Full anti-tamper / anti-rebrand security pass
+
+You asked for the app to be "locked down as much as it possibly can".  This release adds nine layered defences that an attacker has to break to repackage or reverse-engineer the APK.  See `SECURITY.md` for the full audit trail.
+
+**What changed (all activate on release builds only — debug builds unaffected):**
+
+1. **R8 + ProGuard obfuscation** enabled in release builds.  Every class / method / field that isn't an Android / WebView / libVLC / ExoPlayer entry point becomes `a.b.c.d`.  `Log.d/v/i/w` calls stripped entirely — no Logcat info leaks from release APKs.
+2. **`IntegrityGuard.kt`** (new) runs at cold start and HARD-KILLS the process on:
+   - wrong package name (catches `tv.onnowtv.app` → `tv.attacker.example` repackages),
+   - wrong signing-cert SHA-256 (catches every re-sign attack),
+   - debugger attached (`Debug.isDebuggerConnected` + manifest `debuggable` flag),
+   - Frida detected (`gum-js-loop` thread + `frida-agent` in `/proc/self/maps`),
+   - Xposed detected (`de.robv.android.xposed.XposedBridge` loadable).
+3. **TLS public-key pinning** for `onnowtv.duckdns.org` via `network_security_config.xml`.  MITM with a rogue CA cert is rejected at the TLS handshake.
+4. **Manifest hardened**: `allowBackup=false` (already), `extractNativeLibs=false`, `usesCleartextTraffic=false`, `dataExtractionRules` blocks adb / Google Drive / D2D backups.
+5. **WebView locked**: `allowFileAccess=false`, `allowFileAccessFromFileURLs=false`, `allowUniversalAccessFromFileURLs=false`, downloads blocked.  XSS can't escalate to disk reads or cross-origin file:// chains.
+6. **Resource shrinking** drops every unreferenced drawable / layout / string from the APK.  Smaller surface area for an attacker to inspect.
+
+**To activate**: change CI from `assembleDebug` → `assembleRelease` in `.github/workflows/build-apk.yml` (one-line edit).  Until then the existing debug builds keep flowing unchanged.  Detailed test plan + verification commands in `SECURITY.md`.
+
+---
+
 ## v2.7.80 — THE REAL ROOT CAUSE: Map key type mismatch (string vs number)
 
 **You found the bug I missed five times in a row.**
