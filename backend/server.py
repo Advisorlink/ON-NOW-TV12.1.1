@@ -3613,13 +3613,9 @@ async def _start_epg_scheduler():
 
 @app.on_event("startup")
 async def _start_instant_bundle() -> None:
-    """Boot the Instant-Bundle scheduler that keeps the Live TV
-    channels/categories/EPG warm and ready to serve in one gzipped
-    payload.  Reads the managed Xtream provider from `.env` (the
-    `LIVETV_*` keys) — clients never need to enter credentials."""
-    try:
-        import instant_bundle
-        instant_bundle.attach_collection(db["xtream_bundle"])
-        instant_bundle.start_scheduler()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to start instant_bundle scheduler: %s", exc)
+    """Live TV plumbing has been disabled per user request.  The
+    instant-bundle scheduler is no longer started; the /live-tv UI
+    route now renders a 'Coming Soon' placeholder and the new
+    native Android launcher will own the Live TV experience going
+    forward."""
+    return

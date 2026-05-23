@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OnNow TV V2 — Launcher Mockup (1920×1080)</title>
+<style>
+:root {
+    /* Per-state accent colors — these recolour the bottom-dock
+     * focus glow, the FEATURED kicker, and the vertical pagination
+     * dots so each section feels distinct, exactly like the four
+     * mockups provided by the user. */
+    --accent-blue:   #2BB6FF;
+    --accent-cyan:   #4FE3FF;
+    --accent-teal:   #2EEAC2;
+    --accent-blue2:  #38B8FF;
+
+    --bg-deep:       #04060B;
+    --bg-mid:        #060B16;
+    --txt-primary:   #F4F7FB;
+    --txt-secondary: #8EA0B7;
+    --txt-tertiary:  #5D6E85;
+    --dock-bg:       rgba(10, 18, 32, 0.55);
+    --dock-border:   rgba(255, 255, 255, 0.05);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-deep);
+    color: var(--txt-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+.stage {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    background:
+        radial-gradient(ellipse 60% 40% at 50% 50%, rgba(56, 130, 255, 0.04), transparent 70%),
+        var(--bg-deep);
+    overflow: hidden;
+}
+
+/* ───────── Top status bar ───────── */
+.topbar {
+    position: absolute;
+    top: 24px;
+    left: 32px;
+    right: 32px;
+    height: 84px;
+    border-radius: 28px;
+    background: rgba(8, 14, 26, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(18px);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 36px;
+}
+
+.topbar .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--txt-primary);
+}
+
+.topbar .wifi-icon {
+    width: 26px;
+    height: 26px;
+    color: var(--txt-primary);
+}
+
+.topbar .center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.topbar .logo-play {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(43, 182, 255, 0.32), transparent 60%);
+    display: grid;
+    place-items: center;
+}
+
+.topbar .logo-play svg { width: 30px; height: 30px; color: #38C2FF; }
+.topbar .logo-text {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--txt-primary);
+}
+.topbar .logo-text .v2-blue {
+    color: var(--accent-blue);
+    text-shadow: 0 0 14px rgba(43, 182, 255, 0.45);
+}
+
+.topbar .right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 24px;
+    font-size: 18px;
+    color: var(--txt-primary);
+}
+.topbar .right .divider {
+    width: 1px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.18);
+}
+.topbar .right .time {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* ───────── Vertical pagination dots (left rail) ───────── */
+.paginator {
+    position: absolute;
+    top: 280px;
+    left: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+    z-index: 3;
+}
+.paginator .seg {
+    width: 4px;
+    height: 64px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.10);
+}
+.paginator .seg.active {
+    background: var(--accent);
+    box-shadow: 0 0 18px var(--accent);
+}
+.paginator .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+}
+.paginator .dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+}
+
+/* ───────── Left content column ───────── */
+.content {
+    position: absolute;
+    left: 168px;
+    top: 230px;
+    width: 720px;
+    height: 540px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+.kicker {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--accent);
+    text-shadow: 0 0 14px var(--accent);
+}
+.title {
+    font-size: 96px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.0;
+    color: var(--txt-primary);
+}
+.title-period {
+    color: var(--accent);
+    text-shadow: 0 0 22px var(--accent);
+}
+.tagline {
+    font-size: 30px;
+    font-weight: 500;
+    color: var(--txt-primary);
+    line-height: 1.3;
+    margin-top: -6px;
+}
+.desc {
+    font-size: 21px;
+    color: var(--txt-secondary);
+    line-height: 1.65;
+    font-weight: 400;
+    max-width: 600px;
+}
+.cta {
+    margin-top: 14px;
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 20px 36px;
+    color: var(--txt-primary);
+    font-size: 21px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+}
+.cta .arrow {
+    width: 32px;
+    height: 32px;
+    display: inline-grid;
+    place-items: center;
+}
+
+/* ───────── Right hero illustration column ───────── */
+.hero {
+    position: absolute;
+    right: 0;
+    top: 130px;
+    width: 1060px;
+    height: 720px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    /* Soft gradient mask along the left edge so the hero blends
+     * into the content column without a hard seam. */
+    mask: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+    -webkit-mask: linear-gradient(to right, transparent 0%, black 16%, black 100%);
+}
+.hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+/* ───────── Bottom dock ───────── */
+.dock {
+    position: absolute;
+    left: 32px;
+    right: 32px;
+    bottom: 36px;
+    height: 184px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 18px;
+}
+.tile {
+    position: relative;
+    background: var(--dock-bg);
+    border: 1px solid var(--dock-border);
+    border-radius: 22px;
+    backdrop-filter: blur(14px);
+    padding: 26px 30px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    grid-template-rows: 1fr 1fr;
+    column-gap: 22px;
+    align-items: center;
+}
+.tile .icon {
+    grid-row: 1 / 3;
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    color: var(--txt-primary);
+}
+.tile .icon svg { width: 100%; height: 100%; stroke-width: 1.5; }
+.tile .label {
+    align-self: end;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--txt-primary);
+    letter-spacing: -0.2px;
+    line-height: 1;
+}
+.tile .sub {
+    align-self: start;
+    font-size: 16px;
+    color: var(--txt-secondary);
+    margin-top: 6px;
+    font-weight: 400;
+}
+
+/* Focused tile — bright neon border + glow.
+ * The accent colour is supplied via --accent on .stage. */
+.tile.focused {
+    border-color: var(--accent);
+    background: rgba(10, 26, 48, 0.65);
+    box-shadow:
+        0 0 0 1.5px var(--accent),
+        0 0 48px rgba(43, 182, 255, 0.42),
+        inset 0 0 24px rgba(43, 182, 255, 0.10);
+}
+.tile.focused .icon { color: var(--accent); }
+.tile.focused .label { color: var(--txt-primary); }
+
+/* Subtle dock reflection under the bar — matches the screenshot. */
+.dock-reflection {
+    position: absolute;
+    left: 32px;
+    right: 32px;
+    bottom: 0;
+    height: 36px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.04), transparent);
+    border-radius: 22px;
+    transform: scaleY(-1);
+    opacity: 0.35;
+    pointer-events: none;
+    mask: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+    -webkit-mask: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!--  STATE TEMPLATE — re-rendered per query-string param ?s=...  -->
+<!-- ============================================================ -->
+<div id="stage" class="stage">
+    <!-- ─── Top status bar ─── -->
+    <div class="topbar">
+        <div class="left">
+            <svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+            </svg>
+            <span id="greeting">Good evening</span>
+        </div>
+        <div class="center">
+            <div class="logo-play">
+                <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5">
+                    <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                </svg>
+            </div>
+            <div class="logo-text">OnNow TV<span class="v2-blue">V2</span></div>
+        </div>
+        <div class="right">
+            <span id="date">Sunday, May 17</span>
+            <span class="divider"></span>
+            <span class="time" id="time">08:34 PM</span>
+        </div>
+    </div>
+
+    <!-- ─── Vertical paginator ─── -->
+    <div class="paginator" id="paginator"></div>
+
+    <!-- ─── Left content column ─── -->
+    <div class="content">
+        <div class="kicker">FEATURED</div>
+        <div class="title" id="title"></div>
+        <div class="tagline" id="tagline"></div>
+        <div class="desc" id="desc"></div>
+        <div class="cta">
+            <span>Explore what&rsquo;s new</span>
+            <span class="arrow">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </span>
+        </div>
+    </div>
+
+    <!-- ─── Right hero illustration ─── -->
+    <div class="hero" id="hero"></div>
+
+    <!-- ─── Bottom dock — 6 tiles ─── -->
+    <div class="dock" id="dock"></div>
+</div>
+
+<script>
+/* ───────── State configuration ─────────
+ * Each state defines what the launcher's "Featured" hero displays
+ * AND which dock tile is focused. The 6 dock tiles themselves are
+ * fixed (Movies & TV Shows / Music / Live TV / Apps / Browser /
+ * Settings) — only the accent colour, copy, and focused tile change
+ * as the user D-pads horizontally. */
+
+const STATES = {
+    movies: {
+        accent: '#38B8FF',
+        title: ['Movies & TV Shows', '.'],
+        tagline: 'Endless stories. Unforgettable moments.',
+        desc: 'Stream the latest movies, binge-worthy series, and timeless classics. Discover new favourites and watch your way.',
+        focusedIdx: 0,
+        heroBg: 'linear-gradient(135deg, #0B1A30 0%, #050C19 100%)',
+        heroSvg: 'movies',
+    },
+    music: {
+        accent: '#38B8FF',
+        title: ['Music', '.'],
+        tagline: 'Lossless sound, every track.',
+        desc: 'Listen to your favourite albums, playlists, and live radio in stunning quality, straight on the big screen.',
+        focusedIdx: 1,
+        heroSvg: 'music',
+    },
+    livetv: {
+        accent: '#2BB6FF',
+        title: ['Live TV', ''],
+        tagline: 'Real-time channels. Real moments.',
+        desc: 'Watch live news, sports, and entertainment as it happens. Stay connected to the world in real time.',
+        focusedIdx: 2,
+        heroSvg: 'livetv',
+    },
+    apps: {
+        accent: '#2EEAC2',
+        title: ['Apps', ''],
+        tagline: 'Discover apps, games, and tools all in one place.',
+        desc: 'Explore a world of possibilities. Find new apps, enhance your entertainment, and customise your experience.',
+        focusedIdx: 3,
+        heroSvg: 'apps',
+    },
+    browser: {
+        accent: '#38C2FF',
+        title: ['Browser', '.'],
+        tagline: 'Surf the web on the big screen.',
+        desc: 'Search, explore, and discover a world of content from your favourite websites.\u2003Fast. Secure. Effortless.',
+        focusedIdx: 4,
+        heroSvg: 'browser',
+    },
+    settings: {
+        accent: '#5BC5FF',
+        title: ['Settings', '.'],
+        tagline: 'Tune everything to your liking.',
+        desc: 'Wallpaper, layout, sound, network, accounts, parental controls — your box, your rules.',
+        focusedIdx: 5,
+        heroSvg: 'settings',
+    },
+};
+
+const DOCK_ITEMS = [
+    { key: 'movies',   label: 'Movies & TV Shows', sub: 'Stream and enjoy',     icon: 'film' },
+    { key: 'music',    label: 'Music',             sub: 'Listen and enjoy',    icon: 'music' },
+    { key: 'livetv',   label: 'Live TV',           sub: 'Watch live channels', icon: 'tv' },
+    { key: 'apps',     label: 'Apps',              sub: 'All your apps',       icon: 'grid' },
+    { key: 'browser',  label: 'Browser',           sub: 'Surf the web',        icon: 'globe' },
+    { key: 'settings', label: 'Settings',          sub: 'System preferences',  icon: 'gear' },
+];
+
+const ICONS = {
+    film: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>',
+    music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+    tv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><polyline points="7 22 12 18 17 22"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 7.03 4.24l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.18.42.27.86.27 1.31"/></svg>',
+};
+
+/* ────────── Hero illustrations (inline SVG) ────────── */
+const HEROES = {
+    livetv: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="liveTVGlow" cx="60%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#2BB6FF" stop-opacity="0.30"/>
+                    <stop offset="60%" stop-color="#0B1A30" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="liveTVBg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"  stop-color="#0E2540"/>
+                    <stop offset="100%" stop-color="#04080F"/>
+                </linearGradient>
+            </defs>
+            <rect width="1060" height="720" fill="url(#liveTVBg)"/>
+            <rect width="1060" height="720" fill="url(#liveTVGlow)"/>
+            <!-- TV bezel -->
+            <rect x="280" y="120" width="560" height="320" rx="12" fill="#0A1422" stroke="#1E3A5F" stroke-width="2"/>
+            <!-- Inner content (stadium green) -->
+            <defs>
+                <linearGradient id="pitch" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"  stop-color="#1B5E2F"/>
+                    <stop offset="100%" stop-color="#0B361A"/>
+                </linearGradient>
+            </defs>
+            <rect x="290" y="130" width="540" height="300" rx="6" fill="url(#pitch)"/>
+            <!-- Player -->
+            <circle cx="500" cy="280" r="10" fill="#0A1828"/>
+            <rect x="492" y="285" width="16" height="45" rx="6" fill="#1E66DE"/>
+            <rect x="494" y="328" width="6" height="22" rx="2" fill="#FFFFFF"/>
+            <rect x="500" y="328" width="6" height="22" rx="2" fill="#FFFFFF"/>
+            <!-- Ball -->
+            <circle cx="540" cy="350" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/>
+            <!-- Stadium lights -->
+            <line x1="320" y1="160" x2="320" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+            <line x1="380" y1="155" x2="380" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+            <line x1="680" y1="155" x2="680" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+            <line x1="740" y1="160" x2="740" y2="200" stroke="#FFE7A3" stroke-width="3"/>
+            <!-- LIVE NOW label -->
+            <text x="310" y="155" fill="#FFFFFF" font-family="Inter" font-size="14" font-weight="700">Live Now</text>
+            <rect x="780" y="135" width="42" height="18" rx="4" fill="#E63946"/>
+            <text x="785" y="148" fill="#FFFFFF" font-family="Inter" font-size="11" font-weight="700">LIVE</text>
+            <!-- Side panel 1: News anchor -->
+            <rect x="855" y="120" width="170" height="150" rx="8" fill="#1B2E47" stroke="#1E3A5F" stroke-width="1.5"/>
+            <rect x="858" y="123" width="164" height="100" rx="4" fill="#2A4060"/>
+            <circle cx="940" cy="170" r="22" fill="#C7956A"/>
+            <rect x="918" y="180" width="44" height="40" rx="2" fill="#1A3052"/>
+            <rect x="990" y="130" width="32" height="14" rx="3" fill="#E63946"/>
+            <text x="995" y="141" fill="#FFFFFF" font-family="Inter" font-size="9" font-weight="700">LIVE</text>
+            <!-- Side panel 2: car -->
+            <rect x="855" y="290" width="170" height="150" rx="8" fill="#1B2E47" stroke="#1E3A5F" stroke-width="1.5"/>
+            <rect x="858" y="293" width="164" height="124" rx="4" fill="#0F1F36"/>
+            <path d="M880,395 Q940,360 1000,395 L1000,410 L880,410 Z" fill="#E04030"/>
+            <circle cx="900" cy="408" r="10" fill="#222"/>
+            <circle cx="980" cy="408" r="10" fill="#222"/>
+            <rect x="990" y="300" width="32" height="14" rx="3" fill="#E63946"/>
+            <text x="995" y="311" fill="#FFFFFF" font-family="Inter" font-size="9" font-weight="700">LIVE</text>
+            <!-- Live Channels row -->
+            <text x="290" y="475" fill="#FFFFFF" font-family="Inter" font-size="13" font-weight="600">Live Channels</text>
+            ${[
+                {x: 290, y: 490, c: '#1E5BAC', icon: '🌐', label: 'News Now'},
+                {x: 380, y: 490, c: '#33B549', icon: '⚽', label: 'Sports Live'},
+                {x: 470, y: 490, c: '#3A7CC8', icon: '🌍', label: 'World Today'},
+                {x: 560, y: 490, c: '#7A47C9', icon: '🎵', label: 'Music Live'},
+                {x: 650, y: 490, c: '#A52E50', icon: '🎬', label: 'Movie Time'},
+                {x: 740, y: 490, c: '#D38B2C', icon: '🙂', label: 'Kids Zone'},
+            ].map(c =>
+                `<g><rect x="${c.x}" y="${c.y}" width="80" height="76" rx="10" fill="${c.c}"/><text x="${c.x+40}" y="${c.y+42}" text-anchor="middle" font-size="26">${c.icon}</text><text x="${c.x+40}" y="${c.y+68}" text-anchor="middle" fill="#FFFFFF" font-family="Inter" font-size="9" font-weight="500">${c.label}</text></g>`
+            ).join('')}
+            <!-- Floor reflection -->
+            <ellipse cx="560" cy="690" rx="280" ry="14" fill="#0E2240" opacity="0.6"/>
+        </svg>
+    `,
+    browser: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="brwGlow" cx="55%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#38C2FF" stop-opacity="0.35"/>
+                    <stop offset="60%" stop-color="#0B1A30" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="globe" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%"  stop-color="#1E70E0" stop-opacity="0.45"/>
+                    <stop offset="100%" stop-color="#04111F" stop-opacity="1"/>
+                </radialGradient>
+            </defs>
+            <rect width="1060" height="720" fill="#04060B"/>
+            <rect width="1060" height="720" fill="url(#brwGlow)"/>
+            <!-- Globe sphere -->
+            <ellipse cx="600" cy="380" rx="220" ry="260" fill="url(#globe)" stroke="#38C2FF" stroke-width="1" opacity="0.95"/>
+            <!-- Latitude lines -->
+            ${[1,2,3,4,5,6].map(i => `<ellipse cx="600" cy="380" rx="${220 - i*8}" ry="260" fill="none" stroke="#38C2FF" stroke-width="0.6" opacity="${0.55 - i*0.06}"/>`).join('')}
+            <!-- Longitude curves -->
+            ${[0,1,2,3,4].map(i => `<ellipse cx="600" cy="380" rx="220" ry="${260 - i*42}" fill="none" stroke="#38C2FF" stroke-width="0.6" opacity="${0.55 - i*0.09}"/>`).join('')}
+            <!-- Continent dots -->
+            ${Array.from({length: 110}).map(() => {
+                const ang = Math.random()*Math.PI*2;
+                const r = 200 + Math.random()*22;
+                return `<circle cx="${600+Math.cos(ang)*r*0.85}" cy="${380+Math.sin(ang)*r}" r="${1.4 + Math.random()*1.6}" fill="#69D8FF" opacity="${0.4 + Math.random()*0.5}"/>`;
+            }).join('')}
+            <!-- Podium base -->
+            <ellipse cx="600" cy="650" rx="230" ry="22" fill="#0F2B45" opacity="0.9"/>
+            <ellipse cx="600" cy="650" rx="190" ry="16" fill="none" stroke="#38C2FF" stroke-width="2"/>
+            <ellipse cx="600" cy="650" rx="155" ry="13" fill="none" stroke="#38C2FF" stroke-width="1.5" opacity="0.6"/>
+            <!-- Sound wave at bottom right -->
+            ${Array.from({length: 60}).map((_, i) => {
+                const x = 870 + i*3;
+                const h = 30 + Math.sin(i*0.4)*40 + Math.random()*10;
+                return `<rect x="${x}" y="${500-h/2}" width="1.6" height="${h}" fill="#69D8FF" opacity="${0.4 + Math.random()*0.4}"/>`;
+            }).join('')}
+        </svg>
+    `,
+    apps: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="appsGlow" cx="55%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#2EEAC2" stop-opacity="0.30"/>
+                    <stop offset="60%" stop-color="#04060B" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+            <rect width="1060" height="720" fill="#04060B"/>
+            <rect width="1060" height="720" fill="url(#appsGlow)"/>
+            ${[
+                {x: 540, y: 280, w: 200, h: 200, icon: 'grid'},
+                {x: 770, y: 220, w: 140, h: 140, icon: 'wrench'},
+                {x: 410, y: 320, w: 120, h: 120, icon: 'pad'},
+                {x: 470, y: 170, w: 110, h: 110, icon: 'play'},
+                {x: 650, y: 130, w: 100, h: 100, icon: 'chart'},
+                {x: 800, y: 130, w: 90, h: 90,   icon: 'cloud'},
+                {x: 880, y: 380, w: 110, h: 110, icon: 'shield'},
+                {x: 380, y: 510, w: 90, h: 90,   icon: 'music'},
+                {x: 480, y: 490, w: 80, h: 80,   icon: 'star'},
+            ].map(c => `<g>
+                <rect x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" rx="20" fill="rgba(15,40,42,0.55)" stroke="#2EEAC2" stroke-width="1.5"/>
+                <g transform="translate(${c.x + c.w*0.25}, ${c.y + c.h*0.25}) scale(${c.w*0.0145})" fill="none" stroke="#2EEAC2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    ${c.icon==='grid'   ? '<rect x="1" y="1" width="10" height="10" rx="2"/><rect x="14" y="1" width="10" height="10" rx="2"/><rect x="1" y="14" width="10" height="10" rx="2"/><rect x="14" y="14" width="10" height="10" rx="2"/>' :
+                      c.icon==='wrench' ? '<path d="M19 4l-7 7 5 5 7-7-5-5z"/><path d="M2 22l8-8"/>' :
+                      c.icon==='pad'    ? '<path d="M5 12h4M7 10v4M16 12h4M18 10v4"/><path d="M3 16a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v2H3z"/>' :
+                      c.icon==='play'   ? '<polygon points="6 4 20 12 6 20 6 4"/>' :
+                      c.icon==='chart'  ? '<line x1="4" y1="20" x2="4" y2="4"/><line x1="4" y1="20" x2="20" y2="20"/><polyline points="8 16 12 12 16 14 20 10"/>' :
+                      c.icon==='cloud'  ? '<path d="M6 18h12a4 4 0 0 0 0-8 6 6 0 0 0-11.8-1A4 4 0 0 0 6 18"/>' :
+                      c.icon==='shield' ? '<path d="M12 2l9 4v6c0 5-4 9-9 10-5-1-9-5-9-10V6z"/>' :
+                      c.icon==='music'  ? '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' :
+                      c.icon==='star'   ? '<polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9 12 2"/>' : ''
+                    }
+                </g>
+            </g>`).join('')}
+        </svg>
+    `,
+    movies: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="movieGlow" cx="55%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#38B8FF" stop-opacity="0.28"/>
+                    <stop offset="60%" stop-color="#0B1A30" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+            <rect width="1060" height="720" fill="#04060B"/>
+            <rect width="1060" height="720" fill="url(#movieGlow)"/>
+            <!-- TV bezel -->
+            <rect x="280" y="100" width="650" height="370" rx="12" fill="#0A1422" stroke="#1E3A5F" stroke-width="2"/>
+            <rect x="290" y="110" width="630" height="350" rx="6" fill="#1A2235"/>
+            <!-- Hero scene (dark moody figure) -->
+            <defs>
+                <linearGradient id="moodyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3A4A66"/>
+                    <stop offset="100%" stop-color="#0A1422"/>
+                </linearGradient>
+            </defs>
+            <rect x="380" y="120" width="540" height="200" fill="url(#moodyGrad)"/>
+            <ellipse cx="650" cy="280" rx="40" ry="80" fill="#1A1F2D"/>
+            <circle cx="650" cy="200" r="22" fill="#1A1F2D"/>
+            <!-- Top picks row -->
+            <text x="300" y="345" fill="#FFFFFF" font-family="Inter" font-size="12" font-weight="600">Top Picks for You</text>
+            ${[0,1,2,3,4].map(i => `<rect x="${300+i*116}" y="360" width="100" height="80" rx="6" fill="#${['1F3556','2A4A6E','3A5680','1E3F66','355778'][i]}"/>`).join('')}
+            <!-- Tiny side nav -->
+            <circle cx="305" cy="130" r="6" fill="#5577AA"/>
+            <circle cx="305" cy="160" r="6" fill="#5577AA"/>
+            <circle cx="305" cy="200" r="6" fill="#5577AA"/>
+            <circle cx="305" cy="240" r="6" fill="#5577AA"/>
+            <!-- Floor reflection -->
+            <ellipse cx="600" cy="635" rx="320" ry="16" fill="#0E2240" opacity="0.6"/>
+        </svg>
+    `,
+    music: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="musicGlow" cx="55%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#38C2FF" stop-opacity="0.28"/>
+                    <stop offset="60%" stop-color="#04060B" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+            <rect width="1060" height="720" fill="#04060B"/>
+            <rect width="1060" height="720" fill="url(#musicGlow)"/>
+            <!-- Vinyl record -->
+            <circle cx="560" cy="360" r="200" fill="#0A1422" stroke="#1E3A5F" stroke-width="2"/>
+            ${[180,160,140,120,100,80,60].map(r=>`<circle cx="560" cy="360" r="${r}" fill="none" stroke="#38B8FF" stroke-width="0.5" opacity="0.${50-r/8|0}"/>`).join('')}
+            <circle cx="560" cy="360" r="38" fill="#38B8FF" opacity="0.95"/>
+            <circle cx="560" cy="360" r="8" fill="#0A1422"/>
+            <!-- Music waves -->
+            ${Array.from({length: 60}).map((_, i) => {
+                const x = 800 + i*3;
+                const h = 30 + Math.sin(i*0.35)*60 + Math.random()*15;
+                return `<rect x="${x}" y="${380-h/2}" width="1.8" height="${h}" fill="#69D8FF" opacity="${0.4 + Math.random()*0.4}"/>`;
+            }).join('')}
+        </svg>
+    `,
+    settings: `
+        <svg viewBox="0 0 1060 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+            <defs>
+                <radialGradient id="setGlow" cx="55%" cy="50%" r="55%">
+                    <stop offset="0%"  stop-color="#5BC5FF" stop-opacity="0.28"/>
+                    <stop offset="60%" stop-color="#04060B" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+            <rect width="1060" height="720" fill="#04060B"/>
+            <rect width="1060" height="720" fill="url(#setGlow)"/>
+            <g transform="translate(420,180) scale(20)" fill="none" stroke="#5BC5FF" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 7.03 4.24l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.18.42.27.86.27 1.31"/>
+            </g>
+        </svg>
+    `,
+};
+
+/* ───────── Render the chosen state ───────── */
+const qs = new URLSearchParams(window.location.search);
+const stateKey = qs.get('s') || 'livetv';
+const state = STATES[stateKey] || STATES.livetv;
+
+document.documentElement.style.setProperty('--accent', state.accent);
+
+const titleEl = document.getElementById('title');
+titleEl.innerHTML = `${state.title[0]}<span class="title-period">${state.title[1]}</span>`;
+
+document.getElementById('tagline').textContent = state.tagline;
+document.getElementById('desc').textContent = state.desc;
+document.getElementById('hero').innerHTML = HEROES[state.heroSvg] || '';
+
+/* Build dock */
+const dockEl = document.getElementById('dock');
+dockEl.innerHTML = DOCK_ITEMS.map((it, i) => `
+    <div class="tile ${i === state.focusedIdx ? 'focused' : ''}" data-key="${it.key}">
+        <div class="icon">${ICONS[it.icon]}</div>
+        <div class="label">${it.label}</div>
+        <div class="sub">${it.sub}</div>
+    </div>
+`).join('');
+
+/* Build paginator (4 dots, 1 active = first) */
+const paginatorEl = document.getElementById('paginator');
+paginatorEl.innerHTML = `
+    <div class="seg active"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+`;
+</script>
+</body>
+</html>
