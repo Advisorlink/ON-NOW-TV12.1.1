@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focused state of a dock tile — neon outline + soft inner glow.
+     The actual outer "halo" glow is provided by the View's
+     elevation + outline shadow. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#A6102D4D" />
+            <corners android:radius="16dp" />
+            <stroke android:color="@color/accent" android:width="1.5dp" />
+        </shape>
+    </item>
+    <item android:gravity="center">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="320"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#262BB6FF"
+                android:endColor="#002BB6FF" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</layer-list>

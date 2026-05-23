@@ -1,0 +1,97 @@
+name: Build ON NOW TV V2 Launcher APK
+
+# Builds the new native Android TV launcher
+# (/app/android/onnowtv-launcher/) and publishes the APK as a
+# GitHub Release under the tag `launcher-latest`.  Runs only when
+# files inside the launcher project change so the existing
+# `build-apk.yml` workflow stays untouched.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'android/onnowtv-launcher/**'
+      - '.github/workflows/build-launcher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Generate gradle wrapper + local.properties
+        working-directory: android/onnowtv-launcher
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      - name: Derive versionCode
+        id: ver
+        run: |
+          # versionCode = 1 + monotonically-increasing CI run number,
+          # which guarantees a strictly higher integer on every push.
+          VCODE=$(( 1 + GITHUB_RUN_NUMBER ))
+          VNAME="0.1.$VCODE"
+          echo "Detected versionName=$VNAME versionCode=$VCODE"
+          echo "vname=$VNAME" >> "$GITHUB_OUTPUT"
+          echo "vcode=$VCODE" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        working-directory: android/onnowtv-launcher
+        run: ./gradlew assembleDebug --no-daemon --stacktrace -PversionName=${{ steps.ver.outputs.vname }} -PversionCode=${{ steps.ver.outputs.vcode }}
+
+      - name: Locate APK
+        run: |
+          echo "=== Searching for APK files ==="
+          find android/onnowtv-launcher -name "*.apk" -type f
+          APK=$(find android/onnowtv-launcher -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$APK" ]; then
+            echo "ERROR: No APK file found"
+            exit 1
+          fi
+          echo "Found APK at: $APK"
+          cp "$APK" "$GITHUB_WORKSPACE/onnowtv-launcher-debug.apk"
+          ls -la "$GITHUB_WORKSPACE/onnowtv-launcher-debug.apk"
+
+      - name: Publish/update launcher-latest Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: launcher-latest
+          name: ON NOW TV V2 Launcher — v${{ steps.ver.outputs.vname }}
+          body: |
+            Native Android TV launcher — replaces the system home screen.
+
+            **Install:**
+            1. Download the APK below.
+            2. Sideload it onto your Android TV box (e.g. via `adb install` or a file-explorer app).
+            3. Open Settings → Apps → Default apps → Home → select **OnNow TV V2**.
+
+            The first build is a UI-only scaffold matching the design reference; backend-driven icons / wallpapers / APK manifest / popup notifications are wired in subsequent releases.
+          files: onnowtv-launcher-debug.apk
+          prerelease: true
+          make_latest: 'false'
