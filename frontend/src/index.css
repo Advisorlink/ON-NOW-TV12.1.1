@@ -1066,17 +1066,28 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
     box-shadow: none !important;
 }
 
-/* v2.7.84 — Snappier tap on mobile.  `touch-action: manipulation`
-   tells the browser to skip the 300 ms double-tap-zoom delay AND
-   never treat a touch as a tap-zoom gesture, so tap latency drops
-   from ~300 ms to ~16 ms.  Critical for shelves & nav rows.
-   We DO NOT set `touch-action: pan-y` because that would block
-   horizontal scroll on the .vesper-shelf row — we still want the
-   row to scroll left/right under the user's finger. */
+/* v2.7.86 — Touch behaviour on mobile.
+   Earlier (v2.7.84) we set `touch-action: manipulation` on all
+   tappable elements to drop the 300 ms double-tap-zoom delay.  In
+   practice Samsung Internet + some Chrome WebView builds interpret
+   `manipulation` on a button as "this element captures the touch"
+   and BLOCK the parent page from scrolling vertically when the
+   user's finger lands on a poster (user report 23 May: "I still
+   can't swipe up and down on the phone when my finger's on one of
+   the covers").
+   Fix — replace `manipulation` with `pan-x pan-y`, which is
+   functionally equivalent for our use case (no pinch-zoom inside
+   the app anyway) but explicitly allows the page to handle both
+   axes of panning, so a vertical swipe with the finger on a tile
+   scrolls the page like the user expects.
+   Modern Chrome 52+ already kills the 300 ms double-tap-zoom delay
+   when the viewport meta is `width=device-width` (we set this in
+   public/index.html), so we don't lose anything by switching off
+   `manipulation`. */
 body[data-platform="mobile"] [data-focusable='true'],
 body[data-platform="mobile"] button,
 body[data-platform="mobile"] a[role='button'] {
-    touch-action: manipulation;
+    touch-action: pan-x pan-y;
 }
 /* But the horizontally-scrolling shelf row must allow BOTH axes —
    horizontal scroll of the row + vertical scroll of the parent
@@ -1132,13 +1143,13 @@ body[data-platform="mobile"] [data-testid="livetv-page"] main {
    Also enforce the 48 px min-height we promised for hit targets. */
 body[data-platform="mobile"] [data-focusable='true'][data-testid^='livetv-channel-'] {
     min-height: 64px;
-    touch-action: manipulation;
+    touch-action: pan-x pan-y;
 }
 
 /* Categories rail tile heights */
 body[data-platform="mobile"] [data-testid^='livetv-cat-'] {
     min-height: 48px;
-    touch-action: manipulation;
+    touch-action: pan-x pan-y;
 }
 
 /* Search page mobile-friendly tweaks ─────────────────────────

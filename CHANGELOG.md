@@ -7,6 +7,12 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.86 — Mobile scroll-over-poster finally fixed
+
+Replaced `touch-action: manipulation` with `touch-action: pan-x pan-y` on all tappable elements in mobile mode.  Samsung Internet (and some Chrome WebView builds) treat `manipulation` on a button as "this element captures the touch", which was blocking the parent page from scrolling vertically whenever the user's finger landed on a poster.  Switching to explicit `pan-x pan-y` allows the page to handle both axes of panning through the button, so vertical swipes with the finger on a tile now scroll the page natively.  Modern Chrome already kills the 300 ms double-tap-zoom delay when the viewport meta is `width=device-width` (we set this in `public/index.html`), so we don't lose anything by removing `manipulation`.
+
+---
+
 ## v2.7.85 — Library TV fit + Feature Nudges + Preview testing
 
 - **Library at 1920×1080**: posters no longer clip at corners/top. Page padding bumped (paddingTop 48→64, paddingRight 60→84). All tile grids: 140 px floor, 18 px gap, 12/14 px inset breathing room. `CollapsibleGrid` switched from `overflow: hidden` to CSS `mask-image` so focused-tile scale(1.08) is no longer snipped at the bottom edge.
