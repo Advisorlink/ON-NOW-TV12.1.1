@@ -375,7 +375,7 @@ class MainActivity : AppCompatActivity() {
         // go back to.  This is standard launcher behaviour.
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // Re-show the dock when the user hits HOME from inside an
         // app (Android re-fires onNewIntent on the launcher).
