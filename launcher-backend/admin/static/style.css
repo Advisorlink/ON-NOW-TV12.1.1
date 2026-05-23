@@ -17,6 +17,12 @@
     --border:        #1B2A45;
 }
 * { box-sizing: border-box; }
+/* CRITICAL: `hidden` attribute MUST win against any CSS display
+   rule (.login-shell sets display:flex, .tab-panel sets display:block,
+   etc.) — without this rule, `el.hidden = true` from app.js is a no-op
+   and the login overlay bleeds through behind the admin app after
+   sign-in. */
+[hidden] { display: none !important; }
 html, body {
     margin: 0; padding: 0;
     background: var(--bg-deep);
@@ -118,14 +124,16 @@ header nav { display: flex; gap: 8px; align-items: center; }
 }
 .logout {
     background: transparent;
-    color: var(--danger);
+    color: var(--txt-secondary);
     border: 1px solid var(--border);
     padding: 10px 18px;
     border-radius: 999px;
     font-size: 13px;
     cursor: pointer;
     margin-left: 16px;
+    transition: color 120ms, border-color 120ms;
 }
+.logout:hover { color: var(--danger); border-color: var(--danger); }
 
 /* ─── Panel layouts ─── */
 .tab-panel { display: none; padding: 32px 48px; max-width: 1240px; margin: 0 auto; }
