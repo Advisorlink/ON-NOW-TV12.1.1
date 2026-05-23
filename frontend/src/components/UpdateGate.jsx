@@ -1,14 +1,17 @@
 /**
- * <UpdateGate/> — fullscreen forced-update gate.
+ * <UpdateGate/> — non-blocking update prompt.
  *
  * Checks /api/app/latest-version on mount + every 6 h, compares the
  * returned semver with the running APK's `versionName` (exposed by
  * the native MainActivity via `window.__APP_VERSION__`), and when
- * the bundled version is older renders a blocking dark fullscreen
- * "Update required" page over the entire app — there's no escape
- * hatch (per the user's request: "Forced … fullscreen 'Update
- * required' gate on app launch that can only be dismissed by
- * installing").
+ * the bundled version is older renders an in-app popup with two
+ * actions: **Install** (downloads + auto-installs via the native
+ * PackageInstaller) and **Skip** (snoozes the popup for the rest of
+ * the session — it re-appears on next app launch).
+ *
+ * The "snooze for session" behaviour is intentional — we want every
+ * launch to remind users that a newer version exists, but we don't
+ * want to force them to install before continuing to use the app.
  *
  * Outside an Android WebView (`window.__APP_VERSION__` undefined) the
  * gate stays hidden so the web build remains usable.
