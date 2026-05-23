@@ -44,7 +44,7 @@ android {
             proc.inputStream.bufferedReader().readText().trim().take(12)
                 .ifBlank { "local" }
         } catch (_: Throwable) { "local" }
-        val buildTs: String = java.time.Instant.now().toString()
+        val buildTs: String = System.currentTimeMillis().toString()
         buildConfigField("String", "GIT_SHA",  "\"$gitSha\"")
         buildConfigField("String", "BUILD_TS", "\"$buildTs\"")
 
