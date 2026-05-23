@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OnNow TV V2 — Launcher Admin</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='6 4 20 12 6 20 6 4' fill='%232BB6FF'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/launcher-admin/static/style.css">
+</head>
+<body>
+
+<!-- ───────────────────── LOGIN VIEW ───────────────────── -->
+<div id="login" class="login-shell">
+    <div class="login-card">
+        <div class="logo">
+            <svg viewBox="0 0 24 24" width="48" height="48"><polygon points="6 4 20 12 6 20 6 4" fill="#2BB6FF"/></svg>
+        </div>
+        <h1>OnNow TV V2<br><span class="accent">Launcher Admin</span></h1>
+        <p class="hint">Sign in with the admin token to manage dock tiles, wallpapers, APK manifest, and broadcast notifications to every launcher device.</p>
+        <form id="loginForm">
+            <input type="password" name="token" placeholder="Admin token" autocomplete="off" required>
+            <button type="submit">Unlock</button>
+        </form>
+        <p id="loginErr" class="err"></p>
+    </div>
+</div>
+
+<!-- ───────────────────── ADMIN APP ───────────────────── -->
+<div id="app" hidden>
+    <header>
+        <div class="logo-row">
+            <svg viewBox="0 0 24 24" width="32" height="32"><polygon points="6 4 20 12 6 20 6 4" fill="#2BB6FF"/></svg>
+            <h1>Launcher Admin</h1>
+        </div>
+        <nav>
+            <button class="tab active" data-tab="dock">Dock</button>
+            <button class="tab"        data-tab="wallpapers">Wallpapers</button>
+            <button class="tab"        data-tab="apks">APKs</button>
+            <button class="tab"        data-tab="notify">Notify</button>
+            <button id="logout" class="logout">Sign out</button>
+        </nav>
+    </header>
+
+    <!-- DOCK TAB -->
+    <section id="tab-dock" class="tab-panel active">
+        <div class="panel-head">
+            <h2>Dock tiles</h2>
+            <p>Reorder by drag — these are the 6 cards that appear at the bottom of every launcher.</p>
+        </div>
+        <ul id="dockList" class="dock-grid"></ul>
+        <button id="saveDock" class="primary">Save dock</button>
+    </section>
+
+    <!-- WALLPAPERS TAB -->
+    <section id="tab-wallpapers" class="tab-panel">
+        <div class="panel-head">
+            <h2>Wallpapers</h2>
+            <p>Upload a 1920×1080 image to use as the launcher background. Setting one active overrides the built-in aurora glow.</p>
+        </div>
+        <label class="uploader">
+            <input type="file" id="wallpaperFile" accept="image/jpeg,image/png,image/webp" hidden>
+            <span>Upload wallpaper</span>
+        </label>
+        <div id="wallpaperGrid" class="thumb-grid"></div>
+    </section>
+
+    <!-- APKS TAB -->
+    <section id="tab-apks" class="tab-panel">
+        <div class="panel-head">
+            <h2>APK manifest</h2>
+            <p>Apps that the launcher offers to install. Add either an APK file (upload) or a remote URL.</p>
+        </div>
+        <div class="apk-form">
+            <div class="row">
+                <input id="apkName"     placeholder="App name (e.g. ON NOW TV V2)" required>
+                <input id="apkPackage"  placeholder="Package id (optional)">
+                <input id="apkVersion"  placeholder="Version (optional)">
+            </div>
+            <div class="row">
+                <input id="apkIconUrl"  placeholder="Icon URL (optional)">
+                <input id="apkDesc"     placeholder="Description (optional)">
+            </div>
+            <div class="row apk-source">
+                <input id="apkUrl"      placeholder="Remote APK URL — OR — upload below">
+                <label class="uploader sm">
+                    <input type="file" id="apkFile" accept="application/vnd.android.package-archive,.apk" hidden>
+                    <span>Choose file</span>
+                </label>
+                <button id="apkSubmit" class="primary">Add APK</button>
+            </div>
+        </div>
+        <table id="apkTable" class="data-table"></table>
+    </section>
+
+    <!-- NOTIFY TAB -->
+    <section id="tab-notify" class="tab-panel">
+        <div class="panel-head">
+            <h2>Broadcast notification</h2>
+            <p>A popup that every launcher device shows on screen. Each device dismisses with OK.</p>
+        </div>
+        <form id="notifyForm" class="notify-form">
+            <input  id="notifyTitle" placeholder="Title (e.g. Update available)" required>
+            <textarea id="notifyBody" placeholder="Body (e.g. A new version is ready to install)" required></textarea>
+            <input  id="notifyImg" placeholder="Image URL (optional)">
+            <div class="row">
+                <label>Lifetime
+                    <select id="notifyTtl">
+                        <option value="600">10 minutes</option>
+                        <option value="3600" selected>1 hour</option>
+                        <option value="21600">6 hours</option>
+                        <option value="86400">24 hours</option>
+                        <option value="604800">7 days</option>
+                    </select>
+                </label>
+                <button type="submit" class="primary">Broadcast</button>
+            </div>
+        </form>
+        <h3 class="sub">Active notifications</h3>
+        <ul id="notifyList" class="notify-list"></ul>
+    </section>
+
+    <div id="toast" class="toast" hidden></div>
+</div>
+
+<script src="/launcher-admin/static/app.js"></script>
+</body>
+</html>

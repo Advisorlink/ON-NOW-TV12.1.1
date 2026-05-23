@@ -7,6 +7,32 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v0.2.0 — Native Launcher Phase 2 (admin backend + integration)
+
+Built the brand-new admin-driven backend for the OnNow TV V2 launcher.  The launcher now pulls its dock tiles, wallpaper, APK manifest, and popup notifications from `/app/launcher-backend/` — a completely separate FastAPI service that does NOT share code or storage with the streaming app's `/app/backend/`.
+
+**Backend (`/app/launcher-backend/`)**
+- FastAPI service with JSON-file persistence (no DB dependency).
+- Endpoints: `GET /api/launcher/config`, `GET /api/launcher/notifications/pending`, `POST /api/launcher/ack-notification`, plus token-protected admin endpoints (`/api/admin/dock`, `/api/admin/wallpapers`, `/api/admin/apks`, `/api/admin/notify`).
+- Bearer-token or 7-day cookie session auth.
+- Static asset serving for icons / wallpapers / APK files.
+- Single-page admin dashboard at `/admin/` — clean dark UI, login screen, 4 tabs (Dock / Wallpapers / APKs / Notify).
+- Dockerfile + README with Caddy reverse-proxy example.
+
+**Launcher (`/app/android/onnowtv-launcher/`)**
+- `LauncherRepository` — OkHttp + StateFlow, polls config every 5 minutes, caches to SharedPreferences for offline cold starts.
+- `NotificationPopup` — modal `AlertDialog`, polled every 30 s, acks back to the backend so each notification shows once per device.
+- `AppsDrawerActivity` — 4-column RecyclerView grid of the admin-curated APK manifest, D-pad navigation + OK to install.
+- `ApkInstaller` — downloads APK to cache dir, fires `ACTION_VIEW` with the FileProvider URI, surfaces the standard Android install prompt.
+- FileProvider registered in manifest with `${applicationId}.fileprovider` authority.
+- MainActivity wired to apply remote dock tiles, accent overrides, and route OK presses to the configured `target_package` / `target_url`.
+
+**Tested end-to-end**: admin login → broadcast notification → public `/api/launcher/notifications/pending` returns it → add APK → public config includes it → generation bumps.  All clean.  Backend lint clean.
+
+**To deploy**: `cd /app/launcher-backend && docker build -t onnow-launcher-api . && docker run -d -p 8002:8002 -v /opt/onnow-launcher-data:/data -e ADMIN_TOKEN=... onnow-launcher-api`, then point Caddy at `launcher.onnowtv.duckdns.org → :8002`.
+
+---
+
 ## v2.7.81 — Full anti-tamper / anti-rebrand security pass
 
 You asked for the app to be "locked down as much as it possibly can".  This release adds nine layered defences that an attacker has to break to repackage or reverse-engineer the APK.  See `SECURITY.md` for the full audit trail.

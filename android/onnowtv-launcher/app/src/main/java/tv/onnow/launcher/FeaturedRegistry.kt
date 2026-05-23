@@ -13,7 +13,7 @@ data class FeaturedState(
 )
 
 object FeaturedRegistry {
-    private val byKey: Map<String, FeaturedState> = mapOf(
+    private val byKey: MutableMap<String, FeaturedState> = mutableMapOf(
         "movies"   to FeaturedState(
             title       = "Movies & TV Shows.",
             tagline     = "Endless stories. Unforgettable moments.",
@@ -53,4 +53,12 @@ object FeaturedRegistry {
     )
 
     fun forKey(key: String): FeaturedState = byKey[key] ?: byKey.getValue("livetv")
+
+    /** Replace the accent colour for one section without changing
+     *  its title / tagline / description.  Called by MainActivity
+     *  when the admin updates accents via the dashboard. */
+    fun overrideAccent(key: String, argb: Int) {
+        val cur = byKey[key] ?: return
+        byKey[key] = cur.copy(accentArgb = argb)
+    }
 }

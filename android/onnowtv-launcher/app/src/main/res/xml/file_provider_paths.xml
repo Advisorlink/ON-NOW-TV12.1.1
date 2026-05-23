@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider paths for ApkInstaller — exposes:
+    • the app cache directory (where we download APKs)
+    • internal files (for any future config exports / logs)
+
+  The `external-cache-path` entry covers boxes that route
+  `cacheDir` to /sdcard/Android/data/.../cache rather than the
+  internal partition.
+-->
+<paths>
+    <cache-path  name="apk_cache"           path="downloads/" />
+    <cache-path  name="apk_cache_root"      path="." />
+    <external-cache-path name="external_apk_cache" path="downloads/" />
+    <files-path  name="launcher_files"      path="." />
+</paths>

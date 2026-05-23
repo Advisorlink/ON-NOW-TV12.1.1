@@ -60,6 +60,28 @@
             </intent-filter>
         </activity>
 
+        <!-- Apps drawer — opened from the dock's "Apps" tile.
+             Lists APKs the admin curated in /api/admin/apks. -->
+        <activity
+            android:name=".apps.AppsDrawerActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
+        <!-- FileProvider — exposes the downloaded APK files in cache
+             dir so the system package installer can read them on
+             Android N+. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
+
     </application>
 
 </manifest>
