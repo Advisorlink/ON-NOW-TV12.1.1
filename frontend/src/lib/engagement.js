@@ -252,3 +252,18 @@ export function resetEngagement() {
         installedAt: state.installedAt || nowIso(),
     });
 }
+
+/**
+ * Manually trigger a nudge for testing.  Bypasses the 3-day grace,
+ * the 7-day spacing, the per-feature toggle, and the once-per-session
+ * gate.  Does NOT call `markNudgeShown` so the real 7-day cool-down
+ * isn't burned by a preview.
+ */
+export function previewNudge(key) {
+    if (!key) return;
+    try {
+        window.dispatchEvent(new CustomEvent('vesper:nudge-preview', { detail: { key } }));
+    } catch {
+        /* CustomEvent not supported (unlikely on Chrome WebView 52+) */
+    }
+}

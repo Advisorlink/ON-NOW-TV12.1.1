@@ -28,6 +28,7 @@ import {
     setMasterEnabled,
     setFeatureEnabled,
     resetEngagement,
+    previewNudge,
 } from '@/lib/engagement';
 
 /**
@@ -1957,14 +1958,45 @@ function TipsPanel() {
                                 ? 'Tip is hidden'
                                 : 'Tip is active';
                     return (
-                        <ToggleRow
+                        <div
                             key={f.key}
-                            testid={`tips-feature-${f.key}`}
-                            title={f.name}
-                            description={sub}
-                            value={effectivelyOn}
-                            onToggle={() => handlePerFeature(f.key)}
-                        />
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr auto',
+                                alignItems: 'center',
+                                gap: 12,
+                            }}
+                        >
+                            <ToggleRow
+                                testid={`tips-feature-${f.key}`}
+                                title={f.name}
+                                description={sub}
+                                value={effectivelyOn}
+                                onToggle={() => handlePerFeature(f.key)}
+                            />
+                            <button
+                                data-testid={`tips-preview-${f.key}`}
+                                data-focusable="true"
+                                onClick={() => previewNudge(f.key)}
+                                title="Show this tip now (for testing)"
+                                style={{
+                                    background: 'transparent',
+                                    color: 'var(--vesper-blue)',
+                                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.36)',
+                                    borderRadius: 999,
+                                    padding: '9px 16px',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    letterSpacing: 0.5,
+                                    textTransform: 'uppercase',
+                                    cursor: 'pointer',
+                                    marginBottom: 8,
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Preview
+                            </button>
+                        </div>
                     );
                 })}
             </div>

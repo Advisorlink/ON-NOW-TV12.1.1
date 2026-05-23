@@ -12,6 +12,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bookmark, UserRound, Clock, Sparkles, UsersRound, X } from 'lucide-react';
 import {
+    NUDGE_FEATURES,
     pickNextNudge,
     markNudgeShown,
     snoozeNudge,
@@ -37,6 +38,7 @@ export default function FeatureNudge() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const [nudge, setNudge] = useState(null);
+    const [isPreview, setIsPreview] = useState(false);
 
     /* Only consider showing on the Home route — feels weird to pop a
        nudge while the user is mid-search or mid-playback. */
@@ -51,9 +53,27 @@ export default function FeatureNudge() {
             SESSION_SHOWN = true;
             markNudgeShown(next.key);
             setNudge(next);
+            setIsPreview(false);
         }, 6000);
         return () => clearTimeout(timer);
     }, [onHome]);
+
+    /* Preview path — fired by Settings → Tips → "Preview".  Bypasses
+       all gates (3-day grace, 7-day spacing, once-per-session) and
+       does NOT mark the nudge as shown, so the real cool-down isn't
+       affected by a test fire.  Works on ANY route, not just Home. */
+    useEffect(() => {
+        const handler = (e) => {
+            const key = e?.detail?.key;
+            if (!key) return;
+            const feature = NUDGE_FEATURES.find((f) => f.key === key);
+            if (!feature) return;
+            setNudge(feature);
+            setIsPreview(true);
+        };
+        window.addEventListener('vesper:nudge-preview', handler);
+        return () => window.removeEventListener('vesper:nudge-preview', handler);
+    }, []);
 
     if (!nudge) return null;
 
@@ -64,11 +84,11 @@ export default function FeatureNudge() {
         navigate(nudge.actionPath);
     };
     const handleLater = () => {
-        snoozeNudge(nudge.key);
+        if (!isPreview) snoozeNudge(nudge.key);
         setNudge(null);
     };
     const handleMute = () => {
-        muteNudgeForever(nudge.key);
+        if (!isPreview) muteNudgeForever(nudge.key);
         setNudge(null);
     };
 
@@ -161,7 +181,7 @@ export default function FeatureNudge() {
                                 marginBottom: 4,
                             }}
                         >
-                            A quick tip
+                            {isPreview ? 'Preview · A quick tip' : 'A quick tip'}
                         </div>
                         <div
                             style={{
