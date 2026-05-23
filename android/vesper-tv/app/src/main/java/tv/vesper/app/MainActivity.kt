@@ -138,6 +138,31 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        /* v2.7.86 — One-time migration: force ExoPlayer as the
+           player backend on first launch of this build for users
+           whose phone has somehow ended up on LibVLC despite the
+           default being ExoPlayer (most likely because a previous
+           Settings tap stuck in SharedPreferences).
+           Watch Together stream-sync only works on ExoPlayer, so
+           an accidental LibVLC pref breaks the party-sync
+           feature. Marker pref ensures this only runs once — the
+           user can still opt back to LibVLC via Settings.        */
+        run {
+            val mig = getSharedPreferences("onnowtv-migrations", MODE_PRIVATE)
+            val key = "force_exo_v2_7_86"
+            if (!mig.getBoolean(key, false)) {
+                getSharedPreferences("vesper_player", MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, true)
+                    .apply()
+                mig.edit().putBoolean(key, true).apply()
+                android.util.Log.i(
+                    "VesperMain",
+                    "v2.7.86 migration: forced player backend → ExoPlayer (once)"
+                )
+            }
+        }
+
         // Detect Android TV vs phone via the LEANBACK system feature.
         // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
         // AOSP boxes that don't always declare leanback but DO ship

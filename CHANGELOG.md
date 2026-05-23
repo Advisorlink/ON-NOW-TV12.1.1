@@ -7,9 +7,11 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
-## v2.7.86 — Mobile scroll-over-poster finally fixed
+## v2.7.86 — Mobile scroll-over-poster + ExoPlayer-forced migration
 
-Replaced `touch-action: manipulation` with `touch-action: pan-x pan-y` on all tappable elements in mobile mode.  Samsung Internet (and some Chrome WebView builds) treat `manipulation` on a button as "this element captures the touch", which was blocking the parent page from scrolling vertically whenever the user's finger landed on a poster.  Switching to explicit `pan-x pan-y` allows the page to handle both axes of panning through the button, so vertical swipes with the finger on a tile now scroll the page natively.  Modern Chrome already kills the 300 ms double-tap-zoom delay when the viewport meta is `width=device-width` (we set this in `public/index.html`), so we don't lose anything by removing `manipulation`.
+**1. Mobile vertical scroll over poster covers** — finally working.  Replaced `touch-action: manipulation` with `touch-action: pan-x pan-y` on all tappable elements in mobile mode.  Samsung Internet (and some Chrome WebView builds) treat `manipulation` on a button as "this element captures the touch", which was blocking the parent page from scrolling vertically whenever the user's finger landed on a poster.  Switching to explicit `pan-x pan-y` allows the page to handle both axes of panning through the button, so vertical swipes with the finger on a tile now scroll the page natively.  Modern Chrome already kills the 300 ms double-tap-zoom delay when the viewport meta is `width=device-width` (we set this in `public/index.html`), so we don't lose anything by removing `manipulation`.
+
+**2. One-time ExoPlayer migration** — User reported that on their phone the player was still launching LibVLC even though ExoPlayer has been the default since v2.7.40.  The cause is sticky SharedPreferences (a previous Settings tap to "LibVLC" persisted across APK updates).  Watch Together stream-sync only works on ExoPlayer, so an accidental LibVLC pref breaks the party-sync feature entirely.  Added a marker-pref migration in `MainActivity.onCreate` (`onnowtv-migrations:force_exo_v2_7_86`) that runs ONCE, force-resets the player backend to ExoPlayer, and never re-fires after that.  Users who genuinely prefer LibVLC can still opt back via Settings → Video player → LibVLC.
 
 ---
 
