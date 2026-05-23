@@ -105,7 +105,11 @@
     public static final ** CREATOR;
 }
 
-# Tamper-detection helper — accessed reflectively via the Application
-# `onCreate` path; keep the class so obfuscation can't rename the
-# entry point we need on every cold start.
--keep class tv.vesper.app.security.IntegrityGuard { *; }
+# v2.7.82 red-team finding: IntegrityGuard is called DIRECTLY from
+# OnNowApplication.onCreate() — NOT via reflection.  The old keep
+# rule was an over-cautious carry-over that defeated the obfuscation
+# pass on the security class itself.  Removed in v2.7.82 so R8 will
+# rename `IntegrityGuard` to `a.b.c` like every other class.  An
+# attacker can no longer locate the security code by grepping for
+# "IntegrityGuard" or "signingCertMatches" in the obfuscated DEX.
+#-keep class tv.vesper.app.security.IntegrityGuard { *; }
