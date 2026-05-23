@@ -885,6 +885,15 @@ body[data-platform="mobile"] .vesper-shelf {
 body[data-platform="mobile"] .vesper-shelf-section h2 {
     font-size: clamp(18px, 5vw, 22px) !important;
 }
+/* v2.7.84 — On mobile the parent ShelfPage wrapper is removed (no
+   forced viewport-height + flex-end), so the shelf-section's own
+   padding is the only spacing between rails.  Trim the per-section
+   vertical padding so we don't get oversized gaps between shelves
+   on a phone — feels much closer to a Netflix-style feed. */
+body[data-platform="mobile"] .vesper-shelf-section {
+    padding-top: 6px !important;
+    padding-bottom: 4px !important;
+}
 
 /* Empty-addons banner uses inline margins keyed off the SideNav
    inset — collapse them on mobile. */
@@ -954,7 +963,12 @@ body[data-platform="mobile"] [data-testid="library-page"] .grid[style*="1.1fr 1f
 body[data-platform="mobile"] [data-testid="search-page"] main {
     padding: 24px 14px 96px 14px !important;
 }
-
+/* On mobile the TVKeyboard renders a native <input> + a "Continue"
+   submit button.  The TV "Search" submit button below it is then
+   redundant — hide it on phones so the page collapses to one CTA. */
+body[data-platform="mobile"] [data-testid="search-submit"] {
+    display: none !important;
+}
 /* ---- WATCH TOGETHER ----
    Top-level <main> uses paddingLeft clamp(140px…) reserving room for
    the SideNav.  Collapse to phone-friendly 16 px. */
@@ -1033,12 +1047,44 @@ body[data-platform="mobile"] [data-focusable='true'][data-pressed='true'] {
 body[data-platform="mobile"] [data-focusable='true'][data-pressed='true']::after {
     display: none !important;
 }
+/* v2.7.84 — Kill the hold-glow animation on mobile entirely.  On
+   touch, even a brief finger-down before a vertical scroll
+   triggers the 700 ms grow-ring animation — looking like the tile
+   is "highlighting itself" while the user is just trying to
+   scroll the page.  The useLongPress hook now defers `start()` by
+   130 ms on touch so the attribute is rarely set anyway, but this
+   keeps the visual completely clean on any edge case. */
+body[data-platform="mobile"] [data-focusable='true'][data-holding='true'] {
+    animation: none !important;
+    box-shadow: none !important;
+}
 /* And kill all focus glow on touch — the system already provides
    a tap highlight that's more familiar to mobile users. */
 body[data-platform="mobile"] [data-focusable='true'][data-focused='true']:not(button),
 body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
     transform: none !important;
     box-shadow: none !important;
+}
+
+/* v2.7.84 — Snappier tap on mobile.  `touch-action: manipulation`
+   tells the browser to skip the 300 ms double-tap-zoom delay AND
+   never treat a touch as a tap-zoom gesture, so tap latency drops
+   from ~300 ms to ~16 ms.  Critical for shelves & nav rows.
+   We DO NOT set `touch-action: pan-y` because that would block
+   horizontal scroll on the .vesper-shelf row — we still want the
+   row to scroll left/right under the user's finger. */
+body[data-platform="mobile"] [data-focusable='true'],
+body[data-platform="mobile"] button,
+body[data-platform="mobile"] a[role='button'] {
+    touch-action: manipulation;
+}
+/* But the horizontally-scrolling shelf row must allow BOTH axes —
+   horizontal scroll of the row + vertical scroll of the parent
+   page.  Default `auto` does that; we make it explicit so nothing
+   downstream overrides it. */
+body[data-platform="mobile"] .vesper-shelf {
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* TV Hero billboard's hero list-button ("My List") — push it onto a
@@ -1153,6 +1199,135 @@ body[data-platform="mobile"] [data-testid="profile-step-theme"] [class*="grid-co
 body[data-platform="mobile"] [data-testid="xtream-login"] {
     padding: 24px 16px calc(96px + env(safe-area-inset-bottom, 0px)) 16px !important;
     max-width: 100% !important;
+}
+/* v2.7.84 — Sources page <main> has hard-coded `paddingLeft: 180px`
+   in its inline styles to clear the desktop SideNav rail.  On a
+   390 px Samsung phone that leaves only ~130 px for content,
+   producing the "text squeezed into a column" the user reported.
+   Override the inline padding via the high-specificity attribute
+   selector so we claim the full viewport width. */
+body[data-platform="mobile"] [data-testid="sources-page"] main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 24px !important;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+body[data-platform="mobile"] [data-testid="sources-page"] h1 {
+    font-size: clamp(28px, 8vw, 38px) !important;
+}
+body[data-platform="mobile"] [data-testid="sources-page"] p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    max-width: 100% !important;
+}
+
+/* ============================================================
+   v2.7.84 — ONBOARDING TOUR — mobile layout
+   ============================================================
+   The desktop / TV onboarding overlay is built as a side-by-side
+   2-column hero: LEFT = copy + nav buttons, RIGHT = animated
+   "scene" mockup at clamp(320px, 32vw, 540px) wide.  On a 390 px
+   Samsung phone the scene column eats 82 % of the viewport,
+   squeezing the left copy into ~70 px and making text wrap on
+   every word.  The block below collapses the layout to a single
+   column on mobile, hides the scene entirely (it's eye-candy,
+   not content), and resizes the headings + buttons for thumb-
+   friendly tapping. */
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] {
+    /* Allow the page to scroll if the content (esp. fingerless
+       button row + progress bar) outgrows the viewport on small
+       phones in landscape. */
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.relative.flex {
+    flex-direction: column !important;
+    gap: 24px !important;
+    padding: clamp(72px, 12vw, 96px) 20px 32px 20px !important;
+    align-items: stretch !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.relative.flex > div.shrink-0 {
+    /* Hide the right-side animated scene on phones — it doesn't
+       add comprehension at small sizes and the copy alone is
+       enough. */
+    display: none !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] h1 {
+    font-size: clamp(28px, 8vw, 36px) !important;
+    margin-bottom: 14px !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    margin-bottom: 22px !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-skip"] {
+    /* Top-right skip pill — keep above the safe-area top inset. */
+    top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+    right: 14px !important;
+}
+/* The "On Now TV · Welcome tour" eyebrow in the top-left wraps to
+   two lines on narrow phones — hide it.  The skip button is
+   self-explanatory. */
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.absolute.vesper-mono {
+    display: none !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] [data-testid="onboarding-next"],
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] [data-testid="onboarding-prev"] {
+    min-height: 48px;
+    font-size: 15px !important;
+}
+
+/* ============================================================
+   v2.7.84 — DETAIL page · Mobile play CTA + hero
+   ============================================================ */
+body[data-platform="mobile"] [data-testid="detail-page"] {
+    /* Reserve room for the bottom-nav so the last paragraph isn't
+       eaten by the tab bar. */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+/* Coming Soon modal on mobile — let it use full width comfortably. */
+body[data-platform="mobile"] [data-testid="detail-notify-modal"] {
+    width: calc(100vw - 32px) !important;
+    max-width: 380px !important;
+    padding: 28px 22px !important;
+}
+
+/* ============================================================
+   v2.7.84 — Hero "press & hold" hint copy on touch
+   ============================================================
+   The Library + Detail pages have small "Press & hold OK" hints
+   to teach the long-press → Add-to-list flow.  On a phone there
+   is no OK button — replace with thumb-friendly copy.  We DON'T
+   touch the JSX (which would also change TV); we just hide the
+   OK-keycap glyphs in mobile mode.  Each hint already wraps the
+   "OK" text in a styled <span class="kbd"> or similar; we hide
+   `[data-touch-hide]` siblings via inline marker so the hint copy
+   gracefully degrades. */
+body[data-platform="mobile"] [data-touch-hide="true"] {
+    display: none !important;
+}
+
+/* ============================================================
+   v2.7.84 — PERSON page (actor / director) — mobile collapse
+   ============================================================
+   Desktop hero is a 2-column grid (`minmax(0,1fr) 320px`) with a
+   320 px sticky filmography sidebar on the right.  On a 390 px
+   phone the right column eats 80 % of width and the headshot/copy
+   collapses.  Stack to single column and drop the sticky sidebar
+   into normal flow below the bio. */
+body[data-platform="mobile"] [data-testid="person-hero"] > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    padding: 16px 16px 20px 16px !important;
+    gap: 18px !important;
+    height: auto !important;
+}
+body[data-platform="mobile"] [data-testid="person-hero"] {
+    height: auto !important;
+    min-height: 280px;
+}
+body[data-platform="mobile"] [data-testid="person-page"] {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 /* ============================================================

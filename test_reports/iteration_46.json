@@ -1,0 +1,39 @@
+{
+  "summary": "Iter 46 — Mobile responsiveness pass verified. All 19 listed mobile checks pass on 390x844 viewport with ?mobile=1; TV experience at 1920x1080 confirmed UNCHANGED (data-platform='tv', scrollSnapType='y mandatory' on shelves-region). No critical issues found. Minor visual deviations from spec are noted (hero ~54vh vs spec 62vh, Library padding 14px vs spec 16px, Settings theme cards 2-col vs spec 1-col) — all are visually acceptable on Samsung-size phones.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home mobile hero", "issues": ["Hero billboard renders at 460px tall on 844px viewport (~54vh). Spec called for ~62vh. Visually fine but slightly shorter than target — only flagging because user mentioned 'stretched out' before fix; current state may be the intended correction, just under target."]},
+      {"screen": "Settings mobile", "issues": ["Theme cards display in 2-column grid on 390px viewport rather than single column as listed in spec. Cards are still tappable and readable, no overflow — acceptable but does not match the literal 'stack in single column' wording."]},
+      {"screen": "Library mobile", "issues": ["Main container padding-left=14px on mobile (spec said ~16px). 2px difference, negligible."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Bump mobile Hero height target from ~54vh to ~62vh if the bigger billboard is desired — current size is comfortable but smaller than spec.",
+    "(Optional) Decide whether Settings theme cards should force 1-col on phones or keep current responsive 2-col grid (current looks fine on 390px Samsung).",
+    "No code fix required for blocking bugs — all critical functional checks pass."
+  ],
+  "critical_code_review_comments": [
+    "useIsMobile sessionStorage override verified working: navigated from /?mobile=1 to /search (no query param) and data-platform stayed 'mobile' — sticky persistence is correct.",
+    "useLongPress touch-confirm deferral verified: dispatched touchstart -> touchmove 100px within 50ms (under the 130ms threshold). No element acquired a holding/long-press CSS class and the original poster class string was unchanged after the gesture. Vertical scroll-grab regression appears fixed.",
+    "ShelfPage mobile branch confirmed: getComputedStyle(shelves-region).scrollSnapType returns 'none' on mobile and 'y mandatory' on desktop/TV — the isMobile-prop pass-through to ShelfPage at Home.jsx ~L420-440 is doing its job; TV pagination is preserved.",
+    "Onboarding mobile collapse confirmed: overlay renders single-column with no scene panel, headline + body + Back/Next + Skip all fit inside 390x844 with zero horizontal overflow on Step 1 of 15.",
+    "Bottom nav contract verified: 5 tabs (Home, Search, Live, Library, More); More opens a bottom-sheet with Sports Guide, TV Shows, Movies, Watch Together, Profiles, Sources, Settings — matches PRD exactly.",
+    "Sources page mobile padding-left correctly drops from desktop's 180px — verified main computed paddingLeft=0px and 'Add by URL' button is now reachable without scrolling sideways. Previous 'squeezed column' regression is fixed.",
+    "Single-tap-to-navigate path works: clicking a poster on /?mobile=1 navigates to /title/movie/<imdb> in <2s. No accidental long-press triggered by quick clicks."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only request)",
+    "frontend": "19/19 functional checks PASS. 3 minor cosmetic deviations from spec wording (hero vh, settings col count, library px) — none block usability."
+  },
+  "test_credentials": "Seeded localStorage: onnowtv-profiles-v1 with single 'Mobile' profile (id=test-mob), onnowtv-active-profile-v1=test-mob, vesper-onboarding-seen-v1=1 (cleared for onboarding test), sessionStorage vesper-mobile-override=1.",
+  "seed_data_creation": "Profile seed JSON injected via page.add_init_script before each navigation. Onboarding test cleared vesper-onboarding-seen-v1 to force the tour overlay.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URL: https://rebrand-app-5.preview.emergentagent.com — append ?mobile=1 on first load to force mobile mode (then sessionStorage 'vesper-mobile-override'=1 makes it sticky across SPA navigation). Boot splash is ~6-8 seconds; wait ≥7s after page.goto. data-platform attribute on <body> reliably reflects current mode ('mobile' or 'tv'). Useful selectors: [data-testid='shelves-region'] for snap check, [data-testid='mobile-bottom-nav'] for bottom tabs, [data-testid='mobile-nav-search'|'mobile-nav-library'|'mobile-nav-more'] for tab clicks, [data-testid='onboarding-overlay'] for tour. Note: Playwright touchscreen.tap requires hasTouch context — use page.click() for tap simulation, or dispatch raw TouchEvent via page.evaluate (works for verifying useLongPress behaviour). For TV mode test, set viewport 1920x1080 AND clear sessionStorage 'vesper-mobile-override' AND don't include ?mobile=1.",
+  "rca of the issue": "Not a bug fix — this iteration verified a mobile-polish feature pass. All four core fixes from the request are confirmed working in production preview: (a) useLongPress 130ms touch-confirm defer prevents highlight on scroll, (b) ShelfPage drops snap on mobile, (c) data-platform mobile CSS overrides (touch-action manipulation, killed data-holding animation, sticky useIsMobile via sessionStorage), (d) mobile overrides for Onboarding/Sources/Search/Person/Settings all render cleanly inside a 390x844 Samsung viewport with no horizontal overflow."
+}

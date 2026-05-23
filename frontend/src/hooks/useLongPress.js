@@ -32,6 +32,13 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
     /* Touch tracking: remember the starting (x,y) so we can detect
        scroll gestures and cancel cleanly without ever firing onTap. */
     const touchStartRef = useRef({ x: 0, y: 0, t: 0, moved: false });
+    /* Touch "confirm-press" timer — on touch we delay the visual
+       hold-glow + long-press countdown by 130 ms so a vertical
+       page-scroll gesture (which starts with finger ON a tile)
+       never paints the glow.  If the user actually intends a
+       press, 130 ms is below human-perception of latency so the
+       feedback still feels instant. */
+    const touchConfirmRef = useRef(null);
 
     useEffect(() => {
         return () => {
@@ -55,6 +62,10 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         if (timerRef.current) {
             clearTimeout(timerRef.current);
             timerRef.current = null;
+        }
+        if (touchConfirmRef.current) {
+            clearTimeout(touchConfirmRef.current);
+            touchConfirmRef.current = null;
         }
         heldRef.current = false;
         if (elRef.current) elRef.current.removeAttribute('data-holding');
@@ -115,6 +126,14 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
          * press timer the moment we detect the finger has moved
          * more than a few pixels in any direction — that's the
          * browser's signal that the user is scrolling, not tapping.
+         *
+         * v2.7.84 — defer the visible hold-glow + long-press countdown
+         * by 130 ms.  Without this, every vertical page-scroll
+         * gesture that happens to start ON a tile would briefly
+         * paint the glow ring (because touchstart fires before the
+         * browser has had a chance to interpret the gesture as a
+         * scroll).  130 ms is below typical human latency
+         * perception so taps still feel instant.
          */
         onTouchStart: (e) => {
             if (e.touches && e.touches.length > 1) return;   // pinch
@@ -125,20 +144,30 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
                 t: Date.now(),
                 moved: false,
             };
-            start();
+            /* Defer the actual press-start.  If the finger moves
+               within 130 ms (= scroll gesture) or the tap releases
+               within 130 ms (= quick tap, handled in onTouchEnd
+               directly), no visual feedback ever paints. */
+            if (touchConfirmRef.current) clearTimeout(touchConfirmRef.current);
+            touchConfirmRef.current = setTimeout(() => {
+                touchConfirmRef.current = null;
+                if (touchStartRef.current.moved) return;
+                start();
+            }, 130);
         },
         onTouchMove: (e) => {
-            /* If the finger has moved more than 8 px in any
+            /* If the finger has moved more than 6 px in any
                direction since touchstart, treat it as a scroll
-               gesture and cancel the long-press + tap intent.
-               iOS / Chrome both use ~10 px as their built-in
-               click-vs-drag threshold; 8 px is a touch tighter
-               and works well on a high-DPI Fold 7 screen. */
+               gesture and cancel any pending press intent.  6 px is
+               a touch tighter than the 8 px we used previously —
+               on a high-DPI Samsung screen even an unintentional
+               finger micro-tremor reads as 4-5 px, so 6 keeps the
+               tap firmly distinct from scroll. */
             const t = e.touches?.[0];
             if (!t) return;
             const dx = (t.clientX || 0) - touchStartRef.current.x;
             const dy = (t.clientY || 0) - touchStartRef.current.y;
-            if (Math.hypot(dx, dy) > 8) {
+            if (Math.hypot(dx, dy) > 6) {
                 touchStartRef.current.moved = true;
                 cancel();
             }
@@ -155,6 +184,18 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
                 /* Pure scroll gesture — neutralise so onTap never
                    fires from a leftover heldRef. */
                 cancel();
+                return;
+            }
+            /* Quick tap that released BEFORE the 130 ms confirm
+               timer ever fired — neither start() nor the long-
+               press timer ever ran.  Manually fire onTap here. */
+            if (touchConfirmRef.current) {
+                clearTimeout(touchConfirmRef.current);
+                touchConfirmRef.current = null;
+                const now = Date.now();
+                if (now - lastReleaseRef.current < 250) return;
+                lastReleaseRef.current = now;
+                if (typeof onTap === 'function') onTap();
                 return;
             }
             release();

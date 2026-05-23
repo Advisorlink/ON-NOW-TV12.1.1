@@ -18,11 +18,13 @@ import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
 import { getEntries as listContinueWatching } from '@/lib/continueWatching';
 import { getViewingStyle } from '@/lib/viewingStyle';
+import useIsMobile from '@/lib/useIsMobile';
 
 export default function Home() {
     useSpatialFocus();
     const { addons } = useAddons();
     const location = useLocation();
+    const isMobile = useIsMobile();
 
     const filter = new URLSearchParams(location.search).get('filter');
     const isFilterView = filter === 'movie' || filter === 'series';
@@ -427,10 +429,19 @@ export default function Home() {
                              * behaviour visible in the user video.
                              * `auto` lets the browser instantly
                              * commit to the snap target on every
-                             * D-pad press. */
+                             * D-pad press.
+                             *
+                             * v2.7.84 — Mobile: disable scroll-snap
+                             * entirely.  The one-shelf-per-viewport
+                             * snap-pagination is a 10-foot TV
+                             * design idiom; on a phone it makes the
+                             * page feel "grabby" / stretched and
+                             * the user can't simply flick through
+                             * shelves naturally.  We keep snap ON
+                             * for desktop / TV. */
                             scrollBehavior: 'auto',
-                            scrollSnapType: 'y mandatory',
-                            scrollSnapStop: 'always',
+                            scrollSnapType: isMobile ? 'none' : 'y mandatory',
+                            scrollSnapStop: isMobile ? 'normal' : 'always',
                             paddingTop: 0,
                             paddingBottom: 0,
                             transform: 'translateZ(0)',
@@ -439,17 +450,17 @@ export default function Home() {
                         }}
                     >
                         {hasCW && (
-                            <ShelfPage height={shelfPageHeight}><ContinueWatchingShelf /></ShelfPage>
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ContinueWatchingShelf /></ShelfPage>
                         )}
                         {hasViewingStyle && (
-                            <ShelfPage height={shelfPageHeight}><ForYouShelf /></ShelfPage>
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ForYouShelf /></ShelfPage>
                         )}
-                        <ShelfPage height={shelfPageHeight}><NetworksShelf /></ShelfPage>
+                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}><NetworksShelf /></ShelfPage>
                         {addons.length === 0 && (
-                            <ShelfPage height={shelfPageHeight}><EmptyAddonsBanner /></ShelfPage>
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><EmptyAddonsBanner /></ShelfPage>
                         )}
                         {shelves.map((shelf, i) => (
-                            <ShelfPage key={shelf.id} height={shelfPageHeight}>
+                            <ShelfPage key={shelf.id} height={shelfPageHeight} isMobile={isMobile}>
                                 <Lazy minHeight={340} eager={i < 3}>
                                     <Shelf shelf={shelf} />
                                 </Lazy>
@@ -461,7 +472,7 @@ export default function Home() {
                             /api/tmdb/upcoming-movies.  Clicking a tile
                             opens Detail (which renders the trailer +
                             "Notify me" CTA when no streams exist). */}
-                        <ShelfPage height={shelfPageHeight}>
+                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}>
                             <Lazy minHeight={340} eager={false}>
                                 <UpcomingMoviesShelf />
                             </Lazy>
@@ -569,20 +580,32 @@ function EmptyAddonsBanner() {
    v2.7.24 — paddingBottom slashed 8 → 0 to push the rows down to
    the very bottom edge of the snap-page per user spec "STOP
    TOUCHING THE HERO SECTION AND JUST MOVE THE ROWS down a tiny
-   bit".  Cards now sit flush at viewport bottom. */
-const ShelfPage = ({ children, height }) => (
+   bit".  Cards now sit flush at viewport bottom.
+   v2.7.84 — On mobile we render the shelf at its NATURAL height
+   (no forced viewport snap), so the page scrolls smoothly through
+   shelves like a normal feed.  The TV layout is untouched. */
+const ShelfPage = ({ children, height, isMobile }) => (
     <div
         data-testid="shelf-page"
-        style={{
-            height,
-            minHeight: height,
-            scrollSnapAlign: 'center',
-            scrollSnapStop: 'always',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            paddingBottom: 0,
-        }}
+        style={
+            isMobile
+                ? {
+                      /* Phones: natural height, no snap.  Just a
+                         small vertical breather between rails. */
+                      paddingTop: 4,
+                      paddingBottom: 8,
+                  }
+                : {
+                      height,
+                      minHeight: height,
+                      scrollSnapAlign: 'center',
+                      scrollSnapStop: 'always',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'flex-end',
+                      paddingBottom: 0,
+                  }
+        }
     >
         {children}
     </div>
