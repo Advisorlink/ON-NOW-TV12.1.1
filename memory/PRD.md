@@ -1,6 +1,10 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.7.78 — First-launch loading screen + full 72 h EPG attached to every channel** (Feb 23, 2026)
+> Latest: **v2.7.84 — Mobile responsiveness pass** (Feb 23, 2026)
+>
+> Comprehensive mobile sweep without touching the TV experience. Fixed (1) Home "stretched" feel from TV scroll-snap pages on phones, (2) vertical scroll over a poster highlighting the tile instead of scrolling the page. `useLongPress` now defers visual feedback by 130ms on touch; `ShelfPage` drops scroll-snap on mobile; comprehensive mobile CSS overrides for Onboarding/Sources/Search/Person. Also patched two CI build errors (Launcher `onNewIntent` non-nullable + Vesper `java.time.Instant` unresolved in Gradle DSL). 19/19 mobile checks PASS; TV viewport verified unchanged.
+>
+> Previous: **v2.7.78 — First-launch loading screen + full 72 h EPG attached to every channel** (Feb 23, 2026)
 >
 > The first-launch boot splash now stays up for up to 90 s while the entire 72-hour EPG (14,158 channels) is cached to the device. The native player reads EPG from a file (filesDir/live_guide/epg.json) instead of SharedPreferences, so multi-MB payloads never get silently truncated by the JS↔Java bridge.
 >

@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.84 — Mobile responsiveness pass + CI build fixes
+
+User reported (verbatim): "all the edits and stuff that we did for the TV, it sort of threw all the mobile phone visuals out … when you swipe up on a cover, it was, like, highlighting it and not letting it move … every page is fully responsive for a mobile phone but also make sure you don't touch anything to do with the TV version because it's perfect."
+
+**Two root causes found:**
+1. **Home "stretched out" on phone** — `ShelfPage` wrapper was forcing each shelf to `scroll-snap-stop: always` at viewport height (TV one-shelf-per-screen design). On 390px phones this looked stretched + felt "grabby".
+2. **Vertical scroll over a poster highlighted the tile** — `useLongPress.onTouchStart` was *immediately* setting `data-holding="true"` → CSS `vesper-hold-grow` glow animation kicked in for the first ~130ms even when the gesture turned out to be a scroll.
+
+**Fixes (all gated to mobile — TV layout untouched):**
+- `useLongPress.js` — added a 130ms touch-confirm timer. If finger moves >6px or releases inside that window, no visual feedback ever paints. Quick taps still fire from `onTouchEnd` immediately.
+- `Home.jsx` — `ShelfPage` now takes `isMobile` prop; on phones it renders natural height with no scroll-snap. TV remains `y mandatory` + `scrollSnapStop: always`.
+- `useIsMobile.js` — sessionStorage-backs the `?mobile=1` override so SPA navigation that drops the query param still keeps the mode active.
+- `index.css` — killed `data-holding` animation on mobile, added `touch-action: manipulation` to all tappable elements, comprehensive mobile padding overrides for Onboarding (collapsed 2-col TV → single col + hid decorative scene), Sources (was paddingLeft:180px desktop, now 16px), Search (hid redundant TV submit btn), Person (collapsed 2-col grid).
+
+**Verification:** Testing agent ran 19 mobile checks — all PASS. TV viewport (1920x1080) confirmed UNCHANGED (data-platform="tv", `scrollSnapType: y mandatory` still active on Home shelves).
+
+**CI build fixes (separate small patches in same iteration):**
+- `MainActivity.kt` (Launcher) — `onNewIntent(intent: Intent?)` → `onNewIntent(intent: Intent)`. Required by activity-ktx 1.9.1 non-nullable parameter signature.
+- `build.gradle.kts` (Vesper) — `java.time.Instant.now().toString()` (unresolved in Gradle Kotlin DSL despite JDK 17) → `System.currentTimeMillis().toString()`. Same purpose (build watermark for forensic attribution), guaranteed-resolvable reference.
+
+---
+
+
 ## v2.7.83 — Red-team pass: closed 4 attack gaps I found while attacking my own work
 
 Self-attack walkthrough of the v2.7.82 hardening pass. I put my reverse-engineer hat on, walked through every step I'd actually take to bypass the security, and closed every gap I found. Full audit at `RED_TEAM_REPORT_v2.7.83.md`.
