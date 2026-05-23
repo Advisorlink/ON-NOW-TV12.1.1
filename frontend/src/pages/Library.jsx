@@ -109,9 +109,18 @@ export default function Library() {
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 background: 'var(--vesper-bg-0)',
+                /* v2.7.85 — Page padding tuned for 1920×1080 TV.  Was
+                   100 / 60 / 48 / 120; the right column + first row
+                   were getting clipped because the focused-tile
+                   transform: scale(1.08) translateY(-2px) plus the
+                   1.5 px outline + 2 px outline-offset = ~10–14 px
+                   overrun beyond the cell.  Bumped paddingRight 60→84
+                   and paddingTop 48→64 so corner / top-row tiles
+                   have room to scale without being snipped by
+                   overflowX: hidden. */
                 paddingLeft: 100,
-                paddingRight: 60,
-                paddingTop: 48,
+                paddingRight: 84,
+                paddingTop: 64,
                 paddingBottom: 120,
             }}
         >
@@ -436,29 +445,30 @@ function Section({
 function CollapsibleGrid({ expanded, children }) {
     return (
         <div
+            className={expanded ? '' : 'vesper-collapsible-grid'}
             style={{
                 position: 'relative',
-                maxHeight: expanded ? 'none' : 'clamp(320px, 28vw, 460px)',
-                overflow: 'hidden',
+                maxHeight: expanded ? 'none' : 'clamp(340px, 28vw, 480px)',
+                /* v2.7.85 — TV fix: switched from `overflow: hidden` to
+                   CSS mask-image so focused-tile scale(1.08)+
+                   translateY(-2px) is NOT clipped at the bottom row.
+                   The mask fades out the bottom 80px the same way
+                   the old gradient overlay did, but the tile can
+                   physically extend past the bounding box without
+                   the browser snipping its corners. */
+                WebkitMaskImage: expanded
+                    ? 'none'
+                    : 'linear-gradient(180deg, #000 0, #000 calc(100% - 80px), rgba(0,0,0,0.22) calc(100% - 30px), rgba(0,0,0,0) 100%)',
+                maskImage: expanded
+                    ? 'none'
+                    : 'linear-gradient(180deg, #000 0, #000 calc(100% - 80px), rgba(0,0,0,0.22) calc(100% - 30px), rgba(0,0,0,0) 100%)',
+                /* Reserve room inside so the focused tile in the
+                   bottom-visible row has space to grow. */
+                paddingBottom: expanded ? 0 : 16,
                 transition: 'max-height 360ms cubic-bezier(.16,1,.3,1)',
             }}
         >
             {children}
-            {!expanded && (
-                <div
-                    aria-hidden="true"
-                    style={{
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: 80,
-                        background:
-                            'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.78) 78%, rgba(6,8,15,0.96) 100%)',
-                        pointerEvents: 'none',
-                    }}
-                />
-            )}
         </div>
     );
 }
@@ -660,13 +670,17 @@ function NotifyRow({ notify, onOpen, onRemove }) {
 }
 
 /* NotifyGrid — Library "Notifications" section.  Each card shows
+   a notification + the next episode air date.                       */
 function NotifyGrid({ items, onOpen, onRemove }) {
     return (
         <div
             className="grid"
             style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                gap: 14,
+                /* v2.7.85 — Match other Library grids for consistent
+                   breathing room around the focused 1.08× scale. */
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: 18,
+                padding: '12px 14px',
             }}
         >
             {items.map((n) => (
@@ -1014,8 +1028,17 @@ function FavouriteGrid({ items, type }) {
         <div
             className="grid"
             style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                gap: 12,
+                /* v2.7.85 — Tile size + gap tuned for 1920×1080 TV.
+                   Was minmax(120px, 1fr) gap 12 — tiles felt tight and
+                   focused-tile scale(1.08) was bumping neighbours.
+                   Bumped tile floor 120→140 and gap 12→18 so the
+                   1.08× expansion has room without overlapping. */
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: 18,
+                /* Inset breathing room so corner tiles (top-left,
+                   top-right, bottom-left, bottom-right) can scale
+                   without being clipped by parent overflow. */
+                padding: '12px 14px',
             }}
         >
             {items.map((it) => (
@@ -1125,8 +1148,12 @@ function ActorGrid({ items }) {
         <div
             className="grid"
             style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                gap: 12,
+                /* v2.7.85 — Match FavouriteGrid: 140 floor, 18 gap,
+                   12 / 14 inset padding so the focused 1.08× scale
+                   has space to render without clipping. */
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: 18,
+                padding: '12px 14px',
             }}
         >
             {items.map((a) => (
