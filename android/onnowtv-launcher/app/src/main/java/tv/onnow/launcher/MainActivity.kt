@@ -1,7 +1,5 @@
 package tv.onnow.launcher
 
-import android.animation.ArgbEvaluator
-import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -16,13 +14,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import tv.onnow.launcher.apps.AppsDrawerActivity
 import tv.onnow.launcher.data.DockTileRemote
 import tv.onnow.launcher.data.LauncherConfig as RemoteLauncherConfig
@@ -36,42 +30,42 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Home screen of the launcher.  Renders the featured panel (kicker /
- * title / tagline / desc / CTA / hero illustration), the 6-tile
- * bottom dock, the top status bar (greeting / logo / date / time)
- * and the vertical paginator.  D-pad navigation is handled by the
- * underlying View focus system; the only custom behaviour is the
- * live featured-panel + accent-colour swap whenever a dock tile
- * gains focus.
+ * Home screen of the launcher — v0.5 stripped-down rebuild.
+ *
+ * The screen is now intentionally minimal:
+ *   - Per-tile wallpaper painted edge-to-edge
+ *   - Top bar with greeting / OnNow TV V2 wordmark / date+time
+ *   - Bottom dock with 1..N tiles (count comes from admin backend)
+ *
+ * No hero illustration.  No featured-panel text (title / tagline /
+ * description / CTA).  No paginator.  The wallpaper is the entire
+ * visual statement; the dock is the entire interaction surface.
+ *
+ * Tile data is fetched from `LauncherRepository` every 30 seconds.
+ * Admin can add / remove / reorder tiles freely; the launcher
+ * renders whatever it gets.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val handler = Handler(Looper.getMainLooper())
-    private val argbEval = ArgbEvaluator()
     private lateinit var repo: LauncherRepository
     private val shownNotificationIds = mutableSetOf<String>()
     private var configPollJob: Job? = null
     private var notifyPollJob: Job? = null
+    private var hasReceivedFirstConfig = false
+    private var currentWallpaperUrl: String? = null
 
-    /* Local fallback dock items.  Used until the first network
-     * /api/launcher/config fetch lands.  Once the admin backend
-     * responds, dock items, accents, target intents and wallpaper
-     * are all driven from the remote payload. */
-    private var dockItems: MutableList<DockItem> = mutableListOf(
-        DockItem("movies",   "Movies & TV Shows", "Stream and enjoy",     R.drawable.ic_dock_film),
-        DockItem("music",    "Music",             "Listen and enjoy",     R.drawable.ic_dock_music),
-        DockItem("livetv",   "Live TV",           "Watch live channels",  R.drawable.ic_dock_tv),
-        DockItem("apps",     "Apps",              "All your apps",        R.drawable.ic_dock_grid),
-        DockItem("browser",  "Browser",           "Surf the web",         R.drawable.ic_dock_globe),
-        DockItem("settings", "Settings",          "System preferences",   R.drawable.ic_dock_gear),
-    )
+    /* Mutable list of tiles rendered in the dock.  Empty on cold
+     * launch — populated as soon as the first config arrives (or
+     * the cached config is loaded from disk). */
+    private val dockItems: MutableList<DockItem> = mutableListOf()
 
-    /* Polling intervals for the live status-bar widgets. */
+    /* Ticking clock for the top bar — updates every 30s. */
     private val clockTick = object : Runnable {
         override fun run() {
             paintClock()
-            handler.postDelayed(this, 30_000)   // tick every 30 s
+            handler.postDelayed(this, 30_000)
         }
     }
 
@@ -84,18 +78,11 @@ class MainActivity : AppCompatActivity() {
 
         bindTopBar()
         bindDock()
-        applyFeatured(dockItems[2])    // Default focus = Live TV (index 2) matches design
 
         // Hydrate from disk cache so the launcher renders the LAST
         // known remote config the moment the user opens it — even on
         // cold start with no network yet.
         repo.loadCached()?.let { onConfigUpdated(it) }
-
-        // Make sure D-pad lands inside the dock on first frame so the
-        // user sees an immediate focus state.
-        binding.dock.post {
-            (binding.dock.findViewHolderForAdapterPosition(2)?.itemView)?.requestFocus()
-        }
     }
 
     override fun onResume() {
@@ -111,14 +98,105 @@ class MainActivity : AppCompatActivity() {
         notifyPollJob?.cancel()
     }
 
-    /* ──────────────────────  Backend polling  ──────────────────── */
+    /* ──────────────────────────  Dock  ───────────────────────── */
+
+    private fun bindDock() {
+        val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        binding.dock.layoutManager = lm
+        val adapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
+        binding.dock.adapter = adapter
+
+        // Listen for focus changes inside the dock so we can swap
+        // the wallpaper as the user navigates between tiles.
+        binding.dock.viewTreeObserver.addOnGlobalFocusChangeListener { _, newFocus ->
+            if (newFocus == null) return@addOnGlobalFocusChangeListener
+            val rv = binding.dock
+            val itemView = rv.findContainingItemView(newFocus) ?: return@addOnGlobalFocusChangeListener
+            val pos = rv.getChildAdapterPosition(itemView)
+            if (pos in dockItems.indices) {
+                applyWallpaperForTile(dockItems[pos])
+            }
+        }
+    }
+
+    /** Walk up from a focused view to the dock RecyclerView's direct
+     *  child (the item view), or null if the focused view isn't a
+     *  descendant. */
+    private fun RecyclerView.findContainingItemView(v: android.view.View): android.view.View? {
+        var p: android.view.View? = v
+        while (p != null && p.parent !== this) {
+            p = p.parent as? android.view.View
+        }
+        return p
+    }
+
+    private fun onTileSelected(item: DockItem) {
+        // 1. If the tile points at a target package + the package is
+        //    installed, launch it directly.
+        val pkg = item.targetPackage
+        if (!pkg.isNullOrBlank()) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+                return
+            }
+        }
+        // 2. If the tile has a target URL, open it in a browser.
+        val url = item.targetUrl
+        if (!url.isNullOrBlank()) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            return
+        }
+        // 3. Built-in shortcuts.
+        if (item.key == "apps") {
+            startActivity(Intent(this, AppsDrawerActivity::class.java))
+            return
+        }
+        if (item.key == "settings") {
+            startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+            return
+        }
+        // 4. Fallback toast.
+        Toast.makeText(
+            this,
+            "Set a target in the Launcher admin for \"${item.label}\".",
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    /* ──────────────────────────  Wallpaper  ───────────────────────── */
+
+    private fun applyWallpaperForTile(item: DockItem) {
+        val url = item.wallpaperUrl
+        if (url == currentWallpaperUrl) return
+        currentWallpaperUrl = url
+        val wallpaperView = binding.tileWallpaper
+        val scrimView = binding.tileWallpaperScrim
+        if (url.isNullOrBlank()) {
+            wallpaperView.animate().alpha(0f).setDuration(280).withEndAction {
+                wallpaperView.visibility = android.view.View.GONE
+            }.start()
+            scrimView.animate().alpha(0f).setDuration(280).withEndAction {
+                scrimView.visibility = android.view.View.GONE
+            }.start()
+            return
+        }
+        ImageLoader.loadBitmap(this, url) { bmp ->
+            if (bmp == null) return@loadBitmap
+            if (currentWallpaperUrl != url) return@loadBitmap
+            wallpaperView.setImageBitmap(bmp)
+            wallpaperView.alpha = 0f
+            wallpaperView.visibility = android.view.View.VISIBLE
+            scrimView.alpha = 0f
+            scrimView.visibility = android.view.View.VISIBLE
+            wallpaperView.animate().alpha(1f).setDuration(360).start()
+            scrimView.animate().alpha(1f).setDuration(360).start()
+        }
+    }
+
+    /* ─────────────────  Network polling / config  ───────────────── */
 
     private fun startBackendPolling() {
-        // v0.4 — Config every 30s (admin layout / wallpaper / APK
-        // changes).  Was 5 min; that was too slow to give a useful
-        // "did my change land?" feedback loop for admin users.
-        // 30s × 6 tiles = ~one network call every 5s on average,
-        // which is fine for any home network.
         configPollJob?.cancel()
         configPollJob = lifecycleScope.launch {
             updateDebugStatus("polling…", false)
@@ -128,14 +206,16 @@ class MainActivity : AppCompatActivity() {
                 if (fresh != null) {
                     onConfigUpdated(fresh)
                     val took = System.currentTimeMillis() - ts
-                    updateDebugStatus("OK · gen ${fresh.generation} · ${took}ms · " + repo.baseUrlPublic(), true)
+                    updateDebugStatus(
+                        "OK · gen ${fresh.generation} · ${took}ms · ${repo.baseUrlPublic()}",
+                        true,
+                    )
                 } else {
-                    updateDebugStatus("NO REACH · " + repo.baseUrlPublic(), false)
+                    updateDebugStatus("NO REACH · ${repo.baseUrlPublic()}", false)
                 }
                 delay(TimeUnit.SECONDS.toMillis(30))
             }
         }
-        // Pending notifications every 30 seconds.
         notifyPollJob?.cancel()
         notifyPollJob = lifecycleScope.launch {
             while (true) {
@@ -145,91 +225,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** v0.4 — Paint the on-screen debug pill so the user can see at a
-     *  glance whether the launcher is reaching the admin backend. */
+    /** Paint the on-screen debug pill.  Auto-hides 5s after the first
+     *  successful poll so it doesn't permanently clutter the UI. */
     private fun updateDebugStatus(msg: String, ok: Boolean) {
         binding.debugStatus.text = msg
         val color = if (ok) 0xFF2EEAC2.toInt() else 0xFFFFB454.toInt()
         binding.debugStatus.setTextColor(color)
-    }
-
-    private suspend fun checkPendingNotifications() {
-        val url = "${LauncherRepository.DEFAULT_BASE_URL}/api/launcher/notifications/pending?device_id=${repo.deviceId}"
-        val pending = withContext(Dispatchers.IO) {
-            try {
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(8, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
-                val req = Request.Builder().url(url).build()
-                client.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return@withContext emptyList<NotificationRemote>()
-                    val body = resp.body?.string() ?: return@withContext emptyList()
-                    val root = org.json.JSONObject(body)
-                    val arr = root.optJSONArray("notifications") ?: return@withContext emptyList()
-                    (0 until arr.length()).mapNotNull { i ->
-                        val o = arr.getJSONObject(i)
-                        NotificationRemote(
-                            id = o.optString("id"),
-                            title = o.optString("title"),
-                            body = o.optString("body"),
-                            imageUrl = o.optString("image_url").ifBlank { null },
-                            createdAt = o.optLong("created_at"),
-                            expiresAt = o.optLong("expires_at"),
-                        )
+        if (ok && !hasReceivedFirstConfig) {
+            hasReceivedFirstConfig = true
+            binding.debugStatus.postDelayed({
+                binding.debugStatus.animate()
+                    .alpha(0f)
+                    .setDuration(600)
+                    .withEndAction {
+                        binding.debugStatus.visibility = android.view.View.GONE
                     }
-                }
-            } catch (_: Throwable) { emptyList<NotificationRemote>() }
-        }
-        for (n in pending) {
-            if (n.id in shownNotificationIds) continue
-            shownNotificationIds.add(n.id)
-            NotificationPopup.show(this, n) {
-                lifecycleScope.launch { repo.ackNotification(n.id) }
-            }
-            // Only show one at a time; next will appear on the
-            // next 30s poll tick.
-            break
+                    .start()
+            }, 5_000)
         }
     }
-
-    /* ────────────────  Remote config applied  ─────────────────── */
 
     private fun onConfigUpdated(config: RemoteLauncherConfig) {
-        if (config.dockTiles.size == 6) {
-            // Swap the 6 dock items in place, propagating the
-            // per-tile image_url + wallpaper_url so the adapter can
-            // render the admin-uploaded JPEGs and applyFeatured()
-            // can swap the fullscreen wallpaper on focus change.
-            val mapped = config.dockTiles.map { t ->
-                DockItem(
-                    key = t.key,
-                    label = t.label,
-                    sub = t.sub,
-                    iconRes = iconResForKey(t.key),
-                    imageUrl = t.imageUrl,
-                    wallpaperUrl = t.wallpaperUrl,
-                )
-            }
-            dockItems.clear()
-            dockItems.addAll(mapped)
-            binding.dock.adapter?.notifyDataSetChanged()
-            // Update per-section accents from remote.
-            for (t in config.dockTiles) {
-                val argb = t.accent?.let { runCatching { Color.parseColor(it) }.getOrNull() }
-                if (argb != null) FeaturedRegistry.overrideAccent(t.key, argb)
-            }
-            // Re-apply currently-focused tile so it picks up new accent
-            // AND the new wallpaper.
-            binding.dock.post {
-                val pos = (binding.dock.layoutManager as? LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
-                applyFeatured(dockItems.getOrNull(pos) ?: dockItems[2])
-            }
+        // v0.5 — Variable tile count (1..N) instead of the old fixed 6.
+        // Build dock items from whatever the backend sends.
+        val mapped = config.dockTiles.map { t ->
+            DockItem(
+                key            = t.key,
+                label          = t.label,
+                sub            = t.sub,
+                iconRes        = iconResForKey(t.key),
+                imageUrl       = t.imageUrl,
+                wallpaperUrl   = t.wallpaperUrl,
+                targetPackage  = t.targetPackage,
+                targetUrl      = t.targetUrl,
+            )
+        }
+        dockItems.clear()
+        dockItems.addAll(mapped)
+        binding.dock.adapter?.notifyDataSetChanged()
+        // Wallpaper for the currently focused (or first) tile.
+        binding.dock.post {
+            val pos = (binding.dock.layoutManager as? LinearLayoutManager)
+                ?.findFirstVisibleItemPosition() ?: 0
+            val tile = dockItems.getOrNull(pos) ?: dockItems.firstOrNull()
+            tile?.let { applyWallpaperForTile(it) }
+            // Auto-focus the first tile so D-pad works immediately.
+            binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }
     }
 
     /** Map a remote dock-tile `key` back to one of our built-in
-     *  vector icons.  Falls back to the TV icon for unknown keys. */
+     *  vector icons.  Falls back to the grid icon for unknown keys. */
     private fun iconResForKey(key: String): Int = when (key) {
         "movies"   -> R.drawable.ic_dock_film
         "music"    -> R.drawable.ic_dock_music
@@ -237,21 +283,34 @@ class MainActivity : AppCompatActivity() {
         "apps"     -> R.drawable.ic_dock_grid
         "browser"  -> R.drawable.ic_dock_globe
         "settings" -> R.drawable.ic_dock_gear
-        else       -> R.drawable.ic_dock_tv
+        else       -> R.drawable.ic_dock_grid
+    }
+
+    /* ─────────────────  Notification polling  ───────────────── */
+
+    private suspend fun checkPendingNotifications() {
+        val pending = repo.fetchPendingNotifications()
+        for (n in pending) {
+            if (n.id in shownNotificationIds) continue
+            shownNotificationIds.add(n.id)
+            showNotificationPopup(n)
+        }
+    }
+
+    private fun showNotificationPopup(n: NotificationRemote) {
+        NotificationPopup.show(this, n) {
+            lifecycleScope.launch { repo.ackNotification(n.id) }
+        }
     }
 
     /* ──────────────────────────  Top bar  ───────────────────────── */
 
     private fun bindTopBar() {
-        // Greeting based on time of day.
         binding.greeting.text = greetingForHour()
-
-        // Branded "OnNow TV V2" wordmark — last 2 chars rendered in
-        // the accent colour with a soft glow to match the reference.
-        binding.logoText.text = applyAccentTo("OnNow TV V2", "V2",
-            color = Color.parseColor("#2BB6FF"))
-
-        // Date + time.
+        binding.logoText.text = applyAccentTo(
+            "OnNow TV V2", "V2",
+            color = Color.parseColor("#2BB6FF"),
+        )
         paintClock()
     }
 
@@ -271,168 +330,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /* ────────────────────────────  Dock  ────────────────────────── */
-
-    private fun bindDock() {
-        binding.dock.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
-        binding.dock.adapter = DockAdapter(
-            items = dockItems,
-            onFocus = { item -> applyFeatured(item) },
-            onSelect = { item -> handleSelect(item) },
-        )
-        // Disable the default item-change animation so the focus
-        // state never visually "snaps" awkwardly when scrolling.
-        binding.dock.itemAnimator = null
-    }
-
-    /* ──────────────────────  Featured panel  ────────────────────── */
-
-    private var currentAccent = 0xFF2BB6FF.toInt()
-    /** Track the current wallpaper URL to skip redundant reloads
-     *  when the user navigates back to the same tile. */
-    private var currentWallpaperUrl: String? = null
-
-    private fun applyFeatured(item: DockItem) {
-        val state = FeaturedRegistry.forKey(item.key)
-
-        // Highlight the period dot at the end of the title in the
-        // accent colour — matches the reference design's signature.
-        val titleSpan = SpannableString(state.title).apply {
-            val periodIdx = state.title.lastIndexOf('.')
-            if (periodIdx >= 0) {
-                setSpan(
-                    ForegroundColorSpan(state.accentArgb),
-                    periodIdx, periodIdx + 1,
-                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
-            }
-        }
-        binding.title.text       = titleSpan
-        binding.tagline.text     = state.tagline
-        binding.description.text = state.description
-
-        // Accent-colour driven elements (kicker, paginator active
-        // segment, CTA arrow) — animate between accents so the swap
-        // feels alive instead of snappy.
-        animateAccent(currentAccent, state.accentArgb)
-        currentAccent = state.accentArgb
-
-        // Swap the hero illustration to match the focused section.
-        binding.heroIllustration.setIllustration(item.key)
-
-        // v0.2 — Swap the fullscreen wallpaper for this tile.  Fade
-        // between wallpapers so focus changes feel cinematic instead
-        // of a hard cut.  When the tile has no wallpaper, fade out
-        // the ImageView so the default aurora shows through.
-        applyWallpaper(item.wallpaperUrl)
-    }
-
-    private fun applyWallpaper(url: String?) {
-        if (url == currentWallpaperUrl) return
-        currentWallpaperUrl = url
-        val wallpaperView = binding.tileWallpaper
-        val scrimView = binding.tileWallpaperScrim
-        if (url.isNullOrBlank()) {
-            // Fade to default aurora.
-            wallpaperView.animate().alpha(0f).setDuration(360).withEndAction {
-                wallpaperView.visibility = android.view.View.GONE
-                scrimView.visibility = android.view.View.GONE
-            }.start()
-            return
-        }
-        ImageLoader.loadBitmap(this, url) { bmp ->
-            if (bmp == null) return@loadBitmap
-            // Avoid stale callback overriding a newer selection.
-            if (currentWallpaperUrl != url) return@loadBitmap
-            wallpaperView.setImageBitmap(bmp)
-            wallpaperView.alpha = 0f
-            wallpaperView.visibility = android.view.View.VISIBLE
-            scrimView.alpha = 0f
-            scrimView.visibility = android.view.View.VISIBLE
-            wallpaperView.animate().alpha(1f).setDuration(360).start()
-            scrimView.animate().alpha(1f).setDuration(360).start()
-        }
-    }
-
-    private fun animateAccent(from: Int, to: Int) {
-        if (from == to) return
-        ValueAnimator.ofObject(argbEval, from, to).apply {
-            duration = 240
-            addUpdateListener { a ->
-                val c = a.animatedValue as Int
-                binding.kicker.setTextColor(c)
-                binding.paginatorActive.setBackgroundColor(c)
-            }
-            start()
-        }
-    }
-
-    /* ──────────────────────────  Routing  ────────────────────────── */
-
-    private fun handleSelect(item: DockItem) {
-        // Routing precedence:
-        //   1. Apps tile → open AppsDrawerActivity.
-        //   2. Remote target_package (admin set) → launch that app.
-        //   3. Remote target_url (admin set) → open in browser.
-        //   4. Fallback toast.
-        if (item.key == "apps") {
-            startActivity(Intent(this, AppsDrawerActivity::class.java))
-            return
-        }
-        // Find the remote tile config (if any) to read target_*.
-        val remote = repo.config.value?.dockTiles?.firstOrNull { it.key == item.key }
-        val pkg = remote?.targetPackage
-        if (!pkg.isNullOrBlank()) {
-            val launch = packageManager.getLaunchIntentForPackage(pkg)
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launch)
-                return
-            }
-            Toast.makeText(this, "${item.label} (app not installed: $pkg)", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val url = remote?.targetUrl
-        if (!url.isNullOrBlank()) {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                return
-            } catch (_: Throwable) { /* no browser → fall through */ }
-        }
-        Toast.makeText(this,
-            "${item.label} — set a target in the Launcher admin",
-            Toast.LENGTH_SHORT).show()
-    }
-
-    /* ──────────────────────  Span helper  ─────────────────────── */
-
-    private fun applyAccentTo(full: String, slice: String, color: Int): SpannableString {
-        val span = SpannableString(full)
-        val idx  = full.indexOf(slice)
-        if (idx >= 0) {
+    /** Apply an accent colour to a substring of the given text. */
+    private fun applyAccentTo(text: String, suffix: String, color: Int): SpannableString {
+        val span = SpannableString(text)
+        val start = text.lastIndexOf(suffix)
+        if (start >= 0) {
             span.setSpan(
                 ForegroundColorSpan(color),
-                idx, idx + slice.length,
+                start,
+                start + suffix.length,
                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
             )
         }
         return span
     }
 
-    /* ─────────────  HOME button = stay on launcher  ───────────── */
+    /* ──────────────────────────  Back / Home  ───────────────────── */
 
+    @Deprecated("Required for Android < 13 — uses platform onBackPressed")
     override fun onBackPressed() {
-        // Suppress BACK on the launcher's root — there's nothing to
-        // go back to.  This is standard launcher behaviour.
+        // Launcher: BACK should never finish the activity (HOME-screen
+        // semantic).  We swallow it.
+        // Don't call super.
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Re-show the dock when the user hits HOME from inside an
-        // app (Android re-fires onNewIntent on the launcher).
         binding.dock.post {
-            (binding.dock.findViewHolderForAdapterPosition(2)?.itemView)?.requestFocus()
+            binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }
     }
 }

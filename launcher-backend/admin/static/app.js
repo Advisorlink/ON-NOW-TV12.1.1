@@ -220,6 +220,12 @@ function renderDock(store) {
                     <span class="key">${escapeAttr(t.key)}</span>
                     <span class="dot" style="background:${escapeAttr(t.accent || '#38B8FF')}"></span>
                 </div>
+                <button class="tile-delete-btn"
+                        data-act="delete-tile"
+                        data-key="${escapeAttr(t.key)}"
+                        ${tiles.length <= 1 ? 'disabled' : ''}
+                        title="Remove this tile from the dock"
+                        aria-label="Delete tile">×</button>
             </div>
             <div class="tile-media">
                 <div class="media-slot">
@@ -352,6 +358,47 @@ function bindDockHandlers() {
                 refreshAll();
             } catch (e) { toast('Failed: ' + e.message, true); }
         });
+    });
+
+    /* v0.5 — Delete an entire tile */
+    $$('#dockList button[data-act="delete-tile"]').forEach((b) => {
+        b.addEventListener('click', async () => {
+            const key = b.dataset.key;
+            if (!confirm(
+                `Remove the "${key}" tile entirely?  Its uploaded image, wallpaper, and APK will also be deleted.  This cannot be undone.`
+            )) return;
+            try {
+                await api(`/api/admin/dock/${encodeURIComponent(key)}`, {
+                    method: 'DELETE',
+                });
+                toast(`Tile "${key}" removed`);
+                refreshAll();
+            } catch (e) { toast('Delete failed: ' + e.message, true); }
+        });
+    });
+}
+
+/* v0.5 — "Add tile" button.  Prompts for a label, creates an empty
+   tile at the end of the dock, refreshes the list. */
+const _addTileBtn = $('#addTile');
+if (_addTileBtn) {
+    _addTileBtn.addEventListener('click', async () => {
+        const label = window.prompt(
+            'Label for the new tile (e.g. "YouTube", "Spotify", "News"):',
+            ''
+        );
+        if (!label || !label.trim()) return;
+        try {
+            await api('/api/admin/dock/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label: label.trim() }),
+            });
+            toast(`Tile "${label.trim()}" added`);
+            refreshAll();
+        } catch (e) {
+            toast('Add failed: ' + e.message, true);
+        }
     });
 }
 

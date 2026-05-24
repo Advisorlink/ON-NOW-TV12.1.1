@@ -3,21 +3,25 @@ package tv.onnow.launcher
 import androidx.annotation.DrawableRes
 
 /**
- * One row in the bottom dock.  6 of these render in MainActivity's
- * RecyclerView; their order + labels + sub-labels + target intents
- * will eventually come from the backend (Phase 2).
+ * v0.5 — One dock tile rendered in the bottom row of the launcher.
+ *
+ * Fields driven by the admin backend:
+ *   - imageUrl       : JPEG card art (replaces iconRes when set)
+ *   - wallpaperUrl   : fullscreen background when this tile is focused
+ *   - targetPackage  : Android package to launch on tap
+ *   - targetUrl      : URL to open in browser on tap (if no package)
+ *
+ * `iconRes` is the built-in fallback vector drawn when no imageUrl
+ * is set — typically used for the 6 default tiles (movies / music /
+ * livetv / apps / browser / settings).
  */
 data class DockItem(
-    val key: String,                 // stable id: "movies" | "music" | "livetv" | "apps" | "browser" | "settings"
-    val label: String,               // "Live TV"
-    val sub: String,                 // "Watch live channels"
+    val key: String,
+    val label: String,
+    val sub: String,
     @DrawableRes val iconRes: Int,
-    /* v0.2 — Per-tile image (JPEG) uploaded via the admin backend.
-       Replaces the built-in vector icon when set.  Null = use
-       iconRes vector. */
     val imageUrl: String? = null,
-    /* v0.2 — Per-tile wallpaper.  Painted as fullscreen background
-       when this tile is the focused one.  Null = use the default
-       aurora glow. */
     val wallpaperUrl: String? = null,
+    val targetPackage: String? = null,
+    val targetUrl: String? = null,
 )

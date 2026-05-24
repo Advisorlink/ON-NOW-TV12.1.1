@@ -440,8 +440,13 @@ def get_full_store() -> dict:
 
 @app.post("/api/admin/dock", dependencies=[Depends(require_admin)])
 def set_dock(dock_tiles: list[DockTile]) -> dict:
-    if len(dock_tiles) != 6:
-        raise HTTPException(400, "Exactly 6 dock tiles required")
+    """v0.5 — Variable tile count (1..12).  Was fixed at exactly 6."""
+    if not 1 <= len(dock_tiles) <= 12:
+        raise HTTPException(400, "Between 1 and 12 dock tiles allowed")
+    # Keys must be unique within the dock.
+    keys = [t.key for t in dock_tiles]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(400, "Tile keys must be unique")
     store = _load_store()
     # Preserve per-tile image_url / wallpaper_url / apk_url across this
     # save — those are managed by separate upload endpoints and the
@@ -467,6 +472,72 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
         d.pop("icon_url", None)  # deprecated; never persist
         new_dock.append(d)
     store["dock_tiles"] = new_dock
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"]}
+
+
+# ── v0.5 — Add / Remove individual tiles ─────────────────────────
+def _gen_unique_key(existing_keys: set[str], base: str = "tile") -> str:
+    if base not in existing_keys:
+        return base
+    i = 2
+    while f"{base}-{i}" in existing_keys:
+        i += 1
+    return f"{base}-{i}"
+
+
+@app.post("/api/admin/dock/add", dependencies=[Depends(require_admin)])
+def add_dock_tile(payload: dict | None = None) -> dict:
+    """Append a fresh tile to the end of the dock.  Optional payload:
+       { key, label, sub, target_package, target_url, accent }.
+       Any field can be omitted — sensible defaults applied."""
+    store = _load_store()
+    tiles = store.get("dock_tiles", [])
+    if len(tiles) >= 12:
+        raise HTTPException(400, "Dock is full (max 12 tiles)")
+    existing_keys = {t["key"] for t in tiles}
+    p = payload or {}
+    label = (p.get("label") or "New Tile").strip() or "New Tile"
+    # Derive a stable key from the requested key or from the label.
+    requested = (p.get("key") or label).strip().lower().replace(" ", "-")
+    safe = "".join(c for c in requested if c.isalnum() or c in {"-", "_"}) or "tile"
+    key = _gen_unique_key(existing_keys, safe)
+    new_tile = {
+        "key": key,
+        "label": label,
+        "sub": (p.get("sub") or "").strip(),
+        "image_url": None,
+        "wallpaper_url": None,
+        "apk_url": None,
+        "apk_filename": None,
+        "apk_package_id": None,
+        "apk_version": None,
+        "target_package": (p.get("target_package") or "").strip() or None,
+        "target_url": (p.get("target_url") or "").strip() or None,
+        "accent": (p.get("accent") or "").strip() or None,
+    }
+    tiles.append(new_tile)
+    store["dock_tiles"] = tiles
+    _save_store(store)
+    return {"ok": True, "tile": new_tile, "generation": store["generation"]}
+
+
+@app.delete("/api/admin/dock/{key}", dependencies=[Depends(require_admin)])
+def delete_dock_tile(key: str) -> dict:
+    """Remove a single tile from the dock by key.  Also cleans up the
+    tile's uploaded JPEG / wallpaper / APK files from disk."""
+    store = _load_store()
+    tiles = store.get("dock_tiles", [])
+    if len(tiles) <= 1:
+        raise HTTPException(400, "Dock must have at least 1 tile")
+    tile = next((t for t in tiles if t["key"] == key), None)
+    if tile is None:
+        raise HTTPException(404, f"unknown tile key: {key}")
+    # Delete any uploaded assets for this tile.
+    _delete_tile_asset_file(tile.get("image_url"))
+    _delete_tile_asset_file(tile.get("wallpaper_url"))
+    _delete_tile_asset_file(tile.get("apk_url"))
+    store["dock_tiles"] = [t for t in tiles if t["key"] != key]
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 

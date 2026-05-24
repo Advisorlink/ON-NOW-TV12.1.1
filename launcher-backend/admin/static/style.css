@@ -210,6 +210,27 @@ header nav { display: flex; gap: 8px; align-items: center; }
     opacity: 0.3;
     cursor: not-allowed;
 }
+.tile-delete-btn {
+    background: transparent;
+    color: var(--txt-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 120ms, border-color 120ms, background 120ms;
+}
+.tile-delete-btn:not(:disabled):hover {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: rgba(255, 85, 115, 0.06);
+}
+.tile-delete-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
 
 .tile-media {
     display: grid;
