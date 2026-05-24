@@ -1,5 +1,5 @@
 {
-  "generation": 19,
+  "generation": 22,
   "dock_tiles": [
     {
       "key": "music",
@@ -103,6 +103,11 @@
       "device_id": "manual-test-from-server",
       "last_seen": 1779629098,
       "last_generation": 19
+    },
+    "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
+      "device_id": "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1",
+      "last_seen": 1779630603,
+      "last_generation": 22
     }
   }
 }
