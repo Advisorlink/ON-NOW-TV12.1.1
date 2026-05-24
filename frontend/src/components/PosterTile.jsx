@@ -65,13 +65,20 @@ export default function PosterTile({ item, onSelect }) {
                 aspectRatio: '2 / 3',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
-                // Buffer above/below the tile when D-pad nav
-                // scrollIntoView()s onto it — without this the
-                // focus-scale transform on the first-shelf row
-                // sometimes lands at the very bottom of the
-                // scroll viewport and clips the tile's bottom
-                // edge.  20 px matches the focus ring + scale
-                // overflow.
+                /* v2.7.88 — INLINE touch-action so a finger drag
+                   across the poster doesn't capture the gesture.
+                   We've tried gating this via CSS at the body
+                   (`data-platform="mobile"`) and via media-query
+                   (`pointer: coarse`) — both got overridden by
+                   downstream component CSS on the user's Samsung
+                   WebView.  Inline style on the element itself
+                   has the highest specificity short of a
+                   stylesheet `!important` and CANNOT be
+                   overridden by any CSS rule, so this is the
+                   final say on touch behaviour.  TVs (D-pad
+                   only) never fire touch events so this is a
+                   no-op there. */
+                touchAction: 'pan-x pan-y',
                 scrollMarginTop: 24,
                 scrollMarginBottom: 24,
                 // GPU compositing only.  IMPORTANT: do NOT add

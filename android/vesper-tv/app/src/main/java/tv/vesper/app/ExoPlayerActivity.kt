@@ -933,17 +933,17 @@ class ExoPlayerActivity : ComponentActivity() {
 
         @Suppress("unused")
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {
-            val prefs = ctx.getSharedPreferences(
-                "vesper_player", android.content.Context.MODE_PRIVATE
+            // v2.7.88 — UNCONDITIONAL ExoPlayer.  User reports v2.7.87
+            // still launches LibVLC on a clean install despite the
+            // explicit-opt-out logic.  At this point we hard-code
+            // ExoPlayer to prove the play path works.  When we
+            // re-enable LibVLC as a user option in a future build,
+            // we'll restore the pref check here.
+            android.util.Log.i(
+                "VesperExo",
+                "shouldUseExoPlayer: returning true (v2.7.88 hard-coded)"
             )
-            // v2.7.87 — ExoPlayer is now the unconditional default.
-            // Only honour an old `use_exoplayer_backend=false` value
-            // if the user has ALSO set the explicit-opt-out flag,
-            // which proves they made that choice on this build (not
-            // on some older build with a buggy Settings UI).
-            val explicit = prefs.getBoolean(PREF_KEY_EXPLICIT_LIBVLC, false)
-            if (!explicit) return true
-            return prefs.getBoolean(PREF_KEY_USE_EXO, true)
+            return true
         }
     }
 }

@@ -7,6 +7,21 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.88 — Hard fix: nuclear ExoPlayer + Samsung focus-visible kill
+
+Round 3 of the same two bugs.  User screen-recorded v2.7.87 on a Samsung phone showing both issues still active.  Going nuclear on both:
+
+**ExoPlayer — UNCONDITIONAL**
+- `ExoPlayerActivity.shouldUseExoPlayer()` now literally `return true`.  Doesn't read any pref, doesn't check any flag.  Every play path uses ExoPlayer.  LibVLC is unreachable from user code until we re-enable it as an option in a future build.
+- Logs `VesperExo: shouldUseExoPlayer: returning true (v2.7.88 hard-coded)` on every call so we can verify via `adb logcat` after install.
+
+**Mobile scroll — kill `:focus-visible` on coarse-pointer devices**
+- Diagnosis: Samsung Internet WebView has a Chromium quirk where `:focus-visible` matches on touch-focus (the spec says it shouldn't).  Every poster the user touches gets `:focus-visible` → CSS paints `transform: scale(1.08)` + blue glow → user sees a "highlight" + the scaled element may capture the touch boundary on the WebView's compositor.
+- Fix: `@media (pointer: coarse)` rule that hard-resets `transform`, `box-shadow`, `outline` to `none !important` on every `:focus-visible` and `[data-focused="true"]` poster / pill / nav element.  TVs (D-pad, no touch) match `pointer: fine` so they are exempt.
+- Also added inline `style={{ touchAction: 'pan-x pan-y' }}` directly on `PosterTile`'s root button.  Inline style beats every CSS rule including `!important`, so this is the absolute final say on touch behaviour for the poster covers — no CSS cascade can override it.
+
+---
+
 ## v2.7.87 — Bulletproof ExoPlayer + touch scroll fixes (round 2)
 
 Two carry-over issues from v2.7.86 that didn't actually work on the user's phone:

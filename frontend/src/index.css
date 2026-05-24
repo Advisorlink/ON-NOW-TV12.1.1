@@ -1080,7 +1080,20 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
    v2.7.87 — Drop the body gate entirely and apply on any device
    that primarily uses touch (pointer:coarse media query).  TVs use
    D-pad / remote, so the `coarse` check exempts them — and TVs
-   don't fire touch events anyway so the rule is a no-op there. */
+   don't fire touch events anyway so the rule is a no-op there.
+   v2.7.88 — User reports `pointer: coarse` rule STILL not winning
+   the cascade on a Samsung Galaxy phone running the Vesper APK
+   (file:///android_asset/web/ index.html).  Two new layers added:
+     (a) `:focus-visible` styles disabled on coarse-pointer
+         devices.  Samsung WebView has a known Chromium bug where
+         tap-focus matches `:focus-visible` even though the spec
+         says it shouldn't — that paints the `scale(1.08)` tile
+         transform on every poster the user TOUCHES, which the
+         user interprets as "the cover is highlighted and stuck".
+     (b) Inline `style={{ touchAction: 'pan-x pan-y' }}` added
+         directly on PosterTile + NetworkPosterTile.  Inline style
+         beats every CSS rule including `!important` so it is the
+         FINAL say. */
 @media (pointer: coarse) {
     [data-focusable='true'],
     button,
@@ -1090,6 +1103,27 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
     .vesper-shelf {
         touch-action: pan-x pan-y !important;
         -webkit-overflow-scrolling: touch;
+    }
+    /* Kill the focus-glow / scale transform on touch.  Spec says
+       :focus-visible should never match on touch, but Samsung's
+       WebView ignores that — so we wipe the effect ourselves. */
+    [data-focus-style='tile']:focus-visible,
+    [data-focus-style='pill']:focus-visible,
+    [data-focus-style='bare']:focus-visible,
+    [data-focus-style='nav']:focus-visible,
+    [data-focus-style='key']:focus-visible,
+    [data-focus-style='quiet']:focus-visible {
+        transform: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    /* Same on the data-focused mirror attribute used by some
+       components for initial-focus priming. */
+    [data-focus-style='tile'][data-focused='true'],
+    [data-focus-style='pill'][data-focused='true'] {
+        transform: none !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
 }
 
