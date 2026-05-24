@@ -1,128 +1,70 @@
 {
-  "generation": 24,
+  "generation": 19,
   "dock_tiles": [
     {
-      "key": "music",
-      "label": "Music",
-      "sub": "Listen and enjoy",
-      "image_url": "/assets/tile_images/tile-music-2602e5f7.jpg",
-      "wallpaper_url": "/assets/wallpapers/tile-music-955f5bb1.png",
-      "apk_url": "/assets/tile_apks/tile-music-5947a03c.apk",
-      "apk_filename": "wuplay-androidtv (1).apk",
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": null,
-      "target_url": null,
-      "accent": "#38B8FF"
-    },
-    {
       "key": "movies",
-      "label": "Movies & TV Shows",
-      "sub": "Stream and enjoy",
-      "image_url": "/assets/tile_images/tile-movies-447c8a20.jpg",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-11a09e97.png",
-      "apk_url": "/assets/tile_apks/tile-movies-65ed4645.apk",
-      "apk_filename": "wuplay-androidtv (1).apk",
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": "tv.onnowtv.app",
-      "target_url": null,
-      "accent": "#38B8FF"
-    },
-    {
-      "key": "livetv",
-      "label": "Live TV",
-      "sub": "Watch live channels",
-      "image_url": null,
-      "wallpaper_url": null,
+      "label": "Movies",
+      "sub": "Stream cinematic stories",
+      "image_url": "/assets/tile_images/tile-movies-054be965.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-31c23a10.jpg",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": "tv.onnowtv.app",
+      "target_package": null,
+      "target_url": null,
+      "accent": "#FF3D5A"
+    },
+    {
+      "key": "music",
+      "label": "Music",
+      "sub": "Listen and discover",
+      "image_url": "/assets/tile_images/tile-music-6e08c35d.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-music-de7fa35e.jpg",
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
+      "target_package": null,
       "target_url": null,
       "accent": "#2BB6FF"
     },
     {
-      "key": "apps",
-      "label": "Apps",
-      "sub": "All your apps",
-      "image_url": null,
-      "wallpaper_url": null,
+      "key": "sports",
+      "label": "Sports",
+      "sub": "Live games & highlights",
+      "image_url": "/assets/tile_images/tile-sports-9088d720.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-sports-889ab770.jpg",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#2EEAC2"
+      "accent": "#2EEA7A"
     },
     {
-      "key": "browser",
-      "label": "Browser",
-      "sub": "Surf the web",
-      "image_url": null,
-      "wallpaper_url": null,
+      "key": "kids",
+      "label": "Kids",
+      "sub": "Family-safe content",
+      "image_url": "/assets/tile_images/tile-kids-3e8be95a.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-kids-59b25084.jpg",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#38C2FF"
-    },
-    {
-      "key": "settings",
-      "label": "Settings",
-      "sub": "System preferences",
-      "image_url": null,
-      "wallpaper_url": null,
-      "apk_url": null,
-      "apk_filename": null,
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": null,
-      "target_url": null,
-      "accent": "#5BC5FF"
+      "accent": "#FFB454"
     }
   ],
   "apks": [],
   "notifications": [],
   "devices": {
-    "test-box-abc123": {
-      "device_id": "test-box-abc123",
-      "last_seen": 1779628263,
-      "last_generation": 16
-    },
-    "test-box-def456": {
-      "device_id": "test-box-def456",
-      "last_seen": 1779628263,
-      "last_generation": 16
-    },
-    "manual-test-from-server": {
-      "device_id": "manual-test-from-server",
-      "last_seen": 1779629098,
-      "last_generation": 19
-    },
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
       "device_id": "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1",
-      "last_seen": 1779632509,
-      "last_generation": 24
-    },
-    "debug-check": {
-      "device_id": "debug-check",
-      "last_seen": 1779630792,
-      "last_generation": 22
-    },
-    "ua-test-android": {
-      "device_id": "ua-test-android",
-      "last_seen": 1779631002,
-      "last_generation": 22
-    },
-    "ua-test-browser": {
-      "device_id": "ua-test-browser",
-      "last_seen": 1779631003,
-      "last_generation": 22
+      "last_seen": 1779632754,
+      "last_generation": 19
     }
   }
 }
