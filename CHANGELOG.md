@@ -7,6 +7,25 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.89 — Stop guessing.  Visible diagnostics + UA-based detection
+
+User screen-recorded v2.7.88 on a Samsung phone showing both bugs from v2.7.85, .86, .87, .88 still active.  I've stopped guessing.  This build adds a visible debug overlay so the user can SEE on-screen exactly what the WebView reports — UA string, viewport, pointer:coarse value, max-touch-points, data-platform attribute, and a live touch-event log.
+
+**Diagnostic strip (visible top of screen, all builds for v2.7.89 only)**
+- Top-of-screen overlay shows: APK version, viewport WxH, `(pointer: coarse)` match, `maxTouchPoints`, `data-platform` value, full UA, and the last touch event (event type, target tag, computed `touch-action`).
+- Will be removed in v2.7.90 once we have data to act on.
+
+**`useIsMobile` rewritten — user-agent first**
+- Previous detection: `viewport < 900 && (pointer:coarse OR maxTouchPoints>0)`.
+- New priority: (1) explicit override → (2) UA contains "Mobile" but NOT "TV" → (3) old combo as fallback.
+- Phone UAs ALWAYS contain "Mobile"; TV / smart-TV UAs never do.  This is the cleanest, most reliable signal in a WebView.
+- Hypothesis being tested: on the user's Samsung WebView, the OLD detection was returning `false` for some reason (e.g. sessionStorage flag from a previous test, or pointer:coarse not matching on this specific WebView build), which kept the TV scroll-snap layout active on a phone → vertical swipes got snapped back to the current shelf → looked like "vertical swipe broken".  UA-first detection eliminates that whole class of error.
+
+**ExoPlayer**
+- Still `return true` unconditionally from v2.7.88.  No change in this build.
+
+---
+
 ## v2.7.88 — Hard fix: nuclear ExoPlayer + Samsung focus-visible kill
 
 Round 3 of the same two bugs.  User screen-recorded v2.7.87 on a Samsung phone showing both issues still active.  Going nuclear on both:
