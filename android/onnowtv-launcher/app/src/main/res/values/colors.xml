@@ -10,4 +10,6 @@
     <color name="divider">#33FFFFFF</color>
     <color name="dock_bg">#9C0A1220</color>
     <color name="dock_border">#1AFFFFFF</color>
+    <!-- v0.5 — alias for the topbar / tile dividers used by the new layout. -->
+    <color name="border">#1AFFFFFF</color>
 </resources>
