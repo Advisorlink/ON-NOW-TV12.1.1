@@ -114,13 +114,17 @@ class MainActivity : AppCompatActivity() {
     /* ──────────────────────  Backend polling  ──────────────────── */
 
     private fun startBackendPolling() {
-        // Config every 5 minutes (admin layout / wallpaper / APK changes).
+        // v0.4 — Config every 30s (admin layout / wallpaper / APK
+        // changes).  Was 5 min; that was too slow to give a useful
+        // "did my change land?" feedback loop for admin users.
+        // 30s × 6 tiles = ~one network call every 5s on average,
+        // which is fine for any home network.
         configPollJob?.cancel()
         configPollJob = lifecycleScope.launch {
             while (true) {
                 val fresh = repo.refresh()
                 if (fresh != null) onConfigUpdated(fresh)
-                delay(TimeUnit.MINUTES.toMillis(5))
+                delay(TimeUnit.SECONDS.toMillis(30))
             }
         }
         // Pending notifications every 30 seconds.

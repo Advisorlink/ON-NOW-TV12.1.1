@@ -46,6 +46,22 @@
             <h2>Dock tiles</h2>
             <p>Drag the <strong>↑ ↓</strong> arrows to reorder.  Upload a tile image (the card art) <em>and</em> a wallpaper (the background painted behind the dock when this tile is focused).  Both should be JPEG.  Recommended: tile image 1280&times;720, wallpaper 1920&times;1080.</p>
         </div>
+
+        <!-- v0.4 — Connected devices + republish status panel -->
+        <div id="devicePanel" class="device-panel">
+            <div class="device-panel-head">
+                <div>
+                    <div class="device-panel-eyebrow">Status</div>
+                    <div id="deviceSummary" class="device-summary">Loading device status…</div>
+                </div>
+                <button id="republishBtn" class="primary republish-btn"
+                        title="Bump the config generation so every device re-pulls within 30s">
+                    Republish to devices
+                </button>
+            </div>
+            <ul id="deviceList" class="device-list"></ul>
+        </div>
+
         <ul id="dockList" class="dock-list"></ul>
         <div class="dock-save-row">
             <button id="saveDock" class="primary">Save text fields</button>

@@ -76,7 +76,11 @@ class LauncherRepository(
     }
 
     suspend fun refresh(): LauncherConfig? = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/api/launcher/config"
+        // v0.4 — Send device_id with every config poll so the admin
+        // backend can record which devices are online and which
+        // config generation they have applied.  Powers the
+        // "Connected devices" panel in the admin UI.
+        val url = "$baseUrl/api/launcher/config?device_id=$deviceId"
         try {
             val req = Request.Builder().url(url).build()
             http.newCall(req).execute().use { resp ->

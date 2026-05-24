@@ -28,8 +28,8 @@ async function api(path, opts = {}) {
 }
 
 /* ─────────────  Auth  ───────────── */
-function showLogin() { $('#login').hidden = false; $('#app').hidden = true; }
-function showApp()   { $('#login').hidden = true;  $('#app').hidden = false;  refreshAll(); }
+function showLogin() { $('#login').hidden = false; $('#app').hidden = true; stopDevicePolling(); }
+function showApp()   { $('#login').hidden = true;  $('#app').hidden = false;  refreshAll(); startDevicePolling(); }
 
 $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -75,6 +75,95 @@ async function refreshAll() {
     renderDock(store);
     renderApks(store);
     renderNotifications(store);
+    refreshDevices();   // v0.4 — re-pull the connected devices panel
+}
+
+/* ─────────────  Connected devices panel  ─────────────
+   v0.4 — Confirmation loop for admins.  Polls /api/admin/devices
+   every 5s, shows online count + per-device sync status, and powers
+   the "Republish to devices" button.                                   */
+let _devicePollHandle = null;
+async function refreshDevices() {
+    try {
+        const d = await api('/api/admin/devices');
+        renderDevices(d);
+    } catch (e) {
+        const el = $('#deviceSummary');
+        if (el) el.textContent = 'Status unavailable (' + e.message + ')';
+    }
+}
+function startDevicePolling() {
+    if (_devicePollHandle) clearInterval(_devicePollHandle);
+    refreshDevices();
+    _devicePollHandle = setInterval(refreshDevices, 5000);
+}
+function stopDevicePolling() {
+    if (_devicePollHandle) clearInterval(_devicePollHandle);
+    _devicePollHandle = null;
+}
+function renderDevices(d) {
+    const summary = $('#deviceSummary');
+    const list = $('#deviceList');
+    if (!summary || !list) return;
+    const devs = d.devices || [];
+    const online = devs.filter((x) => x.online).length;
+    const synced = devs.filter((x) => x.online && x.in_sync).length;
+    if (devs.length === 0) {
+        summary.innerHTML =
+            '<span style="color:var(--txt-tertiary);">' +
+            'No devices have polled yet.  After you install the launcher APK, the box ' +
+            'will appear here within 30 seconds.</span>';
+        list.innerHTML = '';
+        return;
+    }
+    const allSynced = synced === online && online > 0;
+    summary.innerHTML =
+        `<span class="status-dot ${allSynced ? 'ok' : 'warn'}"></span>` +
+        `<strong>${online}</strong> online · ` +
+        `<strong>${synced}/${online}</strong> in sync · ` +
+        `<span class="muted">latest config: gen ${d.current_generation}</span>`;
+    list.innerHTML = '';
+    devs.forEach((dev) => {
+        const li = document.createElement('li');
+        li.className = 'device-row ' + (dev.online ? 'online' : 'offline');
+        const age = formatAge(dev.last_seen_age_seconds);
+        const inSyncBadge = dev.online
+            ? (dev.in_sync
+                ? '<span class="dev-badge ok">In sync</span>'
+                : '<span class="dev-badge warn">Behind by ' + (d.current_generation - dev.last_generation) + ' gen</span>')
+            : '<span class="dev-badge offline">Offline</span>';
+        li.innerHTML = `
+            <span class="dev-id" title="${escapeAttr(dev.device_id)}">${escapeAttr((dev.device_id || '').slice(0, 12))}…</span>
+            <span class="dev-gen">gen ${dev.last_generation}</span>
+            <span class="dev-age">${age}</span>
+            ${inSyncBadge}
+        `;
+        list.appendChild(li);
+    });
+}
+function formatAge(s) {
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+}
+const _republishBtn = $('#republishBtn');
+if (_republishBtn) {
+    _republishBtn.addEventListener('click', async () => {
+        _republishBtn.disabled = true;
+        const original = _republishBtn.textContent;
+        _republishBtn.textContent = 'Republishing…';
+        try {
+            const r = await api('/api/admin/republish', { method: 'POST' });
+            toast(r.message || 'Republished to devices');
+            refreshDevices();
+        } catch (e) {
+            toast('Republish failed: ' + e.message, true);
+        } finally {
+            _republishBtn.disabled = false;
+            _republishBtn.textContent = original;
+        }
+    });
 }
 
 /* ─────────────  Dock  ─────────────

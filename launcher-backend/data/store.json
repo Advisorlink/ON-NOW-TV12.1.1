@@ -1,14 +1,14 @@
 {
-  "generation": 11,
+  "generation": 17,
   "dock_tiles": [
     {
       "key": "music",
       "label": "Music",
       "sub": "Listen and enjoy",
-      "image_url": null,
-      "wallpaper_url": null,
-      "apk_url": null,
-      "apk_filename": null,
+      "image_url": "/assets/tile_images/tile-music-2602e5f7.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-music-955f5bb1.png",
+      "apk_url": "/assets/tile_apks/tile-music-5947a03c.apk",
+      "apk_filename": "wuplay-androidtv (1).apk",
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
@@ -87,5 +87,17 @@
     }
   ],
   "apks": [],
-  "notifications": []
+  "notifications": [],
+  "devices": {
+    "test-box-abc123": {
+      "device_id": "test-box-abc123",
+      "last_seen": 1779628263,
+      "last_generation": 16
+    },
+    "test-box-def456": {
+      "device_id": "test-box-def456",
+      "last_seen": 1779628263,
+      "last_generation": 16
+    }
+  }
 }

@@ -224,6 +224,17 @@ def _save_store(store: dict) -> None:
         tmp.replace(STORE_FILE)
 
 
+def _save_store_silent(store: dict) -> None:
+    """v0.4 — Persist the store without bumping `generation`.  Used by
+    high-frequency endpoints (device heartbeat on every config poll)
+    that just need to record state without triggering all devices to
+    re-render."""
+    with _lock:
+        tmp = STORE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(store, indent=2))
+        tmp.replace(STORE_FILE)
+
+
 def now_ts() -> int:
     return int(datetime.now(timezone.utc).timestamp())
 
@@ -339,11 +350,24 @@ def health() -> dict:
 
 
 @app.get("/api/launcher/config", response_model=LauncherConfig)
-def get_launcher_config() -> LauncherConfig:
-    """Polled by every launcher device every few minutes.  Returns
+def get_launcher_config(device_id: Optional[str] = None) -> LauncherConfig:
+    """Polled by every launcher device every few seconds.  Returns
     the full snapshot.  Clients can compare `generation` against
-    their last-seen number and skip the rest of the body if equal."""
-    return _build_config(_load_store())
+    their last-seen number and skip the rest of the body if equal.
+
+    v0.4 — When the client sends `device_id`, we record the device's
+    `last_seen` timestamp + the generation it just pulled.  Powers
+    the admin UI's "Connected devices" panel."""
+    store = _load_store()
+    if device_id:
+        devices = store.setdefault("devices", {})
+        devices[device_id] = {
+            "device_id": device_id,
+            "last_seen": now_ts(),
+            "last_generation": int(store.get("generation", 0)),
+        }
+        _save_store_silent(store)
+    return _build_config(store)
 
 
 @app.get("/api/launcher/notifications/pending")
@@ -624,6 +648,59 @@ def reorder_dock(payload: dict) -> dict:
     store["dock_tiles"] = [by_key[k] for k in order]
     _save_store(store)
     return {"ok": True, "generation": store["generation"], "order": order}
+
+
+# ── Device heartbeats / force-republish ──────────────────────────
+@app.get("/api/admin/devices", dependencies=[Depends(require_admin)])
+def list_devices() -> dict:
+    """v0.4 — Return the list of devices that have polled the config
+    endpoint, with their last-seen timestamp + the generation number
+    they last received.  Powers the admin UI's "Connected devices"
+    panel so admins can verify their changes actually landed."""
+    store = _load_store()
+    current_gen = int(store.get("generation", 0))
+    devices_dict = store.get("devices", {})
+    nt = now_ts()
+    devices = []
+    for d in devices_dict.values():
+        last_seen = int(d.get("last_seen", 0))
+        last_gen = int(d.get("last_generation", 0))
+        age_seconds = nt - last_seen
+        devices.append({
+            "device_id": d.get("device_id"),
+            "last_seen": last_seen,
+            "last_seen_age_seconds": age_seconds,
+            "last_generation": last_gen,
+            "current_generation": current_gen,
+            "in_sync": last_gen >= current_gen,
+            "online": age_seconds <= 90,  # device polls every 30s; allow 3 missed beats
+        })
+    # Sort: online first, then most recent.
+    devices.sort(key=lambda d: (not d["online"], -d["last_seen"]))
+    return {
+        "devices": devices,
+        "current_generation": current_gen,
+        "server_time": nt,
+    }
+
+
+@app.post("/api/admin/republish", dependencies=[Depends(require_admin)])
+def force_republish() -> dict:
+    """v0.4 — Force every device to re-pull the latest config on its
+    next poll by bumping the generation number.  Used when the admin
+    has uploaded fresh assets and wants to confirm they reach the
+    box.  No content changes — just the generation bump."""
+    store = _load_store()
+    _save_store(store)  # _save_store bumps generation automatically
+    return {
+        "ok": True,
+        "generation": store["generation"],
+        "message": (
+            "Config republished.  Connected devices will pick it up within "
+            "30 seconds on their next poll."
+        ),
+    }
+
 
 
 # ── APKs ─────────────────────────────────────────────────────────
