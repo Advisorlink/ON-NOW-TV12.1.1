@@ -80,6 +80,32 @@
         android:layout_marginEnd="0dp"
         app:layout_constraintWidth_percent="0.55" />
 
+    <!-- v0.4 — Debug status pill.  Shows backend URL + last poll
+         result so the user can verify the launcher is reaching the
+         admin backend without needing adb logcat.  Top-right corner,
+         monospace text, dark pill background.  Will be auto-hidden
+         after a successful connection in a future build; for now
+         always visible so we can diagnose connection issues. -->
+    <TextView
+        android:id="@+id/debug_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="6dp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp"
+        android:background="@drawable/bg_debug_pill"
+        android:textColor="#FFD700"
+        android:textSize="10sp"
+        android:fontFamily="monospace"
+        android:maxWidth="700dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:elevation="20dp"
+        app:layout_constraintTop_toBottomOf="@id/topbar"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="connecting…" />
+
     <!-- Top status bar (greeting / logo / date / time). -->
     <LinearLayout
         android:id="@+id/topbar"

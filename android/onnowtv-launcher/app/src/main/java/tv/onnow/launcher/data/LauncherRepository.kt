@@ -60,6 +60,11 @@ class LauncherRepository(
         }
     }
 
+    /** v0.4 — Public read-only base URL accessor so the
+     *  MainActivity's debug pill can show the user which backend
+     *  the launcher is hitting. */
+    fun baseUrlPublic(): String = baseUrl
+
     /** Restore last known config from disk synchronously so the UI
      *  has something to render on the very first frame. */
     fun loadCached(): LauncherConfig? {

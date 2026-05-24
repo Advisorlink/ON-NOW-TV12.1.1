@@ -1,5 +1,5 @@
 {
-  "generation": 17,
+  "generation": 19,
   "dock_tiles": [
     {
       "key": "music",
@@ -98,6 +98,11 @@
       "device_id": "test-box-def456",
       "last_seen": 1779628263,
       "last_generation": 16
+    },
+    "manual-test-from-server": {
+      "device_id": "manual-test-from-server",
+      "last_seen": 1779629098,
+      "last_generation": 19
     }
   }
 }

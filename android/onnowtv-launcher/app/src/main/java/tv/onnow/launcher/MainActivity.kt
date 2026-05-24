@@ -121,9 +121,17 @@ class MainActivity : AppCompatActivity() {
         // which is fine for any home network.
         configPollJob?.cancel()
         configPollJob = lifecycleScope.launch {
+            updateDebugStatus("polling…", false)
             while (true) {
+                val ts = System.currentTimeMillis()
                 val fresh = repo.refresh()
-                if (fresh != null) onConfigUpdated(fresh)
+                if (fresh != null) {
+                    onConfigUpdated(fresh)
+                    val took = System.currentTimeMillis() - ts
+                    updateDebugStatus("OK · gen ${fresh.generation} · ${took}ms · " + repo.baseUrlPublic(), true)
+                } else {
+                    updateDebugStatus("NO REACH · " + repo.baseUrlPublic(), false)
+                }
                 delay(TimeUnit.SECONDS.toMillis(30))
             }
         }
@@ -135,6 +143,14 @@ class MainActivity : AppCompatActivity() {
                 delay(TimeUnit.SECONDS.toMillis(30))
             }
         }
+    }
+
+    /** v0.4 — Paint the on-screen debug pill so the user can see at a
+     *  glance whether the launcher is reaching the admin backend. */
+    private fun updateDebugStatus(msg: String, ok: Boolean) {
+        binding.debugStatus.text = msg
+        val color = if (ok) 0xFF2EEAC2.toInt() else 0xFFFFB454.toInt()
+        binding.debugStatus.setTextColor(color)
     }
 
     private suspend fun checkPendingNotifications() {
