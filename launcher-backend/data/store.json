@@ -106,7 +106,22 @@
     },
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
       "device_id": "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1",
-      "last_seen": 1779630603,
+      "last_seen": 1779630682,
+      "last_generation": 22
+    },
+    "debug-check": {
+      "device_id": "debug-check",
+      "last_seen": 1779630792,
+      "last_generation": 22
+    },
+    "ua-test-android": {
+      "device_id": "ua-test-android",
+      "last_seen": 1779631002,
+      "last_generation": 22
+    },
+    "ua-test-browser": {
+      "device_id": "ua-test-browser",
+      "last_seen": 1779631003,
       "last_generation": 22
     }
   }

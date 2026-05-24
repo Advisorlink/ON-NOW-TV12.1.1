@@ -3124,7 +3124,7 @@ def _rewrite_admin_js(body: bytes) -> bytes:
     return text.encode("utf-8")
 
 
-def _rewrite_admin_json(body: bytes) -> bytes:
+def _rewrite_admin_json(body: bytes, absolute_base: Optional[str] = None) -> bytes:
     """Rewrite asset URLs in JSON responses so the user's browser
     (which can't reach pod-internal localhost) can load uploaded
     images / wallpapers / APK icons through the proxy.
@@ -3134,20 +3134,34 @@ def _rewrite_admin_json(body: bytes) -> bytes:
           config endpoint runs assets through _abs() before returning)
       (b) Bare relative `/assets/...` paths (the admin /store endpoint
           returns the raw on-disk paths).
-    We rewrite BOTH to point through the proxy namespace.
-    In production with the real public host configured this is a
-    no-op for case (a) and still works for case (b)."""
+
+    `absolute_base` — when supplied (e.g. for Android launcher clients
+    that need absolute URLs because they don't have a document origin
+    to resolve against), the rewrite emits FULLY-QUALIFIED URLs.
+    Browser clients get relative `/api/launcher-admin/assets/...`
+    paths because they resolve those against the page origin
+    automatically.
+    """
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         return body
+
+    if absolute_base:
+        # Strip any trailing slash from absolute_base so we don't
+        # produce `https://x//api/launcher-admin/assets/...`.
+        base = absolute_base.rstrip("/")
+        replacement_prefix = f'"{base}/api/launcher-admin/assets/'
+    else:
+        replacement_prefix = '"/api/launcher-admin/assets/'
+
     text = text.replace(
         f'"{_LAUNCHER_BACKEND}/assets/',
-        '"/api/launcher-admin/assets/',
+        replacement_prefix,
     )
     text = text.replace(
         '"/assets/',
-        '"/api/launcher-admin/assets/',
+        replacement_prefix,
     )
     return text.encode("utf-8")
 
@@ -3195,7 +3209,24 @@ async def launcher_admin_proxy(full_path: str, request: Request):
     elif "javascript" in ctype or full_path.endswith(".js"):
         response_body = _rewrite_admin_js(response_body)
     elif "application/json" in ctype:
-        response_body = _rewrite_admin_json(response_body)
+        # If the caller is a non-browser client (e.g. the OkHttp-based
+        # Android launcher), rewrite to ABSOLUTE URLs since it can't
+        # resolve relative paths against a document origin.  Browsers
+        # send "Mozilla/..." UAs and get relative paths; everything
+        # else gets fully-qualified URLs.
+        ua = (request.headers.get("user-agent") or "").lower()
+        is_browser = "mozilla" in ua
+        absolute_base: Optional[str] = None
+        if not is_browser:
+            # Reconstruct the public URL we were just called on so the
+            # rewritten asset URLs point back here.  Honour
+            # X-Forwarded-Proto / Host from the ingress so https stays
+            # https through the rewrite.
+            scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+            host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+            if host:
+                absolute_base = f"{scheme}://{host}"
+        response_body = _rewrite_admin_json(response_body, absolute_base=absolute_base)
 
     # Filter response headers — drop the ones that no longer match the
     # rewritten body, and rewrite the Location header on redirects so it
