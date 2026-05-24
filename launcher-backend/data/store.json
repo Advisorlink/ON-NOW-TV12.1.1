@@ -1,23 +1,31 @@
 {
-  "generation": 1,
+  "generation": 11,
   "dock_tiles": [
-    {
-      "key": "movies",
-      "label": "Movies & TV Shows",
-      "sub": "Stream and enjoy",
-      "image_url": null,
-      "wallpaper_url": null,
-      "target_package": "tv.onnowtv.app",
-      "target_url": null,
-      "accent": "#38B8FF"
-    },
     {
       "key": "music",
       "label": "Music",
       "sub": "Listen and enjoy",
       "image_url": null,
       "wallpaper_url": null,
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": null,
+      "target_url": null,
+      "accent": "#38B8FF"
+    },
+    {
+      "key": "movies",
+      "label": "Movies & TV Shows",
+      "sub": "Stream and enjoy",
+      "image_url": "/assets/tile_images/tile-movies-447c8a20.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-11a09e97.png",
+      "apk_url": "/assets/tile_apks/tile-movies-65ed4645.apk",
+      "apk_filename": "wuplay-androidtv (1).apk",
+      "apk_package_id": null,
+      "apk_version": null,
+      "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#38B8FF"
     },
@@ -27,6 +35,10 @@
       "sub": "Watch live channels",
       "image_url": null,
       "wallpaper_url": null,
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#2BB6FF"
@@ -37,6 +49,10 @@
       "sub": "All your apps",
       "image_url": null,
       "wallpaper_url": null,
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": null,
       "target_url": null,
       "accent": "#2EEAC2"
@@ -47,6 +63,10 @@
       "sub": "Surf the web",
       "image_url": null,
       "wallpaper_url": null,
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": null,
       "target_url": null,
       "accent": "#38C2FF"
@@ -57,6 +77,10 @@
       "sub": "System preferences",
       "image_url": null,
       "wallpaper_url": null,
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": null,
       "target_url": null,
       "accent": "#5BC5FF"

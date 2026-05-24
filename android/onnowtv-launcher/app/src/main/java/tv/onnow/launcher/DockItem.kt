@@ -12,4 +12,12 @@ data class DockItem(
     val label: String,               // "Live TV"
     val sub: String,                 // "Watch live channels"
     @DrawableRes val iconRes: Int,
+    /* v0.2 — Per-tile image (JPEG) uploaded via the admin backend.
+       Replaces the built-in vector icon when set.  Null = use
+       iconRes vector. */
+    val imageUrl: String? = null,
+    /* v0.2 — Per-tile wallpaper.  Painted as fullscreen background
+       when this tile is the focused one.  Null = use the default
+       aurora glow. */
+    val wallpaperUrl: String? = null,
 )

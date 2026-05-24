@@ -177,17 +177,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun onConfigUpdated(config: RemoteLauncherConfig) {
         if (config.dockTiles.size == 6) {
-            // Swap the 6 dock items in place.  Map remote → local
-            // model preserving the icon resource lookup so the
-            // launcher's built-in vector icons are used unless the
-            // admin supplied a custom icon_url (which we will plumb
-            // through with Coil in a follow-up).
-            val mapped = config.dockTiles.mapIndexed { idx, t ->
+            // Swap the 6 dock items in place, propagating the
+            // per-tile image_url + wallpaper_url so the adapter can
+            // render the admin-uploaded JPEGs and applyFeatured()
+            // can swap the fullscreen wallpaper on focus change.
+            val mapped = config.dockTiles.map { t ->
                 DockItem(
                     key = t.key,
                     label = t.label,
                     sub = t.sub,
                     iconRes = iconResForKey(t.key),
+                    imageUrl = t.imageUrl,
+                    wallpaperUrl = t.wallpaperUrl,
                 )
             }
             dockItems.clear()
@@ -198,17 +199,12 @@ class MainActivity : AppCompatActivity() {
                 val argb = t.accent?.let { runCatching { Color.parseColor(it) }.getOrNull() }
                 if (argb != null) FeaturedRegistry.overrideAccent(t.key, argb)
             }
-            // Re-apply currently-focused tile so it picks up new accent.
+            // Re-apply currently-focused tile so it picks up new accent
+            // AND the new wallpaper.
             binding.dock.post {
                 val pos = (binding.dock.layoutManager as? LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
                 applyFeatured(dockItems.getOrNull(pos) ?: dockItems[2])
             }
-        }
-        // Wallpaper handling — if admin set one, swap the
-        // launcher background to a remote bitmap via Coil.  For
-        // now we just record the URL; Coil integration to follow.
-        config.activeWallpaperUrl?.let { wallpaperUrl ->
-            android.util.Log.i("MainActivity", "active wallpaper: $wallpaperUrl")
         }
     }
 
@@ -272,6 +268,9 @@ class MainActivity : AppCompatActivity() {
     /* ──────────────────────  Featured panel  ────────────────────── */
 
     private var currentAccent = 0xFF2BB6FF.toInt()
+    /** Track the current wallpaper URL to skip redundant reloads
+     *  when the user navigates back to the same tile. */
+    private var currentWallpaperUrl: String? = null
 
     private fun applyFeatured(item: DockItem) {
         val state = FeaturedRegistry.forKey(item.key)
@@ -300,6 +299,39 @@ class MainActivity : AppCompatActivity() {
 
         // Swap the hero illustration to match the focused section.
         binding.heroIllustration.setIllustration(item.key)
+
+        // v0.2 — Swap the fullscreen wallpaper for this tile.  Fade
+        // between wallpapers so focus changes feel cinematic instead
+        // of a hard cut.  When the tile has no wallpaper, fade out
+        // the ImageView so the default aurora shows through.
+        applyWallpaper(item.wallpaperUrl)
+    }
+
+    private fun applyWallpaper(url: String?) {
+        if (url == currentWallpaperUrl) return
+        currentWallpaperUrl = url
+        val wallpaperView = binding.tileWallpaper
+        val scrimView = binding.tileWallpaperScrim
+        if (url.isNullOrBlank()) {
+            // Fade to default aurora.
+            wallpaperView.animate().alpha(0f).setDuration(360).withEndAction {
+                wallpaperView.visibility = android.view.View.GONE
+                scrimView.visibility = android.view.View.GONE
+            }.start()
+            return
+        }
+        ImageLoader.loadBitmap(this, url) { bmp ->
+            if (bmp == null) return@loadBitmap
+            // Avoid stale callback overriding a newer selection.
+            if (currentWallpaperUrl != url) return@loadBitmap
+            wallpaperView.setImageBitmap(bmp)
+            wallpaperView.alpha = 0f
+            wallpaperView.visibility = android.view.View.VISIBLE
+            scrimView.alpha = 0f
+            scrimView.visibility = android.view.View.VISIBLE
+            wallpaperView.animate().alpha(1f).setDuration(360).start()
+            scrimView.animate().alpha(1f).setDuration(360).start()
+        }
     }
 
     private fun animateAccent(from: Int, to: Int) {

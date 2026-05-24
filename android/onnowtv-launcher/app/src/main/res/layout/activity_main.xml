@@ -22,6 +22,38 @@
     android:layout_height="match_parent"
     android:background="@color/bg_deep">
 
+    <!-- v0.2 — Per-tile wallpaper.  Painted edge-to-edge BEHIND
+         everything else (z-order: this view is drawn first, so the
+         aurora glow + hero + dock sit on top of it).  When admin
+         hasn't uploaded a wallpaper for the focused tile, this view
+         is hidden and the default aurora background shows through. -->
+    <ImageView
+        android:id="@+id/tile_wallpaper"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        android:adjustViewBounds="false"
+        android:visibility="gone"
+        android:contentDescription="@null"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Darkening scrim so the wallpaper's brightness doesn't fight
+         with the foreground typography.  Sits between wallpaper and
+         everything else.  Visibility tracks the wallpaper view. -->
+    <View
+        android:id="@+id/tile_wallpaper_scrim"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#A6000814"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- Aurora glow at the top (Variation 1 from the mockup set). -->
     <View
         android:id="@+id/aurora_glow"

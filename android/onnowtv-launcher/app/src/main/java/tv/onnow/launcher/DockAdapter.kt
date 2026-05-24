@@ -34,7 +34,20 @@ class DockAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
-        holder.binding.icon.setImageResource(item.iconRes)
+        // v0.2 — Per-tile image overrides the built-in vector icon
+        // when admin has uploaded one via the launcher backend.
+        if (!item.imageUrl.isNullOrBlank()) {
+            // Clear any vector tint so the photo renders in its
+            // actual colours instead of being recoloured by the
+            // theme's text-primary tint.
+            holder.binding.icon.imageTintList = null
+            ImageLoader.load(holder.binding.icon, item.imageUrl, item.iconRes)
+        } else {
+            holder.binding.icon.imageTintList = android.content.res.ColorStateList.valueOf(
+                holder.itemView.context.getColor(R.color.text_primary)
+            )
+            holder.binding.icon.setImageResource(item.iconRes)
+        }
         holder.binding.label.text = item.label
         holder.binding.sub.text   = item.sub
 

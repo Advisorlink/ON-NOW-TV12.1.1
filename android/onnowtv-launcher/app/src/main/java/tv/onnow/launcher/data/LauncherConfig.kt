@@ -21,6 +21,17 @@ data class DockTileRemote(
     val label: String,
     val sub: String,
     val iconUrl: String?,
+    /* v0.2 — per-tile JPEG art shown on the tile card itself. */
+    val imageUrl: String?,
+    /* v0.2 — fullscreen background painted behind the dock when
+       this tile is the focused one. */
+    val wallpaperUrl: String?,
+    /* v0.3 — per-tile APK metadata.  Sideloaded by the launcher when
+       the user taps a tile whose `targetPackage` isn't installed. */
+    val apkUrl: String?,
+    val apkFilename: String?,
+    val apkPackageId: String?,
+    val apkVersion: String?,
     val targetPackage: String?,
     val targetUrl: String?,
     val accent: String?,
@@ -63,6 +74,12 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             label          = o.optString("label"),
             sub            = o.optString("sub"),
             iconUrl        = o.optStringOrNull("icon_url"),
+            imageUrl       = o.optStringOrNull("image_url"),
+            wallpaperUrl   = o.optStringOrNull("wallpaper_url"),
+            apkUrl         = o.optStringOrNull("apk_url"),
+            apkFilename    = o.optStringOrNull("apk_filename"),
+            apkPackageId   = o.optStringOrNull("apk_package_id"),
+            apkVersion     = o.optStringOrNull("apk_version"),
             targetPackage  = o.optStringOrNull("target_package"),
             targetUrl      = o.optStringOrNull("target_url"),
             accent         = o.optStringOrNull("accent"),
