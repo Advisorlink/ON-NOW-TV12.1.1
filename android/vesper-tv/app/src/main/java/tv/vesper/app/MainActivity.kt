@@ -121,10 +121,19 @@ class MainActivity : AppCompatActivity() {
         // obfuscation + integrity guards, this means a determined
         // attacker can't even capture the UI's pixels to extract
         // brand assets / UI screenshots for re-skin.
-        window.setFlags(
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-        )
+        //
+        // v2.7.89 — Temporarily disabled so the user can screenshot
+        // the on-screen debug overlay we just added to diagnose the
+        // mobile touch / player bugs.  Re-enable in a future build
+        // once the bugs are fixed.  The single-line toggle below
+        // is the ONLY place to flip this.
+        val secureFlagEnabled = false
+        if (secureFlagEnabled) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        }
 
         /* If the previous run crashed, the global handler in
            OnNowApplication captured the stack trace to disk.  Show

@@ -282,10 +282,16 @@ class ExoPlayerActivity : ComponentActivity() {
 
         // v2.7.82 SECURITY — FLAG_SECURE prevents screen recording /
         // mirroring / task-switcher screenshots of paid content.
-        window.setFlags(
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-        )
+        // v2.7.89 — Temporarily disabled so the user can capture
+        // debug recordings of the player.  Re-enable alongside the
+        // MainActivity flag once bugs are fixed.
+        val secureFlagEnabled = false
+        if (secureFlagEnabled) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        }
 
         // v2.7.64 — Mobile-safe boot.  ExoPlayer + Compose can crash
         // on certain older phones (HEVC decoder absent, no OpenGL ES 3

@@ -7,6 +7,16 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.90 — Temporarily allow screenshots so user can capture debug overlay
+
+User reported (correctly!) that v2.7.89's on-screen debug overlay was useless because `FLAG_SECURE` (added in v2.7.82 anti-tamper hardening) blocks the OS from screen-shotting or screen-recording the activity.
+
+This build flips a single boolean (`secureFlagEnabled = false`) in BOTH `MainActivity` and `ExoPlayerActivity` so screenshots + screen recording work again.  Single point of control — flip both back to `true` in a future build once the touch / player bugs are diagnosed.
+
+The R8 obfuscation, cert pinning, IntegrityGuard, and emulator detection from v2.7.82 are NOT touched — only the OS-level screen-capture block is lifted.
+
+---
+
 ## v2.7.89 — Stop guessing.  Visible diagnostics + UA-based detection
 
 User screen-recorded v2.7.88 on a Samsung phone showing both bugs from v2.7.85, .86, .87, .88 still active.  I've stopped guessing.  This build adds a visible debug overlay so the user can SEE on-screen exactly what the WebView reports — UA string, viewport, pointer:coarse value, max-touch-points, data-platform attribute, and a live touch-event log.
