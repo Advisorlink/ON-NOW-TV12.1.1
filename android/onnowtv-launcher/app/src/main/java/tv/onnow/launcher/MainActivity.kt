@@ -228,7 +228,10 @@ class MainActivity : AppCompatActivity() {
     /** Paint the on-screen debug pill.  Auto-hides 5s after the first
      *  successful poll so it doesn't permanently clutter the UI. */
     private fun updateDebugStatus(msg: String, ok: Boolean) {
-        binding.debugStatus.text = msg
+        // Prefix with the launcher BUILD version so the user can
+        // visually confirm at a glance WHICH APK is installed.
+        val v = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Throwable) { "?" }
+        binding.debugStatus.text = "v$v · $msg"
         val color = if (ok) 0xFF2EEAC2.toInt() else 0xFFFFB454.toInt()
         binding.debugStatus.setTextColor(color)
         if (ok && !hasReceivedFirstConfig) {
