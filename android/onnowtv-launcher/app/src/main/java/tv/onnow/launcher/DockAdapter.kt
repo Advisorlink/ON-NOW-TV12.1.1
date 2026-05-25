@@ -12,13 +12,14 @@ import tv.onnow.launcher.databinding.ItemDockBinding
  * Each tile is a focusable card that, when focused, glows in the
  * launcher's accent colour.  Clicking a tile (D-pad OK) fires
  * `onSelect(item)` so MainActivity can route to the appropriate
- * intent / Coming-Soon panel.  Focus changes fire `onFocus(item)`
- * so MainActivity can swap the featured-panel content + accent
- * colour live as the user navigates left/right.
+ * intent / Coming-Soon panel.
+ *
+ * v0.5 — Focus-driven wallpaper swaps are handled by MainActivity
+ * via a global focus listener on the RecyclerView, so this adapter
+ * no longer needs its own `onFocus` callback.
  */
 class DockAdapter(
     private val items: List<DockItem>,
-    private val onFocus: (DockItem) -> Unit,
     private val onSelect: (DockItem) -> Unit,
 ) : RecyclerView.Adapter<DockAdapter.VH>() {
 
@@ -62,7 +63,6 @@ class DockAdapter(
 
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             if (hasFocus) {
-                onFocus(item)
                 v.animate().scaleX(1.04f).scaleY(1.04f).setDuration(140).start()
             } else {
                 v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(140).start()
