@@ -52,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var repo: LauncherRepository
     private val shownNotificationIds = mutableSetOf<String>()
     private var configPollJob: Job? = null
-    private var notifyPollJob: Job? = null
     private var hasReceivedFirstConfig = false
     private var currentWallpaperUrl: String? = null
 
@@ -95,7 +94,6 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         handler.removeCallbacks(clockTick)
         configPollJob?.cancel()
-        notifyPollJob?.cancel()
     }
 
     /* ──────────────────────────  Dock  ───────────────────────── */
@@ -216,11 +214,17 @@ class MainActivity : AppCompatActivity() {
                 delay(TimeUnit.SECONDS.toMillis(30))
             }
         }
-        notifyPollJob?.cancel()
-        notifyPollJob = lifecycleScope.launch {
-            while (true) {
-                checkPendingNotifications()
-                delay(TimeUnit.SECONDS.toMillis(30))
+    }
+
+    /** Surface any un-shown notifications from the latest config.
+     *  The launcher backend embeds active notifications inside the
+     *  config payload, so we don't need a separate poll endpoint. */
+    private fun surfaceNotifications(config: RemoteLauncherConfig) {
+        for (n in config.notifications) {
+            if (n.id in shownNotificationIds) continue
+            shownNotificationIds.add(n.id)
+            NotificationPopup.show(this, n) {
+                lifecycleScope.launch { repo.ackNotification(n.id) }
             }
         }
     }
@@ -275,6 +279,8 @@ class MainActivity : AppCompatActivity() {
             // Auto-focus the first tile so D-pad works immediately.
             binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }
+        // Surface any new admin-broadcast notifications.
+        surfaceNotifications(config)
     }
 
     /** Map a remote dock-tile `key` back to one of our built-in
@@ -287,23 +293,6 @@ class MainActivity : AppCompatActivity() {
         "browser"  -> R.drawable.ic_dock_globe
         "settings" -> R.drawable.ic_dock_gear
         else       -> R.drawable.ic_dock_grid
-    }
-
-    /* ─────────────────  Notification polling  ───────────────── */
-
-    private suspend fun checkPendingNotifications() {
-        val pending = repo.fetchPendingNotifications()
-        for (n in pending) {
-            if (n.id in shownNotificationIds) continue
-            shownNotificationIds.add(n.id)
-            showNotificationPopup(n)
-        }
-    }
-
-    private fun showNotificationPopup(n: NotificationRemote) {
-        NotificationPopup.show(this, n) {
-            lifecycleScope.launch { repo.ackNotification(n.id) }
-        }
     }
 
     /* ──────────────────────────  Top bar  ───────────────────────── */
