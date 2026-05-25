@@ -1,14 +1,14 @@
 {
-  "generation": 61,
+  "generation": 70,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "Stream cinematic stories",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-f65c2681.png",
-      "apk_url": "/assets/tile_apks/tile-movies-3b1406aa.apk",
-      "apk_filename": "onnowtv-launcher-debug (2).apk",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-95e4fe80.png",
+      "apk_url": null,
+      "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
@@ -20,7 +20,7 @@
       "label": "Music",
       "sub": "Listen and discover",
       "image_url": "/assets/tile_images/tile-music-65391cbe.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-71b37163.png",
+      "wallpaper_url": "/assets/wallpapers/tile-music-2fb75f77.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -34,7 +34,7 @@
       "label": "Sports",
       "sub": "Live games & highlights",
       "image_url": "/assets/tile_images/tile-sports-58ef5dd6.png",
-      "wallpaper_url": "/assets/wallpapers/tile-sports-1d5cfea6.png",
+      "wallpaper_url": "/assets/wallpapers/tile-sports-eacd0e8b.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -48,7 +48,7 @@
       "label": "Kids",
       "sub": "Family-safe content",
       "image_url": "/assets/tile_images/tile-kids-72e6c1eb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-kids-dd118ea1.png",
+      "wallpaper_url": "/assets/wallpapers/tile-kids-ee62d506.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -62,7 +62,7 @@
       "label": "Internet",
       "sub": "",
       "image_url": "/assets/tile_images/tile-internet-b2284cc8.png",
-      "wallpaper_url": "/assets/wallpapers/tile-internet-02b0cb7b.png",
+      "wallpaper_url": "/assets/wallpapers/tile-internet-cc23f20a.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -76,7 +76,7 @@
       "label": "Settings",
       "sub": "",
       "image_url": "/assets/tile_images/tile-settings-35a016fd.png",
-      "wallpaper_url": "/assets/wallpapers/tile-settings-43a4ef0d.png",
+      "wallpaper_url": "/assets/wallpapers/tile-settings-99edf579.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -126,8 +126,18 @@
     },
     "b4c2f438-546b-4950-b93f-5a7a43c7d119": {
       "device_id": "b4c2f438-546b-4950-b93f-5a7a43c7d119",
-      "last_seen": 1779721123,
-      "last_generation": 61
+      "last_seen": 1779721924,
+      "last_generation": 63
+    },
+    "2ec018dc-49c6-43e1-ad3f-eb2cf3e57f25": {
+      "device_id": "2ec018dc-49c6-43e1-ad3f-eb2cf3e57f25",
+      "last_seen": 1779722739,
+      "last_generation": 70
+    },
+    "audit-test": {
+      "device_id": "audit-test",
+      "last_seen": 1779722693,
+      "last_generation": 70
     }
   }
 }

@@ -255,6 +255,7 @@ class MainActivity : AppCompatActivity() {
                 wallpaperUrl   = t.wallpaperUrl,
                 targetPackage  = t.targetPackage,
                 targetUrl      = t.targetUrl,
+                accent         = t.accent,
             )
         }
         dockItems.clear()

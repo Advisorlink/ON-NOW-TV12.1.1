@@ -364,6 +364,46 @@ header nav { display: flex; gap: 8px; align-items: center; }
     display: block;
 }
 
+/* v0.8 — Glow-colour picker (per-tile accent).  Combines a native
+   <input type="color"> swatch with a hex text mirror so the admin
+   can pick visually OR type an exact hex.  Bidirectional sync
+   wired up in app.js → bindDockHandlers(). */
+.dock-list .accent-field .accent-pickers {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.dock-list .accent-field input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 44px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-row);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+.dock-list .accent-field input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 4px;
+    border-radius: 8px;
+}
+.dock-list .accent-field input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 6px;
+}
+.dock-list .accent-field input[type="color"]::-moz-color-swatch {
+    border: none;
+    border-radius: 6px;
+}
+.dock-list .accent-field input[type="text"] {
+    flex: 1 1 auto;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
 .dock-save-row {
     display: flex;
     align-items: center;

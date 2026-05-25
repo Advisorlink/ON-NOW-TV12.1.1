@@ -272,7 +272,22 @@ function renderDock(store) {
                 <div><label>Target URL</label><input data-k="target_url" value="${escapeAttr(t.target_url || '')}" placeholder="e.g. https://news.com"></div>
                 <div><label>APK package id <small>(metadata)</small></label><input data-k="apk_package_id" value="${escapeAttr(t.apk_package_id || '')}" placeholder="e.g. tv.onnowtv.app"></div>
                 <div><label>APK version <small>(metadata)</small></label><input data-k="apk_version" value="${escapeAttr(t.apk_version || '')}" placeholder="e.g. 2.7.85"></div>
-                <div><label>Accent hex</label><input data-k="accent" value="${escapeAttr(t.accent || '')}" placeholder="#2BB6FF"></div>
+                <div class="accent-field">
+                    <label>Glow colour</label>
+                    <div class="accent-pickers">
+                        <input type="color"
+                               data-k="accent"
+                               data-accent-color
+                               value="${escapeAttr(t.accent || '#2BB6FF')}"
+                               title="Pick the glow colour for this tile">
+                        <input type="text"
+                               data-accent-hex
+                               value="${escapeAttr(t.accent || '')}"
+                               placeholder="#2BB6FF"
+                               maxlength="9"
+                               spellcheck="false">
+                    </div>
+                </div>
             </div>
         `;
         list.appendChild(li);
@@ -281,6 +296,28 @@ function renderDock(store) {
 }
 
 function bindDockHandlers() {
+    /* v0.8 — Bidirectional sync between the colour picker (the
+       saved field) and the hex text mirror.  Lets non-technical
+       users pick visually, AND power users paste an exact hex. */
+    $$('#dockList .accent-field').forEach((wrap) => {
+        const picker = wrap.querySelector('[data-accent-color]');
+        const hex    = wrap.querySelector('[data-accent-hex]');
+        if (!picker || !hex) return;
+        picker.addEventListener('input', () => {
+            hex.value = picker.value.toUpperCase();
+        });
+        hex.addEventListener('input', () => {
+            const v = hex.value.trim();
+            // Accept #RRGGBB.  type=color only handles 6-digit hex,
+            // so strip a leading alpha byte if the user typed one.
+            if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                picker.value = v;
+            } else if (/^#[0-9a-fA-F]{8}$/.test(v)) {
+                picker.value = '#' + v.slice(3);
+            }
+        });
+    });
+
     /* Reorder buttons */
     $$('#dockList .reorder-btn').forEach((b) => {
         b.addEventListener('click', async () => {
@@ -415,6 +452,10 @@ $('#saveDock').addEventListener('click', async () => {
         const out = { key, label: existing.label, sub: existing.sub,
                       target_package: null, target_url: null, accent: null };
         li.querySelectorAll('.fields input').forEach((i) => {
+            // Skip inputs without a `data-k` mapping (e.g. the
+            // text-mirror next to the colour picker — only the
+            // colour picker itself carries data-k="accent").
+            if (!i.dataset.k) return;
             out[i.dataset.k] = i.value.trim() || null;
         });
         return out;

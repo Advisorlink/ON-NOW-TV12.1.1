@@ -3,13 +3,16 @@ package tv.onnow.launcher
 import androidx.annotation.DrawableRes
 
 /**
- * v0.5 — One dock tile rendered in the bottom row of the launcher.
+ * v0.8 — One dock tile rendered in the bottom row of the launcher.
  *
  * Fields driven by the admin backend:
  *   - imageUrl       : JPEG card art (replaces iconRes when set)
  *   - wallpaperUrl   : fullscreen background when this tile is focused
  *   - targetPackage  : Android package to launch on tap
  *   - targetUrl      : URL to open in browser on tap (if no package)
+ *   - accent         : "#RRGGBB" hex used to tint the focused halo
+ *                      (falls back to the launcher's default blue when
+ *                       blank).  Lets each tile glow in its own colour.
  *
  * `iconRes` is the built-in fallback vector drawn when no imageUrl
  * is set — typically used for the 6 default tiles (movies / music /
@@ -24,4 +27,5 @@ data class DockItem(
     val wallpaperUrl: String? = null,
     val targetPackage: String? = null,
     val targetUrl: String? = null,
+    val accent: String? = null,
 )
