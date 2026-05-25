@@ -1,5 +1,5 @@
 {
-  "generation": 73,
+  "generation": 74,
   "dock_tiles": [
     {
       "key": "movies",
@@ -20,7 +20,7 @@
       "label": "Music",
       "sub": "Listen and discover",
       "image_url": "/assets/tile_images/tile-music-65391cbe.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-2fb75f77.png",
+      "wallpaper_url": "/assets/wallpapers/tile-music-9b768ebd.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -141,8 +141,8 @@
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
-      "last_seen": 1779723958,
-      "last_generation": 73
+      "last_seen": 1779724110,
+      "last_generation": 74
     }
   }
 }
