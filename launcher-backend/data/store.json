@@ -65,6 +65,21 @@
       "device_id": "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1",
       "last_seen": 1779715135,
       "last_generation": 19
+    },
+    "686ad08f-c541-4806-b16b-a3aa74d3e49b": {
+      "device_id": "686ad08f-c541-4806-b16b-a3aa74d3e49b",
+      "last_seen": 1779715960,
+      "last_generation": 19
+    },
+    "02d77e37-7fa9-4f94-a1ee-5866b9936058": {
+      "device_id": "02d77e37-7fa9-4f94-a1ee-5866b9936058",
+      "last_seen": 1779716289,
+      "last_generation": 19
+    },
+    "debug-test": {
+      "device_id": "debug-test",
+      "last_seen": 1779716399,
+      "last_generation": 19
     }
   }
 }
