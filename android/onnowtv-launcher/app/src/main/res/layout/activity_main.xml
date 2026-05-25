@@ -154,18 +154,18 @@
     </LinearLayout>
 
     <!-- Bottom dock — variable number of tiles (1..N).
-         v0.8 — Slightly bigger tiles (300×168) + reflection (300×60)
-         = 230 dp content height.  RecyclerView 268 dp with 22 dp top
-         + 16 dp bottom padding for halo room.  Bottom margin reduced
-         to 6 dp so the dock visually sits right at the floor. -->
+         v0.9 — Sits right against the bottom edge of the screen.
+         Bottom margin = 0, paddingBottom trimmed to 4 dp (just
+         enough headroom for the focused tile's halo while keeping
+         the reflection visually near the floor). -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dock"
         android:layout_width="0dp"
         android:layout_height="268dp"
         android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="6dp"
+        android:layout_marginBottom="0dp"
         android:paddingTop="22dp"
-        android:paddingBottom="16dp"
+        android:paddingBottom="4dp"
         android:clipToPadding="false"
         android:clipChildren="false"
         android:descendantFocusability="afterDescendants"
