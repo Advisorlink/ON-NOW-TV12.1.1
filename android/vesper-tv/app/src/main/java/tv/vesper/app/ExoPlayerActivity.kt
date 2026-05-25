@@ -571,8 +571,15 @@ class ExoPlayerActivity : ComponentActivity() {
         })
 
         val item = MediaItem.Builder().setUri(streamUrl).setMediaId(streamUrl).build()
-        player.setMediaItem(item)
-        if (startAtMs > 5_000) player.seekTo(startAtMs)
+        // v2.7.88 — Use the canonical Media3 setMediaItem(item, startPositionMs)
+        // overload so the resume position is applied atomically before
+        // prepare().  Previous code called setMediaItem(item) + seekTo()
+        // separately in IDLE state, which Media3 could silently drop —
+        // causing resume click to start from 0 even when startAtMs was
+        // a valid timestamp.  The "> 5_000" threshold preserves the
+        // existing UX (skip resume for the first 5 s of a stream).
+        val startPos = if (startAtMs > 5_000L) startAtMs else 0L
+        player.setMediaItem(item, startPos)
         player.prepare()
         player.playWhenReady = true
 
