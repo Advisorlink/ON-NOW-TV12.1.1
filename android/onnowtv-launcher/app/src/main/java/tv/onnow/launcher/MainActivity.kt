@@ -9,6 +9,7 @@ import android.os.Looper
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -18,10 +19,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tv.onnow.launcher.apps.AppsDrawerActivity
-import tv.onnow.launcher.data.DockTileRemote
 import tv.onnow.launcher.data.LauncherConfig as RemoteLauncherConfig
 import tv.onnow.launcher.data.LauncherRepository
-import tv.onnow.launcher.data.NotificationRemote
 import tv.onnow.launcher.databinding.ActivityMainBinding
 import tv.onnow.launcher.notify.NotificationPopup
 import java.text.SimpleDateFormat
@@ -109,23 +108,14 @@ class MainActivity : AppCompatActivity() {
         binding.dock.viewTreeObserver.addOnGlobalFocusChangeListener { _, newFocus ->
             if (newFocus == null) return@addOnGlobalFocusChangeListener
             val rv = binding.dock
+            // RecyclerView has a built-in findContainingItemView that
+            // walks the view tree up to a direct child of this RV.
             val itemView = rv.findContainingItemView(newFocus) ?: return@addOnGlobalFocusChangeListener
             val pos = rv.getChildAdapterPosition(itemView)
             if (pos in dockItems.indices) {
                 applyWallpaperForTile(dockItems[pos])
             }
         }
-    }
-
-    /** Walk up from a focused view to the dock RecyclerView's direct
-     *  child (the item view), or null if the focused view isn't a
-     *  descendant. */
-    private fun RecyclerView.findContainingItemView(v: android.view.View): android.view.View? {
-        var p: android.view.View? = v
-        while (p != null && p.parent !== this) {
-            p = p.parent as? android.view.View
-        }
-        return p
     }
 
     private fun onTileSelected(item: DockItem) {
@@ -172,10 +162,10 @@ class MainActivity : AppCompatActivity() {
         val scrimView = binding.tileWallpaperScrim
         if (url.isNullOrBlank()) {
             wallpaperView.animate().alpha(0f).setDuration(280).withEndAction {
-                wallpaperView.visibility = android.view.View.GONE
+                wallpaperView.visibility = View.GONE
             }.start()
             scrimView.animate().alpha(0f).setDuration(280).withEndAction {
-                scrimView.visibility = android.view.View.GONE
+                scrimView.visibility = View.GONE
             }.start()
             return
         }
@@ -184,9 +174,9 @@ class MainActivity : AppCompatActivity() {
             if (currentWallpaperUrl != url) return@loadBitmap
             wallpaperView.setImageBitmap(bmp)
             wallpaperView.alpha = 0f
-            wallpaperView.visibility = android.view.View.VISIBLE
+            wallpaperView.visibility = View.VISIBLE
             scrimView.alpha = 0f
-            scrimView.visibility = android.view.View.VISIBLE
+            scrimView.visibility = View.VISIBLE
             wallpaperView.animate().alpha(1f).setDuration(360).start()
             scrimView.animate().alpha(1f).setDuration(360).start()
         }
@@ -245,7 +235,7 @@ class MainActivity : AppCompatActivity() {
                     .alpha(0f)
                     .setDuration(600)
                     .withEndAction {
-                        binding.debugStatus.visibility = android.view.View.GONE
+                        binding.debugStatus.visibility = View.GONE
                     }
                     .start()
             }, 5_000)
@@ -339,11 +329,10 @@ class MainActivity : AppCompatActivity() {
 
     /* ──────────────────────────  Back / Home  ───────────────────── */
 
-    @Deprecated("Required for Android < 13 — uses platform onBackPressed")
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         // Launcher: BACK should never finish the activity (HOME-screen
-        // semantic).  We swallow it.
-        // Don't call super.
+        // semantic).  We swallow it.  Don't call super.
     }
 
     override fun onNewIntent(intent: Intent) {
