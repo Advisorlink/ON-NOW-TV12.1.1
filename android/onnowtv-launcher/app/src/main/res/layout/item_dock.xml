@@ -1,59 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  v0.6 — Image-only dock tile.
+  v0.7 — Image-only dock tile with floor reflection.
 
   STRUCTURE
   ─────────
-  The tile is two nested FrameLayouts:
+  Vertical LinearLayout holds the tile + reflection so both
+  scale together during the focus animation.
 
-  * `tile_root`   (outer)  ─ focus owner.  Does NOT clip its
-                             children, so the focused-state
-                             foreground drawable can paint a
-                             halo that EXTENDS beyond the tile
-                             rectangle (negative-inset strokes
-                             in `dock_tile_focused.xml`).
+  • `tile_root`   — focus owner.  Outer FrameLayout does NOT clip
+                    its children, so the focused foreground halo
+                    drawable can paint OUTSIDE the tile rectangle.
+                    Inner `tile_clip` carries the rounded
+                    background + `clipToOutline="true"` that crops
+                    the ImageView to a rounded card.
 
-  * `tile_clip`   (inner)  ─ rounded background drawable provides
-                             a smoothly-rounded outline, and
-                             `clipToOutline="true"` clips the
-                             child ImageView to that outline.
+  • `reflection_clip` — rounded clip surface beneath the tile that
+                        shows the SAME bitmap flipped vertically
+                        (scaleY=-1).  A fade gradient overlay
+                        attenuates the bottom so the reflection
+                        dies smoothly into the floor.
 
-  No labels, no sub-text — the JPEG that the admin uploads IS the
-  tile.  The admin can bake the title into the image itself.
-
-  The outer marginVertical leaves 20 dp top/bottom inside the
-  RecyclerView (which has `clipChildren="false"`) so the focused
-  halo (~6 dp outside the tile rectangle) is never clipped.
+  No labels — admin bakes any title text into the JPEG itself.
 -->
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/tile_root"
-    android:layout_width="320dp"
-    android:layout_height="180dp"
-    android:layout_marginHorizontal="10dp"
-    android:clipChildren="false"
-    android:foreground="@drawable/dock_tile_focus_overlay"
-    android:focusable="true"
-    android:focusableInTouchMode="true"
-    android:clickable="true">
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:clipChildren="false">
 
-    <!-- Inner: rounded clip surface that holds the image. -->
+    <!-- Main tile (focus owner + halo) -->
     <FrameLayout
-        android:id="@+id/tile_clip"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/dock_tile_resting"
-        android:clipToOutline="true">
+        android:id="@+id/tile_root"
+        android:layout_width="280dp"
+        android:layout_height="158dp"
+        android:layout_marginHorizontal="10dp"
+        android:clipChildren="false"
+        android:foreground="@drawable/dock_tile_focus_overlay"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:clickable="true">
 
-        <ImageView
-            android:id="@+id/icon"
+        <FrameLayout
+            android:id="@+id/tile_clip"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            android:contentDescription="@null"
-            tools:src="@drawable/ic_dock_tv" />
+            android:background="@drawable/dock_tile_resting"
+            android:clipToOutline="true">
+
+            <ImageView
+                android:id="@+id/icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@null"
+                tools:src="@drawable/ic_dock_tv" />
+        </FrameLayout>
 
     </FrameLayout>
 
-</FrameLayout>
+    <!-- Floor reflection (mirrored copy of the image, fades into bg) -->
+    <FrameLayout
+        android:id="@+id/reflection_clip"
+        android:layout_width="280dp"
+        android:layout_height="56dp"
+        android:layout_marginHorizontal="10dp"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/dock_reflection_clip"
+        android:clipToOutline="true">
+
+        <!-- Same source as the main image, but flipped vertically.
+             The ImageView is the full TILE height (158 dp) anchored
+             at the top of the 56-dp container, so the visible 56 dp
+             slice equals the BOTTOM portion of the source bitmap. -->
+        <ImageView
+            android:id="@+id/reflection"
+            android:layout_width="match_parent"
+            android:layout_height="158dp"
+            android:layout_gravity="top"
+            android:scaleType="centerCrop"
+            android:scaleY="-1"
+            android:alpha="0.30"
+            android:contentDescription="@null" />
+
+        <!-- Vertical fade — transparent on top (right under tile)
+             → solid bg_deep at the bottom (dies into the floor). -->
+        <View
+            android:id="@+id/reflection_fade"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/dock_reflection_fade" />
+    </FrameLayout>
+
+</LinearLayout>

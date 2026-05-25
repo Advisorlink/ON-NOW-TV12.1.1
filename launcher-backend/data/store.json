@@ -1,14 +1,14 @@
 {
-  "generation": 35,
+  "generation": 50,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "Stream cinematic stories",
-      "image_url": "/assets/tile_images/tile-movies-fda2041b.png",
+      "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
       "wallpaper_url": "/assets/wallpapers/tile-movies-f65c2681.png",
-      "apk_url": null,
-      "apk_filename": null,
+      "apk_url": "/assets/tile_apks/tile-movies-3b1406aa.apk",
+      "apk_filename": "onnowtv-launcher-debug (2).apk",
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
@@ -19,7 +19,7 @@
       "key": "music",
       "label": "Music",
       "sub": "Listen and discover",
-      "image_url": "/assets/tile_images/tile-music-2dffabdc.png",
+      "image_url": "/assets/tile_images/tile-music-65391cbe.png",
       "wallpaper_url": "/assets/wallpapers/tile-music-71b37163.png",
       "apk_url": null,
       "apk_filename": null,
@@ -88,8 +88,18 @@
     },
     "4187356e-cd1d-437a-be62-f665fe5e147a": {
       "device_id": "4187356e-cd1d-437a-be62-f665fe5e147a",
-      "last_seen": 1779719557,
+      "last_seen": 1779719777,
       "last_generation": 35
+    },
+    "12a176e4-e315-409d-904e-78df1dc8080e": {
+      "device_id": "12a176e4-e315-409d-904e-78df1dc8080e",
+      "last_seen": 1779719950,
+      "last_generation": 35
+    },
+    "b4c2f438-546b-4950-b93f-5a7a43c7d119": {
+      "device_id": "b4c2f438-546b-4950-b93f-5a7a43c7d119",
+      "last_seen": 1779720696,
+      "last_generation": 50
     }
   }
 }
