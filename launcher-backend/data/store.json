@@ -1,5 +1,5 @@
 {
-  "generation": 50,
+  "generation": 61,
   "dock_tiles": [
     {
       "key": "movies",
@@ -33,7 +33,7 @@
       "key": "sports",
       "label": "Sports",
       "sub": "Live games & highlights",
-      "image_url": "/assets/tile_images/tile-sports-8b261a7d.png",
+      "image_url": "/assets/tile_images/tile-sports-58ef5dd6.png",
       "wallpaper_url": "/assets/wallpapers/tile-sports-1d5cfea6.png",
       "apk_url": null,
       "apk_filename": null,
@@ -47,7 +47,7 @@
       "key": "kids",
       "label": "Kids",
       "sub": "Family-safe content",
-      "image_url": "/assets/tile_images/tile-kids-678a5088.png",
+      "image_url": "/assets/tile_images/tile-kids-72e6c1eb.png",
       "wallpaper_url": "/assets/wallpapers/tile-kids-dd118ea1.png",
       "apk_url": null,
       "apk_filename": null,
@@ -56,6 +56,34 @@
       "target_package": null,
       "target_url": null,
       "accent": "#FFB454"
+    },
+    {
+      "key": "internet",
+      "label": "Internet",
+      "sub": "",
+      "image_url": "/assets/tile_images/tile-internet-b2284cc8.png",
+      "wallpaper_url": "/assets/wallpapers/tile-internet-02b0cb7b.png",
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
+      "target_package": null,
+      "target_url": null,
+      "accent": null
+    },
+    {
+      "key": "settings",
+      "label": "Settings",
+      "sub": "",
+      "image_url": "/assets/tile_images/tile-settings-35a016fd.png",
+      "wallpaper_url": "/assets/wallpapers/tile-settings-43a4ef0d.png",
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
+      "target_package": null,
+      "target_url": null,
+      "accent": null
     }
   ],
   "apks": [],
@@ -98,8 +126,8 @@
     },
     "b4c2f438-546b-4950-b93f-5a7a43c7d119": {
       "device_id": "b4c2f438-546b-4950-b93f-5a7a43c7d119",
-      "last_seen": 1779720696,
-      "last_generation": 50
+      "last_seen": 1779721123,
+      "last_generation": 61
     }
   }
 }
