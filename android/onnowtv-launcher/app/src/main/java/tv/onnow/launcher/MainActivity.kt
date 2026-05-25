@@ -113,9 +113,75 @@ class MainActivity : AppCompatActivity() {
             val itemView = rv.findContainingItemView(newFocus) ?: return@addOnGlobalFocusChangeListener
             val pos = rv.getChildAdapterPosition(itemView)
             if (pos in dockItems.indices) {
-                applyWallpaperForTile(dockItems[pos])
+                val tile = dockItems[pos]
+                applyWallpaperForTile(tile)
+                applyFeaturedPanel(tile)
             }
         }
+    }
+
+    /* ────────────────────  Featured panel  ─────────────────── */
+
+    /**
+     * Paints the heading / description / CTA pill panel that floats
+     * over the wallpaper for the currently-focused tile.
+     *
+     *   • If the tile has no heading AND no description, the entire
+     *     panel fades out (we don't show an empty card).
+     *   • CTA pill fill colour follows the tile's accent so the
+     *     button reads as the same "brand" as the glow halo.
+     */
+    private fun applyFeaturedPanel(item: DockItem) {
+        val panel  = binding.featuredPanel
+        val heading = item.heading?.trim().orEmpty()
+        val desc    = item.description?.trim().orEmpty()
+        val cta     = item.ctaLabel?.trim().ifEmpty { "ENTER" } ?: "ENTER"
+
+        // Empty heading + empty description = hide the whole panel.
+        // Otherwise, fade it in and update content.
+        val hasContent = heading.isNotEmpty() || desc.isNotEmpty()
+        if (!hasContent) {
+            panel.animate().alpha(0f).setDuration(180).start()
+            return
+        }
+
+        binding.featuredHeading.text     = heading
+        binding.featuredHeading.visibility =
+            if (heading.isEmpty()) View.GONE else View.VISIBLE
+        binding.featuredDescription.text = desc
+        binding.featuredDescription.visibility =
+            if (desc.isEmpty()) View.GONE else View.VISIBLE
+        binding.featuredCta.text         = cta.uppercase()
+
+        // Tint the CTA pill to the tile's accent.
+        val accent = parseTileAccent(item.accent)
+        val pillBg = binding.featuredCta.background?.mutate()
+        if (pillBg is android.graphics.drawable.GradientDrawable) {
+            pillBg.setColor(accent)
+        }
+        // Pick a contrasting text colour for the pill — dark on
+        // light, light on dark — using YIQ luminance.
+        binding.featuredCta.setTextColor(contrastingForeground(accent))
+
+        if (panel.alpha < 1f) {
+            panel.animate().alpha(1f).setDuration(280).start()
+        }
+    }
+
+    private fun parseTileAccent(hex: String?): Int {
+        if (hex.isNullOrBlank()) return 0xFF2BB6FF.toInt()
+        return try { Color.parseColor(hex.trim()) }
+        catch (_: Throwable) { 0xFF2BB6FF.toInt() }
+    }
+
+    /** Returns black on bright accents, white on dark ones — keeps
+     *  the CTA label always legible against the pill fill. */
+    private fun contrastingForeground(argb: Int): Int {
+        val r = (argb shr 16) and 0xFF
+        val g = (argb shr 8) and 0xFF
+        val b = argb and 0xFF
+        val yiq = (r * 299 + g * 587 + b * 114) / 1000
+        return if (yiq >= 150) 0xFF04060B.toInt() else 0xFFF4F7FB.toInt()
     }
 
     private fun onTileSelected(item: DockItem) {
@@ -256,17 +322,24 @@ class MainActivity : AppCompatActivity() {
                 targetPackage  = t.targetPackage,
                 targetUrl      = t.targetUrl,
                 accent         = t.accent,
+                heading        = t.heading,
+                description    = t.description,
+                ctaLabel       = t.ctaLabel,
             )
         }
         dockItems.clear()
         dockItems.addAll(mapped)
         binding.dock.adapter?.notifyDataSetChanged()
-        // Wallpaper for the currently focused (or first) tile.
+        // Wallpaper + featured panel for the currently focused
+        // (or first) tile.
         binding.dock.post {
             val pos = (binding.dock.layoutManager as? LinearLayoutManager)
                 ?.findFirstVisibleItemPosition() ?: 0
             val tile = dockItems.getOrNull(pos) ?: dockItems.firstOrNull()
-            tile?.let { applyWallpaperForTile(it) }
+            tile?.let {
+                applyWallpaperForTile(it)
+                applyFeaturedPanel(it)
+            }
             // Auto-focus the first tile so D-pad works immediately.
             binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }

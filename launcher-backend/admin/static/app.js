@@ -268,6 +268,9 @@ function renderDock(store) {
             <div class="fields">
                 <div><label>Label</label><input data-k="label" value="${escapeAttr(t.label || '')}"></div>
                 <div><label>Sub</label><input data-k="sub" value="${escapeAttr(t.sub || '')}"></div>
+                <div class="span-2"><label>Wallpaper heading <small>(big Montserrat title shown over the wallpaper)</small></label><input data-k="heading" value="${escapeAttr(t.heading || '')}" placeholder="e.g. Movies"></div>
+                <div class="span-2"><label>Wallpaper description <small>(supporting line under the heading)</small></label><input data-k="description" value="${escapeAttr(t.description || '')}" placeholder="e.g. Stream the latest blockbusters in 4K HDR."></div>
+                <div><label>CTA label <small>(button text — defaults to "ENTER")</small></label><input data-k="cta_label" value="${escapeAttr(t.cta_label || '')}" placeholder="ENTER"></div>
                 <div><label>Target package</label><input data-k="target_package" value="${escapeAttr(t.target_package || '')}" placeholder="e.g. tv.onnowtv.app"></div>
                 <div><label>Target URL</label><input data-k="target_url" value="${escapeAttr(t.target_url || '')}" placeholder="e.g. https://news.com"></div>
                 <div><label>APK package id <small>(metadata)</small></label><input data-k="apk_package_id" value="${escapeAttr(t.apk_package_id || '')}" placeholder="e.g. tv.onnowtv.app"></div>
@@ -450,7 +453,8 @@ $('#saveDock').addEventListener('click', async () => {
         const key = li.dataset.key;
         const existing = byKey[key] || {};
         const out = { key, label: existing.label, sub: existing.sub,
-                      target_package: null, target_url: null, accent: null };
+                      target_package: null, target_url: null, accent: null,
+                      heading: null, description: null, cta_label: null };
         li.querySelectorAll('.fields input').forEach((i) => {
             // Skip inputs without a `data-k` mapping (e.g. the
             // text-mirror next to the colour picker — only the

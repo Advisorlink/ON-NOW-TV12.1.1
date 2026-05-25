@@ -28,4 +28,8 @@ data class DockItem(
     val targetPackage: String? = null,
     val targetUrl: String? = null,
     val accent: String? = null,
+    /* v0.9 — Featured-panel content surfaced when this tile is focused. */
+    val heading: String? = null,
+    val description: String? = null,
+    val ctaLabel: String? = null,
 )

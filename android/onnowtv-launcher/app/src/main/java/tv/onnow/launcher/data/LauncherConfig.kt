@@ -35,6 +35,12 @@ data class DockTileRemote(
     val targetPackage: String?,
     val targetUrl: String?,
     val accent: String?,
+    /* v0.9 — Featured-panel content shown OVER the wallpaper when
+       this tile is the focused one.  All optional — when blank,
+       MainActivity hides the panel. */
+    val heading: String?,
+    val description: String?,
+    val ctaLabel: String?,
 )
 
 data class ApkEntryRemote(
@@ -83,6 +89,9 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             targetPackage  = o.optStringOrNull("target_package"),
             targetUrl      = o.optStringOrNull("target_url"),
             accent         = o.optStringOrNull("accent"),
+            heading        = o.optStringOrNull("heading"),
+            description    = o.optStringOrNull("description"),
+            ctaLabel       = o.optStringOrNull("cta_label"),
         )
     }
     val apksArr = root.optJSONArray("apks") ?: JSONArray()

@@ -2,11 +2,9 @@ package tv.onnow.launcher
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
-import android.graphics.drawable.StateListDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,22 +15,17 @@ import tv.onnow.launcher.databinding.ItemDockBinding
 /**
  * Horizontal RecyclerView adapter for the bottom dock.
  *
- * v0.8 — Image-only tiles with a floor reflection AND a PER-TILE
- * focus glow.  Each tile carries its own `accent` hex (set by the
- * admin in the launcher backend); the focus halo is built
- * programmatically from that colour so every tile glows in the
- * colour the admin picked for it.
+ * v0.9 — Image-only tiles with a floor reflection AND a PER-TILE
+ * focus glow that bypasses Android's StateListDrawable plumbing
+ * altogether.  Why bypass?  StateListDrawable swap on `foreground`
+ * was unreliable on the HK1 box's WebView build — half the time
+ * Android wouldn't dispatch the state change and the halo painted
+ * in the wrong colour (or the previous tile's colour).
  *
- * Falls back to the global default (#2BB6FF — Vesper neon blue) when
- * the admin hasn't picked a colour or types an invalid hex.
- *
- * Focus visuals:
- *   • Halo  → `buildFocusOverlay()` returns a StateListDrawable that
- *             paints 3 concentric strokes (10 / 30 / 100 % accent
- *             alpha) tinted from the per-tile colour.
- *   • Scale → animated on `holder.itemView` (the outer LinearLayout)
- *             so the reflection scales together with the tile.
- *   • Wallpaper swap → MainActivity's global focus listener.
+ * The new approach: build the per-tile halo once during bind, then
+ * assign it to `tile_root.foreground` directly in the focus listener
+ * (and clear it when focus moves away).  Same effect, zero state
+ * machine, 100% reliable.
  */
 class DockAdapter(
     private val items: List<DockItem>,
@@ -73,23 +66,27 @@ class DockAdapter(
             reflectBox.visibility = View.GONE
         }
 
-        // Stable id for diff tracking + analytics.  Put it on the
-        // LinearLayout root so MainActivity's findContainingItemView
-        // returns the holder root (not the inner FrameLayout).
+        // Stable id for diff tracking + analytics.
         holder.itemView.tag = item.key
 
-        // Per-tile focus halo, tinted to the admin-picked accent.
+        // Build THIS tile's halo once, then paint/erase it in the
+        // focus listener.  Using a plain Drawable (no StateList)
+        // dodges the Android state-propagation bug that made the
+        // per-tile colour intermittent.
         val tileRoot = holder.binding.tileRoot
-        tileRoot.foreground = buildFocusOverlay(tileRoot.context, item.accent)
+        val halo     = buildHaloDrawable(tileRoot.context, item.accent)
 
+        tileRoot.foreground = null      // ensure no stale halo from recycle
         tileRoot.isFocusable           = true
         tileRoot.isFocusableInTouchMode = true
 
         tileRoot.setOnFocusChangeListener { _, hasFocus ->
             val target = holder.itemView
             if (hasFocus) {
+                tileRoot.foreground = halo
                 target.animate().scaleX(1.04f).scaleY(1.04f).setDuration(140).start()
             } else {
+                tileRoot.foreground = null
                 target.animate().scaleX(1.0f).scaleY(1.0f).setDuration(140).start()
             }
         }
@@ -100,24 +97,28 @@ class DockAdapter(
     /* ───────────────────  Per-tile focus halo  ─────────────────── */
 
     /**
-     * Build a state-list foreground drawable whose focused state
-     * is a 3-layer halo (10 % outer · 30 % middle · 100 % crisp ring)
-     * tinted to the per-tile [accentHex].  Unfocused state is fully
-     * transparent so the image remains the only visible element.
+     * Builds the 3-stroke halo Drawable tinted to [accentHex].
      *
-     * Mirrors the geometry of the XML version (drawable/
-     * dock_tile_focused.xml) but with a programmatic accent colour.
+     *   • Outer  — 6 dp stroke @ 10 % alpha, inset −8 dp (extends
+     *              outside the tile rectangle for the soft glow)
+     *   • Middle — 4 dp stroke @ 30 % alpha, inset −4 dp
+     *   • Inner  — 2 dp stroke @ 100 % alpha, on the tile edge
+     *
+     * Negative insets are honoured by [LayerDrawable] only when the
+     * parent ViewGroup has `clipChildren=false` AND the RecyclerView
+     * has `clipChildren=false` / `clipToPadding=false` (both true
+     * for `activity_main.xml#dock`).
      */
-    private fun buildFocusOverlay(ctx: Context, accentHex: String?): Drawable {
+    private fun buildHaloDrawable(ctx: Context, accentHex: String?): Drawable {
         val density = ctx.resources.displayMetrics.density
-        fun dp(v: Float): Int = (v * density).toInt()
+        fun dp(v: Float): Int  = (v * density).toInt()
         fun dpF(v: Float): Float = v * density
 
         val baseColor = parseHexColor(accentHex) ?: DEFAULT_ACCENT
         val rgb = baseColor and 0x00FFFFFF
         val outerColor  = rgb or (0x1A shl 24)   // ~10 % alpha
         val middleColor = rgb or (0x4D shl 24)   // ~30 % alpha
-        val crispColor  = baseColor              // 100 % alpha
+        val crispColor  = (baseColor and 0x00FFFFFF) or (0xFF shl 24) // force opaque
 
         val outer = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
@@ -139,22 +140,12 @@ class DockAdapter(
         }
 
         val layers = LayerDrawable(arrayOf<Drawable>(outer, middle, crisp))
-        // Negative insets push the outer halos OUTSIDE the tile
-        // rectangle — visible because the RecyclerView has
-        // clipChildren / clipToPadding disabled (see activity_main.xml).
         layers.setLayerInset(0, -dp(8f), -dp(8f), -dp(8f), -dp(8f))
         layers.setLayerInset(1, -dp(4f), -dp(4f), -dp(4f), -dp(4f))
         layers.setLayerInset(2,  0,  0,  0,  0)
-
-        val state = StateListDrawable()
-        state.addState(intArrayOf(android.R.attr.state_focused),  layers)
-        state.addState(intArrayOf(android.R.attr.state_selected), layers)
-        state.addState(intArrayOf(android.R.attr.state_pressed),  layers)
-        state.addState(IntArray(0), ColorDrawable(Color.TRANSPARENT))
-        return state
+        return layers
     }
 
-    /** Robust `#RRGGBB` / `#AARRGGBB` parser — returns null on garbage. */
     private fun parseHexColor(hex: String?): Int? {
         if (hex.isNullOrBlank()) return null
         return try {

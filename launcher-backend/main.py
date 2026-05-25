@@ -130,6 +130,12 @@ class DockTile(BaseModel):
     target_package: Optional[str] = None  # Android package name to launch
     target_url: Optional[str]     = None  # http(s):// URL to open in browser
     accent: Optional[str]         = None  # "#RRGGBB" hex — accent for the section
+    # v0.9 — Featured-panel content shown OVER the wallpaper when this
+    # tile is focused.  All three are optional — when blank, the
+    # launcher just hides the panel and shows the wallpaper raw.
+    heading: Optional[str]        = None  # big title (Montserrat Bold)
+    description: Optional[str]    = None  # supporting text under heading
+    cta_label: Optional[str]      = None  # button label (defaults to "ENTER")
 
 
 class ApkEntry(BaseModel):
@@ -321,6 +327,9 @@ def _build_config(store: dict) -> LauncherConfig:
                 target_package=t.get("target_package"),
                 target_url=t.get("target_url"),
                 accent=t.get("accent"),
+                heading=t.get("heading"),
+                description=t.get("description"),
+                cta_label=t.get("cta_label"),
             )
             for t in store["dock_tiles"]
         ],
@@ -515,6 +524,9 @@ def add_dock_tile(payload: dict | None = None) -> dict:
         "target_package": (p.get("target_package") or "").strip() or None,
         "target_url": (p.get("target_url") or "").strip() or None,
         "accent": (p.get("accent") or "").strip() or None,
+        "heading": (p.get("heading") or "").strip() or None,
+        "description": (p.get("description") or "").strip() or None,
+        "cta_label": (p.get("cta_label") or "").strip() or None,
     }
     tiles.append(new_tile)
     store["dock_tiles"] = tiles

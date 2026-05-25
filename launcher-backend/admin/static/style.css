@@ -341,6 +341,9 @@ header nav { display: flex; gap: 8px; align-items: center; }
     grid-template-columns: repeat(2, 1fr);
     gap: 12px 16px;
 }
+.dock-list .fields .span-2 {
+    grid-column: 1 / -1;
+}
 @media (max-width: 720px) {
     .dock-list .fields { grid-template-columns: 1fr; }
 }

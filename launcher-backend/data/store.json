@@ -1,38 +1,44 @@
 {
-  "generation": 74,
+  "generation": 79,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
-      "sub": "Stream cinematic stories",
+      "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-c88cdee4.png",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-946d214e.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": null,
+      "target_package": "tv.onnowtv.app",
       "target_url": null,
-      "accent": "#FF3D5A"
+      "accent": "#FF3D5A",
+      "heading": "Movies",
+      "description": "Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.",
+      "cta_label": "ENTER"
     },
     {
       "key": "music",
       "label": "Music",
-      "sub": "Listen and discover",
+      "sub": "Listen",
       "image_url": "/assets/tile_images/tile-music-65391cbe.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-9b768ebd.png",
+      "wallpaper_url": "/assets/wallpapers/tile-music-c7445373.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#2BB6FF"
+      "accent": "#2BB6FF",
+      "heading": "Music",
+      "description": "Discover playlists, charts and live concerts from your favourite artists.",
+      "cta_label": "PLAY"
     },
     {
       "key": "sports",
       "label": "Sports",
-      "sub": "Live games & highlights",
+      "sub": "Live",
       "image_url": "/assets/tile_images/tile-sports-58ef5dd6.png",
       "wallpaper_url": "/assets/wallpapers/tile-sports-eacd0e8b.png",
       "apk_url": null,
@@ -41,12 +47,15 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#2EEA7A"
+      "accent": "#2EEA7A",
+      "heading": "Live Sports",
+      "description": "Catch every match, race and tournament \u2014 live, with ON NOW EPG.",
+      "cta_label": "WATCH"
     },
     {
       "key": "kids",
       "label": "Kids",
-      "sub": "Family-safe content",
+      "sub": "Family",
       "image_url": "/assets/tile_images/tile-kids-72e6c1eb.png",
       "wallpaper_url": "/assets/wallpapers/tile-kids-ee62d506.png",
       "apk_url": null,
@@ -55,12 +64,15 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#FFB454"
+      "accent": "#FFB454",
+      "heading": "Kids",
+      "description": "Cartoons, family movies and learning shows in one safe place.",
+      "cta_label": "GO"
     },
     {
       "key": "internet",
-      "label": "Internet",
-      "sub": "",
+      "label": "Browser",
+      "sub": "Web",
       "image_url": "/assets/tile_images/tile-internet-b2284cc8.png",
       "wallpaper_url": "/assets/wallpapers/tile-internet-cc23f20a.png",
       "apk_url": null,
@@ -69,12 +81,15 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": null
+      "accent": null,
+      "heading": null,
+      "description": null,
+      "cta_label": null
     },
     {
       "key": "settings",
       "label": "Settings",
-      "sub": "",
+      "sub": "System",
       "image_url": "/assets/tile_images/tile-settings-35a016fd.png",
       "wallpaper_url": "/assets/wallpapers/tile-settings-99edf579.png",
       "apk_url": null,
@@ -83,7 +98,10 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": null
+      "accent": null,
+      "heading": null,
+      "description": null,
+      "cta_label": null
     }
   ],
   "apks": [],
@@ -136,13 +154,18 @@
     },
     "audit-test": {
       "device_id": "audit-test",
-      "last_seen": 1779722693,
-      "last_generation": 70
+      "last_seen": 1779725374,
+      "last_generation": 79
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
-      "last_seen": 1779724110,
+      "last_seen": 1779724355,
       "last_generation": 74
+    },
+    "285f933f-4977-435d-a72f-433ed8e90e47": {
+      "device_id": "285f933f-4977-435d-a72f-433ed8e90e47",
+      "last_seen": 1779725465,
+      "last_generation": 79
     }
   }
 }

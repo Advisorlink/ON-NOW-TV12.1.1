@@ -153,17 +153,107 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Featured panel — heading / description / CTA pill overlaid
+         on the wallpaper.  Anchored to the LEFT half of the screen
+         so it never collides with the dock below.  Populated +
+         tinted by MainActivity.applyFeaturedPanel() whenever the
+         focused dock tile changes.  alpha starts at 0 — fades in
+         after the first config loads. -->
+    <LinearLayout
+        android:id="@+id/featured_panel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="48dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="36dp"
+        android:alpha="0"
+        app:layout_constraintWidth_max="820dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/featured_panel_spacer"
+        app:layout_constraintBottom_toTopOf="@id/dock"
+        app:layout_constraintHorizontal_bias="0.0">
+
+        <TextView
+            android:id="@+id/featured_heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/montserrat"
+            android:textStyle="bold"
+            android:textSize="56sp"
+            android:textColor="#FFFFFF"
+            android:shadowColor="#A6000814"
+            android:shadowDx="0"
+            android:shadowDy="4"
+            android:shadowRadius="16"
+            android:letterSpacing="-0.01"
+            android:maxLines="2"
+            android:ellipsize="end"
+            tools:text="Movies" />
+
+        <TextView
+            android:id="@+id/featured_description"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:fontFamily="@font/montserrat"
+            android:textSize="17sp"
+            android:textColor="#D8E2EF"
+            android:shadowColor="#A6000814"
+            android:shadowDx="0"
+            android:shadowDy="2"
+            android:shadowRadius="10"
+            android:lineSpacingExtra="3sp"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:maxWidth="640dp"
+            tools:text="Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR." />
+
+        <FrameLayout
+            android:id="@+id/featured_cta_wrap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp">
+
+            <TextView
+                android:id="@+id/featured_cta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="28dp"
+                android:paddingVertical="13dp"
+                android:background="@drawable/bg_cta_pill"
+                android:fontFamily="@font/montserrat"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:textColor="#04060B"
+                android:letterSpacing="0.18"
+                android:text="ENTER"
+                tools:text="ENTER" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- Invisible spacer that the featured panel's end-constraint
+         anchors against.  Keeps the heading/description column from
+         growing wider than ~52 % of the screen so it never overlaps
+         the dock on the right side of the screen. -->
+    <View
+        android:id="@+id/featured_panel_spacer"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        app:layout_constraintWidth_percent="0.48"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- Bottom dock — variable number of tiles (1..N).
-         v0.9 — Sits right against the bottom edge of the screen.
-         Bottom margin = 0, paddingBottom trimmed to 4 dp (just
-         enough headroom for the focused tile's halo while keeping
-         the reflection visually near the floor). -->
+         v0.9.1 — Pushed past the screen edge with a NEGATIVE
+         marginBottom so tiles + reflection ride right against the
+         floor.  paddingTop retained for halo headroom. -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dock"
         android:layout_width="0dp"
         android:layout_height="268dp"
         android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="0dp"
+        android:layout_marginBottom="-16dp"
         android:paddingTop="22dp"
         android:paddingBottom="4dp"
         android:clipToPadding="false"
