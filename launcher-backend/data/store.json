@@ -1,11 +1,11 @@
 {
-  "generation": 19,
+  "generation": 28,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "Stream cinematic stories",
-      "image_url": "/assets/tile_images/tile-movies-054be965.jpg",
+      "image_url": "/assets/tile_images/tile-movies-fda2041b.png",
       "wallpaper_url": "/assets/wallpapers/tile-movies-31c23a10.jpg",
       "apk_url": null,
       "apk_filename": null,
@@ -19,7 +19,7 @@
       "key": "music",
       "label": "Music",
       "sub": "Listen and discover",
-      "image_url": "/assets/tile_images/tile-music-6e08c35d.jpg",
+      "image_url": "/assets/tile_images/tile-music-2dffabdc.png",
       "wallpaper_url": "/assets/wallpapers/tile-music-de7fa35e.jpg",
       "apk_url": null,
       "apk_filename": null,
@@ -33,7 +33,7 @@
       "key": "sports",
       "label": "Sports",
       "sub": "Live games & highlights",
-      "image_url": "/assets/tile_images/tile-sports-9088d720.jpg",
+      "image_url": "/assets/tile_images/tile-sports-8b261a7d.png",
       "wallpaper_url": "/assets/wallpapers/tile-sports-889ab770.jpg",
       "apk_url": null,
       "apk_filename": null,
@@ -73,8 +73,8 @@
     },
     "02d77e37-7fa9-4f94-a1ee-5866b9936058": {
       "device_id": "02d77e37-7fa9-4f94-a1ee-5866b9936058",
-      "last_seen": 1779716289,
-      "last_generation": 19
+      "last_seen": 1779717791,
+      "last_generation": 28
     },
     "debug-test": {
       "device_id": "debug-test",
