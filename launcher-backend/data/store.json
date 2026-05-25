@@ -1,12 +1,12 @@
 {
-  "generation": 70,
+  "generation": 72,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "Stream cinematic stories",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-95e4fe80.png",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-a201150f.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -131,13 +131,18 @@
     },
     "2ec018dc-49c6-43e1-ad3f-eb2cf3e57f25": {
       "device_id": "2ec018dc-49c6-43e1-ad3f-eb2cf3e57f25",
-      "last_seen": 1779722739,
-      "last_generation": 70
+      "last_seen": 1779723050,
+      "last_generation": 71
     },
     "audit-test": {
       "device_id": "audit-test",
       "last_seen": 1779722693,
       "last_generation": 70
+    },
+    "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
+      "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
+      "last_seen": 1779723866,
+      "last_generation": 72
     }
   }
 }
