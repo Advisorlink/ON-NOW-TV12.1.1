@@ -1,22 +1,25 @@
 package tv.onnow.launcher
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import tv.onnow.launcher.databinding.ItemDockBinding
 
 /**
  * Horizontal RecyclerView adapter for the bottom dock.
  *
- * Each tile is a focusable card that, when focused, glows in the
- * launcher's accent colour.  Clicking a tile (D-pad OK) fires
- * `onSelect(item)` so MainActivity can route to the appropriate
- * intent / Coming-Soon panel.
+ * v0.6 — Image-only tiles.  Each tile renders the admin-uploaded
+ * JPEG full-bleed (the admin bakes the title text into the image
+ * itself, so the launcher never draws labels).  When no image is
+ * uploaded, falls back to the built-in vector icon centered on the
+ * dock background colour.
  *
- * v0.5 — Focus-driven wallpaper swaps are handled by MainActivity
- * via a global focus listener on the RecyclerView, so this adapter
- * no longer needs its own `onFocus` callback.
+ * Focus visuals (neon halo + scale-up animation) are handled by:
+ *   - The `dock_tile_focus_overlay` foreground state-list in
+ *     item_dock.xml (paints the halo on focus)
+ *   - The OnFocusChangeListener below (scale-up animation)
+ *   - MainActivity's global focus listener (per-tile wallpaper swap)
  */
 class DockAdapter(
     private val items: List<DockItem>,
@@ -35,29 +38,31 @@ class DockAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
-        // v0.2 — Per-tile image overrides the built-in vector icon
-        // when admin has uploaded one via the launcher backend.
+        val image = holder.binding.icon
         if (!item.imageUrl.isNullOrBlank()) {
-            // Clear any vector tint so the photo renders in its
-            // actual colours instead of being recoloured by the
-            // theme's text-primary tint.
-            holder.binding.icon.imageTintList = null
-            ImageLoader.load(holder.binding.icon, item.imageUrl, item.iconRes)
+            // Admin-uploaded JPEG fills the entire tile.  Drop any
+            // tint we may have applied for a previous recycled bind
+            // so the photo renders in its actual colours.
+            image.imageTintList = null
+            image.scaleType = ImageView.ScaleType.CENTER_CROP
+            ImageLoader.load(image, item.imageUrl, item.iconRes)
         } else {
-            holder.binding.icon.imageTintList = android.content.res.ColorStateList.valueOf(
+            // Fallback path — no image uploaded.  Show the built-in
+            // vector icon centered on the tile background so the
+            // small vector doesn't get stretched edge-to-edge.
+            image.imageTintList = android.content.res.ColorStateList.valueOf(
                 holder.itemView.context.getColor(R.color.text_primary)
             )
-            holder.binding.icon.setImageResource(item.iconRes)
+            image.scaleType = ImageView.ScaleType.CENTER_INSIDE
+            image.setImageResource(item.iconRes)
         }
-        holder.binding.label.text = item.label
-        holder.binding.sub.text   = item.sub
 
         // Stable id for diff tracking + analytics.
         holder.itemView.tag = item.key
 
-        // The card itself is focusable; the focus selector drawable
-        // (drawable/dock_tile_bg.xml) provides the neon outline +
-        // glow when state_focused="true".
+        // The card itself is focusable; the focus state-list
+        // foreground (drawable/dock_tile_focus_overlay.xml) provides
+        // the neon halo when state_focused="true".
         holder.itemView.isFocusable = true
         holder.itemView.isFocusableInTouchMode = true
 

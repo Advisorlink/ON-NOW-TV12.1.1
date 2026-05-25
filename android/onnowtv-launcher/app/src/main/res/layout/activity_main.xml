@@ -11,6 +11,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:background="@color/bg_deep">
 
     <!-- Per-tile wallpaper.  Edge-to-edge, painted before everything
@@ -149,14 +151,19 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Bottom dock — variable number of tiles (1..N). -->
+    <!-- Bottom dock — variable number of tiles (1..N).
+         v0.6 — Taller (220 dp) with 20 dp vertical padding and
+         clipChildren/clipToPadding disabled so the focused tile's
+         negative-inset halo is never clipped at the top/bottom. -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dock"
         android:layout_width="0dp"
-        android:layout_height="148dp"
+        android:layout_height="220dp"
         android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="28dp"
+        android:layout_marginBottom="20dp"
+        android:paddingVertical="20dp"
         android:clipToPadding="false"
+        android:clipChildren="false"
         android:descendantFocusability="afterDescendants"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"

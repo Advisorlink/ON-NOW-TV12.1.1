@@ -1,12 +1,12 @@
 {
-  "generation": 28,
+  "generation": 35,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "Stream cinematic stories",
       "image_url": "/assets/tile_images/tile-movies-fda2041b.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-31c23a10.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-f65c2681.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -20,7 +20,7 @@
       "label": "Music",
       "sub": "Listen and discover",
       "image_url": "/assets/tile_images/tile-music-2dffabdc.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-de7fa35e.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-music-71b37163.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -34,7 +34,7 @@
       "label": "Sports",
       "sub": "Live games & highlights",
       "image_url": "/assets/tile_images/tile-sports-8b261a7d.png",
-      "wallpaper_url": "/assets/wallpapers/tile-sports-889ab770.jpg",
+      "wallpaper_url": "/assets/wallpapers/tile-sports-1d5cfea6.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -47,8 +47,8 @@
       "key": "kids",
       "label": "Kids",
       "sub": "Family-safe content",
-      "image_url": "/assets/tile_images/tile-kids-3e8be95a.jpg",
-      "wallpaper_url": "/assets/wallpapers/tile-kids-59b25084.jpg",
+      "image_url": "/assets/tile_images/tile-kids-678a5088.png",
+      "wallpaper_url": "/assets/wallpapers/tile-kids-dd118ea1.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -73,13 +73,23 @@
     },
     "02d77e37-7fa9-4f94-a1ee-5866b9936058": {
       "device_id": "02d77e37-7fa9-4f94-a1ee-5866b9936058",
-      "last_seen": 1779717791,
+      "last_seen": 1779718340,
       "last_generation": 28
     },
     "debug-test": {
       "device_id": "debug-test",
       "last_seen": 1779716399,
       "last_generation": 19
+    },
+    "6d3f9ce8-c77b-4fcd-bd30-43787efe2c83": {
+      "device_id": "6d3f9ce8-c77b-4fcd-bd30-43787efe2c83",
+      "last_seen": 1779718300,
+      "last_generation": 28
+    },
+    "4187356e-cd1d-437a-be62-f665fe5e147a": {
+      "device_id": "4187356e-cd1d-437a-be62-f665fe5e147a",
+      "last_seen": 1779719373,
+      "last_generation": 35
     }
   }
 }
