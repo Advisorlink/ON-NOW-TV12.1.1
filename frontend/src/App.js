@@ -23,7 +23,12 @@ import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
 import ReminderWatcher from '@/components/ReminderWatcher';
 import FeatureNudge from '@/components/FeatureNudge';
-import DebugTouchOverlay from '@/components/DebugTouchOverlay';
+// v2.7.90 — DebugTouchOverlay intentionally removed.  It was a
+// one-build diagnostic with `position: fixed; z-index: 999999`
+// at the top of the screen, which sat ABOVE the auto-update
+// modal and prevented the "Download new version" prompt from
+// being visible.  Re-enable only when actively diagnosing
+// touch issues.
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive } from '@/lib/profiles';
@@ -303,7 +308,6 @@ function App() {
                             <ReminderWatcher />
                             <NotifyHitWatcher />
                             <FeatureNudge />
-                            <DebugTouchOverlay />
                             <Routes>
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />

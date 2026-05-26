@@ -25,12 +25,14 @@ export default function DebugTouchOverlay() {
         try {
             if (window.location.search.indexOf('debug=1') !== -1) return true;
             if (localStorage.getItem('vesper-debug-overlay') === '1') return true;
-            /* v2.7.89 — Enabled by default for ONE BUILD so the user
-               can see live state on their phone without needing to
-               flip a switch.  Will be disabled by default in v2.7.90. */
-            return true;
+            /* v2.7.90 — Disabled by default (was forced-on in v2.7.89
+               for one build).  Stayed-on too long and z-indexed
+               above the auto-update modal, hiding the "Download new
+               version" prompt.  Now opt-in only via ?debug=1 or
+               localStorage flag. */
+            return false;
         } catch {
-            return true;
+            return false;
         }
     })();
     const [state, setState] = useState(() => snapshot());
@@ -75,7 +77,7 @@ export default function DebugTouchOverlay() {
                 top: 'calc(8px + env(safe-area-inset-top, 0px))',
                 right: 8,
                 left: 8,
-                zIndex: 999999,
+                zIndex: 50,
                 background: 'rgba(0, 0, 0, 0.86)',
                 border: '1px solid #2BB6FF',
                 borderRadius: 10,

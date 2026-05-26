@@ -215,7 +215,7 @@
     },
     "57c9303f-115d-49ef-a8b0-023dc84f27ec": {
       "device_id": "57c9303f-115d-49ef-a8b0-023dc84f27ec",
-      "last_seen": 1779779981,
+      "last_seen": 1779782499,
       "last_generation": 160
     }
   },
@@ -244,6 +244,14 @@
     "featured_button_size_sp": 13,
     "featured_button_font": "montserrat",
     "featured_button_weight": "bold",
-    "featured_button_text_color": "#04060B"
+    "featured_button_text_color": "#04060B",
+    "featured_gap_after_heading_dp": 6,
+    "featured_gap_after_subheading_dp": 10,
+    "featured_gap_after_description_dp": 22,
+    "featured_heading_letter_spacing": -1,
+    "featured_subheading_letter_spacing": 2,
+    "featured_description_letter_spacing": 0,
+    "featured_button_letter_spacing": 18,
+    "featured_description_line_height_pct": 140
   }
 }
