@@ -16,9 +16,11 @@ import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.onnow.launcher.apps.AppsDrawerActivity
 import tv.onnow.launcher.data.LauncherConfig as RemoteLauncherConfig
 import tv.onnow.launcher.data.LauncherRepository
@@ -73,6 +75,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // v1.7 — Activation gate.  If this box hasn't been approved
+        // by the admin yet, route to the Onboarding flow (Wi-Fi →
+        // Register → Pending/Blocked) BEFORE we render the dock.
+        // OnboardingActivity will return us to MainActivity once it
+        // observes status="active" coming back from the backend.
+        val activation = tv.onnow.launcher.onboarding.OnboardingActivity
+            .currentStatus(this)
+        if (activation != "active") {
+            startActivity(android.content.Intent(this,
+                tv.onnow.launcher.onboarding.OnboardingActivity::class.java))
+            finish()
+            return
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -321,19 +338,74 @@ class MainActivity : AppCompatActivity() {
 
     /* ─────────────────  Network polling / config  ───────────────── */
 
+    /**
+     * v1.7 — Verify activation status against the backend.  If admin
+     * has blocked the device, route back to OnboardingActivity (which
+     * shows the "ON NOW TV is blocked" popup).  Returns false when
+     * the caller should stop polling.
+     */
+    private suspend fun checkActivationGate(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val deviceId = tv.onnow.launcher.onboarding.OnboardingActivity
+                .deviceId(this@MainActivity)
+            val url = repo.baseUrlPublic().trimEnd('/') +
+                      "/api/launcher/activation?device_id=$deviceId"
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 6_000
+            conn.readTimeout    = 6_000
+            val txt = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val status = org.json.JSONObject(txt).optString("status", "active")
+            if (status != "active") {
+                getSharedPreferences(
+                    tv.onnow.launcher.onboarding.OnboardingActivity.PREFS,
+                    MODE_PRIVATE,
+                ).edit()
+                    .putString(
+                        tv.onnow.launcher.onboarding.OnboardingActivity.KEY_STATUS,
+                        status,
+                    )
+                    .apply()
+                withContext(Dispatchers.Main) {
+                    startActivity(
+                        Intent(this@MainActivity,
+                            tv.onnow.launcher.onboarding.OnboardingActivity::class.java)
+                            .apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                        Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            }
+                    )
+                    finish()
+                }
+                return@withContext false
+            }
+            true
+        } catch (_: Throwable) {
+            // Backend unreachable — don't kick the user out.  We err
+            // toward letting them keep using a previously-approved
+            // box during transient network failures.
+            true
+        }
+    }
+
     private fun startBackendPolling() {
         configPollJob?.cancel()
         configPollJob = lifecycleScope.launch {
             updateDebugStatus("polling…", false)
             while (true) {
                 val ts = System.currentTimeMillis()
+
+                // v1.7 — Re-check activation status every cycle so an
+                // admin-side BLOCK takes effect within ~30 s even on
+                // an already-running box.  If our status has changed
+                // away from "active", bounce back to Onboarding.
+                val gateOk = checkActivationGate()
+                if (!gateOk) return@launch
+
                 val fresh = repo.refresh()
                 if (fresh != null) {
                     onConfigUpdated(fresh)
                     val took = System.currentTimeMillis() - ts
-                    // v1.2 — surface the live dock margin so we can
-                    // tell at a glance whether layout updates are
-                    // actually landing on the device.
                     val dockM = currentLayout.dockMarginBottomDp
                     updateDebugStatus(
                         "OK · gen ${fresh.generation} · dockBot=${dockM}dp · ${took}ms",

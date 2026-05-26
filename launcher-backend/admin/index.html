@@ -69,6 +69,20 @@
             <ul id="deviceList" class="device-list"></ul>
         </div>
 
+        <!-- v1.7 — Registered devices (activation gate).  Boxes that
+             completed first-time setup land here as "pending"; an
+             admin must explicitly approve before they can use the
+             launcher.  Block / unblock / delete actions per-device. -->
+        <div id="registeredDevicesPanel" class="device-panel">
+            <div class="device-panel-head">
+                <div>
+                    <div class="device-panel-eyebrow">Activation</div>
+                    <div id="registeredDevicesSummary" class="device-summary">Loading registered devices…</div>
+                </div>
+            </div>
+            <ul id="registeredDevicesList" class="registered-list"></ul>
+        </div>
+
         <ul id="dockList" class="dock-list"></ul>
         <div class="dock-save-row">
             <button id="addTile" class="primary" style="background:transparent;color:var(--accent);border:1px solid rgba(var(--accent-rgb,43,182,255), 0.42);">+ Add tile</button>

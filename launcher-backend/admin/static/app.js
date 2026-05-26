@@ -466,7 +466,11 @@ async function refreshDevices() {
 function startDevicePolling() {
     if (_devicePollHandle) clearInterval(_devicePollHandle);
     refreshDevices();
-    _devicePollHandle = setInterval(refreshDevices, 5000);
+    refreshRegisteredDevices();
+    _devicePollHandle = setInterval(() => {
+        refreshDevices();
+        refreshRegisteredDevices();
+    }, 5000);
 }
 function stopDevicePolling() {
     if (_devicePollHandle) clearInterval(_devicePollHandle);
@@ -517,6 +521,112 @@ function formatAge(s) {
     if (s < 3600) return Math.floor(s / 60) + 'm ago';
     if (s < 86400) return Math.floor(s / 3600) + 'h ago';
     return Math.floor(s / 86400) + 'd ago';
+}
+
+/* ─────────────  v1.7 — Registered devices (activation gate)  ─────────────
+   Pending registrations land here until an admin approves them.
+   Each row shows the customer's typed nickname, registration date,
+   box model, status, and Approve / Block / Delete actions.        */
+async function refreshRegisteredDevices() {
+    try {
+        const d = await api('/api/admin/registered-devices');
+        renderRegisteredDevices(d);
+    } catch (e) {
+        const el = $('#registeredDevicesSummary');
+        if (el) el.textContent = 'Registered devices unavailable: ' + e.message;
+    }
+}
+
+function renderRegisteredDevices(d) {
+    const summary = $('#registeredDevicesSummary');
+    const list    = $('#registeredDevicesList');
+    if (!summary || !list) return;
+    const devs = d.devices || [];
+    const pending = devs.filter((x) => x.status === 'pending').length;
+    const active  = devs.filter((x) => x.status === 'active').length;
+    const blocked = devs.filter((x) => x.status === 'blocked').length;
+    if (devs.length === 0) {
+        summary.innerHTML =
+            '<span style="color:var(--txt-tertiary);">' +
+            'No devices have registered yet.  When a new box completes ' +
+            'first-time setup, it will appear here for approval.</span>';
+        list.innerHTML = '';
+        return;
+    }
+    summary.innerHTML =
+        (pending > 0
+            ? `<span class="status-dot warn"></span><strong>${pending}</strong> pending · `
+            : '<span class="status-dot ok"></span>') +
+        `<strong>${active}</strong> active · ` +
+        `<strong>${blocked}</strong> blocked`;
+    list.innerHTML = '';
+    devs.forEach((dev) => {
+        const li = document.createElement('li');
+        li.className = 'registered-row status-' + (dev.status || 'pending');
+        const when = dev.registered_at
+            ? new Date(dev.registered_at).toLocaleString()
+            : '—';
+        const lastSeen = dev.last_seen_at
+            ? new Date(dev.last_seen_at).toLocaleString()
+            : '—';
+        const statusBadge =
+            `<span class="dev-badge ${dev.status === 'active' ? 'ok'
+                : dev.status === 'blocked' ? 'err' : 'warn'}">${dev.status}</span>`;
+        li.innerHTML = `
+            <div class="registered-row-main">
+                <div class="registered-name">${escapeAttr(dev.name || '(no name)')}</div>
+                <div class="registered-meta">
+                    <span title="Box model">${escapeAttr(dev.model || 'Unknown')}</span>
+                    <span class="muted">·</span>
+                    <span title="Registered">${escapeAttr(when)}</span>
+                    <span class="muted">·</span>
+                    <span class="muted" title="Last seen">last seen ${escapeAttr(lastSeen)}</span>
+                </div>
+            </div>
+            <div class="registered-row-status">${statusBadge}</div>
+            <div class="registered-row-actions">
+                ${dev.status !== 'active'
+                    ? `<button class="primary" data-act="approve" data-id="${escapeAttr(dev.id)}">Approve</button>`
+                    : ''}
+                ${dev.status !== 'blocked'
+                    ? `<button data-act="block" data-id="${escapeAttr(dev.id)}">Block</button>`
+                    : ''}
+                ${dev.status === 'blocked'
+                    ? `<button data-act="unblock" data-id="${escapeAttr(dev.id)}">Unblock</button>`
+                    : ''}
+                <button data-act="delete" data-id="${escapeAttr(dev.id)}"
+                        style="border-color:rgba(255,85,115,0.4); color:#FF5573;">Delete</button>
+            </div>
+        `;
+        list.appendChild(li);
+    });
+    // Wire actions (event delegation would also work; this is plenty).
+    list.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const act = btn.dataset.act;
+            try {
+                if (act === 'delete') {
+                    if (!window.confirm('Permanently delete this device record?')) return;
+                    await api('/api/admin/registered-devices/' + encodeURIComponent(id), {
+                        method: 'DELETE',
+                    });
+                    toast('Device deleted');
+                } else {
+                    const status = act === 'approve' || act === 'unblock' ? 'active' : 'blocked';
+                    await api('/api/admin/registered-devices/' + encodeURIComponent(id) + '/status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status }),
+                    });
+                    toast('Status set to ' + status);
+                }
+                refreshRegisteredDevices();
+            } catch (e) {
+                toast('Action failed: ' + e.message, true);
+            }
+        });
+    });
 }
 const _republishBtn = $('#republishBtn');
 if (_republishBtn) {

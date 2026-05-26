@@ -69,6 +69,16 @@
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
 
+        <!-- v1.7 — Onboarding gate (Wi-Fi → Register → Pending/Blocked).
+             MainActivity launches this on cold start when the
+             SharedPreferences activation status isn't "active". -->
+        <activity
+            android:name=".onboarding.OnboardingActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
         <!-- FileProvider — exposes the downloaded APK files in cache
              dir so the system package installer can read them on
              Android N+. -->

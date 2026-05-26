@@ -7,6 +7,34 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.94 — Activation gate (Wi-Fi → Register → Pending approval)
+
+Brand-new first-boot onboarding flow on the ON NOW launcher:
+
+  1. **Wi-Fi setup** — when there's no internet, the launcher shows
+     a "Setup Wi-Fi" CTA that opens Android's native Wi-Fi picker.
+     Once connected, the flow auto-advances.
+  2. **Register** — user types a nickname; the launcher posts it
+     + the auto-detected box model (`Build.MANUFACTURER` +
+     `Build.MODEL`) to the backend, which creates a `pending`
+     device record.
+  3. **Blocked popup** — "ON NOW TV is blocked. Please contact
+     support for further assistance." with a Retry button.  The
+     launcher polls the backend every 8 s and unlocks automatically
+     the moment the admin flips status to `active`.
+
+Admin dashboard now has a **Registered Devices** panel showing
+every box that's completed first-time setup, sorted newest-first.
+Each row: nickname, registration date/time, auto-detected model,
+status badge, last-seen timestamp, and Approve / Block / Delete
+buttons.  Default state for new registrations is `pending` so
+admin approval is always required before a box can use the
+launcher.
+
+While the launcher is running normally, it ALSO re-checks
+activation every config-poll cycle (~30 s) so an admin-side block
+takes effect within ~30 s even on an already-running box.
+
 ## v2.7.93 — Featured panel: no more text truncation
 
 The heading, subheading and description in the focused-tile panel

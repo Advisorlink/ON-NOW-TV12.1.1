@@ -1,5 +1,5 @@
 {
-  "generation": 212,
+  "generation": 223,
   "dock_tiles": [
     {
       "key": "movies",
@@ -220,8 +220,13 @@
     },
     "3077eb36-e673-4795-be43-0bcd3a2bc8d9": {
       "device_id": "3077eb36-e673-4795-be43-0bcd3a2bc8d9",
-      "last_seen": 1779797151,
-      "last_generation": 212
+      "last_seen": 1779797954,
+      "last_generation": 215
+    },
+    "2fdc49d8-7d02-4da8-a7d8-8a79560992ea": {
+      "device_id": "2fdc49d8-7d02-4da8-a7d8-8a79560992ea",
+      "last_seen": 1779798517,
+      "last_generation": 219
     }
   },
   "layout": {
@@ -263,5 +268,6 @@
     "featured_show_description": true,
     "featured_heading_image_url": "",
     "featured_heading_image_height_dp": 70
-  }
+  },
+  "registered_devices": {}
 }
