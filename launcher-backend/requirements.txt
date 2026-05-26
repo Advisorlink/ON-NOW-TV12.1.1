@@ -4,3 +4,7 @@ python-multipart==0.0.9
 pydantic==2.9.2
 pyjwt==2.10.1
 aiofiles==24.1.0
+# v1.9 — APK introspection (auto-extract package id, version, icon
+# from uploaded APK so admins don't have to type anything).
+pyaxmlparser==0.3.31
+Pillow==12.2.0

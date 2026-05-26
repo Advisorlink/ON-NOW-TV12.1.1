@@ -537,85 +537,51 @@ function formatAge(s) {
 }
 
 /* ─────────────  v1.7 — Registered devices (activation gate)  ─────────────
-   Pending registrations land here until an admin approves them.
-   Each row shows the customer's typed nickname, registration date,
-   box model, status, and Approve / Block / Delete actions.        */
+   v1.9 — Moved off the Dock tab into its own "Devices" tab.
+   Cards laid out in a responsive grid + a search box that filters
+   on name / box model / status.  Block / unblock / delete per card. */
+let _registeredDevicesCache = [];
+
 async function refreshRegisteredDevices() {
     try {
         const d = await api('/api/admin/registered-devices');
-        renderRegisteredDevices(d);
+        _registeredDevicesCache = d.devices || [];
+        renderRegisteredDevices(_registeredDevicesCache);
     } catch (e) {
-        const el = $('#registeredDevicesSummary');
-        if (el) el.textContent = 'Registered devices unavailable: ' + e.message;
+        const grid = $('#devicesGrid');
+        if (grid) {
+            grid.innerHTML = `<div style="color:var(--danger); padding:32px;">
+                Registered devices unavailable: ${escapeAttr(e.message)}
+            </div>`;
+        }
     }
 }
 
-function renderRegisteredDevices(d) {
-    const summary = $('#registeredDevicesSummary');
-    const list    = $('#registeredDevicesList');
-    if (!summary || !list) return;
-    const devs = d.devices || [];
+function renderRegisteredDevices(devs) {
+    const grid    = $('#devicesGrid');
+    const empty   = $('#devicesEmpty');
+    const stats   = $('#devicesStats');
+    if (!grid) return;
+    if (!devs.length) {
+        grid.innerHTML = '';
+        if (empty) empty.hidden = false;
+        if (stats) stats.textContent = '0 DEVICES';
+        return;
+    }
+    if (empty) empty.hidden = true;
     const pending = devs.filter((x) => x.status === 'pending').length;
     const active  = devs.filter((x) => x.status === 'active').length;
     const blocked = devs.filter((x) => x.status === 'blocked').length;
-    if (devs.length === 0) {
-        summary.innerHTML =
-            '<span style="color:var(--txt-tertiary);">' +
-            'No devices have registered yet.  When a new box completes ' +
-            'first-time setup, it will appear here for approval.</span>';
-        list.innerHTML = '';
-        return;
+    if (stats) {
+        stats.innerHTML =
+            `<span style="color:var(--success);">${active} ACTIVE</span>` +
+            ` · <span style="color:#FFBD2E;">${pending} PENDING</span>` +
+            ` · <span style="color:var(--danger);">${blocked} BLOCKED</span>`;
     }
-    summary.innerHTML =
-        (pending > 0
-            ? `<span class="status-dot warn"></span><strong>${pending}</strong> pending · `
-            : '<span class="status-dot ok"></span>') +
-        `<strong>${active}</strong> active · ` +
-        `<strong>${blocked}</strong> blocked`;
-    list.innerHTML = '';
-    devs.forEach((dev) => {
-        const li = document.createElement('li');
-        li.className = 'registered-row status-' + (dev.status || 'pending');
-        const when = dev.registered_at
-            ? new Date(dev.registered_at).toLocaleString()
-            : '—';
-        const lastSeen = dev.last_seen_at
-            ? new Date(dev.last_seen_at).toLocaleString()
-            : '—';
-        const statusBadge =
-            `<span class="dev-badge ${dev.status === 'active' ? 'ok'
-                : dev.status === 'blocked' ? 'err' : 'warn'}">${dev.status}</span>`;
-        li.innerHTML = `
-            <div class="registered-row-main">
-                <div class="registered-name">${escapeAttr(dev.name || '(no name)')}</div>
-                <div class="registered-meta">
-                    <span title="Box model">${escapeAttr(dev.model || 'Unknown')}</span>
-                    <span class="muted">·</span>
-                    <span title="Registered">${escapeAttr(when)}</span>
-                    <span class="muted">·</span>
-                    <span class="muted" title="Last seen">last seen ${escapeAttr(lastSeen)}</span>
-                </div>
-            </div>
-            <div class="registered-row-status">${statusBadge}</div>
-            <div class="registered-row-actions">
-                ${dev.status !== 'active'
-                    ? `<button class="primary" data-act="approve" data-id="${escapeAttr(dev.id)}">Approve</button>`
-                    : ''}
-                ${dev.status !== 'blocked'
-                    ? `<button data-act="block" data-id="${escapeAttr(dev.id)}">Block</button>`
-                    : ''}
-                ${dev.status === 'blocked'
-                    ? `<button data-act="unblock" data-id="${escapeAttr(dev.id)}">Unblock</button>`
-                    : ''}
-                <button data-act="delete" data-id="${escapeAttr(dev.id)}"
-                        style="border-color:rgba(255,85,115,0.4); color:#FF5573;">Delete</button>
-            </div>
-        `;
-        list.appendChild(li);
-    });
-    // Wire actions (event delegation would also work; this is plenty).
-    list.querySelectorAll('button[data-act]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
+    grid.innerHTML = devs.map(deviceCardHtml).join('');
+    grid.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
             const id = btn.dataset.id;
             const act = btn.dataset.act;
             try {
@@ -634,13 +600,65 @@ function renderRegisteredDevices(d) {
                     });
                     toast('Status set to ' + status);
                 }
-                refreshRegisteredDevices();
-            } catch (e) {
-                toast('Action failed: ' + e.message, true);
+                await refreshRegisteredDevices();
+                applyDeviceFilter();
+            } catch (err) {
+                toast('Action failed: ' + err.message, true);
             }
         });
     });
 }
+
+function deviceCardHtml(dev) {
+    const initial = (dev.name || '?').trim().charAt(0).toUpperCase() || '?';
+    // registered_at / last_seen_at are stored as Unix epoch SECONDS
+    // (see _save_store in main.py) — multiply by 1000 for the JS
+    // Date ctor, which expects milliseconds.
+    const when = dev.registered_at
+        ? new Date(dev.registered_at * 1000).toLocaleString()
+        : '—';
+    const lastSeen = dev.last_seen_at
+        ? new Date(dev.last_seen_at * 1000).toLocaleString()
+        : '—';
+    const status = dev.status || 'pending';
+    const idShort = (dev.id || '').slice(0, 8);
+    const actions = [
+        status !== 'active'  && `<button class="primary" data-act="approve" data-id="${escapeAttr(dev.id)}">Approve</button>`,
+        status !== 'blocked' && `<button data-act="block" data-id="${escapeAttr(dev.id)}">Block</button>`,
+        status === 'blocked' && `<button data-act="unblock" data-id="${escapeAttr(dev.id)}">Unblock</button>`,
+        `<button class="danger" data-act="delete" data-id="${escapeAttr(dev.id)}">Delete</button>`,
+    ].filter(Boolean).join('');
+    return `
+        <div class="device-card" data-device-status="${escapeAttr(status)}">
+            <div class="device-card-top">
+                <div class="device-card-avatar">${escapeAttr(initial)}</div>
+                <div style="min-width:0; flex:1;">
+                    <div class="device-card-name">${escapeAttr(dev.name || '(no name)')}</div>
+                    <div class="device-card-id">${escapeAttr(idShort)}…</div>
+                </div>
+                <span class="device-card-status ${escapeAttr(status)}">${escapeAttr(status)}</span>
+            </div>
+            <div class="device-card-meta">
+                <div><strong>Model</strong> · ${escapeAttr(dev.model || 'Unknown')}</div>
+                <div><strong>Registered</strong> · ${escapeAttr(when)}</div>
+                <div><strong>Last seen</strong> · ${escapeAttr(lastSeen)}</div>
+            </div>
+            <div class="device-card-actions">${actions}</div>
+        </div>`;
+}
+
+/* Live search filter on the Devices tab. */
+function applyDeviceFilter() {
+    const q = ($('#devicesSearch')?.value || '').trim().toLowerCase();
+    if (!q) return renderRegisteredDevices(_registeredDevicesCache);
+    const filtered = _registeredDevicesCache.filter((d) => {
+        const hay = [d.name, d.model, d.status, d.id]
+            .filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+    });
+    renderRegisteredDevices(filtered);
+}
+$('#devicesSearch')?.addEventListener('input', applyDeviceFilter);
 const _republishBtn = $('#republishBtn');
 if (_republishBtn) {
     _republishBtn.addEventListener('click', async () => {
@@ -970,67 +988,198 @@ $('#saveDock').addEventListener('click', async () => {
     } catch (e) { toast('Save failed: ' + e.message, true); }
 });
 
-/* ─────────────  APKs  ───────────── */
-$('#apkSubmit').addEventListener('click', async () => {
-    const name = $('#apkName').value.trim();
-    if (!name) return toast('Name is required', true);
-    const apkUrl  = $('#apkUrl').value.trim();
-    const apkFile = $('#apkFile').files[0];
-    if (!apkUrl && !apkFile) return toast('Enter a URL or upload a file', true);
-    const form = new FormData();
-    form.append('name', name);
-    if ($('#apkPackage').value.trim()) form.append('package_id',  $('#apkPackage').value.trim());
-    if ($('#apkVersion').value.trim()) form.append('version_name',$('#apkVersion').value.trim());
-    if ($('#apkIconUrl').value.trim()) form.append('icon_url',    $('#apkIconUrl').value.trim());
-    if ($('#apkDesc').value.trim())    form.append('description', $('#apkDesc').value.trim());
-    try {
-        if (apkFile) {
-            form.append('file', apkFile);
-            await api('/api/admin/apks/upload', { method: 'POST', body: form });
-        } else {
-            form.append('apk_url', apkUrl);
-            await api('/api/admin/apks', { method: 'POST', body: form });
+/* ─────────────  APKs / App Store — v1.9 redesign  ─────────────
+   The legacy URL-based form + table is gone.  In its place:
+     • A drag-and-drop dropzone that POSTs the APK to
+       /api/admin/apks/upload, where pyaxmlparser extracts
+       package id, version, app name and icon.
+     • A 3-column grid of tiles (matches the launcher's App Store).
+     • A slide-in edit drawer that lets the admin rename, edit
+       description / version, swap icon, or delete.
+*/
+let _activeStoreId = null;
+
+/* —— Drag-drop wiring (drop or click → browse) —— */
+(function setupAppStoreDropzone() {
+    const zone   = $('#apkDropZone');
+    const input  = $('#apkDropFile');
+    const browse = $('#apkDropBrowse');
+    const prog   = $('#apkDropProgress');
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', (e) => {
+        if (e.target === browse) return;
+        input.click();
+    });
+    browse.addEventListener('click', (e) => {
+        e.stopPropagation();
+        input.click();
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        }),
+    );
+    ['dragleave', 'drop'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        }),
+    );
+    zone.addEventListener('drop', (e) => {
+        const files = Array.from(e.dataTransfer?.files || [])
+            .filter((f) => /\.apk$/i.test(f.name));
+        if (files.length) uploadApks(files);
+    });
+    input.addEventListener('change', () => {
+        const files = Array.from(input.files || []);
+        if (files.length) uploadApks(files);
+        input.value = '';
+    });
+
+    async function uploadApks(files) {
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            prog.hidden = false;
+            prog.textContent = `Uploading ${i + 1} / ${files.length} — ${f.name}…`;
+            try {
+                const form = new FormData();
+                form.append('file', f);
+                // Name omitted on purpose — backend will use the
+                // extracted app label.  Admin can rename later.
+                const r = await api('/api/admin/apks/upload', {
+                    method: 'POST', body: form,
+                });
+                prog.textContent =
+                    `✓ ${r.apk?.name || f.name} added — ` +
+                    `${r.auto_detected?.package_id || 'no package id'}`;
+                toast(`${r.apk?.name || 'App'} added`);
+            } catch (e) {
+                prog.textContent = `✗ ${f.name}: ${e.message}`;
+                toast(`Upload failed: ${e.message}`, true);
+            }
         }
-        ['apkName','apkPackage','apkVersion','apkIconUrl','apkDesc','apkUrl'].forEach(id => $('#' + id).value = '');
-        $('#apkFile').value = '';
-        toast('APK added — devices will see it on next poll');
-        refreshAll();
-    } catch (e) { toast('Failed: ' + e.message, true); }
-});
+        await refreshAll();
+        setTimeout(() => { prog.hidden = true; }, 4500);
+    }
+})();
 
 function renderApks(store) {
-    const tbl = $('#apkTable');
-    const apks = store.apks || [];
+    const grid  = $('#appStoreGrid');
+    const empty = $('#appStoreEmpty');
+    const apks  = store.apks || [];
+    if (!grid) return;
     if (!apks.length) {
-        tbl.innerHTML = `
-            <thead><tr><th colspan="4">No APKs added yet. Use the form above to add the first one.</th></tr></thead>`;
+        grid.innerHTML = '';
+        if (empty) empty.hidden = false;
         return;
     }
-    tbl.innerHTML = `
-        <thead>
-            <tr><th>Name</th><th>Source</th><th>Added</th><th></th></tr>
-        </thead>
-        <tbody>
-            ${apks.map(a => `
-                <tr>
-                    <td class="name">${escapeAttr(a.name)}<br>
-                        <span style="font-size:11px;color:var(--txt-tertiary);">${escapeAttr(a.package_id || '')} ${escapeAttr(a.version_name || '')}</span>
-                    </td>
-                    <td class="url">${escapeAttr(a.apk_url)}</td>
-                    <td>${new Date(a.added_at * 1000).toLocaleDateString()}</td>
-                    <td><button class="delete" data-id="${a.id}">Remove</button></td>
-                </tr>
-            `).join('')}
-        </tbody>`;
-    tbl.querySelectorAll('button.delete').forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Remove this APK from the manifest?')) return;
-        try {
-            await api('/api/admin/apks/' + b.dataset.id, { method: 'DELETE' });
-            toast('APK removed');
-            refreshAll();
-        } catch (e) { toast('Failed: ' + e.message, true); }
-    }));
+    if (empty) empty.hidden = true;
+    grid.innerHTML = apks.map(appStoreTileHtml).join('');
+    grid.querySelectorAll('[data-store-tile]').forEach((el) => {
+        el.addEventListener('click', () => openStoreDrawer(el.dataset.storeTile));
+    });
 }
+
+function appStoreTileHtml(a) {
+    const initial = (a.name || '?').trim().charAt(0).toUpperCase() || '?';
+    const iconHtml = a.icon_url
+        ? `<img src="${escapeAttr(a.icon_url)}" alt="${escapeAttr(a.name)}" loading="lazy">`
+        : `<span class="appstore-icon-fallback">${escapeAttr(initial)}</span>`;
+    const versionPill = a.version_name
+        ? `<div class="appstore-version">v${escapeAttr(a.version_name)}</div>`
+        : '';
+    const pkgLine = a.package_id
+        ? `<div class="appstore-package">${escapeAttr(a.package_id)}</div>`
+        : '';
+    return `
+        <div class="appstore-tile" data-store-tile="${escapeAttr(a.id)}"
+             role="button" tabindex="0">
+            <div class="appstore-icon-wrap">${iconHtml}</div>
+            <div class="appstore-name">${escapeAttr(a.name || '(no name)')}</div>
+            ${versionPill}
+            ${pkgLine}
+        </div>`;
+}
+
+/* —— Edit drawer —— */
+function openStoreDrawer(id) {
+    _activeStoreId = id;
+    api('/api/admin/store').then((store) => {
+        const apk = (store.apks || []).find((a) => a.id === id);
+        if (!apk) return;
+        $('#drawerName').value        = apk.name        || '';
+        $('#drawerVersion').value     = apk.version_name || '';
+        $('#drawerPackage').value     = apk.package_id   || '(unknown)';
+        $('#drawerDescription').value = apk.description || '';
+        const img = $('#drawerIcon');
+        if (apk.icon_url) {
+            img.src = apk.icon_url;
+            img.alt = apk.name || '';
+            img.style.visibility = 'visible';
+        } else {
+            img.removeAttribute('src');
+            img.alt = '';
+        }
+        $('#appStoreDrawer').hidden = false;
+    });
+}
+function closeStoreDrawer() {
+    _activeStoreId = null;
+    $('#appStoreDrawer').hidden = true;
+}
+$('#appStoreDrawerClose')?.addEventListener('click', closeStoreDrawer);
+$('#appStoreDrawerBackdrop')?.addEventListener('click', closeStoreDrawer);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#appStoreDrawer')?.hidden) closeStoreDrawer();
+});
+$('#drawerSave')?.addEventListener('click', async () => {
+    if (!_activeStoreId) return;
+    try {
+        await api('/api/admin/apks/' + encodeURIComponent(_activeStoreId), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name:         $('#drawerName').value.trim()        || null,
+                version_name: $('#drawerVersion').value.trim()     || null,
+                description:  $('#drawerDescription').value.trim() || null,
+            }),
+        });
+        toast('Saved');
+        closeStoreDrawer();
+        refreshAll();
+    } catch (e) { toast('Save failed: ' + e.message, true); }
+});
+$('#drawerDelete')?.addEventListener('click', async () => {
+    if (!_activeStoreId) return;
+    if (!confirm('Delete this app from the store?')) return;
+    try {
+        await api('/api/admin/apks/' + encodeURIComponent(_activeStoreId), {
+            method: 'DELETE',
+        });
+        toast('Deleted');
+        closeStoreDrawer();
+        refreshAll();
+    } catch (e) { toast('Delete failed: ' + e.message, true); }
+});
+$('#drawerIconFile')?.addEventListener('change', async (e) => {
+    if (!_activeStoreId) return;
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+        const form = new FormData();
+        form.append('file', f);
+        const r = await api('/api/admin/apks/' + encodeURIComponent(_activeStoreId) + '/icon', {
+            method: 'POST', body: form,
+        });
+        // Bust cache so the new icon shows immediately.
+        $('#drawerIcon').src = r.icon_url + '?ts=' + Date.now();
+        toast('Icon updated');
+        refreshAll();
+    } catch (err) { toast('Icon upload failed: ' + err.message, true); }
+    e.target.value = '';
+});
 
 /* ─────────────  Notifications  ───────────── */
 $('#notifyForm').addEventListener('submit', async (e) => {

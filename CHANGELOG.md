@@ -7,6 +7,64 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.98 — Launcher App Store redesign + Admin Devices tab + APK auto-detect
+
+Big day for the launcher experience.
+
+  • **Launcher's native App Store rewritten (`AppsDrawerActivity.kt`).**
+    The "Downloads" list is gone.  In its place: a Vesper-grade
+    "ON NOW TV 2 · App Store" screen.  Brand hero header
+    (mono eyebrow + 44sp Montserrat title with cyan glow), large
+    pill-shaped "INSTALL ALL →" CTA, 4-column grid of LARGE
+    rounded-icon tiles (108 dp icons + name + monospace version
+    pill).  On D-pad focus each tile lifts with a 1.08× overshoot
+    scale, a 2 dp bright-cyan border, and an 8 dp translationZ
+    elevation.  Loads icons from the backend via the existing
+    `ImageLoader` (URLs are absolutized by `/api/launcher/config`'s
+    `_abs()` helper).
+
+  • **Admin App Store tab redesign.**  Dropped the URL-image /
+    URL-APK row entirely.  New 3-column tile grid with 96 px
+    rounded icons (matches the launcher exactly so the admin
+    sees the real UX while configuring).  Drag-and-drop APK
+    uploader at the top: drop one or many APKs and we auto-detect
+    package id, version, app name and icon via `pyaxmlparser` +
+    Pillow (saves a 256-px PNG).  Click any tile → slide-in edit
+    drawer with rename, version, package id (read-only),
+    description, swap-icon-by-drop, delete.  No URL inputs
+    anywhere; icons are stored as actual files under
+    `/data/apk_icons/`.
+
+  • **New "Devices" admin tab.**  The registered-devices panel
+    was previously cramped onto the Dock page.  Now it has its
+    own tab with a responsive card grid + a live search box that
+    filters on name / box model / status / id.  Each card shows
+    initial-letter avatar, name, short id, model, registered +
+    last-seen timestamps, status badge (Active / Pending /
+    Blocked) and action buttons.  Status counters in the
+    top-right (e.g. `1 ACTIVE · 0 PENDING · 0 BLOCKED`).  Fixed a
+    legacy bug where timestamps showed as 1/21/1970 because
+    Unix-second epochs were passed to `new Date()` without the
+    *1000 conversion.
+
+  • **Backend APK introspection (`apk_meta.py`).**  New module
+    using `pyaxmlparser` + Pillow extracts package id, version
+    name + code, app label, and resizes the embedded icon to a
+    256×256 PNG.  Wired into three endpoints:
+      – `POST /api/admin/apks/upload`   (auto-fills missing fields
+                                         from the APK itself)
+      – `POST /api/admin/apks/inspect`  (preview-only — drop an
+                                         APK to see what we'd
+                                         extract, no `apks` entry
+                                         created)
+      – `POST /api/admin/apks/{aid}/icon`  (drag-drop icon swap)
+      – `PATCH /api/admin/apks/{aid}`   (rename / edit metadata)
+    Delete cascades into the extracted icon PNG so we don't leak
+    files.  Requirements bumped: `pyaxmlparser==0.3.31`,
+    `Pillow==12.2.0`.  End-to-end verified via real APK upload:
+    package=`tv.onnowtv.app`, version=`2.7.96`, app_name=
+    `ON NOW TV V2`, 192×192 PNG icon.
+
 ## v2.7.97 — Bidirectional Kids profile fix + Group panel nudge + Onboarding polish
 
 Three things shipped in this round:

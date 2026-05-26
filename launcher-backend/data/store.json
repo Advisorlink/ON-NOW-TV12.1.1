@@ -1,12 +1,12 @@
 {
-  "generation": 247,
+  "generation": 250,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies/Tv",
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-b5fe0d6e.png",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-54c36af1.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -110,28 +110,7 @@
       "cta_label": null
     }
   ],
-  "apks": [
-    {
-      "id": "3f686272c921",
-      "name": ";lkj",
-      "package_id": null,
-      "version_name": null,
-      "icon_url": null,
-      "apk_url": "/assets/apks/3f686272c921_onnowtv-v2-debug (4).apk",
-      "description": null,
-      "added_at": 1779804928
-    },
-    {
-      "id": "d6079936d52d",
-      "name": ";lkj",
-      "package_id": null,
-      "version_name": null,
-      "icon_url": null,
-      "apk_url": "/assets/apks/d6079936d52d_onnowtv-v2-debug (4).apk",
-      "description": null,
-      "added_at": 1779804934
-    }
-  ],
+  "apks": [],
   "notifications": [],
   "devices": {
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
@@ -256,8 +235,8 @@
     },
     "9c73ef88-b14e-47e9-b9bd-48d09cc37238": {
       "device_id": "9c73ef88-b14e-47e9-b9bd-48d09cc37238",
-      "last_seen": 1779805666,
-      "last_generation": 247
+      "last_seen": 1779806933,
+      "last_generation": 250
     }
   },
   "layout": {
@@ -309,7 +288,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779803239,
-      "last_seen_at": 1779805666,
+      "last_seen_at": 1779806932,
       "last_ip": "34.160.159.238"
     }
   }

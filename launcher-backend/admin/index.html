@@ -41,7 +41,8 @@
         <nav>
             <button class="tab active" data-tab="dock">Dock</button>
             <button class="tab"        data-tab="layout">Layout</button>
-            <button class="tab"        data-tab="apks">APKs</button>
+            <button class="tab"        data-tab="devices">Devices</button>
+            <button class="tab"        data-tab="apks">App Store</button>
             <button class="tab"        data-tab="notify">Notify</button>
             <button id="logout" class="logout">Sign out</button>
         </nav>
@@ -69,19 +70,9 @@
             <ul id="deviceList" class="device-list"></ul>
         </div>
 
-        <!-- v1.7 — Registered devices (activation gate).  Boxes that
-             completed first-time setup land here as "pending"; an
-             admin must explicitly approve before they can use the
-             launcher.  Block / unblock / delete actions per-device. -->
-        <div id="registeredDevicesPanel" class="device-panel">
-            <div class="device-panel-head">
-                <div>
-                    <div class="device-panel-eyebrow">Activation</div>
-                    <div id="registeredDevicesSummary" class="device-summary">Loading registered devices…</div>
-                </div>
-            </div>
-            <ul id="registeredDevicesList" class="registered-list"></ul>
-        </div>
+        <!-- v1.7 — Registered devices were here originally; moved to
+             a dedicated "Devices" tab in v1.9 so the Dock page stays
+             focused on tile management. -->
 
         <ul id="dockList" class="dock-list"></ul>
         <div class="dock-save-row">
@@ -279,33 +270,91 @@
         </div><!-- /.layout-shell -->
     </section>
 
-    <!-- APKS TAB -->
+    <!-- DEVICES TAB ─ v1.9 — Registered devices, separated out so the
+         admin can browse + search every activated box in a row. -->
+    <section id="tab-devices" class="tab-panel">
+        <div class="panel-head">
+            <h2>Registered devices</h2>
+            <p>Every box that completed onboarding shows up here.  Pending devices must be approved before they can use the launcher.  Use the search to find a specific name, box model, or status.</p>
+        </div>
+        <div class="devices-toolbar">
+            <div class="devices-search">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5L20.49 19l-4.99-5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/>
+                </svg>
+                <input id="devicesSearch" type="search" placeholder="Search by name, model, status…" autocomplete="off">
+            </div>
+            <div class="devices-stats" id="devicesStats">—</div>
+        </div>
+        <div id="devicesGrid" class="devices-grid"></div>
+        <p id="devicesEmpty" class="devices-empty" hidden>No devices have registered yet.  When a new box completes onboarding it will appear here as "pending".</p>
+    </section>
+
+    <!-- APP STORE TAB ─ v1.9 — Redesigned to match the launcher's
+         native App Store UI: dark backdrop, large rounded icons,
+         drag-drop APK upload zone with auto-detected metadata via
+         pyaxmlparser.  No URL inputs anywhere. -->
     <section id="tab-apks" class="tab-panel">
         <div class="panel-head">
-            <h2>APK manifest</h2>
-            <p>Apps that the launcher offers to install. Add either an APK file (upload) or a remote URL.</p>
+            <h2>ON NOW TV<span class="accent-dot">2</span> App Store</h2>
+            <p>Drop an APK below — we'll read the package id, version, name and icon straight from the file.  Click any tile to rename it or swap its artwork.  This is exactly how the App Store will look on the TV.</p>
         </div>
-        <div class="apk-form">
-            <div class="row">
-                <input id="apkName"     placeholder="App name (e.g. ON NOW TV V2)" required>
-                <input id="apkPackage"  placeholder="Package id (optional)">
-                <input id="apkVersion"  placeholder="Version (optional)">
-            </div>
-            <div class="row">
-                <input id="apkIconUrl"  placeholder="Icon URL (optional)">
-                <input id="apkDesc"     placeholder="Description (optional)">
-            </div>
-            <div class="row apk-source">
-                <input id="apkUrl"      placeholder="Remote APK URL — OR — upload below">
-                <label class="uploader sm">
-                    <input type="file" id="apkFile" accept="application/vnd.android.package-archive,.apk" hidden>
-                    <span>Choose file</span>
-                </label>
-                <button id="apkSubmit" class="primary">Add APK</button>
+
+        <!-- Drag-drop zone -->
+        <div id="apkDropZone" class="apk-drop">
+            <input type="file" id="apkDropFile" accept=".apk,application/vnd.android.package-archive" multiple hidden>
+            <div class="apk-drop-inner">
+                <div class="apk-drop-icon">
+                    <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true">
+                        <path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.99 5.99 0 0 0 0 14a6 6 0 0 0 6 6h13a5 5 0 0 0 .35-9.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                    </svg>
+                </div>
+                <div class="apk-drop-title">Drop APK files here</div>
+                <div class="apk-drop-sub">or <button id="apkDropBrowse" type="button" class="apk-drop-link">browse</button>.  We auto-detect package, version, name and icon.</div>
+                <div id="apkDropProgress" class="apk-drop-progress" hidden></div>
             </div>
         </div>
-        <table id="apkTable" class="data-table"></table>
+
+        <!-- App Store grid — populated by renderAppStore() -->
+        <div id="appStoreGrid" class="appstore-grid"></div>
+        <p id="appStoreEmpty" class="appstore-empty" hidden>Your store is empty.  Drag an APK into the dropzone above to add your first app.</p>
     </section>
+
+    <!-- Edit drawer ─ v1.9 — Slides in from the right when an
+         App Store tile is clicked.  Rename, edit version, swap icon. -->
+    <div id="appStoreDrawer" class="store-drawer" hidden>
+        <div class="store-drawer-card">
+            <button id="appStoreDrawerClose" class="store-drawer-close" aria-label="Close">×</button>
+            <div class="store-drawer-icon-wrap">
+                <img id="drawerIcon" class="store-drawer-icon" alt="">
+                <label class="store-drawer-icon-swap">
+                    <input id="drawerIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                    <span>Swap icon</span>
+                </label>
+            </div>
+            <label class="store-drawer-field">
+                <span>App name</span>
+                <input id="drawerName" type="text" autocomplete="off">
+            </label>
+            <label class="store-drawer-field">
+                <span>Version</span>
+                <input id="drawerVersion" type="text" autocomplete="off">
+            </label>
+            <label class="store-drawer-field readonly">
+                <span>Package id</span>
+                <input id="drawerPackage" type="text" readonly>
+            </label>
+            <label class="store-drawer-field">
+                <span>Description</span>
+                <textarea id="drawerDescription" rows="4"></textarea>
+            </label>
+            <div class="store-drawer-actions">
+                <button id="drawerDelete" class="store-drawer-delete">Delete app</button>
+                <button id="drawerSave"   class="primary">Save changes</button>
+            </div>
+        </div>
+        <div class="store-drawer-backdrop" id="appStoreDrawerBackdrop"></div>
+    </div>
 
     <!-- NOTIFY TAB -->
     <section id="tab-notify" class="tab-panel">

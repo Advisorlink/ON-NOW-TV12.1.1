@@ -968,3 +968,463 @@ header nav { display: flex; gap: 8px; align-items: center; }
 }
 .registered-row-actions button:hover { border-color: var(--accent); }
 .dev-badge.err { background: rgba(255,85,115,0.15); color: #FF5573; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   v1.9 — Devices tab (registered devices, moved off the Dock page)
+   ════════════════════════════════════════════════════════════════ */
+.devices-toolbar {
+    display: flex; gap: 16px; align-items: center;
+    margin: 0 0 22px;
+    flex-wrap: wrap;
+}
+.devices-search {
+    flex: 1 1 320px;
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(15,27,48,0.6);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    color: var(--txt-secondary);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.devices-search:focus-within {
+    border-color: rgba(43,182,255,0.55);
+    box-shadow: 0 0 0 4px rgba(43,182,255,0.12);
+    color: var(--accent);
+}
+.devices-search input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--txt-primary);
+    font-size: 15px;
+    letter-spacing: 0.01em;
+}
+.devices-search input::placeholder { color: var(--txt-tertiary); }
+.devices-stats {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: var(--txt-tertiary);
+    text-transform: uppercase;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(15,27,48,0.5);
+}
+.devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 18px;
+}
+.device-card {
+    background: linear-gradient(180deg, rgba(20,32,55,0.78), rgba(11,19,34,0.78));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 14px;
+    transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+    position: relative;
+    overflow: hidden;
+}
+.device-card::before {
+    /* Faint cyan corner glow — purely decorative. */
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 110% -10%, rgba(43,182,255,0.18), transparent 60%);
+    pointer-events: none;
+}
+.device-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(43,182,255,0.45);
+    box-shadow: 0 14px 36px -18px rgba(43,182,255,0.4);
+}
+.device-card-top {
+    display: flex; align-items: center; gap: 14px;
+    position: relative;
+}
+.device-card-avatar {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), #1B6BCF);
+    color: #04060B;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 18px;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    box-shadow: 0 6px 18px -4px rgba(43,182,255,0.55);
+}
+.device-card-name {
+    font-size: 17px; font-weight: 600;
+    color: var(--txt-primary);
+    line-height: 1.25;
+}
+.device-card-id {
+    font-size: 11px;
+    color: var(--txt-tertiary);
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+}
+.device-card-meta {
+    display: flex; flex-direction: column; gap: 5px;
+    font-size: 13px;
+    color: var(--txt-secondary);
+    line-height: 1.5;
+    position: relative;
+}
+.device-card-meta strong { color: var(--txt-primary); font-weight: 500; }
+.device-card-status {
+    position: absolute; top: 18px; right: 18px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    padding: 5px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+}
+.device-card-status.active   { background: rgba(46,234,194,0.16); color: #2EEAC2; }
+.device-card-status.pending  { background: rgba(255,189,46,0.18); color: #FFBD2E; }
+.device-card-status.blocked  { background: rgba(255,85,115,0.16); color: #FF5573; }
+.device-card-actions {
+    display: flex; gap: 8px; flex-wrap: wrap; position: relative;
+}
+.device-card-actions button {
+    flex: 1; min-width: 100px;
+    background: rgba(255,255,255,0.04);
+    color: var(--txt-secondary);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    transition: all 160ms ease;
+}
+.device-card-actions button:hover {
+    color: var(--txt-primary);
+    border-color: rgba(43,182,255,0.45);
+    background: rgba(43,182,255,0.08);
+}
+.device-card-actions button.primary {
+    background: var(--accent);
+    color: #04060B;
+    border-color: var(--accent);
+    font-weight: 700;
+}
+.device-card-actions button.danger:hover {
+    color: #FF5573;
+    border-color: rgba(255,85,115,0.45);
+    background: rgba(255,85,115,0.08);
+}
+.devices-empty {
+    text-align: center;
+    color: var(--txt-tertiary);
+    padding: 80px 24px;
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   v1.9 — App Store tab (redesigned to match the launcher's native
+   App Store UI: dark, gorgeous, big rounded icons, drag-drop.)
+   ════════════════════════════════════════════════════════════════ */
+.accent-dot {
+    color: var(--accent);
+    font-weight: 900;
+    display: inline-block;
+    margin-left: 6px;
+    text-shadow: 0 0 12px rgba(43,182,255,0.6);
+}
+.apk-drop {
+    border: 2px dashed rgba(43,182,255,0.35);
+    border-radius: 20px;
+    padding: 36px 24px;
+    text-align: center;
+    background:
+        radial-gradient(ellipse 60% 50% at 50% -10%, rgba(43,182,255,0.12), transparent 65%),
+        rgba(15,27,48,0.4);
+    color: var(--txt-secondary);
+    cursor: pointer;
+    transition: border-color 200ms ease, background 200ms ease,
+                transform 200ms ease, box-shadow 200ms ease;
+    margin-bottom: 28px;
+}
+.apk-drop:hover,
+.apk-drop.drag-over {
+    border-color: var(--accent);
+    background:
+        radial-gradient(ellipse 60% 50% at 50% -10%, rgba(43,182,255,0.22), transparent 65%),
+        rgba(20,56,94,0.45);
+    transform: translateY(-1px);
+    box-shadow: 0 18px 50px -22px rgba(43,182,255,0.45);
+}
+.apk-drop.drag-over {
+    border-style: solid;
+}
+.apk-drop-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 64px; height: 64px;
+    border-radius: 18px;
+    background: rgba(43,182,255,0.12);
+    color: var(--accent);
+    margin-bottom: 14px;
+}
+.apk-drop-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--txt-primary);
+    letter-spacing: -0.005em;
+}
+.apk-drop-sub {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--txt-secondary);
+}
+.apk-drop-link {
+    background: none; border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.apk-drop-progress {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+}
+/* App Store grid — 3 columns on wide screens, responsive down to 1 */
+.appstore-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+}
+.appstore-tile {
+    background: linear-gradient(180deg, rgba(20,32,55,0.8), rgba(11,19,34,0.85));
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 22px;
+    display: flex; flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 220ms ease, border-color 220ms ease,
+                box-shadow 220ms ease;
+    position: relative;
+    overflow: hidden;
+}
+.appstore-tile::after {
+    content: ""; position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(43,182,255,0.15), transparent 70%);
+    opacity: 0;
+    transition: opacity 220ms ease;
+    pointer-events: none;
+}
+.appstore-tile:hover {
+    transform: translateY(-4px) scale(1.012);
+    border-color: rgba(43,182,255,0.55);
+    box-shadow: 0 22px 50px -18px rgba(43,182,255,0.45);
+}
+.appstore-tile:hover::after { opacity: 1; }
+.appstore-icon-wrap {
+    width: 96px; height: 96px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(43,182,255,0.18), rgba(15,27,48,0.5));
+    display: grid; place-items: center;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow:
+        0 18px 30px -14px rgba(43,182,255,0.45),
+        inset 0 0 0 1px rgba(255,255,255,0.04);
+    position: relative;
+    z-index: 1;
+}
+.appstore-icon-wrap img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 24px;
+}
+.appstore-icon-fallback {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+}
+.appstore-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--txt-primary);
+    line-height: 1.3;
+    margin-bottom: 6px;
+    z-index: 1;
+}
+.appstore-version {
+    font-size: 11px;
+    color: var(--txt-tertiary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    z-index: 1;
+}
+.appstore-package {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--txt-tertiary);
+    opacity: 0.7;
+    z-index: 1;
+}
+.appstore-empty {
+    text-align: center;
+    color: var(--txt-tertiary);
+    padding: 60px 24px;
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    font-size: 14px;
+}
+
+/* App Store edit drawer — slides in from the right */
+.store-drawer {
+    position: fixed; inset: 0;
+    z-index: 70;
+    display: flex; justify-content: flex-end;
+    pointer-events: none;
+}
+.store-drawer .store-drawer-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(4,6,11,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 220ms ease;
+    pointer-events: auto;
+}
+.store-drawer:not([hidden]) .store-drawer-backdrop { opacity: 1; }
+.store-drawer-card {
+    position: relative;
+    width: min(520px, 100%);
+    background: var(--bg-mid);
+    border-left: 1px solid var(--border);
+    padding: 36px 32px 40px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 18px;
+    pointer-events: auto;
+    transform: translateX(40px);
+    opacity: 0;
+    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 220ms ease;
+}
+.store-drawer:not([hidden]) .store-drawer-card {
+    transform: translateX(0);
+    opacity: 1;
+}
+.store-drawer-close {
+    position: absolute; top: 16px; right: 18px;
+    background: none; border: 0;
+    color: var(--txt-secondary);
+    font-size: 28px; line-height: 1;
+    cursor: pointer;
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    transition: all 160ms ease;
+}
+.store-drawer-close:hover {
+    color: var(--txt-primary);
+    background: rgba(255,255,255,0.05);
+}
+.store-drawer-icon-wrap {
+    align-self: center;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    margin-top: 4px; margin-bottom: 4px;
+}
+.store-drawer-icon {
+    width: 128px; height: 128px;
+    border-radius: 28px;
+    object-fit: cover;
+    background: linear-gradient(135deg, rgba(43,182,255,0.2), rgba(15,27,48,0.5));
+    box-shadow: 0 22px 48px -22px rgba(43,182,255,0.55);
+}
+.store-drawer-icon-swap {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    padding: 6px 14px;
+    border: 1px solid rgba(43,182,255,0.35);
+    border-radius: 999px;
+    transition: all 160ms ease;
+}
+.store-drawer-icon-swap:hover {
+    background: rgba(43,182,255,0.12);
+    border-color: var(--accent);
+}
+.store-drawer-field {
+    display: flex; flex-direction: column; gap: 6px;
+}
+.store-drawer-field > span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--txt-tertiary);
+}
+.store-drawer-field input,
+.store-drawer-field textarea {
+    background: rgba(15,27,48,0.5);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--txt-primary);
+    font-size: 15px;
+    font-family: inherit;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+.store-drawer-field input:focus,
+.store-drawer-field textarea:focus {
+    outline: 0;
+    border-color: rgba(43,182,255,0.55);
+    background: rgba(15,27,48,0.75);
+    box-shadow: 0 0 0 4px rgba(43,182,255,0.12);
+}
+.store-drawer-field.readonly input {
+    color: var(--txt-tertiary);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+}
+.store-drawer-actions {
+    display: flex; justify-content: space-between; gap: 12px;
+    margin-top: 8px;
+}
+.store-drawer-actions button.primary {
+    flex: 1;
+    background: var(--accent);
+    color: #04060B;
+    border: 0;
+    border-radius: 999px;
+    padding: 14px 24px;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.store-drawer-actions button.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 36px -16px rgba(43,182,255,0.6);
+}
+.store-drawer-delete {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid rgba(255,85,115,0.4);
+    border-radius: 999px;
+    padding: 14px 24px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 160ms ease;
+}
+.store-drawer-delete:hover {
+    background: rgba(255,85,115,0.1);
+    border-color: var(--danger);
+}

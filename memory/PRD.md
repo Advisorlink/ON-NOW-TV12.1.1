@@ -1,13 +1,14 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.7.96 — Launcher Onboarding Vesper redesign + Kids deep-link race fix + CI pinned** (Feb 26, 2026)
+> Latest: **v2.7.98 — Launcher App Store redesign + Admin Devices tab + APK auto-detect** (Feb 26, 2026)
 >
-> Three things in this round:
-> 1. **Launcher Onboarding completely redesigned, Vesper-style.** Old "Register Your Device" screen used the native Android IME + plain `EditText` + naked text on black. Rewrote `OnboardingActivity.kt` programmatically with deep inky background + radial cyan glow, mono eyebrow ("ON NOW TV V2 · DEVICE REGISTRATION"), 46sp Montserrat display title with cyan glow shadow, glass-morphism input "display" (`TextView` — native IME never appears), 2dp blinking cyan cursor, and a custom QWERTY on-screen keyboard with Shift / Space / Backspace / Register (matches `frontend/src/components/TVKeyboard.jsx` aesthetic). D-pad nav with 1.06× overshoot scale on focus + bright cyan ring.
-> 2. **Kids tile deep-link race fixed.** `DeepLinkHandler.useEffect` was dispatching `vesper:profile-change` before `RequireProfile` registered its listener. Moved to a synchronous module-load `localStorage` write at the top of `App.js` + added `onNewIntent` in Vesper `MainActivity.kt` for the hot-restart case.
-> 3. **GitHub Actions setup-android pinned to `v3.2.2`** + explicit `cmdline-tools-version: 12266719`. The floating `@v3` tag was randomly failing to fetch its tarball; both Vesper + Launcher workflows now reproducibly resolve the same SDK release.
+> Big day for the launcher app experience.
+> 1. **Launcher's native "Apps" screen rewritten** as a gorgeous Vesper-style "ON NOW TV 2 · App Store" — brand hero header (cyan-glowing "2"), 4-column grid of LARGE 108 dp rounded-icon tiles with 1.08× overshoot focus + bright cyan ring + 8 dp elevation lift.  Pill-shaped INSTALL ALL CTA.
+> 2. **Admin App Store tab redesign** mirrors the launcher exactly so admins see the real UX while configuring.  Drag-and-drop APK uploader at the top auto-detects package id, version, app name and icon via `pyaxmlparser` (no URL inputs anywhere).  Slide-in edit drawer for rename / swap-icon / description / delete.
+> 3. **New "Devices" admin tab** lifts the registered-devices panel off the Dock page — responsive card grid + live search box filtering name / model / status / id.  Action buttons (Approve / Block / Unblock / Delete) per card.  Status counters.  Fixed legacy 1/21/1970 timestamp bug.
+> 4. **`apk_meta.py`** new module + 4 new endpoints: `POST /apks/upload` auto-fills, `POST /apks/inspect` preview, `POST /apks/{aid}/icon` swap, `PATCH /apks/{aid}` edit.  Requirements: `pyaxmlparser==0.3.31`, `Pillow==12.2.0`.  End-to-end verified.
 >
-> Previous: **v2.7.84 — Mobile responsiveness pass** (Feb 23, 2026)
+> Previous: **v2.7.97 — Bidirectional Kids profile fix + Group panel nudge + Onboarding polish** (Feb 26, 2026)
 >
 > Comprehensive mobile sweep without touching the TV experience. Fixed (1) Home "stretched" feel from TV scroll-snap pages on phones, (2) vertical scroll over a poster highlighting the tile instead of scrolling the page. `useLongPress` now defers visual feedback by 130ms on touch; `ShelfPage` drops scroll-snap on mobile; comprehensive mobile CSS overrides for Onboarding/Sources/Search/Person. Also patched two CI build errors (Launcher `onNewIntent` non-nullable + Vesper `java.time.Instant` unresolved in Gradle DSL). 19/19 mobile checks PASS; TV viewport verified unchanged.
 >

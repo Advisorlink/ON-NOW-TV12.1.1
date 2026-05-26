@@ -70,6 +70,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "tile_images").mkdir(exist_ok=True)
 (DATA_DIR / "tile_apks").mkdir(exist_ok=True)
 (DATA_DIR / "apks").mkdir(exist_ok=True)
+# v1.9 — Where extracted APK icons land (one PNG per APK).
+(DATA_DIR / "apk_icons").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
 
@@ -412,6 +414,7 @@ app.mount("/assets/wallpapers",  StaticFiles(directory=str(DATA_DIR / "wallpaper
 app.mount("/assets/tile_images", StaticFiles(directory=str(DATA_DIR / "tile_images")), name="tile-images")
 app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks")),   name="tile-apks")
 app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
+app.mount("/assets/apk_icons",   StaticFiles(directory=str(DATA_DIR / "apk_icons")),   name="apk-icons")
 
 # Static admin UI
 ADMIN_DIR = Path(__file__).parent / "admin"
@@ -1051,7 +1054,7 @@ async def add_apk_from_url(
 
 @app.post("/api/admin/apks/upload", dependencies=[Depends(require_admin)])
 async def upload_apk(
-    name: str = Form(...),
+    name: Optional[str] = Form(None),
     file: UploadFile = File(...),
     package_id: Optional[str] = Form(None),
     version_name: Optional[str] = Form(None),
@@ -1059,7 +1062,16 @@ async def upload_apk(
     description: Optional[str] = Form(None),
 ) -> dict:
     """Add an APK by uploading the file directly to this backend.
-    The launcher downloads from `/assets/apks/{filename}`."""
+    The launcher downloads from `/assets/apks/{filename}`.
+
+    v1.9 — Auto-introspects the APK with `pyaxmlparser`: package id,
+    version name, app label and icon are extracted from the APK's
+    own AndroidManifest + resource table.  Any form field the admin
+    leaves blank is filled in from the APK; admin-supplied values
+    always win (so they can rename "ON NOW TV V2" → "ON NOW TV"
+    etc.).  The icon is saved as a 256-px PNG and served from
+    /assets/apk_icons/{aid}.png.
+    """
     if not file.filename:
         raise HTTPException(400, "filename missing")
     aid = uuid.uuid4().hex[:12]
@@ -1068,17 +1080,38 @@ async def upload_apk(
     async with aiofiles.open(target, "wb") as f:
         while chunk := await file.read(1024 * 1024):
             await f.write(chunk)
+
+    # Introspect the APK that just landed.  Runs in a thread pool —
+    # pyaxmlparser is blocking I/O.
+    from apk_meta import inspect_apk
+    meta = await asyncio.to_thread(
+        inspect_apk,
+        target,
+        DATA_DIR / "apk_icons",
+        aid,
+    )
+
+    icon_url_final = icon_url
+    if not icon_url_final and meta.get("icon_path"):
+        icon_url_final = f"/assets/apk_icons/{aid}.png"
+
     entry = {
-        "id": aid, "name": name,
-        "package_id": package_id, "version_name": version_name,
-        "icon_url": icon_url,
-        "apk_url": f"/assets/apks/{safe_name}",
-        "description": description, "added_at": now_ts(),
+        "id": aid,
+        # Admin-supplied name wins; fall back to APK label; final
+        # fallback is the bare file stem so the row isn't blank.
+        "name": (name or meta.get("app_name") or
+                 Path(file.filename).stem),
+        "package_id":   package_id   or meta.get("package_id"),
+        "version_name": version_name or meta.get("version_name"),
+        "icon_url":     icon_url_final,
+        "apk_url":      f"/assets/apks/{safe_name}",
+        "description":  description,
+        "added_at":     now_ts(),
     }
     store = _load_store()
     store.setdefault("apks", []).append(entry)
     _save_store(store)
-    return {"ok": True, "apk": entry}
+    return {"ok": True, "apk": entry, "auto_detected": meta}
 
 
 @app.delete("/api/admin/apks/{aid}", dependencies=[Depends(require_admin)])
@@ -1090,9 +1123,109 @@ def delete_apk(aid: str) -> dict:
             (DATA_DIR / "apks" / Path(target["apk_url"]).name).unlink()
         except FileNotFoundError:
             pass
+    # v1.9 — Also clean up the extracted icon file if we own it.
+    if target:
+        icon_url_str = target.get("icon_url") or ""
+        if icon_url_str.startswith("/assets/apk_icons/"):
+            try:
+                (DATA_DIR / "apk_icons" / Path(icon_url_str).name).unlink()
+            except FileNotFoundError:
+                pass
     store["apks"] = [a for a in store.get("apks", []) if a["id"] != aid]
     _save_store(store)
     return {"ok": True}
+
+
+# ── v1.9 — App Store drag/drop helpers ─────────────────────────────
+@app.post("/api/admin/apks/inspect", dependencies=[Depends(require_admin)])
+async def inspect_apk_endpoint(file: UploadFile = File(...)) -> dict:
+    """Preview-only endpoint: drop an APK onto the admin to see what
+    `pyaxmlparser` extracts BEFORE committing the upload.  Used by
+    the App Store tab's drag-zone to populate the edit drawer's
+    fields and show the detected icon — no `apks` entry is created.
+    """
+    if not file.filename:
+        raise HTTPException(400, "filename missing")
+    # Save to a temp location, inspect, delete.
+    tmp_id = uuid.uuid4().hex[:12]
+    tmp_path = DATA_DIR / "apks" / f"_inspect_{tmp_id}.apk"
+    icon_dir = DATA_DIR / "apk_icons"
+    async with aiofiles.open(tmp_path, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            await f.write(chunk)
+    try:
+        from apk_meta import inspect_apk
+        meta = await asyncio.to_thread(
+            inspect_apk, tmp_path, icon_dir, f"_preview_{tmp_id}",
+        )
+        # Return a URL the admin UI can <img src=…> directly.
+        icon_url = (
+            f"/assets/apk_icons/_preview_{tmp_id}.png"
+            if meta.get("icon_path") else None
+        )
+        return {
+            "ok": True,
+            "package_id":   meta.get("package_id"),
+            "version_name": meta.get("version_name"),
+            "version_code": meta.get("version_code"),
+            "app_name":     meta.get("app_name"),
+            "icon_url":     icon_url,
+            "preview_token": tmp_id,
+        }
+    finally:
+        # Keep the preview icon around so the admin UI can display it;
+        # a 1-hour-old _preview_* file is fine garbage.
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+@app.patch("/api/admin/apks/{aid}", dependencies=[Depends(require_admin)])
+def update_apk_meta(aid: str, payload: dict) -> dict:
+    """Edit name / description / version / package id on an existing
+    APK row.  Other fields (apk_url, icon_url, id) are immutable
+    via this endpoint — use the upload + icon endpoints to change
+    binaries."""
+    store = _load_store()
+    apks = store.get("apks", [])
+    target = next((a for a in apks if a["id"] == aid), None)
+    if not target:
+        raise HTTPException(404, "apk not found")
+    allowed = {"name", "description", "version_name", "package_id"}
+    for k, v in payload.items():
+        if k in allowed:
+            target[k] = v if (v is None or v != "") else None
+    _save_store(store)
+    return {"ok": True, "apk": target}
+
+
+@app.post("/api/admin/apks/{aid}/icon", dependencies=[Depends(require_admin)])
+async def upload_apk_icon(
+    aid: str, file: UploadFile = File(...),
+) -> dict:
+    """Replace an APK's icon by drag-dropping a fresh PNG/JPEG.  The
+    image is resized to 256×256 to match the icons we extract via
+    `pyaxmlparser`, so everything renders consistently."""
+    from PIL import Image
+    import io
+    store = _load_store()
+    target = next((a for a in store.get("apks", []) if a["id"] == aid), None)
+    if not target:
+        raise HTTPException(404, "apk not found")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "apk_icons" / f"{aid}.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img.thumbnail((256, 256), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    target["icon_url"] = f"/assets/apk_icons/{aid}.png"
+    _save_store(store)
+    return {"ok": True, "icon_url": target["icon_url"]}
 
 
 # ── Notifications ─────────────────────────────────────────────────
