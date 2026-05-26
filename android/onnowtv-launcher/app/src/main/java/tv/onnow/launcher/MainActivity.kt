@@ -251,13 +251,23 @@ class MainActivity : AppCompatActivity() {
         //    the Kids tile AND it targets Vesper, we ALSO pass the
         //    `?profile=kids` deep-link so the Vesper WebView boots
         //    straight into the sandboxed Kids profile.
+        //    v1.8 — Any OTHER tile that targets Vesper passes
+        //    `profile=exit-kids` so re-entering from Movies/TV /
+        //    Music / etc. drops the user OUT of Kids mode (instead
+        //    of inheriting the previous Kids session via Vesper's
+        //    saved last_url).
         val pkg = item.targetPackage
+        val targetsVesper = pkg == "tv.onnowtv.app"
         if (!pkg.isNullOrBlank()) {
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
             if (launchIntent != null) {
                 if (item.key == "kids") {
                     launchIntent.putExtra("vesper_route", "/?profile=kids")
                     launchIntent.data = Uri.parse("onnowtv://launch?profile=kids")
+                } else if (targetsVesper) {
+                    launchIntent.putExtra("vesper_route", "/?profile=exit-kids")
+                    launchIntent.data =
+                        Uri.parse("onnowtv://launch?profile=exit-kids")
                 }
                 startActivity(launchIntent)
                 return
@@ -537,6 +547,20 @@ class MainActivity : AppCompatActivity() {
             binding.featuredPanel.requestLayout()
         } catch (t: Throwable) {
             android.util.Log.e("LayoutEditor", "featured panel margins failed", t)
+        }
+
+        // 2b. v1.8 — Group nudge.  Translate the WHOLE panel as a
+        //     single block via View.translationX / Y.  Lets the admin
+        //     fine-tune the position of the heading + subheading +
+        //     description + CTA as ONE unit, without having to keep
+        //     the per-element gaps in sync.  Translation does NOT
+        //     change the layout measurement, so adjacent views
+        //     (dock, topbar) keep their positions.
+        try {
+            binding.featuredPanel.translationX = dp(layout.featuredGroupOffsetXDp).toFloat()
+            binding.featuredPanel.translationY = dp(layout.featuredGroupOffsetYDp).toFloat()
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "group offset failed", t)
         }
 
         // 3. Top bar visibility.

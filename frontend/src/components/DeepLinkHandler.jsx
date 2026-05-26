@@ -1,22 +1,20 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setActiveProfile } from '@/lib/profiles';
 
 /**
- * v2.7.95 — Boot-time deep-link handler.
+ * v2.7.97 — Boot-time deep-link handler.
  *
- * Currently handles ONE thing: the `?profile=kids` URL param emitted
- * by the ON NOW launcher's Kids tile.  When seen, this component:
+ * The active-profile flip is done SYNCHRONOUSLY at module load in
+ * `App.js` (before any React component mounts), so this component
+ * only needs to:
+ *   1. Strip the `profile=…` param from the URL so a refresh stays
+ *      consistent and doesn't re-trigger the deep-link.
+ *   2. Navigate to `/` so the user lands on the right Home (Kids or
+ *      regular) instead of whatever route the WebView restored.
  *
- *   1. Flips the active profile to Kids (sandboxed mode)
- *   2. Strips the `profile` param from the URL
- *   3. Navigates to "/" so the user lands on the Kids home — not on
- *      whatever route the WebView restored from its last session
- *
- * Lives INSIDE the Router (unlike the old App-level useEffect) so it
- * can call `useNavigate` to actually move the user to the kids home
- * route, instead of just toggling profile state and leaving them on
- * the previous page.
+ * Handles both:
+ *   - `?profile=kids`       (launcher KIDS tile)
+ *   - `?profile=exit-kids`  (launcher Movies/TV tile)
  */
 export default function DeepLinkHandler() {
     const navigate = useNavigate();
@@ -24,19 +22,19 @@ export default function DeepLinkHandler() {
     useEffect(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            if (params.get('profile') !== 'kids') return;
+            const profile = params.get('profile');
+            if (profile !== 'kids' && profile !== 'exit-kids') return;
 
-            // 1. Switch profile + strip the param from the URL so a
-            //    reload doesn't keep reapplying it.
-            setActiveProfile('kids');
+            // Strip the param so a refresh doesn't keep re-applying.
             params.delete('profile');
             const search = params.toString();
             const cleanUrl = window.location.pathname +
                 (search ? `?${search}` : '');
             window.history.replaceState({}, '', cleanUrl);
 
-            // 2. Hop to the Kids home.  Replace so the back button
-            //    doesn't take the user out of Kids mode immediately.
+            // Hop to the appropriate Home.  Replace so the back
+            // button doesn't take the user back into the previous
+            // mode immediately.
             navigate('/', { replace: true });
         } catch {
             /* swallow — a malformed URL shouldn't crash boot */

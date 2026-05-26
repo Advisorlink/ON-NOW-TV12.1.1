@@ -243,18 +243,7 @@ class OnboardingActivity : AppCompatActivity() {
         syncDisplay()
 
         col.addView(display)
-        col.addView(spacer(dp(10)))
-
-        val modelLine = TextView(this).apply {
-            text = "BOX MODEL · ${Build.MANUFACTURER.uppercase()} ${Build.MODEL.uppercase()}"
-            textSize = 11f
-            letterSpacing = 0.22f
-            setTextColor(0xFF5A6A82.toInt())
-            typeface = Typeface.MONOSPACE
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        col.addView(modelLine)
-        col.addView(spacer(dp(22)))
+        col.addView(spacer(dp(28)))
 
         val status = TextView(this).apply {
             text = ""

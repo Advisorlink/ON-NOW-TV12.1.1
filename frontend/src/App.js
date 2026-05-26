@@ -80,22 +80,45 @@ if (typeof window !== 'undefined') {
  * so the profile flip is missed and the user lands on the regular
  * adult Home.
  *
- * Fix: read the `?profile=kids` URL param at module-load time —
- * BEFORE any React component renders — and write `'kids'` straight
- * into localStorage's active-profile slot.  By the time
- * `<RequireProfile>` first reads `getActiveProfile()` in its
- * `useState` initializer, the value is already correct.
- * `<DeepLinkHandler>` still runs afterwards to navigate to `/` and
- * strip the param from the URL so a refresh stays in kids mode
- * without re-triggering it.
+ * Fix: read the `?profile=…` URL param at module-load time — BEFORE
+ * any React component renders — and write the active-profile slot
+ * directly into localStorage.  By the time `<RequireProfile>` first
+ * reads `getActiveProfile()` in its `useState` initializer, the
+ * value is already correct.  `<DeepLinkHandler>` still runs
+ * afterwards to navigate to `/` and strip the param from the URL
+ * so a refresh stays consistent without re-triggering it.
+ *
+ * v2.7.97 — Two-way: also accept `profile=exit-kids` from the
+ * Movies/TV launcher tile, which restores the LAST non-kids profile
+ * (stored on every kids transition) so the user lands back on their
+ * adult home — not stuck in kids mode forever.
  *
  * Key kept in sync with `/lib/profiles.js → KEY_ACTIVE`.
  */
 if (typeof window !== 'undefined') {
     try {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('profile') === 'kids') {
-            localStorage.setItem('onnowtv-active-profile-v1', 'kids');
+        const profileParam = params.get('profile');
+        const ACTIVE_KEY = 'onnowtv-active-profile-v1';
+        const LAST_NON_KIDS_KEY = 'onnowtv-last-non-kids-profile';
+        if (profileParam === 'kids') {
+            // Remember the user's adult profile BEFORE we switch to
+            // Kids — so a later Movies/TV tap restores them, not
+            // dump them on the profile picker.
+            const current = localStorage.getItem(ACTIVE_KEY);
+            if (current && current !== 'kids') {
+                localStorage.setItem(LAST_NON_KIDS_KEY, current);
+            }
+            localStorage.setItem(ACTIVE_KEY, 'kids');
+        } else if (profileParam === 'exit-kids') {
+            const previous = localStorage.getItem(LAST_NON_KIDS_KEY);
+            if (previous) {
+                localStorage.setItem(ACTIVE_KEY, previous);
+            } else {
+                // No adult profile remembered → clear so the
+                // ProfileSelect picker takes over.
+                localStorage.removeItem(ACTIVE_KEY);
+            }
         }
     } catch { /* ignore — malformed URL / disabled storage */ }
 }

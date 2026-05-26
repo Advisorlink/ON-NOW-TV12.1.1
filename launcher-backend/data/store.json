@@ -1,5 +1,5 @@
 {
-  "generation": 231,
+  "generation": 238,
   "dock_tiles": [
     {
       "key": "movies",
@@ -110,7 +110,28 @@
       "cta_label": null
     }
   ],
-  "apks": [],
+  "apks": [
+    {
+      "id": "3f686272c921",
+      "name": ";lkj",
+      "package_id": null,
+      "version_name": null,
+      "icon_url": null,
+      "apk_url": "/assets/apks/3f686272c921_onnowtv-v2-debug (4).apk",
+      "description": null,
+      "added_at": 1779804928
+    },
+    {
+      "id": "d6079936d52d",
+      "name": ";lkj",
+      "package_id": null,
+      "version_name": null,
+      "icon_url": null,
+      "apk_url": "/assets/apks/d6079936d52d_onnowtv-v2-debug (4).apk",
+      "description": null,
+      "added_at": 1779804934
+    }
+  ],
   "notifications": [],
   "devices": {
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
@@ -235,58 +256,60 @@
     },
     "9c73ef88-b14e-47e9-b9bd-48d09cc37238": {
       "device_id": "9c73ef88-b14e-47e9-b9bd-48d09cc37238",
-      "last_seen": 1779803621,
-      "last_generation": 230
+      "last_seen": 1779804985,
+      "last_generation": 238
     }
   },
   "layout": {
     "tile_width_dp": 300,
-    "tile_height_dp": 168,
-    "dock_margin_bottom_dp": -44,
+    "tile_height_dp": 130,
+    "dock_margin_bottom_dp": -16,
     "dock_margin_horizontal_dp": 20,
-    "featured_margin_start_dp": 56,
-    "featured_margin_bottom_dp": 158,
+    "featured_margin_start_dp": 48,
+    "featured_margin_bottom_dp": 36,
     "topbar_visible": true,
-    "featured_show_button": false,
+    "featured_show_button": true,
     "featured_align": "start",
-    "featured_heading_size_sp": 84,
+    "featured_heading_size_sp": 56,
     "featured_heading_font": "montserrat",
     "featured_heading_weight": "bold",
-    "featured_heading_color": "#D4EFF2",
-    "featured_subheading_size_sp": 20,
+    "featured_heading_color": "#FFFFFF",
+    "featured_subheading_size_sp": 22,
     "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#00CCFF",
-    "featured_description_size_sp": 16,
+    "featured_subheading_color": "#F0F4FA",
+    "featured_description_size_sp": 17,
     "featured_description_font": "montserrat",
     "featured_description_weight": "regular",
     "featured_description_color": "#D8E2EF",
-    "featured_button_size_sp": 16,
+    "featured_button_size_sp": 13,
     "featured_button_font": "montserrat",
     "featured_button_weight": "bold",
     "featured_button_text_color": "#04060B",
-    "featured_gap_after_heading_dp": -17,
+    "featured_gap_after_heading_dp": 6,
     "featured_gap_after_subheading_dp": 10,
     "featured_gap_after_description_dp": 22,
     "featured_heading_letter_spacing": -1,
     "featured_subheading_letter_spacing": 2,
     "featured_description_letter_spacing": 0,
-    "featured_button_letter_spacing": 39,
+    "featured_button_letter_spacing": 18,
     "featured_description_line_height_pct": 140,
     "featured_show_heading": true,
     "featured_show_subheading": true,
     "featured_show_description": true,
     "featured_heading_image_url": "",
-    "featured_heading_image_height_dp": 70
+    "featured_heading_image_height_dp": 80,
+    "featured_group_offset_x_dp": 0,
+    "featured_group_offset_y_dp": 0
   },
   "registered_devices": {
     "d02d2f4b-0a8d-4b3c-9611-d08e054730dc": {
       "id": "d02d2f4b-0a8d-4b3c-9611-d08e054730dc",
       "name": "Trav",
       "model": "Amlogic HK1 BOX S905X3",
-      "status": "blocked",
+      "status": "active",
       "registered_at": 1779803239,
-      "last_seen_at": 1779803717,
+      "last_seen_at": 1779804984,
       "last_ip": "34.160.159.238"
     }
   }

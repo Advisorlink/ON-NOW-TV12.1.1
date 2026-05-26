@@ -127,6 +127,18 @@
                         </select>
                     </div>
                 </div>
+                <div class="layout-row">
+                    <div class="span-2" style="grid-column: span 2; padding-top: 4px;">
+                        <small style="opacity: 0.75; letter-spacing: 0.02em;">
+                            <strong>Group nudge</strong> — shift the whole featured block
+                            (heading + subheading + description + button) as a single unit,
+                            <em>without</em> changing the relative spacing inside.
+                            Negative = left/up, positive = right/down.
+                        </small>
+                    </div>
+                    <div><label>Group X offset <small>(dp — left ⟵ ⟶ right)</small></label><input id="layout_featured_group_offset_x_dp" type="number" min="-400" max="400" step="2"></div>
+                    <div><label>Group Y offset <small>(dp — up ⟵ ⟶ down)</small></label><input id="layout_featured_group_offset_y_dp" type="number" min="-400" max="400" step="2"></div>
+                </div>
             </div>
 
             <div class="layout-group">

@@ -127,6 +127,9 @@ const LAYOUT_DEFAULTS = {
     featured_show_description: true,
     featured_heading_image_url: '',
     featured_heading_image_height_dp: 80,
+    // v1.8 — Group offset (nudge whole panel as one block).
+    featured_group_offset_x_dp: 0,
+    featured_group_offset_y_dp: 0,
 };
 
 const LAYOUT_FONTS = [
@@ -167,6 +170,8 @@ const LAYOUT_INT_FIELDS = [
     'featured_description_letter_spacing', 'featured_button_letter_spacing',
     'featured_description_line_height_pct',
     'featured_heading_image_height_dp',
+    // v1.8 — Group offset for the whole featured panel.
+    'featured_group_offset_x_dp', 'featured_group_offset_y_dp',
 ];
 const LAYOUT_STR_FIELDS = [
     'featured_align',
@@ -299,6 +304,14 @@ function renderPreview() {
     const panel = $('#lpPanel');
     panel.style.left   = (cfg.featured_margin_start_dp  * scale) + 'px';
     panel.style.bottom = ((cfg.featured_margin_bottom_dp + 50) * scale + 50) + 'px';
+
+    // v1.8 — Group nudge.  Translate the whole panel as a single
+    // block, without disturbing the per-element gaps inside.
+    const gx = (cfg.featured_group_offset_x_dp || 0) * scale;
+    const gy = (cfg.featured_group_offset_y_dp || 0) * scale;
+    // Note: positive Y in the dp model = "down"; in CSS translate Y
+    // also = "down", so the sign is preserved 1:1.
+    panel.style.transform = `translate(${gx}px, ${gy}px)`;
 
     // Alignment.
     const alignMap = { start: 'flex-start', center: 'center', end: 'flex-end' };

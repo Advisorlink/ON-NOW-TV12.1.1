@@ -82,6 +82,13 @@ data class LayoutSettings(
        shown in place of the text at `featuredHeadingImageHeightDp`. */
     val featuredHeadingImageUrl: String? = null,
     val featuredHeadingImageHeightDp: Int = 80,
+    /* v1.8 — Group nudge.  Shifts the WHOLE featured panel as a
+       single block via View.translationX / Y on the panel.  Does NOT
+       affect the underlying layout measurement, so adjacent elements
+       (dock, topbar) stay where they were.  Negative values move
+       left / up; positive move right / down. */
+    val featuredGroupOffsetXDp: Int = 0,
+    val featuredGroupOffsetYDp: Int = 0,
 )
 
 data class DockTileRemote(
@@ -239,6 +246,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             featuredShowDescription   = layoutObj.optBoolean("featured_show_description", def.featuredShowDescription),
             featuredHeadingImageUrl   = layoutObj.optStringOrNull("featured_heading_image_url"),
             featuredHeadingImageHeightDp = layoutObj.optInt("featured_heading_image_height_dp", def.featuredHeadingImageHeightDp),
+            featuredGroupOffsetXDp    = layoutObj.optInt("featured_group_offset_x_dp", def.featuredGroupOffsetXDp),
+            featuredGroupOffsetYDp    = layoutObj.optInt("featured_group_offset_y_dp", def.featuredGroupOffsetYDp),
         )
     }
     return LauncherConfig(

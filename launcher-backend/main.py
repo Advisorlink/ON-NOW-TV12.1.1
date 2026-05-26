@@ -225,6 +225,17 @@ class LayoutSettings(BaseModel):
     # composites cleanly with the rest of the panel.
     featured_heading_image_url: Optional[str] = None
     featured_heading_image_height_dp: int     = 80
+    # v1.8 — Group offset.  Lets the admin nudge the ENTIRE featured
+    # panel (heading + subheading + description + CTA) as a single
+    # block, horizontally or vertically, AFTER the per-element sizes
+    # and gaps have settled.  Use this to nudge the whole block up
+    # 30 dp or right 20 dp without disturbing the relative typography.
+    # Negative values move the block left / up; positive values move
+    # right / down.  Applied via View.translationX / translationY on
+    # the featuredPanel — does NOT affect the underlying layout
+    # measurement so adjacent elements stay put.
+    featured_group_offset_x_dp: int = 0
+    featured_group_offset_y_dp: int = 0
 
 
 class RegisteredDevice(BaseModel):

@@ -7,6 +7,53 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.97 — Bidirectional Kids profile fix + Group panel nudge + Onboarding polish
+
+Three things shipped in this round:
+
+  • **Bidirectional Kids profile fix.** Two bugs reported after the
+    v2.7.96 build: (a) re-tapping KIDS reopened Vesper on the
+    previous page instead of Kids Home; (b) tapping Movies/TV
+    reopened Vesper still in Kids mode.  Root cause: Vesper was
+    persisting `?profile=kids` into `last_url` on `onPause()`, then
+    restoring it on next boot regardless of which launcher tile
+    fired the intent.  Three coordinated fixes:
+       1. Vesper `onPause()` now strips any `profile=*` param from
+          the URL BEFORE writing to SharedPreferences. A defensive
+          `stripProfileQuery()` also runs on the restored URL in
+          `onCreate()` so a box upgrading from older APKs still
+          starts clean.
+       2. Launcher's Movies/TV tile (and every non-Kids Vesper-
+          target tile) now passes `profile=exit-kids` via both the
+          `vesper_route` extra and the `onnowtv://` URI.
+       3. `App.js` synchronous reader handles `exit-kids` by
+          restoring the previously-active non-kids profile (stored
+          in `onnowtv-last-non-kids-profile` localStorage on every
+          Kids transition) — so re-entering from Movies/TV drops
+          the user back on their adult Home, not the profile
+          picker.
+       4. Vesper `onNewIntent` mirrors the same logic so the
+          hot-restart case (Vesper already running, user taps the
+          opposite tile) flips profile + navigates `#/` via
+          `evaluateJavascript`, no flash.
+
+  • **Group panel nudge in Admin Layout Editor.** New "Group X
+    offset" and "Group Y offset" controls under "Featured panel —
+    position" let the admin shift the WHOLE featured block
+    (heading + subheading + description + CTA) as a single unit,
+    in dp, without disturbing the per-element gaps.  Applied on
+    Android via `View.translationX/Y` on `featuredPanel` so layout
+    measurement isn't affected — dock + topbar stay put.  Live
+    preview updates in real time via CSS `transform: translate()`.
+    Backend `LayoutSettings` model + `store.json` defaults extended
+    accordingly; verified end-to-end via POST → GET round-trip.
+
+  • **Onboarding polish:** "Box model · MANUFACTURER MODEL" line
+    removed from the Register screen per user request — it's
+    backend-only info, not user-facing. The model is still sent in
+    the registration payload so admins can see it in the
+    Registered Devices panel.
+
 ## v2.7.96 — Kids deep-link race fix + Launcher Onboarding Vesper redesign + CI build pinned
 
 Three things in this round:

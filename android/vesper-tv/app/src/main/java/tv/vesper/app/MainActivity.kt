@@ -383,26 +383,35 @@ class MainActivity : AppCompatActivity() {
             savedFresh && devUrl == null &&
                 (it.startsWith(defaultBoot) ||
                  it.startsWith("file:///android_asset/web/index.html"))
-        }
+        }?.let { stripProfileQuery(it) }
+        // ^ v2.7.97 — Defensive: strip any leftover `profile=` from a
+        //   pre-v2.7.97 saved URL.  Going forward `onPause()` strips
+        //   it BEFORE writing, but a box upgrading from an older APK
+        //   may already have a dirty value cached on disk.
 
-        // v2.7.95 — Detect a Kids deep-link FROM THE LAUNCHER.  When
-        // the Launcher's KIDS tile fires us, we want to land on a
-        // CLEAN URL (no restored last-page, no leftover hash route)
-        // so the user ends up on the Kids home — not on, say, the
-        // last movie they watched, just with kids mode toggled.
+        // v2.7.95 — Detect a profile deep-link FROM THE LAUNCHER.
+        // The Launcher fires us with `vesper_route` extra OR an
+        // `onnowtv://launch?profile=…` data URI:
+        //   • profile=kids       → flip to Kids mode + clean URL
+        //   • profile=exit-kids  → leave Kids mode + clean URL
+        //                          (v2.7.97 — Movies/TV tile)
         val routeExtra = intent?.getStringExtra("vesper_route").orEmpty()
         val dataQuery  = intent?.data?.encodedQuery.orEmpty()
-        val isKidsDeepLink = routeExtra.contains("profile=kids") ||
-                             dataQuery.contains("profile=kids")
+        val isKidsDeepLink     = routeExtra.contains("profile=kids") ||
+                                 dataQuery.contains("profile=kids")
+        val isExitKidsDeepLink = routeExtra.contains("profile=exit-kids") ||
+                                 dataQuery.contains("profile=exit-kids")
+        val isProfileDeepLink  = isKidsDeepLink || isExitKidsDeepLink
 
         val bootUrl = when {
-            // Kids deep-link → always start from a clean default,
-            // never the last-restored URL.
-            isKidsDeepLink -> defaultBoot
-            else           -> devUrl ?: restoreUrl ?: defaultBoot
+            // Any profile-switch deep-link → always start from a
+            // clean default URL, never the last-restored route.
+            isProfileDeepLink -> defaultBoot
+            else              -> devUrl ?: restoreUrl ?: defaultBoot
         }
 
-        // Append the deep-link query (?profile=kids) to the clean URL.
+        // Append the deep-link query so App.js's synchronous reader
+        // can pick it up before any React component renders.
         val finalBootUrl = run {
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
@@ -427,45 +436,67 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v2.7.96 — Handle the case where Vesper is ALREADY running and
-     * the ON NOW Launcher's KIDS tile is tapped a second time.
+     * v2.7.96+ — Handle deep-links arriving while Vesper is already
+     * in the foreground/background.
      *
      * The launcher fires us with an Intent carrying
-     *   • `vesper_route` extra: "/?profile=kids"
-     *   • data URI: "onnowtv://launch?profile=kids"
+     *   • `vesper_route` extra: "/?profile=kids" or "/?profile=exit-kids"
+     *   • data URI: "onnowtv://launch?profile=kids" / "?profile=exit-kids"
      *
      * Without this override, Android delivers the intent silently
-     * and the WebView keeps showing whatever page the user was on
-     * (regular profile Home, a detail page, mid-playback, …).
+     * and the WebView keeps showing whatever page the user was on.
      *
-     * Fix: detect the kids deep-link, inject JS that flips the
-     * active-profile localStorage key, then navigate to `/` so the
-     * KidsHome renders.  Uses `evaluateJavascript` so the existing
-     * WebView session is preserved (no full reload / flash).
+     * Fix: detect the profile deep-link, inject JS that flips the
+     * active-profile localStorage key (kids OR restored adult), then
+     * navigate to `/` so the right Home renders.  Uses
+     * `evaluateJavascript` so the existing WebView session is
+     * preserved (no full reload / flash).
      */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         try {
             val routeExtra = intent.getStringExtra("vesper_route").orEmpty()
             val dataQuery  = intent.data?.encodedQuery.orEmpty()
-            val isKids = routeExtra.contains("profile=kids") ||
-                         dataQuery.contains("profile=kids")
-            if (isKids && webViewReady) {
-                val js = """
-                    (function(){
-                        try {
-                            localStorage.setItem('onnowtv-active-profile-v1','kids');
-                            window.dispatchEvent(new CustomEvent('vesper:profile-change'));
-                            if (window.location.hash !== '#/' &&
-                                window.location.hash !== '') {
-                                window.location.hash = '#/';
-                            }
-                        } catch (e) {}
-                    })();
+            val isKids     = routeExtra.contains("profile=kids") ||
+                             dataQuery.contains("profile=kids")
+            val isExitKids = routeExtra.contains("profile=exit-kids") ||
+                             dataQuery.contains("profile=exit-kids")
+            if (!webViewReady || (!isKids && !isExitKids)) return
+            val js = if (isKids) {
+                """
+                (function(){
+                    try {
+                        var cur = localStorage.getItem('onnowtv-active-profile-v1');
+                        if (cur && cur !== 'kids') {
+                            localStorage.setItem('onnowtv-last-non-kids-profile', cur);
+                        }
+                        localStorage.setItem('onnowtv-active-profile-v1','kids');
+                        window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+                        window.location.hash = '#/';
+                    } catch (e) {}
+                })();
                 """.trimIndent()
-                webView.post {
-                    try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
-                }
+            } else {
+                // exit-kids: restore the previously-active non-kids
+                // profile if we have one; otherwise clear so the
+                // ProfileSelect picker shows.
+                """
+                (function(){
+                    try {
+                        var prev = localStorage.getItem('onnowtv-last-non-kids-profile');
+                        if (prev) {
+                            localStorage.setItem('onnowtv-active-profile-v1', prev);
+                        } else {
+                            localStorage.removeItem('onnowtv-active-profile-v1');
+                        }
+                        window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+                        window.location.hash = '#/';
+                    } catch (e) {}
+                })();
+                """.trimIndent()
+            }
+            webView.post {
+                try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
             }
         } catch (_: Throwable) { /* swallow — defensive */ }
     }
@@ -522,12 +553,42 @@ class MainActivity : AppCompatActivity() {
             if (!cur.isNullOrBlank() &&
                 cur.startsWith("file:///android_asset/web/index.html")
             ) {
+                // v2.7.97 — STRIP any `profile=` query before saving.
+                // Otherwise a later non-kids launch (Movies/TV tile)
+                // restores a URL that still carries `?profile=kids`,
+                // and our synchronous module-load reader in App.js
+                // would re-apply kids mode on top of the user's
+                // adult profile.  Profile activation must come
+                // EXCLUSIVELY from a fresh launcher Intent, never
+                // from the WebView's stale URL.
+                val cleaned = stripProfileQuery(cur)
                 getSharedPreferences("onnowtv_route", MODE_PRIVATE).edit()
-                    .putString("last_url", cur)
+                    .putString("last_url", cleaned)
                     .putLong("last_ts", System.currentTimeMillis())
                     .apply()
             }
         } catch (_: Exception) {}
+    }
+
+    /** Remove any `profile=…` query parameter from a Vesper URL, while
+     *  preserving the rest of the query string + hash fragment.
+     *  Used to keep `last_url` free of stale Kids markers. */
+    private fun stripProfileQuery(url: String): String {
+        return try {
+            // Split on hash first so we don't mangle the route.
+            val hashIdx = url.indexOf('#')
+            val base = if (hashIdx >= 0) url.substring(0, hashIdx) else url
+            val hash = if (hashIdx >= 0) url.substring(hashIdx) else ""
+            val qIdx = base.indexOf('?')
+            if (qIdx < 0) return url  // no query → nothing to strip
+            val path = base.substring(0, qIdx)
+            val query = base.substring(qIdx + 1)
+            val kept = query.split('&').filter {
+                it.isNotEmpty() && !it.startsWith("profile=")
+            }
+            val newQuery = if (kept.isEmpty()) "" else "?" + kept.joinToString("&")
+            path + newQuery + hash
+        } catch (_: Throwable) { url }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
