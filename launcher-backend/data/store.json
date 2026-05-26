@@ -1,5 +1,5 @@
 {
-  "generation": 226,
+  "generation": 231,
   "dock_tiles": [
     {
       "key": "movies",
@@ -230,8 +230,13 @@
     },
     "5b83bf3e-de91-42ec-b48a-21cce6ebdf6f": {
       "device_id": "5b83bf3e-de91-42ec-b48a-21cce6ebdf6f",
-      "last_seen": 1779801135,
+      "last_seen": 1779801725,
       "last_generation": 226
+    },
+    "9c73ef88-b14e-47e9-b9bd-48d09cc37238": {
+      "device_id": "9c73ef88-b14e-47e9-b9bd-48d09cc37238",
+      "last_seen": 1779803621,
+      "last_generation": 230
     }
   },
   "layout": {
@@ -274,5 +279,15 @@
     "featured_heading_image_url": "",
     "featured_heading_image_height_dp": 70
   },
-  "registered_devices": {}
+  "registered_devices": {
+    "d02d2f4b-0a8d-4b3c-9611-d08e054730dc": {
+      "id": "d02d2f4b-0a8d-4b3c-9611-d08e054730dc",
+      "name": "Trav",
+      "model": "Amlogic HK1 BOX S905X3",
+      "status": "blocked",
+      "registered_at": 1779803239,
+      "last_seen_at": 1779803717,
+      "last_ip": "34.160.159.238"
+    }
+  }
 }

@@ -7,9 +7,9 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
-## v2.7.96 — Kids deep-link race fix + GitHub Actions setup-android pinned
+## v2.7.96 — Kids deep-link race fix + Launcher Onboarding Vesper redesign + CI build pinned
 
-Two ship-blockers from the last APK round:
+Three things in this round:
 
   • **Kids tile deep-link finally activates Kids profile.** Root cause
     was a React effect-ordering race: `DeepLinkHandler.useEffect` was
@@ -23,6 +23,21 @@ Two ship-blockers from the last APK round:
     Vesper `MainActivity.kt` so re-tapping KIDS while Vesper is
     already running flips the profile + navigates home via
     `evaluateJavascript` — no full reload, no flash.
+
+  • **Launcher Onboarding completely redesigned — Vesper style.**
+    The old "Register Your Device" screen used the native Android
+    soft keyboard, a vanilla `EditText`, and naked text on black.
+    Rewrote `OnboardingActivity.kt` from scratch with:
+      – Deep inky background + subtle radial cyan glow.
+      – Mono eyebrow ("ON NOW TV V2 · DEVICE REGISTRATION").
+      – 46sp Montserrat display title with cyan glow shadow.
+      – Glass-morphism input "display" (TextView, not EditText →
+        native IME never appears) with a 2dp blinking cyan cursor.
+      – Custom QWERTY on-screen keyboard with Shift / Space /
+        Backspace / Register, matching `TVKeyboard.jsx` exactly —
+        glass keys, cyan focus ring, 1.06× overshoot scale on focus.
+      – Blocked phase shows a glass card modal with cyan keyhole
+        glyph, eyebrow, title, status pill, and Retry CTA.
 
   • **GitHub Actions setup-android pinned to v3.2.2** with explicit
     `cmdline-tools-version: 12266719`. The floating `@v3` tag was
