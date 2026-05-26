@@ -1,5 +1,5 @@
 {
-  "generation": 238,
+  "generation": 247,
   "dock_tiles": [
     {
       "key": "movies",
@@ -16,7 +16,7 @@
       "accent": "#3dd8ff",
       "heading": "Movies/Tv",
       "subheading": "Your favorite movies and TV shows.",
-      "description": "Stream blockbusters, discover hidden gems, even experience a huge collection of stunning 4K visuals. All from the comfort of your couch. Dive into a cinematic universe with endless options, curated picks just for you, yopur very own library and save it to your own profile. Get ready for an immersive viewing experience like no other With the all new On Now V2!!",
+      "description": "Stream blockbusters, discover hidden gems, even experience a huge collection of stunning 4K visuals. All from the comfort of your couch. Dive into a cinematic universe with endless options, curated picks just for you, your very own library and save it to your own profile. Get ready for an immersive viewing experience like no other With the all new On Now V2!!",
       "cta_label": "ENTER"
     },
     {
@@ -256,28 +256,28 @@
     },
     "9c73ef88-b14e-47e9-b9bd-48d09cc37238": {
       "device_id": "9c73ef88-b14e-47e9-b9bd-48d09cc37238",
-      "last_seen": 1779804985,
-      "last_generation": 238
+      "last_seen": 1779805666,
+      "last_generation": 247
     }
   },
   "layout": {
     "tile_width_dp": 300,
-    "tile_height_dp": 130,
-    "dock_margin_bottom_dp": -16,
+    "tile_height_dp": 170,
+    "dock_margin_bottom_dp": -34,
     "dock_margin_horizontal_dp": 20,
     "featured_margin_start_dp": 48,
-    "featured_margin_bottom_dp": 36,
+    "featured_margin_bottom_dp": 98,
     "topbar_visible": true,
-    "featured_show_button": true,
+    "featured_show_button": false,
     "featured_align": "start",
     "featured_heading_size_sp": 56,
     "featured_heading_font": "montserrat",
     "featured_heading_weight": "bold",
     "featured_heading_color": "#FFFFFF",
-    "featured_subheading_size_sp": 22,
+    "featured_subheading_size_sp": 17,
     "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#F0F4FA",
+    "featured_subheading_color": "#00CCFF",
     "featured_description_size_sp": 17,
     "featured_description_font": "montserrat",
     "featured_description_weight": "regular",
@@ -286,7 +286,7 @@
     "featured_button_font": "montserrat",
     "featured_button_weight": "bold",
     "featured_button_text_color": "#04060B",
-    "featured_gap_after_heading_dp": 6,
+    "featured_gap_after_heading_dp": -10,
     "featured_gap_after_subheading_dp": 10,
     "featured_gap_after_description_dp": 22,
     "featured_heading_letter_spacing": -1,
@@ -309,7 +309,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779803239,
-      "last_seen_at": 1779804984,
+      "last_seen_at": 1779805666,
       "last_ip": "34.160.159.238"
     }
   }
