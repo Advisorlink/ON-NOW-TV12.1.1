@@ -427,6 +427,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * v2.7.96 — Handle the case where Vesper is ALREADY running and
+     * the ON NOW Launcher's KIDS tile is tapped a second time.
+     *
+     * The launcher fires us with an Intent carrying
+     *   • `vesper_route` extra: "/?profile=kids"
+     *   • data URI: "onnowtv://launch?profile=kids"
+     *
+     * Without this override, Android delivers the intent silently
+     * and the WebView keeps showing whatever page the user was on
+     * (regular profile Home, a detail page, mid-playback, …).
+     *
+     * Fix: detect the kids deep-link, inject JS that flips the
+     * active-profile localStorage key, then navigate to `/` so the
+     * KidsHome renders.  Uses `evaluateJavascript` so the existing
+     * WebView session is preserved (no full reload / flash).
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        try {
+            val routeExtra = intent.getStringExtra("vesper_route").orEmpty()
+            val dataQuery  = intent.data?.encodedQuery.orEmpty()
+            val isKids = routeExtra.contains("profile=kids") ||
+                         dataQuery.contains("profile=kids")
+            if (isKids && webViewReady) {
+                val js = """
+                    (function(){
+                        try {
+                            localStorage.setItem('onnowtv-active-profile-v1','kids');
+                            window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+                            if (window.location.hash !== '#/' &&
+                                window.location.hash !== '') {
+                                window.location.hash = '#/';
+                            }
+                        } catch (e) {}
+                    })();
+                """.trimIndent()
+                webView.post {
+                    try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
+                }
+            }
+        } catch (_: Throwable) { /* swallow — defensive */ }
+    }
+
+    /**
      * If `VlcPlayerActivity` saved a "next-episode" intent before
      * finishing (either user pressed "Next Episode" or the episode
      * ended naturally), navigate the WebView to the series page so

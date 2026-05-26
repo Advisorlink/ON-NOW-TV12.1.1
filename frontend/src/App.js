@@ -70,6 +70,36 @@ if (typeof window !== 'undefined') {
     } catch { /* ignore */ }
 }
 
+/* v2.7.96 — SYNCHRONOUS deep-link profile activation.
+ *
+ * The native ON NOW Launcher's KIDS tile fires Vesper with the URL
+ * `file:///android_asset/web/index.html?profile=kids`.  React's
+ * `<DeepLinkHandler>` reads this in a `useEffect` and calls
+ * `setActiveProfile('kids')`, but its effect runs BEFORE
+ * `<RequireProfile>` registers its `vesper:profile-change` listener,
+ * so the profile flip is missed and the user lands on the regular
+ * adult Home.
+ *
+ * Fix: read the `?profile=kids` URL param at module-load time —
+ * BEFORE any React component renders — and write `'kids'` straight
+ * into localStorage's active-profile slot.  By the time
+ * `<RequireProfile>` first reads `getActiveProfile()` in its
+ * `useState` initializer, the value is already correct.
+ * `<DeepLinkHandler>` still runs afterwards to navigate to `/` and
+ * strip the param from the URL so a refresh stays in kids mode
+ * without re-triggering it.
+ *
+ * Key kept in sync with `/lib/profiles.js → KEY_ACTIVE`.
+ */
+if (typeof window !== 'undefined') {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('profile') === 'kids') {
+            localStorage.setItem('onnowtv-active-profile-v1', 'kids');
+        }
+    } catch { /* ignore — malformed URL / disabled storage */ }
+}
+
 const Router =
     typeof window !== 'undefined' && window.location.protocol === 'file:'
         ? HashRouter

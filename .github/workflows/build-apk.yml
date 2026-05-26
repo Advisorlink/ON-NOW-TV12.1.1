@@ -184,6 +184,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3.2.2
         with:
+          cmdline-tools-version: 12266719
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - name: Generate gradle wrapper + local.properties

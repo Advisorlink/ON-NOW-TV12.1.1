@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.96 — Kids deep-link race fix + GitHub Actions setup-android pinned
+
+Two ship-blockers from the last APK round:
+
+  • **Kids tile deep-link finally activates Kids profile.** Root cause
+    was a React effect-ordering race: `DeepLinkHandler.useEffect` was
+    dispatching `vesper:profile-change` BEFORE `RequireProfile`
+    registered its listener, so the event was discarded and the user
+    landed on the regular Home with their last profile. Fixed by
+    setting `localStorage['onnowtv-active-profile-v1'] = 'kids'`
+    synchronously at module load (before any component mounts), so
+    `RequireProfile`'s `useState(getActiveProfile())` initializer
+    already sees the correct profile. Also added `onNewIntent` in
+    Vesper `MainActivity.kt` so re-tapping KIDS while Vesper is
+    already running flips the profile + navigates home via
+    `evaluateJavascript` — no full reload, no flash.
+
+  • **GitHub Actions setup-android pinned to v3.2.2** with explicit
+    `cmdline-tools-version: 12266719`. The floating `@v3` tag was
+    intermittently failing to download (`Failed to download archive`
+    error) which broke both Vesper and Launcher APK builds. Both
+    workflows now reproducibly resolve the same SDK release.
+
 ## v2.7.95 — Description truncation gone for good + Kids deep-link lands on Kids home
 
 Two fixes:
