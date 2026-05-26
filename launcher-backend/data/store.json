@@ -1,5 +1,5 @@
 {
-  "generation": 223,
+  "generation": 226,
   "dock_tiles": [
     {
       "key": "movies",
@@ -227,6 +227,11 @@
       "device_id": "2fdc49d8-7d02-4da8-a7d8-8a79560992ea",
       "last_seen": 1779798517,
       "last_generation": 219
+    },
+    "5b83bf3e-de91-42ec-b48a-21cce6ebdf6f": {
+      "device_id": "5b83bf3e-de91-42ec-b48a-21cce6ebdf6f",
+      "last_seen": 1779799677,
+      "last_generation": 226
     }
   },
   "layout": {

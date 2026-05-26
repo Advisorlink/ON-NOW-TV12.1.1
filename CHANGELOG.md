@@ -7,6 +7,22 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.95 — Description truncation gone for good + Kids deep-link lands on Kids home
+
+Two fixes:
+
+  • **Description truncation**: the heading, subheading and description in the
+    focused-tile panel now have `singleLine="false"`, `maxLines="999"` and
+    `ellipsize="none"` ALL set explicitly in XML, AND the Kotlin layout
+    applicator forces the same values on every config update.  No code
+    path can re-introduce the "..." cut-off.
+
+  • **Kids tile deep-link**: tapping the KIDS tile in the launcher now
+    opens Vesper STRAIGHT into the Kids home screen.  Two bugs stacked
+    here — Vesper was restoring the last-visited URL (so the user landed
+    on the previous page with kids mode toggled) and the React handler
+    was switching profiles but not navigating.  Both fixed.
+
 ## v2.7.94 — Activation gate (Wi-Fi → Register → Pending approval)
 
 Brand-new first-boot onboarding flow on the ON NOW launcher:

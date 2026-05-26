@@ -725,6 +725,12 @@ class MainActivity : AppCompatActivity() {
         }
         view.textSize = sizeSp.toFloat()
         parseHexColorOrNull(colorHex)?.let { view.setTextColor(it) }
+        // v1.7 — Defensively disable any truncation that might have
+        // been inherited or set elsewhere.  Featured-panel text must
+        // grow to fit ALL the admin's copy, no matter how long.
+        view.maxLines = Int.MAX_VALUE
+        view.ellipsize = null
+        view.isSingleLine = false
     }
 
     /** v1.4 — Returns the static-weight font family for [fontKey].

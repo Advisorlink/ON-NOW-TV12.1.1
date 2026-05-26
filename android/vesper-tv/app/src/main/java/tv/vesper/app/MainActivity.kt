@@ -384,17 +384,26 @@ class MainActivity : AppCompatActivity() {
                 (it.startsWith(defaultBoot) ||
                  it.startsWith("file:///android_asset/web/index.html"))
         }
-        val bootUrl = devUrl ?: restoreUrl ?: defaultBoot
 
-        // v2.7.91 — Honour intent extras / data URI from the Launcher
-        // so a Kids-tile tap deep-links into the Kids profile.
-        //   • EXTRA_VESPER_ROUTE = "/?profile=kids" → appended to URL
-        //   • data URI onnowtv://launch?profile=kids → query passed
-        // We append the query/hash to the boot URL (whichever path
-        // we resolved above) so the React app sees `?profile=kids`.
+        // v2.7.95 — Detect a Kids deep-link FROM THE LAUNCHER.  When
+        // the Launcher's KIDS tile fires us, we want to land on a
+        // CLEAN URL (no restored last-page, no leftover hash route)
+        // so the user ends up on the Kids home — not on, say, the
+        // last movie they watched, just with kids mode toggled.
+        val routeExtra = intent?.getStringExtra("vesper_route").orEmpty()
+        val dataQuery  = intent?.data?.encodedQuery.orEmpty()
+        val isKidsDeepLink = routeExtra.contains("profile=kids") ||
+                             dataQuery.contains("profile=kids")
+
+        val bootUrl = when {
+            // Kids deep-link → always start from a clean default,
+            // never the last-restored URL.
+            isKidsDeepLink -> defaultBoot
+            else           -> devUrl ?: restoreUrl ?: defaultBoot
+        }
+
+        // Append the deep-link query (?profile=kids) to the clean URL.
         val finalBootUrl = run {
-            val routeExtra = intent?.getStringExtra("vesper_route").orEmpty()
-            val dataQuery  = intent?.data?.encodedQuery.orEmpty()
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
                 dataQuery.contains("profile=")  -> dataQuery
