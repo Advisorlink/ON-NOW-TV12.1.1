@@ -192,6 +192,27 @@
             tools:text="Movies" />
 
         <TextView
+            android:id="@+id/featured_subheading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/montserrat"
+            android:textStyle="bold"
+            android:textSize="22sp"
+            android:textColor="#F0F4FA"
+            android:shadowColor="#A6000814"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="12"
+            android:letterSpacing="0.02"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:maxWidth="640dp"
+            android:visibility="gone"
+            tools:text="On demand · 4K HDR"
+            tools:visibility="visible" />
+
+        <TextView
             android:id="@+id/featured_description"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

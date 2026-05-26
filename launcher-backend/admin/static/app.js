@@ -80,8 +80,8 @@ async function refreshAll() {
 }
 
 /* ─────────────  Layout Editor  ─────────────
-   v1.0 — Admin-editable launcher layout settings (tile size, dock
-   position, featured panel offset/size, top bar visibility). */
+   v1.1 — Admin-editable launcher layout settings with full
+   per-element typography controls (font, size, weight, colour). */
 const LAYOUT_DEFAULTS = {
     tile_width_dp: 300,
     tile_height_dp: 168,
@@ -89,25 +89,121 @@ const LAYOUT_DEFAULTS = {
     dock_margin_horizontal_dp: 20,
     featured_margin_start_dp: 48,
     featured_margin_bottom_dp: 36,
-    featured_heading_size_sp: 56,
-    featured_description_size_sp: 17,
     topbar_visible: true,
+
+    featured_show_button: true,
+    featured_align: 'start',
+
+    featured_heading_size_sp: 56,
+    featured_heading_font: 'montserrat',
+    featured_heading_weight: 'bold',
+    featured_heading_color: '#FFFFFF',
+
+    featured_subheading_size_sp: 22,
+    featured_subheading_font: 'montserrat',
+    featured_subheading_weight: 'semibold',
+    featured_subheading_color: '#F0F4FA',
+
+    featured_description_size_sp: 17,
+    featured_description_font: 'montserrat',
+    featured_description_weight: 'regular',
+    featured_description_color: '#D8E2EF',
+
+    featured_button_size_sp: 13,
+    featured_button_font: 'montserrat',
+    featured_button_weight: 'bold',
+    featured_button_text_color: '#04060B',
 };
+
+const LAYOUT_FONTS = [
+    { key: 'montserrat',       label: 'Montserrat (modern sans)' },
+    { key: 'playfair_display', label: 'Playfair Display (cinematic serif)' },
+    { key: 'bebas_neue',       label: 'Bebas Neue (bold display)' },
+];
+const LAYOUT_WEIGHTS = [
+    { key: 'regular',  label: 'Regular' },
+    { key: 'semibold', label: 'Semi-Bold' },
+    { key: 'bold',     label: 'Bold' },
+];
+
 const LAYOUT_INT_FIELDS = [
     'tile_width_dp', 'tile_height_dp',
     'dock_margin_bottom_dp', 'dock_margin_horizontal_dp',
     'featured_margin_start_dp', 'featured_margin_bottom_dp',
-    'featured_heading_size_sp', 'featured_description_size_sp',
+    'featured_heading_size_sp', 'featured_subheading_size_sp',
+    'featured_description_size_sp', 'featured_button_size_sp',
 ];
+const LAYOUT_STR_FIELDS = [
+    'featured_align',
+    'featured_heading_font', 'featured_heading_weight', 'featured_heading_color',
+    'featured_subheading_font', 'featured_subheading_weight', 'featured_subheading_color',
+    'featured_description_font', 'featured_description_weight', 'featured_description_color',
+    'featured_button_font', 'featured_button_weight', 'featured_button_text_color',
+];
+const LAYOUT_BOOL_FIELDS = ['topbar_visible', 'featured_show_button'];
+
+/** Populate the font + weight <select>s once on first render. */
+function ensureLayoutSelectsPopulated() {
+    $$('.layout-font-select').forEach((sel) => {
+        if (sel.children.length) return;
+        LAYOUT_FONTS.forEach((f) => {
+            const opt = document.createElement('option');
+            opt.value = f.key; opt.textContent = f.label;
+            sel.appendChild(opt);
+        });
+    });
+    $$('.layout-weight-select').forEach((sel) => {
+        if (sel.children.length) return;
+        LAYOUT_WEIGHTS.forEach((w) => {
+            const opt = document.createElement('option');
+            opt.value = w.key; opt.textContent = w.label;
+            sel.appendChild(opt);
+        });
+    });
+}
+
+/** Wire bidirectional sync between every colour-picker swatch
+ *  (data-color-for="…") and its hex text mirror (id="…"). */
+function bindLayoutColorPickers() {
+    $$('input[type="color"][data-color-for]').forEach((picker) => {
+        const targetId = picker.dataset.colorFor;
+        const hex = document.getElementById(targetId);
+        if (!hex || picker.dataset.bound) return;
+        picker.dataset.bound = '1';
+        picker.addEventListener('input', () => {
+            hex.value = picker.value.toUpperCase();
+        });
+        hex.addEventListener('input', () => {
+            const v = hex.value.trim();
+            if (/^#[0-9a-fA-F]{6}$/.test(v)) picker.value = v;
+            else if (/^#[0-9a-fA-F]{8}$/.test(v)) picker.value = '#' + v.slice(3);
+        });
+    });
+}
 
 function renderLayout(store) {
+    ensureLayoutSelectsPopulated();
+    bindLayoutColorPickers();
     const layout = { ...LAYOUT_DEFAULTS, ...(store.layout || {}) };
     LAYOUT_INT_FIELDS.forEach((k) => {
         const el = $('#layout_' + k);
         if (el) el.value = layout[k];
     });
-    const cb = $('#layout_topbar_visible');
-    if (cb) cb.checked = !!layout.topbar_visible;
+    LAYOUT_STR_FIELDS.forEach((k) => {
+        const el = $('#layout_' + k);
+        if (el) {
+            el.value = layout[k];
+            // Sync the colour-picker swatch from the hex text value.
+            if (k.endsWith('_color')) {
+                const picker = document.querySelector(`input[type="color"][data-color-for="layout_${k}"]`);
+                if (picker && /^#[0-9a-fA-F]{6}$/.test(layout[k])) picker.value = layout[k];
+            }
+        }
+    });
+    LAYOUT_BOOL_FIELDS.forEach((k) => {
+        const el = $('#layout_' + k);
+        if (el) el.checked = !!layout[k];
+    });
 }
 
 function readLayoutForm() {
@@ -117,7 +213,14 @@ function readLayoutForm() {
         const n  = parseInt(el ? el.value : '', 10);
         out[k] = Number.isFinite(n) ? n : LAYOUT_DEFAULTS[k];
     });
-    out.topbar_visible = !!$('#layout_topbar_visible')?.checked;
+    LAYOUT_STR_FIELDS.forEach((k) => {
+        const el = $('#layout_' + k);
+        const v  = (el && el.value || '').trim();
+        out[k] = v || LAYOUT_DEFAULTS[k];
+    });
+    LAYOUT_BOOL_FIELDS.forEach((k) => {
+        out[k] = !!$('#layout_' + k)?.checked;
+    });
     return out;
 }
 
@@ -346,6 +449,7 @@ function renderDock(store) {
                 <div><label>Label</label><input data-k="label" value="${escapeAttr(t.label || '')}"></div>
                 <div><label>Sub</label><input data-k="sub" value="${escapeAttr(t.sub || '')}"></div>
                 <div class="span-2"><label>Wallpaper heading <small>(big Montserrat title shown over the wallpaper)</small></label><input data-k="heading" value="${escapeAttr(t.heading || '')}" placeholder="e.g. Movies"></div>
+                <div class="span-2"><label>Wallpaper subheading <small>(mid-size accent line between heading and description)</small></label><input data-k="subheading" value="${escapeAttr(t.subheading || '')}" placeholder="e.g. On demand · 4K HDR"></div>
                 <div class="span-2"><label>Wallpaper description <small>(supporting line under the heading)</small></label><input data-k="description" value="${escapeAttr(t.description || '')}" placeholder="e.g. Stream the latest blockbusters in 4K HDR."></div>
                 <div><label>CTA label <small>(button text — defaults to "ENTER")</small></label><input data-k="cta_label" value="${escapeAttr(t.cta_label || '')}" placeholder="ENTER"></div>
                 <div><label>Target package</label><input data-k="target_package" value="${escapeAttr(t.target_package || '')}" placeholder="e.g. tv.onnowtv.app"></div>
@@ -531,7 +635,7 @@ $('#saveDock').addEventListener('click', async () => {
         const existing = byKey[key] || {};
         const out = { key, label: existing.label, sub: existing.sub,
                       target_package: null, target_url: null, accent: null,
-                      heading: null, description: null, cta_label: null };
+                      heading: null, subheading: null, description: null, cta_label: null };
         li.querySelectorAll('.fields input').forEach((i) => {
             // Skip inputs without a `data-k` mapping (e.g. the
             // text-mirror next to the colour picker — only the

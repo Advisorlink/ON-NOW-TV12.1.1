@@ -131,9 +131,10 @@ class DockTile(BaseModel):
     target_url: Optional[str]     = None  # http(s):// URL to open in browser
     accent: Optional[str]         = None  # "#RRGGBB" hex — accent for the section
     # v0.9 — Featured-panel content shown OVER the wallpaper when this
-    # tile is focused.  All three are optional — when blank, the
+    # tile is focused.  All optional — when blank, the
     # launcher just hides the panel and shows the wallpaper raw.
-    heading: Optional[str]        = None  # big title (Montserrat Bold)
+    heading: Optional[str]        = None  # big title (default Montserrat Bold)
+    subheading: Optional[str]     = None  # mid-size accent line between heading + description
     description: Optional[str]    = None  # supporting text under heading
     cta_label: Optional[str]      = None  # button label (defaults to "ENTER")
 
@@ -170,9 +171,34 @@ class LayoutSettings(BaseModel):
     dock_margin_horizontal_dp: int = 20
     featured_margin_start_dp: int  = 48
     featured_margin_bottom_dp: int = 36
-    featured_heading_size_sp: int  = 56
-    featured_description_size_sp: int = 17
     topbar_visible: bool = True
+    # v1.1 — Per-element typography controls (heading / subheading /
+    # description / cta-button label).  Values are intentionally
+    # plain strings so the admin UI can pass any new font/weight
+    # without a schema migration.  The Android side maps unknown
+    # values to safe defaults.
+    featured_show_button: bool = True
+    featured_align: str = "start"           # "start" | "center" | "end"
+
+    featured_heading_size_sp: int       = 56
+    featured_heading_font: str          = "montserrat"
+    featured_heading_weight: str        = "bold"
+    featured_heading_color: str         = "#FFFFFF"
+
+    featured_subheading_size_sp: int    = 22
+    featured_subheading_font: str       = "montserrat"
+    featured_subheading_weight: str     = "semibold"
+    featured_subheading_color: str      = "#F0F4FA"
+
+    featured_description_size_sp: int   = 17
+    featured_description_font: str      = "montserrat"
+    featured_description_weight: str    = "regular"
+    featured_description_color: str     = "#D8E2EF"
+
+    featured_button_size_sp: int        = 13
+    featured_button_font: str           = "montserrat"
+    featured_button_weight: str         = "bold"
+    featured_button_text_color: str     = "#04060B"
 
 
 class LauncherConfig(BaseModel):
@@ -358,6 +384,7 @@ def _build_config(store: dict) -> LauncherConfig:
                 target_url=t.get("target_url"),
                 accent=t.get("accent"),
                 heading=t.get("heading"),
+                subheading=t.get("subheading"),
                 description=t.get("description"),
                 cta_label=t.get("cta_label"),
             )
@@ -565,6 +592,7 @@ def add_dock_tile(payload: dict | None = None) -> dict:
         "target_url": (p.get("target_url") or "").strip() or None,
         "accent": (p.get("accent") or "").strip() or None,
         "heading": (p.get("heading") or "").strip() or None,
+        "subheading": (p.get("subheading") or "").strip() or None,
         "description": (p.get("description") or "").strip() or None,
         "cta_label": (p.get("cta_label") or "").strip() or None,
     }

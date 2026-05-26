@@ -135,14 +135,15 @@ class MainActivity : AppCompatActivity() {
      *     button reads as the same "brand" as the glow halo.
      */
     private fun applyFeaturedPanel(item: DockItem) {
-        val panel  = binding.featuredPanel
+        val panel   = binding.featuredPanel
         val heading = item.heading?.trim().orEmpty()
+        val subh    = item.subheading?.trim().orEmpty()
         val desc    = item.description?.trim().orEmpty()
         val cta     = item.ctaLabel?.trim().orEmpty().ifEmpty { "ENTER" }
 
-        // Empty heading + empty description = hide the whole panel.
-        // Otherwise, fade it in and update content.
-        val hasContent = heading.isNotEmpty() || desc.isNotEmpty()
+        // Panel is shown if ANY of heading / subheading / description
+        // are set.  Otherwise hide the whole thing.
+        val hasContent = heading.isNotEmpty() || subh.isNotEmpty() || desc.isNotEmpty()
         if (!hasContent) {
             panel.animate().alpha(0f).setDuration(180).start()
             return
@@ -151,20 +152,31 @@ class MainActivity : AppCompatActivity() {
         binding.featuredHeading.text     = heading
         binding.featuredHeading.visibility =
             if (heading.isEmpty()) View.GONE else View.VISIBLE
+        binding.featuredSubheading.text  = subh
+        binding.featuredSubheading.visibility =
+            if (subh.isEmpty()) View.GONE else View.VISIBLE
         binding.featuredDescription.text = desc
         binding.featuredDescription.visibility =
             if (desc.isEmpty()) View.GONE else View.VISIBLE
         binding.featuredCta.text         = cta.uppercase()
 
-        // Tint the CTA pill to the tile's accent.
+        // CTA pill visibility honours BOTH the global "show button"
+        // toggle from the Layout Editor AND the per-tile cta_label.
+        val showCta = currentLayout.featuredShowButton
+        binding.featuredCtaWrap.visibility = if (showCta) View.VISIBLE else View.GONE
+
+        // Tint the CTA pill to the tile's accent.  Pill TEXT colour
+        // comes from the Layout Editor; default is dark on bright
+        // accent (auto-picked via YIQ) so legacy admins still get
+        // readable buttons.
         val accent = parseTileAccent(item.accent)
         val pillBg = binding.featuredCta.background?.mutate()
         if (pillBg is android.graphics.drawable.GradientDrawable) {
             pillBg.setColor(accent)
         }
-        // Pick a contrasting text colour for the pill — dark on
-        // light, light on dark — using YIQ luminance.
-        binding.featuredCta.setTextColor(contrastingForeground(accent))
+        val pillTextColor = parseHexColorOrNull(currentLayout.featuredButtonTextColor)
+            ?: contrastingForeground(accent)
+        binding.featuredCta.setTextColor(pillTextColor)
 
         if (panel.alpha < 1f) {
             panel.animate().alpha(1f).setDuration(280).start()
@@ -175,6 +187,12 @@ class MainActivity : AppCompatActivity() {
         if (hex.isNullOrBlank()) return 0xFF2BB6FF.toInt()
         return try { Color.parseColor(hex.trim()) }
         catch (_: Throwable) { 0xFF2BB6FF.toInt() }
+    }
+
+    private fun parseHexColorOrNull(hex: String?): Int? {
+        if (hex.isNullOrBlank()) return null
+        return try { Color.parseColor(hex.trim()) }
+        catch (_: Throwable) { null }
     }
 
     /** Returns black on bright accents, white on dark ones — keeps
@@ -326,6 +344,7 @@ class MainActivity : AppCompatActivity() {
                 targetUrl      = t.targetUrl,
                 accent         = t.accent,
                 heading        = t.heading,
+                subheading     = t.subheading,
                 description    = t.description,
                 ctaLabel       = t.ctaLabel,
             )
@@ -382,21 +401,115 @@ class MainActivity : AppCompatActivity() {
             binding.featuredPanel.layoutParams = lp
         }
 
-        // 3. Heading / description font sizes.
-        binding.featuredHeading.textSize     = layout.featuredHeadingSizeSp.toFloat()
-        binding.featuredDescription.textSize = layout.featuredDescriptionSizeSp.toFloat()
-
-        // 4. Top bar visibility.
+        // 3. Top bar visibility.
         binding.topbar.visibility =
             if (layout.topbarVisible) View.VISIBLE else View.GONE
 
-        // 5. Tile dimensions — push into the adapter so onBindViewHolder
+        // 4. Per-element typography (font / size / weight / color).
+        applyTextStyle(
+            binding.featuredHeading,
+            layout.featuredHeadingFont,
+            layout.featuredHeadingWeight,
+            layout.featuredHeadingSizeSp,
+            layout.featuredHeadingColor,
+        )
+        applyTextStyle(
+            binding.featuredSubheading,
+            layout.featuredSubheadingFont,
+            layout.featuredSubheadingWeight,
+            layout.featuredSubheadingSizeSp,
+            layout.featuredSubheadingColor,
+        )
+        applyTextStyle(
+            binding.featuredDescription,
+            layout.featuredDescriptionFont,
+            layout.featuredDescriptionWeight,
+            layout.featuredDescriptionSizeSp,
+            layout.featuredDescriptionColor,
+        )
+        applyTextStyle(
+            binding.featuredCta,
+            layout.featuredButtonFont,
+            layout.featuredButtonWeight,
+            layout.featuredButtonSizeSp,
+            layout.featuredButtonTextColor,
+        )
+
+        // 5. Horizontal alignment of the featured panel.  We apply
+        //    Gravity to every TextView AND change the LinearLayout's
+        //    own gravity so the children re-anchor correctly (their
+        //    layout_width is wrap_content, so without LL gravity they
+        //    just stay on the left edge).
+        val gravity = when (layout.featuredAlign.lowercase()) {
+            "center", "centre" -> android.view.Gravity.CENTER_HORIZONTAL
+            "end", "right"     -> android.view.Gravity.END
+            else               -> android.view.Gravity.START
+        }
+        val textAlign = when (layout.featuredAlign.lowercase()) {
+            "center", "centre" -> View.TEXT_ALIGNMENT_CENTER
+            "end", "right"     -> View.TEXT_ALIGNMENT_VIEW_END
+            else               -> View.TEXT_ALIGNMENT_VIEW_START
+        }
+        binding.featuredPanel.gravity = gravity
+        listOf(
+            binding.featuredHeading,
+            binding.featuredSubheading,
+            binding.featuredDescription,
+        ).forEach { it.textAlignment = textAlign }
+        // CTA pill wrap (anchor it to match other elements).
+        (binding.featuredCtaWrap.layoutParams as? android.widget.LinearLayout.LayoutParams)?.also { lp ->
+            lp.gravity = gravity
+            binding.featuredCtaWrap.layoutParams = lp
+        }
+
+        // 6. Tile dimensions — push into the adapter so onBindViewHolder
         //    can resize the holder views.
         if (::dockAdapter.isInitialized) {
             dockAdapter.tileWidthDp  = layout.tileWidthDp
             dockAdapter.tileHeightDp = layout.tileHeightDp
         }
     }
+
+    /**
+     * v1.1 — Map an admin-edited font / weight / size / colour combo
+     * onto a TextView.  Unknown values fall back to safe defaults so
+     * the launcher never crashes on a typo in the admin form.
+     */
+    private fun applyTextStyle(
+        view: android.widget.TextView,
+        fontKey: String,
+        weightKey: String,
+        sizeSp: Int,
+        colorHex: String,
+    ) {
+        view.typeface = fontTypefaceFor(fontKey, weightKey)
+        view.setTypeface(view.typeface, weightToStyle(weightKey))
+        view.textSize = sizeSp.toFloat()
+        parseHexColorOrNull(colorHex)?.let { view.setTextColor(it) }
+    }
+
+    /** Returns the variable-font Typeface for [fontKey].  Falls back
+     *  to Montserrat (default body) when [fontKey] is unrecognised. */
+    private fun fontTypefaceFor(fontKey: String, weightKey: String): android.graphics.Typeface {
+        val resId = when (fontKey.lowercase()) {
+            "playfair", "playfair_display" -> R.font.playfair_display
+            "bebas", "bebas_neue"          -> R.font.bebas_neue
+            else                           -> R.font.montserrat
+        }
+        return androidx.core.content.res.ResourcesCompat.getFont(this, resId)
+            ?: android.graphics.Typeface.DEFAULT
+    }
+
+    /** Map a Montserrat weight label to one of Android's 4 baked-in
+     *  Typeface styles (NORMAL/BOLD/ITALIC/BOLD_ITALIC).  For variable
+     *  fonts that's a coarse approximation, but Android <12 doesn't
+     *  expose the variable-font weight API at all so this is the
+     *  best portable result. */
+    private fun weightToStyle(weightKey: String): Int =
+        when (weightKey.lowercase()) {
+            "bold", "extrabold", "black" -> android.graphics.Typeface.BOLD
+            else                          -> android.graphics.Typeface.NORMAL
+        }
 
     /** Map a remote dock-tile `key` back to one of our built-in
      *  vector icons.  Falls back to the grid icon for unknown keys. */

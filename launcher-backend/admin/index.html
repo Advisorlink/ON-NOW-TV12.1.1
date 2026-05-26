@@ -94,14 +94,84 @@
                 </div>
             </div>
             <div class="layout-group">
-                <h3>Featured panel (heading / description / button)</h3>
+                <h3>Featured panel — position</h3>
                 <div class="layout-row">
-                    <div><label>Panel left offset <small>(dp)</small></label><input id="layout_featured_margin_start_dp" type="number" min="0" max="400" step="2"></div>
-                    <div><label>Panel bottom offset <small>(dp — distance from dock)</small></label><input id="layout_featured_margin_bottom_dp" type="number" min="0" max="200" step="2"></div>
-                    <div><label>Heading size <small>(sp)</small></label><input id="layout_featured_heading_size_sp" type="number" min="20" max="120" step="2"></div>
-                    <div><label>Description size <small>(sp)</small></label><input id="layout_featured_description_size_sp" type="number" min="10" max="40" step="1"></div>
+                    <div><label>Panel left offset <small>(dp)</small></label><input id="layout_featured_margin_start_dp" type="number" min="0" max="600" step="2"></div>
+                    <div><label>Panel bottom offset <small>(dp — distance from dock)</small></label><input id="layout_featured_margin_bottom_dp" type="number" min="0" max="300" step="2"></div>
+                    <div class="span-2"><label>Text alignment</label>
+                        <select id="layout_featured_align" class="layout-select">
+                            <option value="start">Left</option>
+                            <option value="center">Centre</option>
+                            <option value="end">Right</option>
+                        </select>
+                    </div>
                 </div>
             </div>
+
+            <div class="layout-group">
+                <h3>Heading style</h3>
+                <div class="layout-row">
+                    <div><label>Font</label><select id="layout_featured_heading_font" class="layout-select layout-font-select"></select></div>
+                    <div><label>Weight</label><select id="layout_featured_heading_weight" class="layout-select layout-weight-select"></select></div>
+                    <div><label>Size <small>(sp)</small></label><input id="layout_featured_heading_size_sp" type="number" min="14" max="160" step="2"></div>
+                    <div><label>Colour</label>
+                        <div class="accent-pickers">
+                            <input type="color" data-color-for="layout_featured_heading_color">
+                            <input type="text" id="layout_featured_heading_color" placeholder="#FFFFFF" maxlength="9" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layout-group">
+                <h3>Subheading style <small>(new — appears between heading and description per-tile)</small></h3>
+                <div class="layout-row">
+                    <div><label>Font</label><select id="layout_featured_subheading_font" class="layout-select layout-font-select"></select></div>
+                    <div><label>Weight</label><select id="layout_featured_subheading_weight" class="layout-select layout-weight-select"></select></div>
+                    <div><label>Size <small>(sp)</small></label><input id="layout_featured_subheading_size_sp" type="number" min="10" max="80" step="1"></div>
+                    <div><label>Colour</label>
+                        <div class="accent-pickers">
+                            <input type="color" data-color-for="layout_featured_subheading_color">
+                            <input type="text" id="layout_featured_subheading_color" placeholder="#F0F4FA" maxlength="9" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layout-group">
+                <h3>Description style</h3>
+                <div class="layout-row">
+                    <div><label>Font</label><select id="layout_featured_description_font" class="layout-select layout-font-select"></select></div>
+                    <div><label>Weight</label><select id="layout_featured_description_weight" class="layout-select layout-weight-select"></select></div>
+                    <div><label>Size <small>(sp)</small></label><input id="layout_featured_description_size_sp" type="number" min="10" max="40" step="1"></div>
+                    <div><label>Colour</label>
+                        <div class="accent-pickers">
+                            <input type="color" data-color-for="layout_featured_description_color">
+                            <input type="text" id="layout_featured_description_color" placeholder="#D8E2EF" maxlength="9" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layout-group">
+                <h3>Call-to-action button</h3>
+                <div class="layout-row">
+                    <label class="checkbox-row span-2">
+                        <input id="layout_featured_show_button" type="checkbox">
+                        <span>Show the "ENTER" button under the description</span>
+                    </label>
+                    <div><label>Font</label><select id="layout_featured_button_font" class="layout-select layout-font-select"></select></div>
+                    <div><label>Weight</label><select id="layout_featured_button_weight" class="layout-select layout-weight-select"></select></div>
+                    <div><label>Size <small>(sp)</small></label><input id="layout_featured_button_size_sp" type="number" min="9" max="32" step="1"></div>
+                    <div><label>Text colour <small>(button background uses the tile's accent)</small></label>
+                        <div class="accent-pickers">
+                            <input type="color" data-color-for="layout_featured_button_text_color">
+                            <input type="text" id="layout_featured_button_text_color" placeholder="#04060B" maxlength="9" spellcheck="false">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="layout-group">
                 <h3>Top bar</h3>
                 <div class="layout-row">

@@ -1,12 +1,12 @@
 {
-  "generation": 81,
+  "generation": 98,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies",
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-946d214e.png",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-b5fe0d6e.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -15,6 +15,7 @@
       "target_url": null,
       "accent": "#FF3D5A",
       "heading": "Movies",
+      "subheading": "ON DEMAND \u00b7 4K HDR",
       "description": "Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.",
       "cta_label": "ENTER"
     },
@@ -23,7 +24,7 @@
       "label": "Music",
       "sub": "Listen",
       "image_url": "/assets/tile_images/tile-music-65391cbe.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-c7445373.png",
+      "wallpaper_url": "/assets/wallpapers/tile-music-df37e63a.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -32,6 +33,7 @@
       "target_url": null,
       "accent": "#2BB6FF",
       "heading": "Music",
+      "subheading": "LIVE RADIO & PLAYLISTS",
       "description": "Discover playlists, charts and live concerts from your favourite artists.",
       "cta_label": "PLAY"
     },
@@ -40,7 +42,7 @@
       "label": "Sports",
       "sub": "Live",
       "image_url": "/assets/tile_images/tile-sports-58ef5dd6.png",
-      "wallpaper_url": "/assets/wallpapers/tile-sports-eacd0e8b.png",
+      "wallpaper_url": "/assets/wallpapers/tile-sports-a554e7e0.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -49,6 +51,7 @@
       "target_url": null,
       "accent": "#2EEA7A",
       "heading": "Live Sports",
+      "subheading": "NEVER MISS A MATCH",
       "description": "Catch every match, race and tournament \u2014 live, with ON NOW EPG.",
       "cta_label": "WATCH"
     },
@@ -57,7 +60,7 @@
       "label": "Kids",
       "sub": "Family",
       "image_url": "/assets/tile_images/tile-kids-72e6c1eb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-kids-ee62d506.png",
+      "wallpaper_url": "/assets/wallpapers/tile-kids-a0e39567.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -66,6 +69,7 @@
       "target_url": null,
       "accent": "#FFB454",
       "heading": "Kids",
+      "subheading": "SAFE FAMILY VIEWING",
       "description": "Cartoons, family movies and learning shows in one safe place.",
       "cta_label": "GO"
     },
@@ -83,6 +87,7 @@
       "target_url": null,
       "accent": null,
       "heading": null,
+      "subheading": null,
       "description": null,
       "cta_label": null
     },
@@ -91,7 +96,7 @@
       "label": "Settings",
       "sub": "System",
       "image_url": "/assets/tile_images/tile-settings-35a016fd.png",
-      "wallpaper_url": "/assets/wallpapers/tile-settings-99edf579.png",
+      "wallpaper_url": "/assets/wallpapers/tile-settings-145921e6.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -100,6 +105,7 @@
       "target_url": null,
       "accent": null,
       "heading": null,
+      "subheading": null,
       "description": null,
       "cta_label": null
     }
@@ -154,8 +160,8 @@
     },
     "audit-test": {
       "device_id": "audit-test",
-      "last_seen": 1779754304,
-      "last_generation": 80
+      "last_seen": 1779756320,
+      "last_generation": 97
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
@@ -164,8 +170,18 @@
     },
     "285f933f-4977-435d-a72f-433ed8e90e47": {
       "device_id": "285f933f-4977-435d-a72f-433ed8e90e47",
-      "last_seen": 1779754912,
-      "last_generation": 81
+      "last_seen": 1779755374,
+      "last_generation": 87
+    },
+    "81f822aa-f0fc-4047-98d4-ebf9fc2f7366": {
+      "device_id": "81f822aa-f0fc-4047-98d4-ebf9fc2f7366",
+      "last_seen": 1779755308,
+      "last_generation": 87
+    },
+    "b5911ee3-890b-4e7f-b448-6a2bf9c48820": {
+      "device_id": "b5911ee3-890b-4e7f-b448-6a2bf9c48820",
+      "last_seen": 1779756363,
+      "last_generation": 98
     }
   },
   "layout": {
@@ -175,8 +191,24 @@
     "dock_margin_horizontal_dp": 20,
     "featured_margin_start_dp": 48,
     "featured_margin_bottom_dp": 36,
+    "topbar_visible": true,
+    "featured_show_button": true,
+    "featured_align": "start",
     "featured_heading_size_sp": 56,
+    "featured_heading_font": "montserrat",
+    "featured_heading_weight": "bold",
+    "featured_heading_color": "#FFFFFF",
+    "featured_subheading_size_sp": 22,
+    "featured_subheading_font": "montserrat",
+    "featured_subheading_weight": "semibold",
+    "featured_subheading_color": "#F0F4FA",
     "featured_description_size_sp": 17,
-    "topbar_visible": true
+    "featured_description_font": "montserrat",
+    "featured_description_weight": "regular",
+    "featured_description_color": "#D8E2EF",
+    "featured_button_size_sp": 13,
+    "featured_button_font": "montserrat",
+    "featured_button_weight": "bold",
+    "featured_button_text_color": "#04060B"
   }
 }

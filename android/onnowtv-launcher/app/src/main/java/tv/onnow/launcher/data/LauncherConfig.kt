@@ -21,8 +21,13 @@ data class LauncherConfig(
 )
 
 /**
- * v1.0 — Admin-editable launcher layout knobs.  All sizes in dp /
- * sp.  Negative dock margin bleeds the dock past the screen edge.
+ * v1.1 — Admin-editable launcher layout knobs.  Per-text-element
+ * typography (font / size / weight / color) for heading, subheading,
+ * description and CTA label, plus alignment + show/hide button.
+ *
+ * Strings (font / weight / color) are passed through as-is; the
+ * Android side maps unknown values to safe defaults — that way the
+ * backend schema can grow without forcing an APK rebuild.
  */
 data class LayoutSettings(
     val tileWidthDp: Int          = 300,
@@ -31,9 +36,30 @@ data class LayoutSettings(
     val dockMarginHorizontalDp: Int = 20,
     val featuredMarginStartDp: Int  = 48,
     val featuredMarginBottomDp: Int = 36,
-    val featuredHeadingSizeSp: Int  = 56,
-    val featuredDescriptionSizeSp: Int = 17,
     val topbarVisible: Boolean = true,
+
+    val featuredShowButton: Boolean = true,
+    val featuredAlign: String = "start",
+
+    val featuredHeadingSizeSp: Int      = 56,
+    val featuredHeadingFont: String     = "montserrat",
+    val featuredHeadingWeight: String   = "bold",
+    val featuredHeadingColor: String    = "#FFFFFF",
+
+    val featuredSubheadingSizeSp: Int   = 22,
+    val featuredSubheadingFont: String  = "montserrat",
+    val featuredSubheadingWeight: String = "semibold",
+    val featuredSubheadingColor: String = "#F0F4FA",
+
+    val featuredDescriptionSizeSp: Int  = 17,
+    val featuredDescriptionFont: String = "montserrat",
+    val featuredDescriptionWeight: String = "regular",
+    val featuredDescriptionColor: String  = "#D8E2EF",
+
+    val featuredButtonSizeSp: Int       = 13,
+    val featuredButtonFont: String      = "montserrat",
+    val featuredButtonWeight: String    = "bold",
+    val featuredButtonTextColor: String = "#04060B",
 )
 
 data class DockTileRemote(
@@ -59,6 +85,7 @@ data class DockTileRemote(
        this tile is the focused one.  All optional — when blank,
        MainActivity hides the panel. */
     val heading: String?,
+    val subheading: String?,
     val description: String?,
     val ctaLabel: String?,
 )
@@ -110,6 +137,7 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             targetUrl      = o.optStringOrNull("target_url"),
             accent         = o.optStringOrNull("accent"),
             heading        = o.optStringOrNull("heading"),
+            subheading     = o.optStringOrNull("subheading"),
             description    = o.optStringOrNull("description"),
             ctaLabel       = o.optStringOrNull("cta_label"),
         )
@@ -139,7 +167,7 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             expiresAt = o.optLong("expires_at"),
         )
     }
-    // v1.0 — Optional layout block.  Defaults applied when absent
+    // v1.1 — Optional layout block.  Defaults applied when absent
     // (older backend builds, or missing migration).
     val layoutObj = root.optJSONObject("layout")
     val layout = if (layoutObj == null) LayoutSettings() else {
@@ -151,9 +179,30 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             dockMarginHorizontalDp   = layoutObj.optInt("dock_margin_horizontal_dp", def.dockMarginHorizontalDp),
             featuredMarginStartDp    = layoutObj.optInt("featured_margin_start_dp", def.featuredMarginStartDp),
             featuredMarginBottomDp   = layoutObj.optInt("featured_margin_bottom_dp", def.featuredMarginBottomDp),
-            featuredHeadingSizeSp    = layoutObj.optInt("featured_heading_size_sp", def.featuredHeadingSizeSp),
-            featuredDescriptionSizeSp = layoutObj.optInt("featured_description_size_sp", def.featuredDescriptionSizeSp),
             topbarVisible            = layoutObj.optBoolean("topbar_visible", def.topbarVisible),
+
+            featuredShowButton       = layoutObj.optBoolean("featured_show_button", def.featuredShowButton),
+            featuredAlign            = layoutObj.optString("featured_align", def.featuredAlign).ifBlank { def.featuredAlign },
+
+            featuredHeadingSizeSp    = layoutObj.optInt("featured_heading_size_sp", def.featuredHeadingSizeSp),
+            featuredHeadingFont      = layoutObj.optString("featured_heading_font", def.featuredHeadingFont).ifBlank { def.featuredHeadingFont },
+            featuredHeadingWeight    = layoutObj.optString("featured_heading_weight", def.featuredHeadingWeight).ifBlank { def.featuredHeadingWeight },
+            featuredHeadingColor     = layoutObj.optString("featured_heading_color", def.featuredHeadingColor).ifBlank { def.featuredHeadingColor },
+
+            featuredSubheadingSizeSp = layoutObj.optInt("featured_subheading_size_sp", def.featuredSubheadingSizeSp),
+            featuredSubheadingFont   = layoutObj.optString("featured_subheading_font", def.featuredSubheadingFont).ifBlank { def.featuredSubheadingFont },
+            featuredSubheadingWeight = layoutObj.optString("featured_subheading_weight", def.featuredSubheadingWeight).ifBlank { def.featuredSubheadingWeight },
+            featuredSubheadingColor  = layoutObj.optString("featured_subheading_color", def.featuredSubheadingColor).ifBlank { def.featuredSubheadingColor },
+
+            featuredDescriptionSizeSp = layoutObj.optInt("featured_description_size_sp", def.featuredDescriptionSizeSp),
+            featuredDescriptionFont   = layoutObj.optString("featured_description_font", def.featuredDescriptionFont).ifBlank { def.featuredDescriptionFont },
+            featuredDescriptionWeight = layoutObj.optString("featured_description_weight", def.featuredDescriptionWeight).ifBlank { def.featuredDescriptionWeight },
+            featuredDescriptionColor  = layoutObj.optString("featured_description_color", def.featuredDescriptionColor).ifBlank { def.featuredDescriptionColor },
+
+            featuredButtonSizeSp      = layoutObj.optInt("featured_button_size_sp", def.featuredButtonSizeSp),
+            featuredButtonFont        = layoutObj.optString("featured_button_font", def.featuredButtonFont).ifBlank { def.featuredButtonFont },
+            featuredButtonWeight      = layoutObj.optString("featured_button_weight", def.featuredButtonWeight).ifBlank { def.featuredButtonWeight },
+            featuredButtonTextColor   = layoutObj.optString("featured_button_text_color", def.featuredButtonTextColor).ifBlank { def.featuredButtonTextColor },
         )
     }
     return LauncherConfig(

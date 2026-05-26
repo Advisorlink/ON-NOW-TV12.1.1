@@ -773,3 +773,25 @@ header nav { display: flex; gap: 8px; align-items: center; }
     font-size: 14px;
 }
 .layout-actions .ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+/* v1.1 — Native <select> styled to match the rest of the layout editor. */
+.layout-select {
+    background: var(--bg-row);
+    border: 1px solid var(--border);
+    color: var(--txt-primary);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--txt-tertiary) 50%),
+                      linear-gradient(135deg, var(--txt-tertiary) 50%, transparent 50%);
+    background-position: calc(100% - 18px) center, calc(100% - 12px) center;
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
+}
+.layout-select:focus { border-color: var(--accent); }
