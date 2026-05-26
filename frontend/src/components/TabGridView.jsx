@@ -72,7 +72,29 @@ export default function TabGridView({ type }) {
         progress: genreProgress,
         loadingMore: genreLoadingMore,
         totalLoaded: genreTotalLoaded,
+        hasMore: genreHasMore,
+        loadMore: genreLoadMore,
     } = useTabGenreCatalog(addons, type, genre, allItems);
+
+    // v2.1 — IntersectionObserver sentinel.  When the sentinel
+    // (rendered ~6 rows from the bottom of the grid) enters the
+    // viewport, fire `loadMore()` so the next 400-item batch streams
+    // in seamlessly.  Disconnects when there's no more to load.
+    const loadMoreSentinelRef = React.useRef(null);
+    React.useEffect(() => {
+        if (!genre || !genreHasMore) return;
+        const node = loadMoreSentinelRef.current;
+        if (!node) return;
+        const io = new IntersectionObserver((entries) => {
+            for (const e of entries) {
+                if (e.isIntersecting) {
+                    genreLoadMore();
+                }
+            }
+        }, { rootMargin: '600px' });   // pre-fetch before user hits bottom
+        io.observe(node);
+        return () => io.disconnect();
+    }, [genre, genreHasMore, genreLoadMore]);
 
     // What we actually paint:
     // - No genre selected → top 100 newest releases (capped for
@@ -266,16 +288,28 @@ export default function TabGridView({ type }) {
                         />
                     )}
 
-                    {/* v2.0 — "Loading more" footer for genre views.
-                        Initial burst already done, but we're still
-                        deep-paging in the background to surface
-                        every title in the library.  Sits under the
-                        grid so it doesn't block interaction. */}
-                    {genre && !showLoading && genreLoadingMore && (
+                    {/* v2.1 — Scroll sentinel.  When this enters the
+                        viewport (with a 600 px pre-fetch margin)
+                        the IntersectionObserver above fires
+                        `loadMore()` so the next 400-item batch
+                        streams in seamlessly.  Mounted only while
+                        there's more to load. */}
+                    {genre && genreHasMore && !showLoading && (
+                        <div
+                            ref={loadMoreSentinelRef}
+                            data-testid={`tab-grid-load-more-sentinel-${type}`}
+                            style={{ height: 1, marginTop: 40 }}
+                        />
+                    )}
+
+                    {/* "Loading more" footer — appears while the
+                        next batch is being fetched.  Also shows the
+                        live total so users see the library growing. */}
+                    {genre && !showLoading && (genreLoadingMore || genreHasMore) && (
                         <div
                             data-testid={`tab-grid-loading-more-${type}`}
                             style={{
-                                marginTop: 20,
+                                marginTop: 16,
                                 padding: '14px 18px',
                                 textAlign: 'center',
                                 fontSize: 14,
@@ -283,7 +317,9 @@ export default function TabGridView({ type }) {
                                 letterSpacing: 0.4,
                             }}
                         >
-                            Loading more · {genreTotalLoaded.toLocaleString()} titles so far…
+                            {genreLoadingMore
+                                ? `Loading more · ${genreTotalLoaded.toLocaleString()} titles so far…`
+                                : `Scroll down for more · ${genreTotalLoaded.toLocaleString()} titles loaded`}
                         </div>
                     )}
                 </div>
