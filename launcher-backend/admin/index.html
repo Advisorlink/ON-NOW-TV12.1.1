@@ -6,6 +6,12 @@
 <title>OnNow TV V2 — Launcher Admin</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='6 4 20 12 6 20 6 4' fill='%232BB6FF'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/admin/static/style.css">
+<!-- v1.2 — Google Fonts for the live mini-preview.  The launcher
+     APK ships these same fonts as bundled TTFs, so what the admin
+     sees in the preview is exactly what renders on the TV. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -78,7 +84,8 @@
             <p>Resize tiles, move the dock, shift the featured panel, and tune the heading/description text — live on every connected device.  All values are in <strong>dp</strong> (size, position) or <strong>sp</strong> (text).</p>
         </div>
 
-        <div id="layoutForm" class="layout-form">
+        <div class="layout-shell">
+            <div id="layoutForm" class="layout-form">
             <div class="layout-group">
                 <h3>Tile size</h3>
                 <div class="layout-row">
@@ -186,7 +193,34 @@
                 <button id="resetLayout" class="ghost">Reset to defaults</button>
                 <span class="hint-inline">Changes propagate to every connected launcher device within ~30 seconds.</span>
             </div>
-        </div>
+            </div><!-- /#layoutForm -->
+
+            <!-- Live mini-preview — renders the launcher home screen
+                 at ~1/5 the size as you tweak the controls.  Sticky
+                 so it follows you as you scroll the long form. -->
+            <aside class="layout-preview-wrap">
+                <h3>Live preview</h3>
+                <p class="layout-preview-sub">Re-renders as you edit · 16:9</p>
+                <div id="layoutPreview" class="layout-preview" data-platform="tv">
+                    <div class="lp-topbar"   id="lpTopbar">
+                        <span class="lp-greeting">Good evening, Mark</span>
+                        <span class="lp-wordmark">ON NOW TV</span>
+                        <span class="lp-time">9:14 PM</span>
+                    </div>
+                    <div class="lp-scrim"></div>
+                    <div class="lp-panel" id="lpPanel">
+                        <div class="lp-heading"     id="lpHeading">Movies</div>
+                        <div class="lp-subheading"  id="lpSubheading">ON DEMAND · 4K HDR</div>
+                        <div class="lp-description" id="lpDescription">Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.</div>
+                        <div class="lp-cta-wrap"    id="lpCtaWrap">
+                            <span class="lp-cta" id="lpCta">ENTER</span>
+                        </div>
+                    </div>
+                    <div class="lp-dock" id="lpDock"></div>
+                </div>
+                <p class="layout-preview-hint">Tip — the preview uses the same fonts that ship in the APK.</p>
+            </aside>
+        </div><!-- /.layout-shell -->
     </section>
 
     <!-- APKS TAB -->

@@ -184,6 +184,7 @@ function bindLayoutColorPickers() {
 function renderLayout(store) {
     ensureLayoutSelectsPopulated();
     bindLayoutColorPickers();
+    bindLayoutLivePreview();
     const layout = { ...LAYOUT_DEFAULTS, ...(store.layout || {}) };
     LAYOUT_INT_FIELDS.forEach((k) => {
         const el = $('#layout_' + k);
@@ -203,6 +204,99 @@ function renderLayout(store) {
     LAYOUT_BOOL_FIELDS.forEach((k) => {
         const el = $('#layout_' + k);
         if (el) el.checked = !!layout[k];
+    });
+    renderPreview();
+}
+
+/* ─────────── v1.2 — Live mini-preview ───────────
+   Renders a small 16:9 mockup of the launcher home screen that
+   re-paints whenever any layout-form input changes.  Pure CSS,
+   uses the SAME Google Fonts that ship in the APK so what you
+   see on screen matches the TV at delivery time. */
+const PREVIEW_FONT_MAP = {
+    'montserrat':       "'Montserrat', sans-serif",
+    'playfair_display': "'Playfair Display', serif",
+    'bebas_neue':       "'Bebas Neue', sans-serif",
+};
+const PREVIEW_WEIGHT_MAP = {
+    'regular':  '400',
+    'semibold': '600',
+    'bold':     '700',
+};
+const PREVIEW_TILE_ACCENTS = ['#FF3D5A', '#2BB6FF', '#2EEA7A', '#FFB454'];
+
+function bindLayoutLivePreview() {
+    if (window._previewBound) return;
+    window._previewBound = true;
+    // Attach a single delegated `input` listener so we don't have to
+    // re-wire every time renderLayout() runs.
+    const form = $('#layoutForm');
+    if (!form) return;
+    form.addEventListener('input',  renderPreview);
+    form.addEventListener('change', renderPreview);
+}
+
+function renderPreview() {
+    const cfg = readLayoutForm();
+    const root = $('#layoutPreview'); if (!root) return;
+
+    // Top bar visibility.
+    $('#lpTopbar').style.display = cfg.topbar_visible ? '' : 'none';
+
+    // Panel position — scale the dp values down to the preview size
+    // (preview is ~360 px wide vs 1920 px screen → ÷ ~5.3).
+    const scale = 1 / 5.3;
+    const panel = $('#lpPanel');
+    panel.style.left   = (cfg.featured_margin_start_dp  * scale) + 'px';
+    panel.style.bottom = ((cfg.featured_margin_bottom_dp + 50) * scale + 50) + 'px';
+
+    // Alignment.
+    const alignMap = { start: 'flex-start', center: 'center', end: 'flex-end' };
+    const textAlignMap = { start: 'left', center: 'center', end: 'right' };
+    panel.style.alignItems = alignMap[cfg.featured_align] || 'flex-start';
+    panel.style.textAlign  = textAlignMap[cfg.featured_align] || 'left';
+
+    // Per-element typography.
+    function applyEl(id, font, weight, size, color) {
+        const el = $('#' + id); if (!el) return;
+        el.style.fontFamily = PREVIEW_FONT_MAP[font] || PREVIEW_FONT_MAP.montserrat;
+        el.style.fontWeight = PREVIEW_WEIGHT_MAP[weight] || '400';
+        // Scale sp values down for the preview so they read sensibly.
+        el.style.fontSize   = (size * 0.42) + 'px';
+        el.style.color      = color;
+    }
+    applyEl('lpHeading',
+        cfg.featured_heading_font, cfg.featured_heading_weight,
+        cfg.featured_heading_size_sp, cfg.featured_heading_color);
+    applyEl('lpSubheading',
+        cfg.featured_subheading_font, cfg.featured_subheading_weight,
+        cfg.featured_subheading_size_sp, cfg.featured_subheading_color);
+    applyEl('lpDescription',
+        cfg.featured_description_font, cfg.featured_description_weight,
+        cfg.featured_description_size_sp, cfg.featured_description_color);
+    applyEl('lpCta',
+        cfg.featured_button_font, cfg.featured_button_weight,
+        cfg.featured_button_size_sp, cfg.featured_button_text_color);
+
+    // CTA pill colour = first tile's accent (preview convention).
+    $('#lpCta').style.background = PREVIEW_TILE_ACCENTS[0];
+    // CTA show/hide toggle.
+    $('#lpCtaWrap').style.display = cfg.featured_show_button ? '' : 'none';
+
+    // Mini dock — 4 sample tiles in the configured size/colour.
+    const dock = $('#lpDock');
+    dock.style.bottom = (cfg.dock_margin_bottom_dp * scale) + 'px';
+    dock.innerHTML = '';
+    const tileW = Math.round(cfg.tile_width_dp  * scale);
+    const tileH = Math.round(cfg.tile_height_dp * scale);
+    PREVIEW_TILE_ACCENTS.forEach((accent, i) => {
+        const t = document.createElement('div');
+        t.className = 'lp-tile';
+        t.style.width  = tileW + 'px';
+        t.style.height = tileH + 'px';
+        t.style.background = `linear-gradient(135deg, ${accent}cc, ${accent}77)`;
+        if (i === 0) t.style.boxShadow = `0 0 0 2px ${accent}, 0 0 16px ${accent}66`;
+        dock.appendChild(t);
     });
 }
 
