@@ -116,9 +116,24 @@ const LAYOUT_DEFAULTS = {
 };
 
 const LAYOUT_FONTS = [
-    { key: 'montserrat',       label: 'Montserrat (modern sans)' },
-    { key: 'playfair_display', label: 'Playfair Display (cinematic serif)' },
-    { key: 'bebas_neue',       label: 'Bebas Neue (bold display)' },
+    // Sans-serif body fonts (good for headings + descriptions)
+    { key: 'montserrat',       label: 'Montserrat — modern geometric sans' },
+    { key: 'inter',            label: 'Inter — premium UI sans' },
+    { key: 'poppins',          label: 'Poppins — friendly geometric sans' },
+    { key: 'roboto',           label: 'Roboto — Android default sans' },
+    { key: 'nunito',           label: 'Nunito — rounded humanist sans' },
+    // Cinematic / serif
+    { key: 'playfair_display', label: 'Playfair Display — cinematic serif' },
+    { key: 'merriweather',     label: 'Merriweather — readable serif' },
+    { key: 'dm_serif_display', label: 'DM Serif Display — high-contrast serif' },
+    // Display / heavy
+    { key: 'oswald',           label: 'Oswald — modern condensed display' },
+    { key: 'bebas_neue',       label: 'Bebas Neue — bold all-caps display' },
+    { key: 'anton',            label: 'Anton — heavy block display' },
+    { key: 'russo_one',        label: 'Russo One — industrial display' },
+    // Script
+    { key: 'lobster',          label: 'Lobster — flowing script' },
+    { key: 'pacifico',         label: 'Pacifico — casual handwriting' },
 ];
 const LAYOUT_WEIGHTS = [
     { key: 'regular',  label: 'Regular' },
@@ -215,8 +230,19 @@ function renderLayout(store) {
    see on screen matches the TV at delivery time. */
 const PREVIEW_FONT_MAP = {
     'montserrat':       "'Montserrat', sans-serif",
+    'inter':            "'Inter', sans-serif",
+    'poppins':          "'Poppins', sans-serif",
+    'roboto':           "'Roboto', sans-serif",
+    'nunito':           "'Nunito', sans-serif",
     'playfair_display': "'Playfair Display', serif",
+    'merriweather':     "'Merriweather', serif",
+    'dm_serif_display': "'DM Serif Display', serif",
+    'oswald':           "'Oswald', sans-serif",
     'bebas_neue':       "'Bebas Neue', sans-serif",
+    'anton':            "'Anton', sans-serif",
+    'russo_one':        "'Russo One', sans-serif",
+    'lobster':          "'Lobster', cursive",
+    'pacifico':         "'Pacifico', cursive",
 };
 const PREVIEW_WEIGHT_MAP = {
     'regular':  '400',

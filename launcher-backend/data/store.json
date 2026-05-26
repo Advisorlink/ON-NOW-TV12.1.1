@@ -1,5 +1,5 @@
 {
-  "generation": 122,
+  "generation": 132,
   "dock_tiles": [
     {
       "key": "movies",
@@ -205,15 +205,20 @@
     },
     "e345ea5d-9b28-47b7-885e-041be6c29f65": {
       "device_id": "e345ea5d-9b28-47b7-885e-041be6c29f65",
-      "last_seen": 1779770214,
-      "last_generation": 122
+      "last_seen": 1779770550,
+      "last_generation": 123
+    },
+    "7195b237-0dc9-410b-a266-424fa80b974e": {
+      "device_id": "7195b237-0dc9-410b-a266-424fa80b974e",
+      "last_seen": 1779776134,
+      "last_generation": 132
     }
   },
   "layout": {
-    "tile_width_dp": 300,
+    "tile_width_dp": 298,
     "tile_height_dp": 168,
     "dock_margin_bottom_dp": -44,
-    "dock_margin_horizontal_dp": 20,
+    "dock_margin_horizontal_dp": 34,
     "featured_margin_start_dp": 56,
     "featured_margin_bottom_dp": 158,
     "topbar_visible": true,
@@ -221,7 +226,7 @@
     "featured_align": "start",
     "featured_heading_size_sp": 80,
     "featured_heading_font": "bebas_neue",
-    "featured_heading_weight": "bold",
+    "featured_heading_weight": "regular",
     "featured_heading_color": "#FFFFFF",
     "featured_subheading_size_sp": 22,
     "featured_subheading_font": "montserrat",

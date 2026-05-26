@@ -506,20 +506,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v1.2 — Map an admin-edited font / weight / size / colour combo
-     * onto a TextView.  Unknown values fall back to safe defaults so
-     * the launcher never crashes on a typo in the admin form.
+     * v1.4 — Map an admin-edited font / weight / size / colour combo
+     * onto a TextView.  Now that every multi-weight family ships as a
+     * `<font-family>` XML resource pointing at static TTFs, we can use
+     * the canonical `Typeface.create(family, weight, italic)` overload
+     * (API 28+) which honours the requested weight by selecting the
+     * matching static file — no silent fallback to system Sans Bold.
      *
-     * IMPORTANT — we do NOT call `setTypeface(tf, BOLD)` because that
-     * makes Android try to *find* a bold variant of the font and, if
-     * none exists (Bebas Neue, Playfair Display Regular, etc.),
-     * silently falls back to the SYSTEM default Sans Bold.  That
-     * fallback was making Bebas Neue render as plain Sans on the TV
-     * even though the admin saved `featured_heading_font=bebas_neue`.
-     *
-     * Instead we use the variable-font weight API on API 28+ which
-     * lets Android render the actual font at the requested weight.
-     * On older API levels we just apply the typeface as-is.
+     * On API < 28 we fall back to `setTypeface(family, BOLD)` for
+     * weights ≥ 600.  Android's font-family resolver handles the
+     * weight match on those devices too, so this is safe.
      */
     private fun applyTextStyle(
         view: android.widget.TextView,
@@ -529,36 +525,46 @@ class MainActivity : AppCompatActivity() {
         colorHex: String,
     ) {
         val typeface = fontTypefaceFor(fontKey, weightKey)
+        val weight   = weightToInt(weightKey)
         if (android.os.Build.VERSION.SDK_INT >= 28) {
-            // Typeface.create(family, weight, italic) — honours the
-            // variable-font axis when the font supports it, and
-            // renders at the closest available master weight when it
-            // doesn't.  No silent system-font fallback.
-            view.typeface = android.graphics.Typeface.create(typeface, weightToInt(weightKey), false)
+            view.typeface = android.graphics.Typeface.create(typeface, weight, false)
         } else {
-            // Pre-28: synthesise bold ONLY if we're staying on a font
-            // that has a real bold variant (Montserrat).  For Bebas
-            // and Playfair, leave style NORMAL so the original glyphs
-            // shine through instead of system-fallback bold.
-            val canBold = fontKey.equals("montserrat", true)
-            val style = if (canBold && weightToInt(weightKey) >= 600) {
-                android.graphics.Typeface.BOLD
-            } else {
-                android.graphics.Typeface.NORMAL
-            }
+            val style = if (weight >= 600) android.graphics.Typeface.BOLD
+                        else android.graphics.Typeface.NORMAL
             view.setTypeface(typeface, style)
         }
         view.textSize = sizeSp.toFloat()
         parseHexColorOrNull(colorHex)?.let { view.setTextColor(it) }
     }
 
-    /** Returns the variable-font Typeface for [fontKey].  Falls back
-     *  to Montserrat (default body) when [fontKey] is unrecognised. */
+    /** v1.4 — Returns the static-weight font family for [fontKey].
+     *  Multi-weight families use a `<font-family>` XML resource so
+     *  Android picks the right TTF for the requested weight (no
+     *  silent system Sans fallback).  Single-weight display fonts
+     *  use the raw .ttf directly.
+     *
+     *  Unknown fontKey falls back to Montserrat. */
     private fun fontTypefaceFor(fontKey: String, weightKey: String): android.graphics.Typeface {
-        val resId = when (fontKey.lowercase()) {
-            "playfair", "playfair_display" -> R.font.playfair_display
-            "bebas", "bebas_neue"          -> R.font.bebas_neue
-            else                           -> R.font.montserrat
+        val resId = when (fontKey.lowercase().replace("-", "_")) {
+            // Multi-weight sans-serif body fonts
+            "montserrat"        -> R.font.montserrat
+            "inter"             -> R.font.inter
+            "poppins"           -> R.font.poppins
+            "roboto"            -> R.font.roboto
+            "nunito"            -> R.font.nunito
+            // Multi-weight serif / cinematic
+            "playfair_display",
+            "playfair"          -> R.font.playfair_display
+            "merriweather"      -> R.font.merriweather
+            // Single-weight display fonts
+            "oswald"            -> R.font.oswald
+            "bebas_neue", "bebas" -> R.font.bebas_neue
+            "anton"             -> R.font.anton
+            "dm_serif_display", "dm_serif" -> R.font.dm_serif_display
+            "russo_one", "russo" -> R.font.russo_one
+            "lobster"           -> R.font.lobster
+            "pacifico"          -> R.font.pacifico
+            else                -> R.font.montserrat
         }
         return androidx.core.content.res.ResourcesCompat.getFont(this, resId)
             ?: android.graphics.Typeface.DEFAULT
