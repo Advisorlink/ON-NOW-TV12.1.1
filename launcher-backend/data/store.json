@@ -1,5 +1,5 @@
 {
-  "generation": 172,
+  "generation": 212,
   "dock_tiles": [
     {
       "key": "movies",
@@ -15,8 +15,8 @@
       "target_url": null,
       "accent": "#3dd8ff",
       "heading": "Movies/Tv",
-      "subheading": "Here you shall live\u00b7 4K HDR",
-      "description": "Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.",
+      "subheading": "Your favorite movies and TV shows.",
+      "description": "Stream blockbusters, discover hidden gems, even experience a huge collection of stunning 4K visuals. All from the comfort of your couch. Dive into a cinematic universe with endless options, curated picks just for you, yopur very own library and save it to your own profile. Get ready for an immersive viewing experience like no other With the all new On Now V2!!",
       "cta_label": "ENTER"
     },
     {
@@ -34,7 +34,7 @@
       "accent": "#2bb6ff",
       "heading": "Music",
       "subheading": "LIVE RADIO & PLAYLISTS",
-      "description": "Discover playlists, charts and live concerts from your favourite artists.",
+      "description": "Discover playlists, charts and live concerts from your favourite artists.Discover playlists, charts, and live concerts from your favourite artists. Immerse yourself in their world, exploring their musical journey and connecting with their creative spirit. Stay updated on new releases, exclusive content, and hidden gems, all while enjoying a seamless and personalised music experience.",
       "cta_label": "PLAY"
     },
     {
@@ -50,9 +50,9 @@
       "target_package": null,
       "target_url": null,
       "accent": "#2eea7a",
-      "heading": "Live Sports",
-      "subheading": "NEVER MISS A MATCH",
-      "description": "Catch every match, race and tournament \u2014 live, with ON NOW EPG.",
+      "heading": "Live Tv",
+      "subheading": "14,000 channels from around the world",
+      "description": "Never miss a moment with our comprehensive Electronic Program Guide, bringing you real-time updates and scheduling for all your favorite sports. From the roar of the stadium to the thrill of the finish line, ON NOW EPG ensures you're always in the know, with instant access to live broadcasts and upcoming events. Get ready to experience sports like never before, right at your fingertips.",
       "cta_label": "WATCH"
     },
     {
@@ -220,8 +220,8 @@
     },
     "3077eb36-e673-4795-be43-0bcd3a2bc8d9": {
       "device_id": "3077eb36-e673-4795-be43-0bcd3a2bc8d9",
-      "last_seen": 1779788545,
-      "last_generation": 172
+      "last_seen": 1779797151,
+      "last_generation": 212
     }
   },
   "layout": {
@@ -234,34 +234,34 @@
     "topbar_visible": true,
     "featured_show_button": false,
     "featured_align": "start",
-    "featured_heading_size_sp": 80,
+    "featured_heading_size_sp": 84,
     "featured_heading_font": "montserrat",
     "featured_heading_weight": "bold",
-    "featured_heading_color": "#FFFFFF",
-    "featured_subheading_size_sp": 22,
+    "featured_heading_color": "#D4EFF2",
+    "featured_subheading_size_sp": 20,
     "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#F0F4FA",
-    "featured_description_size_sp": 17,
+    "featured_subheading_color": "#00CCFF",
+    "featured_description_size_sp": 16,
     "featured_description_font": "montserrat",
     "featured_description_weight": "regular",
     "featured_description_color": "#D8E2EF",
-    "featured_button_size_sp": 13,
+    "featured_button_size_sp": 16,
     "featured_button_font": "montserrat",
     "featured_button_weight": "bold",
     "featured_button_text_color": "#04060B",
-    "featured_gap_after_heading_dp": 6,
+    "featured_gap_after_heading_dp": -17,
     "featured_gap_after_subheading_dp": 10,
     "featured_gap_after_description_dp": 22,
     "featured_heading_letter_spacing": -1,
     "featured_subheading_letter_spacing": 2,
     "featured_description_letter_spacing": 0,
-    "featured_button_letter_spacing": 18,
+    "featured_button_letter_spacing": 39,
     "featured_description_line_height_pct": 140,
     "featured_show_heading": true,
     "featured_show_subheading": true,
     "featured_show_description": true,
     "featured_heading_image_url": "",
-    "featured_heading_image_height_dp": 80
+    "featured_heading_image_height_dp": 70
   }
 }

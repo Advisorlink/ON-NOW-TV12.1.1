@@ -201,8 +201,6 @@
             android:shadowDy="4"
             android:shadowRadius="16"
             android:letterSpacing="-0.01"
-            android:maxLines="2"
-            android:ellipsize="end"
             tools:text="Movies" />
 
         <TextView
@@ -218,8 +216,6 @@
             android:shadowDy="3"
             android:shadowRadius="12"
             android:letterSpacing="0.02"
-            android:maxLines="2"
-            android:ellipsize="end"
             android:maxWidth="640dp"
             android:visibility="gone"
             tools:text="On demand · 4K HDR"
@@ -238,8 +234,6 @@
             android:shadowDy="2"
             android:shadowRadius="10"
             android:lineSpacingExtra="3sp"
-            android:maxLines="3"
-            android:ellipsize="end"
             android:maxWidth="640dp"
             tools:text="Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR." />
 

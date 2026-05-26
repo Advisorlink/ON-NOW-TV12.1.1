@@ -7,6 +7,14 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.93 — Featured panel: no more text truncation
+
+The heading, subheading and description in the focused-tile panel
+no longer cut off at 2/2/3 lines.  The TextViews now grow to fit
+whatever copy the admin writes, so multi-line descriptions land
+fully on screen.  Dock-tile labels are unchanged (still single
+line — that's intentional).
+
 ## v2.7.92 — Kids tile deep-link + launcher heading-image / show-hide toggles
 
 Vesper now responds to the `?profile=kids` query-string deep link
