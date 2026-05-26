@@ -506,9 +506,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v1.1 — Map an admin-edited font / weight / size / colour combo
+     * v1.2 — Map an admin-edited font / weight / size / colour combo
      * onto a TextView.  Unknown values fall back to safe defaults so
      * the launcher never crashes on a typo in the admin form.
+     *
+     * IMPORTANT — we do NOT call `setTypeface(tf, BOLD)` because that
+     * makes Android try to *find* a bold variant of the font and, if
+     * none exists (Bebas Neue, Playfair Display Regular, etc.),
+     * silently falls back to the SYSTEM default Sans Bold.  That
+     * fallback was making Bebas Neue render as plain Sans on the TV
+     * even though the admin saved `featured_heading_font=bebas_neue`.
+     *
+     * Instead we use the variable-font weight API on API 28+ which
+     * lets Android render the actual font at the requested weight.
+     * On older API levels we just apply the typeface as-is.
      */
     private fun applyTextStyle(
         view: android.widget.TextView,
@@ -517,8 +528,26 @@ class MainActivity : AppCompatActivity() {
         sizeSp: Int,
         colorHex: String,
     ) {
-        view.typeface = fontTypefaceFor(fontKey, weightKey)
-        view.setTypeface(view.typeface, weightToStyle(weightKey))
+        val typeface = fontTypefaceFor(fontKey, weightKey)
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            // Typeface.create(family, weight, italic) — honours the
+            // variable-font axis when the font supports it, and
+            // renders at the closest available master weight when it
+            // doesn't.  No silent system-font fallback.
+            view.typeface = android.graphics.Typeface.create(typeface, weightToInt(weightKey), false)
+        } else {
+            // Pre-28: synthesise bold ONLY if we're staying on a font
+            // that has a real bold variant (Montserrat).  For Bebas
+            // and Playfair, leave style NORMAL so the original glyphs
+            // shine through instead of system-fallback bold.
+            val canBold = fontKey.equals("montserrat", true)
+            val style = if (canBold && weightToInt(weightKey) >= 600) {
+                android.graphics.Typeface.BOLD
+            } else {
+                android.graphics.Typeface.NORMAL
+            }
+            view.setTypeface(typeface, style)
+        }
         view.textSize = sizeSp.toFloat()
         parseHexColorOrNull(colorHex)?.let { view.setTextColor(it) }
     }
@@ -535,15 +564,20 @@ class MainActivity : AppCompatActivity() {
             ?: android.graphics.Typeface.DEFAULT
     }
 
-    /** Map a Montserrat weight label to one of Android's 4 baked-in
-     *  Typeface styles (NORMAL/BOLD/ITALIC/BOLD_ITALIC).  For variable
-     *  fonts that's a coarse approximation, but Android <12 doesn't
-     *  expose the variable-font weight API at all so this is the
-     *  best portable result. */
-    private fun weightToStyle(weightKey: String): Int =
+    /** Map a Montserrat-style weight label to a numeric weight (the
+     *  CSS-style 100..900 axis that variable fonts use). */
+    private fun weightToInt(weightKey: String): Int =
         when (weightKey.lowercase()) {
-            "bold", "extrabold", "black" -> android.graphics.Typeface.BOLD
-            else                          -> android.graphics.Typeface.NORMAL
+            "thin"       -> 100
+            "extralight" -> 200
+            "light"      -> 300
+            "regular"    -> 400
+            "medium"     -> 500
+            "semibold"   -> 600
+            "bold"       -> 700
+            "extrabold"  -> 800
+            "black"      -> 900
+            else         -> 400
         }
 
     /** Map a remote dock-tile `key` back to one of our built-in

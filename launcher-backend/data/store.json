@@ -1,5 +1,5 @@
 {
-  "generation": 120,
+  "generation": 122,
   "dock_tiles": [
     {
       "key": "movies",
@@ -190,22 +190,37 @@
     },
     "d444412c-edcd-4c3a-a761-0cd9127b2834": {
       "device_id": "d444412c-edcd-4c3a-a761-0cd9127b2834",
-      "last_seen": 1779769252,
+      "last_seen": 1779769343,
       "last_generation": 120
+    },
+    "1303c1f3-3fae-4db0-ab12-928c9eb0cefe": {
+      "device_id": "1303c1f3-3fae-4db0-ab12-928c9eb0cefe",
+      "last_seen": 1779769404,
+      "last_generation": 120
+    },
+    "7a388987-0b45-42e5-ad5d-a06919aa6fcf": {
+      "device_id": "7a388987-0b45-42e5-ad5d-a06919aa6fcf",
+      "last_seen": 1779769572,
+      "last_generation": 120
+    },
+    "e345ea5d-9b28-47b7-885e-041be6c29f65": {
+      "device_id": "e345ea5d-9b28-47b7-885e-041be6c29f65",
+      "last_seen": 1779770000,
+      "last_generation": 122
     }
   },
   "layout": {
     "tile_width_dp": 300,
     "tile_height_dp": 168,
     "dock_margin_bottom_dp": -44,
-    "dock_margin_horizontal_dp": 34,
+    "dock_margin_horizontal_dp": 20,
     "featured_margin_start_dp": 56,
     "featured_margin_bottom_dp": 158,
     "topbar_visible": true,
     "featured_show_button": false,
     "featured_align": "start",
     "featured_heading_size_sp": 80,
-    "featured_heading_font": "montserrat",
+    "featured_heading_font": "bebas_neue",
     "featured_heading_weight": "bold",
     "featured_heading_color": "#FFFFFF",
     "featured_subheading_size_sp": 22,
