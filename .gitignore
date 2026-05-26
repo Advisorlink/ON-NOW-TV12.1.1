@@ -1520,11 +1520,15 @@ launcher-backend/data/apks/d6079936d52d_onnowtv-v2-debug
 # ─── Launcher backend runtime uploads ──────────────────────────────
 # v1.9 — Admin-uploaded APKs land in data/apks/ (can be 50–200 MB
 # per file → blows past GitHub's 100 MB hard limit), and their
-# auto-extracted icons land in data/apk_icons/.  Neither directory
-# should be tracked: they're per-installation runtime state, NOT
-# source code.  The store.json index next to them IS tracked
-# (it's tiny metadata describing what's in those folders).
+# auto-extracted icons land in data/apk_icons/.  data/tile_apks/
+# holds APKs attached to dock tiles (also user uploads, also can
+# be tens of MB).  None of these directories should be tracked:
+# they're per-installation runtime state, NOT source code.  The
+# store.json index next to them IS tracked (it's tiny metadata
+# describing what's in those folders).
 launcher-backend/data/apks/*
 launcher-backend/data/apk_icons/*
+launcher-backend/data/tile_apks/*
 !launcher-backend/data/apks/.gitkeep
 !launcher-backend/data/apk_icons/.gitkeep
+!launcher-backend/data/tile_apks/.gitkeep
