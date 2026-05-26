@@ -1,5 +1,5 @@
 {
-  "generation": 106,
+  "generation": 119,
   "dock_tiles": [
     {
       "key": "movies",
@@ -14,8 +14,8 @@
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#3dd8ff",
-      "heading": "Movies",
-      "subheading": "ON DEMAND \u00b7 4K HDR",
+      "heading": "Movies/Tv",
+      "subheading": "Here you shall live\u00b7 4K HDR",
       "description": "Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.",
       "cta_label": "ENTER"
     },
@@ -160,8 +160,8 @@
     },
     "audit-test": {
       "device_id": "audit-test",
-      "last_seen": 1779760102,
-      "last_generation": 106
+      "last_seen": 1779768062,
+      "last_generation": 118
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
@@ -185,31 +185,36 @@
     },
     "6ff1a785-d170-4836-b47f-cf8a0c84b0e3": {
       "device_id": "6ff1a785-d170-4836-b47f-cf8a0c84b0e3",
-      "last_seen": 1779765855,
+      "last_seen": 1779766442,
       "last_generation": 106
+    },
+    "d444412c-edcd-4c3a-a761-0cd9127b2834": {
+      "device_id": "d444412c-edcd-4c3a-a761-0cd9127b2834",
+      "last_seen": 1779768115,
+      "last_generation": 119
     }
   },
   "layout": {
     "tile_width_dp": 300,
     "tile_height_dp": 168,
-    "dock_margin_bottom_dp": -30,
-    "dock_margin_horizontal_dp": 20,
-    "featured_margin_start_dp": 48,
+    "dock_margin_bottom_dp": -44,
+    "dock_margin_horizontal_dp": 34,
+    "featured_margin_start_dp": 56,
     "featured_margin_bottom_dp": 158,
     "topbar_visible": true,
     "featured_show_button": false,
     "featured_align": "start",
-    "featured_heading_size_sp": 56,
-    "featured_heading_font": "montserrat",
+    "featured_heading_size_sp": 80,
+    "featured_heading_font": "bebas_neue",
     "featured_heading_weight": "bold",
     "featured_heading_color": "#FFFFFF",
     "featured_subheading_size_sp": 22,
-    "featured_subheading_font": "montserrat",
+    "featured_subheading_font": "playfair_display",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#F0F4FA",
+    "featured_subheading_color": "#FF3D5A",
     "featured_description_size_sp": 17,
     "featured_description_font": "montserrat",
-    "featured_description_weight": "regular",
+    "featured_description_weight": "bold",
     "featured_description_color": "#D8E2EF",
     "featured_button_size_sp": 13,
     "featured_button_font": "montserrat",
