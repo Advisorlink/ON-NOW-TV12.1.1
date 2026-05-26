@@ -1,5 +1,5 @@
 {
-  "generation": 119,
+  "generation": 120,
   "dock_tiles": [
     {
       "key": "movies",
@@ -190,8 +190,8 @@
     },
     "d444412c-edcd-4c3a-a761-0cd9127b2834": {
       "device_id": "d444412c-edcd-4c3a-a761-0cd9127b2834",
-      "last_seen": 1779768115,
-      "last_generation": 119
+      "last_seen": 1779768176,
+      "last_generation": 120
     }
   },
   "layout": {
@@ -205,16 +205,16 @@
     "featured_show_button": false,
     "featured_align": "start",
     "featured_heading_size_sp": 80,
-    "featured_heading_font": "bebas_neue",
+    "featured_heading_font": "montserrat",
     "featured_heading_weight": "bold",
     "featured_heading_color": "#FFFFFF",
     "featured_subheading_size_sp": 22,
-    "featured_subheading_font": "playfair_display",
+    "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#FF3D5A",
+    "featured_subheading_color": "#F0F4FA",
     "featured_description_size_sp": 17,
     "featured_description_font": "montserrat",
-    "featured_description_weight": "bold",
+    "featured_description_weight": "regular",
     "featured_description_color": "#D8E2EF",
     "featured_button_size_sp": 13,
     "featured_button_font": "montserrat",
