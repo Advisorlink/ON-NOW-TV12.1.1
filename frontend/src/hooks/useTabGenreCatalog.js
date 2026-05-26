@@ -5,24 +5,21 @@ import * as cache from '@/lib/cache';
 /**
  * Fetch EVERY title in a given genre across every installed addon.
  *
- * Unlike `useTabCatalog` (which caps each catalog to ~60 items so
- * the cold-load top-100 view stays fast), this hook deep-pages
- * each catalog using the Stremio `genre` extras filter + `skip`
- * pagination so we end up with the full library for the requested
- * genre.  Per the user's request: "every adventure movie that's
- * ever been made … every crime movie that's ever been made".
+ * v2.0 — Continuous background pagination so the user sees the
+ * complete library, not just the first 400 titles.
  *
  * Strategy:
- *   • Discover every catalog from every addon that matches `type`
- *     AND advertises a `genre` extras filter that includes our
- *     target genre (Stremio addons publish their genre lists in
- *     `extra[].options`).
- *   • For each matching catalog fire 4 parallel pages of size 100
- *     (skip 0, 100, 200, 300) — covers the 400-title-deep tail
- *     of even the busiest catalogs while staying within the
- *     box's network budget.
- *   • Dedupe by IMDb id + sort by year DESC.
- *   • Cache the merged result keyed by `tab:${type}:${addons}:g:${genre}`.
+ *   • Initial burst — 4 parallel pages of 100 per catalog (skip
+ *     0/100/200/300).  Renders the first ~400 items per catalog
+ *     within ~1 s so the grid is interactive immediately.
+ *   • Background continuation — once the initial burst lands, fire
+ *     successive 4-page batches per catalog in the background until
+ *     a batch returns 0 new items (i.e. the catalog is exhausted),
+ *     OR we hit MAX_PAGES_HARD as a safety cap.  Items stream into
+ *     the grid as they arrive via incremental setState.
+ *   • Dedupe by IMDb id, sort by year DESC.
+ *   • Cache the final exhaustive result so the second visit is
+ *     instant.
  *
  * Hook is inert (returns the seed `items`) when `genre` is falsy.
  *
@@ -33,9 +30,19 @@ import * as cache from '@/lib/cache';
  *   seedItems   — top-100 newest already loaded (used as starting
  *                 point so the first frame after the user picks a
  *                 chip is never empty).
+ *
+ * Returned shape:
+ *   items     — current merged + sorted list (grows over time).
+ *   loading   — true during the initial burst only.
+ *   progress  — 0..1 progress of the INITIAL burst.
+ *   loadingMore — true during background continuation.
+ *   totalLoaded — running count of unique items (useful for a
+ *                 "Loaded 1,247 titles so far…" footer).
  */
 const PAGE_SIZE = 100;
-const MAX_PAGES = 4;
+const INITIAL_PAGES = 4;         // first burst — fast first paint
+const BATCH_PAGES = 4;           // background batch size
+const MAX_PAGES_HARD = 50;       // 50 × 100 = 5,000 per catalog cap
 const TTL_MS = 30 * 60 * 1000;
 
 function buildKey(type, addons, genre) {
@@ -70,11 +77,6 @@ function mapMeta(addon, cat, m) {
     };
 }
 
-/**
- * Does the given catalog support a `genre` extras filter that
- * accepts our target genre?  Stremio addons publish this in
- * `extra: [{ name: 'genre', options: ['Action', 'Adventure', …] }]`.
- */
 function catalogSupportsGenre(cat, genre) {
     const extra = cat.extra || cat.extraSupported || cat.extraRequired;
     if (!Array.isArray(extra)) return false;
@@ -82,7 +84,7 @@ function catalogSupportsGenre(cat, genre) {
         (x) => (x?.name || x) === 'genre'
     );
     if (!g) return false;
-    if (!Array.isArray(g.options)) return true; // accept any value
+    if (!Array.isArray(g.options)) return true;
     return g.options.some(
         (o) => (o || '').toLowerCase() === (genre || '').toLowerCase()
     );
@@ -100,136 +102,243 @@ export function useTabGenreCatalog(addons, type, genre, seedItems) {
     const [items, setItems] = useState(seedItems || []);
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [totalLoaded, setTotalLoaded] = useState(0);
     const runIdRef = useRef(0);
 
     useEffect(() => {
         if (!genre) {
-            // Idle — show seed and bail.
             setItems(seedItems || []);
             setLoading(false);
+            setLoadingMore(false);
             setProgress(1);
+            setTotalLoaded((seedItems || []).length);
             return;
         }
 
         const runId = ++runIdRef.current;
 
-        // Hot cache path.
+        // Shared dedup map across initial burst + background batches.
+        // Pre-seeded with any matching items from seedItems so the
+        // first paint is never empty.
+        const seen = new Map();
+        const g = genre.toLowerCase();
+        for (const it of seedItems || []) {
+            if ((it.genres || []).some((x) => (x || '').toLowerCase() === g)) {
+                const k = it.routePath || it.imdbId || it.id;
+                if (k && !seen.has(k)) seen.set(k, it);
+            }
+        }
+
+        // Helper to push the current state to React, sorted by year.
+        const pushState = () => {
+            if (runIdRef.current !== runId) return;
+            const merged = Array.from(seen.values()).sort(
+                (a, b) => b.year - a.year
+            );
+            setItems(merged);
+            setTotalLoaded(merged.length);
+        };
+
+        // Hot cache path — instant render of the previously-cached
+        // exhaustive list.  We STILL kick off a background revalidate
+        // so the list stays fresh and grows if new titles appeared.
         const cur = cache.get(key);
         if (cur && Array.isArray(cur.value?.items)) {
-            setItems(cur.value.items);
+            for (const it of cur.value.items) {
+                const k = it.routePath || it.imdbId || it.id;
+                if (k && !seen.has(k)) seen.set(k, it);
+            }
+            pushState();
             setLoading(false);
             setProgress(1);
             if (!cache.isStale(cur, TTL_MS)) return;
-            // Stale → silent refetch.
         } else {
-            // Show the user the top-100 newest titles already in
-            // seedItems that match the genre, so the screen is
-            // never empty while we deep-page.
-            const g = genre.toLowerCase();
-            const filteredSeed = (seedItems || []).filter((it) =>
-                (it.genres || []).some(
-                    (x) => (x || '').toLowerCase() === g
-                )
-            );
-            setItems(filteredSeed);
+            pushState();    // shows the filtered seedItems immediately
             setLoading(true);
             setProgress(0);
         }
 
-        // Build job list: every (addon, catalog, skip) triple.
+        // Discover every (addon, catalog) pair that advertises this
+        // genre.  Each pair is paged independently so a slow catalog
+        // doesn't block fast ones.
         const list = addonsRef.current || [];
-        const jobs = [];
+        const pairs = [];
         for (const addon of list) {
             const catalogs = (addon.catalogs || []).filter(
                 (c) => c.type === type && catalogSupportsGenre(c, genre)
             );
             for (const cat of catalogs) {
-                for (let p = 0; p < MAX_PAGES; p++) {
-                    jobs.push({
-                        addon,
-                        cat,
-                        skip: p * PAGE_SIZE,
-                    });
-                }
+                pairs.push({ addon, cat });
             }
         }
 
-        if (jobs.length === 0) {
-            // No addon advertises this genre — fall back to a
-            // local filter of whatever seedItems we have.  Still
-            // honours the user spec ("show every X movie") within
-            // the bound of what the addon set can serve.
+        if (pairs.length === 0) {
             setLoading(false);
             setProgress(1);
             return;
         }
 
-        let done = 0;
-        const promises = jobs.map(async ({ addon, cat, skip }) => {
+        // Fetch one page from one (addon, catalog) pair.  Returns
+        // the count of NEW items added (so we can detect catalog
+        // exhaustion: 0 new items = stop paging this catalog).
+        async function fetchPage(addon, cat, skip) {
             try {
                 const res = await Vesper.getCatalog(addon.id, cat.type, cat.id, {
                     genre,
                     skip,
                 });
                 const metas = res?.data?.metas || [];
-                return metas.map((m) => mapMeta(addon, cat, m));
-            } catch {
-                return [];
-            } finally {
-                done++;
-                if (runIdRef.current === runId) {
-                    setProgress(done / jobs.length);
+                if (!metas.length) return 0;
+                let added = 0;
+                for (const m of metas) {
+                    const mapped = mapMeta(addon, cat, m);
+                    const k = mapped.routePath || mapped.imdbId || mapped.id;
+                    if (!k || seen.has(k)) continue;
+                    seen.set(k, mapped);
+                    added++;
                 }
+                return added;
+            } catch {
+                return 0;
             }
+        }
+
+        // Phase 1 — INITIAL BURST: 4 pages × pairs in parallel.
+        const initialJobs = [];
+        for (const { addon, cat } of pairs) {
+            for (let p = 0; p < INITIAL_PAGES; p++) {
+                initialJobs.push({ addon, cat, skip: p * PAGE_SIZE });
+            }
+        }
+        let initialDone = 0;
+        const initialPromises = initialJobs.map(async (job) => {
+            const added = await fetchPage(job.addon, job.cat, job.skip);
+            initialDone++;
+            if (runIdRef.current === runId) {
+                setProgress(initialDone / initialJobs.length);
+                // Stream new items into the grid every ~4 pages so the
+                // user sees fresh rows during the initial burst.
+                if (added > 0 && initialDone % 4 === 0) pushState();
+            }
+            return { ...job, added };
         });
 
-        Promise.all(promises)
-            .then((batches) => {
-                if (runIdRef.current !== runId) return;
-                const seen = new Map();
-                // Pre-seed with any matching items from seedItems
-                // so we don't lose top-100 hits the genre endpoint
-                // might have dropped.
-                const g = genre.toLowerCase();
-                for (const it of seedItems || []) {
-                    if (
-                        (it.genres || []).some(
-                            (x) => (x || '').toLowerCase() === g
+        Promise.all(initialPromises).then((results) => {
+            if (runIdRef.current !== runId) return;
+            pushState();
+            setLoading(false);
+            setProgress(1);
+
+            // Phase 2 — BACKGROUND CONTINUATION.  For each pair, if
+            // ANY of its initial pages returned items, keep paging in
+            // batches of 4 until a whole batch returns 0 (exhausted),
+            // or we hit the hard cap.
+            const exhausted = new Set();
+            // A pair is "alive" if its last initial page returned > 0.
+            const lastSkipPerPair = new Map();
+            for (const r of results) {
+                const id = `${r.addon.id}|${r.cat.id}`;
+                const prev = lastSkipPerPair.get(id) || 0;
+                if (r.added > 0 && r.skip + PAGE_SIZE > prev) {
+                    lastSkipPerPair.set(id, r.skip + PAGE_SIZE);
+                }
+            }
+            // Pairs that got NO results in the initial burst are
+            // already considered exhausted — don't keep crawling them.
+            for (const { addon, cat } of pairs) {
+                const id = `${addon.id}|${cat.id}`;
+                if (!lastSkipPerPair.has(id)) exhausted.add(id);
+            }
+
+            if (lastSkipPerPair.size === 0) {
+                // No catalog had any results past the initial burst —
+                // we're done.  Cache and exit.
+                try { cache.set(key, { items: Array.from(seen.values()) }); }
+                catch { /* ignore */ }
+                return;
+            }
+
+            setLoadingMore(true);
+
+            async function continueCrawling() {
+                let round = 0;
+                while (runIdRef.current === runId) {
+                    round++;
+                    const batchJobs = [];
+                    for (const { addon, cat } of pairs) {
+                        const id = `${addon.id}|${cat.id}`;
+                        if (exhausted.has(id)) continue;
+                        const startSkip = lastSkipPerPair.get(id) || 0;
+                        for (let p = 0; p < BATCH_PAGES; p++) {
+                            const skip = startSkip + p * PAGE_SIZE;
+                            if (skip >= MAX_PAGES_HARD * PAGE_SIZE) {
+                                exhausted.add(id);
+                                break;
+                            }
+                            batchJobs.push({ addon, cat, skip });
+                        }
+                    }
+                    if (batchJobs.length === 0) break;
+
+                    const batchResults = await Promise.all(
+                        batchJobs.map((j) =>
+                            fetchPage(j.addon, j.cat, j.skip).then((added) => ({ ...j, added }))
                         )
-                    ) {
-                        const k = it.routePath || it.imdbId || it.id;
-                        if (k && !seen.has(k)) seen.set(k, it);
+                    );
+                    if (runIdRef.current !== runId) return;
+
+                    // Advance per-pair `lastSkip` only by the pages
+                    // that actually returned items; mark pair
+                    // exhausted when its entire batch returned 0.
+                    const perPairAdded = new Map();
+                    for (const r of batchResults) {
+                        const id = `${r.addon.id}|${r.cat.id}`;
+                        perPairAdded.set(id, (perPairAdded.get(id) || 0) + r.added);
                     }
-                }
-                for (const batch of batches) {
-                    if (!batch) continue;
-                    for (const it of batch) {
-                        const k = it.routePath || it.imdbId || it.id;
-                        if (!k || seen.has(k)) continue;
-                        seen.set(k, it);
+                    for (const r of batchResults) {
+                        const id = `${r.addon.id}|${r.cat.id}`;
+                        if (perPairAdded.get(id) === 0) {
+                            exhausted.add(id);
+                            continue;
+                        }
+                        const prev = lastSkipPerPair.get(id) || 0;
+                        const next = r.skip + PAGE_SIZE;
+                        if (next > prev) lastSkipPerPair.set(id, next);
                     }
+
+                    pushState();    // stream the new rows into the grid
+
+                    // Politeness: yield to the browser between
+                    // batches so scroll/focus stays buttery on TV.
+                    await new Promise((resolve) => setTimeout(resolve, 120));
                 }
-                const merged = Array.from(seen.values()).sort(
-                    (a, b) => b.year - a.year
-                );
-                const payload = { items: merged };
-                try { cache.set(key, payload); } catch (_) { /* ignore */ }
-                setItems(merged);
-                setLoading(false);
-                setProgress(1);
-            })
-            .catch((err) => {
-                if (runIdRef.current !== runId) return;
-                // eslint-disable-next-line no-console
-                console.error('[useTabGenreCatalog] aggregate failed:', err);
-                setLoading(false);
-                setProgress(1);
-            });
+                // Cache the final exhaustive list.
+                if (runIdRef.current === runId) {
+                    try { cache.set(key, { items: Array.from(seen.values()) }); }
+                    catch { /* ignore */ }
+                    setLoadingMore(false);
+                }
+            }
+            continueCrawling();
+        }).catch((err) => {
+            if (runIdRef.current !== runId) return;
+            // eslint-disable-next-line no-console
+            console.error('[useTabGenreCatalog] initial burst failed:', err);
+            setLoading(false);
+            setProgress(1);
+        });
+
+        return () => {
+            // Bump runId so the inflight continuation aborts its
+            // setState calls cleanly when the effect re-runs.
+            runIdRef.current++;
+        };
         // `seedItems` excluded — it's a fresh array every render
         // and would loop the effect.  Reads it via closure at
         // effect-run time, which is the correct semantic anyway.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, type, genre]);
 
-    return { items, loading, progress };
+    return { items, loading, progress, loadingMore, totalLoaded };
 }

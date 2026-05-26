@@ -113,6 +113,15 @@ const LAYOUT_DEFAULTS = {
     featured_button_font: 'montserrat',
     featured_button_weight: 'bold',
     featured_button_text_color: '#04060B',
+
+    featured_gap_after_heading_dp: 6,
+    featured_gap_after_subheading_dp: 10,
+    featured_gap_after_description_dp: 22,
+    featured_heading_letter_spacing: -1,
+    featured_subheading_letter_spacing: 2,
+    featured_description_letter_spacing: 0,
+    featured_button_letter_spacing: 18,
+    featured_description_line_height_pct: 140,
 };
 
 const LAYOUT_FONTS = [
@@ -147,6 +156,11 @@ const LAYOUT_INT_FIELDS = [
     'featured_margin_start_dp', 'featured_margin_bottom_dp',
     'featured_heading_size_sp', 'featured_subheading_size_sp',
     'featured_description_size_sp', 'featured_button_size_sp',
+    'featured_gap_after_heading_dp', 'featured_gap_after_subheading_dp',
+    'featured_gap_after_description_dp',
+    'featured_heading_letter_spacing', 'featured_subheading_letter_spacing',
+    'featured_description_letter_spacing', 'featured_button_letter_spacing',
+    'featured_description_line_height_pct',
 ];
 const LAYOUT_STR_FIELDS = [
     'featured_align',
@@ -283,26 +297,39 @@ function renderPreview() {
     panel.style.textAlign  = textAlignMap[cfg.featured_align] || 'left';
 
     // Per-element typography.
-    function applyEl(id, font, weight, size, color) {
+    function applyEl(id, font, weight, size, color, letterSpacing) {
         const el = $('#' + id); if (!el) return;
         el.style.fontFamily = PREVIEW_FONT_MAP[font] || PREVIEW_FONT_MAP.montserrat;
         el.style.fontWeight = PREVIEW_WEIGHT_MAP[weight] || '400';
         // Scale sp values down for the preview so they read sensibly.
         el.style.fontSize   = (size * 0.42) + 'px';
         el.style.color      = color;
+        if (letterSpacing !== undefined) {
+            el.style.letterSpacing = (letterSpacing / 100) + 'em';
+        }
     }
     applyEl('lpHeading',
         cfg.featured_heading_font, cfg.featured_heading_weight,
-        cfg.featured_heading_size_sp, cfg.featured_heading_color);
+        cfg.featured_heading_size_sp, cfg.featured_heading_color,
+        cfg.featured_heading_letter_spacing);
     applyEl('lpSubheading',
         cfg.featured_subheading_font, cfg.featured_subheading_weight,
-        cfg.featured_subheading_size_sp, cfg.featured_subheading_color);
+        cfg.featured_subheading_size_sp, cfg.featured_subheading_color,
+        cfg.featured_subheading_letter_spacing);
     applyEl('lpDescription',
         cfg.featured_description_font, cfg.featured_description_weight,
-        cfg.featured_description_size_sp, cfg.featured_description_color);
+        cfg.featured_description_size_sp, cfg.featured_description_color,
+        cfg.featured_description_letter_spacing);
     applyEl('lpCta',
         cfg.featured_button_font, cfg.featured_button_weight,
-        cfg.featured_button_size_sp, cfg.featured_button_text_color);
+        cfg.featured_button_size_sp, cfg.featured_button_text_color,
+        cfg.featured_button_letter_spacing);
+    // Description line height.
+    $('#lpDescription').style.lineHeight = (cfg.featured_description_line_height_pct / 100);
+    // Vertical gaps between panel elements.
+    $('#lpSubheading').style.marginTop  = (cfg.featured_gap_after_heading_dp     * 0.5) + 'px';
+    $('#lpDescription').style.marginTop = (cfg.featured_gap_after_subheading_dp  * 0.5) + 'px';
+    $('#lpCtaWrap').style.marginTop     = (cfg.featured_gap_after_description_dp * 0.5) + 'px';
 
     // CTA pill colour = first tile's accent (preview convention).
     $('#lpCta').style.background = PREVIEW_TILE_ACCENTS[0];

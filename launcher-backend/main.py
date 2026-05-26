@@ -199,6 +199,19 @@ class LayoutSettings(BaseModel):
     featured_button_font: str           = "montserrat"
     featured_button_weight: str         = "bold"
     featured_button_text_color: str     = "#04060B"
+    # v1.5 — Vertical gaps between featured-panel elements (dp).
+    # Each value controls the `topMargin` of the next element below
+    # it, so the admin can dial in the exact rhythm of the panel.
+    featured_gap_after_heading_dp: int      = 6
+    featured_gap_after_subheading_dp: int   = 10
+    featured_gap_after_description_dp: int  = 22
+    # v1.5 — Letter spacing (em hundredths — 0 = none, 4 = +0.04em).
+    featured_heading_letter_spacing: int    = -1   # -0.01em (tight)
+    featured_subheading_letter_spacing: int = 2    # +0.02em (slightly open)
+    featured_description_letter_spacing: int = 0
+    featured_button_letter_spacing: int     = 18   # +0.18em (caps look)
+    # v1.5 — Description line height multiplier (100 = 1.0).
+    featured_description_line_height_pct: int = 140
 
 
 class LauncherConfig(BaseModel):

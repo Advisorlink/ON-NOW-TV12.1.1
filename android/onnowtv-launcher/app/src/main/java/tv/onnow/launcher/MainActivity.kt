@@ -426,32 +426,59 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("LayoutEditor", "topbar visibility failed", t)
         }
 
-        // 4. Per-element typography (each text style is independently
-        //    wrapped so a single bad value can't break the others).
+        // 4. Per-element typography (font / size / weight / color +
+        //    letter-spacing on every element + line-height on the
+        //    multi-line description).
         applyTextStyleSafe("heading",
             binding.featuredHeading,
             layout.featuredHeadingFont,
             layout.featuredHeadingWeight,
             layout.featuredHeadingSizeSp,
             layout.featuredHeadingColor)
+        binding.featuredHeading.letterSpacing = layout.featuredHeadingLetterSpacing / 100f
+
         applyTextStyleSafe("subheading",
             binding.featuredSubheading,
             layout.featuredSubheadingFont,
             layout.featuredSubheadingWeight,
             layout.featuredSubheadingSizeSp,
             layout.featuredSubheadingColor)
+        binding.featuredSubheading.letterSpacing = layout.featuredSubheadingLetterSpacing / 100f
+
         applyTextStyleSafe("description",
             binding.featuredDescription,
             layout.featuredDescriptionFont,
             layout.featuredDescriptionWeight,
             layout.featuredDescriptionSizeSp,
             layout.featuredDescriptionColor)
+        binding.featuredDescription.letterSpacing = layout.featuredDescriptionLetterSpacing / 100f
+        // Line-height multiplier (100 = single line spacing).
+        binding.featuredDescription.setLineSpacing(0f, layout.featuredDescriptionLineHeightPct / 100f)
+
         applyTextStyleSafe("button",
             binding.featuredCta,
             layout.featuredButtonFont,
             layout.featuredButtonWeight,
             layout.featuredButtonSizeSp,
             layout.featuredButtonTextColor)
+        binding.featuredCta.letterSpacing = layout.featuredButtonLetterSpacing / 100f
+
+        // 4b. Vertical gaps between featured-panel elements.  Each
+        //     value controls the top margin of the next element so
+        //     the admin can dial in the exact rhythm of the panel.
+        listOf(
+            binding.featuredSubheading to layout.featuredGapAfterHeadingDp,
+            binding.featuredDescription to layout.featuredGapAfterSubheadingDp,
+            binding.featuredCtaWrap to layout.featuredGapAfterDescriptionDp,
+        ).forEach { (view, gapDp) ->
+            try {
+                view.updateLayoutParams<android.widget.LinearLayout.LayoutParams> {
+                    topMargin = dp(gapDp)
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e("LayoutEditor", "gap update failed", t)
+            }
+        }
 
         // 5. Horizontal alignment.
         try {

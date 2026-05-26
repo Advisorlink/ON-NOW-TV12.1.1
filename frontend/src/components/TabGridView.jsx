@@ -70,6 +70,8 @@ export default function TabGridView({ type }) {
         items: genreItems,
         loading: genreLoading,
         progress: genreProgress,
+        loadingMore: genreLoadingMore,
+        totalLoaded: genreTotalLoaded,
     } = useTabGenreCatalog(addons, type, genre, allItems);
 
     // What we actually paint:
@@ -262,6 +264,27 @@ export default function TabGridView({ type }) {
                             progress={showProgress}
                             testId={`tab-grid-loading-${type}`}
                         />
+                    )}
+
+                    {/* v2.0 — "Loading more" footer for genre views.
+                        Initial burst already done, but we're still
+                        deep-paging in the background to surface
+                        every title in the library.  Sits under the
+                        grid so it doesn't block interaction. */}
+                    {genre && !showLoading && genreLoadingMore && (
+                        <div
+                            data-testid={`tab-grid-loading-more-${type}`}
+                            style={{
+                                marginTop: 20,
+                                padding: '14px 18px',
+                                textAlign: 'center',
+                                fontSize: 14,
+                                color: 'rgba(255,255,255,0.55)',
+                                letterSpacing: 0.4,
+                            }}
+                        >
+                            Loading more · {genreTotalLoaded.toLocaleString()} titles so far…
+                        </div>
                     )}
                 </div>
             )}

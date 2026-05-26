@@ -60,6 +60,18 @@ data class LayoutSettings(
     val featuredButtonFont: String      = "montserrat",
     val featuredButtonWeight: String    = "bold",
     val featuredButtonTextColor: String = "#04060B",
+
+    /* v1.5 — Vertical gaps between featured-panel elements (dp). */
+    val featuredGapAfterHeadingDp: Int      = 6,
+    val featuredGapAfterSubheadingDp: Int   = 10,
+    val featuredGapAfterDescriptionDp: Int  = 22,
+    /* v1.5 — Letter spacing per element (em hundredths). */
+    val featuredHeadingLetterSpacing: Int     = -1,
+    val featuredSubheadingLetterSpacing: Int  = 2,
+    val featuredDescriptionLetterSpacing: Int = 0,
+    val featuredButtonLetterSpacing: Int      = 18,
+    /* v1.5 — Description line height multiplier (100 = 1.0). */
+    val featuredDescriptionLineHeightPct: Int = 140,
 )
 
 data class DockTileRemote(
@@ -203,6 +215,15 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             featuredButtonFont        = layoutObj.optString("featured_button_font", def.featuredButtonFont).ifBlank { def.featuredButtonFont },
             featuredButtonWeight      = layoutObj.optString("featured_button_weight", def.featuredButtonWeight).ifBlank { def.featuredButtonWeight },
             featuredButtonTextColor   = layoutObj.optString("featured_button_text_color", def.featuredButtonTextColor).ifBlank { def.featuredButtonTextColor },
+
+            featuredGapAfterHeadingDp      = layoutObj.optInt("featured_gap_after_heading_dp", def.featuredGapAfterHeadingDp),
+            featuredGapAfterSubheadingDp   = layoutObj.optInt("featured_gap_after_subheading_dp", def.featuredGapAfterSubheadingDp),
+            featuredGapAfterDescriptionDp  = layoutObj.optInt("featured_gap_after_description_dp", def.featuredGapAfterDescriptionDp),
+            featuredHeadingLetterSpacing     = layoutObj.optInt("featured_heading_letter_spacing", def.featuredHeadingLetterSpacing),
+            featuredSubheadingLetterSpacing  = layoutObj.optInt("featured_subheading_letter_spacing", def.featuredSubheadingLetterSpacing),
+            featuredDescriptionLetterSpacing = layoutObj.optInt("featured_description_letter_spacing", def.featuredDescriptionLetterSpacing),
+            featuredButtonLetterSpacing      = layoutObj.optInt("featured_button_letter_spacing", def.featuredButtonLetterSpacing),
+            featuredDescriptionLineHeightPct = layoutObj.optInt("featured_description_line_height_pct", def.featuredDescriptionLineHeightPct),
         )
     }
     return LauncherConfig(
