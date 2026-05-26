@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.91 — Remove DebugTouchOverlay + on-demand genre pagination
+
+The persistent debug strip that's been at the top of the screen since
+v2.7.89 is now **gone for good**.  It was baked into the React bundle
+at APK build time, so simply hot-reloading the dev server didn't reach
+installed APKs — this build re-bakes the bundle without it.
+
+Also lowered the overlay's z-index from `999999` → `50` and flipped
+its enabled-by-default flag to `false`, so even if a future build
+re-enables it for diagnostics it can never again sit above the
+auto-update modal and hide the "Download new version" prompt.
+
+Bonus — genre views (Movies → Drama, Sci-Fi etc.) now load on demand:
+the first ~400 titles per catalog land in ~1 second, and the next
+batch fires automatically when you scroll near the bottom of the
+grid.  A live counter footer ("Loading more · 1,247 titles so far…")
+shows progress without blocking the UI.
+
 ## v2.7.90 — Temporarily allow screenshots so user can capture debug overlay
 
 User reported (correctly!) that v2.7.89's on-screen debug overlay was useless because `FLAG_SECURE` (added in v2.7.82 anti-tamper hardening) blocks the OS from screen-shotting or screen-recording the activity.
