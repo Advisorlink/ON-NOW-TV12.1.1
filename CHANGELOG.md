@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.7.92 — Kids tile deep-link + launcher heading-image / show-hide toggles
+
+Vesper now responds to the `?profile=kids` query-string deep link
+so the launcher's KIDS dock tile drops users straight into the
+sandboxed Kids profile when tapped.  No more switching profiles
+manually after launch.
+
+The launcher admin dashboard gains four polish wins:
+  • Per-element show/hide checkboxes for heading, subheading and
+    description, so you can hide entire blocks without clearing
+    the per-tile copy.
+  • Heading-as-image — point at any image URL (brand logo, hero
+    art) and the launcher replaces the text heading with it.
+    Adjustable height in dp.
+  • Spacing fields now accept negative values so you can pull
+    elements TOWARDS each other when font baselines leave too
+    much air.
+
 ## v2.7.91 — Remove DebugTouchOverlay + on-demand genre pagination
 
 The persistent debug strip that's been at the top of the screen since

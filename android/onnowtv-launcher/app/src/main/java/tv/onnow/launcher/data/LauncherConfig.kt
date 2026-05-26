@@ -72,6 +72,16 @@ data class LayoutSettings(
     val featuredButtonLetterSpacing: Int      = 18,
     /* v1.5 — Description line height multiplier (100 = 1.0). */
     val featuredDescriptionLineHeightPct: Int = 140,
+    /* v1.6 — Per-element visibility toggles. */
+    val featuredShowHeading: Boolean = true,
+    val featuredShowSubheading: Boolean = true,
+    val featuredShowDescription: Boolean = true,
+    /* v1.6 — Heading replaced by an image (e.g. brand logo).
+       When `featuredHeadingImageUrl` is null/blank the launcher
+       renders the heading TEXT as before; when set, the image is
+       shown in place of the text at `featuredHeadingImageHeightDp`. */
+    val featuredHeadingImageUrl: String? = null,
+    val featuredHeadingImageHeightDp: Int = 80,
 )
 
 data class DockTileRemote(
@@ -224,6 +234,11 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             featuredDescriptionLetterSpacing = layoutObj.optInt("featured_description_letter_spacing", def.featuredDescriptionLetterSpacing),
             featuredButtonLetterSpacing      = layoutObj.optInt("featured_button_letter_spacing", def.featuredButtonLetterSpacing),
             featuredDescriptionLineHeightPct = layoutObj.optInt("featured_description_line_height_pct", def.featuredDescriptionLineHeightPct),
+            featuredShowHeading       = layoutObj.optBoolean("featured_show_heading", def.featuredShowHeading),
+            featuredShowSubheading    = layoutObj.optBoolean("featured_show_subheading", def.featuredShowSubheading),
+            featuredShowDescription   = layoutObj.optBoolean("featured_show_description", def.featuredShowDescription),
+            featuredHeadingImageUrl   = layoutObj.optStringOrNull("featured_heading_image_url"),
+            featuredHeadingImageHeightDp = layoutObj.optInt("featured_heading_image_height_dp", def.featuredHeadingImageHeightDp),
         )
     }
     return LauncherConfig(

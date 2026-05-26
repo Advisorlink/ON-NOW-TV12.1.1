@@ -122,6 +122,11 @@ const LAYOUT_DEFAULTS = {
     featured_description_letter_spacing: 0,
     featured_button_letter_spacing: 18,
     featured_description_line_height_pct: 140,
+    featured_show_heading: true,
+    featured_show_subheading: true,
+    featured_show_description: true,
+    featured_heading_image_url: '',
+    featured_heading_image_height_dp: 80,
 };
 
 const LAYOUT_FONTS = [
@@ -161,6 +166,7 @@ const LAYOUT_INT_FIELDS = [
     'featured_heading_letter_spacing', 'featured_subheading_letter_spacing',
     'featured_description_letter_spacing', 'featured_button_letter_spacing',
     'featured_description_line_height_pct',
+    'featured_heading_image_height_dp',
 ];
 const LAYOUT_STR_FIELDS = [
     'featured_align',
@@ -168,8 +174,12 @@ const LAYOUT_STR_FIELDS = [
     'featured_subheading_font', 'featured_subheading_weight', 'featured_subheading_color',
     'featured_description_font', 'featured_description_weight', 'featured_description_color',
     'featured_button_font', 'featured_button_weight', 'featured_button_text_color',
+    'featured_heading_image_url',
 ];
-const LAYOUT_BOOL_FIELDS = ['topbar_visible', 'featured_show_button'];
+const LAYOUT_BOOL_FIELDS = [
+    'topbar_visible', 'featured_show_button',
+    'featured_show_heading', 'featured_show_subheading', 'featured_show_description',
+];
 
 /** Populate the font + weight <select>s once on first render. */
 function ensureLayoutSelectsPopulated() {
@@ -324,6 +334,35 @@ function renderPreview() {
         cfg.featured_button_font, cfg.featured_button_weight,
         cfg.featured_button_size_sp, cfg.featured_button_text_color,
         cfg.featured_button_letter_spacing);
+
+    // v1.6 — Per-element visibility toggles + heading-as-image.
+    const useHeadingImage = !!(cfg.featured_heading_image_url || '').trim();
+    let lpHeadingImage = $('#lpHeadingImage');
+    if (!lpHeadingImage) {
+        // Inject the heading-image element ABOVE the text heading.
+        const txt = $('#lpHeading');
+        if (txt && txt.parentNode) {
+            lpHeadingImage = document.createElement('img');
+            lpHeadingImage.id = 'lpHeadingImage';
+            lpHeadingImage.alt = '';
+            lpHeadingImage.style.display = 'none';
+            lpHeadingImage.style.objectFit = 'contain';
+            lpHeadingImage.style.objectPosition = 'left';
+            lpHeadingImage.style.maxWidth = '100%';
+            txt.parentNode.insertBefore(lpHeadingImage, txt);
+        }
+    }
+    if (lpHeadingImage && useHeadingImage) {
+        lpHeadingImage.src = cfg.featured_heading_image_url;
+        lpHeadingImage.style.display = cfg.featured_show_heading ? 'block' : 'none';
+        lpHeadingImage.style.height = ((cfg.featured_heading_image_height_dp || 80) * 0.45) + 'px';
+        $('#lpHeading').style.display = 'none';
+    } else if (lpHeadingImage) {
+        lpHeadingImage.style.display = 'none';
+        $('#lpHeading').style.display = cfg.featured_show_heading ? '' : 'none';
+    }
+    $('#lpSubheading').style.display  = cfg.featured_show_subheading  ? '' : 'none';
+    $('#lpDescription').style.display = cfg.featured_show_description ? '' : 'none';
     // Description line height.
     $('#lpDescription').style.lineHeight = (cfg.featured_description_line_height_pct / 100);
     // Vertical gaps between panel elements.
@@ -363,7 +402,12 @@ function readLayoutForm() {
     LAYOUT_STR_FIELDS.forEach((k) => {
         const el = $('#layout_' + k);
         const v  = (el && el.value || '').trim();
-        out[k] = v || LAYOUT_DEFAULTS[k];
+        // Heading image URL: empty string is valid (means "no image").
+        if (k === 'featured_heading_image_url') {
+            out[k] = v;
+        } else {
+            out[k] = v || LAYOUT_DEFAULTS[k];
+        }
     });
     LAYOUT_BOOL_FIELDS.forEach((k) => {
         out[k] = !!$('#layout_' + k)?.checked;

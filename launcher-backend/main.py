@@ -200,8 +200,9 @@ class LayoutSettings(BaseModel):
     featured_button_weight: str         = "bold"
     featured_button_text_color: str     = "#04060B"
     # v1.5 — Vertical gaps between featured-panel elements (dp).
-    # Each value controls the `topMargin` of the next element below
-    # it, so the admin can dial in the exact rhythm of the panel.
+    # Negative values are allowed so the admin can pull elements
+    # TOWARD each other when the natural font baselines leave too
+    # much whitespace (e.g. tall display fonts).
     featured_gap_after_heading_dp: int      = 6
     featured_gap_after_subheading_dp: int   = 10
     featured_gap_after_description_dp: int  = 22
@@ -212,6 +213,18 @@ class LayoutSettings(BaseModel):
     featured_button_letter_spacing: int     = 18   # +0.18em (caps look)
     # v1.5 — Description line height multiplier (100 = 1.0).
     featured_description_line_height_pct: int = 140
+    # v1.6 — Per-element show/hide toggles.  Lets the admin hide
+    # entire blocks of the featured panel without having to clear
+    # the per-tile content fields.
+    featured_show_heading: bool     = True
+    featured_show_subheading: bool  = True
+    featured_show_description: bool = True
+    # v1.6 — Heading-as-image.  When set, the launcher REPLACES the
+    # heading text with this image (useful for brand logos).  The
+    # image is rendered at the configured heading height so it
+    # composites cleanly with the rest of the panel.
+    featured_heading_image_url: Optional[str] = None
+    featured_heading_image_height_dp: int     = 80
 
 
 class LauncherConfig(BaseModel):

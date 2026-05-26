@@ -118,6 +118,12 @@
             <div class="layout-group">
                 <h3>Heading style</h3>
                 <div class="layout-row">
+                    <label class="checkbox-row span-2">
+                        <input id="layout_featured_show_heading" type="checkbox">
+                        <span>Show heading</span>
+                    </label>
+                    <div class="span-2"><label>Heading image URL <small>(optional — when set, replaces the text heading with this image, perfect for brand logos)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
+                    <div><label>Image height <small>(dp — only used when an image URL is set)</small></label><input id="layout_featured_heading_image_height_dp" type="number" min="20" max="280" step="2"></div>
                     <div><label>Font</label><select id="layout_featured_heading_font" class="layout-select layout-font-select"></select></div>
                     <div><label>Weight</label><select id="layout_featured_heading_weight" class="layout-select layout-weight-select"></select></div>
                     <div><label>Size <small>(sp)</small></label><input id="layout_featured_heading_size_sp" type="number" min="14" max="160" step="2"></div>
@@ -133,6 +139,10 @@
             <div class="layout-group">
                 <h3>Subheading style <small>(new — appears between heading and description per-tile)</small></h3>
                 <div class="layout-row">
+                    <label class="checkbox-row span-2">
+                        <input id="layout_featured_show_subheading" type="checkbox">
+                        <span>Show subheading</span>
+                    </label>
                     <div><label>Font</label><select id="layout_featured_subheading_font" class="layout-select layout-font-select"></select></div>
                     <div><label>Weight</label><select id="layout_featured_subheading_weight" class="layout-select layout-weight-select"></select></div>
                     <div><label>Size <small>(sp)</small></label><input id="layout_featured_subheading_size_sp" type="number" min="10" max="80" step="1"></div>
@@ -148,6 +158,10 @@
             <div class="layout-group">
                 <h3>Description style</h3>
                 <div class="layout-row">
+                    <label class="checkbox-row span-2">
+                        <input id="layout_featured_show_description" type="checkbox">
+                        <span>Show description</span>
+                    </label>
                     <div><label>Font</label><select id="layout_featured_description_font" class="layout-select layout-font-select"></select></div>
                     <div><label>Weight</label><select id="layout_featured_description_weight" class="layout-select layout-weight-select"></select></div>
                     <div><label>Size <small>(sp)</small></label><input id="layout_featured_description_size_sp" type="number" min="10" max="40" step="1"></div>
@@ -182,9 +196,9 @@
             <div class="layout-group">
                 <h3>Spacing & line height <small>(fine-tune the panel's vertical rhythm and tracking)</small></h3>
                 <div class="layout-row">
-                    <div><label>Gap after heading <small>(dp)</small></label><input id="layout_featured_gap_after_heading_dp" type="number" min="0" max="80" step="1"></div>
-                    <div><label>Gap after subheading <small>(dp)</small></label><input id="layout_featured_gap_after_subheading_dp" type="number" min="0" max="80" step="1"></div>
-                    <div><label>Gap after description <small>(dp — distance to button)</small></label><input id="layout_featured_gap_after_description_dp" type="number" min="0" max="120" step="2"></div>
+                    <div><label>Gap after heading <small>(dp — negative allowed)</small></label><input id="layout_featured_gap_after_heading_dp" type="number" min="-40" max="80" step="1"></div>
+                    <div><label>Gap after subheading <small>(dp — negative allowed)</small></label><input id="layout_featured_gap_after_subheading_dp" type="number" min="-40" max="80" step="1"></div>
+                    <div><label>Gap after description <small>(dp — negative allowed)</small></label><input id="layout_featured_gap_after_description_dp" type="number" min="-40" max="120" step="2"></div>
                     <div><label>Description line height <small>(% — 100 = single)</small></label><input id="layout_featured_description_line_height_pct" type="number" min="80" max="220" step="5"></div>
                 </div>
                 <div class="layout-row">

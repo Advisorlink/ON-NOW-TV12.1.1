@@ -1,5 +1,5 @@
 {
-  "generation": 170,
+  "generation": 172,
   "dock_tiles": [
     {
       "key": "movies",
@@ -220,28 +220,28 @@
     },
     "3077eb36-e673-4795-be43-0bcd3a2bc8d9": {
       "device_id": "3077eb36-e673-4795-be43-0bcd3a2bc8d9",
-      "last_seen": 1779787429,
-      "last_generation": 170
+      "last_seen": 1779788545,
+      "last_generation": 172
     }
   },
   "layout": {
-    "tile_width_dp": 298,
+    "tile_width_dp": 300,
     "tile_height_dp": 168,
     "dock_margin_bottom_dp": -44,
-    "dock_margin_horizontal_dp": 34,
-    "featured_margin_start_dp": 98,
+    "dock_margin_horizontal_dp": 20,
+    "featured_margin_start_dp": 56,
     "featured_margin_bottom_dp": 158,
     "topbar_visible": true,
     "featured_show_button": false,
     "featured_align": "start",
-    "featured_heading_size_sp": 70,
+    "featured_heading_size_sp": 80,
     "featured_heading_font": "montserrat",
     "featured_heading_weight": "bold",
     "featured_heading_color": "#FFFFFF",
     "featured_subheading_size_sp": 22,
     "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#00BFFF",
+    "featured_subheading_color": "#F0F4FA",
     "featured_description_size_sp": 17,
     "featured_description_font": "montserrat",
     "featured_description_weight": "regular",
@@ -250,13 +250,18 @@
     "featured_button_font": "montserrat",
     "featured_button_weight": "bold",
     "featured_button_text_color": "#04060B",
-    "featured_gap_after_heading_dp": 0,
-    "featured_gap_after_subheading_dp": 0,
-    "featured_gap_after_description_dp": 0,
-    "featured_heading_letter_spacing": 6,
+    "featured_gap_after_heading_dp": 6,
+    "featured_gap_after_subheading_dp": 10,
+    "featured_gap_after_description_dp": 22,
+    "featured_heading_letter_spacing": -1,
     "featured_subheading_letter_spacing": 2,
-    "featured_description_letter_spacing": 17,
+    "featured_description_letter_spacing": 0,
     "featured_button_letter_spacing": 18,
-    "featured_description_line_height_pct": 155
+    "featured_description_line_height_pct": 140,
+    "featured_show_heading": true,
+    "featured_show_subheading": true,
+    "featured_show_description": true,
+    "featured_heading_image_url": "",
+    "featured_heading_image_height_dp": 80
   }
 }

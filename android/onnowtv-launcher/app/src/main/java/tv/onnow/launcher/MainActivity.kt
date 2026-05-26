@@ -150,15 +150,37 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        binding.featuredHeading.text     = heading
-        binding.featuredHeading.visibility =
-            if (heading.isEmpty()) View.GONE else View.VISIBLE
-        binding.featuredSubheading.text  = subh
-        binding.featuredSubheading.visibility =
-            if (subh.isEmpty()) View.GONE else View.VISIBLE
-        binding.featuredDescription.text = desc
-        binding.featuredDescription.visibility =
-            if (desc.isEmpty()) View.GONE else View.VISIBLE
+        // Per-tile content.  Visibility for each block is gated by
+        // BOTH the global Layout Editor toggle AND a non-empty value.
+        // Heading-as-image case (Layout Editor sets a URL) is also
+        // honoured here — we keep the text heading hidden when the
+        // image is in play.
+        val useHeadingImage =
+            !currentLayout.featuredHeadingImageUrl.isNullOrBlank()
+
+        if (currentLayout.featuredShowHeading && !useHeadingImage) {
+            binding.featuredHeading.text = heading
+            binding.featuredHeading.visibility =
+                if (heading.isEmpty()) View.GONE else View.VISIBLE
+        } else if (!useHeadingImage) {
+            binding.featuredHeading.visibility = View.GONE
+        }
+
+        if (currentLayout.featuredShowSubheading) {
+            binding.featuredSubheading.text  = subh
+            binding.featuredSubheading.visibility =
+                if (subh.isEmpty()) View.GONE else View.VISIBLE
+        } else {
+            binding.featuredSubheading.visibility = View.GONE
+        }
+
+        if (currentLayout.featuredShowDescription) {
+            binding.featuredDescription.text = desc
+            binding.featuredDescription.visibility =
+                if (desc.isEmpty()) View.GONE else View.VISIBLE
+        } else {
+            binding.featuredDescription.visibility = View.GONE
+        }
         binding.featuredCta.text         = cta.uppercase()
 
         // CTA pill visibility honours BOTH the global "show button"
@@ -208,12 +230,39 @@ class MainActivity : AppCompatActivity() {
 
     private fun onTileSelected(item: DockItem) {
         // 1. If the tile points at a target package + the package is
-        //    installed, launch it directly.
+        //    installed, launch it directly.  v1.6 — When the tile is
+        //    the Kids tile AND it targets Vesper, we ALSO pass the
+        //    `?profile=kids` deep-link so the Vesper WebView boots
+        //    straight into the sandboxed Kids profile.
         val pkg = item.targetPackage
         if (!pkg.isNullOrBlank()) {
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
             if (launchIntent != null) {
+                if (item.key == "kids") {
+                    launchIntent.putExtra("vesper_route", "/?profile=kids")
+                    launchIntent.data = Uri.parse("onnowtv://launch?profile=kids")
+                }
                 startActivity(launchIntent)
+                return
+            }
+        }
+        // 1b. v1.6 — Kids tile auto-routes to Vesper even if
+        //     `target_package` wasn't set by the admin.  Falls back
+        //     to a Play-Store / browser deep-link if Vesper isn't
+        //     installed locally.
+        if (item.key == "kids") {
+            val vesperPkg = "tv.onnowtv.app"
+            val launchIntent = packageManager.getLaunchIntentForPackage(vesperPkg)
+            if (launchIntent != null) {
+                launchIntent.putExtra("vesper_route", "/?profile=kids")
+                launchIntent.data = Uri.parse("onnowtv://launch?profile=kids")
+                startActivity(launchIntent)
+                return
+            }
+            // Vesper not installed — open Kids in a browser instead.
+            val webBase = repo.baseUrlPublic()
+            if (webBase.isNotBlank()) {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$webBase/?profile=kids")))
                 return
             }
         }
@@ -424,6 +473,48 @@ class MainActivity : AppCompatActivity() {
                 if (layout.topbarVisible) View.VISIBLE else View.GONE
         } catch (t: Throwable) {
             android.util.Log.e("LayoutEditor", "topbar visibility failed", t)
+        }
+
+        // 3b. v1.6 — Per-element show/hide toggles for the featured
+        //     panel.  Honour the admin's global "show" flag AND any
+        //     content-driven hides (empty heading still hides itself).
+        //     Heading-as-image overrides the text heading when set.
+        try {
+            val headingImageUrl = layout.featuredHeadingImageUrl?.trim().orEmpty()
+            val useHeadingImage = headingImageUrl.isNotEmpty()
+            binding.featuredHeadingImage.visibility = when {
+                !layout.featuredShowHeading -> View.GONE
+                useHeadingImage             -> View.VISIBLE
+                else                        -> View.GONE
+            }
+            binding.featuredHeading.visibility = when {
+                !layout.featuredShowHeading -> View.GONE
+                useHeadingImage             -> View.GONE
+                else                        -> View.VISIBLE
+            }
+            binding.featuredSubheading.visibility = when {
+                !layout.featuredShowSubheading -> View.GONE
+                binding.featuredSubheading.text.isNullOrEmpty() -> View.GONE
+                else                           -> View.VISIBLE
+            }
+            binding.featuredDescription.visibility = when {
+                !layout.featuredShowDescription -> View.GONE
+                binding.featuredDescription.text.isNullOrEmpty() -> View.GONE
+                else                            -> View.VISIBLE
+            }
+            // Resize and load the heading image.
+            if (useHeadingImage) {
+                binding.featuredHeadingImage.updateLayoutParams<android.widget.LinearLayout.LayoutParams> {
+                    height = dp(layout.featuredHeadingImageHeightDp)
+                }
+                ImageLoader.load(
+                    binding.featuredHeadingImage,
+                    headingImageUrl,
+                    R.drawable.ic_dock_tv,
+                )
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "visibility toggles failed", t)
         }
 
         // 4. Per-element typography (font / size / weight / color +

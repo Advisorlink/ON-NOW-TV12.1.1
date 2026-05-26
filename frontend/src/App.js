@@ -296,6 +296,28 @@ function OnboardingGate() {
 }
 
 function App() {
+    /* v2.7.91 — Honour `?profile=kids` deep-link param so the
+       launcher's "Kids" tile can open Vesper straight into the
+       sandboxed kids profile.  We flip the active profile to the
+       (always-present) Kids profile, then strip the param from
+       the URL so reloads don't keep reapplying it. */
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('profile') === 'kids') {
+                // Lazy-load to avoid a circular import at module-load time.
+                import('@/lib/profiles').then(({ setActiveProfile }) => {
+                    setActiveProfile('kids');
+                });
+                params.delete('profile');
+                const search = params.toString();
+                const nextUrl = window.location.pathname +
+                    (search ? `?${search}` : '') + window.location.hash;
+                window.history.replaceState({}, '', nextUrl);
+            }
+        } catch { /* ignore — bad URL shouldn't crash boot */ }
+    }, []);
+
     return (
         <div className="App">
             <ErrorBoundary>

@@ -386,9 +386,28 @@ class MainActivity : AppCompatActivity() {
         }
         val bootUrl = devUrl ?: restoreUrl ?: defaultBoot
 
+        // v2.7.91 — Honour intent extras / data URI from the Launcher
+        // so a Kids-tile tap deep-links into the Kids profile.
+        //   • EXTRA_VESPER_ROUTE = "/?profile=kids" → appended to URL
+        //   • data URI onnowtv://launch?profile=kids → query passed
+        // We append the query/hash to the boot URL (whichever path
+        // we resolved above) so the React app sees `?profile=kids`.
+        val finalBootUrl = run {
+            val routeExtra = intent?.getStringExtra("vesper_route").orEmpty()
+            val dataQuery  = intent?.data?.encodedQuery.orEmpty()
+            val deepLinkQuery = when {
+                routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
+                dataQuery.contains("profile=")  -> dataQuery
+                else                            -> ""
+            }
+            if (deepLinkQuery.isEmpty()) bootUrl
+            else if (bootUrl.contains("?")) "$bootUrl&$deepLinkQuery"
+            else "$bootUrl?$deepLinkQuery"
+        }
+
         setContentView(webView)
         webViewReady = true
-        webView.loadUrl(bootUrl)
+        webView.loadUrl(finalBootUrl)
     }
 
     override fun onResume() {
