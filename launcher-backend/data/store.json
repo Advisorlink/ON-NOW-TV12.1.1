@@ -1,9 +1,9 @@
 {
-  "generation": 98,
+  "generation": 106,
   "dock_tiles": [
     {
       "key": "movies",
-      "label": "Movies",
+      "label": "Movies/Tv",
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
       "wallpaper_url": "/assets/wallpapers/tile-movies-b5fe0d6e.png",
@@ -13,7 +13,7 @@
       "apk_version": null,
       "target_package": "tv.onnowtv.app",
       "target_url": null,
-      "accent": "#FF3D5A",
+      "accent": "#3dd8ff",
       "heading": "Movies",
       "subheading": "ON DEMAND \u00b7 4K HDR",
       "description": "Stream the latest blockbusters, hidden gems and indie favourites in 4K HDR.",
@@ -31,7 +31,7 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#2BB6FF",
+      "accent": "#2bb6ff",
       "heading": "Music",
       "subheading": "LIVE RADIO & PLAYLISTS",
       "description": "Discover playlists, charts and live concerts from your favourite artists.",
@@ -49,7 +49,7 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#2EEA7A",
+      "accent": "#2eea7a",
       "heading": "Live Sports",
       "subheading": "NEVER MISS A MATCH",
       "description": "Catch every match, race and tournament \u2014 live, with ON NOW EPG.",
@@ -67,7 +67,7 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#FFB454",
+      "accent": "#ffb454",
       "heading": "Kids",
       "subheading": "SAFE FAMILY VIEWING",
       "description": "Cartoons, family movies and learning shows in one safe place.",
@@ -85,7 +85,7 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": null,
+      "accent": "#f600fa",
       "heading": null,
       "subheading": null,
       "description": null,
@@ -103,7 +103,7 @@
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": null,
+      "accent": "#2bb6ff",
       "heading": null,
       "subheading": null,
       "description": null,
@@ -160,8 +160,8 @@
     },
     "audit-test": {
       "device_id": "audit-test",
-      "last_seen": 1779756320,
-      "last_generation": 97
+      "last_seen": 1779760102,
+      "last_generation": 106
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
@@ -182,17 +182,22 @@
       "device_id": "b5911ee3-890b-4e7f-b448-6a2bf9c48820",
       "last_seen": 1779758307,
       "last_generation": 98
+    },
+    "6ff1a785-d170-4836-b47f-cf8a0c84b0e3": {
+      "device_id": "6ff1a785-d170-4836-b47f-cf8a0c84b0e3",
+      "last_seen": 1779760495,
+      "last_generation": 106
     }
   },
   "layout": {
     "tile_width_dp": 300,
     "tile_height_dp": 168,
-    "dock_margin_bottom_dp": -16,
+    "dock_margin_bottom_dp": -30,
     "dock_margin_horizontal_dp": 20,
     "featured_margin_start_dp": 48,
-    "featured_margin_bottom_dp": 36,
+    "featured_margin_bottom_dp": 158,
     "topbar_visible": true,
-    "featured_show_button": true,
+    "featured_show_button": false,
     "featured_align": "start",
     "featured_heading_size_sp": 56,
     "featured_heading_font": "montserrat",

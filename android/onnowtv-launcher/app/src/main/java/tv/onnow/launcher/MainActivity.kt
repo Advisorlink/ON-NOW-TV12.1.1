@@ -12,6 +12,7 @@ import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -281,8 +282,12 @@ class MainActivity : AppCompatActivity() {
                 if (fresh != null) {
                     onConfigUpdated(fresh)
                     val took = System.currentTimeMillis() - ts
+                    // v1.2 — surface the live dock margin so we can
+                    // tell at a glance whether layout updates are
+                    // actually landing on the device.
+                    val dockM = currentLayout.dockMarginBottomDp
                     updateDebugStatus(
-                        "OK · gen ${fresh.generation} · ${took}ms · ${repo.baseUrlPublic()}",
+                        "OK · gen ${fresh.generation} · dockBot=${dockM}dp · ${took}ms",
                         true,
                     )
                 } else {
@@ -325,7 +330,7 @@ class MainActivity : AppCompatActivity() {
                         binding.debugStatus.visibility = View.GONE
                     }
                     .start()
-            }, 5_000)
+            }, 15_000)
         }
     }
 
@@ -376,9 +381,13 @@ class MainActivity : AppCompatActivity() {
     /* ────────────────────  Layout Editor  ──────────────────── */
 
     /**
-     * Apply admin-controlled Layout Editor values from the backend to
-     * live views.  Called on every config update — including the
-     * initial cached load — so layout changes from the dashboard
+     * v1.2 — Apply admin-controlled Layout Editor values.  Each step
+     * is independently wrapped so a malformed value in one section
+     * (e.g. an unparseable colour hex) can't kill the others.  The
+     * dock + featured-panel margins are applied via the Kotlin
+     * `updateLayoutParams` extension which calls `requestLayout`
+     * deterministically.  Called on every config update — including
+     * the initial cached load — so layout changes from the dashboard
      * land within one poll cycle.
      */
     private fun applyLayoutSettings(layout: LayoutSettings) {
@@ -386,87 +395,113 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         fun dp(v: Int): Int = (v * density).toInt()
 
-        // 1. Dock margins (bottom + horizontal).
-        (binding.dock.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)?.also { lp ->
-            lp.bottomMargin = dp(layout.dockMarginBottomDp)
-            lp.leftMargin   = dp(layout.dockMarginHorizontalDp)
-            lp.rightMargin  = dp(layout.dockMarginHorizontalDp)
-            binding.dock.layoutParams = lp
+        // 1. Dock margins.
+        try {
+            binding.dock.updateLayoutParams<androidx.constraintlayout.widget.ConstraintLayout.LayoutParams> {
+                bottomMargin = dp(layout.dockMarginBottomDp)
+                leftMargin   = dp(layout.dockMarginHorizontalDp)
+                rightMargin  = dp(layout.dockMarginHorizontalDp)
+            }
+            binding.dock.requestLayout()
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "dock margins failed", t)
         }
 
-        // 2. Featured panel margins (left + bottom).
-        (binding.featuredPanel.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)?.also { lp ->
-            lp.leftMargin   = dp(layout.featuredMarginStartDp)
-            lp.bottomMargin = dp(layout.featuredMarginBottomDp)
-            binding.featuredPanel.layoutParams = lp
+        // 2. Featured panel margins.
+        try {
+            binding.featuredPanel.updateLayoutParams<androidx.constraintlayout.widget.ConstraintLayout.LayoutParams> {
+                leftMargin   = dp(layout.featuredMarginStartDp)
+                bottomMargin = dp(layout.featuredMarginBottomDp)
+            }
+            binding.featuredPanel.requestLayout()
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "featured panel margins failed", t)
         }
 
         // 3. Top bar visibility.
-        binding.topbar.visibility =
-            if (layout.topbarVisible) View.VISIBLE else View.GONE
+        try {
+            binding.topbar.visibility =
+                if (layout.topbarVisible) View.VISIBLE else View.GONE
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "topbar visibility failed", t)
+        }
 
-        // 4. Per-element typography (font / size / weight / color).
-        applyTextStyle(
+        // 4. Per-element typography (each text style is independently
+        //    wrapped so a single bad value can't break the others).
+        applyTextStyleSafe("heading",
             binding.featuredHeading,
             layout.featuredHeadingFont,
             layout.featuredHeadingWeight,
             layout.featuredHeadingSizeSp,
-            layout.featuredHeadingColor,
-        )
-        applyTextStyle(
+            layout.featuredHeadingColor)
+        applyTextStyleSafe("subheading",
             binding.featuredSubheading,
             layout.featuredSubheadingFont,
             layout.featuredSubheadingWeight,
             layout.featuredSubheadingSizeSp,
-            layout.featuredSubheadingColor,
-        )
-        applyTextStyle(
+            layout.featuredSubheadingColor)
+        applyTextStyleSafe("description",
             binding.featuredDescription,
             layout.featuredDescriptionFont,
             layout.featuredDescriptionWeight,
             layout.featuredDescriptionSizeSp,
-            layout.featuredDescriptionColor,
-        )
-        applyTextStyle(
+            layout.featuredDescriptionColor)
+        applyTextStyleSafe("button",
             binding.featuredCta,
             layout.featuredButtonFont,
             layout.featuredButtonWeight,
             layout.featuredButtonSizeSp,
-            layout.featuredButtonTextColor,
-        )
+            layout.featuredButtonTextColor)
 
-        // 5. Horizontal alignment of the featured panel.  We apply
-        //    Gravity to every TextView AND change the LinearLayout's
-        //    own gravity so the children re-anchor correctly (their
-        //    layout_width is wrap_content, so without LL gravity they
-        //    just stay on the left edge).
-        val gravity = when (layout.featuredAlign.lowercase()) {
-            "center", "centre" -> android.view.Gravity.CENTER_HORIZONTAL
-            "end", "right"     -> android.view.Gravity.END
-            else               -> android.view.Gravity.START
-        }
-        val textAlign = when (layout.featuredAlign.lowercase()) {
-            "center", "centre" -> View.TEXT_ALIGNMENT_CENTER
-            "end", "right"     -> View.TEXT_ALIGNMENT_VIEW_END
-            else               -> View.TEXT_ALIGNMENT_VIEW_START
-        }
-        binding.featuredPanel.gravity = gravity
-        listOf(
-            binding.featuredHeading,
-            binding.featuredSubheading,
-            binding.featuredDescription,
-        ).forEach { it.textAlignment = textAlign }
-        // CTA pill wrap (anchor it to match other elements).
-        (binding.featuredCtaWrap.layoutParams as? android.widget.LinearLayout.LayoutParams)?.also { lp ->
-            lp.gravity = gravity
-            binding.featuredCtaWrap.layoutParams = lp
+        // 5. Horizontal alignment.
+        try {
+            val gravity = when (layout.featuredAlign.lowercase()) {
+                "center", "centre" -> android.view.Gravity.CENTER_HORIZONTAL
+                "end", "right"     -> android.view.Gravity.END
+                else               -> android.view.Gravity.START
+            }
+            val textAlign = when (layout.featuredAlign.lowercase()) {
+                "center", "centre" -> View.TEXT_ALIGNMENT_CENTER
+                "end", "right"     -> View.TEXT_ALIGNMENT_VIEW_END
+                else               -> View.TEXT_ALIGNMENT_VIEW_START
+            }
+            binding.featuredPanel.gravity = gravity
+            listOf(
+                binding.featuredHeading,
+                binding.featuredSubheading,
+                binding.featuredDescription,
+            ).forEach { it.textAlignment = textAlign }
+            (binding.featuredCtaWrap.layoutParams as? android.widget.LinearLayout.LayoutParams)?.also { lp ->
+                lp.gravity = gravity
+                binding.featuredCtaWrap.layoutParams = lp
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "alignment failed", t)
         }
 
-        // 6. Tile dimensions — push into the adapter so onBindViewHolder
-        //    can resize the holder views.
-        if (::dockAdapter.isInitialized) {
-            dockAdapter.tileWidthDp  = layout.tileWidthDp
-            dockAdapter.tileHeightDp = layout.tileHeightDp
+        // 6. Tile dimensions.
+        try {
+            if (::dockAdapter.isInitialized) {
+                dockAdapter.tileWidthDp  = layout.tileWidthDp
+                dockAdapter.tileHeightDp = layout.tileHeightDp
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "tile dimensions failed", t)
+        }
+    }
+
+    /** Wrapper that logs any exception so a single bad value doesn't
+     *  silently take out the rest of the layout. */
+    private fun applyTextStyleSafe(
+        which: String,
+        view: android.widget.TextView,
+        fontKey: String, weightKey: String,
+        sizeSp: Int, colorHex: String,
+    ) {
+        try {
+            applyTextStyle(view, fontKey, weightKey, sizeSp, colorHex)
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "text style $which failed", t)
         }
     }
 
