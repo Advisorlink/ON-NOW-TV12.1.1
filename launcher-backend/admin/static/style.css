@@ -697,3 +697,79 @@ header nav { display: flex; gap: 8px; align-items: center; }
     font-size: 14px;
 }
 .toast.err { border-color: var(--danger); color: var(--danger); }
+
+/* ============================================================
+   v1.0 — Layout Editor tab.
+   ============================================================ */
+.layout-form { display: flex; flex-direction: column; gap: 24px; }
+.layout-group {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+}
+.layout-group h3 {
+    margin: 0 0 14px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+}
+.layout-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 18px;
+}
+@media (max-width: 720px) {
+    .layout-row { grid-template-columns: 1fr; }
+}
+.layout-row > div > label {
+    display: block;
+    font-size: 11px;
+    color: var(--txt-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+.layout-row > div > label small { text-transform: none; letter-spacing: 0; color: var(--txt-tertiary); font-size: 11px; }
+.layout-row input[type="number"] {
+    background: var(--bg-row);
+    border: 1px solid var(--border);
+    color: var(--txt-primary);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    outline: none;
+    width: 100%;
+}
+.layout-row input[type="number"]:focus { border-color: var(--accent); }
+.layout-row .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--txt-primary);
+}
+.layout-row .checkbox-row input[type="checkbox"] {
+    width: 22px; height: 22px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.layout-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.layout-actions .ghost {
+    background: transparent;
+    color: var(--txt-secondary);
+    border: 1px solid var(--border);
+    padding: 12px 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.layout-actions .ghost:hover { border-color: var(--accent); color: var(--accent); }

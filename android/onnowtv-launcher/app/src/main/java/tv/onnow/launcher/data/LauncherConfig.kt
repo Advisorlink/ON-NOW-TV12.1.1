@@ -14,6 +14,26 @@ data class LauncherConfig(
     val apks: List<ApkEntryRemote>,
     val notifications: List<NotificationRemote>,
     val generation: Int,
+    /* v1.0 — Admin-controlled layout overrides.  Defaults match the
+       baked-in values so older backends (without a `layout` block in
+       the response) still render correctly. */
+    val layout: LayoutSettings = LayoutSettings(),
+)
+
+/**
+ * v1.0 — Admin-editable launcher layout knobs.  All sizes in dp /
+ * sp.  Negative dock margin bleeds the dock past the screen edge.
+ */
+data class LayoutSettings(
+    val tileWidthDp: Int          = 300,
+    val tileHeightDp: Int         = 168,
+    val dockMarginBottomDp: Int   = -16,
+    val dockMarginHorizontalDp: Int = 20,
+    val featuredMarginStartDp: Int  = 48,
+    val featuredMarginBottomDp: Int = 36,
+    val featuredHeadingSizeSp: Int  = 56,
+    val featuredDescriptionSizeSp: Int = 17,
+    val topbarVisible: Boolean = true,
 )
 
 data class DockTileRemote(
@@ -119,11 +139,29 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             expiresAt = o.optLong("expires_at"),
         )
     }
+    // v1.0 — Optional layout block.  Defaults applied when absent
+    // (older backend builds, or missing migration).
+    val layoutObj = root.optJSONObject("layout")
+    val layout = if (layoutObj == null) LayoutSettings() else {
+        val def = LayoutSettings()
+        LayoutSettings(
+            tileWidthDp              = layoutObj.optInt("tile_width_dp", def.tileWidthDp),
+            tileHeightDp             = layoutObj.optInt("tile_height_dp", def.tileHeightDp),
+            dockMarginBottomDp       = layoutObj.optInt("dock_margin_bottom_dp", def.dockMarginBottomDp),
+            dockMarginHorizontalDp   = layoutObj.optInt("dock_margin_horizontal_dp", def.dockMarginHorizontalDp),
+            featuredMarginStartDp    = layoutObj.optInt("featured_margin_start_dp", def.featuredMarginStartDp),
+            featuredMarginBottomDp   = layoutObj.optInt("featured_margin_bottom_dp", def.featuredMarginBottomDp),
+            featuredHeadingSizeSp    = layoutObj.optInt("featured_heading_size_sp", def.featuredHeadingSizeSp),
+            featuredDescriptionSizeSp = layoutObj.optInt("featured_description_size_sp", def.featuredDescriptionSizeSp),
+            topbarVisible            = layoutObj.optBoolean("topbar_visible", def.topbarVisible),
+        )
+    }
     return LauncherConfig(
         dockTiles = tilesList,
         activeWallpaperUrl = root.optStringOrNull("active_wallpaper_url"),
         apks = apksList,
         notifications = notifList,
         generation = root.optInt("generation", 0),
+        layout = layout,
     )
 }

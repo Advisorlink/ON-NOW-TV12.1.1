@@ -1,5 +1,5 @@
 {
-  "generation": 79,
+  "generation": 81,
   "dock_tiles": [
     {
       "key": "movies",
@@ -154,8 +154,8 @@
     },
     "audit-test": {
       "device_id": "audit-test",
-      "last_seen": 1779725374,
-      "last_generation": 79
+      "last_seen": 1779754304,
+      "last_generation": 80
     },
     "30d64149-97e2-4ba4-94f4-b026a8982ea7": {
       "device_id": "30d64149-97e2-4ba4-94f4-b026a8982ea7",
@@ -164,8 +164,19 @@
     },
     "285f933f-4977-435d-a72f-433ed8e90e47": {
       "device_id": "285f933f-4977-435d-a72f-433ed8e90e47",
-      "last_seen": 1779725526,
-      "last_generation": 79
+      "last_seen": 1779754331,
+      "last_generation": 81
     }
+  },
+  "layout": {
+    "tile_width_dp": 300,
+    "tile_height_dp": 168,
+    "dock_margin_bottom_dp": -16,
+    "dock_margin_horizontal_dp": 20,
+    "featured_margin_start_dp": 48,
+    "featured_margin_bottom_dp": 36,
+    "featured_heading_size_sp": 56,
+    "featured_description_size_sp": 17,
+    "topbar_visible": true
   }
 }

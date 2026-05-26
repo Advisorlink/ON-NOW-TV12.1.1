@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import tv.onnow.launcher.apps.AppsDrawerActivity
 import tv.onnow.launcher.data.LauncherConfig as RemoteLauncherConfig
 import tv.onnow.launcher.data.LauncherRepository
+import tv.onnow.launcher.data.LayoutSettings
 import tv.onnow.launcher.databinding.ActivityMainBinding
 import tv.onnow.launcher.notify.NotificationPopup
 import java.text.SimpleDateFormat
@@ -49,10 +50,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var repo: LauncherRepository
+    private lateinit var dockAdapter: DockAdapter
     private val shownNotificationIds = mutableSetOf<String>()
     private var configPollJob: Job? = null
     private var hasReceivedFirstConfig = false
     private var currentWallpaperUrl: String? = null
+    private var currentLayout: LayoutSettings = LayoutSettings()
 
     /* Mutable list of tiles rendered in the dock.  Empty on cold
      * launch — populated as soon as the first config arrives (or
@@ -100,8 +103,8 @@ class MainActivity : AppCompatActivity() {
     private fun bindDock() {
         val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.dock.layoutManager = lm
-        val adapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
-        binding.dock.adapter = adapter
+        dockAdapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
+        binding.dock.adapter = dockAdapter
 
         // Listen for focus changes inside the dock so we can swap
         // the wallpaper as the user navigates between tiles.
@@ -135,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         val panel  = binding.featuredPanel
         val heading = item.heading?.trim().orEmpty()
         val desc    = item.description?.trim().orEmpty()
-        val cta     = item.ctaLabel?.trim().ifEmpty { "ENTER" } ?: "ENTER"
+        val cta     = item.ctaLabel?.trim().orEmpty().ifEmpty { "ENTER" }
 
         // Empty heading + empty description = hide the whole panel.
         // Otherwise, fade it in and update content.
@@ -202,7 +205,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         // 3. Built-in shortcuts.
-        if (item.key == "apps") {
+        if (item.key == "apps" || item.key == "downloads") {
             startActivity(Intent(this, AppsDrawerActivity::class.java))
             return
         }
@@ -329,6 +332,10 @@ class MainActivity : AppCompatActivity() {
         }
         dockItems.clear()
         dockItems.addAll(mapped)
+        // v1.0 — Apply admin-edited Layout Editor values BEFORE
+        // notifying the adapter so the new tile dimensions land on
+        // the first render (no flash of old size).
+        applyLayoutSettings(config.layout)
         binding.dock.adapter?.notifyDataSetChanged()
         // Wallpaper + featured panel for the currently focused
         // (or first) tile.
@@ -345,6 +352,50 @@ class MainActivity : AppCompatActivity() {
         }
         // Surface any new admin-broadcast notifications.
         surfaceNotifications(config)
+    }
+
+    /* ────────────────────  Layout Editor  ──────────────────── */
+
+    /**
+     * Apply admin-controlled Layout Editor values from the backend to
+     * live views.  Called on every config update — including the
+     * initial cached load — so layout changes from the dashboard
+     * land within one poll cycle.
+     */
+    private fun applyLayoutSettings(layout: LayoutSettings) {
+        currentLayout = layout
+        val density = resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density).toInt()
+
+        // 1. Dock margins (bottom + horizontal).
+        (binding.dock.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)?.also { lp ->
+            lp.bottomMargin = dp(layout.dockMarginBottomDp)
+            lp.leftMargin   = dp(layout.dockMarginHorizontalDp)
+            lp.rightMargin  = dp(layout.dockMarginHorizontalDp)
+            binding.dock.layoutParams = lp
+        }
+
+        // 2. Featured panel margins (left + bottom).
+        (binding.featuredPanel.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)?.also { lp ->
+            lp.leftMargin   = dp(layout.featuredMarginStartDp)
+            lp.bottomMargin = dp(layout.featuredMarginBottomDp)
+            binding.featuredPanel.layoutParams = lp
+        }
+
+        // 3. Heading / description font sizes.
+        binding.featuredHeading.textSize     = layout.featuredHeadingSizeSp.toFloat()
+        binding.featuredDescription.textSize = layout.featuredDescriptionSizeSp.toFloat()
+
+        // 4. Top bar visibility.
+        binding.topbar.visibility =
+            if (layout.topbarVisible) View.VISIBLE else View.GONE
+
+        // 5. Tile dimensions — push into the adapter so onBindViewHolder
+        //    can resize the holder views.
+        if (::dockAdapter.isInitialized) {
+            dockAdapter.tileWidthDp  = layout.tileWidthDp
+            dockAdapter.tileHeightDp = layout.tileHeightDp
+        }
     }
 
     /** Map a remote dock-tile `key` back to one of our built-in

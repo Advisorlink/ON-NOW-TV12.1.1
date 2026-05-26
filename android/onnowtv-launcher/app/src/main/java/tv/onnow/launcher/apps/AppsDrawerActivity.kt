@@ -40,7 +40,12 @@ class AppsDrawerActivity : AppCompatActivity() {
     private lateinit var grid: RecyclerView
     private lateinit var emptyHint: TextView
     private lateinit var progressBar: ProgressBar
+    private lateinit var installAllBtn: Button
+    private lateinit var statusLabel: TextView
     private var loadJob: Job? = null
+    private var bulkInstallJob: Job? = null
+    /** Latest APK list rendered — used by the "Install all" button. */
+    private var currentApks: List<ApkEntryRemote> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,17 +59,45 @@ class AppsDrawerActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
         }
         column.addView(TextView(this).apply {
-            text = "Apps"
+            text = "Downloads"
             textSize = 36f
             setTextColor(0xFFF4F7FB.toInt())
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
         column.addView(TextView(this).apply {
-            text = "Admin-managed sideload manifest — D-pad and OK to install."
+            text = "Tap an app to install it.  Or tap \"Install all apps\" to download every app onto this box in one go."
             textSize = 14f
             setTextColor(0xFF8EA0B7.toInt())
-            setPadding(0, 8, 0, 32)
+            setPadding(0, 8, 0, 18)
         })
+
+        // v1.0 — Bulk install button.  Sequentially fires the system
+        // installer for every APK in the admin-managed manifest.
+        installAllBtn = Button(this).apply {
+            text = "Install all apps"
+            setTextColor(0xFF04060B.toInt())
+            setBackgroundColor(0xFF2BB6FF.toInt())
+            isAllCaps = false
+            textSize = 16f
+            setPadding(36, 18, 36, 18)
+            isFocusable = true
+            isFocusableInTouchMode = true
+        }
+        column.addView(installAllBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { setMargins(0, 0, 0, 14) })
+        installAllBtn.setOnClickListener { startBulkInstall() }
+
+        // v1.0 — Live status line for the bulk-install progress.
+        statusLabel = TextView(this).apply {
+            text = ""
+            textSize = 13f
+            setTextColor(0xFF2EEAC2.toInt())
+            setPadding(0, 0, 0, 18)
+            visibility = View.GONE
+        }
+        column.addView(statusLabel)
 
         progressBar = ProgressBar(this).apply { visibility = View.GONE }
         column.addView(progressBar, LinearLayout.LayoutParams(
@@ -116,6 +149,9 @@ class AppsDrawerActivity : AppCompatActivity() {
     }
 
     private fun renderApks(apks: List<ApkEntryRemote>) {
+        currentApks = apks
+        installAllBtn.isEnabled = apks.isNotEmpty()
+        installAllBtn.alpha     = if (apks.isNotEmpty()) 1f else 0.4f
         if (apks.isEmpty()) {
             emptyHint.visibility = View.VISIBLE
             grid.adapter = null
@@ -124,6 +160,48 @@ class AppsDrawerActivity : AppCompatActivity() {
         emptyHint.visibility = View.GONE
         grid.adapter = AppsAdapter(apks) { entry ->
             installApk(entry)
+        }
+    }
+
+    /** v1.0 — Sequentially install every APK in the manifest.  Android
+     *  doesn't allow truly silent installs without root or device-owner
+     *  privileges, so we kick off the system installer for each APK in
+     *  turn with a short delay so the user can confirm each prompt. */
+    private fun startBulkInstall() {
+        val apks = currentApks
+        if (apks.isEmpty()) return
+        if (!ApkInstaller.canInstallNow(this)) {
+            ApkInstaller.requestInstallPermission(this); return
+        }
+        if (bulkInstallJob?.isActive == true) return  // already running
+
+        statusLabel.visibility = View.VISIBLE
+        statusLabel.setTextColor(0xFF2EEAC2.toInt())
+        installAllBtn.isEnabled = false
+        installAllBtn.alpha     = 0.5f
+
+        bulkInstallJob = scope.launch {
+            apks.forEachIndexed { i, apk ->
+                statusLabel.text = "Installing ${i + 1} / ${apks.size}: ${apk.name}"
+                val err = ApkInstaller.downloadAndInstall(
+                    ctx = applicationContext,
+                    apkUrl = apk.apkUrl,
+                    suggestedName = "${apk.name}.apk",
+                )
+                if (err != null) {
+                    statusLabel.setTextColor(0xFFFF5573.toInt())
+                    statusLabel.text = "Failed on ${apk.name}: $err"
+                    installAllBtn.isEnabled = true
+                    installAllBtn.alpha     = 1f
+                    return@launch
+                }
+                // Give the user a moment to confirm each system
+                // installer prompt before queueing the next one.
+                kotlinx.coroutines.delay(2500)
+            }
+            statusLabel.text = "Done — queued ${apks.size} installs.  Confirm each prompt to finish."
+            installAllBtn.isEnabled = true
+            installAllBtn.alpha     = 1f
         }
     }
 

@@ -34,6 +34,7 @@
         </div>
         <nav>
             <button class="tab active" data-tab="dock">Dock</button>
+            <button class="tab"        data-tab="layout">Layout</button>
             <button class="tab"        data-tab="apks">APKs</button>
             <button class="tab"        data-tab="notify">Notify</button>
             <button id="logout" class="logout">Sign out</button>
@@ -67,6 +68,54 @@
             <button id="addTile" class="primary" style="background:transparent;color:var(--accent);border:1px solid rgba(var(--accent-rgb,43,182,255), 0.42);">+ Add tile</button>
             <button id="saveDock" class="primary">Save text fields</button>
             <p class="hint-inline">Image / wallpaper / APK uploads save instantly.  This button saves label / sub / target / accent edits.  Add Tile creates a new empty tile at the end of the dock.</p>
+        </div>
+    </section>
+
+    <!-- LAYOUT TAB -->
+    <section id="tab-layout" class="tab-panel">
+        <div class="panel-head">
+            <h2>Layout editor</h2>
+            <p>Resize tiles, move the dock, shift the featured panel, and tune the heading/description text — live on every connected device.  All values are in <strong>dp</strong> (size, position) or <strong>sp</strong> (text).</p>
+        </div>
+
+        <div id="layoutForm" class="layout-form">
+            <div class="layout-group">
+                <h3>Tile size</h3>
+                <div class="layout-row">
+                    <div><label>Tile width <small>(dp)</small></label><input id="layout_tile_width_dp" type="number" min="160" max="640" step="2"></div>
+                    <div><label>Tile height <small>(dp)</small></label><input id="layout_tile_height_dp" type="number" min="90"  max="360" step="2"></div>
+                </div>
+            </div>
+            <div class="layout-group">
+                <h3>Dock position</h3>
+                <div class="layout-row">
+                    <div><label>Dock bottom margin <small>(dp — negative bleeds off screen edge)</small></label><input id="layout_dock_margin_bottom_dp" type="number" min="-64" max="200" step="2"></div>
+                    <div><label>Dock side margin <small>(dp)</small></label><input id="layout_dock_margin_horizontal_dp" type="number" min="0" max="160" step="2"></div>
+                </div>
+            </div>
+            <div class="layout-group">
+                <h3>Featured panel (heading / description / button)</h3>
+                <div class="layout-row">
+                    <div><label>Panel left offset <small>(dp)</small></label><input id="layout_featured_margin_start_dp" type="number" min="0" max="400" step="2"></div>
+                    <div><label>Panel bottom offset <small>(dp — distance from dock)</small></label><input id="layout_featured_margin_bottom_dp" type="number" min="0" max="200" step="2"></div>
+                    <div><label>Heading size <small>(sp)</small></label><input id="layout_featured_heading_size_sp" type="number" min="20" max="120" step="2"></div>
+                    <div><label>Description size <small>(sp)</small></label><input id="layout_featured_description_size_sp" type="number" min="10" max="40" step="1"></div>
+                </div>
+            </div>
+            <div class="layout-group">
+                <h3>Top bar</h3>
+                <div class="layout-row">
+                    <label class="checkbox-row">
+                        <input id="layout_topbar_visible" type="checkbox">
+                        <span>Show top bar (greeting / wordmark / date · time)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="layout-actions">
+                <button id="saveLayout" class="primary">Save layout</button>
+                <button id="resetLayout" class="ghost">Reset to defaults</button>
+                <span class="hint-inline">Changes propagate to every connected launcher device within ~30 seconds.</span>
+            </div>
         </div>
     </section>
 

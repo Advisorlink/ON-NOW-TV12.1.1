@@ -73,9 +73,86 @@ $$('.tab').forEach(btn => btn.addEventListener('click', () => {
 async function refreshAll() {
     const store = await api('/api/admin/store');
     renderDock(store);
+    renderLayout(store);
     renderApks(store);
     renderNotifications(store);
     refreshDevices();   // v0.4 — re-pull the connected devices panel
+}
+
+/* ─────────────  Layout Editor  ─────────────
+   v1.0 — Admin-editable launcher layout settings (tile size, dock
+   position, featured panel offset/size, top bar visibility). */
+const LAYOUT_DEFAULTS = {
+    tile_width_dp: 300,
+    tile_height_dp: 168,
+    dock_margin_bottom_dp: -16,
+    dock_margin_horizontal_dp: 20,
+    featured_margin_start_dp: 48,
+    featured_margin_bottom_dp: 36,
+    featured_heading_size_sp: 56,
+    featured_description_size_sp: 17,
+    topbar_visible: true,
+};
+const LAYOUT_INT_FIELDS = [
+    'tile_width_dp', 'tile_height_dp',
+    'dock_margin_bottom_dp', 'dock_margin_horizontal_dp',
+    'featured_margin_start_dp', 'featured_margin_bottom_dp',
+    'featured_heading_size_sp', 'featured_description_size_sp',
+];
+
+function renderLayout(store) {
+    const layout = { ...LAYOUT_DEFAULTS, ...(store.layout || {}) };
+    LAYOUT_INT_FIELDS.forEach((k) => {
+        const el = $('#layout_' + k);
+        if (el) el.value = layout[k];
+    });
+    const cb = $('#layout_topbar_visible');
+    if (cb) cb.checked = !!layout.topbar_visible;
+}
+
+function readLayoutForm() {
+    const out = {};
+    LAYOUT_INT_FIELDS.forEach((k) => {
+        const el = $('#layout_' + k);
+        const n  = parseInt(el ? el.value : '', 10);
+        out[k] = Number.isFinite(n) ? n : LAYOUT_DEFAULTS[k];
+    });
+    out.topbar_visible = !!$('#layout_topbar_visible')?.checked;
+    return out;
+}
+
+const _saveLayoutBtn = $('#saveLayout');
+if (_saveLayoutBtn) {
+    _saveLayoutBtn.addEventListener('click', async () => {
+        const payload = readLayoutForm();
+        try {
+            await api('/api/admin/layout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            toast('Layout saved — devices update within ~30 s');
+        } catch (e) {
+            toast('Save failed: ' + e.message, true);
+        }
+    });
+}
+const _resetLayoutBtn = $('#resetLayout');
+if (_resetLayoutBtn) {
+    _resetLayoutBtn.addEventListener('click', async () => {
+        if (!window.confirm('Reset layout to factory defaults?')) return;
+        try {
+            await api('/api/admin/layout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(LAYOUT_DEFAULTS),
+            });
+            renderLayout({ layout: LAYOUT_DEFAULTS });
+            toast('Layout reset to defaults');
+        } catch (e) {
+            toast('Reset failed: ' + e.message, true);
+        }
+    });
 }
 
 /* ─────────────  Connected devices panel  ─────────────

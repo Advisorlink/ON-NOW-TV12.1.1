@@ -32,6 +32,14 @@ class DockAdapter(
     private val onSelect: (DockItem) -> Unit,
 ) : RecyclerView.Adapter<DockAdapter.VH>() {
 
+    /** v1.0 — Admin-controlled tile size (in dp).  MainActivity
+     *  updates these from the backend's LayoutSettings; we apply
+     *  them to each holder during bind. */
+    var tileWidthDp: Int  = 300
+        set(v) { if (v != field) { field = v; notifyDataSetChanged() } }
+    var tileHeightDp: Int = 168
+        set(v) { if (v != field) { field = v; notifyDataSetChanged() } }
+
     class VH(val binding: ItemDockBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -47,6 +55,29 @@ class DockAdapter(
         val image       = holder.binding.icon
         val reflection  = holder.binding.reflection
         val reflectBox  = holder.binding.reflectionClip
+
+        // v1.0 — Resize the tile + reflection to the admin-edited
+        // dimensions.  Reflection slot is locked at ~36 % of tile
+        // height so its proportions stay tasteful at any tile size.
+        val density = holder.itemView.resources.displayMetrics.density
+        val tileWpx = (tileWidthDp  * density).toInt()
+        val tileHpx = (tileHeightDp * density).toInt()
+        val reflHpx = (tileHpx * 0.36f).toInt().coerceAtLeast((30 * density).toInt())
+        holder.binding.tileRoot.layoutParams = holder.binding.tileRoot.layoutParams.apply {
+            width  = tileWpx
+            height = tileHpx
+        }
+        reflectBox.layoutParams = reflectBox.layoutParams.apply {
+            width  = tileWpx
+            height = reflHpx
+        }
+        // Reflection ImageView is anchored at top and is the full tile
+        // height; the visible slice equals reflHpx (the bottom of the
+        // image, mirrored).  Keep ImageView height = tileHpx.
+        reflection.layoutParams = reflection.layoutParams.apply {
+            width  = tileWpx
+            height = tileHpx
+        }
 
         if (!item.imageUrl.isNullOrBlank()) {
             image.imageTintList = null

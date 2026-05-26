@@ -159,6 +159,22 @@ class Notification(BaseModel):
     seen_by: list[str] = Field(default_factory=list)
 
 
+class LayoutSettings(BaseModel):
+    """v1.0 — Per-deployment layout customisation.  Lets the admin
+    resize tiles, move the dock, shift the featured panel, and toggle
+    the top bar — all from the admin dashboard without recompiling
+    the launcher APK.  All values are in DP (text in SP)."""
+    tile_width_dp: int           = 300
+    tile_height_dp: int          = 168
+    dock_margin_bottom_dp: int   = -16   # negative = bleed off bottom edge
+    dock_margin_horizontal_dp: int = 20
+    featured_margin_start_dp: int  = 48
+    featured_margin_bottom_dp: int = 36
+    featured_heading_size_sp: int  = 56
+    featured_description_size_sp: int = 17
+    topbar_visible: bool = True
+
+
 class LauncherConfig(BaseModel):
     """Single document returned by /api/launcher/config that the
     launcher device polls every few minutes."""
@@ -171,6 +187,9 @@ class LauncherConfig(BaseModel):
     notifications: list[Notification]      # un-expired notifications only
     generation: int                        # bumps every time admin saves anything
     server_time: int
+    # v1.0 — Admin-controlled layout overrides.  When omitted, the
+    # launcher uses the platform defaults baked into the APK.
+    layout: LayoutSettings = LayoutSettings()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -213,12 +232,23 @@ def _load_store() -> dict:
             STORE_FILE.write_text(json.dumps(store, indent=2))
             return store
         try:
-            return json.loads(STORE_FILE.read_text())
+            store = json.loads(STORE_FILE.read_text())
         except Exception:
             log.exception("Corrupt store.json — re-seeding defaults")
             store = _default_store()
             STORE_FILE.write_text(json.dumps(store, indent=2))
             return store
+        # v1.0 migration — ensure the layout block exists with defaults
+        # so older stores keep working after the upgrade.
+        if "layout" not in store or not isinstance(store["layout"], dict):
+            store["layout"] = LayoutSettings().model_dump()
+        else:
+            # Top-up any newly-introduced fields with defaults without
+            # clobbering admin-set values.
+            defaults = LayoutSettings().model_dump()
+            for k, v in defaults.items():
+                store["layout"].setdefault(k, v)
+        return store
 
 
 def _save_store(store: dict) -> None:
@@ -350,6 +380,7 @@ def _build_config(store: dict) -> LauncherConfig:
         ],
         generation=int(store.get("generation", 0)),
         server_time=nt,
+        layout=LayoutSettings(**store.get("layout", {})),
     )
 
 
@@ -445,6 +476,15 @@ def admin_logout() -> JSONResponse:
 @app.get("/api/admin/store", dependencies=[Depends(require_admin)])
 def get_full_store() -> dict:
     return _load_store()
+
+
+@app.post("/api/admin/layout", dependencies=[Depends(require_admin)])
+def set_layout(layout: LayoutSettings) -> dict:
+    """v1.0 — Persist admin-edited Layout Editor values."""
+    store = _load_store()
+    store["layout"] = layout.model_dump()
+    _save_store(store)
+    return {"ok": True, "generation": store["generation"], "layout": store["layout"]}
 
 
 @app.post("/api/admin/dock", dependencies=[Depends(require_admin)])
