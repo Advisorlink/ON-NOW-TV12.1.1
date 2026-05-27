@@ -1,5 +1,5 @@
 {
-  "generation": 326,
+  "generation": 334,
   "dock_tiles": [
     {
       "key": "movies",
@@ -152,14 +152,14 @@
       "added_at": 1779849976
     },
     {
-      "id": "fe7b7b87c9be",
+      "id": "02931c0eaf3d",
       "name": "ON NOW TV V2",
       "package_id": "tv.onnowtv.app",
       "version_name": "2.8.5",
-      "icon_url": "/assets/apk_icons/fe7b7b87c9be.png",
-      "apk_url": "/assets/apks/fe7b7b87c9be_onnowtv-v2-debug (5).apk",
+      "icon_url": "/assets/apk_icons/02931c0eaf3d.png",
+      "apk_url": "/assets/apks/02931c0eaf3d_onnowtv-v2-debug (6).apk",
       "description": null,
-      "added_at": 1779852441
+      "added_at": 1779858715
     }
   ],
   "notifications": [],
@@ -326,8 +326,8 @@
     },
     "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc": {
       "device_id": "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc",
-      "last_seen": 1779858224,
-      "last_generation": 326
+      "last_seen": 1779858810,
+      "last_generation": 330
     },
     "onnow-test": {
       "device_id": "onnow-test",
@@ -338,6 +338,11 @@
       "device_id": "test",
       "last_seen": 1779857658,
       "last_generation": 324
+    },
+    "onnow-2279499f3d06f84b": {
+      "device_id": "onnow-2279499f3d06f84b",
+      "last_seen": 1779859588,
+      "last_generation": 333
     }
   },
   "layout": {
@@ -6637,7 +6642,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779852836,
-      "last_seen_at": 1779858223,
+      "last_seen_at": 1779858810,
       "last_ip": "34.160.159.238"
     },
     "onnow-test-1779853758": {
@@ -6657,10 +6662,19 @@
       "registered_at": 1779853768,
       "last_seen_at": 1779853768,
       "last_ip": "127.0.0.1"
+    },
+    "onnow-2279499f3d06f84b": {
+      "id": "onnow-2279499f3d06f84b",
+      "name": "Amlogic HK1 BOX S905X3 \u00b7 06f84b",
+      "model": "Amlogic HK1 BOX S905X3",
+      "status": "active",
+      "registered_at": 1779858905,
+      "last_seen_at": 1779859584,
+      "last_ip": "34.160.159.238"
     }
   },
   "appstore": {
-    "hero_image_url": "/assets/appstore/hero.png?ts=1779858017",
-    "background_image_url": "/assets/appstore/background.png?ts=1779858076"
+    "hero_image_url": "/assets/appstore/hero.png?ts=1779859626",
+    "background_image_url": null
   }
 }
