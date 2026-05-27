@@ -1,5 +1,5 @@
 {
-  "generation": 291,
+  "generation": 293,
   "dock_tiles": [
     {
       "key": "movies",
@@ -132,17 +132,6 @@
       "added_at": 1779807408
     },
     {
-      "id": "3abf14217805",
-      "name": "OnNow TV V2",
-      "package_id": "tv.onnow.launcher",
-      "version_name": "0.1.29",
-      "icon_url": "/assets/apk_icons/3abf14217805.png",
-      "apk_url": "/assets/apks/3abf14217805_onnowtv-launcher-debug (13).apk",
-      "description": null,
-      "added_at": 1779845851,
-      "category": null
-    },
-    {
       "id": "916656ec098c",
       "name": "ON NOW TV V2",
       "package_id": "tv.onnowtv.app",
@@ -161,6 +150,16 @@
       "apk_url": "/assets/apks/087f1e127976_5.0.6 (598).apk",
       "description": null,
       "added_at": 1779847307
+    },
+    {
+      "id": "19f03240e42d",
+      "name": "OnNow TV V2",
+      "package_id": "tv.onnow.launcher",
+      "version_name": "0.1.32",
+      "icon_url": null,
+      "apk_url": "/assets/apks/19f03240e42d_onnowtv-launcher-debug (16).apk",
+      "description": null,
+      "added_at": 1779849976
     }
   ],
   "notifications": [],
@@ -317,8 +316,8 @@
     },
     "08a56080-8743-4c82-806f-ad60aec59f51": {
       "device_id": "08a56080-8743-4c82-806f-ad60aec59f51",
-      "last_seen": 1779849546,
-      "last_generation": 291
+      "last_seen": 1779850074,
+      "last_generation": 293
     }
   },
   "layout": {
@@ -6654,7 +6653,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779849008,
-      "last_seen_at": 1779849546,
+      "last_seen_at": 1779850073,
       "last_ip": "34.160.159.238"
     }
   },
