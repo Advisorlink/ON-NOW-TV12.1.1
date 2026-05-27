@@ -1,5 +1,5 @@
 {
-  "generation": 311,
+  "generation": 313,
   "dock_tiles": [
     {
       "key": "movies",
@@ -326,8 +326,8 @@
     },
     "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc": {
       "device_id": "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc",
-      "last_seen": 1779854003,
-      "last_generation": 311
+      "last_seen": 1779855689,
+      "last_generation": 313
     }
   },
   "layout": {
@@ -6627,7 +6627,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779852836,
-      "last_seen_at": 1779854003,
+      "last_seen_at": 1779855685,
       "last_ip": "34.160.159.238"
     },
     "onnow-test-1779853758": {
@@ -6650,6 +6650,6 @@
     }
   },
   "appstore": {
-    "hero_image_url": "/assets/appstore/hero.png?ts=1779845169"
+    "hero_image_url": "/assets/appstore/hero.png?ts=1779855664"
   }
 }

@@ -671,14 +671,32 @@ class MainActivity : AppCompatActivity() {
                 finish()
                 return true
             }
-            webView.evaluateJavascript("(window.__vesperOnHome||'')") { raw ->
-                val flag = raw?.trim('"') ?: ""
-                runOnUiThread {
-                    when (flag) {
-                        "home-root" -> showExitConfirm()
-                        else -> {
-                            if (webView.canGoBack()) webView.goBack()
-                            else finish()
+            // v2.8.9 — Kids sandbox lockdown.  Check the JS flag
+            // `window.__vesperKidsLocked` FIRST — if it's '1', the
+            // user is in Kids mode with a PIN configured and we
+            // must NOT allow normal goBack() / finish().  Instead
+            // route the WebView to /kids/exit-pin so the parent
+            // has to enter the PIN before any escape.
+            webView.evaluateJavascript("(window.__vesperKidsLocked||'')") { lockedRaw ->
+                val locked = (lockedRaw?.trim('"') ?: "") == "1"
+                if (locked) {
+                    runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window.location.hash = '#/kids/exit-pin';",
+                            null,
+                        )
+                    }
+                    return@evaluateJavascript
+                }
+                webView.evaluateJavascript("(window.__vesperOnHome||'')") { raw ->
+                    val flag = raw?.trim('"') ?: ""
+                    runOnUiThread {
+                        when (flag) {
+                            "home-root" -> showExitConfirm()
+                            else -> {
+                                if (webView.canGoBack()) webView.goBack()
+                                else finish()
+                            }
                         }
                     }
                 }

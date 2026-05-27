@@ -43,6 +43,7 @@ import BootSplash from '@/components/BootSplash';
 import Person from '@/pages/Person';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
+import useKidsBackGuard from '@/hooks/useKidsBackGuard';
 import { runNotifyScanner } from '@/lib/notifyScanner';
 
 /* Live TV plumbing removed per user request — every bundle / EPG /
@@ -288,6 +289,13 @@ const MOBILE_NAV_HIDDEN_PREFIXES = [
 function MobilePlatformRoot({ children }) {
     const isMobile = useIsMobile();
     const location = useLocation();
+    // v2.8.9 — Global Kids sandbox back-button guard.  Active on
+    // every route (the hook itself bails out when Kids isn't
+    // active or no PIN is set).  This means clicking a movie tile
+    // inside Kids → Detail page → hardware Back → guard intercepts
+    // and forces the PIN gate instead of letting the user pop
+    // backwards into an adult catalogue.
+    useKidsBackGuard();
     /* Tag the document body so global CSS (in index.css) can branch
        on platform without every component having to know. */
     useEffect(() => {

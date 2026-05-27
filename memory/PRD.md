@@ -1,6 +1,26 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.8 — Auto-approve registrations + silent auto-register on Launcher** (Feb 27, 2026)
+> Latest: **v2.8.9 — Kids sandbox lockdown: no adult leaks + hardware Back PIN-gated** (Feb 27, 2026)
+>
+> Final closure of the two open Kids sandbox issues per direct user spec.
+>
+> **A — Adult content leaking via Movies/TV filter — FIXED.**
+> Root cause: `KidsHome` was reusing the regular `TabGridView` for the `?filter=movie` / `?filter=series` views.  TabGridView completely ignored its `shelves` prop and instead called `useTabCatalog(addons, type)` which streams the ENTIRE Vesper adult addon catalogue — including R / NC-17 titles — straight into the Kids UI.  This is exactly what the user reported: "click Movies, it shows all the movies from Vesper".
+>
+> Fix: built a brand-new `KidsTabGridView` component (`/app/frontend/src/components/KidsTabGridView.jsx`) that ONLY reads from the already rating-filtered kids shelves (driven by `useKidsShelves` and the backend `/tmdb/kids/shelves` endpoint).  Items are filtered at the item level (`it.type === filter`), deduped by id, and rendered with the same poster-grid styling.  Verified: Movies filter now shows **380 kid-safe titles** (Mario, Shrek, Zootopia, Toy Story, Spirited Away, etc.) — zero adult titles.
+>
+> **B — Hardware Back / Home / Exit must require PIN — FIXED.**
+> Root cause: the WebView's `popstate` event was popping the user out of `/kids/*` into a stale adult route from the React Router history stack.  The native `MainActivity.onKeyDown(KEYCODE_BACK)` was also calling `webView.goBack()` or `finish()` without checking Kids state.
+>
+> Fix (two layers — defense in depth):
+> 1. **React layer**: new `useKidsBackGuard` hook (`/app/frontend/src/hooks/useKidsBackGuard.js`) mounted globally in `MobilePlatformRoot`.  When Kids is active AND a PIN is set, the hook pushes a sentinel history entry and intercepts every `popstate`, re-pushes the sentinel, and forces `navigate('/kids/exit-pin')`.  Verified end-to-end: `window.history.back()` from any Kids route → URL flips to `/kids/exit-pin` → PARENT GATE PIN entry screen appears.
+> 2. **Native layer**: `MainActivity.onKeyDown(KEYCODE_BACK)` now reads `window.__vesperKidsLocked` BEFORE the legacy `__vesperOnHome` flag.  If locked, it routes the WebView via `window.location.hash = '#/kids/exit-pin'` — skipping `webView.goBack()` / `finish()` entirely, so the hardware remote BACK button can NEVER drop a kid out of the sandbox.
+>
+> Files touched (5): `frontend/src/components/KidsTabGridView.jsx` (new), `frontend/src/hooks/useKidsBackGuard.js` (new), `frontend/src/pages/KidsHome.jsx`, `frontend/src/App.js`, `android/vesper-tv/app/src/main/java/tv/vesper/app/MainActivity.kt`.
+>
+> Tested via screenshot: KidsHome → Movies filter renders `kids-tab-grid-movie` with 380 kid-safe posters; the adult `tab-grid-movie` is GONE; `window.__vesperKidsLocked === '1'`; hitting Back from Movies → routes to `/kids/exit-pin` PARENT GATE screen.
+>
+> Previous: **v2.8.8 — Auto-approve registrations + silent auto-register on Launcher** (Feb 27, 2026)
 >
 > Direct response to "I've got over 500 people that are a part of this. I can't just sit there and keep approving them all".
 >

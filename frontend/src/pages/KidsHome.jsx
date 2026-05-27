@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import KidsSideNav from '@/components/KidsSideNav';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
-import TabGridView from '@/components/TabGridView';
+import KidsTabGridView from '@/components/KidsTabGridView';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
+import useKidsBackGuard from '@/hooks/useKidsBackGuard';
 import { useKidsShelves } from '@/hooks/useKidsShelves';
 import { useKidsHeroes } from '@/hooks/useKidsHeroes';
 import { getKidsConfig } from '@/lib/profiles';
@@ -29,6 +30,7 @@ export default function KidsHome() {
     useSpatialFocus();
     const location = useLocation();
     useHomeBackHandler('kids-home');
+    useKidsBackGuard();
 
     const filter = new URLSearchParams(location.search).get('filter');
 
@@ -141,8 +143,8 @@ export default function KidsHome() {
                     className="absolute inset-0 overflow-y-auto"
                     style={{ scrollBehavior: 'auto' }}
                 >
-                    <TabGridView
-                        shelves={shelves}
+                    <KidsTabGridView
+                        shelves={allShelves}
                         loading={shelvesLoading}
                         type={filter}
                     />
