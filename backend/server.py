@@ -1610,11 +1610,30 @@ async def upcoming_episodes(body: Dict[str, Any] = Body(...)):
 # Adult flag is force-excluded.  The result is a curated, predictable set of
 # shelves and heroes that the parent can hand to a child with confidence.
 
-KIDS_TV_NETWORKS = "13,44,56,2697,3919,4674"  # Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr
+KIDS_TV_NETWORKS = "13|44|56|2697|3919|4674"  # Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr (OR-joined per TMDB syntax)
 KIDS_MOVIE_CERTS = "G|PG"
 KIDS_MOVIE_GENRES = "10751,16"  # Family, Animation
 KIDS_FAMILY_GENRE = "10751"      # Family alone
 KIDS_ANIMATION_GENRE = "16"      # Animation alone
+
+# v2.8.11 — TV shows lack a /discover-time certification filter, so the
+# previous Family-genre gate let adult animations through (South Park,
+# Rick & Morty, Family Guy, BoJack Horseman are all tagged "Animation"
+# on TMDB).  We now hardcode the EXACT allowed US content_ratings per
+# tier and post-filter every TV result against TMDB's
+# /tv/{id}/content_ratings endpoint.  Shows missing a US rating are
+# excluded at strict tiers (TV-Y, TV-Y7, TV-G).
+TV_ALLOWED_RATINGS = {
+    "TV-Y":  {"TV-Y"},
+    "TV-Y7": {"TV-Y", "TV-Y7"},
+    "TV-G":  {"TV-Y", "TV-Y7", "TV-G"},
+    "TV-PG": {"TV-Y", "TV-Y7", "TV-G", "TV-PG"},
+    "TV-14": {"TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14"},
+    "M15":   None,  # M15 = no cert gate (only banned-genre filter)
+}
+# Strict tiers REQUIRE a known US rating.  Higher tiers accept
+# unrated shows on faith (they've already passed the genre gate).
+TV_STRICT_TIERS = {"TV-Y", "TV-Y7", "TV-G"}
 
 
 # ---------------------------------------------------------------------------
@@ -1652,11 +1671,19 @@ MOVIE_REQUIRED = {
 }
 
 # TV strictness: TMDB doesn't accept certification for /discover/tv,
-# so we encode the level by combining genre + language + network rules.
+# so we encode the level by combining genre + network + language rules
+# at the discover layer, THEN post-filter against /tv/{id}/content_ratings
+# to enforce the actual US TV-Y / TV-Y7 / TV-G / TV-PG ceiling — which
+# is the ONLY way to stop adult animations (Family Guy, Rick & Morty)
+# that are tagged Family+Animation on TMDB from leaking through.
 TV_LEVEL_PARAMS = {
-    "TV-Y":   {"with_genres": "10751,16", "with_original_language": "en"},
-    "TV-Y7":  {"with_genres": "10751,16", "with_original_language": "en"},
-    "TV-G":   {"with_genres": "10751,16", "with_original_language": "en"},
+    # Tiny tots — must come from a known kids network (Nick Jr, Disney
+    # Jr, Cartoon Network, Disney Channel/+, Nick).  Combined with
+    # Animation+Family and the TV-Y content-rating post-filter, this is
+    # iron-clad — no adult cartoon survives.
+    "TV-Y":   {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
+    "TV-Y7":  {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
+    "TV-G":   {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
     "TV-PG":  {"with_genres": "10751",    "with_original_language": "en"},
     "TV-14":  {"with_genres": "10751"},
     "M15":    {},   # no enforced family gate; only banned-genre filter
@@ -1711,6 +1738,56 @@ def _shape_tmdb_item(item: Dict[str, Any], media: str) -> Optional[Dict[str, Any
     }
 
 
+async def _tmdb_tv_us_rating(tv_id: int) -> Optional[str]:
+    """Returns the US `content_rating` string for a TV show, or None
+    if TMDB has no US classification on file.  Cached aggressively
+    (24h) since TV ratings essentially never change."""
+    if tv_id is None:
+        return None
+    cache_key = f"tmdb_tv_us_rating:{tv_id}"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return cached if cached != "__NONE__" else None
+    data = await _tmdb_get(f"/tv/{tv_id}/content_ratings", {})
+    rating: Optional[str] = None
+    for r in (data or {}).get("results") or []:
+        if r.get("iso_3166_1") == "US":
+            rating = (r.get("rating") or "").upper().strip() or None
+            break
+    await cache.set(cache_key, rating or "__NONE__", 24 * 3600)
+    return rating
+
+
+async def _filter_tv_by_us_rating(
+    items: List[Dict[str, Any]],
+    tv_level: str,
+) -> List[Dict[str, Any]]:
+    """v2.8.11 — Hard post-filter: keep ONLY TV shows whose US
+    content rating is within the allowed ceiling for this tier.
+    This is what stops adult-animation leaks the genre/network
+    gate alone can't catch.  Runs in parallel for throughput."""
+    allowed = TV_ALLOWED_RATINGS.get(tv_level)
+    if allowed is None:  # M15 — no cert gate
+        return items
+    strict = tv_level in TV_STRICT_TIERS
+    ratings = await asyncio.gather(
+        *[_tmdb_tv_us_rating(it.get("tmdb_id")) for it in items],
+        return_exceptions=True,
+    )
+    out: List[Dict[str, Any]] = []
+    for it, r in zip(items, ratings):
+        rating = r if isinstance(r, str) else None
+        if rating is None:
+            # Unrated shows are allowed only at TV-PG and above.
+            if strict:
+                continue
+            out.append(it)
+            continue
+        if rating in allowed:
+            out.append(it)
+    return out
+
+
 async def _tmdb_discover_kids(
     media: str,
     *,
@@ -1749,6 +1826,12 @@ async def _tmdb_discover_kids(
         shaped = _shape_tmdb_item(it, media)
         if shaped:
             out.append(shaped)
+    # v2.8.11 — TV-specific post-filter against US content_ratings to
+    # catch adult animations (South Park, Rick & Morty, Family Guy)
+    # that are tagged Animation/Family on TMDB and survive the
+    # /discover gate.
+    if media == "tv":
+        out = await _filter_tv_by_us_rating(out, tv_level)
     return out
 
 
@@ -1765,7 +1848,7 @@ async def tmdb_kids_shelves(
     """
     movie_cert = _resolve_movie_level(movie_cert)
     tv_level = _resolve_tv_level(tv_level)
-    cache_key = f"tmdb_kids_shelves:v6:{movie_cert}:{tv_level}"
+    cache_key = f"tmdb_kids_shelves:v7:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1847,7 +1930,7 @@ async def tmdb_kids_search(
     if not q:
         return {"data": []}
 
-    cache_key = f"kids_search:{q.lower()}:{movie_cert}:{tv_level}"
+    cache_key = f"kids_search:v2:{q.lower()}:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"data": cached}
@@ -1944,6 +2027,10 @@ async def tmdb_kids_search(
     # latency reasonable on shaky kid-friendly connections).
     verified = await asyncio.gather(*[cert_ok(m) for m in movie_candidates[:60]])
     movie_out = [m for m in verified if m]
+
+    # v2.8.11 — Apply the same hard TV-rating gate to search results
+    # so adult animations can't sneak in via a name lookup.
+    tv_out = await _filter_tv_by_us_rating(tv_out, tv_level)
 
     out = movie_out + tv_out
     await cache.set(cache_key, out, 6 * 3600)

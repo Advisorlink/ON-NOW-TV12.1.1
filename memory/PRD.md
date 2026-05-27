@@ -1,6 +1,35 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.10 — App Store: fullscreen background + perfect-fit hero banner** (Feb 27, 2026)
+> Latest: **v2.8.11 — Kids TV: hard content-rating gate (zero adult-cartoon leaks)** (Feb 27, 2026)
+>
+> Direct response to "adult cartoon TV shows still showing on the home screen" + "need really specific tiers for tiny tots".
+>
+> **Root cause.**  TMDB's `/discover/tv` endpoint has no certification filter (unlike `/discover/movie` which accepts `certification.lte`).  Our old TV gate relied on a Family+Animation genre filter to keep adult shows out — but TMDB tags `Family Guy`, `Rick and Morty`, `South Park`, `BoJack Horseman`, etc. with Animation (and sometimes Family), so they passed straight through the discover filter and onto the Kids home screen.
+>
+> **Fix — three hardening layers:**
+>
+> 1. **Networks gate at tiny-tot tiers.**  `TV_LEVEL_PARAMS["TV-Y"]`, `["TV-Y7"]`, `["TV-G"]` now require `with_networks=13|44|56|2697|3919|4674` (Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr).  These networks essentially don't publish adult content, so the discover candidate pool is already curated before any post-filter runs.
+> 2. **Content-rating post-filter on EVERY TV result** via the new `_filter_tv_by_us_rating()` helper.  Calls TMDB's `/tv/{id}/content_ratings` (cached 24h per show), reads the `US` entry, and keeps the show ONLY if its US rating ∈ the tier's allowed set:
+>     - TV-Y → {TV-Y}
+>     - TV-Y7 → {TV-Y, TV-Y7}
+>     - TV-G → {TV-Y, TV-Y7, TV-G}
+>     - TV-PG → {TV-Y, TV-Y7, TV-G, TV-PG}
+>     - TV-14 → {TV-Y, TV-Y7, TV-G, TV-PG, TV-14}
+>     - M15 → no cert gate
+>     Shows missing a US rating get dropped at the strict tiers (TV-Y / TV-Y7 / TV-G) but kept at the higher tiers (TV-PG+).
+> 3. **Applied to BOTH shelves and search** (`/api/tmdb/kids/shelves` AND `/api/tmdb/kids/search`) so adult content can't sneak in via a search lookup either.
+>
+> **Clearer Kids Setup tier labels.**  `TV-Y → "Tiny tots (1-3 yrs)"`, `TV-Y7 → "Little ones (4-7 yrs)"`, etc., so parents instantly know which tier suits their child's age.
+>
+> **Cache version bumps.**  Backend shelves cache → v7, search cache → v2, frontend localStorage cache → v6 — so the old polluted results are evicted on next load.
+>
+> **Verified end-to-end via curl:**
+> - **TV-Y (tiny tots):** 12 shelves returned, top titles are Blue's Clues, Bubble Guppies, Wow! Wow! Wubbzy!, New Looney Tunes — zero adult-cartoon leaks.
+> - **TV-PG:** 196 TV shows returned, top titles Phineas and Ferb, Teen Titans Go!, The Fairly OddParents — zero leaks for Family Guy / Rick & Morty / South Park / BoJack / Big Mouth / American Dad / Archer.
+>
+> Files touched (3): `backend/server.py`, `frontend/src/hooks/useKidsShelves.js`, `frontend/src/pages/KidsSetup.jsx`.
+>
+> Previous: **v2.8.10 — App Store: fullscreen background + perfect-fit hero banner** (Feb 27, 2026)
 >
 > Two coupled additions that close the user's "the banner doesn't fit perfectly and I need a background too" feedback.
 >

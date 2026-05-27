@@ -27,8 +27,8 @@ const MOVIE_RATINGS = [
     { v: 'PG-13', label: 'PG-13 — Older kids' },
 ];
 const TV_RATINGS = [
-    { v: 'TV-Y',  label: 'TV-Y — Little ones' },
-    { v: 'TV-Y7', label: 'TV-Y7 — Older kids' },
+    { v: 'TV-Y',  label: 'TV-Y — Tiny tots (1-3 yrs)' },
+    { v: 'TV-Y7', label: 'TV-Y7 — Little ones (4-7 yrs)' },
     { v: 'TV-G',  label: 'TV-G — All ages' },
     { v: 'TV-PG', label: 'TV-PG — Parental Guidance' },
 ];

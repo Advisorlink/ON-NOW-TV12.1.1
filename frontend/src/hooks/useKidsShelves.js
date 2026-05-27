@@ -12,7 +12,7 @@ import { getKidsConfig } from '@/lib/profiles';
 const TTL_MS = 30 * 60 * 1000;
 
 function keyFor(cfg) {
-    return `kids:shelves:v5:${cfg.maxRatingMovie}:${cfg.maxRatingSeries}`;
+    return `kids:shelves:v6:${cfg.maxRatingMovie}:${cfg.maxRatingSeries}`;
 }
 
 export function useKidsShelves() {
