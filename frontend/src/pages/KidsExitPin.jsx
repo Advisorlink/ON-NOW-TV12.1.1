@@ -46,6 +46,18 @@ export default function KidsExitPin() {
     const tryUnlock = (entered) => {
         if (entered === cfg.pin) {
             clearActiveProfile();
+            // v2.8.13 — Per user spec: after a correct PIN the user
+            // should be RETURNED TO THE LAUNCHER, not bounce around
+            // inside Vesper looking for an exit.  Call the native
+            // bridge to finish() the Vesper Activity.  If the
+            // bridge isn't available (web-only test / preview),
+            // fall back to the profile picker route.
+            try {
+                if (window.OnNowTV && typeof window.OnNowTV.exitVesperToLauncher === 'function') {
+                    window.OnNowTV.exitVesperToLauncher();
+                    return;
+                }
+            } catch { /* ignore — bridge unavailable */ }
             navigate('/profiles');
         } else {
             setError('Incorrect PIN. Try again.');

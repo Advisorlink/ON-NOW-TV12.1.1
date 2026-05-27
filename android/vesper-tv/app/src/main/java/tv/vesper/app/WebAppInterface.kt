@@ -924,4 +924,42 @@ class WebAppInterface(private val activity: Activity) {
             }
         }
     }
+
+    /**
+     * v2.8.13 — Called from KidsExitPin.jsx the moment the parent
+     * enters the correct PIN.  Stops Lock Task Mode if we entered
+     * it, then finishes the Vesper Activity → Android returns to
+     * the previous app (the Launcher).  No more "press Back five
+     * times to get out of Kids".
+     */
+    @JavascriptInterface
+    fun exitVesperToLauncher() {
+        activity.runOnUiThread {
+            try {
+                // If we're in Lock Task Mode (screen pinning), exit
+                // first.  stopLockTask() is a no-op if not pinned.
+                @Suppress("DEPRECATION")
+                activity.stopLockTask()
+            } catch (_: Throwable) { /* not pinned — ignore */ }
+            activity.finish()
+        }
+    }
+
+    /**
+     * v2.8.13 — Called from KidsHome the moment Kids mode becomes
+     * active.  Pins the Vesper Activity so the system HOME / RECENTS
+     * keys can NOT navigate away until exitVesperToLauncher() (i.e.
+     * correct PIN) is called.  Android shows a one-time system
+     * prompt on the first activation; users tap "Got it" once and
+     * it never appears again.  Silent no-op on devices that don't
+     * support pinning.
+     */
+    @JavascriptInterface
+    fun enterKidsKioskMode() {
+        activity.runOnUiThread {
+            try {
+                activity.startLockTask()
+            } catch (_: Throwable) { /* not supported — ignore */ }
+        }
+    }
 }

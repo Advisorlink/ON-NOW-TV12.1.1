@@ -1611,6 +1611,13 @@ async def upcoming_episodes(body: Dict[str, Any] = Body(...)):
 # shelves and heroes that the parent can hand to a child with confidence.
 
 KIDS_TV_NETWORKS = "13|44|56|2697|3919|4674"  # Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr (OR-joined per TMDB syntax)
+# v2.8.13 — Strictest preschool-only networks for the BABIES tier.
+# Excludes Cartoon Network, Nick proper, and Disney Channel proper
+# (which mix preschool with older-kid action shows like
+# "Aaahh!!! Real Monsters") — keeps ONLY Nick Jr, Disney Jr, and
+# PBS Kids equivalents.  Result: Bubble Guppies, Blue's Clues,
+# Doc McStuffins, Peppa Pig — actual baby/toddler content.
+KIDS_PRESCHOOL_NETWORKS = "2697|3919|14"  # Disney Jr, Nick Jr, PBS
 KIDS_MOVIE_CERTS = "G|PG"
 KIDS_MOVIE_GENRES = "10751,16"  # Family, Animation
 KIDS_FAMILY_GENRE = "10751"      # Family alone
@@ -1681,11 +1688,17 @@ MOVIE_REQUIRED = {
 # is the ONLY way to stop adult animations (Family Guy, Rick & Morty)
 # that are tagged Family+Animation on TMDB from leaking through.
 TV_LEVEL_PARAMS = {
-    # Tiny tots — must come from a known kids network (Nick Jr, Disney
-    # Jr, Cartoon Network, Disney Channel/+, Nick).  Combined with
-    # Animation+Family and the TV-Y content-rating post-filter, this is
-    # iron-clad — no adult cartoon survives.
-    "TV-Y":   {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
+    # v2.8.13 — Babies tier: STRICT preschool networks ONLY.  Nick Jr,
+    # Disney Jr, PBS Kids only — excludes Nick proper / Cartoon Network
+    # / Disney Channel proper (which mix preschool with older-kid
+    # action that's not appropriate for toddlers, e.g. "Aaahh!!! Real
+    # Monsters", "Looney Tunes").  Combined with the TV-Y content-
+    # rating post-filter this is iron-clad — only true baby content
+    # (Bubble Guppies, Blue's Clues, Doc McStuffins) survives.
+    "TV-Y":   {"with_genres": "10751,16", "with_networks": KIDS_PRESCHOOL_NETWORKS, "with_original_language": "en"},
+    # Older preschool / early elementary — opens up the broader kids
+    # networks (Disney Channel, Nick) but the TV-Y7 content-rating
+    # post-filter still blocks action+violence cartoons.
     "TV-Y7":  {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
     "TV-G":   {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
     "TV-PG":  {"with_genres": "10751",    "with_original_language": "en"},
@@ -1709,6 +1722,39 @@ def _resolve_movie_level(cert: Optional[str]) -> str:
 
 def _resolve_tv_level(level: Optional[str]) -> str:
     return level if level in TV_LEVEL_PARAMS else "TV-PG"
+
+
+# v2.8.13 — Per user spec: "if we're showing Babies, we wouldn't be
+# showing The Lion King".  The TV tier IMPLICITLY upper-bounds the
+# movie tier so a parent who picks TV-Y can't accidentally let
+# movies stay at PG-13.  This mapping is applied INSIDE the kids
+# shelves/search endpoints — the user's saved `maxRatingMovie`
+# setting is still respected as long as it's not stricter than this
+# cap.  If their TV tier implies a stricter cap, the cap wins.
+TV_TO_MOVIE_CAP = {
+    "TV-Y":   "G",      # babies: G movies only
+    "TV-Y7":  "G",      # little ones: G movies only (Lion King has Mufasa's death)
+    "TV-G":   "PG",     # kids: G + PG
+    "TV-PG":  "PG",     # family: G + PG (parental guidance baseline)
+    "TV-14":  "PG-13",  # tweens: up to PG-13
+    "M15":    "M15",    # teens: up to M15 (everything we expose)
+}
+
+# Movie tier ordering — used to compute the EFFECTIVE cap when the
+# user's chosen movie cert is more permissive than the TV-implied cap.
+_MOVIE_ORDER = ["G", "PG", "M", "PG-13", "M15"]
+
+
+def _effective_movie_cap(movie_cert: str, tv_level: str) -> str:
+    """v2.8.13 — Return the STRICTER of the user's chosen movie tier
+    and the TV tier's implicit cap.  Ensures Lion King can't slip
+    into a Babies session even if the user left maxRatingMovie at
+    PG-13."""
+    user = movie_cert if movie_cert in _MOVIE_ORDER else "PG"
+    tv_cap = TV_TO_MOVIE_CAP.get(tv_level, "M15")
+    user_rank = _MOVIE_ORDER.index(user)
+    cap_rank = _MOVIE_ORDER.index(tv_cap) if tv_cap in _MOVIE_ORDER else 4
+    return _MOVIE_ORDER[min(user_rank, cap_rank)]
 
 
 
@@ -1852,7 +1898,10 @@ async def tmdb_kids_shelves(
     """
     movie_cert = _resolve_movie_level(movie_cert)
     tv_level = _resolve_tv_level(tv_level)
-    cache_key = f"tmdb_kids_shelves:v7:{movie_cert}:{tv_level}"
+    # v2.8.13 — Cap the effective movie cert by the TV tier so the
+    # Babies pick can't accidentally surface PG-13 movies.
+    movie_cert = _effective_movie_cap(movie_cert, tv_level)
+    cache_key = f"tmdb_kids_shelves:v8:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1910,6 +1959,15 @@ async def tmdb_kids_shelves(
         r for r in results
         if isinstance(r, dict) and r.get("items")
     ]
+
+    # v2.8.13 — At the Babies tier (TV-Y) the user explicitly does
+    # NOT want movies on the Home screen ("if we're showing Babies
+    # we wouldn't be showing The Lion King").  Babies watch short
+    # preschool episodes, not feature films.  Drop ALL movie
+    # shelves at this tier — the Movies tab can still surface
+    # G-rated content if the parent navigates there directly.
+    if tv_level == "TV-Y":
+        out = [s for s in out if s.get("type") != "movie"]
     await cache.set(cache_key, out, 6 * 3600)
     return {"cached": False, "data": out}
 
@@ -1930,11 +1988,13 @@ async def tmdb_kids_search(
     """
     movie_cert = _resolve_movie_level(movie_cert)
     tv_level = _resolve_tv_level(tv_level)
+    # v2.8.13 — Same TV→movie cap as the shelves endpoint.
+    movie_cert = _effective_movie_cap(movie_cert, tv_level)
     q = q.strip()
     if not q:
         return {"data": []}
 
-    cache_key = f"kids_search:v2:{q.lower()}:{movie_cert}:{tv_level}"
+    cache_key = f"kids_search:v3:{q.lower()}:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"data": cached}

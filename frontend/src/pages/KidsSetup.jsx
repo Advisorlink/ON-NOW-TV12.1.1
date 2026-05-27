@@ -28,10 +28,10 @@ const MOVIE_RATINGS = [
     { v: 'PG-13', label: 'PG-13 — Older kids (13+, US)' },
 ];
 const TV_RATINGS = [
-    { v: 'TV-Y',  label: 'TV-Y — Tiny tots (1-3 yrs)' },
+    { v: 'TV-Y',  label: 'TV-Y — Babies (Nick Jr/Disney Jr only)' },
     { v: 'TV-Y7', label: 'TV-Y7 — Little ones (4-7 yrs)' },
-    { v: 'TV-G',  label: 'TV-G — All ages' },
-    { v: 'TV-PG', label: 'TV-PG — Parental Guidance' },
+    { v: 'TV-G',  label: 'TV-G — Kids (5-9 yrs)' },
+    { v: 'TV-PG', label: 'TV-PG — Family viewing' },
 ];
 
 export default function KidsSetup() {

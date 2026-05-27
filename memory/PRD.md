@@ -1,6 +1,26 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.12 — Movie tier expansion (G/PG/M/PG-13/M15) + admin banner sizing + preview fit-not-crop** (Feb 27, 2026)
+> Latest: **v2.8.13 — Babies tier perfected + Kids exit goes to Launcher + HOME key kiosk-locked** (Feb 27, 2026)
+>
+> Three coupled fixes per direct user spec.
+>
+> **A — Babies tier is now actually for babies.**
+> - **Network gate tightened:** new `KIDS_PRESCHOOL_NETWORKS = "2697|3919|14"` (Disney Jr, Nick Jr, PBS Kids) for the TV-Y tier — excludes Nick proper, Cartoon Network, and Disney Channel proper (which mix preschool with older-kid action like "Aaahh!!! Real Monsters").  TV-Y7+ still get the full kids-network set.
+> - **Movie tier cascade:** new `TV_TO_MOVIE_CAP` table + `_effective_movie_cap()` so the TV tier implicitly caps the movie tier (TV-Y → G-only, TV-Y7 → G-only, TV-G → PG, TV-PG → PG, etc.).  Even if the parent left `maxRatingMovie` at PG-13, picking Babies (TV-Y) now caps movies to G.
+> - **Movie shelves hidden entirely at TV-Y tier.**  Per user spec: "If we're showing Babies, we wouldn't be showing The Lion King" — Lion King is G-rated but has Mufasa's death scene that's not baby-appropriate.  Babies watch preschool TV episodes, not feature films.  Movie shelves are still surfaced if the parent navigates directly to the Movies tab.
+> - **Verified end-to-end via curl:** TV-Y returns Curious George / Wild Kratts / Arthur exclusively, 0 movies, 0 Lion King, 0 Real Monsters, 0 Looney Tunes.
+>
+> **B — Kids exit-PIN returns to the Launcher, not the Vesper profile picker.**
+> - Added JS bridge `OnNowTV.exitVesperToLauncher()` that calls `Activity.stopLockTask()` then `Activity.finish()`.  Android returns to the previous task (the Launcher).  No more "Back, Back, Back, Back" to escape Kids — one correct PIN entry takes the parent straight back to the home screen.  Falls back to React Router `/profiles` route in the web preview.
+>
+> **C — Hardware HOME / RECENTS keys now require the PIN.**
+> - Added JS bridge `OnNowTV.enterKidsKioskMode()` that calls `Activity.startLockTask()`.  Triggered automatically on `KidsHome` mount whenever a PIN is configured.  Android shows a one-time system "Pin this app?" confirmation; after the parent taps "Got it" once, all subsequent Kids sessions are silently pinned.  HOME / RECENTS / status-bar pull-down all blocked while pinned.  Exit is gated through the PIN flow which calls `stopLockTask()`.
+>
+> **One critical clarification for the user:** the Vesper APK on his HK1 box bundles the React build at `file:///android_asset/web/`.  So all frontend tier-label changes (M tier, Babies labels) require pushing to GitHub → CI rebuilds the Vesper APK → reinstall.  The backend changes (filter strictness, post-filter, cascade caps) are live the moment his VPS pulls the new code.
+>
+> Files touched (6): `backend/server.py`, `frontend/src/hooks/useKidsShelves.js`, `frontend/src/pages/KidsSetup.jsx`, `frontend/src/pages/KidsExitPin.jsx`, `frontend/src/pages/KidsHome.jsx`, `android/vesper-tv/.../WebAppInterface.kt`.  Cache versions bumped (`tmdb_kids_shelves:v8`, `kids_search:v3`, `kids:shelves:v7`).
+>
+> Previous: **v2.8.12 — Movie tier expansion (G/PG/M/PG-13/M15) + admin banner sizing + preview fit-not-crop** (Feb 27, 2026)
 >
 > Three coupled fixes per the user's "confirm tier coverage + the banner zooms instead of fits + background not loading" feedback.
 >

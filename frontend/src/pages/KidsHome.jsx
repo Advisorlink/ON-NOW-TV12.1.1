@@ -32,6 +32,25 @@ export default function KidsHome() {
     useHomeBackHandler('kids-home');
     useKidsBackGuard();
 
+    /* v2.8.13 — Kiosk-mode lock: as soon as Kids is active AND a
+       PIN is configured, ask the native bridge to start Lock Task
+       Mode.  This blocks the hardware HOME / RECENTS buttons —
+       Android will refuse to switch apps until our exit-PIN flow
+       calls `exitVesperToLauncher()`.  Silent no-op on the web
+       preview or on devices that don't support pinning.
+       Per user spec: "when you push the home button … if you're
+       in the Kids section, it shouldn't work". */
+    useEffect(() => {
+        const cfg = getKidsConfig();
+        const pinConfigured = !!(cfg.pin && cfg.pin.length === 4);
+        if (!pinConfigured) return;
+        try {
+            if (window.OnNowTV && typeof window.OnNowTV.enterKidsKioskMode === 'function') {
+                window.OnNowTV.enterKidsKioskMode();
+            }
+        } catch { /* ignore */ }
+    }, []);
+
     const filter = new URLSearchParams(location.search).get('filter');
 
     // Live-track the kids settings so toggling "TV Shows only" or
