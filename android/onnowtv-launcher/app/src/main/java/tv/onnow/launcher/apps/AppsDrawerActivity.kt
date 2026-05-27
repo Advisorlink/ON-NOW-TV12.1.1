@@ -42,9 +42,12 @@ import tv.onnow.launcher.install.ApkInstaller
  *     NO package id, NO version, NO star rating.
  *   • Status-aware action button at the bottom of each tile:
  *       – NOT installed → blue "Install" — tap to install.
- *       – Installed     → green "Installed" — tap to switch to red
- *                          "Uninstall" mode → tap again to fire
- *                          Android's uninstall intent.
+ *       – Installed     → red "Uninstall" — single tap fires the
+ *                          system uninstaller directly.  An
+ *                          "INSTALLED" pill badge in the icon's
+ *                          top-right corner shows the state at a
+ *                          glance.  After the uninstall completes,
+ *                          the tile flips straight back to "Install".
  *   • Install state refreshes on every `onResume()` so after a
  *     user installs/uninstalls and returns, the tile updates.
  *
@@ -431,8 +434,7 @@ private class AppsAdapter(
      *  data-set change.  Also used to mark download-in-progress
      *  tiles via the `downloading` map.
      */
-    private enum class BtnMode { INSTALL, INSTALLED, UNINSTALL, DOWNLOADING }
-    private val pendingUninstall = mutableSetOf<String>()
+    private enum class BtnMode { INSTALL, UNINSTALL, DOWNLOADING }
     private val downloading      = mutableMapOf<String, Int>() // id → 0..100
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppCardVH {
@@ -487,6 +489,33 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         ).apply { gravity = Gravity.CENTER })
+
+        /* v2.8.6 — "Installed" status pill, anchored to the top-right
+           corner of the icon.  Visible whenever the app is installed
+           on the device so the user can SEE the state without
+           reading the button text.  Toggled in onBindViewHolder. */
+        val installedBadge = TextView(ctx).apply {
+            text = "INSTALLED"
+            textSize = 8.5f
+            setTypeface(typeface, Typeface.BOLD)
+            letterSpacing = 0.10f
+            setTextColor(Color.parseColor("#FF04060B"))
+            gravity = Gravity.CENTER
+            setPadding(px(7), px(3), px(7), px(3))
+            background = GradientDrawable().apply {
+                cornerRadius = px(8).toFloat()
+                setColor(Color.parseColor("#FF2EEAC2"))
+            }
+            visibility = View.GONE
+        }
+        iconWrap.addView(installedBadge, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            setMargins(0, px(6), px(6), 0)
+        })
+
         card.addView(iconWrap, LinearLayout.LayoutParams(px(90), px(90)).apply {
             setMargins(0, 0, 0, px(12))
         })
@@ -555,7 +584,7 @@ private class AppsAdapter(
             v.translationZ = if (hasFocus) px(8).toFloat() else 0f
         }
 
-        return AppCardVH(card, iconWrap, icon, initialBadge, nameView, categoryView, actionBtn)
+        return AppCardVH(card, iconWrap, icon, initialBadge, installedBadge, nameView, categoryView, actionBtn)
     }
 
     override fun onBindViewHolder(holder: AppCardVH, position: Int) {
@@ -578,17 +607,22 @@ private class AppsAdapter(
         }
 
         // ── Pick button state ────────────────────────────────────
-        // v2.8.3 — `pendingUninstall` keyed by apk.id so the toggle
-        // state survives any list reorder.  `downloading` shows
-        // immediate progress feedback while the APK is fetching.
+        // v2.8.6 — Per user spec: button under each tile is a single
+        // tap.  Installed apps show UNINSTALL directly (no two-tap
+        // toggle).  An "Installed" badge on the icon corner makes
+        // the state legible at a glance — exactly the mockup the
+        // user described.
         val installed = isInstalled(apk.packageId)
         val dl = downloading[apk.id]
         val mode: BtnMode = when {
-            dl != null                                       -> BtnMode.DOWNLOADING
-            !installed                                       -> BtnMode.INSTALL
-            installed && pendingUninstall.contains(apk.id)   -> BtnMode.UNINSTALL
-            else                                             -> BtnMode.INSTALLED
+            dl != null -> BtnMode.DOWNLOADING
+            installed  -> BtnMode.UNINSTALL
+            else       -> BtnMode.INSTALL
         }
+        // Show the small "INSTALLED" pill in the icon corner only
+        // when the app is installed AND not currently downloading.
+        holder.installedBadge.visibility =
+            if (installed && dl == null) View.VISIBLE else View.GONE
         applyButtonMode(holder.actionBtn, mode, px(22), dl)
 
         val clickHandler = clickHandler@{
@@ -601,10 +635,10 @@ private class AppsAdapter(
                     notifyItemChanged(holder.bindingAdapterPosition)
                     onInstall(apk)
                 }
-                BtnMode.INSTALLED -> {
-                    // Only allow the uninstall toggle if we actually
-                    // know the package id — otherwise pressing
-                    // "Uninstall" would do nothing and confuse the user.
+                BtnMode.UNINSTALL -> {
+                    // Only fire if we actually have a package id —
+                    // otherwise the system uninstaller has nothing
+                    // to target and we'd silently do nothing.
                     if (apk.packageId.isNullOrBlank()) {
                         android.widget.Toast.makeText(
                             ctx, "Package id missing — set it in the admin.",
@@ -612,11 +646,6 @@ private class AppsAdapter(
                         ).show()
                         return@clickHandler
                     }
-                    pendingUninstall.add(apk.id)
-                    notifyItemChanged(holder.bindingAdapterPosition)
-                }
-                BtnMode.UNINSTALL -> {
-                    pendingUninstall.remove(apk.id)
                     onUninstall(apk)
                 }
                 BtnMode.DOWNLOADING -> { /* no-op while downloading */ }
@@ -649,8 +678,6 @@ private class AppsAdapter(
         val (label, bg, fg) = when (mode) {
             BtnMode.INSTALL ->
                 Triple("Install", "#FF2BB6FF", "#FF04060B")
-            BtnMode.INSTALLED ->
-                Triple("✓ Installed", "#FF2EEAC2", "#FF04060B")
             BtnMode.UNINSTALL ->
                 Triple("Uninstall", "#FFFF5573", "#FFFFFFFF")
             BtnMode.DOWNLOADING ->
@@ -671,11 +698,12 @@ private class AppsAdapter(
 }
 
 private class AppCardVH(
-    val card:         LinearLayout,
-    val iconWrap:     FrameLayout,
-    val icon:         ImageView,
-    val initialBadge: TextView,
-    val nameView:     TextView,
-    val categoryView: TextView,
-    val actionBtn:    TextView,
+    val card:           LinearLayout,
+    val iconWrap:       FrameLayout,
+    val icon:           ImageView,
+    val initialBadge:   TextView,
+    val installedBadge: TextView,
+    val nameView:       TextView,
+    val categoryView:   TextView,
+    val actionBtn:      TextView,
 ) : RecyclerView.ViewHolder(card)

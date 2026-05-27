@@ -1,5 +1,5 @@
 {
-  "generation": 293,
+  "generation": 296,
   "dock_tiles": [
     {
       "key": "movies",
@@ -130,16 +130,6 @@
       "apk_url": "/assets/apks/805ff31cef8b_SportsTvGuide-debug.apk",
       "description": null,
       "added_at": 1779807408
-    },
-    {
-      "id": "916656ec098c",
-      "name": "ON NOW TV V2",
-      "package_id": "tv.onnowtv.app",
-      "version_name": "2.7.96",
-      "icon_url": "/assets/apk_icons/916656ec098c.png",
-      "apk_url": "/assets/apks/916656ec098c_onnowtv-v2-debug (4).apk",
-      "description": null,
-      "added_at": 1779846735
     },
     {
       "id": "087f1e127976",
@@ -316,8 +306,8 @@
     },
     "08a56080-8743-4c82-806f-ad60aec59f51": {
       "device_id": "08a56080-8743-4c82-806f-ad60aec59f51",
-      "last_seen": 1779850662,
-      "last_generation": 293
+      "last_seen": 1779850961,
+      "last_generation": 295
     }
   },
   "layout": {
@@ -6653,7 +6643,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779849008,
-      "last_seen_at": 1779850655,
+      "last_seen_at": 1779850958,
       "last_ip": "34.160.159.238"
     }
   },

@@ -1,6 +1,14 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.5 — Cold-boot always shows profile picker + Kids first-tile focus + CI build fix** (Feb 27, 2026)
+> Latest: **v2.8.6 — Launcher App Store: single-tap Uninstall + Installed badge on icon** (Feb 27, 2026)
+>
+> Per direct user spec — the App Store tile UX is now a single-tap UNINSTALL.
+> 1. **Installed apps show the red "Uninstall" button directly under the tile** (no more two-tap "Installed → Uninstall" toggle).  One press fires `PackageInstaller.uninstall(pkg, sender)` → Android's mandatory system confirm sheet → real OS-level uninstall.
+> 2. **Green "INSTALLED" pill badge** anchored to the top-right corner of the icon container makes the state visible at a glance, independent of the button.  Hidden while a download is in flight.
+> 3. **Post-uninstall refresh**: the `UNINSTALL_RESULT` broadcast receiver picks up `STATUS_SUCCESS` and calls `notifyDataSetChanged()`, which re-runs `isPackageInstalled(pkg)` → tile flips back to blue "Install" + badge disappears.  `onResume()` also re-syncs on return from the system uninstaller in case the receiver is missed on older boxes.
+> 4. **File touched (1):** `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/apps/AppsDrawerActivity.kt`.  `BtnMode.INSTALLED` enum value + `pendingUninstall` set removed; mode resolver now resolves directly `installed → UNINSTALL`, `else → INSTALL`.  `REQUEST_DELETE_PACKAGES` already in manifest from v2.8.5.
+>
+> Previous: **v2.8.5 — Cold-boot always shows profile picker + Kids first-tile focus + CI build fix** (Feb 27, 2026)
 >
 > Three surgical fixes per direct user spec.
 > 1. **`isRatingAllowed` export added to `/lib/profiles.js`** — Detail.jsx imports it at line 27.  Missing export was breaking the GitHub Actions React production build (`craco build` → "Attempted import error").  Verified `yarn build` exits 0.
