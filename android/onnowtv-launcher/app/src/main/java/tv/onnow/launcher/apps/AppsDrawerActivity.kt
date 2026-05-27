@@ -60,7 +60,6 @@ class AppsDrawerActivity : AppCompatActivity() {
     private lateinit var repo: LauncherRepository
     private lateinit var grid: RecyclerView
     private lateinit var emptyHint: TextView
-    private lateinit var heroImage: ImageView
     private lateinit var backgroundImage: ImageView
     private var loadJob: Job? = null
     private var currentApks: List<ApkEntryRemote> = emptyList()
@@ -111,58 +110,14 @@ class AppsDrawerActivity : AppCompatActivity() {
             isFocusable = false
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
-        /* v2.8.14 — Outer column has NO horizontal padding so the
-           hero banner can go full screen-width (1920px on a 1080p
-           TV) — per direct user spec: "if I'm putting in the exact
-           dimensions, it needs to fill the whole page".  The apps
-           grid sits in an INNER padded column below the hero. */
-        val outerColumn = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            // Top padding only — left/right are 0 so the hero is
-            // edge-to-edge.  Bottom padding goes on the inner column.
-            setPadding(0, dp(40), 0, 0)
-        }
+        /* v2.8.16 — Per direct user spec: the hero banner has been
+           REMOVED entirely.  Only the fullscreen 1920×1080 background
+           wallpaper remains as the admin's customisable image.  The
+           apps grid sits in the same padded column it was always in. */
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(48), 0, dp(48), dp(48))
+            setPadding(dp(48), dp(40), dp(48), dp(48))
         }
-
-        /* ── 1. Hero image (admin-uploaded) ──
-           v2.8.14 — Hero is FULL screen-width (edge-to-edge).  The
-           backend pads/fits any upload to exactly 1920×280 px so a
-           user submitting at the recommended dimensions sees a
-           pixel-perfect edge-to-edge fill.  scaleType = FIT_XY
-           because the backend guarantees the source already matches
-           the target — no distortion possible.
-           v2.8.15 — Placeholder background changed from a bright
-           cyan gradient to the LAUNCHER ROOT COLOR (#04060B).  Any
-           transparent padding on the uploaded image now blends
-           invisibly with the rest of the screen — no more "bright
-           blue stripe around the design" effect when the upload
-           aspect doesn't exactly match 1920×280. */
-        heroImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_XY
-            setBackgroundColor(Color.parseColor("#FF04060B"))
-        }
-        // v2.8.15 — Hero height locked to PHYSICAL pixels (NOT dp).
-        // The user's design source is always in pixels — if we used
-        // dp here, a TV reporting density 1.5 or 2.0 would scale the
-        // ImageView to 420 or 560 PHYSICAL pixels tall, and FIT_XY
-        // would stretch the 1920×280 source vertically to fill it
-        // (the "stretched out vertically" complaint).  Locking the
-        // height to literal 280 pixels means a 1920×280 design
-        // always fills the rectangle exactly with no stretch on
-        // any device.  MATCH_PARENT width is already in physical
-        // pixels (always = screen width).
-        val heroHeight = 280  // physical pixels, NOT dp
-        outerColumn.addView(heroImage, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            heroHeight,
-        ).apply { setMargins(0, 0, 0, dp(28)) })
-        outerColumn.addView(column, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ))
 
         /* ── 2. Section eyebrow + title ── */
         val eyebrow = TextView(this).apply {
@@ -213,7 +168,7 @@ class AppsDrawerActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        scroll.addView(outerColumn, ViewGroup.LayoutParams(
+        scroll.addView(column, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
@@ -293,7 +248,6 @@ class AppsDrawerActivity : AppCompatActivity() {
         val cached = repo.config.value ?: repo.loadCached()
         if (cached != null) {
             renderApks(cached.apks)
-            renderHero(cached.appstore.heroImageUrl)
             renderBackground(cached.appstore.backgroundImageUrl)
         }
         loadJob?.cancel()
@@ -301,15 +255,9 @@ class AppsDrawerActivity : AppCompatActivity() {
             val fresh = repo.refresh()
             if (fresh != null) {
                 renderApks(fresh.apks)
-                renderHero(fresh.appstore.heroImageUrl)
                 renderBackground(fresh.appstore.backgroundImageUrl)
             }
         }
-    }
-
-    private fun renderHero(url: String?) {
-        if (url.isNullOrBlank()) return
-        ImageLoader.load(heroImage, url)
     }
 
     private fun renderBackground(url: String?) {

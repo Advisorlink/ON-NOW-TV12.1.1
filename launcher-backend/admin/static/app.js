@@ -1083,13 +1083,10 @@ function renderApks(store) {
     const grid  = $('#appStoreGrid');
     const empty = $('#appStoreEmpty');
     const apks  = store.apks || [];
-    // v2.0 — Mirror the hero image + v2.8.10 background image
-    // set in store.appstore.  Both are independently uploadable.
+    // v2.8.16 — Only the fullscreen background remains as the
+    // admin's customisable App Store image.  Hero banner was
+    // removed per user request.
     const meta = store.appstore || {};
-    syncAppstoreImg(
-        '#appstoreHeroImg', '#appstoreHeroPreview', '#appstoreHeroClear',
-        meta.hero_image_url,
-    );
     syncAppstoreImg(
         '#appstoreBgImg', '#appstoreBgPreview', '#appstoreBgClear',
         meta.background_image_url,
@@ -1188,14 +1185,6 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
 }
 
 (function setupAppstoreDropzones() {
-    setupAppstoreDropzone({
-        zoneSel:   '#appstoreHeroDrop',
-        inputSel:  '#appstoreHeroFile',
-        browseSel: '#appstoreHeroBrowse',
-        clearSel:  '#appstoreHeroClear',
-        endpoint:  '/api/admin/appstore/hero',
-        label:     'Hero banner',
-    });
     setupAppstoreDropzone({
         zoneSel:   '#appstoreBgDrop',
         inputSel:  '#appstoreBgFile',

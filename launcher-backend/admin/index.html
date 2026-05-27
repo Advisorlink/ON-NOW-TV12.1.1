@@ -300,22 +300,9 @@
             <p>Drop an APK below — we'll read the package id, version, name and icon straight from the file.  Click any tile to rename it or swap its artwork.  This is exactly how the App Store will look on the TV.</p>
         </div>
 
-        <!-- Hero banner + Fullscreen background — drag-drop -->
+        <!-- Fullscreen background — drag-drop (1920×1080 wallpaper) -->
         <div class="appstore-hero-section">
-            <!-- Hero (top banner) -->
-            <div id="appstoreHeroPreview" class="appstore-hero-preview">
-                <div class="appstore-hero-placeholder">No hero banner yet — drop one below.</div>
-                <img id="appstoreHeroImg" alt="" hidden>
-                <button id="appstoreHeroClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
-            </div>
-            <div id="appstoreHeroDrop" class="appstore-hero-drop">
-                <input type="file" id="appstoreHeroFile" accept="image/png,image/jpeg,image/webp" hidden>
-                <span><strong>Drop hero banner</strong> · or <button id="appstoreHeroBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Rendered rectangle on TV: <strong>1920 × 280 px (edge-to-edge full screen width)</strong>.  Design at this exact size for a pixel-perfect fill, or upload any aspect — we'll auto-fit and pad to the exact rectangle.</span>
-            </div>
-
-            <!-- Background (fullscreen) -->
-            <div id="appstoreBgPreview" class="appstore-hero-preview" style="margin-top:24px;">
+            <div id="appstoreBgPreview" class="appstore-hero-preview">
                 <div class="appstore-hero-placeholder">No background image — drop one below.</div>
                 <img id="appstoreBgImg" alt="" hidden>
                 <button id="appstoreBgClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
@@ -323,7 +310,7 @@
             <div id="appstoreBgDrop" class="appstore-hero-drop">
                 <input type="file" id="appstoreBgFile" accept="image/png,image/jpeg,image/webp" hidden>
                 <span><strong>Drop fullscreen background</strong> · or <button id="appstoreBgBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Rendered fullscreen: <strong>1920 × 1080 px (16:9)</strong>.  Any aspect accepted — image is auto-fit; landscape 16:9 photos work best.</span>
+                Rendered fullscreen: <strong>1920 × 1080 px (16:9)</strong>.  Sits behind all the App Store tiles.  Any aspect accepted — auto-fit; landscape 16:9 photos work best.</span>
             </div>
         </div>
 
