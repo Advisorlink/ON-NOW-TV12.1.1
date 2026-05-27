@@ -1,22 +1,28 @@
 /**
- * <BootSplash/> — full-screen "ON NOW TV 2 is starting" splash
- * shown for the first ~2.5 s of every app session OR until the
- * Instant EPG bundle has been hydrated into localStorage,
- * whichever comes last (capped at ~6 s so a broken backend never
- * leaves the user stranded).
+ * <BootSplash/> — full-screen "ON NOW TV 2 is starting" splash.
  *
- * Uses ON NOW TV V2's neon-blue palette and a soft pulsing logo
- * so it feels intentional rather than a stuck loading screen.
+ * v2.8.0 — REGRESSION FIX.  The splash was blocking the user for
+ * the FULL 6-second hard-cap on every cold boot because:
+ *   1) `instantBundle.js`'s META_KEY was bumped to
+ *      `'onnowtv-instant-bundle-meta-v2'` but this component was
+ *      still reading the old `'onnowtv-instant-bundle-meta'` key,
+ *      so it could never see a cached bundle on remount.
+ *   2) Nothing in the codebase ever calls `bootInstantBundle()`,
+ *      so the `vesper:bundle-ready` event never fires either.
+ *
+ * Net effect: every cold launch ate a 6 s artificial delay before
+ * the user saw Home.  Fix: match the new key AND clamp the hard
+ * cap to 1.5 s so a broken signal NEVER costs the user real time.
  *
  * Closes itself by listening for two signals:
  *   1. `vesper:bundle-ready` window event fired by `App.js` after
  *      `bootInstantBundle()` resolves.
- *   2. Hard cap timer (default 6 s).
+ *   2. Hard cap timer (default 1.5 s).
  */
 import React, { useEffect, useState } from 'react';
 import { Tv2 } from 'lucide-react';
 
-export default function BootSplash({ minDurationMs = 1800, hardCapMs = 6000 }) {
+export default function BootSplash({ minDurationMs = 600, hardCapMs = 1500 }) {
     const [open, setOpen] = useState(true);
     const [bundleReady, setBundleReady] = useState(false);
     const [minElapsed, setMinElapsed] = useState(false);
@@ -32,9 +38,12 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 6000 }) {
          * (e.g. fast localStorage hit), the event has fired
          * already.  Check the meta flag once at mount.  All
          * branches are wrapped in try/catch so a corrupted blob
-         * can NEVER prevent the splash from eventually closing. */
+         * can NEVER prevent the splash from eventually closing.
+         *
+         * v2.8.0 — key is `onnowtv-instant-bundle-meta-v2` (used
+         * to be without the `-v2` suffix; see file header). */
         try {
-            const raw = localStorage.getItem('onnowtv-instant-bundle-meta');
+            const raw = localStorage.getItem('onnowtv-instant-bundle-meta-v2');
             if (!raw) return;
             const parsed = JSON.parse(raw);
             if (

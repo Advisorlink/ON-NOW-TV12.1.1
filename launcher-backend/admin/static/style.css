@@ -1063,6 +1063,39 @@ header nav { display: flex; gap: 8px; align-items: center; }
     margin-top: 4px;
     font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 }
+/* v1.9 — full-length 32-char device id rendered under the name.
+   Allowed to wrap so we never clip; the monospace font keeps it
+   readable.  Sits next to the avatar so the user can clearly tell
+   which device they're acting on. */
+.device-card-id-full {
+    font-size: 10px;
+    color: var(--txt-tertiary);
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    word-break: break-all;
+    line-height: 1.3;
+    user-select: all;          /* one click + Cmd-A → copy */
+}
+.device-card-pills {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    position: relative;
+    margin-top: -4px;
+}
+.device-card-pill {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    padding: 4px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+.device-card-pill.warn {
+    background: rgba(255,189,46,0.16);
+    color: #FFBD2E;
+    border: 1px solid rgba(255,189,46,0.32);
+}
 .device-card-meta {
     display: flex; flex-direction: column; gap: 5px;
     font-size: 13px;

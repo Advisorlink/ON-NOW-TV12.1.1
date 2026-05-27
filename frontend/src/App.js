@@ -55,19 +55,32 @@ if (typeof window !== 'undefined') {
 }
 
 /* Warm the DiceBear avatar HTTP cache on app boot.  Runs once at
-   module load — the 48 character-portrait PNGs (~11 KB each) are
+   module load — the character-portrait PNGs (~11 KB each) are
    fetched in the background so by the time the user opens the
-   Profile picker / wizard every tile is already cached. */
+   Profile picker / wizard every tile is already cached.
+
+   v2.8.0 — DEFERRED to after first paint via requestIdleCallback
+   (falls back to setTimeout 2500 ms).  Was firing 36 simultaneous
+   HTTPS requests to api.dicebear.com at module-load time, which
+   on a slow HK1 box was thrashing the network and starving the
+   initial backend calls — contributing to the slow first-boot. */
 if (typeof window !== 'undefined') {
-    try {
-        AVATARS
-            .filter((a) => a.src && !a.hidden)
-            .forEach((a) => {
-                const img = new Image();
-                img.decoding = 'async';
-                img.src = a.src;
-            });
-    } catch { /* ignore */ }
+    const warmAvatars = () => {
+        try {
+            AVATARS
+                .filter((a) => a.src && !a.hidden)
+                .forEach((a) => {
+                    const img = new Image();
+                    img.decoding = 'async';
+                    img.src = a.src;
+                });
+        } catch { /* ignore */ }
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(warmAvatars, { timeout: 4000 });
+    } else {
+        setTimeout(warmAvatars, 2500);
+    }
 }
 
 /* v2.7.96 — SYNCHRONOUS deep-link profile activation.

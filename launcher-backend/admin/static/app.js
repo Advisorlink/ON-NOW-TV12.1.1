@@ -621,7 +621,17 @@ function deviceCardHtml(dev) {
         ? new Date(dev.last_seen_at * 1000).toLocaleString()
         : '—';
     const status = dev.status || 'pending';
-    const idShort = (dev.id || '').slice(0, 8);
+    // v1.9 — Show the FULL device id verbatim (user request: "please
+    // add all of the device IDs as well").  Long 32-char uppercase
+    // legacy IDs and shorter modern UUIDs both render in a
+    // monospaced, slightly wrapped row.
+    const fullId = dev.id || '';
+    // NOT HK1 chip — shown for any legacy import whose model isn't
+    // exactly "Amlogic HK1 BOX S905X3", so the admin can spot edge
+    // devices at a glance.  Doesn't change behaviour, purely visual.
+    const notHk1Pill = dev.not_hk1
+        ? `<span class="device-card-pill warn">NOT HK1</span>`
+        : '';
     const actions = [
         status !== 'active'  && `<button class="primary" data-act="approve" data-id="${escapeAttr(dev.id)}">Approve</button>`,
         status !== 'blocked' && `<button data-act="block" data-id="${escapeAttr(dev.id)}">Block</button>`,
@@ -634,10 +644,11 @@ function deviceCardHtml(dev) {
                 <div class="device-card-avatar">${escapeAttr(initial)}</div>
                 <div style="min-width:0; flex:1;">
                     <div class="device-card-name">${escapeAttr(dev.name || '(no name)')}</div>
-                    <div class="device-card-id">${escapeAttr(idShort)}…</div>
+                    <div class="device-card-id-full">${escapeAttr(fullId)}</div>
                 </div>
                 <span class="device-card-status ${escapeAttr(status)}">${escapeAttr(status)}</span>
             </div>
+            ${notHk1Pill ? `<div class="device-card-pills">${notHk1Pill}</div>` : ''}
             <div class="device-card-meta">
                 <div><strong>Model</strong> · ${escapeAttr(dev.model || 'Unknown')}</div>
                 <div><strong>Registered</strong> · ${escapeAttr(when)}</div>
@@ -652,6 +663,9 @@ function applyDeviceFilter() {
     const q = ($('#devicesSearch')?.value || '').trim().toLowerCase();
     if (!q) return renderRegisteredDevices(_registeredDevicesCache);
     const filtered = _registeredDevicesCache.filter((d) => {
+        // v1.9 — Match against name + model + status + full id (not
+        // just first 8 chars), so admins can paste a complete legacy
+        // device id from their old roster and find the row instantly.
         const hay = [d.name, d.model, d.status, d.id]
             .filter(Boolean).join(' ').toLowerCase();
         return hay.includes(q);

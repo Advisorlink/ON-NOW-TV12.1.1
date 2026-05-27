@@ -7,6 +7,62 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.0 — URGENT performance fix: 6-second boot stall eliminated
+
+  • **Root cause: BootSplash localStorage key mismatch.**  At some
+    earlier point, `lib/instantBundle.js` bumped its META_KEY from
+    `'onnowtv-instant-bundle-meta'` to
+    `'onnowtv-instant-bundle-meta-v2'`, but `BootSplash.jsx` was
+    still reading the old key.  And separately,
+    `bootInstantBundle()` is defined but never actually invoked
+    anywhere in the codebase — so the `vesper:bundle-ready` event
+    never fires either.  Result: the splash NEVER saw a "ready"
+    signal and ALWAYS sat for the full 6 s `hardCapMs` on every
+    single cold launch.
+  • **Fix #1 — match the key.**  BootSplash now reads
+    `'onnowtv-instant-bundle-meta-v2'`.
+  • **Fix #2 — clamp the hard cap.**  Dropped `hardCapMs` from
+    6000 → **1500 ms** and `minDurationMs` from 1800 → **600 ms**.
+    So even when the bundle-ready signal genuinely never fires
+    (the current state of the world), the splash can never block
+    a user for more than 1.5 seconds.  **4.5 s saved per cold
+    launch.**
+  • **Fix #3 — defer the 36-image DiceBear avatar warm-up** to
+    after first paint via `requestIdleCallback` (fallback:
+    `setTimeout 2500 ms`).  Was firing 36 simultaneous HTTPS
+    requests to `api.dicebear.com` at module-load, thrashing
+    the network and starving the backend API calls that the
+    real UI needs to render on slow HK1 boxes.
+  • Bumped Vesper APK → **v2.8.0** (versionCode 255).
+
+## v2.7.99 — Legacy device bulk import (568 records)
+
+  • **Imported 568 already-registered devices** from the user's
+    previous launcher backend.  All preserved verbatim:
+      – User name (e.g. "trace friend", "MITCH2", "Zack Dad")
+      – 32-char uppercase hex device id (e.g.
+        `AF53CE140F95DB53C107CDD647EEA49B`)
+      – Original registration timestamp (parsed as UTC seconds)
+      – Status mapping: 14 "Blocked" → `blocked` (stay blocked);
+        554 "Normal" → `active` (stay unblocked)
+      – `not_hk1: true` tag on every device whose model isn't
+        exactly "Amlogic HK1 BOX S905X3" (195 devices)
+  • **Admin Devices tab updated** to render the FULL 32-char id
+    (selectable for copy/paste, monospaced, wraps gracefully) and
+    a new amber "NOT HK1" pill next to the avatar.
+  • **Search now matches the full device id**, so an admin can
+    paste a 32-char hash from their old roster and find the row
+    instantly.
+  • **Idempotent import script** at `launcher-backend/scripts/
+    import_legacy_devices.py`: re-running won't duplicate rows.
+    If the admin manually edits a record's status after import,
+    a subsequent re-run won't clobber that change (the script
+    detects it via the `legacy` marker flag).
+  • End-to-end verified: 570 cards render in the admin Devices
+    tab; search "blocked" returns exactly the 14 historical
+    blocked devices; counters read `556 ACTIVE · 0 PENDING ·
+    14 BLOCKED`; 195 NOT HK1 pills visible.
+
 ## v2.7.98 — Launcher App Store redesign + Admin Devices tab + APK auto-detect
 
 Big day for the launcher experience.
