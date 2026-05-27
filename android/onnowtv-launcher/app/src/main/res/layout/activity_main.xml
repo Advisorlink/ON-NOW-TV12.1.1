@@ -63,73 +63,161 @@
         app:layout_constraintEnd_toEndOf="parent"
         tools:text="connecting…" />
 
-    <!-- Top bar (greeting / logo / date / time). -->
+    <!-- v2.8.19 — Top bar redesigned: glass card with focusable
+         VPN + Speed Test pill buttons (left), polished logo
+         centred, animated clock on the right.  Pressing UP from
+         the dock now focuses the leftmost pill (wired via
+         nextFocusUp* on the dock items).  Height bumped from
+         56→72dp to give the pills + clock proper breathing room. -->
     <LinearLayout
         android:id="@+id/topbar"
         android:layout_width="0dp"
-        android:layout_height="56dp"
+        android:layout_height="72dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="24dp"
+        android:paddingHorizontal="22dp"
         android:background="@drawable/bg_topbar"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="16dp"
+        android:clipChildren="false"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <!-- LEFT slot: action pills (VPN + Speed Test). -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_wifi"
-                android:tint="@color/text_primary"
-                android:contentDescription="@null" />
-            <TextView
-                android:id="@+id/greeting"
+            android:gravity="start|center_vertical"
+            android:clipChildren="false">
+
+            <LinearLayout
+                android:id="@+id/topbar_btn_vpn"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:fontFamily="sans-serif-medium"
-                tools:text="Good evening" />
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="18dp"
+                android:background="@drawable/bg_topbar_btn"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:nextFocusDown="@id/dock"
+                android:nextFocusRight="@id/topbar_btn_speed">
+
+                <ImageView
+                    android:id="@+id/topbar_vpn_icon"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_vpn_shield"
+                    android:tint="@color/text_primary"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/topbar_vpn_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.06"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="VPN" />
+
+                <!-- Tiny status dot (green when VPN connected). -->
+                <View
+                    android:id="@+id/topbar_vpn_dot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_status_dot_off" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/topbar_btn_speed"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="10dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="18dp"
+                android:background="@drawable/bg_topbar_btn"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:nextFocusDown="@id/dock"
+                android:nextFocusLeft="@id/topbar_btn_vpn">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_speed_gauge"
+                    android:tint="@color/text_primary"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.06"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Speed Test" />
+            </LinearLayout>
         </LinearLayout>
 
+        <!-- CENTRE: polished logo block.  Play glyph in accent
+             gradient + wordmark with V2 highlighted. -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_play_solid"
-                android:tint="@color/accent"
-                android:contentDescription="@null" />
+            <FrameLayout
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@drawable/bg_logo_play">
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_play_solid"
+                    android:tint="#04060B"
+                    android:contentDescription="@null" />
+            </FrameLayout>
             <TextView
                 android:id="@+id/logoText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="12dp"
                 android:text="@string/wordmark"
                 android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:letterSpacing="0.15"
+                android:textSize="16sp"
+                android:letterSpacing="0.18"
                 android:fontFamily="sans-serif-medium" />
         </LinearLayout>
 
+        <!-- RIGHT slot: greeting + date + time. -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="horizontal"
             android:gravity="end|center_vertical">
+
+            <TextView
+                android:id="@+id/greeting"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="14dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                tools:text="Good evening" />
+
             <TextView
                 android:id="@+id/dateLabel"
                 android:layout_width="wrap_content"
@@ -147,7 +235,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:textSize="14sp"
                 android:fontFamily="sans-serif-medium"
                 tools:text="20:42" />
         </LinearLayout>

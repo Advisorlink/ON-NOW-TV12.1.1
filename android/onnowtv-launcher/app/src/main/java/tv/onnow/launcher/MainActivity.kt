@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         repo = LauncherRepository(applicationContext)
 
         bindTopBar()
+        bindTopBarActions()
         bindDock()
 
         // Hydrate from disk cache so the launcher renders the LAST
@@ -108,6 +109,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         handler.post(clockTick)
         startBackendPolling()
+        // v2.8.19 — Refresh the top-bar VPN status dot whenever the
+        // launcher gains focus, so a freshly-connected VPN client
+        // (or a disconnect) shows up the moment the user returns.
+        if (::binding.isInitialized) refreshVpnDot()
     }
 
     override fun onPause() {
@@ -827,6 +832,49 @@ class MainActivity : AppCompatActivity() {
             color = Color.parseColor("#2BB6FF"),
         )
         paintClock()
+    }
+
+    /**
+     * v2.8.19 — Wire the new top-bar action pills (VPN + Speed Test)
+     * to their respective full-screen activities.  Both pills are
+     * focusable XML views; `nextFocusDown` on each pill already
+     * points to `R.id.dock`, and the dock's UP arrow is wired here
+     * so the focus chain is bidirectional.
+     */
+    private fun bindTopBarActions() {
+        binding.topbarBtnVpn.setOnClickListener {
+            startActivity(android.content.Intent(this,
+                tv.onnow.launcher.vpn.VpnControlActivity::class.java))
+        }
+        binding.topbarBtnSpeed.setOnClickListener {
+            startActivity(android.content.Intent(this,
+                tv.onnow.launcher.speedtest.SpeedTestActivity::class.java))
+        }
+        // Make the dock's UP arrow climb into the top bar.
+        // RecyclerView children inherit nextFocusUpId from the RV
+        // itself when no per-child id is set, so wiring it here on
+        // the RV is enough.
+        binding.dock.nextFocusUpId = binding.topbarBtnVpn.id
+
+        // Reflect live VPN state on the pill's status dot.
+        refreshVpnDot()
+    }
+
+    /** Toggle the green/red status dot on the VPN pill. */
+    private fun refreshVpnDot() {
+        try {
+            val cm = getSystemService(CONNECTIVITY_SERVICE)
+                as android.net.ConnectivityManager
+            val active = cm.allNetworks.any { net ->
+                cm.getNetworkCapabilities(net)?.hasTransport(
+                    android.net.NetworkCapabilities.TRANSPORT_VPN
+                ) == true
+            }
+            binding.topbarVpnDot.setBackgroundResource(
+                if (active) R.drawable.bg_status_dot_on
+                else        R.drawable.bg_status_dot_off
+            )
+        } catch (_: Throwable) { /* ignore — best-effort UI */ }
     }
 
     private fun paintClock() {

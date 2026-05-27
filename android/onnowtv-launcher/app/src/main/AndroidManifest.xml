@@ -85,6 +85,22 @@
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
 
+        <!-- v2.8.19 — Speed Test (real HTTP-based throughput meter). -->
+        <activity
+            android:name=".speedtest.SpeedTestActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
+        <!-- v2.8.19 — VPN status + system VPN settings launcher. -->
+        <activity
+            android:name=".vpn.VpnControlActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
         <!-- FileProvider — exposes the downloaded APK files in cache
              dir so the system package installer can read them on
              Android N+. -->

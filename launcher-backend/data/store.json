@@ -1,5 +1,5 @@
 {
-  "generation": 403,
+  "generation": 407,
   "dock_tiles": [
     {
       "key": "movies",
@@ -78,7 +78,7 @@
       "label": ".",
       "sub": ".",
       "image_url": "/assets/tile_images/tile-google-5339de9b.png",
-      "wallpaper_url": null,
+      "wallpaper_url": "/assets/wallpapers/tile-google-055bfc0c.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -96,7 +96,7 @@
       "label": ".",
       "sub": ".",
       "image_url": "/assets/tile_images/tile-you-tube-no-ads-e790e550.png",
-      "wallpaper_url": null,
+      "wallpaper_url": "/assets/wallpapers/tile-you-tube-no-ads-6a8fbf0c.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -150,7 +150,7 @@
       "label": ".",
       "sub": ".",
       "image_url": "/assets/tile_images/tile-vpn-d931ecaa.png",
-      "wallpaper_url": null,
+      "wallpaper_url": "/assets/wallpapers/tile-vpn-e2293f36.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -168,7 +168,7 @@
       "label": ".",
       "sub": ".",
       "image_url": "/assets/tile_images/tile-speed-test-2b4ed120.png",
-      "wallpaper_url": null,
+      "wallpaper_url": "/assets/wallpapers/tile-speed-test-6e8a785c.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -414,8 +414,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779881266,
-      "last_generation": 403
+      "last_seen": 1779882050,
+      "last_generation": 407
     }
   },
   "layout": {
@@ -6742,7 +6742,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779881266,
+      "last_seen_at": 1779882049,
       "last_ip": "34.160.159.238"
     }
   },

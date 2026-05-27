@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Soft circular glow behind the topbar's play-button. -->
+<!-- v2.8.19 — Brand "play" tile behind the logo Play icon.
+     Rounded square with the brand cyan gradient.  Replaces the
+     earlier soft radial-glow which read as a smudge against
+     bright wallpapers. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
+    android:shape="rectangle">
     <gradient
-        android:type="radial"
-        android:gradientRadius="36"
-        android:startColor="#522BB6FF"
-        android:endColor="#002BB6FF" />
+        android:type="linear"
+        android:angle="135"
+        android:startColor="#FF2BB6FF"
+        android:centerColor="#FF5DC8FF"
+        android:endColor="#FF7FE2FF" />
+    <corners android:radius="10dp" />
 </shape>
