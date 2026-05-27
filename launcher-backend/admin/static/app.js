@@ -1083,6 +1083,8 @@ function renderApks(store) {
     const grid  = $('#appStoreGrid');
     const empty = $('#appStoreEmpty');
     const apks  = store.apks || [];
+    // v2.0 — Mirror the hero image set in store.appstore.
+    syncAppstoreHero((store.appstore || {}).hero_image_url);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1095,6 +1097,87 @@ function renderApks(store) {
         el.addEventListener('click', () => openStoreDrawer(el.dataset.storeTile));
     });
 }
+
+function syncAppstoreHero(heroUrl) {
+    const img    = $('#appstoreHeroImg');
+    const ph     = $('#appstoreHeroPreview')?.querySelector('.appstore-hero-placeholder');
+    const clear  = $('#appstoreHeroClear');
+    if (!img) return;
+    if (heroUrl) {
+        // Bust cache so a recently-uploaded hero shows immediately.
+        img.src = heroUrl + (heroUrl.includes('?') ? '&' : '?') + '_v=' + Date.now();
+        img.hidden = false;
+        if (ph) ph.style.display = 'none';
+        if (clear) clear.hidden = false;
+    } else {
+        img.removeAttribute('src');
+        img.hidden = true;
+        if (ph) ph.style.display = '';
+        if (clear) clear.hidden = true;
+    }
+}
+
+/* —— Hero image upload + clear —— */
+(function setupHeroDropzone() {
+    const zone   = $('#appstoreHeroDrop');
+    const input  = $('#appstoreHeroFile');
+    const browse = $('#appstoreHeroBrowse');
+    const clear  = $('#appstoreHeroClear');
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', (e) => {
+        if (e.target === browse) return;
+        input.click();
+    });
+    browse?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        input.click();
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        }),
+    );
+    ['dragleave', 'drop'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        }),
+    );
+    zone.addEventListener('drop', async (e) => {
+        const f = Array.from(e.dataTransfer?.files || []).find(
+            (x) => /^image\//.test(x.type),
+        );
+        if (f) await uploadHero(f);
+    });
+    input.addEventListener('change', async () => {
+        const f = input.files?.[0];
+        if (f) await uploadHero(f);
+        input.value = '';
+    });
+    clear?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+            await api('/api/admin/appstore/hero', { method: 'DELETE' });
+            toast('Hero image cleared');
+            refreshAll();
+        } catch (err) { toast('Clear failed: ' + err.message, true); }
+    });
+
+    async function uploadHero(file) {
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const r = await api('/api/admin/appstore/hero', {
+                method: 'POST', body: form,
+            });
+            toast('Hero image updated');
+            syncAppstoreHero(r.hero_image_url);
+            refreshAll();
+        } catch (err) { toast('Upload failed: ' + err.message, true); }
+    }
+})();
 
 function appStoreTileHtml(a) {
     const initial = (a.name || '?').trim().charAt(0).toUpperCase() || '?';
@@ -1125,6 +1208,7 @@ function openStoreDrawer(id) {
         if (!apk) return;
         $('#drawerName').value        = apk.name        || '';
         $('#drawerVersion').value     = apk.version_name || '';
+        $('#drawerCategory').value    = apk.category    || '';
         $('#drawerPackage').value     = apk.package_id   || '(unknown)';
         $('#drawerDescription').value = apk.description || '';
         const img = $('#drawerIcon');
@@ -1157,6 +1241,7 @@ $('#drawerSave')?.addEventListener('click', async () => {
             body: JSON.stringify({
                 name:         $('#drawerName').value.trim()        || null,
                 version_name: $('#drawerVersion').value.trim()     || null,
+                category:     $('#drawerCategory').value.trim()    || null,
                 description:  $('#drawerDescription').value.trim() || null,
             }),
         });

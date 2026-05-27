@@ -72,6 +72,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "apks").mkdir(exist_ok=True)
 # v1.9 — Where extracted APK icons land (one PNG per APK).
 (DATA_DIR / "apk_icons").mkdir(exist_ok=True)
+# v2.0 — App Store hero image (single file, admin-uploadable).
+(DATA_DIR / "appstore").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
 
@@ -149,7 +151,18 @@ class ApkEntry(BaseModel):
     icon_url: Optional[str] = None
     apk_url: str                           # either /assets/apks/x.apk or remote https
     description: Optional[str] = None
+    # v2.0 — User-facing category shown on the launcher App Store
+    # tile (e.g. "Entertainment", "Music", "Games", "Movies & TV").
+    # Optional; if unset, the tile just shows "Apps" as a default.
+    category: Optional[str] = None
     added_at: int
+
+
+class AppStoreMeta(BaseModel):
+    """v2.0 — On-launcher App Store branding.  Currently just a
+    single hero banner image that the admin can drop in.  Lives at
+    `store.json → appstore`. """
+    hero_image_url: Optional[str] = None
 
 
 class Notification(BaseModel):
@@ -278,6 +291,9 @@ class LauncherConfig(BaseModel):
     # v1.0 — Admin-controlled layout overrides.  When omitted, the
     # launcher uses the platform defaults baked into the APK.
     layout: LayoutSettings = LayoutSettings()
+    # v2.0 — App Store branding (hero image).  Always present so
+    # older Android builds don't crash on JSON parse.
+    appstore: AppStoreMeta = AppStoreMeta()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -415,6 +431,7 @@ app.mount("/assets/tile_images", StaticFiles(directory=str(DATA_DIR / "tile_imag
 app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks")),   name="tile-apks")
 app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
 app.mount("/assets/apk_icons",   StaticFiles(directory=str(DATA_DIR / "apk_icons")),   name="apk-icons")
+app.mount("/assets/appstore",    StaticFiles(directory=str(DATA_DIR / "appstore")),    name="appstore")
 
 # Static admin UI
 ADMIN_DIR = Path(__file__).parent / "admin"
@@ -464,6 +481,7 @@ def _build_config(store: dict) -> LauncherConfig:
                 icon_url=_abs(a.get("icon_url")),
                 apk_url=_abs(a["apk_url"]) or a["apk_url"],
                 description=a.get("description"), added_at=a["added_at"],
+                category=a.get("category"),
             )
             for a in store.get("apks", [])
         ],
@@ -474,6 +492,11 @@ def _build_config(store: dict) -> LauncherConfig:
         generation=int(store.get("generation", 0)),
         server_time=nt,
         layout=LayoutSettings(**store.get("layout", {})),
+        appstore=AppStoreMeta(
+            hero_image_url=_abs(
+                (store.get("appstore") or {}).get("hero_image_url")
+            ),
+        ),
     )
 
 
@@ -1192,7 +1215,7 @@ def update_apk_meta(aid: str, payload: dict) -> dict:
     target = next((a for a in apks if a["id"] == aid), None)
     if not target:
         raise HTTPException(404, "apk not found")
-    allowed = {"name", "description", "version_name", "package_id"}
+    allowed = {"name", "description", "version_name", "package_id", "category"}
     for k, v in payload.items():
         if k in allowed:
             target[k] = v if (v is None or v != "") else None
@@ -1226,6 +1249,49 @@ async def upload_apk_icon(
     target["icon_url"] = f"/assets/apk_icons/{aid}.png"
     _save_store(store)
     return {"ok": True, "icon_url": target["icon_url"]}
+
+
+# ── v2.0 — App Store hero image (single banner) ───────────────────
+@app.post("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
+async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
+    """Drag-drop a fresh hero banner for the launcher's App Store.
+    Resized to max 1920×800 (keeps aspect ratio) and saved as a
+    single PNG at `/assets/appstore/hero.png`.  Cache-bust via a
+    timestamp query string handled by the admin UI + launcher."""
+    from PIL import Image
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "appstore" / "hero.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img.thumbnail((1920, 800), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    # Add a `?ts=` so the launcher's HTTP cache picks up the new
+    # version next poll.  Strip any old query param first.
+    appstore["hero_image_url"] = f"/assets/appstore/hero.png?ts={now_ts()}"
+    _save_store(store)
+    return {"ok": True, "hero_image_url": appstore["hero_image_url"]}
+
+
+@app.delete("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
+def clear_appstore_hero() -> dict:
+    """Remove the current hero so the launcher falls back to the
+    bundled placeholder gradient."""
+    out_path = DATA_DIR / "appstore" / "hero.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("appstore", {})["hero_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
 
 
 # ── Notifications ─────────────────────────────────────────────────

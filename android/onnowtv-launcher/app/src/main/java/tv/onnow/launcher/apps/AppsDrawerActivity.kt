@@ -1,8 +1,11 @@
 package tv.onnow.launcher.apps
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Gravity
@@ -12,7 +15,6 @@ import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -31,22 +33,23 @@ import tv.onnow.launcher.data.LauncherRepository
 import tv.onnow.launcher.install.ApkInstaller
 
 /**
- * AppsDrawerActivity — v1.9 ON NOW TV 2 App Store redesign.
+ * AppsDrawerActivity — v2.0 ON NOW TV 2 App Store.
  *
- * Goal: feel like a real curated App Store, not a settings list.
- *   - Brand hero header: "ON NOW TV" / red "2" / "App Store"
- *   - Subhead line + bulk-install CTA
- *   - 4-column grid of LARGE rounded-icon tiles (128 dp icons +
- *     name + version pill)
- *   - Focus → 1.12× overshoot scale + bright cyan border + glow
- *   - Click → install
+ * Matches the user-supplied mockup:
+ *   • Top hero image (admin-uploadable via /api/admin/appstore/hero).
+ *   • 6-up tile grid below.
+ *   • Each tile shows ONLY: rounded icon, app name, category.
+ *     NO package id, NO version, NO star rating.
+ *   • Status-aware action button at the bottom of each tile:
+ *       – NOT installed → blue "Install" — tap to install.
+ *       – Installed     → green "Installed" — tap to switch to red
+ *                          "Uninstall" mode → tap again to fire
+ *                          Android's uninstall intent.
+ *   • Install state refreshes on every `onResume()` so after a
+ *     user installs/uninstalls and returns, the tile updates.
  *
- * Pure programmatic Kotlin UI (no XML) so it can compose against
- * the same Vesper palette as the Onboarding screen and the dock.
- *
- * Note: the launcher backend resolves `icon_url` to a fully-
- * qualified URL via `_abs()` before sending the config, so we can
- * pass it to `ImageLoader.load()` verbatim.
+ * Pure programmatic UI (no XML) so the palette stays in lockstep
+ * with the rest of the launcher.
  */
 class AppsDrawerActivity : AppCompatActivity() {
 
@@ -54,12 +57,10 @@ class AppsDrawerActivity : AppCompatActivity() {
     private lateinit var repo: LauncherRepository
     private lateinit var grid: RecyclerView
     private lateinit var emptyHint: TextView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var installAllBtn: TextView
-    private lateinit var statusLabel: TextView
+    private lateinit var heroImage: ImageView
     private var loadJob: Job? = null
-    private var bulkInstallJob: Job? = null
     private var currentApks: List<ApkEntryRemote> = emptyList()
+    private var adapter: AppsAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,139 +73,77 @@ class AppsDrawerActivity : AppCompatActivity() {
 
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
-            // Don't let the ScrollView swallow D-pad focus from cards.
             isFocusable = false
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(72), dp(60), dp(72), dp(48))
+            setPadding(dp(48), dp(40), dp(48), dp(48))
         }
 
-        /* ── Hero header ── */
+        /* ── 1. Hero image (admin-uploaded) ── */
+        heroImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            clipToOutline = true
+            // Cyan-tinted placeholder while the real hero loads.
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(
+                    Color.parseColor("#2B6BCF"),
+                    Color.parseColor("#0A1B33"),
+                ),
+            ).apply { cornerRadius = dp(28).toFloat() }
+        }
+        // 21:9 cinematic aspect (matches the mockup banner).
+        val heroHeight = dp(260)
+        column.addView(heroImage, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            heroHeight,
+        ).apply { setMargins(0, 0, 0, dp(28)) })
+
+        /* ── 2. Section eyebrow + title ── */
         val eyebrow = TextView(this).apply {
-            text = "ON NOW TV V2 · CURATED APPS"
+            text = "DISCOVER"
             textSize = 11f
             letterSpacing = 0.32f
-            setTextColor(0xFF5DC8FF.toInt())
+            setTextColor(Color.parseColor("#FF5DC8FF"))
             typeface = Typeface.MONOSPACE
         }
         column.addView(eyebrow)
-        column.addView(spacer(dp(10)))
-
-        // Brand title — uses the same Montserrat font family as
-        // the Onboarding display title for visual consistency.
-        val titleRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val font700 = makeFont(700)
-        val font400 = makeFont(400)
-        titleRow.addView(TextView(this).apply {
-            text = "ON NOW TV"
-            textSize = 44f
-            typeface = font700
-            letterSpacing = -0.01f
-            setTextColor(0xFFF4F7FB.toInt())
-            setShadowLayer(28f, 0f, 4f, 0xB02BB6FF.toInt())
-        })
-        titleRow.addView(TextView(this).apply {
-            text = "2"
-            textSize = 44f
-            typeface = font700
-            setTextColor(0xFF5DC8FF.toInt())
-            setPadding(dp(10), 0, dp(10), 0)
-            setShadowLayer(32f, 0f, 4f, 0xE05DC8FF.toInt())
-        })
-        titleRow.addView(TextView(this).apply {
-            text = "App Store"
-            textSize = 44f
-            typeface = font400
-            letterSpacing = -0.01f
-            setTextColor(0xFFF4F7FB.toInt())
-        })
-        column.addView(titleRow)
         column.addView(spacer(dp(8)))
 
-        val subtitle = TextView(this).apply {
-            text = "Tap any app to install it on this box.  " +
-                   "Use the Install All button to queue every app at once."
-            textSize = 14f
-            setTextColor(0xFF8EA0B7.toInt())
-            typeface = font400
+        val title = TextView(this).apply {
+            text = "ON NOW TV 2 · App Store"
+            textSize = 28f
+            typeface = makeFont(700)
+            setTextColor(Color.parseColor("#FFF4F7FB"))
+            letterSpacing = -0.005f
         }
-        column.addView(subtitle)
-        column.addView(spacer(dp(28)))
+        column.addView(title)
+        column.addView(spacer(dp(20)))
 
-        /* ── Install-All CTA pill ── */
-        installAllBtn = TextView(this).apply {
-            text = "INSTALL ALL  \u2192"
-            textSize = 13f
-            isAllCaps = false
-            letterSpacing = 0.22f
-            typeface = font700
-            setTextColor(0xFF5DC8FF.toInt())
-            setBackgroundResource(R.drawable.onb_primary_selector)
-            gravity = Gravity.CENTER
-            setPadding(dp(36), dp(16), dp(36), dp(16))
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused ->
-                v as TextView
-                v.setTextColor(if (focused) 0xFF04060B.toInt() else 0xFF5DC8FF.toInt())
-                v.animate().cancel()
-                v.animate()
-                    .scaleX(if (focused) 1.06f else 1.0f)
-                    .scaleY(if (focused) 1.06f else 1.0f)
-                    .setDuration(180)
-                    .setInterpolator(OvershootInterpolator(1.4f))
-                    .start()
-            }
-            setOnClickListener { startBulkInstall() }
-        }
-        column.addView(installAllBtn, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ))
-        column.addView(spacer(dp(16)))
-
-        /* ── Bulk-install status line ── */
-        statusLabel = TextView(this).apply {
-            text = ""
-            textSize = 13f
-            setTextColor(0xFF2EEAC2.toInt())
-            visibility = View.GONE
-            letterSpacing = 0.04f
-        }
-        column.addView(statusLabel)
-
-        progressBar = ProgressBar(this).apply { visibility = View.GONE }
-        column.addView(progressBar, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { gravity = Gravity.CENTER_HORIZONTAL })
-
-        /* ── Empty state ── */
+        /* ── 3. Empty state ── */
         emptyHint = TextView(this).apply {
             text = "No apps in the store yet.  Drop an APK into the admin and it'll show up here within 30 seconds."
             textSize = 16f
-            setTextColor(0xFF5D6E85.toInt())
+            setTextColor(Color.parseColor("#FF5D6E85"))
             visibility = View.GONE
-            setPadding(0, dp(48), 0, 0)
+            setPadding(0, dp(24), 0, 0)
             gravity = Gravity.CENTER_HORIZONTAL
         }
         column.addView(emptyHint)
 
-        /* ── Apps grid ── */
-        column.addView(spacer(dp(12)))
+        /* ── 4. Apps grid ── */
         grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@AppsDrawerActivity, 4)
+            layoutManager = GridLayoutManager(this@AppsDrawerActivity, 6)
             clipToPadding = false
+            clipChildren = false
             isFocusable = false
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-            // Grid is inside a ScrollView — disable nested scrolling
-            // so the parent owns the scroll position.
             isNestedScrollingEnabled = false
+            // Big bottom inset so the elevation/scale-up halo on the
+            // last row doesn't clip against the screen edge.
+            setPadding(0, 0, 0, dp(32))
         }
         column.addView(grid, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -224,6 +163,14 @@ class AppsDrawerActivity : AppCompatActivity() {
         loadAndRender()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // After returning from Android's package-installer / uninstaller
+        // we need to re-evaluate which tiles say "Install" vs
+        // "Installed" — the user may have just toggled one.
+        adapter?.notifyDataSetChanged()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         scope.coroutineContext[Job]?.cancel()
@@ -231,68 +178,57 @@ class AppsDrawerActivity : AppCompatActivity() {
 
     private fun loadAndRender() {
         val cached = repo.config.value ?: repo.loadCached()
-        if (cached != null) renderApks(cached.apks)
+        if (cached != null) {
+            renderApks(cached.apks)
+            renderHero(cached.appstore.heroImageUrl)
+        }
         loadJob?.cancel()
         loadJob = scope.launch {
             val fresh = repo.refresh()
-            if (fresh != null) renderApks(fresh.apks)
+            if (fresh != null) {
+                renderApks(fresh.apks)
+                renderHero(fresh.appstore.heroImageUrl)
+            }
         }
+    }
+
+    private fun renderHero(url: String?) {
+        if (url.isNullOrBlank()) return
+        ImageLoader.load(heroImage, url)
     }
 
     private fun renderApks(apks: List<ApkEntryRemote>) {
         currentApks = apks
-        installAllBtn.isEnabled = apks.isNotEmpty()
-        installAllBtn.alpha     = if (apks.isNotEmpty()) 1f else 0.4f
         if (apks.isEmpty()) {
             emptyHint.visibility = View.VISIBLE
             grid.adapter = null
+            adapter = null
             return
         }
         emptyHint.visibility = View.GONE
-        grid.adapter = AppsAdapter(apks) { entry -> installApk(entry) }
-        // Auto-focus the first tile so the D-pad works immediately
-        // after pressing back-from-Install-All etc.
+        val a = AppsAdapter(
+            ctx = this,
+            apks = apks,
+            isInstalled = { pkg -> pkg != null && isPackageInstalled(pkg) },
+            onInstall   = { entry -> installApk(entry) },
+            onUninstall = { entry -> uninstallApk(entry) },
+        )
+        adapter = a
+        grid.adapter = a
         grid.post {
             (grid.findViewHolderForAdapterPosition(0)?.itemView)?.requestFocus()
         }
     }
 
-    /** Sequentially install every APK in the manifest. */
-    private fun startBulkInstall() {
-        val apks = currentApks
-        if (apks.isEmpty()) return
-        if (!ApkInstaller.canInstallNow(this)) {
-            ApkInstaller.requestInstallPermission(this); return
-        }
-        if (bulkInstallJob?.isActive == true) return
+    /* ── Install / uninstall ── */
 
-        statusLabel.visibility = View.VISIBLE
-        statusLabel.setTextColor(0xFF2EEAC2.toInt())
-        installAllBtn.isEnabled = false
-        installAllBtn.alpha     = 0.5f
-
-        bulkInstallJob = scope.launch {
-            apks.forEachIndexed { i, apk ->
-                statusLabel.text = "INSTALLING ${i + 1} / ${apks.size}  ·  ${apk.name.uppercase()}"
-                val err = ApkInstaller.downloadAndInstall(
-                    ctx = applicationContext,
-                    apkUrl = apk.apkUrl,
-                    suggestedName = "${apk.name}.apk",
-                )
-                if (err != null) {
-                    statusLabel.setTextColor(0xFFFF5573.toInt())
-                    statusLabel.text = "FAILED ON ${apk.name.uppercase()}: $err"
-                    installAllBtn.isEnabled = true
-                    installAllBtn.alpha     = 1f
-                    return@launch
-                }
-                kotlinx.coroutines.delay(2500)
-            }
-            statusLabel.text =
-                "DONE  ·  QUEUED ${apks.size} INSTALL${if (apks.size == 1) "" else "S"}.  " +
-                "CONFIRM EACH PROMPT TO FINISH."
-            installAllBtn.isEnabled = true
-            installAllBtn.alpha     = 1f
+    /** True if the given package id is currently installed. */
+    private fun isPackageInstalled(packageId: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(packageId, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
         }
     }
 
@@ -301,19 +237,38 @@ class AppsDrawerActivity : AppCompatActivity() {
             ApkInstaller.requestInstallPermission(this)
             return
         }
-        progressBar.visibility = View.VISIBLE
         scope.launch {
             val err = ApkInstaller.downloadAndInstall(
                 ctx = applicationContext,
                 apkUrl = entry.apkUrl,
                 suggestedName = "${entry.name}.apk",
             )
-            progressBar.visibility = View.GONE
             if (err != null) {
-                statusLabel.visibility = View.VISIBLE
-                statusLabel.setTextColor(0xFFFF5573.toInt())
-                statusLabel.text = "INSTALL FAILED · $err"
+                android.widget.Toast.makeText(
+                    this@AppsDrawerActivity,
+                    "Install failed: $err",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
             }
+        }
+    }
+
+    /** Fire Android's standard ACTION_DELETE intent for the package.
+     *  The system shows its own confirm dialog and handles the
+     *  result; we just refresh tile state in `onResume()`. */
+    private fun uninstallApk(entry: ApkEntryRemote) {
+        val pkg = entry.packageId ?: return
+        try {
+            val i = Intent(Intent.ACTION_DELETE).apply {
+                data = Uri.parse("package:$pkg")
+            }
+            startActivity(i)
+        } catch (t: Throwable) {
+            android.widget.Toast.makeText(
+                this,
+                "Couldn't open uninstaller: ${t.message ?: "?"}",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
         }
     }
 
@@ -333,27 +288,34 @@ class AppsDrawerActivity : AppCompatActivity() {
     }
 }
 
-/* ════════════════  RecyclerView adapter ════════════════ */
+/* ════════════════  RecyclerView adapter  ════════════════ */
+
 private class AppsAdapter(
+    private val ctx: android.content.Context,
     private val apks: List<ApkEntryRemote>,
-    private val onClick: (ApkEntryRemote) -> Unit,
+    private val isInstalled: (String?) -> Boolean,
+    private val onInstall:   (ApkEntryRemote) -> Unit,
+    private val onUninstall: (ApkEntryRemote) -> Unit,
 ) : RecyclerView.Adapter<AppCardVH>() {
 
+    /** Per-tile button mode.  We override the per-position default
+     *  (Install vs Installed) when the user has tapped an installed
+     *  tile once → shows red "Uninstall".  Cleared on rebind. */
+    private enum class BtnMode { INSTALL, INSTALLED, UNINSTALL }
+    private val pendingUninstall = mutableSetOf<Int>()
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppCardVH {
-        val ctx = parent.context
         val density = ctx.resources.displayMetrics.density
         fun px(v: Int) = (v * density).toInt()
 
-        /* Card root: dark gradient, 22dp radius, subtle border. */
+        /* Card root — dark glass tile. */
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(px(22), px(26), px(22), px(22))
+            setPadding(px(16), px(20), px(16), px(16))
             isFocusable = true
             isFocusableInTouchMode = true
             clipChildren = false
-            // Programmatic resting background (matches the admin
-            // .appstore-tile gradient + border).
             background = GradientDrawable().apply {
                 cornerRadius = px(22).toFloat()
                 setColor(Color.parseColor("#CC0F1B30"))
@@ -361,29 +323,23 @@ private class AppsAdapter(
             }
             layoutParams = ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                px(220),
-            ).apply { setMargins(px(10), px(10), px(10), px(10)) }
+                px(248),
+            ).apply { setMargins(px(8), px(8), px(8), px(8)) }
         }
 
-        /* Big rounded icon container. */
+        /* Big rounded icon container (90 dp). */
         val iconWrap = FrameLayout(ctx).apply {
-            // Constructor form is safer across API levels than setting
-            // .colors / .orientation properties post-hoc.
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(
                     Color.parseColor("#2E5DC8FF"),
                     Color.parseColor("#80101D33"),
                 ),
-            ).apply {
-                cornerRadius = px(24).toFloat()
-            }
+            ).apply { cornerRadius = px(22).toFloat() }
             clipToOutline = true
         }
         val icon = ImageView(ctx).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            // Round-corner clip is via the parent's clipToOutline+
-            // shape, but for safety apply a programmatic outline too.
             clipToOutline = true
         }
         iconWrap.addView(icon, FrameLayout.LayoutParams(
@@ -391,8 +347,7 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.MATCH_PARENT,
         ))
         val initialBadge = TextView(ctx).apply {
-            id = View.generateViewId()
-            textSize = 38f
+            textSize = 32f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor("#FF5DC8FF"))
             gravity = Gravity.CENTER
@@ -401,42 +356,53 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         ).apply { gravity = Gravity.CENTER })
-        card.addView(iconWrap, LinearLayout.LayoutParams(px(108), px(108)).apply {
-            setMargins(0, 0, 0, px(14))
+        card.addView(iconWrap, LinearLayout.LayoutParams(px(90), px(90)).apply {
+            setMargins(0, 0, 0, px(12))
         })
 
         /* Name. */
         val nameView = TextView(ctx).apply {
-            id = View.generateViewId()
             setTextColor(Color.parseColor("#FFF4F7FB"))
-            textSize = 16f
+            textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.CENTER
             ellipsize = TextUtils.TruncateAt.END
             maxLines = 1
-            setPadding(0, 0, 0, 0)
         }
         card.addView(nameView, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Version pill. */
-        val versionView = TextView(ctx).apply {
-            id = View.generateViewId()
+        /* Category sub-label (e.g. "Entertainment"). */
+        val categoryView = TextView(ctx).apply {
             setTextColor(Color.parseColor("#FF8EA0B7"))
-            textSize = 11f
-            letterSpacing = 0.22f
+            textSize = 12f
             gravity = Gravity.CENTER
-            typeface = Typeface.MONOSPACE
-            setPadding(0, px(6), 0, 0)
+            ellipsize = TextUtils.TruncateAt.END
+            maxLines = 1
+            setPadding(0, px(4), 0, px(12))
         }
-        card.addView(versionView, LinearLayout.LayoutParams(
+        card.addView(categoryView, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Focus animation: 1.08× scale + bright cyan border. */
+        /* Action button (Install / Installed / Uninstall). */
+        val actionBtn = TextView(ctx).apply {
+            textSize = 13f
+            isAllCaps = false
+            letterSpacing = 0.04f
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(px(22), px(10), px(22), px(10))
+        }
+        card.addView(actionBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+
+        /* Card focus: 1.06× scale + bright cyan border. */
         card.setOnFocusChangeListener { v, hasFocus ->
             v as LinearLayout
             (v.background as? GradientDrawable)?.apply {
@@ -450,26 +416,25 @@ private class AppsAdapter(
             }
             v.animate().cancel()
             v.animate()
-                .scaleX(if (hasFocus) 1.08f else 1f)
-                .scaleY(if (hasFocus) 1.08f else 1f)
+                .scaleX(if (hasFocus) 1.06f else 1f)
+                .scaleY(if (hasFocus) 1.06f else 1f)
                 .setDuration(180)
                 .setInterpolator(OvershootInterpolator(1.4f))
                 .start()
-            // Soft elevation lift for the focused tile.
             v.translationZ = if (hasFocus) px(8).toFloat() else 0f
         }
 
-        return AppCardVH(card, iconWrap, icon, initialBadge, nameView, versionView)
+        return AppCardVH(card, iconWrap, icon, initialBadge, nameView, categoryView, actionBtn)
     }
 
     override fun onBindViewHolder(holder: AppCardVH, position: Int) {
+        val density = ctx.resources.displayMetrics.density
+        fun px(v: Int) = (v * density).toInt()
         val apk = apks[position]
         holder.nameView.text = apk.name
-        holder.versionView.text = listOfNotNull(apk.versionName?.let { "v$it" }, apk.packageId)
-            .joinToString("  ·  ")
-            .ifEmpty { "—" }
+        // Category — falls back to a sensible default if unset.
+        holder.categoryView.text = apk.category?.takeIf { it.isNotBlank() } ?: "Apps"
 
-        // Load the icon — if URL missing, draw the initial letter.
         if (apk.iconUrl.isNullOrBlank()) {
             holder.icon.visibility = View.GONE
             holder.initialBadge.visibility = View.VISIBLE
@@ -480,7 +445,53 @@ private class AppsAdapter(
             holder.icon.visibility = View.VISIBLE
             ImageLoader.load(holder.icon, apk.iconUrl)
         }
-        holder.card.setOnClickListener { onClick(apk) }
+
+        val installed = isInstalled(apk.packageId)
+        val mode: BtnMode = when {
+            !installed                              -> BtnMode.INSTALL
+            installed && pendingUninstall.contains(position) -> BtnMode.UNINSTALL
+            else                                    -> BtnMode.INSTALLED
+        }
+        applyButtonMode(holder.actionBtn, mode, px(22))
+
+        holder.actionBtn.setOnClickListener {
+            when (mode) {
+                BtnMode.INSTALL -> onInstall(apk)
+                BtnMode.INSTALLED -> {
+                    // Toggle into "Uninstall" mode in-place — gives
+                    // the user a clear confirmation step before we
+                    // launch Android's uninstaller.
+                    pendingUninstall.add(position)
+                    notifyItemChanged(position)
+                }
+                BtnMode.UNINSTALL -> {
+                    pendingUninstall.remove(position)
+                    onUninstall(apk)
+                }
+            }
+        }
+        // Card click goes to the action button too — for boxes
+        // whose remotes focus the WHOLE tile, not just the button.
+        holder.card.setOnClickListener {
+            holder.actionBtn.performClick()
+        }
+    }
+
+    private fun applyButtonMode(btn: TextView, mode: BtnMode, radiusPx: Int) {
+        val (label, bg, fg) = when (mode) {
+            BtnMode.INSTALL ->
+                Triple("Install", "#FF2BB6FF", "#FF04060B")
+            BtnMode.INSTALLED ->
+                Triple("✓ Installed", "#FF2EEAC2", "#FF04060B")
+            BtnMode.UNINSTALL ->
+                Triple("Uninstall", "#FFFF5573", "#FFFFFFFF")
+        }
+        btn.text = label
+        btn.setTextColor(Color.parseColor(fg))
+        btn.background = GradientDrawable().apply {
+            cornerRadius = radiusPx.toFloat()
+            setColor(Color.parseColor(bg))
+        }
     }
 
     override fun getItemCount(): Int = apks.size
@@ -492,5 +503,6 @@ private class AppCardVH(
     val icon:         ImageView,
     val initialBadge: TextView,
     val nameView:     TextView,
-    val versionView:  TextView,
+    val categoryView: TextView,
+    val actionBtn:    TextView,
 ) : RecyclerView.ViewHolder(card)

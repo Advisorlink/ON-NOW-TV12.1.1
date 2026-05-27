@@ -7,6 +7,50 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.2 — Launcher App Store v2.0: hero image + Install/Installed/Uninstall states
+
+Matches the user-supplied mockup exactly.
+
+  • **Admin-uploadable hero image.**  New drag-drop zone in the
+    Admin App Store tab right above the tile grid.  Image is
+    resized to max 1920×800 (keeps aspect ratio), saved as a single
+    PNG at `/assets/appstore/hero.png`, cache-busted via `?ts=`.
+    Two new endpoints:
+      `POST /api/admin/appstore/hero`  — drag-drop upload
+      `DELETE /api/admin/appstore/hero` — clear (falls back to a
+                                          cyan gradient)
+    `LauncherConfig` response now includes an `appstore` block;
+    parser is back-compat so older Android builds don't crash.
+
+  • **Launcher native App Store rewritten** to match the mockup.
+    Top: 21:9 hero banner.  Below: 6-column tile grid with
+    LARGE 90 dp rounded icons.  Each tile shows ONLY: icon, app
+    name, category — **NO package id, NO version, NO star rating
+    on the launcher home**.  All metadata still lives in the
+    backend (admin-only).
+
+  • **Status-aware action button** per tile (the core of the
+    user request):
+      1. App NOT installed → blue **Install** — tap to start
+         the standard package-installer flow.
+      2. App INSTALLED → green ✓ **Installed** — tap once to
+         switch the same button in-place to red **Uninstall** —
+         tap again to fire Android's `ACTION_DELETE` intent.
+      3. State refreshes on `onResume()` so after the user
+         confirms or cancels uninstall in the Android system
+         dialog and comes back, the tile updates automatically.
+      Detection uses `PackageManager.getPackageInfo(pkg, 0)` —
+      QUERY_ALL_PACKAGES already declared in the manifest.
+
+  • **Per-app category field** (Entertainment / Music / Games /
+    Movies & TV / Weather / Wellness / …).  Admin can set it
+    via the slide-in edit drawer; the launcher tile renders it
+    under the app name.  Default fallback: "Apps".
+
+  • Bumped Vesper APK → **v2.8.2** (versionCode 257).  Launcher
+    APK version is CI-derived; the launcher Kotlin changes will
+    ship on the next Save-to-GitHub.
+
 ## v2.8.1 — URGENT perf fix: aggressive background pagination DISABLED
 
   • **Root cause: `useTabGenreCatalog` was thrashing the box.**

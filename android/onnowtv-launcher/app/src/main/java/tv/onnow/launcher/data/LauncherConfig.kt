@@ -18,6 +18,9 @@ data class LauncherConfig(
        baked-in values so older backends (without a `layout` block in
        the response) still render correctly. */
     val layout: LayoutSettings = LayoutSettings(),
+    /* v2.0 — App Store branding (hero image).  Optional; null = use
+       the bundled gradient placeholder. */
+    val appstore: AppStoreMeta = AppStoreMeta(),
 )
 
 /**
@@ -127,6 +130,15 @@ data class ApkEntryRemote(
     val iconUrl: String?,
     val apkUrl: String,
     val description: String?,
+    /* v2.0 — User-facing category shown on the launcher App Store
+       tile (e.g. "Entertainment", "Music", "Games", "Movies & TV").
+       Optional; falls back to "Apps" in the renderer when null. */
+    val category: String? = null,
+)
+
+/* v2.0 — App Store branding pulled from the backend. */
+data class AppStoreMeta(
+    val heroImageUrl: String? = null,
 )
 
 data class NotificationRemote(
@@ -182,6 +194,7 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             iconUrl     = o.optStringOrNull("icon_url"),
             apkUrl      = o.optString("apk_url"),
             description = o.optStringOrNull("description"),
+            category    = o.optStringOrNull("category"),
         )
     }
     val notifArr = root.optJSONArray("notifications") ?: JSONArray()
@@ -250,6 +263,10 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             featuredGroupOffsetYDp    = layoutObj.optInt("featured_group_offset_y_dp", def.featuredGroupOffsetYDp),
         )
     }
+    val appstoreObj = root.optJSONObject("appstore")
+    val appstore = if (appstoreObj == null) AppStoreMeta() else AppStoreMeta(
+        heroImageUrl = appstoreObj.optStringOrNull("hero_image_url"),
+    )
     return LauncherConfig(
         dockTiles = tilesList,
         activeWallpaperUrl = root.optStringOrNull("active_wallpaper_url"),
@@ -257,5 +274,6 @@ fun parseLauncherConfig(json: String): LauncherConfig {
         notifications = notifList,
         generation = root.optInt("generation", 0),
         layout = layout,
+        appstore = appstore,
     )
 }

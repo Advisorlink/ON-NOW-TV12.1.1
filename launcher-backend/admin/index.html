@@ -300,6 +300,19 @@
             <p>Drop an APK below — we'll read the package id, version, name and icon straight from the file.  Click any tile to rename it or swap its artwork.  This is exactly how the App Store will look on the TV.</p>
         </div>
 
+        <!-- Hero banner — drag-drop -->
+        <div class="appstore-hero-section">
+            <div id="appstoreHeroPreview" class="appstore-hero-preview">
+                <div class="appstore-hero-placeholder">No hero image yet — drop a 16:9 banner below.</div>
+                <img id="appstoreHeroImg" alt="" hidden>
+                <button id="appstoreHeroClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="appstoreHeroDrop" class="appstore-hero-drop">
+                <input type="file" id="appstoreHeroFile" accept="image/png,image/jpeg,image/webp" hidden>
+                <span><strong>Drop hero image</strong> · or <button id="appstoreHeroBrowse" type="button" class="apk-drop-link">browse</button>.  Recommended 1920×800 (21:9).</span>
+            </div>
+        </div>
+
         <!-- Drag-drop zone -->
         <div id="apkDropZone" class="apk-drop">
             <input type="file" id="apkDropFile" accept=".apk,application/vnd.android.package-archive" multiple hidden>
@@ -339,6 +352,10 @@
             <label class="store-drawer-field">
                 <span>Version</span>
                 <input id="drawerVersion" type="text" autocomplete="off">
+            </label>
+            <label class="store-drawer-field">
+                <span>Category</span>
+                <input id="drawerCategory" type="text" autocomplete="off" placeholder="e.g. Entertainment, Music, Games">
             </label>
             <label class="store-drawer-field readonly">
                 <span>Package id</span>
