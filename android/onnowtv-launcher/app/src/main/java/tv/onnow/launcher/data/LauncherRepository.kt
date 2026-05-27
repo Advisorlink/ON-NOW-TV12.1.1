@@ -11,7 +11,6 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,7 +38,6 @@ class LauncherRepository(
 
         private const val PREFS = "launcher_repo"
         private const val KEY_CONFIG_JSON = "config_json"
-        private const val KEY_DEVICE_ID   = "device_id"
     }
 
     private val http: OkHttpClient = OkHttpClient.Builder()
@@ -50,15 +48,20 @@ class LauncherRepository(
     private val _config = MutableStateFlow<LauncherConfig?>(null)
     val config: StateFlow<LauncherConfig?> = _config.asStateFlow()
 
-    /** Stable per-device id used for notification ack tracking. */
-    val deviceId: String by lazy {
-        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.getString(KEY_DEVICE_ID, null) ?: run {
-            val id = UUID.randomUUID().toString()
-            prefs.edit().putString(KEY_DEVICE_ID, id).apply()
-            id
-        }
-    }
+    /** Stable per-device id.
+     *
+     *  v2.8.7 — Delegates to `OnboardingActivity.deviceId(ctx)` so
+     *  the heartbeat id sent on every `/api/launcher/config` poll
+     *  MATCHES the id used for `/api/launcher/register` and
+     *  `/api/launcher/activation`.  Previously these two paths used
+     *  separate UUIDs in two different SharedPreferences files, so
+     *  the "Connected devices" admin telemetry showed a phantom
+     *  second id for every box and the user could not see his
+     *  registered devices heartbeating in the admin UI.  Single
+     *  source of truth now.
+     */
+    val deviceId: String
+        get() = tv.onnow.launcher.onboarding.OnboardingActivity.deviceId(ctx)
 
     /** v0.4 — Public read-only base URL accessor so the
      *  MainActivity's debug pill can show the user which backend

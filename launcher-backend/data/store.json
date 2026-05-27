@@ -1,5 +1,5 @@
 {
-  "generation": 298,
+  "generation": 307,
   "dock_tiles": [
     {
       "key": "movies",
@@ -150,6 +150,16 @@
       "apk_url": "/assets/apks/19f03240e42d_onnowtv-launcher-debug (16).apk",
       "description": null,
       "added_at": 1779849976
+    },
+    {
+      "id": "fe7b7b87c9be",
+      "name": "ON NOW TV V2",
+      "package_id": "tv.onnowtv.app",
+      "version_name": "2.8.5",
+      "icon_url": "/assets/apk_icons/fe7b7b87c9be.png",
+      "apk_url": "/assets/apks/fe7b7b87c9be_onnowtv-v2-debug (5).apk",
+      "description": null,
+      "added_at": 1779852441
     }
   ],
   "notifications": [],
@@ -311,8 +321,13 @@
     },
     "58cd0185-fa03-408d-bc75-8bc08f9a25ce": {
       "device_id": "58cd0185-fa03-408d-bc75-8bc08f9a25ce",
-      "last_seen": 1779851812,
-      "last_generation": 298
+      "last_seen": 1779852659,
+      "last_generation": 299
+    },
+    "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc": {
+      "device_id": "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc",
+      "last_seen": 1779853292,
+      "last_generation": 307
     }
   },
   "layout": {
@@ -6606,58 +6621,13 @@
       "legacy": true,
       "not_hk1": true
     },
-    "2daba98f-300b-43f5-bcdc-500a89a9cd71": {
-      "id": "2daba98f-300b-43f5-bcdc-500a89a9cd71",
-      "name": "trav",
+    "520dfd4b-ca06-4d42-9405-5b2d8e973ebe": {
+      "id": "520dfd4b-ca06-4d42-9405-5b2d8e973ebe",
+      "name": "n",
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
-      "registered_at": 1779810227,
-      "last_seen_at": 1779845901,
-      "last_ip": "34.160.159.238"
-    },
-    "a33fc881-8fb3-43ab-a734-0d1c82c0ebd7": {
-      "id": "a33fc881-8fb3-43ab-a734-0d1c82c0ebd7",
-      "name": "mcc",
-      "model": "samsung SM-F966B",
-      "status": "active",
-      "registered_at": 1779811142,
-      "last_seen_at": 1779811490,
-      "last_ip": "34.160.159.238"
-    },
-    "f7b029a1-43ff-44ba-8b1c-76013d90e212": {
-      "id": "f7b029a1-43ff-44ba-8b1c-76013d90e212",
-      "name": "tr",
-      "model": "Amlogic HK1 BOX S905X3",
-      "status": "active",
-      "registered_at": 1779846140,
-      "last_seen_at": 1779847673,
-      "last_ip": "34.160.159.238"
-    },
-    "4c72a43d-fc2d-41a2-b0b7-eea0eb86f9e2": {
-      "id": "4c72a43d-fc2d-41a2-b0b7-eea0eb86f9e2",
-      "name": "ccc",
-      "model": "Amlogic HK1 BOX S905X3",
-      "status": "active",
-      "registered_at": 1779847793,
-      "last_seen_at": 1779848874,
-      "last_ip": "34.160.159.238"
-    },
-    "f64f07b3-0e64-4977-b7c0-2fb652c4f194": {
-      "id": "f64f07b3-0e64-4977-b7c0-2fb652c4f194",
-      "name": "t",
-      "model": "Amlogic HK1 BOX S905X3",
-      "status": "active",
-      "registered_at": 1779849008,
-      "last_seen_at": 1779851472,
-      "last_ip": "34.160.159.238"
-    },
-    "d7d5a98f-757e-4b4b-83c1-a1ff569d6491": {
-      "id": "d7d5a98f-757e-4b4b-83c1-a1ff569d6491",
-      "name": "t",
-      "model": "Amlogic HK1 BOX S905X3",
-      "status": "active",
-      "registered_at": 1779851624,
-      "last_seen_at": 1779851800,
+      "registered_at": 1779852836,
+      "last_seen_at": 1779853291,
       "last_ip": "34.160.159.238"
     }
   },

@@ -1,6 +1,24 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.6b — CI release-publishing hardened against GitHub API 5xx** (Feb 27, 2026)
+> Latest: **v2.8.7 — Launcher: stable device ID across reinstalls + auto-claim + fixed register screen** (Feb 27, 2026)
+>
+> Three coupled fixes addressing direct user spec: "I don't want to have to register my device every time that I reinstall the application".
+>
+> 1. **Stable device ID across reinstalls.** `OnboardingActivity.deviceId()` now derives the device id from `Settings.Secure.ANDROID_ID` on fresh installs (`onnow-<android_id>`) instead of a random UUID.  ANDROID_ID is per-(device + signing-key) and survives uninstall as long as the signing key stays the same — which it does now because v2.8.5 provisioned a persistent debug keystore.  Existing SharedPreferences UUIDs are still honoured if present (legacy upgrade path).
+>
+> 2. **Auto-claim on every boot.** `decidePhase()` now ALWAYS pings `/api/launcher/activation?device_id=...` BEFORE deciding which screen to show.  If the backend says `active` → `proceedToLauncher()` directly with no registration step.  If `pending` / `blocked` → blocked screen.  If `unregistered` → registration screen.  Network failure falls back to the local cached status so offline boxes still boot.  Result: a box that's already approved by admin re-installs the APK → instantly into the launcher home, zero typing.
+>
+> 3. **Unified the `LauncherRepository.deviceId` field** to delegate to `OnboardingActivity.deviceId(ctx)` so the heartbeat id sent on every `/api/launcher/config` poll MATCHES the id used for registration/activation.  Was previously two separate UUIDs in two SharedPreferences files, so the admin telemetry showed phantom second IDs.
+>
+> 4. **Fixed blank text in the registration input field.**  `placeholder` + `nameText` were being added to a `FrameLayout` with `LinearLayout.LayoutParams(width=0, weight=1)`.  FrameLayout ignores weight → width stayed at 0 → both TextViews invisible.  Switched to `FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)`.  This was the "buttons don't put out any texts, they're just blank" bug.
+>
+> 5. **Fixed key clipping on press.**  Keys do a 1.06× OvershootInterpolator scale on focus.  `clipChildren=true` (the default) on the parent rows / grid / outer column was clipping the scaled edges → user saw "buttons cutting off a little tiny bit on each press".  Added `clipChildren=false` + `clipToPadding=false` to every ancestor on the rendering path (root FrameLayout, outer column, grid, every row, action row).
+>
+> Files touched (2): `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/onboarding/OnboardingActivity.kt`, `.../data/LauncherRepository.kt`.  Backend `/api/launcher/register` was already idempotent — re-registering the same id keeps the existing admin-set status, so no backend changes were required.
+>
+> ⚠️ One-time impact for existing registered boxes: devices registered before this fix have UUID-based IDs.  After upgrading + reinstalling once, they get a new ANDROID_ID-based id and the admin will see them as a new device pending approval (or the user enters their name once).  After that ONE registration, all future reinstalls auto-claim.
+>
+> Previous: **v2.8.6b — CI release-publishing hardened against GitHub API 5xx** (Feb 27, 2026)
 >
 > The v2.8.5 Vesper build itself **succeeded** in CI, but the final "Publish/update apk-latest Release" step failed with a generic `Server Error` while `softprops/action-gh-release@v2` was trying to DELETE the previously uploaded `onnowtv-v2-debug.apk` asset.  This is a known intermittent GitHub Releases API 5xx that affects large (50+ MB) APK replacements.
 >

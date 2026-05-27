@@ -67,14 +67,49 @@ class OnboardingActivity : AppCompatActivity() {
         const val PHASE_REGISTER = 1
         const val PHASE_BLOCKED  = 2
 
-        /** Stable device id — generated once on first call. */
+        /** Stable device id.
+         *
+         *  v2.8.7 — Hard requirement: this MUST survive a re-install
+         *  of the launcher APK so the user (and his clients) don't
+         *  have to re-register every time they reinstall.  Strategy:
+         *
+         *    1. If we already have a `device_id` in SharedPreferences
+         *       (from a previous install OR a legacy UUID install),
+         *       KEEP it.  This means existing registered devices in
+         *       the backend continue to match perfectly.
+         *    2. Otherwise, derive the id from `Settings.Secure
+         *       .ANDROID_ID` — a 16-char hex string that is stable
+         *       per (device + app-signing-key).  Since we provisioned
+         *       a persistent debug keystore in v2.8.5, ANDROID_ID is
+         *       stable across reinstalls of OUR app.
+         *    3. ANDROID_ID can in rare cases be "9774d56d682e549c"
+         *       (Android emulator default) or null — if so we fall
+         *       back to a UUID so we never explode.
+         *
+         *  The returned id is then PERSISTED to SharedPreferences so
+         *  subsequent calls are free + stable even if ANDROID_ID
+         *  changes (e.g. factory reset).
+         */
         fun deviceId(ctx: android.content.Context): String {
             val sp = ctx.getSharedPreferences(PREFS, MODE_PRIVATE)
             var id = sp.getString(KEY_DEVICE_ID, null)
-            if (id.isNullOrBlank()) {
-                id = UUID.randomUUID().toString()
-                sp.edit().putString(KEY_DEVICE_ID, id).apply()
+            if (!id.isNullOrBlank()) return id
+            // Fresh install — derive from ANDROID_ID first.
+            val androidId = try {
+                android.provider.Settings.Secure.getString(
+                    ctx.contentResolver,
+                    android.provider.Settings.Secure.ANDROID_ID,
+                )
+            } catch (_: Throwable) { null }
+            id = if (
+                !androidId.isNullOrBlank() &&
+                androidId != "9774d56d682e549c" /* emulator default */
+            ) {
+                "onnow-$androidId"
+            } else {
+                UUID.randomUUID().toString()
             }
+            sp.edit().putString(KEY_DEVICE_ID, id).apply()
             return id
         }
 
@@ -101,6 +136,10 @@ class OnboardingActivity : AppCompatActivity() {
 
         root = FrameLayout(this).apply {
             setBackgroundResource(R.drawable.onb_bg_glow)
+            // v2.8.7 — Let key focus-scale grow beyond the parent
+            // without getting clipped at the screen edge.
+            clipChildren = false
+            clipToPadding = false
         }
         setContentView(root)
         decidePhase()
@@ -121,13 +160,62 @@ class OnboardingActivity : AppCompatActivity() {
 
     /* ──────────────────  State machine  ────────────────── */
 
+    /**
+     * v2.8.7 — On every boot, ALWAYS query the backend for the
+     * authoritative status BEFORE falling back to local
+     * SharedPreferences.  This is the auto-claim flow the user
+     * needs: if a box was previously registered + activated, even
+     * if the launcher APK was wiped/reinstalled, the backend has
+     * the device record and will return `status=active` →
+     * launcher boots straight into the home screen with no
+     * registration step.
+     *
+     * Falls back to the local cached status if the network is
+     * down (so an offline box still boots if it was previously
+     * activated), or shows the Wi-Fi screen if we've never seen
+     * network at all.
+     */
     private fun decidePhase() {
         pollJob?.cancel()
-        val status = currentStatus(this)
+        if (!hasNetwork()) {
+            // Network down — best we can do is honour the locally
+            // cached status (active boxes still boot offline).
+            applyPhaseFromLocalStatus()
+            return
+        }
+        // We DO have network — go ask the backend first.
+        lifecycleScope.launch {
+            val (remoteStatus, name) = fetchActivationStatus()
+            // Persist whatever the backend says (so we have a
+            // useful fallback next time the network is down).
+            if (remoteStatus in listOf("active", "pending", "blocked")) {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString(KEY_STATUS, remoteStatus)
+                    .also { if (!name.isNullOrBlank()) it.putString(KEY_NAME, name) }
+                    .apply()
+            }
+            applyPhaseFromLocalStatus(remoteOverride = remoteStatus)
+        }
+    }
+
+    /** Pick the phase from `KEY_STATUS` in SharedPreferences (or
+     *  from a fresh `remoteOverride` from the backend if supplied). */
+    private fun applyPhaseFromLocalStatus(remoteOverride: String? = null) {
+        val status = remoteOverride
+            ?: currentStatus(this)
         currentPhase = when {
             !hasNetwork()            -> PHASE_WIFI
             status == "active"       -> { proceedToLauncher(); return }
             status == "unregistered" -> PHASE_REGISTER
+            status == "error"        -> {
+                // Backend lookup failed — honour local cache.
+                val cached = currentStatus(this)
+                when (cached) {
+                    "active"       -> { proceedToLauncher(); return }
+                    "pending", "blocked" -> PHASE_BLOCKED
+                    else           -> PHASE_REGISTER
+                }
+            }
             else /* pending|blocked */ -> PHASE_BLOCKED
         }
         when (currentPhase) {
@@ -171,10 +259,18 @@ class OnboardingActivity : AppCompatActivity() {
         typedName = ""
         shiftOn = false
 
-        // Outer scroll-safe column.
+        // v2.8.7 — Outer scroll-safe column.  `clipChildren=false`
+        // and `clipToPadding=false` are CRITICAL: the keys do a
+        // 1.06× OvershootInterpolator scale on focus + press; without
+        // these, the scaled edges get clipped at the parent's bounds
+        // → user sees the buttons "cutting off a little tiny bit on
+        // each press".  Apply this propagation to EVERY ancestor on
+        // the rendering path so the scale grow has somewhere to go.
         val col = vertical().apply {
             setPadding(dp(80), dp(36), dp(80), dp(28))
             gravity = Gravity.CENTER_HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
         }
         col.addView(eyebrow("ON NOW TV V2 · DEVICE REGISTRATION"))
         col.addView(spacer(dp(10)))
@@ -204,7 +300,6 @@ class OnboardingActivity : AppCompatActivity() {
             setTextColor(0xFFF4F7FB.toInt())
             typeface = font(weightBold = false)
             letterSpacing = 0.02f
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         val placeholder = TextView(this).apply {
             text = "Your name"
@@ -212,17 +307,28 @@ class OnboardingActivity : AppCompatActivity() {
             setTextColor(0xFF5A6A82.toInt())
             typeface = font(weightBold = false)
             letterSpacing = 0.02f
-            layoutParams = LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-            )
         }
         // Stack: nameText fills, placeholder shown only while empty.
+        // v2.8.7 — placeholder + nameText added as FrameLayout
+        // children (NOT LinearLayout children), so their LayoutParams
+        // MUST be `FrameLayout.LayoutParams(MATCH_PARENT, …)`.  The
+        // previous code passed `LinearLayout.LayoutParams(0, _, 1f)`
+        // which FrameLayout silently honoured the width=0 from →
+        // both views had ZERO width → user saw a totally blank input
+        // field even after typing a full name.  This was the
+        // "buttons don't put out any texts" bug.
         val displayInner = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f,
             )
-            addView(placeholder)
-            addView(nameText)
+            addView(placeholder, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            ))
+            addView(nameText, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            ))
         }
         display.addView(displayInner)
         val cursor = View(this).apply {
@@ -401,6 +507,9 @@ class OnboardingActivity : AppCompatActivity() {
     ): View {
         val grid = vertical().apply {
             gravity = Gravity.CENTER_HORIZONTAL
+            // v2.8.7 — Don't clip the 1.06× focus-scale overshoot.
+            clipChildren = false
+            clipToPadding = false
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -416,6 +525,8 @@ class OnboardingActivity : AppCompatActivity() {
             val rowView = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_HORIZONTAL
+                clipChildren = false
+                clipToPadding = false
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -431,6 +542,8 @@ class OnboardingActivity : AppCompatActivity() {
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
