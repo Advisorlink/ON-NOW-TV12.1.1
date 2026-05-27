@@ -1,5 +1,5 @@
 {
-  "generation": 296,
+  "generation": 298,
   "dock_tiles": [
     {
       "key": "movies",
@@ -306,8 +306,13 @@
     },
     "08a56080-8743-4c82-806f-ad60aec59f51": {
       "device_id": "08a56080-8743-4c82-806f-ad60aec59f51",
-      "last_seen": 1779850961,
-      "last_generation": 295
+      "last_seen": 1779851480,
+      "last_generation": 296
+    },
+    "58cd0185-fa03-408d-bc75-8bc08f9a25ce": {
+      "device_id": "58cd0185-fa03-408d-bc75-8bc08f9a25ce",
+      "last_seen": 1779851785,
+      "last_generation": 298
     }
   },
   "layout": {
@@ -6643,7 +6648,16 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779849008,
-      "last_seen_at": 1779850958,
+      "last_seen_at": 1779851472,
+      "last_ip": "34.160.159.238"
+    },
+    "d7d5a98f-757e-4b4b-83c1-a1ff569d6491": {
+      "id": "d7d5a98f-757e-4b4b-83c1-a1ff569d6491",
+      "name": "t",
+      "model": "Amlogic HK1 BOX S905X3",
+      "status": "active",
+      "registered_at": 1779851624,
+      "last_seen_at": 1779851784,
       "last_ip": "34.160.159.238"
     }
   },

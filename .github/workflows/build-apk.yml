@@ -253,6 +253,59 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
           ls -la "$GITHUB_WORKSPACE/onnowtv-v2-debug.apk"
 
+      # v2.8.6 — Pre-delete the previously uploaded APK asset BEFORE
+      # letting softprops/action-gh-release re-upload it.  The action's
+      # built-in "delete then re-upload" path hits intermittent GitHub
+      # API 5xx ("Server Error") on large (50+ MB) APK assets — it
+      # surfaces as a fatal failure at the "Publish/update apk-latest
+      # Release" step even though the Vesper build itself succeeded.
+      #
+      # By pre-deleting via `gh release delete-asset` with a 5-attempt
+      # exponential-backoff retry loop, we keep the DELETE step under
+      # OUR control (where we can retry) instead of inside the action
+      # (where one 5xx aborts the entire workflow).  If the asset
+      # doesn't exist yet (first run, or it was already deleted),
+      # this step is a no-op.  The softprops step then only has to
+      # do an UPLOAD, which is the reliable half of the API.
+      - name: Delete previous apk-latest asset (with retries)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          ASSET="onnowtv-v2-debug.apk"
+          TAG="apk-latest"
+          # If the release doesn't exist yet, nothing to delete.
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $TAG does not exist yet — skipping pre-delete."
+              exit 0
+          fi
+          # If the asset isn't on the release, nothing to delete.
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                  --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+              echo "Asset $ASSET not present on $TAG — skipping pre-delete."
+              exit 0
+          fi
+          for attempt in 1 2 3 4 5; do
+              echo "Attempt $attempt: deleting $ASSET from release $TAG…"
+              if gh release delete-asset "$TAG" "$ASSET" \
+                      --repo "$GITHUB_REPOSITORY" --yes; then
+                  echo "Deleted previous $ASSET successfully."
+                  exit 0
+              fi
+              # Confirm it's actually still there before retrying —
+              # `gh` sometimes reports failure even though the delete
+              # went through, in which case we're done.
+              if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                      --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+                  echo "Asset already gone after attempt $attempt — done."
+                  exit 0
+              fi
+              sleep $((attempt * 4))
+          done
+          echo "WARNING: could not pre-delete $ASSET after 5 attempts — softprops will try its own delete."
+          # Don't fail the workflow here — let softprops try anyway.
+          exit 0
+
       - name: Publish/update "apk-latest" Release
         uses: softprops/action-gh-release@v2
         with:

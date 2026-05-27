@@ -79,6 +79,44 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/onnowtv-launcher-debug.apk"
           ls -la "$GITHUB_WORKSPACE/onnowtv-launcher-debug.apk"
 
+      # v2.8.6 — Pre-delete the previous launcher APK asset with
+       # retries before letting softprops re-upload, to avoid the
+      # intermittent "Server Error" 5xx from the action's built-in
+      # delete-then-upload path on large APK assets.  Same pattern
+      # as the Vesper build-apk workflow.
+      - name: Delete previous launcher-latest asset (with retries)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          ASSET="onnowtv-launcher-debug.apk"
+          TAG="launcher-latest"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $TAG does not exist yet — skipping pre-delete."
+              exit 0
+          fi
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                  --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+              echo "Asset $ASSET not present on $TAG — skipping pre-delete."
+              exit 0
+          fi
+          for attempt in 1 2 3 4 5; do
+              echo "Attempt $attempt: deleting $ASSET from release $TAG…"
+              if gh release delete-asset "$TAG" "$ASSET" \
+                      --repo "$GITHUB_REPOSITORY" --yes; then
+                  echo "Deleted previous $ASSET successfully."
+                  exit 0
+              fi
+              if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                      --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+                  echo "Asset already gone after attempt $attempt — done."
+                  exit 0
+              fi
+              sleep $((attempt * 4))
+          done
+          echo "WARNING: could not pre-delete $ASSET after 5 attempts — softprops will try its own delete."
+          exit 0
+
       - name: Publish/update launcher-latest Release
         uses: softprops/action-gh-release@v2
         with:

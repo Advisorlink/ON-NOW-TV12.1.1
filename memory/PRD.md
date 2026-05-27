@@ -1,6 +1,12 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.6 — Launcher App Store: single-tap Uninstall + Installed badge on icon** (Feb 27, 2026)
+> Latest: **v2.8.6b — CI release-publishing hardened against GitHub API 5xx** (Feb 27, 2026)
+>
+> The v2.8.5 Vesper build itself **succeeded** in CI, but the final "Publish/update apk-latest Release" step failed with a generic `Server Error` while `softprops/action-gh-release@v2` was trying to DELETE the previously uploaded `onnowtv-v2-debug.apk` asset.  This is a known intermittent GitHub Releases API 5xx that affects large (50+ MB) APK replacements.
+>
+> Fix: added a pre-delete step in BOTH `build-apk.yml` and `build-launcher.yml` that uses the `gh` CLI to delete the existing asset BEFORE letting the softprops action upload the fresh one.  The pre-delete runs in a 5-attempt loop with `sleep $((attempt * 4))` exponential backoff and verifies the asset is actually gone (since `gh` sometimes reports failure on a delete that did succeed).  If the asset doesn't exist (first run), the step is a no-op.  If all retries fail, we log a WARNING and let the softprops step try its own delete — so this only adds robustness, never blocks the build.  Net effect: the softprops step now only has to UPLOAD, which is the reliable half of the GitHub API.
+>
+> Previous: **v2.8.6 — Launcher App Store: single-tap Uninstall + Installed badge on icon** (Feb 27, 2026)
 >
 > Per direct user spec — the App Store tile UX is now a single-tap UNINSTALL.
 > 1. **Installed apps show the red "Uninstall" button directly under the tile** (no more two-tap "Installed → Uninstall" toggle).  One press fires `PackageInstaller.uninstall(pkg, sender)` → Android's mandatory system confirm sheet → real OS-level uninstall.
