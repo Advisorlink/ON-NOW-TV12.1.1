@@ -7,6 +7,52 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.5 — Uninstall actually works + Kids rating gate on Detail page
+
+  • **Launcher Uninstall finally fires.**  v2.8.3 added intent
+    fallbacks but they were still silently rejected on Android 11+
+    because the launcher manifest was missing the modern
+    `REQUEST_DELETE_PACKAGES` permission.  Fixed:
+      1. Added the permission to `AndroidManifest.xml`.
+      2. Switched the primary uninstall path to
+         `PackageInstaller.uninstall(pkg, intentSender)` — routes
+         through the platform service so package-visibility +
+         launcher-whitelist rules on the Activity resolver side
+         no longer apply.
+      3. Wired a result-callback `BroadcastReceiver` registered on
+         `onStart` / unregistered on `onStop` so the tile flips
+         back to "Install" the INSTANT the system confirms the
+         uninstall (instead of waiting for `onResume`).
+      4. Receiver also handles the `STATUS_PENDING_USER_ACTION`
+         case by re-launching the embedded confirm Intent — that's
+         what shows the user the "Do you want to uninstall this
+         app?" system sheet.
+      5. Kept the three legacy intent fallbacks
+         (`ACTION_UNINSTALL_PACKAGE` → `ACTION_DELETE` →
+         `ACTION_APPLICATION_DETAILS_SETTINGS`) for boxes where
+         `PackageInstaller.uninstall` is unavailable.
+      6. Clear Toast error if all four paths fail so the admin
+         can spot a permission / whitelist issue immediately.
+
+  • **Kids Detail-page rating gate.**  Closes the last hole where
+    a kid (or anyone with the URL) could paste `/title/movie/tt…`
+    and reach adult content even with the Kids profile active.
+    Two coordinated changes:
+      1. Backend: `/api/tmdb/find-by-imdb/{imdb_id}` now also
+         returns the US certification (movie release_dates /
+         TV content_ratings).  One extra TMDB call per
+         resolution, cached for 7 days alongside the existing
+         IMDB→TMDB mapping.  Bumped cache key to `v2`.
+         Verified live: The Matrix → "R", Frozen → "PG".
+      2. Frontend: Detail.jsx `useEffect` that already resolves
+         `tmdbInfo` now also extracts `rating` and runs it through
+         the existing `isRatingAllowed()` helper against the
+         kid's configured ceiling.  If exceeded → silent
+         `navigate('/', { replace: true })`.  Kid lands back on
+         KidsHome with no error message (parent-friendly).
+
+  • Bumped Vesper APK → **v2.8.5** (versionCode 260).
+
 ## v2.8.4 — Kids PIN lockdown + first-time setup wizard + launcher upgrade-safe signing
 
   • **Kids first-time setup wizard.**  New `/kids/setup` page +

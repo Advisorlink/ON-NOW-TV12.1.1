@@ -163,12 +163,62 @@ class AppsDrawerActivity : AppCompatActivity() {
         loadAndRender()
     }
 
+    private var uninstallReceiver: android.content.BroadcastReceiver? = null
+
     override fun onResume() {
         super.onResume()
         // After returning from Android's package-installer / uninstaller
         // we need to re-evaluate which tiles say "Install" vs
         // "Installed" — the user may have just toggled one.
         adapter?.notifyDataSetChanged()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // v2.8.5 — Listen for our `PackageInstaller.uninstall()`
+        // callback so we can refresh tiles the instant the system
+        // confirms the operation (instead of waiting for the user
+        // to come back to this Activity, which can be slow on TV
+        // remotes).
+        uninstallReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, intent: Intent) {
+                val status = intent.getIntExtra(
+                    android.content.pm.PackageInstaller.EXTRA_STATUS, -1,
+                )
+                when (status) {
+                    android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                        // System needs the user to confirm via UI.
+                        val confirm: Intent? =
+                            intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                        if (confirm != null) {
+                            try {
+                                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(confirm)
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                    android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                        adapter?.notifyDataSetChanged()
+                    }
+                    else -> { /* failure → onResume will re-sync */ }
+                }
+            }
+        }
+        val filter = android.content.IntentFilter("tv.onnow.launcher.UNINSTALL_RESULT")
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(uninstallReceiver, filter,
+                android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(uninstallReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try { uninstallReceiver?.let { unregisterReceiver(it) } }
+        catch (_: Throwable) {}
+        uninstallReceiver = null
     }
 
     override fun onDestroy() {
@@ -273,17 +323,26 @@ class AppsDrawerActivity : AppCompatActivity() {
         }
     }
 
-    /** Fire Android's standard ACTION_DELETE intent for the package.
-     *  The system shows its own confirm dialog and handles the
-     *  result; we just refresh tile state in `onResume()`.
+    /** Fire Android's uninstaller for the package.  v2.8.5 — Uses
+     *  the modern `PackageInstaller.uninstall()` API as the primary
+     *  path (works reliably on Android 11+), with three legacy
+     *  intent fallbacks for older boxes:
      *
-     *  v2.8.3 — Multiple fallbacks because `ACTION_DELETE` is
-     *  inconsistent across vendors:
-     *    1. `ACTION_UNINSTALL_PACKAGE` (Android 5+)
-     *    2. `ACTION_DELETE`            (older + many AOSP forks)
-     *    3. Settings → Apps detail page (always works)
-     *  If a Toast surfaces "Couldn't open uninstaller", the user
-     *  knows it's a launcher whitelist issue and not a missing pkg. */
+     *    1. `PackageInstaller.uninstall(pkg, sender)` — Android 5+
+     *       (post-API-21 it just shows the system confirm sheet,
+     *       SAME as ACTION_UNINSTALL_PACKAGE, but the call routes
+     *       through the platform service instead of the Activity
+     *       resolver, so package-visibility / launcher whitelist
+     *       restrictions on the Activity side don't apply).
+     *    2. `ACTION_UNINSTALL_PACKAGE` (deprecated but works on
+     *       most 6-10 boxes).
+     *    3. `ACTION_DELETE` (legacy alias).
+     *    4. `ACTION_APPLICATION_DETAILS_SETTINGS` — opens the
+     *       Apps detail page, user taps Uninstall from there.
+     *
+     *  Requires `REQUEST_DELETE_PACKAGES` in the manifest
+     *  (added in v2.8.5).
+     */
     private fun uninstallApk(entry: ApkEntryRemote) {
         val pkg = entry.packageId?.takeIf { it.isNotBlank() }
         if (pkg == null) {
@@ -293,6 +352,28 @@ class AppsDrawerActivity : AppCompatActivity() {
             ).show()
             return
         }
+        // 1) PackageInstaller.uninstall() — preferred path.
+        try {
+            val pi = packageManager.packageInstaller
+            val callback = Intent("tv.onnow.launcher.UNINSTALL_RESULT").apply {
+                setPackage(packageName)
+            }
+            val flags = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                android.app.PendingIntent.FLAG_MUTABLE
+            } else {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val sender = android.app.PendingIntent.getBroadcast(
+                this, pkg.hashCode(), callback, flags,
+            ).intentSender
+            pi.uninstall(pkg, sender)
+            return
+        } catch (t: Throwable) {
+            android.util.Log.w("AppsDrawer", "PackageInstaller.uninstall failed: ${t.message}")
+        }
+
+        // 2-4) Legacy intent fallbacks.
         val uri = Uri.parse("package:$pkg")
         val attempts = listOf(
             { Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply { data = uri } },
@@ -310,7 +391,7 @@ class AppsDrawerActivity : AppCompatActivity() {
         }
         android.widget.Toast.makeText(
             this,
-            "Couldn't open uninstaller for $pkg",
+            "Couldn't open uninstaller for $pkg — Android refused.",
             android.widget.Toast.LENGTH_LONG,
         ).show()
     }

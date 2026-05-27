@@ -24,7 +24,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
-import { isKidsActive, getActiveProfile } from '@/lib/profiles';
+import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { isInLibrary } from '@/lib/library';
@@ -245,6 +245,12 @@ export default function Detail() {
 
     /* Resolve IMDB id → TMDB id so the Cast row can hit TMDB. */
     const [tmdbInfo, setTmdbInfo] = useState(null);
+    /* v2.8.5 — Kids hard-block.  When in Kids mode, we look up the
+     * title's US certification via the find-by-imdb endpoint (which
+     * now also returns `rating`).  If the cert exceeds the parent's
+     * configured max for movies / TV, we redirect to KidsHome — so
+     * even a kid pasting a /title/ URL directly can't reach adult
+     * content. */
     useEffect(() => {
         let cancel = false;
         if (!id || !id.startsWith('tt')) {
@@ -263,13 +269,25 @@ export default function Detail() {
                         tmdb_id: data.tmdb_id,
                         media_type: data.media_type,
                     });
+                    // Kids rating gate.
+                    if (isKidsActive()) {
+                        const cfg = getKidsConfig();
+                        const cert = (data.rating || '').trim();
+                        const ceiling = data.media_type === 'tv'
+                            ? cfg.maxRatingSeries
+                            : cfg.maxRatingMovie;
+                        const allowed = isRatingAllowed(cert, ceiling);
+                        if (!allowed && !cancel) {
+                            navigate('/', { replace: true });
+                        }
+                    }
                 }
             } catch {
                 /* swallow — Cast row stays hidden if tmdbInfo is null. */
             }
         })();
         return () => { cancel = true; };
-    }, [id]);
+    }, [id, navigate]);
 
     /* Focused actor (Cast row) — when an actor card is focused, the
        hero swaps from movie title + synopsis to actor name + bio. */

@@ -9,6 +9,12 @@
 
     <!-- Sideload APKs published from the admin backend. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- v2.8.5 — REQUEST_DELETE_PACKAGES is REQUIRED on Android 11+
+         (API 30) before ACTION_UNINSTALL_PACKAGE / ACTION_DELETE
+         intents will resolve to the system uninstaller.  Without
+         this, tapping "Uninstall" in the App Store silently no-ops
+         because resolveActivity() returns null. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />

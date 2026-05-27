@@ -1076,17 +1076,23 @@ async def tmdb_to_imdb(type_: str, tmdb_id: int):
 # ----- Detail-page extras: cast, recommendations, person -----------------------
 
 @api.get("/tmdb/find-by-imdb/{imdb_id}")
+@api.get("/tmdb/find-by-imdb/{imdb_id}")
 async def tmdb_find_by_imdb(imdb_id: str):
     """Resolve `imdb_id` (tt-prefixed) → TMDB id + media_type.
 
     Used by the Detail page to drive the cast row + recommendations
     row without forcing the front-end to know the TMDB id.
 
+    v2.8.5 — Now also fetches the US certification (rating) so the
+    Kids profile in Vesper can hard-block adult titles even if a
+    kid pastes a /title/ URL directly.  Rating is null on failure
+    so callers can decide their own fallback.
+
     Cached for 7 days (the IMDB↔TMDB mapping is rock-stable).
     """
     if not imdb_id.startswith("tt"):
         raise HTTPException(400, "imdb_id must start with 'tt'")
-    cache_key = f"find_by_imdb:{imdb_id}"
+    cache_key = f"find_by_imdb:{imdb_id}:v2"  # v2 = includes rating
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -1094,13 +1100,42 @@ async def tmdb_find_by_imdb(imdb_id: str):
     data = await _tmdb_get(
         f"/find/{imdb_id}", {"external_source": "imdb_id"}
     )
-    out: Dict[str, Any] = {"tmdb_id": None, "media_type": None}
+    out: Dict[str, Any] = {"tmdb_id": None, "media_type": None, "rating": None}
     if data.get("movie_results"):
         out["tmdb_id"] = data["movie_results"][0].get("id")
         out["media_type"] = "movie"
     elif data.get("tv_results"):
         out["tmdb_id"] = data["tv_results"][0].get("id")
         out["media_type"] = "tv"
+
+    # ── Pull US certification — only one extra TMDB call. ──
+    if out["tmdb_id"]:
+        try:
+            if out["media_type"] == "movie":
+                rel = await _tmdb_get(
+                    f"/movie/{out['tmdb_id']}/release_dates", {},
+                )
+                for entry in rel.get("results", []) or []:
+                    if entry.get("iso_3166_1") == "US":
+                        for rd in entry.get("release_dates", []) or []:
+                            if rd.get("certification"):
+                                out["rating"] = rd["certification"]
+                                break
+                    if out["rating"]:
+                        break
+            elif out["media_type"] == "tv":
+                rel = await _tmdb_get(
+                    f"/tv/{out['tmdb_id']}/content_ratings", {},
+                )
+                for entry in rel.get("results", []) or []:
+                    if entry.get("iso_3166_1") == "US" and entry.get("rating"):
+                        out["rating"] = entry["rating"]
+                        break
+        except Exception:  # noqa: BLE001
+            # Cert lookup is best-effort — never block the underlying
+            # IMDB→TMDB resolution if TMDB hiccups on the second call.
+            pass
+
     if out["tmdb_id"]:
         await cache.set(cache_key, out, CACHE_TTL_TMDB_IMDB)
     return {"cached": False, **out}
