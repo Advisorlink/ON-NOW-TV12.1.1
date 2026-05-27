@@ -1,5 +1,5 @@
 {
-  "generation": 407,
+  "generation": 408,
   "dock_tiles": [
     {
       "key": "movies",
@@ -86,9 +86,9 @@
       "target_package": null,
       "target_url": null,
       "accent": "#d4ff00",
-      "heading": null,
-      "subheading": null,
-      "description": null,
+      "heading": "Google",
+      "subheading": "Find anything, anytime.",
+      "description": "Connect a keyboard and mouse and away you go..Search the web straight from your TV and explore answers, websites, videos, images, news, guides and more in seconds. Whether you\u2019re looking up a movie, checking something quickly, or browsing the internet from the couch, Google puts the world\u2019s information right at your fingertips.",
       "cta_label": null
     },
     {
@@ -104,9 +104,9 @@
       "target_package": null,
       "target_url": null,
       "accent": "#ff2600",
-      "heading": null,
-      "subheading": null,
-      "description": null,
+      "heading": "YouTube No Ads",
+      "subheading": "Watch more, wait less.",
+      "description": "Enjoy your favourite videos, music, podcasts, trailers and creators without annoying interruptions. Jump straight into the content you love with a cleaner, smoother viewing experience made for the big screen. Sit back, search, play and enjoy endless entertainment without the distractions.",
       "cta_label": null
     },
     {
@@ -122,9 +122,9 @@
       "target_package": null,
       "target_url": null,
       "accent": "#009dff",
-      "heading": null,
-      "subheading": null,
-      "description": null,
+      "heading": "V2 App Store",
+      "subheading": "All the apps in one place",
+      "description": "Discover, install, and effortlessly manage your most cherished applications with unparalleled ease. Our distinctive app store platform is meticulously designed to streamline the entire process, simplifying both the initial installation and subsequent uninstallation procedures. Everything you need for a seamless app experience is conveniently consolidated in one intuitive and accessible location, ensuring a smooth and user-friendly journey from start to finish.",
       "cta_label": null
     },
     {
@@ -414,8 +414,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779882050,
-      "last_generation": 407
+      "last_seen": 1779882692,
+      "last_generation": 408
     }
   },
   "layout": {
@@ -6742,7 +6742,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779882049,
+      "last_seen_at": 1779882692,
       "last_ip": "34.160.159.238"
     }
   },
