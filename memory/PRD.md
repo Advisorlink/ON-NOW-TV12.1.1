@@ -1,6 +1,24 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.11 — Kids TV: hard content-rating gate (zero adult-cartoon leaks)** (Feb 27, 2026)
+> Latest: **v2.8.12 — Movie tier expansion (G/PG/M/PG-13/M15) + admin banner sizing + preview fit-not-crop** (Feb 27, 2026)
+>
+> Three coupled fixes per the user's "confirm tier coverage + the banner zooms instead of fits + background not loading" feedback.
+>
+> **A — Movie tier expansion.**  Added the Australian **M** tier between PG and PG-13 in `MOVIE_CERT_FILTER`, `MOVIE_BANNED`, `MOVIE_REQUIRED`, and exposed it in both KidsSetup wizard and Settings UI.  Full tier ladder is now `G → PG → M → PG-13 → M15`.  **Nothing above M15 is ever exposed** (no NC-17, no R18+, no Adult).  `MOVIE_RATING_ORDER` updated in `profiles.js` so `M` ranks just below `PG-13` (treats them as equivalent).  Verified end-to-end via curl: `movie_cert=M` returns 380 movies (Inside Out 2, Spirited Away, Mario, Zootopia 2) with zero R/adult leaks; `movie_cert=G` returns pure G-rated (Toy Story, WALL·E, Lion King) for toddlers.
+>
+> **B — Banner: actual rectangle clarified + fit-not-crop everywhere.**
+> - Backend: switched hero from `ImageOps.fit()` (CROP+RESIZE) → `ImageOps.contain()` (PRESERVE ASPECT) so any uploaded image is shown FULL, no zoom-in, no distortion.
+> - Launcher ImageView: switched `scaleType` from `FIT_XY` (stretch) → `FIT_CENTER` (preserve aspect).
+> - Admin help text now says: "Rendered rectangle on TV: **1820 × 260 px (~7:1 aspect)**. Any aspect accepted — image is scaled to fit, never cropped or stretched."  This matches the EXACT rendered dimensions of the launcher's hero ImageView on a 1080p TV (`1920 - 2×48dp padding = 1824px wide × 260px tall`).
+> - Constants renamed: `APPSTORE_HERO_SIZE = (1820, 260)`.  Verified curl: 3000×600 upload → saved as 1300×260 (preserves the 5:1 aspect; no zoom).
+>
+> **C — Admin background preview: now actually shows the image.**  CSS for `.appstore-hero-preview img` was forcing `object-fit: cover` (CROP).  Changed to `object-fit: contain` so the admin sees EXACTLY what the launcher renders.  Also added per-id selectors so `#appstoreHeroPreview` has `aspect-ratio: 1820/260` (matches actual hero rectangle) and `#appstoreBgPreview` has `aspect-ratio: 16/9` (matches fullscreen background).  Verified via Playwright screenshot: both previews render the uploaded images at full visibility, hero at correct 7:1 shape, background at 16:9.
+>
+> **One critical clarification for the user:** the launcher APK currently on his HK1 box is v2.8.9 — it doesn't have the v2.8.10 background-rendering code yet.  Background WILL show on the TV after the next "Save to GitHub" → CI APK rebuild → reinstall cycle.  The admin upload + preview UI is already fully wired and live.
+>
+> Files touched (6): `backend/server.py`, `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `launcher-backend/admin/static/style.css`, `frontend/src/lib/profiles.js`, `frontend/src/pages/KidsSetup.jsx`, `frontend/src/pages/Settings.jsx`, `android/onnowtv-launcher/.../AppsDrawerActivity.kt`.
+>
+> Previous: **v2.8.11 — Kids TV: hard content-rating gate (zero adult-cartoon leaks)** (Feb 27, 2026)
 >
 > Direct response to "adult cartoon TV shows still showing on the home screen" + "need really specific tiers for tiny tots".
 >

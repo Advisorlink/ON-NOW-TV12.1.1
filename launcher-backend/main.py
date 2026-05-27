@@ -1283,22 +1283,33 @@ async def upload_apk_icon(
 
 
 # ── v2.0 — App Store hero image (single banner) ───────────────────
-# v2.8.10 — Final rendered size on a 1920×1080 TV:
-#   • Hero banner       — 1920 × 280 px (top of the App Store)
-#   • Background image  — 1920 × 1080 px (fullscreen behind the grid)
-# Both endpoints use Pillow's `ImageOps.fit()` which center-crops AND
-# resizes in one shot, so admins can drop in ANY size image and the
-# output lands at the exact target dimensions — perfect fit, no
-# letterboxing, no awkward edges.
-APPSTORE_HERO_SIZE       = (1920, 280)
+# v2.8.12 — Updated sizing strategy per user feedback ("1920×280 zooms
+# everything in").  We now use Pillow's `ImageOps.contain()` instead
+# of `fit()` so the uploaded image is scaled to FIT INSIDE the target
+# dimensions WITHOUT cropping or stretching — the full image is
+# always shown.  Aspect ratio is preserved exactly.
+#
+# Actual rendered rectangle on a 1920×1080 TV:
+#   • Hero banner       — 1824 × 260 px  (aspect 7:1, after 48dp pad)
+#   • Background image  — 1920 × 1080 px (fullscreen)
+#
+# Recommended upload dimensions (perfect edge-to-edge fit):
+#   • Hero banner       — 1820 × 260 px  (or any 7:1 aspect image)
+#   • Background image  — 1920 × 1080 px (or any 16:9 image)
+#
+# Larger images are auto-resized down preserving aspect ratio.  If
+# the aspect doesn't match, the launcher renders the FULL image
+# centered against the dark background — never cropped or distorted.
+APPSTORE_HERO_SIZE       = (1820, 260)
 APPSTORE_BACKGROUND_SIZE = (1920, 1080)
 
 
 @app.post("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
 async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     """Drag-drop a fresh hero banner for the launcher's App Store.
-    Auto-fits to 1920×280 via center-crop so any uploaded image
-    lands at the exact banner shape — no manual cropping needed."""
+    Auto-fits to within 1820×260 preserving aspect ratio — admins
+    can drop any size image and it'll render at full visibility on
+    the TV."""
     from PIL import Image, ImageOps
     import io
     raw = await file.read()
@@ -1307,12 +1318,13 @@ async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     out_path = DATA_DIR / "appstore" / "hero.png"
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-        # `fit()` = "scale to cover the target box then center-crop
-        # the overflow" — exactly what the user wants ("if I add
-        # something that's a little bit too big, it auto resizes
-        # so it fits perfectly").
-        img = ImageOps.fit(img, APPSTORE_HERO_SIZE, Image.LANCZOS)
+        # `contain()` = "scale down preserving aspect ratio so the
+        # image fits INSIDE the target box" — no crop, no stretch.
+        # This is what the user asked for ("fit inside that
+        # rectangle properly, how I've designed the images").
+        img = ImageOps.contain(img, APPSTORE_HERO_SIZE, Image.LANCZOS)
         img.save(out_path, format="PNG", optimize=True)
+        final_size = img.size
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, f"could not decode image: {exc}")
     store = _load_store()
@@ -1323,6 +1335,7 @@ async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
         "ok": True,
         "hero_image_url": appstore["hero_image_url"],
         "rendered_size": list(APPSTORE_HERO_SIZE),
+        "saved_size": list(final_size),
     }
 
 

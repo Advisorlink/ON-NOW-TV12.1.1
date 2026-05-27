@@ -22,9 +22,10 @@ import { getKidsConfig, saveKidsConfig } from '@/lib/profiles';
  * configured parental controls.
  */
 const MOVIE_RATINGS = [
-    { v: 'G',     label: 'G — All ages' },
-    { v: 'PG',    label: 'PG — Parental Guidance' },
-    { v: 'PG-13', label: 'PG-13 — Older kids' },
+    { v: 'G',     label: 'G — All ages (toddlers safe)' },
+    { v: 'PG',    label: 'PG — Parental Guidance (7+)' },
+    { v: 'M',     label: 'M — Mature themes (13+, AU)' },
+    { v: 'PG-13', label: 'PG-13 — Older kids (13+, US)' },
 ];
 const TV_RATINGS = [
     { v: 'TV-Y',  label: 'TV-Y — Tiny tots (1-3 yrs)' },

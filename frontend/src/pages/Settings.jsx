@@ -467,6 +467,7 @@ export default function Settings() {
                 options={[
                     { value: 'G', label: 'G' },
                     { value: 'PG', label: 'PG' },
+                    { value: 'M', label: 'M (AU)' },
                     { value: 'PG-13', label: 'PG-13' },
                     { value: 'M15', label: 'M15' },
                 ]}

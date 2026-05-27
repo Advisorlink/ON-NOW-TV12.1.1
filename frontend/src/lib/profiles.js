@@ -215,7 +215,11 @@ export function saveKidsConfig(partial) {
 
 // ---------- Kid-safe content filter ----------
 
-const MOVIE_RATING_ORDER = ['G', 'PG', 'PG-13', 'PG13', 'R', 'NC-17', 'TV-MA'];
+// v2.8.12 — `M` is the Australian classification roughly equivalent to
+// US PG-13 (mild themes, suitable for 13+).  Placed BEFORE PG-13 in
+// the order so M-rated content passes the PG-13 ceiling, and PG-13
+// content passes the M ceiling — they're treated as equivalent.
+const MOVIE_RATING_ORDER = ['G', 'PG', 'M', 'PG-13', 'PG13', 'R', 'NC-17', 'TV-MA'];
 const TV_RATING_ORDER = [
     'TV-Y',
     'TV-Y7',

@@ -1640,14 +1640,16 @@ TV_STRICT_TIERS = {"TV-Y", "TV-Y7", "TV-G"}
 # Rating-driven kid filter levels
 # ---------------------------------------------------------------------------
 # The Settings page now exposes the user's strictness preference via two
-# values: maxRatingMovie ∈ {G, PG, PG-13, M15} and maxRatingSeries ∈
+# values: maxRatingMovie ∈ {G, PG, M, PG-13, M15} and maxRatingSeries ∈
 # {TV-Y, TV-Y7, TV-G, TV-PG, TV-14, M15}.  These map onto TMDB queries
-# below.  Note "M15" is the Australian classification commonly used for
-# 15+ teen content; we treat it as "no kid filter — only block adult".
+# below.  v2.8.12 — Added the Australian M tier (PG-13-equivalent) so
+# parents have full tier coverage between PG and M15.  Nothing higher
+# than M15 (no R18+ / NC-17 / Adult) is EVER exposed.
 
 MOVIE_CERT_FILTER = {
     "G":     "G",
     "PG":    "PG",
+    "M":     "PG-13",  # AU M ≈ US PG-13 (teens, mild themes)
     "PG-13": "PG-13",
     "M15":   "R",      # AU M15 ≈ US R (not NC-17, not Adult)
 }
@@ -1657,6 +1659,7 @@ MOVIE_CERT_FILTER = {
 MOVIE_BANNED = {
     "G":     {27, 53, 80, 10752, 18, 9648},          # +Drama +Mystery
     "PG":    {27, 53, 80, 10752},                    # Horror Thriller Crime War
+    "M":     {27, 80, 10752},                        # Horror Crime War (= PG-13)
     "PG-13": {27, 80, 10752},                        # Horror Crime War
     "M15":   {27, 10752},                            # Horror, War only
 }
@@ -1666,6 +1669,7 @@ MOVIE_BANNED = {
 MOVIE_REQUIRED = {
     "G":     {16, 10751},                            # Animation/Family
     "PG":    {16, 10751},
+    "M":     {16, 10751, 12, 35},                    # +Adventure/Comedy
     "PG-13": {16, 10751, 12, 35},                    # +Adventure/Comedy
     "M15":   None,                                   # no genre gate
 }

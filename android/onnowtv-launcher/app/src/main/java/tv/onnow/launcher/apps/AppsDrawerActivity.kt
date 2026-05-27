@@ -117,15 +117,15 @@ class AppsDrawerActivity : AppCompatActivity() {
         }
 
         /* ── 1. Hero image (admin-uploaded) ──
-           v2.8.10 — Backend auto-fits uploads to EXACTLY 1920×280
-           via Pillow ImageOps.fit() (center-crop + resize), so the
-           ImageView just needs to stretch the pre-sized image to
-           fill the banner bounds.  FIT_XY = stretch to fill — fine
-           here because the source is already the correct aspect
-           ratio.  CENTER_CROP would re-crop sub-pixels on density
-           variations; FIT_XY shows the FULL image every time. */
+           v2.8.12 — Backend uses ImageOps.contain() to preserve the
+           uploader's aspect ratio without cropping.  FIT_CENTER on
+           the ImageView side ALSO preserves aspect — so the image
+           shows in full, centered against the dark card background,
+           no zoom-in, no stretch, no crop.  Recommended upload size
+           is 1820×260 (7:1 aspect) for an edge-to-edge fit; any
+           other aspect renders with subtle letterboxing. */
         heroImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_XY
+            scaleType = ImageView.ScaleType.FIT_CENTER
             clipToOutline = true
             // Cyan-tinted placeholder while the real hero loads.
             background = GradientDrawable(
@@ -136,7 +136,7 @@ class AppsDrawerActivity : AppCompatActivity() {
                 ),
             ).apply { cornerRadius = dp(28).toFloat() }
         }
-        // Banner aspect: 1920 × 280 on a 1080p TV (≈6.85:1).
+        // Banner aspect: ~7:1 (1820×260 recommended upload size).
         val heroHeight = dp(260)
         column.addView(heroImage, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
