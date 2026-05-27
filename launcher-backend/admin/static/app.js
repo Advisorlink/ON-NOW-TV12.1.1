@@ -1083,8 +1083,17 @@ function renderApks(store) {
     const grid  = $('#appStoreGrid');
     const empty = $('#appStoreEmpty');
     const apks  = store.apks || [];
-    // v2.0 — Mirror the hero image set in store.appstore.
-    syncAppstoreHero((store.appstore || {}).hero_image_url);
+    // v2.0 — Mirror the hero image + v2.8.10 background image
+    // set in store.appstore.  Both are independently uploadable.
+    const meta = store.appstore || {};
+    syncAppstoreImg(
+        '#appstoreHeroImg', '#appstoreHeroPreview', '#appstoreHeroClear',
+        meta.hero_image_url,
+    );
+    syncAppstoreImg(
+        '#appstoreBgImg', '#appstoreBgPreview', '#appstoreBgClear',
+        meta.background_image_url,
+    );
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1098,14 +1107,16 @@ function renderApks(store) {
     });
 }
 
-function syncAppstoreHero(heroUrl) {
-    const img    = $('#appstoreHeroImg');
-    const ph     = $('#appstoreHeroPreview')?.querySelector('.appstore-hero-placeholder');
-    const clear  = $('#appstoreHeroClear');
+/** v2.8.10 — Shared "render current image OR show placeholder"
+ *  helper.  Used by both the hero banner and the fullscreen
+ *  background previews. */
+function syncAppstoreImg(imgSel, previewSel, clearSel, url) {
+    const img   = $(imgSel);
+    const ph    = $(previewSel)?.querySelector('.appstore-hero-placeholder');
+    const clear = $(clearSel);
     if (!img) return;
-    if (heroUrl) {
-        // Bust cache so a recently-uploaded hero shows immediately.
-        img.src = heroUrl + (heroUrl.includes('?') ? '&' : '?') + '_v=' + Date.now();
+    if (url) {
+        img.src = url + (url.includes('?') ? '&' : '?') + '_v=' + Date.now();
         img.hidden = false;
         if (ph) ph.style.display = 'none';
         if (clear) clear.hidden = false;
@@ -1117,12 +1128,12 @@ function syncAppstoreHero(heroUrl) {
     }
 }
 
-/* —— Hero image upload + clear —— */
-(function setupHeroDropzone() {
-    const zone   = $('#appstoreHeroDrop');
-    const input  = $('#appstoreHeroFile');
-    const browse = $('#appstoreHeroBrowse');
-    const clear  = $('#appstoreHeroClear');
+/* —— Generic drag-drop image upload helper (hero + background) —— */
+function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoint, label }) {
+    const zone   = $(zoneSel);
+    const input  = $(inputSel);
+    const browse = $(browseSel);
+    const clear  = $(clearSel);
     if (!zone || !input) return;
 
     zone.addEventListener('click', (e) => {
@@ -1149,34 +1160,50 @@ function syncAppstoreHero(heroUrl) {
         const f = Array.from(e.dataTransfer?.files || []).find(
             (x) => /^image\//.test(x.type),
         );
-        if (f) await uploadHero(f);
+        if (f) await upload(f);
     });
     input.addEventListener('change', async () => {
         const f = input.files?.[0];
-        if (f) await uploadHero(f);
+        if (f) await upload(f);
         input.value = '';
     });
     clear?.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
-            await api('/api/admin/appstore/hero', { method: 'DELETE' });
-            toast('Hero image cleared');
+            await api(endpoint, { method: 'DELETE' });
+            toast(`${label} cleared`);
             refreshAll();
         } catch (err) { toast('Clear failed: ' + err.message, true); }
     });
 
-    async function uploadHero(file) {
+    async function upload(file) {
         try {
             const form = new FormData();
             form.append('file', file);
-            const r = await api('/api/admin/appstore/hero', {
-                method: 'POST', body: form,
-            });
-            toast('Hero image updated');
-            syncAppstoreHero(r.hero_image_url);
+            await api(endpoint, { method: 'POST', body: form });
+            toast(`${label} updated`);
             refreshAll();
         } catch (err) { toast('Upload failed: ' + err.message, true); }
     }
+}
+
+(function setupAppstoreDropzones() {
+    setupAppstoreDropzone({
+        zoneSel:   '#appstoreHeroDrop',
+        inputSel:  '#appstoreHeroFile',
+        browseSel: '#appstoreHeroBrowse',
+        clearSel:  '#appstoreHeroClear',
+        endpoint:  '/api/admin/appstore/hero',
+        label:     'Hero banner',
+    });
+    setupAppstoreDropzone({
+        zoneSel:   '#appstoreBgDrop',
+        inputSel:  '#appstoreBgFile',
+        browseSel: '#appstoreBgBrowse',
+        clearSel:  '#appstoreBgClear',
+        endpoint:  '/api/admin/appstore/background',
+        label:     'Background image',
+    });
 })();
 
 function appStoreTileHtml(a) {

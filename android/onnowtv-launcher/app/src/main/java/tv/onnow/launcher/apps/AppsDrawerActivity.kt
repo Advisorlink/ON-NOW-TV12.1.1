@@ -61,6 +61,7 @@ class AppsDrawerActivity : AppCompatActivity() {
     private lateinit var grid: RecyclerView
     private lateinit var emptyHint: TextView
     private lateinit var heroImage: ImageView
+    private lateinit var backgroundImage: ImageView
     private var loadJob: Job? = null
     private var currentApks: List<ApkEntryRemote> = emptyList()
     private var adapter: AppsAdapter? = null
@@ -74,6 +75,37 @@ class AppsDrawerActivity : AppCompatActivity() {
             setBackgroundResource(R.drawable.onb_bg_glow)
         }
 
+        /* v2.8.10 — Optional fullscreen wallpaper behind the apps
+           grid (admin-uploadable via /api/admin/appstore/background).
+           Sits AT the root level (lowest z-order) so the ScrollView
+           content floats over it.  scaleType=CENTER_CROP because the
+           backend already auto-fits to the exact 1920×1080 target
+           — CENTER_CROP just hides any sub-pixel rounding on odd
+           density boxes.  Tinted overlay sits on top to keep grid
+           tiles readable against bright wallpapers. */
+        backgroundImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+        }
+        root.addView(backgroundImage, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        // Dark scrim so the apps remain legible over photo wallpapers.
+        val scrim = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(
+                    Color.parseColor("#A6040611"),
+                    Color.parseColor("#CC040611"),
+                ),
+            )
+        }
+        root.addView(scrim, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             isFocusable = false
@@ -84,9 +116,16 @@ class AppsDrawerActivity : AppCompatActivity() {
             setPadding(dp(48), dp(40), dp(48), dp(48))
         }
 
-        /* ── 1. Hero image (admin-uploaded) ── */
+        /* ── 1. Hero image (admin-uploaded) ──
+           v2.8.10 — Backend auto-fits uploads to EXACTLY 1920×280
+           via Pillow ImageOps.fit() (center-crop + resize), so the
+           ImageView just needs to stretch the pre-sized image to
+           fill the banner bounds.  FIT_XY = stretch to fill — fine
+           here because the source is already the correct aspect
+           ratio.  CENTER_CROP would re-crop sub-pixels on density
+           variations; FIT_XY shows the FULL image every time. */
         heroImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
+            scaleType = ImageView.ScaleType.FIT_XY
             clipToOutline = true
             // Cyan-tinted placeholder while the real hero loads.
             background = GradientDrawable(
@@ -97,7 +136,7 @@ class AppsDrawerActivity : AppCompatActivity() {
                 ),
             ).apply { cornerRadius = dp(28).toFloat() }
         }
-        // 21:9 cinematic aspect (matches the mockup banner).
+        // Banner aspect: 1920 × 280 on a 1080p TV (≈6.85:1).
         val heroHeight = dp(260)
         column.addView(heroImage, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -234,6 +273,7 @@ class AppsDrawerActivity : AppCompatActivity() {
         if (cached != null) {
             renderApks(cached.apks)
             renderHero(cached.appstore.heroImageUrl)
+            renderBackground(cached.appstore.backgroundImageUrl)
         }
         loadJob?.cancel()
         loadJob = scope.launch {
@@ -241,6 +281,7 @@ class AppsDrawerActivity : AppCompatActivity() {
             if (fresh != null) {
                 renderApks(fresh.apks)
                 renderHero(fresh.appstore.heroImageUrl)
+                renderBackground(fresh.appstore.backgroundImageUrl)
             }
         }
     }
@@ -248,6 +289,15 @@ class AppsDrawerActivity : AppCompatActivity() {
     private fun renderHero(url: String?) {
         if (url.isNullOrBlank()) return
         ImageLoader.load(heroImage, url)
+    }
+
+    private fun renderBackground(url: String?) {
+        if (url.isNullOrBlank()) {
+            backgroundImage.visibility = View.GONE
+            return
+        }
+        backgroundImage.visibility = View.VISIBLE
+        ImageLoader.load(backgroundImage, url)
     }
 
     private fun renderApks(apks: List<ApkEntryRemote>) {

@@ -1,6 +1,22 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.9 — Kids sandbox lockdown: no adult leaks + hardware Back PIN-gated** (Feb 27, 2026)
+> Latest: **v2.8.10 — App Store: fullscreen background + perfect-fit hero banner** (Feb 27, 2026)
+>
+> Two coupled additions that close the user's "the banner doesn't fit perfectly and I need a background too" feedback.
+>
+> **A — Exact-fit hero banner.**  Switched the backend upload pipeline from `img.thumbnail((1920, 800))` (which preserved aspect ratio but left the launcher to center-crop the leftover overflow — the source of the "not fitting perfectly" complaint) to `ImageOps.fit(img, (1920, 280), LANCZOS)` which center-crops AND resizes in one shot to the exact target.  The launcher's `ImageView.scaleType` is now `FIT_XY` since the source is already the right shape.  Final rendered banner is **1920 × 280 px**, surfaced in the admin UI as guidance.
+>
+> **B — Fullscreen App Store background.**  New endpoints `POST/DELETE /api/admin/appstore/background` that auto-fit any uploaded image to **1920 × 1080 px** via the same `ImageOps.fit()` path.  Stored in `store.json → appstore.background_image_url`, surfaced on the launcher in `LauncherConfig.appstore.backgroundImageUrl`.
+>
+> **C — Launcher rendering.**  `AppsDrawerActivity` now mounts a `backgroundImage` ImageView at the root z-level (lowest), with a dark vertical-gradient scrim (#A6040611 → #CC040611) on top so the app tiles stay legible against bright photo wallpapers.  Falls back invisibly to the deep onb_bg_glow drawable when no background is configured.
+>
+> **D — Admin UI.**  Hero dropzone label updated to "1920 × 280 px (top banner). Any size accepted — we auto center-crop to fit."  New background dropzone right below with "1920 × 1080 px (sits behind the app tiles)" guidance.  Both share a generic `setupAppstoreDropzone({ ... })` helper so future image fields (e.g. a per-category banner) are 6-line additions.
+>
+> Verified end-to-end via curl: uploaded 4000×3000 → saved as 1920×1080; uploaded 800×600 → saved as 1920×280.  `/api/launcher/config` exposes both URLs.
+>
+> Files touched (4): `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `launcher-backend/admin/static/app.js`, `android/onnowtv-launcher/.../apps/AppsDrawerActivity.kt`, `android/onnowtv-launcher/.../data/LauncherConfig.kt`.
+>
+> Previous: **v2.8.9 — Kids sandbox lockdown: no adult leaks + hardware Back PIN-gated** (Feb 27, 2026)
 >
 > Final closure of the two open Kids sandbox issues per direct user spec.
 >

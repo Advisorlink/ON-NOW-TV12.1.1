@@ -170,10 +170,20 @@ class ApkEntry(BaseModel):
 
 
 class AppStoreMeta(BaseModel):
-    """v2.0 — On-launcher App Store branding.  Currently just a
-    single hero banner image that the admin can drop in.  Lives at
-    `store.json → appstore`. """
-    hero_image_url: Optional[str] = None
+    """v2.0 — On-launcher App Store branding.  v2.8.10 adds a second
+    fullscreen background image that sits BEHIND the apps grid (the
+    hero is the top banner).  Both live at `store.json → appstore`.
+
+    Image-size policy (also surfaced in the admin UI):
+      • hero_image       — banner across the top of the App Store.
+        Final on-screen size: 1920 × 280 px.  The backend
+        center-crops uploads to that exact shape, so an admin can
+        drop in ANY size image and it'll land perfectly.
+      • background_image — fullscreen wallpaper behind the grid.
+        Final on-screen size: 1920 × 1080 px.  Same auto-fit rules.
+    """
+    hero_image_url: Optional[str]       = None
+    background_image_url: Optional[str] = None
 
 
 class Notification(BaseModel):
@@ -506,6 +516,9 @@ def _build_config(store: dict) -> LauncherConfig:
         appstore=AppStoreMeta(
             hero_image_url=_abs(
                 (store.get("appstore") or {}).get("hero_image_url")
+            ),
+            background_image_url=_abs(
+                (store.get("appstore") or {}).get("background_image_url")
             ),
         ),
     )
@@ -1270,13 +1283,23 @@ async def upload_apk_icon(
 
 
 # ── v2.0 — App Store hero image (single banner) ───────────────────
+# v2.8.10 — Final rendered size on a 1920×1080 TV:
+#   • Hero banner       — 1920 × 280 px (top of the App Store)
+#   • Background image  — 1920 × 1080 px (fullscreen behind the grid)
+# Both endpoints use Pillow's `ImageOps.fit()` which center-crops AND
+# resizes in one shot, so admins can drop in ANY size image and the
+# output lands at the exact target dimensions — perfect fit, no
+# letterboxing, no awkward edges.
+APPSTORE_HERO_SIZE       = (1920, 280)
+APPSTORE_BACKGROUND_SIZE = (1920, 1080)
+
+
 @app.post("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
 async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     """Drag-drop a fresh hero banner for the launcher's App Store.
-    Resized to max 1920×800 (keeps aspect ratio) and saved as a
-    single PNG at `/assets/appstore/hero.png`.  Cache-bust via a
-    timestamp query string handled by the admin UI + launcher."""
-    from PIL import Image
+    Auto-fits to 1920×280 via center-crop so any uploaded image
+    lands at the exact banner shape — no manual cropping needed."""
+    from PIL import Image, ImageOps
     import io
     raw = await file.read()
     if not raw:
@@ -1284,17 +1307,23 @@ async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     out_path = DATA_DIR / "appstore" / "hero.png"
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-        img.thumbnail((1920, 800), Image.LANCZOS)
+        # `fit()` = "scale to cover the target box then center-crop
+        # the overflow" — exactly what the user wants ("if I add
+        # something that's a little bit too big, it auto resizes
+        # so it fits perfectly").
+        img = ImageOps.fit(img, APPSTORE_HERO_SIZE, Image.LANCZOS)
         img.save(out_path, format="PNG", optimize=True)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, f"could not decode image: {exc}")
     store = _load_store()
     appstore = store.setdefault("appstore", {})
-    # Add a `?ts=` so the launcher's HTTP cache picks up the new
-    # version next poll.  Strip any old query param first.
     appstore["hero_image_url"] = f"/assets/appstore/hero.png?ts={now_ts()}"
     _save_store(store)
-    return {"ok": True, "hero_image_url": appstore["hero_image_url"]}
+    return {
+        "ok": True,
+        "hero_image_url": appstore["hero_image_url"],
+        "rendered_size": list(APPSTORE_HERO_SIZE),
+    }
 
 
 @app.delete("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
@@ -1308,6 +1337,50 @@ def clear_appstore_hero() -> dict:
         pass
     store = _load_store()
     store.setdefault("appstore", {})["hero_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
+# ── v2.8.10 — App Store fullscreen background ─────────────────────
+@app.post("/api/admin/appstore/background", dependencies=[Depends(require_admin)])
+async def upload_appstore_background(file: UploadFile = File(...)) -> dict:
+    """Drag-drop a fullscreen background that sits BEHIND the app
+    tiles in the launcher's App Store.  Auto-fits to 1920×1080 via
+    center-crop — admins can drop in any size image and it lands
+    at the exact shape."""
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "appstore" / "background.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img = ImageOps.fit(img, APPSTORE_BACKGROUND_SIZE, Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    appstore["background_image_url"] = f"/assets/appstore/background.png?ts={now_ts()}"
+    _save_store(store)
+    return {
+        "ok": True,
+        "background_image_url": appstore["background_image_url"],
+        "rendered_size": list(APPSTORE_BACKGROUND_SIZE),
+    }
+
+
+@app.delete("/api/admin/appstore/background", dependencies=[Depends(require_admin)])
+def clear_appstore_background() -> dict:
+    """Remove the current App Store background image."""
+    out_path = DATA_DIR / "appstore" / "background.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("appstore", {})["background_image_url"] = None
     _save_store(store)
     return {"ok": True}
 

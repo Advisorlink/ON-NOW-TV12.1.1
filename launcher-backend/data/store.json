@@ -1,5 +1,5 @@
 {
-  "generation": 314,
+  "generation": 316,
   "dock_tiles": [
     {
       "key": "movies",
@@ -328,6 +328,11 @@
       "device_id": "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc",
       "last_seen": 1779856027,
       "last_generation": 314
+    },
+    "onnow-test": {
+      "device_id": "onnow-test",
+      "last_seen": 1779856580,
+      "last_generation": 315
     }
   },
   "layout": {
@@ -6650,6 +6655,7 @@
     }
   },
   "appstore": {
-    "hero_image_url": "/assets/appstore/hero.png?ts=1779856017"
+    "hero_image_url": "/assets/appstore/hero.png?ts=1779856588",
+    "background_image_url": "/assets/appstore/background.png?ts=1779856580"
   }
 }

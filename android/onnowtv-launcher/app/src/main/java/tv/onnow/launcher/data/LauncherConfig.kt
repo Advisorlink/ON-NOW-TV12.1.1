@@ -138,7 +138,8 @@ data class ApkEntryRemote(
 
 /* v2.0 — App Store branding pulled from the backend. */
 data class AppStoreMeta(
-    val heroImageUrl: String? = null,
+    val heroImageUrl: String?       = null,
+    val backgroundImageUrl: String? = null,
 )
 
 data class NotificationRemote(
@@ -265,7 +266,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
     }
     val appstoreObj = root.optJSONObject("appstore")
     val appstore = if (appstoreObj == null) AppStoreMeta() else AppStoreMeta(
-        heroImageUrl = appstoreObj.optStringOrNull("hero_image_url"),
+        heroImageUrl       = appstoreObj.optStringOrNull("hero_image_url"),
+        backgroundImageUrl = appstoreObj.optStringOrNull("background_image_url"),
     )
     return LauncherConfig(
         dockTiles = tilesList,
