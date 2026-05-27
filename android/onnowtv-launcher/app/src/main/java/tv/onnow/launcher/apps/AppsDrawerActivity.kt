@@ -107,7 +107,17 @@ class AppsDrawerActivity : AppCompatActivity() {
             setPadding(dp(48), dp(40), dp(48), dp(48))
         }
 
-        /* ── 2. Section eyebrow + title ── */
+        /* ── 2. Section eyebrow + title ──
+           v2.8.16 — Hero banner removed, but per direct user spec
+           the eyebrow / title / app tiles must stay at their
+           ORIGINAL absolute Y-positions on screen.  The hero used
+           to occupy heroHeight=dp(260) + dp(28) bottom margin =
+           dp(288) of vertical space.  We restore that as a top
+           spacer so the rest of the layout doesn't shift up.  The
+           user's 1920×1080 wallpaper now occupies that empty
+           region directly behind the icons. */
+        column.addView(spacer(dp(288)))
+
         val eyebrow = TextView(this).apply {
             text = "DISCOVER"
             textSize = 11f
