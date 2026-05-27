@@ -1,6 +1,34 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.13 — Babies tier perfected + Kids exit goes to Launcher + HOME key kiosk-locked** (Feb 27, 2026)
+> Latest: **v2.8.14 — G/PG cascade restored + edge-to-edge full-width hero banner** (Feb 27, 2026)
+>
+> Two coupled fixes per direct user spec.
+>
+> **A — G/PG cascade fully restored at every tier except Babies.**
+> The aggressive TV-tier → movie-cap cascade I added in v2.8.13 was over-zealous: it forced TV-Y7 → G, TV-G → PG, TV-PG → PG.  That meant a parent who explicitly picked `maxRatingMovie = PG-13` would still see ONLY G/PG content.  Relaxed: `TV_TO_MOVIE_CAP` now caps ONLY at the Babies (TV-Y) tier — every other tier passes the parent's explicit movie choice through verbatim.  Verified via curl: `movie_cert=PG&tv_level=TV-PG` returns G+PG cascade as expected; `movie_cert=M` returns G+PG+M; etc.  Babies (TV-Y) still forces G + movies hidden on Home per the earlier requirement.
+>
+> **B — Hero banner is now truly edge-to-edge full screen width.**
+> User said even at 1820×260 the banner wasn't filling the page.  Root cause: the column wrapping the hero had `setPadding(dp(48), …, dp(48), …)`, so the visible hero rectangle was only `1920 - 96 = 1824 px` wide (NOT 1920 edge-to-edge).
+>
+> Restructured `AppsDrawerActivity`:
+> - `outerColumn` (NO horizontal padding) holds the hero — full screen width.
+> - `column` (inner, normal 48dp horizontal padding) holds the apps grid.
+> - Hero target dimensions: **1920 × 280 px (edge-to-edge full screen width)**.
+> - Hero ImageView: `FIT_XY` (no distortion possible because backend guarantees exact source size).
+>
+> Backend pipeline now uses `ImageOps.contain()` → `ImageOps.pad()` (with transparent padding):
+> 1. `contain()` scales the upload to fit inside 1920×280 preserving aspect (no crop, no zoom).
+> 2. `pad()` wraps with transparent pixels to reach EXACTLY 1920×280.
+>
+> Result: any upload ends up at exactly 1920×280, and the launcher's FIT_XY shows it edge-to-edge with no distortion.  A user uploading at exactly 1920×280 sees a fully-saturated banner; a user uploading at any other aspect gets centered with transparent letterbox/pillarbox.  Verified via curl: 1920×280 and 1820×260 both save as exactly 1920×280.
+>
+> Admin UI updates: help text now says "Rendered rectangle on TV: **1920 × 280 px (edge-to-edge full screen width)**. Design at this exact size for a pixel-perfect fill."  CSS aspect-ratio for the preview also updated to 1920/280.
+>
+> **One final note for the user:** the Launcher APK on his HK1 still has v2.8.12 code (last build before today's edge-to-edge restructure).  The banner change needs a Save to GitHub → CI rebuild → reinstall cycle to take effect on the device.  The admin preview is live in this environment.
+>
+> Files touched (4): `backend/server.py`, `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `launcher-backend/admin/static/style.css`, `android/onnowtv-launcher/.../AppsDrawerActivity.kt`.  Cache bumped to `tmdb_kids_shelves:v9`.
+>
+> Previous: **v2.8.13 — Babies tier perfected + Kids exit goes to Launcher + HOME key kiosk-locked** (Feb 27, 2026)
 >
 > Three coupled fixes per direct user spec.
 >

@@ -1338,7 +1338,7 @@ header nav { display: flex; gap: 8px; align-items: center; }
    use `object-fit: contain` so the admin sees EXACTLY what the
    launcher renders — full image, no crop, no zoom. */
 #appstoreHeroPreview {
-    aspect-ratio: 1820 / 260;
+    aspect-ratio: 1920 / 280;
 }
 #appstoreBgPreview {
     aspect-ratio: 16 / 9;

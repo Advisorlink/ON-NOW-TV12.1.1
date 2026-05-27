@@ -1725,19 +1725,18 @@ def _resolve_tv_level(level: Optional[str]) -> str:
 
 
 # v2.8.13 — Per user spec: "if we're showing Babies, we wouldn't be
-# showing The Lion King".  The TV tier IMPLICITLY upper-bounds the
-# movie tier so a parent who picks TV-Y can't accidentally let
-# movies stay at PG-13.  This mapping is applied INSIDE the kids
-# shelves/search endpoints — the user's saved `maxRatingMovie`
-# setting is still respected as long as it's not stricter than this
-# cap.  If their TV tier implies a stricter cap, the cap wins.
+# showing The Lion King".  ONLY the Babies (TV-Y) tier forces the
+# movie cap down — every other tier respects the parent's
+# explicit `maxRatingMovie` setting exactly as chosen (so picking
+# G or PG at the intro screen shows G/PG cascade as expected,
+# picking PG-13 stays at PG-13, etc.).
 TV_TO_MOVIE_CAP = {
-    "TV-Y":   "G",      # babies: G movies only
-    "TV-Y7":  "G",      # little ones: G movies only (Lion King has Mufasa's death)
-    "TV-G":   "PG",     # kids: G + PG
-    "TV-PG":  "PG",     # family: G + PG (parental guidance baseline)
-    "TV-14":  "PG-13",  # tweens: up to PG-13
-    "M15":    "M15",    # teens: up to M15 (everything we expose)
+    "TV-Y":   "G",   # babies: G movies only (and movies hidden on home)
+    "TV-Y7":  None,  # respect user choice
+    "TV-G":   None,
+    "TV-PG":  None,
+    "TV-14":  None,
+    "M15":    None,
 }
 
 # Movie tier ordering — used to compute the EFFECTIVE cap when the
@@ -1746,12 +1745,14 @@ _MOVIE_ORDER = ["G", "PG", "M", "PG-13", "M15"]
 
 
 def _effective_movie_cap(movie_cert: str, tv_level: str) -> str:
-    """v2.8.13 — Return the STRICTER of the user's chosen movie tier
-    and the TV tier's implicit cap.  Ensures Lion King can't slip
-    into a Babies session even if the user left maxRatingMovie at
-    PG-13."""
+    """v2.8.14 — Return the stricter of the user's chosen movie tier
+    and the TV tier's implicit cap.  The cap is None for every
+    tier EXCEPT TV-Y (babies), so G/PG/M/PG-13 picks at all other
+    tiers behave EXACTLY as the parent set them in Settings."""
     user = movie_cert if movie_cert in _MOVIE_ORDER else "PG"
-    tv_cap = TV_TO_MOVIE_CAP.get(tv_level, "M15")
+    tv_cap = TV_TO_MOVIE_CAP.get(tv_level)
+    if tv_cap is None:
+        return user
     user_rank = _MOVIE_ORDER.index(user)
     cap_rank = _MOVIE_ORDER.index(tv_cap) if tv_cap in _MOVIE_ORDER else 4
     return _MOVIE_ORDER[min(user_rank, cap_rank)]
@@ -1901,7 +1902,7 @@ async def tmdb_kids_shelves(
     # v2.8.13 — Cap the effective movie cert by the TV tier so the
     # Babies pick can't accidentally surface PG-13 movies.
     movie_cert = _effective_movie_cap(movie_cert, tv_level)
-    cache_key = f"tmdb_kids_shelves:v8:{movie_cert}:{tv_level}"
+    cache_key = f"tmdb_kids_shelves:v9:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}

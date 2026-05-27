@@ -111,22 +111,32 @@ class AppsDrawerActivity : AppCompatActivity() {
             isFocusable = false
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
+        /* v2.8.14 — Outer column has NO horizontal padding so the
+           hero banner can go full screen-width (1920px on a 1080p
+           TV) — per direct user spec: "if I'm putting in the exact
+           dimensions, it needs to fill the whole page".  The apps
+           grid sits in an INNER padded column below the hero. */
+        val outerColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            // Top padding only — left/right are 0 so the hero is
+            // edge-to-edge.  Bottom padding goes on the inner column.
+            setPadding(0, dp(40), 0, 0)
+        }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(48), dp(40), dp(48), dp(48))
+            setPadding(dp(48), 0, dp(48), dp(48))
         }
 
         /* ── 1. Hero image (admin-uploaded) ──
-           v2.8.12 — Backend uses ImageOps.contain() to preserve the
-           uploader's aspect ratio without cropping.  FIT_CENTER on
-           the ImageView side ALSO preserves aspect — so the image
-           shows in full, centered against the dark card background,
-           no zoom-in, no stretch, no crop.  Recommended upload size
-           is 1820×260 (7:1 aspect) for an edge-to-edge fit; any
-           other aspect renders with subtle letterboxing. */
+           v2.8.14 — Hero is FULL screen-width (edge-to-edge).  The
+           backend pads/fits any upload to exactly 1920×280 px so a
+           user submitting at the recommended dimensions sees a
+           pixel-perfect edge-to-edge fill.  scaleType = FIT_XY
+           because the backend guarantees the source already matches
+           the target — no distortion possible.  No corner rounding
+           (looks like a "banner", not a "card"). */
         heroImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            clipToOutline = true
+            scaleType = ImageView.ScaleType.FIT_XY
             // Cyan-tinted placeholder while the real hero loads.
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
@@ -134,14 +144,18 @@ class AppsDrawerActivity : AppCompatActivity() {
                     Color.parseColor("#2B6BCF"),
                     Color.parseColor("#0A1B33"),
                 ),
-            ).apply { cornerRadius = dp(28).toFloat() }
+            )
         }
-        // Banner aspect: ~7:1 (1820×260 recommended upload size).
-        val heroHeight = dp(260)
-        column.addView(heroImage, LinearLayout.LayoutParams(
+        // Banner height: 280 px on 1080p TV (full-width 1920×280).
+        val heroHeight = dp(280)
+        outerColumn.addView(heroImage, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             heroHeight,
         ).apply { setMargins(0, 0, 0, dp(28)) })
+        outerColumn.addView(column, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
 
         /* ── 2. Section eyebrow + title ── */
         val eyebrow = TextView(this).apply {
@@ -192,7 +206,7 @@ class AppsDrawerActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        scroll.addView(column, ViewGroup.LayoutParams(
+        scroll.addView(outerColumn, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))

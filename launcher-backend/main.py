@@ -1283,33 +1283,26 @@ async def upload_apk_icon(
 
 
 # ── v2.0 — App Store hero image (single banner) ───────────────────
-# v2.8.12 — Updated sizing strategy per user feedback ("1920×280 zooms
-# everything in").  We now use Pillow's `ImageOps.contain()` instead
-# of `fit()` so the uploaded image is scaled to FIT INSIDE the target
-# dimensions WITHOUT cropping or stretching — the full image is
-# always shown.  Aspect ratio is preserved exactly.
+# v2.8.14 — Final on-screen rectangle on a 1080p TV:
+#   • Hero banner       — 1920 × 280 px (EDGE-TO-EDGE, full screen width)
+#   • Background image  — 1920 × 1080 px (fullscreen behind grid)
 #
-# Actual rendered rectangle on a 1920×1080 TV:
-#   • Hero banner       — 1824 × 260 px  (aspect 7:1, after 48dp pad)
-#   • Background image  — 1920 × 1080 px (fullscreen)
-#
-# Recommended upload dimensions (perfect edge-to-edge fit):
-#   • Hero banner       — 1820 × 260 px  (or any 7:1 aspect image)
-#   • Background image  — 1920 × 1080 px (or any 16:9 image)
-#
-# Larger images are auto-resized down preserving aspect ratio.  If
-# the aspect doesn't match, the launcher renders the FULL image
-# centered against the dark background — never cropped or distorted.
-APPSTORE_HERO_SIZE       = (1820, 260)
+# Pipeline: ImageOps.contain() preserves the upload's aspect ratio
+# without cropping, THEN ImageOps.pad() pads with transparent pixels
+# to fill the exact 1920×280 target — so the on-device ImageView
+# (FIT_XY) renders a pixel-perfect edge-to-edge banner regardless
+# of the upload's aspect.  Upload at exactly 1920×280 for a fully
+# saturated banner; upload at any other aspect for a centered
+# letterbox/pillarbox effect against transparent padding.
+APPSTORE_HERO_SIZE       = (1920, 280)
 APPSTORE_BACKGROUND_SIZE = (1920, 1080)
 
 
 @app.post("/api/admin/appstore/hero", dependencies=[Depends(require_admin)])
 async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     """Drag-drop a fresh hero banner for the launcher's App Store.
-    Auto-fits to within 1820×260 preserving aspect ratio — admins
-    can drop any size image and it'll render at full visibility on
-    the TV."""
+    Image is auto-fit (no crop) AND padded to exactly 1920×280 px
+    so the launcher always renders a perfect edge-to-edge banner."""
     from PIL import Image, ImageOps
     import io
     raw = await file.read()
@@ -1318,11 +1311,19 @@ async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
     out_path = DATA_DIR / "appstore" / "hero.png"
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-        # `contain()` = "scale down preserving aspect ratio so the
-        # image fits INSIDE the target box" — no crop, no stretch.
-        # This is what the user asked for ("fit inside that
-        # rectangle properly, how I've designed the images").
+        # 1) contain → scale to fit inside the target, no crop.
         img = ImageOps.contain(img, APPSTORE_HERO_SIZE, Image.LANCZOS)
+        # 2) pad → wrap with transparent pixels to reach the exact
+        #    target dimensions.  Combined the two operations give the
+        #    user the exact behaviour requested: "exact dimensions
+        #    fill the whole page; over-sized images auto-fit".
+        img = ImageOps.pad(
+            img,
+            APPSTORE_HERO_SIZE,
+            method=Image.LANCZOS,
+            color=(0, 0, 0, 0),
+            centering=(0.5, 0.5),
+        )
         img.save(out_path, format="PNG", optimize=True)
         final_size = img.size
     except Exception as exc:  # noqa: BLE001
