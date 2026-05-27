@@ -1100,6 +1100,8 @@ function renderApks(store) {
     syncTileColorInputs(store);
     // v2.8.20 — Mirror topbar pill colors.
     syncTopbarColorInputs(store);
+    // v2.8.22 — Mirror Speed Test target package.
+    syncSpeedTestTarget(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1281,8 +1283,8 @@ function syncTileColorInputs(store) {
     });
 })();
 
-/* v2.8.20 — Top-bar pill color editor.  Same shape as the tile
-   color editor, hitting /api/admin/appstore/topbar-colors. */
+/* v2.8.22 — Top-bar pill color editor.  Handles resting + focused
+   states.  Posts the 4 hex values to /api/admin/appstore/topbar-colors. */
 function syncTopbarColorInputs(store) {
     const meta = (store && store.appstore) || {};
     const stripAlpha = (c) => {
@@ -1290,40 +1292,45 @@ function syncTopbarColorInputs(store) {
         if (c.length === 9) return '#' + c.slice(3);
         return c.length === 7 ? c : null;
     };
-    const bg = stripAlpha(meta.topbar_btn_bg_color)   || '#203A5C';
-    const tx = stripAlpha(meta.topbar_btn_text_color) || '#FFFFFF';
-    const $bg = document.getElementById('topbarBtnBgColor');
-    const $tx = document.getElementById('topbarBtnTextColor');
-    const $bgHex = document.getElementById('topbarBtnBgColorHex');
-    const $txHex = document.getElementById('topbarBtnTextColorHex');
-    if ($bg)   $bg.value = bg;
-    if ($tx)   $tx.value = tx;
-    if ($bgHex) $bgHex.textContent = bg.toUpperCase();
-    if ($txHex) $txHex.textContent = tx.toUpperCase();
+    const set = (inputId, hexId, val, fallback) => {
+        const v = stripAlpha(val) || fallback;
+        const $i = document.getElementById(inputId);
+        const $h = document.getElementById(hexId);
+        if ($i) $i.value = v;
+        if ($h) $h.textContent = v.toUpperCase();
+    };
+    set('topbarBtnBgColor',        'topbarBtnBgColorHex',        meta.topbar_btn_bg_color,         '#203A5C');
+    set('topbarBtnTextColor',      'topbarBtnTextColorHex',      meta.topbar_btn_text_color,       '#FFFFFF');
+    set('topbarBtnFocusBgColor',   'topbarBtnFocusBgColorHex',   meta.topbar_btn_focus_bg_color,   '#2BB6FF');
+    set('topbarBtnFocusTextColor', 'topbarBtnFocusTextColorHex', meta.topbar_btn_focus_text_color, '#04060B');
 }
 
 (function setupTopbarColorEditor() {
-    const $bg    = document.getElementById('topbarBtnBgColor');
-    const $tx    = document.getElementById('topbarBtnTextColor');
-    const $bgHex = document.getElementById('topbarBtnBgColorHex');
-    const $txHex = document.getElementById('topbarBtnTextColorHex');
+    const ids = [
+        'topbarBtnBgColor', 'topbarBtnTextColor',
+        'topbarBtnFocusBgColor', 'topbarBtnFocusTextColor',
+    ];
+    ids.forEach((id) => {
+        const $i = document.getElementById(id);
+        const $h = document.getElementById(id + 'Hex');
+        if (!$i) return;
+        $i.addEventListener('input', () => {
+            if ($h) $h.textContent = $i.value.toUpperCase();
+        });
+    });
     const $save  = document.getElementById('topbarColorsSave');
     const $reset = document.getElementById('topbarColorsReset');
-    if (!$bg || !$tx || !$save) return;
-    $bg.addEventListener('input', () => {
-        if ($bgHex) $bgHex.textContent = $bg.value.toUpperCase();
-    });
-    $tx.addEventListener('input', () => {
-        if ($txHex) $txHex.textContent = $tx.value.toUpperCase();
-    });
+    if (!$save) return;
     $save.addEventListener('click', async () => {
         try {
             await api('/api/admin/appstore/topbar-colors', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    topbar_btn_bg_color:   $bg.value,
-                    topbar_btn_text_color: $tx.value,
+                    topbar_btn_bg_color:         document.getElementById('topbarBtnBgColor').value,
+                    topbar_btn_text_color:       document.getElementById('topbarBtnTextColor').value,
+                    topbar_btn_focus_bg_color:   document.getElementById('topbarBtnFocusBgColor').value,
+                    topbar_btn_focus_text_color: document.getElementById('topbarBtnFocusTextColor').value,
                 }),
             });
             toast('Top-bar colors saved');
@@ -1336,13 +1343,54 @@ function syncTopbarColorInputs(store) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    topbar_btn_bg_color:   null,
-                    topbar_btn_text_color: null,
+                    topbar_btn_bg_color:         null,
+                    topbar_btn_text_color:       null,
+                    topbar_btn_focus_bg_color:   null,
+                    topbar_btn_focus_text_color: null,
                 }),
             });
             toast('Top-bar colors reset to defaults');
             refreshAll();
         } catch (err) { toast('Reset failed: ' + err.message, true); }
+    });
+})();
+
+/* v2.8.22 — Speed Test target APK package editor. */
+function syncSpeedTestTarget(store) {
+    const meta = (store && store.appstore) || {};
+    const $i = document.getElementById('speedTestPackage');
+    if ($i) $i.value = meta.speed_test_package || '';
+}
+
+(function setupSpeedTestTargetEditor() {
+    const $i     = document.getElementById('speedTestPackage');
+    const $save  = document.getElementById('speedTestSave');
+    const $clear = document.getElementById('speedTestClear');
+    if (!$i || !$save) return;
+    $save.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/appstore/speed-test-target', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    speed_test_package: ($i.value || '').trim() || null,
+                }),
+            });
+            toast('Speed Test target saved');
+            refreshAll();
+        } catch (err) { toast('Save failed: ' + err.message, true); }
+    });
+    $clear.addEventListener('click', async () => {
+        try {
+            $i.value = '';
+            await api('/api/admin/appstore/speed-test-target', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ speed_test_package: null }),
+            });
+            toast('Speed Test target cleared');
+            refreshAll();
+        } catch (err) { toast('Clear failed: ' + err.message, true); }
     });
 })();
 

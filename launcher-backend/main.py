@@ -173,20 +173,24 @@ class ApkEntry(BaseModel):
 class AppStoreMeta(BaseModel):
     """v2.0 — On-launcher App Store branding.  v2.8.10 added a second
     fullscreen background image that sits BEHIND the apps grid.
-    v2.8.18 added admin-editable tile colors.  v2.8.20 adds:
-      • logo_image_url        — drag-drop topbar logo (replaces the
-        bundled text wordmark + play tile when set).
-      • topbar_btn_bg_color   — top-bar pill background (resting).
-      • topbar_btn_text_color — top-bar pill text + icon tint.
-    Tile colors are stored as 8-char "#AARRGGBB" hex strings.  None
-    falls back to the launcher's built-in defaults."""
-    hero_image_url: Optional[str]         = None
-    background_image_url: Optional[str]   = None
-    logo_image_url: Optional[str]         = None
-    tile_bg_color: Optional[str]          = None  # "#CC0F1B30" default
-    tile_text_color: Optional[str]        = None  # "#FFF4F7FB" default
-    topbar_btn_bg_color: Optional[str]    = None  # "#33203A5C" default
-    topbar_btn_text_color: Optional[str]  = None  # "#FFF4F7FB" default
+    v2.8.18 added admin-editable tile colors.  v2.8.20 added logo +
+    top-bar pill colors.  v2.8.22 adds:
+      • speed_test_package      — package name to launch when the
+        Speed Test pill is pressed (e.g. "org.zwanoo.android.speedtest"
+        for Ookla).  Falls back to the system VPN settings if empty.
+      • topbar_btn_focus_bg_color   — focused-pill background color.
+      • topbar_btn_focus_text_color — focused-pill text + icon tint.
+    Tile colors are stored as 8-char "#AARRGGBB" hex strings."""
+    hero_image_url: Optional[str]                = None
+    background_image_url: Optional[str]          = None
+    logo_image_url: Optional[str]                = None
+    tile_bg_color: Optional[str]                 = None
+    tile_text_color: Optional[str]               = None
+    topbar_btn_bg_color: Optional[str]           = None
+    topbar_btn_text_color: Optional[str]         = None
+    topbar_btn_focus_bg_color: Optional[str]     = None
+    topbar_btn_focus_text_color: Optional[str]   = None
+    speed_test_package: Optional[str]            = None
 
 
 class Notification(BaseModel):
@@ -530,6 +534,9 @@ def _build_config(store: dict) -> LauncherConfig:
             tile_text_color=(store.get("appstore") or {}).get("tile_text_color"),
             topbar_btn_bg_color=(store.get("appstore") or {}).get("topbar_btn_bg_color"),
             topbar_btn_text_color=(store.get("appstore") or {}).get("topbar_btn_text_color"),
+            topbar_btn_focus_bg_color=(store.get("appstore") or {}).get("topbar_btn_focus_bg_color"),
+            topbar_btn_focus_text_color=(store.get("appstore") or {}).get("topbar_btn_focus_text_color"),
+            speed_test_package=(store.get("appstore") or {}).get("speed_test_package"),
         ),
     )
 
@@ -1457,22 +1464,47 @@ def update_tile_colors(body: TileColorsBody) -> dict:
 
 # ── v2.8.20 — Top-bar pill colors (VPN + Speed Test buttons) ──────
 class TopbarColorsBody(BaseModel):
-    topbar_btn_bg_color:   Optional[str] = None
-    topbar_btn_text_color: Optional[str] = None
+    topbar_btn_bg_color:           Optional[str] = None
+    topbar_btn_text_color:         Optional[str] = None
+    topbar_btn_focus_bg_color:     Optional[str] = None
+    topbar_btn_focus_text_color:   Optional[str] = None
 
 
 @app.post("/api/admin/appstore/topbar-colors", dependencies=[Depends(require_admin)])
 def update_topbar_colors(body: TopbarColorsBody) -> dict:
     store = _load_store()
     appstore = store.setdefault("appstore", {})
-    appstore["topbar_btn_bg_color"]   = _normalize_color(body.topbar_btn_bg_color)
-    appstore["topbar_btn_text_color"] = _normalize_color(body.topbar_btn_text_color)
+    appstore["topbar_btn_bg_color"]         = _normalize_color(body.topbar_btn_bg_color)
+    appstore["topbar_btn_text_color"]       = _normalize_color(body.topbar_btn_text_color)
+    appstore["topbar_btn_focus_bg_color"]   = _normalize_color(body.topbar_btn_focus_bg_color)
+    appstore["topbar_btn_focus_text_color"] = _normalize_color(body.topbar_btn_focus_text_color)
     _save_store(store)
     return {
         "ok": True,
-        "topbar_btn_bg_color":   appstore["topbar_btn_bg_color"],
-        "topbar_btn_text_color": appstore["topbar_btn_text_color"],
+        "topbar_btn_bg_color":         appstore["topbar_btn_bg_color"],
+        "topbar_btn_text_color":       appstore["topbar_btn_text_color"],
+        "topbar_btn_focus_bg_color":   appstore["topbar_btn_focus_bg_color"],
+        "topbar_btn_focus_text_color": appstore["topbar_btn_focus_text_color"],
     }
+
+
+# ── v2.8.22 — Speed Test pill → launchable APK package ────────────
+class SpeedTestTargetBody(BaseModel):
+    speed_test_package: Optional[str] = None
+
+
+@app.post("/api/admin/appstore/speed-test-target", dependencies=[Depends(require_admin)])
+def update_speed_test_target(body: SpeedTestTargetBody) -> dict:
+    """Set the Android package name the Speed Test top-bar pill
+    should open (e.g. `org.zwanoo.android.speedtest` for Ookla).
+    Empty string / None falls back to the system VPN settings page
+    so the pill still does something on factory installs."""
+    pkg = (body.speed_test_package or "").strip() or None
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    appstore["speed_test_package"] = pkg
+    _save_store(store)
+    return {"ok": True, "speed_test_package": pkg}
 
 
 # ── v2.8.20 — Admin-uploadable top-bar logo image ─────────────────

@@ -124,32 +124,15 @@ class MainActivity : AppCompatActivity() {
     /* ──────────────────────────  Dock  ───────────────────────── */
 
     private fun bindDock() {
-        // v2.8.21 — Custom LinearLayoutManager that traps LEFT/RIGHT
-        // focus search at the dock edges.  The previous
-        // dispatchKeyEvent approach failed during fast scrolling:
-        // RecyclerView's internal focus pipeline runs BEFORE the
-        // dispatch sees the next item's bounding box, so on the
-        // 4th-5th rapid RIGHT press Android's geometry-based
-        // focusSearch picked the geometrically-nearest focusable
-        // (= the top-bar pill) and the focus escaped.
-        //
-        // Overriding `onInterceptFocusSearch` lives BELOW that
-        // pipeline: when the LM can't satisfy a LEFT/RIGHT request
-        // (= we're at the edge), we return the currently-focused
-        // view to swallow the request entirely.  Only UP arrow can
-        // escape into the top bar now.
-        val lm = object : LinearLayoutManager(
-            this, RecyclerView.HORIZONTAL, false,
-        ) {
-            override fun onInterceptFocusSearch(focused: android.view.View, direction: Int): android.view.View? {
-                if (direction == android.view.View.FOCUS_LEFT ||
-                    direction == android.view.View.FOCUS_RIGHT) {
-                    val handled = super.onInterceptFocusSearch(focused, direction)
-                    return handled ?: focused   // swallow at edge
-                }
-                return super.onInterceptFocusSearch(focused, direction)
-            }
-        }
+        // v2.8.22 — Default LinearLayoutManager.  The previous
+        // onInterceptFocusSearch override was too aggressive — it
+        // swallowed LEFT/RIGHT inside the dock too (the user's
+        // "I can't move left or right on the tiles" complaint).
+        // Horizontal navigation is now handled MANUALLY in
+        // `dispatchKeyEvent` below, which moves focus + scrolls
+        // explicitly when the user is in the dock — bulletproof
+        // both at edges (no escape) and mid-list (no leaks).
+        val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.dock.layoutManager = lm
         dockAdapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
         // v2.8.20 — Per-item UP arrow climbs to the VPN pill.
@@ -579,39 +562,44 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Pill background + text colors.
-        val bgHex   = appstore.topbarBtnBgColor   ?: "#33203A5C"
-        val textHex = appstore.topbarBtnTextColor ?: "#FFFFFFFF"
-        val bgColor   = parseHexSafely(bgHex,   Color.parseColor("#33203A5C"))
-        val textColor = parseHexSafely(textHex, Color.parseColor("#FFFFFFFF"))
+        val bgHex      = appstore.topbarBtnBgColor        ?: "#33203A5C"
+        val textHex    = appstore.topbarBtnTextColor      ?: "#FFFFFFFF"
+        val focusBgHex = appstore.topbarBtnFocusBgColor   ?: "#FF2BB6FF"
+        val focusFgHex = appstore.topbarBtnFocusTextColor ?: "#FF04060B"
+        val bgColor        = parseHexSafely(bgHex,      Color.parseColor("#33203A5C"))
+        val textColor      = parseHexSafely(textHex,    Color.parseColor("#FFFFFFFF"))
+        val focusBgColor   = parseHexSafely(focusBgHex, Color.parseColor("#FF2BB6FF"))
+        val focusTextColor = parseHexSafely(focusFgHex, Color.parseColor("#FF04060B"))
         listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed).forEach { pill ->
-            (pill.background as? android.graphics.drawable.StateListDrawable)?.let {
-                // Background drawable selector — recolor RESTING state.
-                // Focused stays accent cyan so focus is always visible.
-            }
-            // Replace the pill's resting background with a tinted shape.
-            val shape = android.graphics.drawable.GradientDrawable().apply {
+            // Replace the pill's background with a state selector
+            // honouring the admin-chosen resting + focused colors.
+            val resting = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 9999f
                 setColor(bgColor)
             }
             val focused = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 9999f
-                setColor(Color.parseColor("#FF2BB6FF"))
+                setColor(focusBgColor)
             }
             val sel = android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), focused)
-                addState(intArrayOf(), shape)
+                addState(intArrayOf(), resting)
             }
             pill.background = sel
-        }
-        binding.topbarVpnLabel.setTextColor(textColor)
-        binding.topbarVpnIcon.setColorFilter(textColor)
-        // Speed pill's text + icon: walk its children since we don't
-        // have direct view-binding refs for them.
-        val speed = binding.topbarBtnSpeed
-        for (i in 0 until speed.childCount) {
-            when (val child = speed.getChildAt(i)) {
-                is android.widget.ImageView -> child.setColorFilter(textColor)
-                is android.widget.TextView  -> child.setTextColor(textColor)
+            // v2.8.22 — Focus-state text tint via ColorStateList so the
+            // label + icon flip color in lockstep with the background.
+            val tints = android.content.res.ColorStateList(
+                arrayOf(
+                    intArrayOf(android.R.attr.state_focused),
+                    intArrayOf(),
+                ),
+                intArrayOf(focusTextColor, textColor),
+            )
+            for (i in 0 until pill.childCount) {
+                when (val child = pill.getChildAt(i)) {
+                    is android.widget.ImageView -> child.imageTintList = tints
+                    is android.widget.TextView  -> child.setTextColor(tints)
+                }
             }
         }
     }
@@ -952,19 +940,96 @@ class MainActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this,
                 tv.onnow.launcher.vpn.VpnControlActivity::class.java))
         }
+        // v2.8.22 — Speed Test pill now launches an admin-configured
+        // APK package (e.g. Ookla `org.zwanoo.android.speedtest`).
+        // Falls back to a toast if the package isn't installed yet
+        // so the user knows to install it via the App Store.
         binding.topbarBtnSpeed.setOnClickListener {
-            startActivity(android.content.Intent(this,
-                tv.onnow.launcher.speedtest.SpeedTestActivity::class.java))
+            launchSpeedTestApp()
         }
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()
     }
 
+    private fun launchSpeedTestApp() {
+        val cfg = repo.config.value ?: repo.loadCached()
+        val pkg = cfg?.appstore?.speedTestPackage?.trim().orEmpty()
+        if (pkg.isEmpty()) {
+            android.widget.Toast.makeText(
+                this,
+                "No Speed Test app configured yet — set the package name in the admin App Store tab.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+        if (intent == null) {
+            android.widget.Toast.makeText(
+                this,
+                "$pkg isn't installed.  Install it from the App Store first.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+
     /**
-     * v2.8.21 — Dock LEFT/RIGHT focus escape is now blocked at the
-     * LayoutManager level (see bindDock).  No dispatchKeyEvent
-     * override needed any more.
+     * v2.8.22 — Manual LEFT/RIGHT focus advancement inside the dock.
+     * Replaces the v2.8.21 LayoutManager override which broke
+     * mid-list horizontal nav, AND the v2.8.20 dispatch trap which
+     * leaked on the 4-5th rapid press.
+     *
+     * Strategy: while focus is in the dock, we OWN the LEFT/RIGHT
+     * keys end-to-end.  Compute the target adapter position,
+     * scrollToPosition if needed (cheaper + more predictable than
+     * smoothScrollToPosition for ~12 items), then requestFocus on
+     * the resulting itemView on the next layout pass.  No path
+     * through Android's geometry focus search → no leaks possible.
+     * UP / DOWN arrows fall through to default behaviour, so UP
+     * still climbs to the top-bar VPN pill.
      */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && ::binding.isInitialized) {
+            val focused = currentFocus
+            val dock = binding.dock
+            val itemView = focused?.let { dock.findContainingItemView(it) }
+            if (itemView != null) {
+                val pos = dock.getChildAdapterPosition(itemView)
+                val count = dock.adapter?.itemCount ?: 0
+                val target = when (event.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (pos in 0 until count - 1) pos + 1 else null
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (pos > 0) pos - 1 else null
+                    }
+                    else -> Int.MIN_VALUE  // not a horizontal key — fall through
+                }
+                if (target == null) {
+                    // Edge — swallow so focus can't escape sideways.
+                    return true
+                }
+                if (target != Int.MIN_VALUE) {
+                    val lm = dock.layoutManager as? LinearLayoutManager
+                    val nextView = lm?.findViewByPosition(target)
+                    if (nextView != null) {
+                        nextView.requestFocus()
+                    } else {
+                        dock.scrollToPosition(target)
+                        dock.post {
+                            (dock.layoutManager as? LinearLayoutManager)
+                                ?.findViewByPosition(target)
+                                ?.requestFocus()
+                        }
+                    }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     /** Toggle the green/red status dot on the VPN pill. */
     private fun refreshVpnDot() {

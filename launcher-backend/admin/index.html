@@ -320,7 +320,7 @@
             <p class="appstore-colors-hint">Changes propagate on the next ~30 s config poll.</p>
         </div>
 
-        <!-- v2.8.20 — Top-bar pill colors (VPN + Speed Test buttons) -->
+        <!-- v2.8.22 — Top-bar pill colors (VPN + Speed Test buttons) -->
         <div class="appstore-colors-section">
             <h3 class="appstore-colors-title">Top-bar button colors</h3>
             <div class="appstore-colors-row">
@@ -334,10 +334,37 @@
                     <input type="color" id="topbarBtnTextColor" value="#FFFFFF">
                     <code id="topbarBtnTextColorHex">#FFFFFF</code>
                 </label>
+            </div>
+            <div class="appstore-colors-row" style="margin-top:12px;">
+                <label class="appstore-color-field">
+                    <span>Focused background</span>
+                    <input type="color" id="topbarBtnFocusBgColor" value="#2BB6FF">
+                    <code id="topbarBtnFocusBgColorHex">#2BB6FF</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Focused text + icons</span>
+                    <input type="color" id="topbarBtnFocusTextColor" value="#04060B">
+                    <code id="topbarBtnFocusTextColorHex">#04060B</code>
+                </label>
                 <button id="topbarColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
                 <button id="topbarColorsReset" type="button" class="apk-drop-link">Reset to default</button>
             </div>
-            <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills in the launcher's top bar.</p>
+            <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills.  Focused state activates when the user navigates onto the pill with the remote.</p>
+        </div>
+
+        <!-- v2.8.22 — Speed Test pill target APK -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">Speed Test app target</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field" style="flex:1;">
+                    <span>Package name</span>
+                    <input type="text" id="speedTestPackage" placeholder="org.zwanoo.android.speedtest"
+                           style="flex:1; min-width:280px; background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-family:ui-monospace,monospace; font-size:13px;">
+                </label>
+                <button id="speedTestSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save</button>
+                <button id="speedTestClear" type="button" class="apk-drop-link">Clear</button>
+            </div>
+            <p class="appstore-colors-hint">Tapping the Speed Test pill in the launcher will open this app.  Common values: <code>org.zwanoo.android.speedtest</code> (Ookla), <code>com.fast.android.app</code> (fast.com by Netflix).  Make sure the APK is installed via the App Store.</p>
         </div>
 
         <!-- v2.8.20 — Top-bar logo (drag-drop) -->

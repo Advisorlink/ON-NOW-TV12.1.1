@@ -138,13 +138,16 @@ data class ApkEntryRemote(
 
 /* v2.0 — App Store branding pulled from the backend. */
 data class AppStoreMeta(
-    val heroImageUrl: String?       = null,
-    val backgroundImageUrl: String? = null,
-    val logoImageUrl: String?       = null,
-    val tileBgColor: String?        = null,
-    val tileTextColor: String?      = null,
-    val topbarBtnBgColor: String?   = null,
-    val topbarBtnTextColor: String? = null,
+    val heroImageUrl: String?            = null,
+    val backgroundImageUrl: String?      = null,
+    val logoImageUrl: String?            = null,
+    val tileBgColor: String?             = null,
+    val tileTextColor: String?           = null,
+    val topbarBtnBgColor: String?        = null,
+    val topbarBtnTextColor: String?      = null,
+    val topbarBtnFocusBgColor: String?   = null,
+    val topbarBtnFocusTextColor: String? = null,
+    val speedTestPackage: String?        = null,
 )
 
 data class NotificationRemote(
@@ -271,13 +274,16 @@ fun parseLauncherConfig(json: String): LauncherConfig {
     }
     val appstoreObj = root.optJSONObject("appstore")
     val appstore = if (appstoreObj == null) AppStoreMeta() else AppStoreMeta(
-        heroImageUrl       = appstoreObj.optStringOrNull("hero_image_url"),
-        backgroundImageUrl = appstoreObj.optStringOrNull("background_image_url"),
-        logoImageUrl       = appstoreObj.optStringOrNull("logo_image_url"),
-        tileBgColor        = appstoreObj.optStringOrNull("tile_bg_color"),
-        tileTextColor      = appstoreObj.optStringOrNull("tile_text_color"),
-        topbarBtnBgColor   = appstoreObj.optStringOrNull("topbar_btn_bg_color"),
-        topbarBtnTextColor = appstoreObj.optStringOrNull("topbar_btn_text_color"),
+        heroImageUrl            = appstoreObj.optStringOrNull("hero_image_url"),
+        backgroundImageUrl      = appstoreObj.optStringOrNull("background_image_url"),
+        logoImageUrl            = appstoreObj.optStringOrNull("logo_image_url"),
+        tileBgColor             = appstoreObj.optStringOrNull("tile_bg_color"),
+        tileTextColor           = appstoreObj.optStringOrNull("tile_text_color"),
+        topbarBtnBgColor        = appstoreObj.optStringOrNull("topbar_btn_bg_color"),
+        topbarBtnTextColor      = appstoreObj.optStringOrNull("topbar_btn_text_color"),
+        topbarBtnFocusBgColor   = appstoreObj.optStringOrNull("topbar_btn_focus_bg_color"),
+        topbarBtnFocusTextColor = appstoreObj.optStringOrNull("topbar_btn_focus_text_color"),
+        speedTestPackage        = appstoreObj.optStringOrNull("speed_test_package"),
     )
     return LauncherConfig(
         dockTiles = tilesList,

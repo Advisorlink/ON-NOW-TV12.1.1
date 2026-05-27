@@ -85,13 +85,9 @@
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
 
-        <!-- v2.8.19 — Speed Test (real HTTP-based throughput meter). -->
-        <activity
-            android:name=".speedtest.SpeedTestActivity"
-            android:exported="false"
-            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
-            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
-            android:screenOrientation="landscape" />
+        <!-- v2.8.22 — SpeedTestActivity removed; the Speed Test
+             pill now opens an admin-configured external APK
+             (e.g. Ookla).  No activity registration needed. -->
 
         <!-- v2.8.19 — VPN status + system VPN settings launcher. -->
         <activity
