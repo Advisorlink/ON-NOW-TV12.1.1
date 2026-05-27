@@ -28,6 +28,7 @@ Run in production:
 from __future__ import annotations
 
 import asyncio
+import re
 import hashlib
 import logging
 import os
@@ -170,20 +171,23 @@ class ApkEntry(BaseModel):
 
 
 class AppStoreMeta(BaseModel):
-    """v2.0 — On-launcher App Store branding.  v2.8.10 adds a second
-    fullscreen background image that sits BEHIND the apps grid (the
-    hero is the top banner).  Both live at `store.json → appstore`.
+    """v2.0 — On-launcher App Store branding.  v2.8.10 added a second
+    fullscreen background image that sits BEHIND the apps grid.
+    v2.8.18 adds admin-editable tile colors (background + text) so
+    the user can recolor the App Store palette without a rebuild.
 
     Image-size policy (also surfaced in the admin UI):
-      • hero_image       — banner across the top of the App Store.
-        Final on-screen size: 1920 × 280 px.  The backend
-        center-crops uploads to that exact shape, so an admin can
-        drop in ANY size image and it'll land perfectly.
       • background_image — fullscreen wallpaper behind the grid.
-        Final on-screen size: 1920 × 1080 px.  Same auto-fit rules.
+        Final on-screen size: 1920 × 1080 px.  Auto-fit on upload.
+
+    Tile colors are stored as 8-char "#AARRGGBB" hex strings
+    (matching Android's color literal format).  None / blank falls
+    back to the launcher's built-in deep-blue defaults.
     """
     hero_image_url: Optional[str]       = None
     background_image_url: Optional[str] = None
+    tile_bg_color: Optional[str]        = None  # "#CC0F1B30" default
+    tile_text_color: Optional[str]      = None  # "#FFF4F7FB" default
 
 
 class Notification(BaseModel):
@@ -520,6 +524,8 @@ def _build_config(store: dict) -> LauncherConfig:
             background_image_url=_abs(
                 (store.get("appstore") or {}).get("background_image_url")
             ),
+            tile_bg_color=(store.get("appstore") or {}).get("tile_bg_color"),
+            tile_text_color=(store.get("appstore") or {}).get("tile_text_color"),
         ),
     )
 
@@ -1402,6 +1408,47 @@ def clear_appstore_background() -> dict:
     store.setdefault("appstore", {})["background_image_url"] = None
     _save_store(store)
     return {"ok": True}
+
+
+# ── v2.8.18 — Admin-editable app-tile colors ──────────────────────
+class TileColorsBody(BaseModel):
+    tile_bg_color:   Optional[str] = None
+    tile_text_color: Optional[str] = None
+
+
+_HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
+
+
+def _normalize_color(c: Optional[str]) -> Optional[str]:
+    """Accepts '#RRGGBB' or '#AARRGGBB' (Android's format).  Always
+    returns the 8-char alpha-first form, opaque by default.  Empty /
+    None passes through so the launcher falls back to its built-in
+    defaults."""
+    if not c:
+        return None
+    c = c.strip().upper()
+    if not _HEX_RE.match(c):
+        raise HTTPException(400, f"invalid color literal: {c}")
+    return c if len(c) == 9 else f"#FF{c[1:]}"
+
+
+@app.post("/api/admin/appstore/tile-colors", dependencies=[Depends(require_admin)])
+def update_tile_colors(body: TileColorsBody) -> dict:
+    """Set the App Store tile background + text colors.  Each field
+    accepts None (= reset to default), '#RRGGBB' (opaque), or
+    '#AARRGGBB' (with alpha).  Stored in `store.json → appstore`
+    and surfaced via `/api/launcher/config` so every device picks
+    up the change on the next 30s poll."""
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    appstore["tile_bg_color"]   = _normalize_color(body.tile_bg_color)
+    appstore["tile_text_color"] = _normalize_color(body.tile_text_color)
+    _save_store(store)
+    return {
+        "ok": True,
+        "tile_bg_color":   appstore["tile_bg_color"],
+        "tile_text_color": appstore["tile_text_color"],
+    }
 
 
 # ── Notifications ─────────────────────────────────────────────────

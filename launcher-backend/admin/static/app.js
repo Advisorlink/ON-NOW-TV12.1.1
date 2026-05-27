@@ -1091,6 +1091,8 @@ function renderApks(store) {
         '#appstoreBgImg', '#appstoreBgPreview', '#appstoreBgClear',
         meta.background_image_url,
     );
+    // v2.8.18 — Mirror current tile colors into the color editor.
+    syncTileColorInputs(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1192,6 +1194,75 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         clearSel:  '#appstoreBgClear',
         endpoint:  '/api/admin/appstore/background',
         label:     'Background image',
+    });
+})();
+
+/* v2.8.18 — App-tile color editor.  Two `<input type="color">`
+   widgets that POST to /api/admin/appstore/tile-colors when the
+   user clicks "Save colors".  The render path picks up the
+   current values on every store refresh. */
+function syncTileColorInputs(store) {
+    const meta = (store && store.appstore) || {};
+    // Backend stores '#AARRGGBB' (Android format) — strip alpha for
+    // the `<input type=color>` which only accepts '#RRGGBB'.
+    const stripAlpha = (c) => {
+        if (!c) return null;
+        if (c.length === 9) return '#' + c.slice(3);  // #AARRGGBB → #RRGGBB
+        return c.length === 7 ? c : null;
+    };
+    const bg = stripAlpha(meta.tile_bg_color)   || '#0F1B30';
+    const tx = stripAlpha(meta.tile_text_color) || '#F4F7FB';
+    const $bg = document.getElementById('tileBgColor');
+    const $tx = document.getElementById('tileTextColor');
+    const $bgHex = document.getElementById('tileBgColorHex');
+    const $txHex = document.getElementById('tileTextColorHex');
+    if ($bg)   $bg.value = bg;
+    if ($tx)   $tx.value = tx;
+    if ($bgHex) $bgHex.textContent = bg.toUpperCase();
+    if ($txHex) $txHex.textContent = tx.toUpperCase();
+}
+
+(function setupTileColorEditor() {
+    const $bg    = document.getElementById('tileBgColor');
+    const $tx    = document.getElementById('tileTextColor');
+    const $bgHex = document.getElementById('tileBgColorHex');
+    const $txHex = document.getElementById('tileTextColorHex');
+    const $save  = document.getElementById('tileColorsSave');
+    const $reset = document.getElementById('tileColorsReset');
+    if (!$bg || !$tx || !$save) return;
+    $bg.addEventListener('input', () => {
+        if ($bgHex) $bgHex.textContent = $bg.value.toUpperCase();
+    });
+    $tx.addEventListener('input', () => {
+        if ($txHex) $txHex.textContent = $tx.value.toUpperCase();
+    });
+    $save.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/appstore/tile-colors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tile_bg_color:   $bg.value,
+                    tile_text_color: $tx.value,
+                }),
+            });
+            toast('Tile colors saved — boxes will update on next poll');
+            refreshAll();
+        } catch (err) { toast('Save failed: ' + err.message, true); }
+    });
+    $reset.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/appstore/tile-colors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tile_bg_color:   null,
+                    tile_text_color: null,
+                }),
+            });
+            toast('Tile colors reset to defaults');
+            refreshAll();
+        } catch (err) { toast('Reset failed: ' + err.message, true); }
     });
 })();
 

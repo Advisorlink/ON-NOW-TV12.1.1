@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 import tv.onnow.launcher.ImageLoader
 import tv.onnow.launcher.R
 import tv.onnow.launcher.data.ApkEntryRemote
+import tv.onnow.launcher.data.AppStoreMeta
 import tv.onnow.launcher.data.LauncherRepository
 import tv.onnow.launcher.install.ApkInstaller
 
@@ -252,14 +253,14 @@ class AppsDrawerActivity : AppCompatActivity() {
     private fun loadAndRender() {
         val cached = repo.config.value ?: repo.loadCached()
         if (cached != null) {
-            renderApks(cached.apks)
+            renderApks(cached.apks, cached.appstore)
             renderBackground(cached.appstore.backgroundImageUrl)
         }
         loadJob?.cancel()
         loadJob = scope.launch {
             val fresh = repo.refresh()
             if (fresh != null) {
-                renderApks(fresh.apks)
+                renderApks(fresh.apks, fresh.appstore)
                 renderBackground(fresh.appstore.backgroundImageUrl)
             }
         }
@@ -274,7 +275,7 @@ class AppsDrawerActivity : AppCompatActivity() {
         ImageLoader.load(backgroundImage, url)
     }
 
-    private fun renderApks(apks: List<ApkEntryRemote>) {
+    private fun renderApks(apks: List<ApkEntryRemote>, appstore: AppStoreMeta) {
         currentApks = apks
         if (apks.isEmpty()) {
             emptyHint.visibility = View.VISIBLE
@@ -283,9 +284,14 @@ class AppsDrawerActivity : AppCompatActivity() {
             return
         }
         emptyHint.visibility = View.GONE
+        // v2.8.18 — Pass admin-editable tile colors (with sensible
+        // defaults) into the adapter so the user can recolor the
+        // App Store palette from the admin without rebuilding.
         val a = AppsAdapter(
             ctx = this,
             apks = apks,
+            tileBgColor   = parseColorOrDefault(appstore.tileBgColor,   "#CC0F1B30"),
+            tileTextColor = parseColorOrDefault(appstore.tileTextColor, "#FFF4F7FB"),
             isInstalled = { pkg -> pkg != null && isPackageInstalled(pkg) },
             onInstall   = { entry -> installApk(entry) },
             onUninstall = { entry -> uninstallApk(entry) },
@@ -296,6 +302,10 @@ class AppsDrawerActivity : AppCompatActivity() {
             (grid.findViewHolderForAdapterPosition(0)?.itemView)?.requestFocus()
         }
     }
+
+    private fun parseColorOrDefault(hex: String?, fallback: String): Int =
+        try { Color.parseColor(hex?.takeIf { it.isNotBlank() } ?: fallback) }
+        catch (_: Throwable) { Color.parseColor(fallback) }
 
     /* ── Install / uninstall ── */
 
@@ -444,6 +454,8 @@ class AppsDrawerActivity : AppCompatActivity() {
 private class AppsAdapter(
     private val ctx: android.content.Context,
     private val apks: List<ApkEntryRemote>,
+    private val tileBgColor:   Int,
+    private val tileTextColor: Int,
     private val isInstalled: (String?) -> Boolean,
     private val onInstall:   (ApkEntryRemote) -> Unit,
     private val onUninstall: (ApkEntryRemote) -> Unit,
@@ -465,11 +477,11 @@ private class AppsAdapter(
         val density = ctx.resources.displayMetrics.density
         fun px(v: Int) = (v * density).toInt()
 
-        /* Card root — v2.8.17: white tile per direct user spec.
-           Dark-blue text inside.  No stroke (the previous 1dp
-           "#1B2A45" outline was the "thin line above each app"
-           the user reported).  Subtle elevation shadow replaces
-           the stroke as the visual edge. */
+        /* Card root — v2.8.18: admin-editable colors.  Defaults
+           to deep-blue glass; admin can override via
+           POST /api/admin/appstore/tile-colors.  No stroke (kept
+           the "thin line above" fix), soft elevation shadow as
+           the edge. */
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -479,7 +491,7 @@ private class AppsAdapter(
             clipChildren = false
             background = GradientDrawable().apply {
                 cornerRadius = px(22).toFloat()
-                setColor(Color.parseColor("#FFFFFFFF"))
+                setColor(tileBgColor)
             }
             elevation = px(2).toFloat()
             layoutParams = ViewGroup.MarginLayoutParams(
@@ -548,9 +560,9 @@ private class AppsAdapter(
             setMargins(0, 0, 0, px(12))
         })
 
-        /* Name — v2.8.17 dark blue on white tile. */
+        /* Name — v2.8.18 uses admin-editable text color. */
         val nameView = TextView(ctx).apply {
-            setTextColor(Color.parseColor("#FF0F1B30"))
+            setTextColor(tileTextColor)
             textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.CENTER
@@ -562,10 +574,11 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Category sub-label (e.g. "Entertainment") — softer
-           dark-blue tint so it reads as secondary. */
+        /* Category sub-label — derived from tileTextColor at 60%
+           opacity so it always reads as secondary regardless of
+           which tile colour the admin picks. */
         val categoryView = TextView(ctx).apply {
-            setTextColor(Color.parseColor("#FF4A5C7A"))
+            setTextColor((tileTextColor and 0x00FFFFFF) or 0x99000000.toInt())
             textSize = 12f
             gravity = Gravity.CENTER
             ellipsize = TextUtils.TruncateAt.END
@@ -591,13 +604,16 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Card focus: 1.06× scale + elevation lift.
-           v2.8.17: tile stays WHITE on focus (no color change, no
-           stroke).  Visual focus comes from the scale-up + a
-           stronger elevation shadow.  Removes the dark-blue
-           "thin line" the previous stroke caused. */
+        /* Card focus: 1.06× scale + elevation lift + subtle
+           background brighten.  v2.8.18 — Focus colour is derived
+           from the admin-chosen base by lightening toward white,
+           so it stays sensible no matter which colour they pick. */
+        val focusBg = lighten(tileBgColor, 0.12f)
         card.setOnFocusChangeListener { v, hasFocus ->
             v as LinearLayout
+            (v.background as? GradientDrawable)?.setColor(
+                if (hasFocus) focusBg else tileBgColor,
+            )
             v.animate().cancel()
             v.animate()
                 .scaleX(if (hasFocus) 1.06f else 1f)
@@ -732,6 +748,16 @@ private class AppsAdapter(
 
     companion object {
         private val PROGRESS_PAYLOAD = Any()
+    }
+
+    /** Lighten a color toward white by `t ∈ [0,1]`. */
+    private fun lighten(color: Int, t: Float): Int {
+        val a = (color shr 24) and 0xFF
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        fun mix(c: Int) = (c + ((255 - c) * t)).toInt().coerceIn(0, 255)
+        return (a shl 24) or (mix(r) shl 16) or (mix(g) shl 8) or mix(b)
     }
 
     private fun applyButtonMode(btn: TextView, mode: BtnMode, radiusPx: Int, progress: Int? = null) {

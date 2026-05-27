@@ -1323,6 +1323,46 @@ header nav { display: flex; gap: 8px; align-items: center; }
     margin: -8px 0 24px;
     display: flex; flex-direction: column; gap: 12px;
 }
+
+/* v2.8.18 — App-tile color editor */
+.appstore-colors-section {
+    margin: 0 0 28px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: rgba(15,27,48,0.4);
+}
+.appstore-colors-title {
+    margin: 0 0 14px;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-2);
+}
+.appstore-colors-row {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.appstore-color-field {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+}
+.appstore-color-field input[type="color"] {
+    width: 44px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+}
+.appstore-color-field code {
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: ui-monospace, monospace;
+}
+.appstore-colors-hint {
+    margin: 12px 0 0;
+    font-size: 11px;
+    color: var(--text-3);
+}
 .appstore-hero-preview {
     position: relative;
     border-radius: 22px;

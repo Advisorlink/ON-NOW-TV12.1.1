@@ -300,6 +300,26 @@
             <p>Drop an APK below — we'll read the package id, version, name and icon straight from the file.  Click any tile to rename it or swap its artwork.  This is exactly how the App Store will look on the TV.</p>
         </div>
 
+        <!-- v2.8.18 — Admin-editable app-tile colors -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">App tile colors</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field">
+                    <span>Background</span>
+                    <input type="color" id="tileBgColor" value="#0F1B30">
+                    <code id="tileBgColorHex">#0F1B30</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Text</span>
+                    <input type="color" id="tileTextColor" value="#F4F7FB">
+                    <code id="tileTextColorHex">#F4F7FB</code>
+                </label>
+                <button id="tileColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
+                <button id="tileColorsReset" type="button" class="apk-drop-link">Reset to default</button>
+            </div>
+            <p class="appstore-colors-hint">Default background <code>#0F1B30</code> · default text <code>#F4F7FB</code>.  Changes propagate to every box on its next ~30 s config poll.</p>
+        </div>
+
         <!-- Fullscreen background — drag-drop (1920×1080 wallpaper) -->
         <div class="appstore-hero-section">
             <div id="appstoreBgPreview" class="appstore-hero-preview">
