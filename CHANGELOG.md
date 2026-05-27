@@ -7,6 +7,48 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.3 — Admin drawer blur fix + Launcher install/uninstall fixes
+
+Three coordinated fixes shipping together.
+
+  • **Admin App Store drawer blur fix.**  Clicking an app tile in
+    the admin opened a slide-in drawer that was rendering
+    completely blurred — admin couldn't read package ids,
+    description, or any field.  Root cause: the `.store-drawer-
+    backdrop` (with its `backdrop-filter: blur(8px)`) is a sibling
+    of `.store-drawer-card` and rendered AFTER it in DOM order, so
+    with `position: absolute` it stacked ON TOP of the card,
+    blurring everything.  Fix: explicit `z-index: 0` on backdrop,
+    `z-index: 1` on card.  Verified live — drawer now crystal clear.
+
+  • **Launcher: Uninstall button finally uninstalls.**  Multiple
+    fallback intent paths so the button works on every box:
+      1.  `Intent.ACTION_UNINSTALL_PACKAGE` (Android 5+)
+      2.  `Intent.ACTION_DELETE` (older + many AOSP forks)
+      3.  `Settings.ACTION_APPLICATION_DETAILS_SETTINGS` (always works)
+    Each attempt is `resolveActivity()`-checked before launching
+    so we never throw an ActivityNotFoundException on the user.
+    Also added `FLAG_ACTIVITY_NEW_TASK` so the launcher task
+    stack stays clean.  If a package id is missing on the apk
+    row, a clear Toast tells the admin to set it in the backend
+    instead of the button silently no-op'ing.  Bug was hidden
+    before by the `pendingUninstall` set being keyed by RecyclerView
+    `position` (volatile) instead of `apk.id` (stable).
+
+  • **Launcher: Install shows progress IMMEDIATELY.**  Old
+    behaviour: press Install → button silently does nothing for
+    ~30 s while the APK downloads → suddenly Android's installer
+    pops up.  Felt broken.  New behaviour: button flips IN-PLACE
+    to "Downloading 12% → 53% → 87% …" the moment you tap, so
+    the user gets instant feedback that the box is working.
+    Progress callbacks are dispatched to the main thread (was a
+    latent crash bug — RecyclerView writes from IO dispatcher),
+    and throttled to integer percentage changes so a 50 MB APK
+    causes at most ~100 re-renders instead of ~800.
+
+  • Bumped Vesper APK → **v2.8.3** (versionCode 258).  Launcher
+    APK Kotlin changes ship on next Save-to-GitHub.
+
 ## v2.8.2 — Launcher App Store v2.0: hero image + Install/Installed/Uninstall states
 
 Matches the user-supplied mockup exactly.

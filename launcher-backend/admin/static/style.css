@@ -1398,6 +1398,11 @@ header nav { display: flex; gap: 8px; align-items: center; }
     opacity: 0;
     transition: opacity 220ms ease;
     pointer-events: auto;
+    /* v2.8.3 — explicitly behind the card.  Without this, the
+       backdrop's `position: absolute` + later DOM order put it ON
+       TOP of the card, blurring the form fields the admin needs
+       to read. */
+    z-index: 0;
 }
 .store-drawer:not([hidden]) .store-drawer-backdrop { opacity: 1; }
 .store-drawer-card {
@@ -1413,6 +1418,9 @@ header nav { display: flex; gap: 8px; align-items: center; }
     opacity: 0;
     transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 220ms ease;
+    /* v2.8.3 — keep the card above the blurred backdrop so its
+       form fields render crisply. */
+    z-index: 1;
 }
 .store-drawer:not([hidden]) .store-drawer-card {
     transform: translateX(0);

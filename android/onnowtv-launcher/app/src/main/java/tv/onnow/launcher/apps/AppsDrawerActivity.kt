@@ -235,41 +235,84 @@ class AppsDrawerActivity : AppCompatActivity() {
     private fun installApk(entry: ApkEntryRemote) {
         if (!ApkInstaller.canInstallNow(this)) {
             ApkInstaller.requestInstallPermission(this)
+            adapter?.markInstallFinished(entry.id)
             return
         }
         scope.launch {
+            // v2.8.3 — Throttle progress callbacks to main thread.
+            // `ApkInstaller` calls onProgress on every 64 KB read
+            // from a background dispatcher; for a 50 MB APK that's
+            // ~800 callbacks.  We snap to integer % and post each
+            // change exactly once to the main thread, so the
+            // RecyclerView re-renders at most ~100 times.
+            var lastPct = -1
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
             val err = ApkInstaller.downloadAndInstall(
                 ctx = applicationContext,
                 apkUrl = entry.apkUrl,
                 suggestedName = "${entry.name}.apk",
+                onProgress = { pct ->
+                    if (pct != lastPct) {
+                        lastPct = pct
+                        mainHandler.post {
+                            adapter?.setInstallProgress(entry.id, pct)
+                        }
+                    }
+                },
             )
-            if (err != null) {
-                android.widget.Toast.makeText(
-                    this@AppsDrawerActivity,
-                    "Install failed: $err",
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
+            mainHandler.post {
+                adapter?.markInstallFinished(entry.id)
+                if (err != null) {
+                    android.widget.Toast.makeText(
+                        this@AppsDrawerActivity,
+                        "Install failed: $err",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
             }
         }
     }
 
     /** Fire Android's standard ACTION_DELETE intent for the package.
      *  The system shows its own confirm dialog and handles the
-     *  result; we just refresh tile state in `onResume()`. */
+     *  result; we just refresh tile state in `onResume()`.
+     *
+     *  v2.8.3 — Multiple fallbacks because `ACTION_DELETE` is
+     *  inconsistent across vendors:
+     *    1. `ACTION_UNINSTALL_PACKAGE` (Android 5+)
+     *    2. `ACTION_DELETE`            (older + many AOSP forks)
+     *    3. Settings → Apps detail page (always works)
+     *  If a Toast surfaces "Couldn't open uninstaller", the user
+     *  knows it's a launcher whitelist issue and not a missing pkg. */
     private fun uninstallApk(entry: ApkEntryRemote) {
-        val pkg = entry.packageId ?: return
-        try {
-            val i = Intent(Intent.ACTION_DELETE).apply {
-                data = Uri.parse("package:$pkg")
-            }
-            startActivity(i)
-        } catch (t: Throwable) {
+        val pkg = entry.packageId?.takeIf { it.isNotBlank() }
+        if (pkg == null) {
             android.widget.Toast.makeText(
-                this,
-                "Couldn't open uninstaller: ${t.message ?: "?"}",
+                this, "Package id missing — set it in the admin.",
                 android.widget.Toast.LENGTH_LONG,
             ).show()
+            return
         }
+        val uri = Uri.parse("package:$pkg")
+        val attempts = listOf(
+            { Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply { data = uri } },
+            { Intent(Intent.ACTION_DELETE).apply { data = uri } },
+            { Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = uri } },
+        )
+        for (build in attempts) {
+            try {
+                val i = build().apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                if (i.resolveActivity(packageManager) != null) {
+                    startActivity(i)
+                    return
+                }
+            } catch (_: Throwable) { /* try next */ }
+        }
+        android.widget.Toast.makeText(
+            this,
+            "Couldn't open uninstaller for $pkg",
+            android.widget.Toast.LENGTH_LONG,
+        ).show()
     }
 
     /* ── Helpers ── */
@@ -300,9 +343,16 @@ private class AppsAdapter(
 
     /** Per-tile button mode.  We override the per-position default
      *  (Install vs Installed) when the user has tapped an installed
-     *  tile once → shows red "Uninstall".  Cleared on rebind. */
-    private enum class BtnMode { INSTALL, INSTALLED, UNINSTALL }
-    private val pendingUninstall = mutableSetOf<Int>()
+     *  tile once → shows red "Uninstall".  Cleared on rebind.
+     *
+     *  v2.8.3 — Keyed by `apk.id` (stable across reorders) instead
+     *  of `position` (volatile) so the toggle state survives any
+     *  data-set change.  Also used to mark download-in-progress
+     *  tiles via the `downloading` map.
+     */
+    private enum class BtnMode { INSTALL, INSTALLED, UNINSTALL, DOWNLOADING }
+    private val pendingUninstall = mutableSetOf<String>()
+    private val downloading      = mutableMapOf<String, Int>() // id → 0..100
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppCardVH {
         val density = ctx.resources.displayMetrics.density
@@ -446,38 +496,75 @@ private class AppsAdapter(
             ImageLoader.load(holder.icon, apk.iconUrl)
         }
 
+        // ── Pick button state ────────────────────────────────────
+        // v2.8.3 — `pendingUninstall` keyed by apk.id so the toggle
+        // state survives any list reorder.  `downloading` shows
+        // immediate progress feedback while the APK is fetching.
         val installed = isInstalled(apk.packageId)
+        val dl = downloading[apk.id]
         val mode: BtnMode = when {
-            !installed                              -> BtnMode.INSTALL
-            installed && pendingUninstall.contains(position) -> BtnMode.UNINSTALL
-            else                                    -> BtnMode.INSTALLED
+            dl != null                                       -> BtnMode.DOWNLOADING
+            !installed                                       -> BtnMode.INSTALL
+            installed && pendingUninstall.contains(apk.id)   -> BtnMode.UNINSTALL
+            else                                             -> BtnMode.INSTALLED
         }
-        applyButtonMode(holder.actionBtn, mode, px(22))
+        applyButtonMode(holder.actionBtn, mode, px(22), dl)
 
-        holder.actionBtn.setOnClickListener {
+        val clickHandler = clickHandler@{
             when (mode) {
-                BtnMode.INSTALL -> onInstall(apk)
+                BtnMode.INSTALL -> {
+                    // v2.8.3 — Flip the button to "Downloading…" IMMEDIATELY
+                    // so the user gets instant feedback (was previously
+                    // silent for the full ~30 s download on slow boxes).
+                    downloading[apk.id] = 0
+                    notifyItemChanged(holder.bindingAdapterPosition)
+                    onInstall(apk)
+                }
                 BtnMode.INSTALLED -> {
-                    // Toggle into "Uninstall" mode in-place — gives
-                    // the user a clear confirmation step before we
-                    // launch Android's uninstaller.
-                    pendingUninstall.add(position)
-                    notifyItemChanged(position)
+                    // Only allow the uninstall toggle if we actually
+                    // know the package id — otherwise pressing
+                    // "Uninstall" would do nothing and confuse the user.
+                    if (apk.packageId.isNullOrBlank()) {
+                        android.widget.Toast.makeText(
+                            ctx, "Package id missing — set it in the admin.",
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                        return@clickHandler
+                    }
+                    pendingUninstall.add(apk.id)
+                    notifyItemChanged(holder.bindingAdapterPosition)
                 }
                 BtnMode.UNINSTALL -> {
-                    pendingUninstall.remove(position)
+                    pendingUninstall.remove(apk.id)
                     onUninstall(apk)
                 }
+                BtnMode.DOWNLOADING -> { /* no-op while downloading */ }
             }
         }
+        holder.actionBtn.setOnClickListener { clickHandler() }
         // Card click goes to the action button too — for boxes
         // whose remotes focus the WHOLE tile, not just the button.
-        holder.card.setOnClickListener {
-            holder.actionBtn.performClick()
+        holder.card.setOnClickListener { clickHandler() }
+    }
+
+    /** Called by the host activity when an install has either
+     *  completed or failed — clears the "Downloading…" badge. */
+    fun markInstallFinished(apkId: String) {
+        if (downloading.remove(apkId) != null) {
+            val idx = apks.indexOfFirst { it.id == apkId }
+            if (idx >= 0) notifyItemChanged(idx)
         }
     }
 
-    private fun applyButtonMode(btn: TextView, mode: BtnMode, radiusPx: Int) {
+    /** Called by the host activity each time `downloadAndInstall`
+     *  reports new progress for an in-flight install. */
+    fun setInstallProgress(apkId: String, percent: Int) {
+        downloading[apkId] = percent.coerceIn(0, 100)
+        val idx = apks.indexOfFirst { it.id == apkId }
+        if (idx >= 0) notifyItemChanged(idx)
+    }
+
+    private fun applyButtonMode(btn: TextView, mode: BtnMode, radiusPx: Int, progress: Int? = null) {
         val (label, bg, fg) = when (mode) {
             BtnMode.INSTALL ->
                 Triple("Install", "#FF2BB6FF", "#FF04060B")
@@ -485,6 +572,11 @@ private class AppsAdapter(
                 Triple("✓ Installed", "#FF2EEAC2", "#FF04060B")
             BtnMode.UNINSTALL ->
                 Triple("Uninstall", "#FFFF5573", "#FFFFFFFF")
+            BtnMode.DOWNLOADING ->
+                Triple(
+                    if ((progress ?: 0) > 0) "Downloading ${progress}%" else "Downloading…",
+                    "#FF1B6BCF", "#FFF4F7FB",
+                )
         }
         btn.text = label
         btn.setTextColor(Color.parseColor(fg))
