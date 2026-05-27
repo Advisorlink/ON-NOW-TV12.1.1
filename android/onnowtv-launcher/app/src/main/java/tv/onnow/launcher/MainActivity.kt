@@ -127,6 +127,8 @@ class MainActivity : AppCompatActivity() {
         val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.dock.layoutManager = lm
         dockAdapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
+        // v2.8.20 — Per-item UP arrow climbs to the VPN pill.
+        dockAdapter.nextFocusUpResId = binding.topbarBtnVpn.id
         binding.dock.adapter = dockAdapter
 
         // Listen for focus changes inside the dock so we can swap
@@ -512,7 +514,86 @@ class MainActivity : AppCompatActivity() {
         }
         // Surface any new admin-broadcast notifications.
         surfaceNotifications(config)
+        // v2.8.20 — Apply admin-uploadable logo + top-bar pill colors.
+        applyTopBarBranding(config.appstore)
     }
+
+    /** v2.8.20 — Recolour the top-bar action pills and swap the
+     *  bundled logo for an admin-uploaded image, if set. */
+    private fun applyTopBarBranding(appstore: tv.onnow.launcher.data.AppStoreMeta) {
+        // Logo: prefer the admin upload, fall back to the bundled
+        // play-tile + wordmark layout that's already in the XML.
+        val logo = appstore.logoImageUrl
+        if (!logo.isNullOrBlank()) {
+            // Use the wordmark TextView as the host: replace its
+            // siblings + show an ImageView in its place.  Cheaper
+            // than restructuring the layout — we just hide the text
+            // + play tile and inject an ImageView once.
+            val parent = binding.logoText.parent as? android.view.ViewGroup ?: return
+            // Hide siblings inside the logo block.
+            for (i in 0 until parent.childCount) {
+                parent.getChildAt(i).visibility = android.view.View.GONE
+            }
+            // Inject (or reuse) the logo ImageView.
+            val tag = "topbar-logo-img"
+            var logoView = parent.findViewWithTag<android.widget.ImageView>(tag)
+            if (logoView == null) {
+                logoView = android.widget.ImageView(this).apply {
+                    this.tag = tag
+                    adjustViewBounds = true
+                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        (resources.displayMetrics.density * 40).toInt(),
+                    )
+                }
+                parent.addView(logoView)
+            }
+            logoView.visibility = android.view.View.VISIBLE
+            tv.onnow.launcher.util.ImageLoader.load(logoView, logo)
+        }
+
+        // Pill background + text colors.
+        val bgHex   = appstore.topbarBtnBgColor   ?: "#33203A5C"
+        val textHex = appstore.topbarBtnTextColor ?: "#FFFFFFFF"
+        val bgColor   = parseHexSafely(bgHex,   Color.parseColor("#33203A5C"))
+        val textColor = parseHexSafely(textHex, Color.parseColor("#FFFFFFFF"))
+        listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed).forEach { pill ->
+            (pill.background as? android.graphics.drawable.StateListDrawable)?.let {
+                // Background drawable selector — recolor RESTING state.
+                // Focused stays accent cyan so focus is always visible.
+            }
+            // Replace the pill's resting background with a tinted shape.
+            val shape = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 9999f
+                setColor(bgColor)
+            }
+            val focused = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 9999f
+                setColor(Color.parseColor("#FF2BB6FF"))
+            }
+            val sel = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), focused)
+                addState(intArrayOf(), shape)
+            }
+            pill.background = sel
+        }
+        binding.topbarVpnLabel.setTextColor(textColor)
+        binding.topbarVpnIcon.setColorFilter(textColor)
+        // Speed pill's text + icon: walk its children since we don't
+        // have direct view-binding refs for them.
+        val speed = binding.topbarBtnSpeed
+        for (i in 0 until speed.childCount) {
+            when (val child = speed.getChildAt(i)) {
+                is android.widget.ImageView -> child.setColorFilter(textColor)
+                is android.widget.TextView  -> child.setTextColor(textColor)
+            }
+        }
+    }
+
+    private fun parseHexSafely(hex: String, fallback: Int): Int = try {
+        Color.parseColor(hex)
+    } catch (_: Throwable) { fallback }
 
     /* ────────────────────  Layout Editor  ──────────────────── */
 
@@ -850,14 +931,47 @@ class MainActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this,
                 tv.onnow.launcher.speedtest.SpeedTestActivity::class.java))
         }
-        // Make the dock's UP arrow climb into the top bar.
-        // RecyclerView children inherit nextFocusUpId from the RV
-        // itself when no per-child id is set, so wiring it here on
-        // the RV is enough.
-        binding.dock.nextFocusUpId = binding.topbarBtnVpn.id
-
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()
+    }
+
+    /**
+     * v2.8.20 — Trap LEFT/RIGHT at the dock edges so navigating
+     * along the dock can NEVER bleed up into the top bar.  Only
+     * UP arrow moves into the top bar.  Without this trap,
+     * Android's geometry-based focus search jumps to the
+     * geometrically-nearest focusable (= the top-bar pill)
+     * whenever the dock's last item can't find a sibling to its
+     * right.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            val keyCode = event.keyCode
+            val isHorizontal =
+                keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ||
+                keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+            if (isHorizontal && ::binding.isInitialized) {
+                val focused = currentFocus
+                val dock = binding.dock
+                if (focused != null) {
+                    val itemView = dock.findContainingItemView(focused)
+                    if (itemView != null) {
+                        val pos = dock.getChildAdapterPosition(itemView)
+                        val count = dock.adapter?.itemCount ?: 0
+                        val atLastRight = keyCode ==
+                            android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                            pos == count - 1
+                        val atFirstLeft = keyCode ==
+                            android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                            pos == 0
+                        if (atLastRight || atFirstLeft) {
+                            return true  // swallow — stay on this tile
+                        }
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Toggle the green/red status dot on the VPN pill. */

@@ -1,5 +1,5 @@
 {
-  "generation": 408,
+  "generation": 424,
   "dock_tiles": [
     {
       "key": "movies",
@@ -20,24 +20,6 @@
       "cta_label": "ENTER"
     },
     {
-      "key": "music",
-      "label": "Music",
-      "sub": "Listen",
-      "image_url": "/assets/tile_images/tile-music-65391cbe.png",
-      "wallpaper_url": "/assets/wallpapers/tile-music-39da80fb.png",
-      "apk_url": null,
-      "apk_filename": null,
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": null,
-      "target_url": null,
-      "accent": "#2bb6ff",
-      "heading": "Music",
-      "subheading": "LIVE RADIO & PLAYLISTS",
-      "description": "Discover playlists, charts and live concerts from your favourite artists.Discover playlists, charts, and live concerts from your favourite artists. Immerse yourself in their world, exploring their musical journey and connecting with their creative spirit. Stay updated on new releases, exclusive content, and hidden gems, all while enjoying a seamless and personalised music experience.",
-      "cta_label": "PLAY"
-    },
-    {
       "key": "sports",
       "label": "Sports",
       "sub": "Live",
@@ -54,6 +36,24 @@
       "subheading": "14,000 channels from around the world",
       "description": "Never miss a moment with our comprehensive Electronic Program Guide, bringing you real-time updates and scheduling for all your favorite sports. From the roar of the stadium to the thrill of the finish line, ON NOW EPG ensures you're always in the know, with instant access to live broadcasts and upcoming events. Get ready to experience sports like never before, right at your fingertips.",
       "cta_label": "WATCH"
+    },
+    {
+      "key": "music",
+      "label": "Music",
+      "sub": "Listen",
+      "image_url": "/assets/tile_images/tile-music-65391cbe.png",
+      "wallpaper_url": "/assets/wallpapers/tile-music-39da80fb.png",
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
+      "target_package": null,
+      "target_url": null,
+      "accent": "#2bb6ff",
+      "heading": "Music",
+      "subheading": "LIVE RADIO & PLAYLISTS",
+      "description": "Discover playlists, charts and live concerts from your favourite artists.Discover playlists, charts, and live concerts from your favourite artists. Immerse yourself in their world, exploring their musical journey and connecting with their creative spirit. Stay updated on new releases, exclusive content, and hidden gems, all while enjoying a seamless and personalised music experience.",
+      "cta_label": "PLAY"
     },
     {
       "key": "kids",
@@ -78,7 +78,7 @@
       "label": ".",
       "sub": ".",
       "image_url": "/assets/tile_images/tile-google-5339de9b.png",
-      "wallpaper_url": "/assets/wallpapers/tile-google-055bfc0c.png",
+      "wallpaper_url": "/assets/wallpapers/tile-google-159719d5.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -124,7 +124,7 @@
       "accent": "#009dff",
       "heading": "V2 App Store",
       "subheading": "All the apps in one place",
-      "description": "Discover, install, and effortlessly manage your most cherished applications with unparalleled ease. Our distinctive app store platform is meticulously designed to streamline the entire process, simplifying both the initial installation and subsequent uninstallation procedures. Everything you need for a seamless app experience is conveniently consolidated in one intuitive and accessible location, ensuring a smooth and user-friendly journey from start to finish.",
+      "description": "Discover, install, and effortlessly manage your most cherished applications with unparalleled ease. Our distinctive app store platform is meticulously designed to streamline the entire process, simplifying both the initial installation and subsequent uninstallation procedures.",
       "cta_label": null
     },
     {
@@ -140,42 +140,6 @@
       "target_package": null,
       "target_url": null,
       "accent": "#ffa629",
-      "heading": null,
-      "subheading": null,
-      "description": null,
-      "cta_label": null
-    },
-    {
-      "key": "vpn",
-      "label": ".",
-      "sub": ".",
-      "image_url": "/assets/tile_images/tile-vpn-d931ecaa.png",
-      "wallpaper_url": "/assets/wallpapers/tile-vpn-e2293f36.png",
-      "apk_url": null,
-      "apk_filename": null,
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": null,
-      "target_url": null,
-      "accent": "#2bb6ff",
-      "heading": null,
-      "subheading": null,
-      "description": null,
-      "cta_label": null
-    },
-    {
-      "key": "speed-test",
-      "label": ".",
-      "sub": ".",
-      "image_url": "/assets/tile_images/tile-speed-test-2b4ed120.png",
-      "wallpaper_url": "/assets/wallpapers/tile-speed-test-6e8a785c.png",
-      "apk_url": null,
-      "apk_filename": null,
-      "apk_package_id": null,
-      "apk_version": null,
-      "target_package": null,
-      "target_url": null,
-      "accent": "#2bb6ff",
       "heading": null,
       "subheading": null,
       "description": null,
@@ -409,13 +373,13 @@
     },
     "test": {
       "device_id": "test",
-      "last_seen": 1779881135,
-      "last_generation": 401
+      "last_seen": 1779884885,
+      "last_generation": 422
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779882692,
-      "last_generation": 408
+      "last_seen": 1779884927,
+      "last_generation": 424
     }
   },
   "layout": {
@@ -6742,14 +6706,17 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779882692,
+      "last_seen_at": 1779884926,
       "last_ip": "34.160.159.238"
     }
   },
   "appstore": {
     "hero_image_url": null,
     "background_image_url": "/assets/appstore/background.png?ts=1779878661",
-    "tile_bg_color": "#FF0D093E",
-    "tile_text_color": "#FFF4F7FB"
+    "tile_bg_color": "#FF081244",
+    "tile_text_color": "#FFFFFFFF",
+    "topbar_btn_bg_color": null,
+    "topbar_btn_text_color": null,
+    "logo_image_url": "/assets/appstore/logo.png?ts=1779884906"
   }
 }

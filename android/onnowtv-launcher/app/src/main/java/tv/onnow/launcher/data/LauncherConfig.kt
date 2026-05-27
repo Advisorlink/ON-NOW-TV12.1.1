@@ -140,8 +140,11 @@ data class ApkEntryRemote(
 data class AppStoreMeta(
     val heroImageUrl: String?       = null,
     val backgroundImageUrl: String? = null,
+    val logoImageUrl: String?       = null,
     val tileBgColor: String?        = null,
     val tileTextColor: String?      = null,
+    val topbarBtnBgColor: String?   = null,
+    val topbarBtnTextColor: String? = null,
 )
 
 data class NotificationRemote(
@@ -270,8 +273,11 @@ fun parseLauncherConfig(json: String): LauncherConfig {
     val appstore = if (appstoreObj == null) AppStoreMeta() else AppStoreMeta(
         heroImageUrl       = appstoreObj.optStringOrNull("hero_image_url"),
         backgroundImageUrl = appstoreObj.optStringOrNull("background_image_url"),
+        logoImageUrl       = appstoreObj.optStringOrNull("logo_image_url"),
         tileBgColor        = appstoreObj.optStringOrNull("tile_bg_color"),
         tileTextColor      = appstoreObj.optStringOrNull("tile_text_color"),
+        topbarBtnBgColor   = appstoreObj.optStringOrNull("topbar_btn_bg_color"),
+        topbarBtnTextColor = appstoreObj.optStringOrNull("topbar_btn_text_color"),
     )
     return LauncherConfig(
         dockTiles = tilesList,

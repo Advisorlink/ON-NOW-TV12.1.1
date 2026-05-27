@@ -48,6 +48,13 @@ class DockAdapter(
         return VH(binding)
     }
 
+    /** v2.8.20 — Per-item nextFocusUpId so the dock's UP arrow
+     *  climbs into the top bar's VPN pill, but LEFT/RIGHT stay
+     *  inside the dock (handled by the MainActivity dispatchKey
+     *  trap).  Setter called once from MainActivity.bindDock(). */
+    var nextFocusUpResId: Int = 0
+        set(v) { if (v != field) { field = v; notifyDataSetChanged() } }
+
     override fun getItemCount(): Int = items.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -55,6 +62,13 @@ class DockAdapter(
         val image       = holder.binding.icon
         val reflection  = holder.binding.reflection
         val reflectBox  = holder.binding.reflectionClip
+
+        // v2.8.20 — UP arrow climbs to the top-bar VPN pill.  LEFT/
+        // RIGHT are handled by MainActivity.dispatchKeyEvent (edge
+        // trap) so they never escape the dock.
+        if (nextFocusUpResId != 0) {
+            holder.binding.tileRoot.nextFocusUpId = nextFocusUpResId
+        }
 
         // v1.0 — Resize the tile + reflection to the admin-edited
         // dimensions.  Reflection slot is locked at ~36 % of tile

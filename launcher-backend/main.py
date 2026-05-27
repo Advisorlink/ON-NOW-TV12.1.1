@@ -173,21 +173,20 @@ class ApkEntry(BaseModel):
 class AppStoreMeta(BaseModel):
     """v2.0 — On-launcher App Store branding.  v2.8.10 added a second
     fullscreen background image that sits BEHIND the apps grid.
-    v2.8.18 adds admin-editable tile colors (background + text) so
-    the user can recolor the App Store palette without a rebuild.
-
-    Image-size policy (also surfaced in the admin UI):
-      • background_image — fullscreen wallpaper behind the grid.
-        Final on-screen size: 1920 × 1080 px.  Auto-fit on upload.
-
-    Tile colors are stored as 8-char "#AARRGGBB" hex strings
-    (matching Android's color literal format).  None / blank falls
-    back to the launcher's built-in deep-blue defaults.
-    """
-    hero_image_url: Optional[str]       = None
-    background_image_url: Optional[str] = None
-    tile_bg_color: Optional[str]        = None  # "#CC0F1B30" default
-    tile_text_color: Optional[str]      = None  # "#FFF4F7FB" default
+    v2.8.18 added admin-editable tile colors.  v2.8.20 adds:
+      • logo_image_url        — drag-drop topbar logo (replaces the
+        bundled text wordmark + play tile when set).
+      • topbar_btn_bg_color   — top-bar pill background (resting).
+      • topbar_btn_text_color — top-bar pill text + icon tint.
+    Tile colors are stored as 8-char "#AARRGGBB" hex strings.  None
+    falls back to the launcher's built-in defaults."""
+    hero_image_url: Optional[str]         = None
+    background_image_url: Optional[str]   = None
+    logo_image_url: Optional[str]         = None
+    tile_bg_color: Optional[str]          = None  # "#CC0F1B30" default
+    tile_text_color: Optional[str]        = None  # "#FFF4F7FB" default
+    topbar_btn_bg_color: Optional[str]    = None  # "#33203A5C" default
+    topbar_btn_text_color: Optional[str]  = None  # "#FFF4F7FB" default
 
 
 class Notification(BaseModel):
@@ -524,8 +523,13 @@ def _build_config(store: dict) -> LauncherConfig:
             background_image_url=_abs(
                 (store.get("appstore") or {}).get("background_image_url")
             ),
+            logo_image_url=_abs(
+                (store.get("appstore") or {}).get("logo_image_url")
+            ),
             tile_bg_color=(store.get("appstore") or {}).get("tile_bg_color"),
             tile_text_color=(store.get("appstore") or {}).get("tile_text_color"),
+            topbar_btn_bg_color=(store.get("appstore") or {}).get("topbar_btn_bg_color"),
+            topbar_btn_text_color=(store.get("appstore") or {}).get("topbar_btn_text_color"),
         ),
     )
 
@@ -1449,6 +1453,76 @@ def update_tile_colors(body: TileColorsBody) -> dict:
         "tile_bg_color":   appstore["tile_bg_color"],
         "tile_text_color": appstore["tile_text_color"],
     }
+
+
+# ── v2.8.20 — Top-bar pill colors (VPN + Speed Test buttons) ──────
+class TopbarColorsBody(BaseModel):
+    topbar_btn_bg_color:   Optional[str] = None
+    topbar_btn_text_color: Optional[str] = None
+
+
+@app.post("/api/admin/appstore/topbar-colors", dependencies=[Depends(require_admin)])
+def update_topbar_colors(body: TopbarColorsBody) -> dict:
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    appstore["topbar_btn_bg_color"]   = _normalize_color(body.topbar_btn_bg_color)
+    appstore["topbar_btn_text_color"] = _normalize_color(body.topbar_btn_text_color)
+    _save_store(store)
+    return {
+        "ok": True,
+        "topbar_btn_bg_color":   appstore["topbar_btn_bg_color"],
+        "topbar_btn_text_color": appstore["topbar_btn_text_color"],
+    }
+
+
+# ── v2.8.20 — Admin-uploadable top-bar logo image ─────────────────
+# Final rendered size in the top bar: ~260 × 56 px (logo fits inside
+# its own 56dp-tall row, max width ~260dp to leave room for clock).
+# ImageOps.contain() preserves the upload's aspect — never zoomed,
+# never cropped — so a designer can drop any size in.
+APPSTORE_LOGO_SIZE = (520, 112)  # 2× the on-screen target for crispness
+
+
+@app.post("/api/admin/appstore/logo", dependencies=[Depends(require_admin)])
+async def upload_appstore_logo(file: UploadFile = File(...)) -> dict:
+    """Drag-drop a topbar logo image.  Auto-fit to fit within
+    520×112 preserving aspect (no crop, no stretch).  PNG with
+    transparency strongly recommended."""
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "appstore" / "logo.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img = ImageOps.contain(img, APPSTORE_LOGO_SIZE, Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+        saved = img.size
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    appstore = store.setdefault("appstore", {})
+    appstore["logo_image_url"] = f"/assets/appstore/logo.png?ts={now_ts()}"
+    _save_store(store)
+    return {
+        "ok": True,
+        "logo_image_url": appstore["logo_image_url"],
+        "saved_size": list(saved),
+    }
+
+
+@app.delete("/api/admin/appstore/logo", dependencies=[Depends(require_admin)])
+def clear_appstore_logo() -> dict:
+    out_path = DATA_DIR / "appstore" / "logo.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("appstore", {})["logo_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
 
 
 # ── Notifications ─────────────────────────────────────────────────

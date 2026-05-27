@@ -1091,8 +1091,15 @@ function renderApks(store) {
         '#appstoreBgImg', '#appstoreBgPreview', '#appstoreBgClear',
         meta.background_image_url,
     );
+    // v2.8.20 — Mirror the admin-uploadable topbar logo.
+    syncAppstoreImg(
+        '#appstoreLogoImg', '#appstoreLogoPreview', '#appstoreLogoClear',
+        meta.logo_image_url,
+    );
     // v2.8.18 — Mirror current tile colors into the color editor.
     syncTileColorInputs(store);
+    // v2.8.20 — Mirror topbar pill colors.
+    syncTopbarColorInputs(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1195,6 +1202,14 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         endpoint:  '/api/admin/appstore/background',
         label:     'Background image',
     });
+    setupAppstoreDropzone({
+        zoneSel:   '#appstoreLogoDrop',
+        inputSel:  '#appstoreLogoFile',
+        browseSel: '#appstoreLogoBrowse',
+        clearSel:  '#appstoreLogoClear',
+        endpoint:  '/api/admin/appstore/logo',
+        label:     'Logo image',
+    });
 })();
 
 /* v2.8.18 — App-tile color editor.  Two `<input type="color">`
@@ -1261,6 +1276,71 @@ function syncTileColorInputs(store) {
                 }),
             });
             toast('Tile colors reset to defaults');
+            refreshAll();
+        } catch (err) { toast('Reset failed: ' + err.message, true); }
+    });
+})();
+
+/* v2.8.20 — Top-bar pill color editor.  Same shape as the tile
+   color editor, hitting /api/admin/appstore/topbar-colors. */
+function syncTopbarColorInputs(store) {
+    const meta = (store && store.appstore) || {};
+    const stripAlpha = (c) => {
+        if (!c) return null;
+        if (c.length === 9) return '#' + c.slice(3);
+        return c.length === 7 ? c : null;
+    };
+    const bg = stripAlpha(meta.topbar_btn_bg_color)   || '#203A5C';
+    const tx = stripAlpha(meta.topbar_btn_text_color) || '#FFFFFF';
+    const $bg = document.getElementById('topbarBtnBgColor');
+    const $tx = document.getElementById('topbarBtnTextColor');
+    const $bgHex = document.getElementById('topbarBtnBgColorHex');
+    const $txHex = document.getElementById('topbarBtnTextColorHex');
+    if ($bg)   $bg.value = bg;
+    if ($tx)   $tx.value = tx;
+    if ($bgHex) $bgHex.textContent = bg.toUpperCase();
+    if ($txHex) $txHex.textContent = tx.toUpperCase();
+}
+
+(function setupTopbarColorEditor() {
+    const $bg    = document.getElementById('topbarBtnBgColor');
+    const $tx    = document.getElementById('topbarBtnTextColor');
+    const $bgHex = document.getElementById('topbarBtnBgColorHex');
+    const $txHex = document.getElementById('topbarBtnTextColorHex');
+    const $save  = document.getElementById('topbarColorsSave');
+    const $reset = document.getElementById('topbarColorsReset');
+    if (!$bg || !$tx || !$save) return;
+    $bg.addEventListener('input', () => {
+        if ($bgHex) $bgHex.textContent = $bg.value.toUpperCase();
+    });
+    $tx.addEventListener('input', () => {
+        if ($txHex) $txHex.textContent = $tx.value.toUpperCase();
+    });
+    $save.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/appstore/topbar-colors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topbar_btn_bg_color:   $bg.value,
+                    topbar_btn_text_color: $tx.value,
+                }),
+            });
+            toast('Top-bar colors saved');
+            refreshAll();
+        } catch (err) { toast('Save failed: ' + err.message, true); }
+    });
+    $reset.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/appstore/topbar-colors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topbar_btn_bg_color:   null,
+                    topbar_btn_text_color: null,
+                }),
+            });
+            toast('Top-bar colors reset to defaults');
             refreshAll();
         } catch (err) { toast('Reset failed: ' + err.message, true); }
     });

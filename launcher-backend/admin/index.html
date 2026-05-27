@@ -300,7 +300,7 @@
             <p>Drop an APK below — we'll read the package id, version, name and icon straight from the file.  Click any tile to rename it or swap its artwork.  This is exactly how the App Store will look on the TV.</p>
         </div>
 
-        <!-- v2.8.18 — Admin-editable app-tile colors -->
+        <!-- v2.8.20 — Admin-editable app-tile colors -->
         <div class="appstore-colors-section">
             <h3 class="appstore-colors-title">App tile colors</h3>
             <div class="appstore-colors-row">
@@ -317,7 +317,41 @@
                 <button id="tileColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
                 <button id="tileColorsReset" type="button" class="apk-drop-link">Reset to default</button>
             </div>
-            <p class="appstore-colors-hint">Default background <code>#0F1B30</code> · default text <code>#F4F7FB</code>.  Changes propagate to every box on its next ~30 s config poll.</p>
+            <p class="appstore-colors-hint">Changes propagate on the next ~30 s config poll.</p>
+        </div>
+
+        <!-- v2.8.20 — Top-bar pill colors (VPN + Speed Test buttons) -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">Top-bar button colors</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field">
+                    <span>Background</span>
+                    <input type="color" id="topbarBtnBgColor" value="#203A5C">
+                    <code id="topbarBtnBgColorHex">#203A5C</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Text + icons</span>
+                    <input type="color" id="topbarBtnTextColor" value="#FFFFFF">
+                    <code id="topbarBtnTextColorHex">#FFFFFF</code>
+                </label>
+                <button id="topbarColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
+                <button id="topbarColorsReset" type="button" class="apk-drop-link">Reset to default</button>
+            </div>
+            <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills in the launcher's top bar.</p>
+        </div>
+
+        <!-- v2.8.20 — Top-bar logo (drag-drop) -->
+        <div class="appstore-hero-section">
+            <div id="appstoreLogoPreview" class="appstore-hero-preview" style="aspect-ratio:520/112;background:#04060B;">
+                <div class="appstore-hero-placeholder">No logo uploaded — drop one below.</div>
+                <img id="appstoreLogoImg" alt="" hidden>
+                <button id="appstoreLogoClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="appstoreLogoDrop" class="appstore-hero-drop">
+                <input type="file" id="appstoreLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+                <span><strong>Drop logo image</strong> · or <button id="appstoreLogoBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Rendered at ~260 × 56 px in the top bar.  PNG with transparency strongly recommended.  Any size accepted — we preserve aspect ratio.</span>
+            </div>
         </div>
 
         <!-- Fullscreen background — drag-drop (1920×1080 wallpaper) -->
