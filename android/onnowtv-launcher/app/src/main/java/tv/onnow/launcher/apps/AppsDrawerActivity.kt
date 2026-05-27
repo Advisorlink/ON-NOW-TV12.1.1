@@ -160,6 +160,13 @@ class AppsDrawerActivity : AppCompatActivity() {
             // Big bottom inset so the elevation/scale-up halo on the
             // last row doesn't clip against the screen edge.
             setPadding(0, 0, 0, dp(32))
+            // v2.8.17 — Disable the default item animator.  Its
+            // 250ms fade on every notifyItemChanged() compounds
+            // the install-progress flicker (a fresh fade fires
+            // for every percent tick).  Combined with the new
+            // PROGRESS_PAYLOAD partial-update path in the adapter
+            // this gives a perfectly smooth installer UI.
+            itemAnimator = null
         }
         column.addView(grid, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -458,7 +465,11 @@ private class AppsAdapter(
         val density = ctx.resources.displayMetrics.density
         fun px(v: Int) = (v * density).toInt()
 
-        /* Card root — dark glass tile. */
+        /* Card root — v2.8.17: white tile per direct user spec.
+           Dark-blue text inside.  No stroke (the previous 1dp
+           "#1B2A45" outline was the "thin line above each app"
+           the user reported).  Subtle elevation shadow replaces
+           the stroke as the visual edge. */
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -468,9 +479,9 @@ private class AppsAdapter(
             clipChildren = false
             background = GradientDrawable().apply {
                 cornerRadius = px(22).toFloat()
-                setColor(Color.parseColor("#CC0F1B30"))
-                setStroke(px(1), Color.parseColor("#1B2A45"))
+                setColor(Color.parseColor("#FFFFFFFF"))
             }
+            elevation = px(2).toFloat()
             layoutParams = ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 px(248),
@@ -537,9 +548,9 @@ private class AppsAdapter(
             setMargins(0, 0, 0, px(12))
         })
 
-        /* Name. */
+        /* Name — v2.8.17 dark blue on white tile. */
         val nameView = TextView(ctx).apply {
-            setTextColor(Color.parseColor("#FFF4F7FB"))
+            setTextColor(Color.parseColor("#FF0F1B30"))
             textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.CENTER
@@ -551,9 +562,10 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Category sub-label (e.g. "Entertainment"). */
+        /* Category sub-label (e.g. "Entertainment") — softer
+           dark-blue tint so it reads as secondary. */
         val categoryView = TextView(ctx).apply {
-            setTextColor(Color.parseColor("#FF8EA0B7"))
+            setTextColor(Color.parseColor("#FF4A5C7A"))
             textSize = 12f
             gravity = Gravity.CENTER
             ellipsize = TextUtils.TruncateAt.END
@@ -579,18 +591,13 @@ private class AppsAdapter(
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
 
-        /* Card focus: 1.06× scale + bright cyan border. */
+        /* Card focus: 1.06× scale + elevation lift.
+           v2.8.17: tile stays WHITE on focus (no color change, no
+           stroke).  Visual focus comes from the scale-up + a
+           stronger elevation shadow.  Removes the dark-blue
+           "thin line" the previous stroke caused. */
         card.setOnFocusChangeListener { v, hasFocus ->
             v as LinearLayout
-            (v.background as? GradientDrawable)?.apply {
-                if (hasFocus) {
-                    setStroke(px(2), Color.parseColor("#FF5DC8FF"))
-                    setColor(Color.parseColor("#FF14385E"))
-                } else {
-                    setStroke(px(1), Color.parseColor("#1B2A45"))
-                    setColor(Color.parseColor("#CC0F1B30"))
-                }
-            }
             v.animate().cancel()
             v.animate()
                 .scaleX(if (hasFocus) 1.06f else 1f)
@@ -598,6 +605,7 @@ private class AppsAdapter(
                 .setDuration(180)
                 .setInterpolator(OvershootInterpolator(1.4f))
                 .start()
+            v.elevation = (if (hasFocus) px(10) else px(2)).toFloat()
             v.translationZ = if (hasFocus) px(8).toFloat() else 0f
         }
 
@@ -683,12 +691,47 @@ private class AppsAdapter(
         }
     }
 
-    /** Called by the host activity each time `downloadAndInstall`
-     *  reports new progress for an in-flight install. */
+    /** v2.8.17 — Per direct user spec: stop the flickering on
+     *  install.  Root cause was `notifyItemChanged()` per
+     *  progress tick — RecyclerView re-binds the whole ViewHolder
+     *  (re-fetching the icon, recreating drawables, and sometimes
+     *  recycling/re-binding neighbouring tiles → the
+     *  "flicker, flicker, flicker, then flickers one of the
+     *  other apps" effect).  Now we send a `PROGRESS_PAYLOAD`
+     *  marker which is intercepted in `onBindViewHolder` so
+     *  ONLY the action button label is updated — no re-fetch,
+     *  no re-create, no neighbour-flicker. */
     fun setInstallProgress(apkId: String, percent: Int) {
         downloading[apkId] = percent.coerceIn(0, 100)
         val idx = apks.indexOfFirst { it.id == apkId }
-        if (idx >= 0) notifyItemChanged(idx)
+        if (idx >= 0) notifyItemChanged(idx, PROGRESS_PAYLOAD)
+    }
+
+    /** Partial-update path — fires for every progress tick.
+     *  Updates ONLY the button label so the icon / card / badges
+     *  stay perfectly still. */
+    override fun onBindViewHolder(
+        holder: AppCardVH,
+        position: Int,
+        payloads: MutableList<Any>,
+    ) {
+        if (payloads.contains(PROGRESS_PAYLOAD)) {
+            val apk = apks[position]
+            val dl = downloading[apk.id]
+            val density = ctx.resources.displayMetrics.density
+            val mode = when {
+                dl != null -> BtnMode.DOWNLOADING
+                isInstalled(apk.packageId) -> BtnMode.UNINSTALL
+                else -> BtnMode.INSTALL
+            }
+            applyButtonMode(holder.actionBtn, mode, (22 * density).toInt(), dl)
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
+    }
+
+    companion object {
+        private val PROGRESS_PAYLOAD = Any()
     }
 
     private fun applyButtonMode(btn: TextView, mode: BtnMode, radiusPx: Int, progress: Int? = null) {

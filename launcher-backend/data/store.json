@@ -1,5 +1,5 @@
 {
-  "generation": 365,
+  "generation": 381,
   "dock_tiles": [
     {
       "key": "movies",
@@ -77,15 +77,15 @@
       "key": "apps",
       "label": "Apps",
       "sub": "Find all your apps inside here",
-      "image_url": "/assets/tile_images/tile-apps-084e8f39.png",
-      "wallpaper_url": "/assets/wallpapers/tile-apps-d5000a93.png",
+      "image_url": "/assets/tile_images/tile-apps-b7e7ef44.png",
+      "wallpaper_url": "/assets/wallpapers/tile-apps-e231ec09.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
       "target_package": null,
       "target_url": null,
-      "accent": "#e97101",
+      "accent": "#009dff",
       "heading": null,
       "subheading": null,
       "description": null,
@@ -138,8 +138,9 @@
       "version_name": "5.0.6",
       "icon_url": "/assets/apk_icons/087f1e127976.png",
       "apk_url": "/assets/apks/087f1e127976_5.0.6 (598).apk",
-      "description": null,
-      "added_at": 1779847307
+      "description": "zczczxczxczxczxczxczxczxczxc",
+      "added_at": 1779847307,
+      "category": null
     },
     {
       "id": "19f03240e42d",
@@ -341,8 +342,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779866444,
-      "last_generation": 365
+      "last_seen": 1779879725,
+      "last_generation": 381
     }
   },
   "layout": {
@@ -6669,12 +6670,12 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779866434,
+      "last_seen_at": 1779879701,
       "last_ip": "34.160.159.238"
     }
   },
   "appstore": {
     "hero_image_url": null,
-    "background_image_url": "/assets/appstore/background.png?ts=1779866358"
+    "background_image_url": "/assets/appstore/background.png?ts=1779878661"
   }
 }
