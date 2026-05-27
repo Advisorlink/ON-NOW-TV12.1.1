@@ -1327,9 +1327,11 @@ header nav { display: flex; gap: 8px; align-items: center; }
     position: relative;
     border-radius: 22px;
     overflow: hidden;
-    background:
-        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(43,182,255,0.18), transparent 65%),
-        rgba(15,27,48,0.5);
+    /* v2.8.15 — Solid dark background matches the launcher's root
+       (#04060B) so the admin preview shows EXACTLY what the TV
+       will render — including any letterboxing on non-matching
+       uploads.  Replaces the old cyan radial-gradient teaser. */
+    background: #04060B;
     border: 1px solid var(--border);
     display: grid; place-items: center;
 }

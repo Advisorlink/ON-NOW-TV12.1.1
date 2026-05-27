@@ -1313,15 +1313,20 @@ async def upload_appstore_hero(file: UploadFile = File(...)) -> dict:
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
         # 1) contain → scale to fit inside the target, no crop.
         img = ImageOps.contain(img, APPSTORE_HERO_SIZE, Image.LANCZOS)
-        # 2) pad → wrap with transparent pixels to reach the exact
-        #    target dimensions.  Combined the two operations give the
-        #    user the exact behaviour requested: "exact dimensions
-        #    fill the whole page; over-sized images auto-fit".
+        # 2) pad → wrap with the launcher's root background color
+        #    (#04060B opaque) to reach the exact target dimensions.
+        #    v2.8.15 — Changed from transparent (0,0,0,0) to solid
+        #    dark per user feedback: when the upload's aspect didn't
+        #    match 1920×280 exactly, the transparent padding let the
+        #    launcher's old cyan placeholder gradient show through
+        #    on the sides as a bright blue stripe.  Solid #04060B
+        #    matches the launcher root so any letterboxing now
+        #    blends invisibly into the rest of the screen.
         img = ImageOps.pad(
             img,
             APPSTORE_HERO_SIZE,
             method=Image.LANCZOS,
-            color=(0, 0, 0, 0),
+            color=(4, 6, 11, 255),
             centering=(0.5, 0.5),
         )
         img.save(out_path, format="PNG", optimize=True)

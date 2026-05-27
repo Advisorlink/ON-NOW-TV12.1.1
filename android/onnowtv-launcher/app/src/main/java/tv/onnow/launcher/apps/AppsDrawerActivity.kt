@@ -133,18 +133,16 @@ class AppsDrawerActivity : AppCompatActivity() {
            user submitting at the recommended dimensions sees a
            pixel-perfect edge-to-edge fill.  scaleType = FIT_XY
            because the backend guarantees the source already matches
-           the target — no distortion possible.  No corner rounding
-           (looks like a "banner", not a "card"). */
+           the target — no distortion possible.
+           v2.8.15 — Placeholder background changed from a bright
+           cyan gradient to the LAUNCHER ROOT COLOR (#04060B).  Any
+           transparent padding on the uploaded image now blends
+           invisibly with the rest of the screen — no more "bright
+           blue stripe around the design" effect when the upload
+           aspect doesn't exactly match 1920×280. */
         heroImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.FIT_XY
-            // Cyan-tinted placeholder while the real hero loads.
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(
-                    Color.parseColor("#2B6BCF"),
-                    Color.parseColor("#0A1B33"),
-                ),
-            )
+            setBackgroundColor(Color.parseColor("#FF04060B"))
         }
         // Banner height: 280 px on 1080p TV (full-width 1920×280).
         val heroHeight = dp(280)
