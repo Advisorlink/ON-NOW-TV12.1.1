@@ -124,7 +124,32 @@ class MainActivity : AppCompatActivity() {
     /* ──────────────────────────  Dock  ───────────────────────── */
 
     private fun bindDock() {
-        val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        // v2.8.21 — Custom LinearLayoutManager that traps LEFT/RIGHT
+        // focus search at the dock edges.  The previous
+        // dispatchKeyEvent approach failed during fast scrolling:
+        // RecyclerView's internal focus pipeline runs BEFORE the
+        // dispatch sees the next item's bounding box, so on the
+        // 4th-5th rapid RIGHT press Android's geometry-based
+        // focusSearch picked the geometrically-nearest focusable
+        // (= the top-bar pill) and the focus escaped.
+        //
+        // Overriding `onInterceptFocusSearch` lives BELOW that
+        // pipeline: when the LM can't satisfy a LEFT/RIGHT request
+        // (= we're at the edge), we return the currently-focused
+        // view to swallow the request entirely.  Only UP arrow can
+        // escape into the top bar now.
+        val lm = object : LinearLayoutManager(
+            this, RecyclerView.HORIZONTAL, false,
+        ) {
+            override fun onInterceptFocusSearch(focused: android.view.View, direction: Int): android.view.View? {
+                if (direction == android.view.View.FOCUS_LEFT ||
+                    direction == android.view.View.FOCUS_RIGHT) {
+                    val handled = super.onInterceptFocusSearch(focused, direction)
+                    return handled ?: focused   // swallow at edge
+                }
+                return super.onInterceptFocusSearch(focused, direction)
+            }
+        }
         binding.dock.layoutManager = lm
         dockAdapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
         // v2.8.20 — Per-item UP arrow climbs to the VPN pill.
@@ -936,43 +961,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v2.8.20 — Trap LEFT/RIGHT at the dock edges so navigating
-     * along the dock can NEVER bleed up into the top bar.  Only
-     * UP arrow moves into the top bar.  Without this trap,
-     * Android's geometry-based focus search jumps to the
-     * geometrically-nearest focusable (= the top-bar pill)
-     * whenever the dock's last item can't find a sibling to its
-     * right.
+     * v2.8.21 — Dock LEFT/RIGHT focus escape is now blocked at the
+     * LayoutManager level (see bindDock).  No dispatchKeyEvent
+     * override needed any more.
      */
-    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-            val keyCode = event.keyCode
-            val isHorizontal =
-                keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ||
-                keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
-            if (isHorizontal && ::binding.isInitialized) {
-                val focused = currentFocus
-                val dock = binding.dock
-                if (focused != null) {
-                    val itemView = dock.findContainingItemView(focused)
-                    if (itemView != null) {
-                        val pos = dock.getChildAdapterPosition(itemView)
-                        val count = dock.adapter?.itemCount ?: 0
-                        val atLastRight = keyCode ==
-                            android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
-                            pos == count - 1
-                        val atFirstLeft = keyCode ==
-                            android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
-                            pos == 0
-                        if (atLastRight || atFirstLeft) {
-                            return true  // swallow — stay on this tile
-                        }
-                    }
-                }
-            }
-        }
-        return super.dispatchKeyEvent(event)
-    }
 
     /** Toggle the green/red status dot on the VPN pill. */
     private fun refreshVpnDot() {
