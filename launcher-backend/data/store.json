@@ -316,7 +316,7 @@
     },
     "08a56080-8743-4c82-806f-ad60aec59f51": {
       "device_id": "08a56080-8743-4c82-806f-ad60aec59f51",
-      "last_seen": 1779850074,
+      "last_seen": 1779850662,
       "last_generation": 293
     }
   },
@@ -6653,7 +6653,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779849008,
-      "last_seen_at": 1779850073,
+      "last_seen_at": 1779850655,
       "last_ip": "34.160.159.238"
     }
   },

@@ -236,6 +236,30 @@ function rank(arr, val) {
 }
 
 /**
+ * Standalone helper: true if a content rating string passes the
+ * configured ceiling.  Used by Detail.jsx after a TMDB lookup to
+ * gate per-title rendering in Kids mode.
+ *
+ * Accepts:
+ *   cert    — raw rating string (e.g. "PG-13", "TV-MA", "R", or "")
+ *   ceiling — configured maximum (e.g. "PG", "TV-PG")
+ *
+ * If either side is empty / unknown, defaults to ALLOW so we never
+ * silently hide content because TMDB lacks a certification.
+ */
+export function isRatingAllowed(cert, ceiling) {
+    if (!cert || !ceiling) return true;
+    const c = String(cert).toUpperCase().replace(/\s+/g, '');
+    const looksTV = c.startsWith('TV-') || String(ceiling).toUpperCase().startsWith('TV-');
+    const arr = looksTV ? TV_RATING_ORDER : MOVIE_RATING_ORDER;
+    const r = rank(arr, cert);
+    const cap = rank(arr, ceiling);
+    if (r === -1) return true; // unknown rating → allow
+    if (cap === -1) return true; // unknown ceiling → allow
+    return r <= cap;
+}
+
+/**
  * True if the given meta passes the kids filter.
  *  - Adult flag → always blocked
  *  - Rating present → must rank <= configured ceiling

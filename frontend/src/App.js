@@ -162,6 +162,23 @@ if (typeof window !== 'undefined') {
                     localStorage.removeItem(ACTIVE_KEY);
                 }
             }
+        } else {
+            // v2.8.5 — Per user spec: every time Vesper boots without
+            // a `?profile=…` deep-link, ALWAYS land on the profile
+            // picker.  Previously the last-used profile auto-resumed
+            // (sticky session) — but the user explicitly wants to
+            // see the picker on every cold boot so a child can never
+            // sneak into a grown-up profile, and grown-ups always
+            // get a fresh choice.  The Kids tile on the launcher
+            // still bypasses this via `?profile=kids`.
+            //
+            // Boot-only check: `performance.navigation.type === 1`
+            // (reload) and the React-internal SPA route changes
+            // never re-execute this module-level block, so this
+            // only fires on a true cold start.
+            if (cur) {
+                localStorage.removeItem(ACTIVE_KEY);
+            }
         }
     } catch { /* ignore — malformed URL / disabled storage */ }
 }

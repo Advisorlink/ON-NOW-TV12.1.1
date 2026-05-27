@@ -7,7 +7,7 @@ import PosterTile from './PosterTile';
  * window all the way up to 4K.  The left rail (SideNav) is 108px when
  * collapsed, so the minimum left padding stays well clear of it.
  */
-export default function Shelf({ shelf, onSelect }) {
+export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }) {
     const scroller = useRef(null);
 
     return (
@@ -80,11 +80,12 @@ export default function Shelf({ shelf, onSelect }) {
                     overscrollBehavior: 'contain',
                 }}
             >
-                {shelf.items.map((item) => (
+                {shelf.items.map((item, idx) => (
                     <PosterTile
                         key={item.id}
                         item={item}
                         onSelect={onSelect}
+                        initialFocus={firstTileInitialFocus && idx === 0}
                     />
                 ))}
                 {/* Dev-Unlock diagnostic — when a row was kept even

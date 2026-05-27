@@ -93,6 +93,39 @@ export default function KidsHome() {
         if (main) main.scrollTop = 0;
     }, [filter]);
 
+    /* v2.8.5 — Initial focus on the first poster tile (top-left).
+       The global `useSpatialFocus` priming retries 50→1500 ms looking
+       for `[data-initial-focus="true"]`.  On a cold boot the Kids
+       shelves often arrive AFTER that window closes, so the fallback
+       picks the Hero Play button instead of the first tile — which
+       is not what the user wants.  This effect runs every time the
+       shelves array changes and, while we're still showing the Kids
+       home, force-focuses the leftmost tile of the first shelf. */
+    useEffect(() => {
+        if (!Array.isArray(shelves) || shelves.length === 0) return;
+        if (isFilterView) return;
+        let cancelled = false;
+        const tries = [60, 180, 360, 700, 1100];
+        const timers = tries.map((ms) => setTimeout(() => {
+            if (cancelled) return;
+            // Already on a tile? leave it alone.
+            const ae = document.activeElement;
+            if (
+                ae &&
+                ae.matches &&
+                ae.matches('[data-focusable="true"][data-testid^="poster-"]')
+            ) return;
+            const first = document.querySelector(
+                '[data-testid="kids-shelves-region"] [data-focusable="true"][data-testid^="poster-"]'
+            );
+            if (first) first.focus({ preventScroll: true });
+        }, ms));
+        return () => {
+            cancelled = true;
+            timers.forEach((t) => clearTimeout(t));
+        };
+    }, [shelves, isFilterView]);
+
     return (
         <div
             data-testid="kids-home"
@@ -167,7 +200,18 @@ export default function KidsHome() {
 
                     {shelves.map((shelf, i) => (
                         <Lazy key={shelf.id} minHeight={340} eager={i < 3}>
-                            <Shelf shelf={shelf} />
+                            {/* v2.8.5 — Wrap in data-testid="shelf-page"
+                                so useSpatialFocus left-edge hard-stop
+                                matches Vesper exactly: leftmost tile of
+                                the FIRST shelf escapes to KidsSideNav,
+                                all other shelves hard-stop (no surprise
+                                rail-jump when navigating deep rows). */}
+                            <div data-testid="shelf-page">
+                                <Shelf
+                                    shelf={shelf}
+                                    firstTileInitialFocus={i === 0}
+                                />
+                            </div>
                         </Lazy>
                     ))}
 

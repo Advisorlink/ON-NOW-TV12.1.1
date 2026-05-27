@@ -1,6 +1,13 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.7.98 — Launcher App Store redesign + Admin Devices tab + APK auto-detect** (Feb 26, 2026)
+> Latest: **v2.8.5 — Cold-boot always shows profile picker + Kids first-tile focus + CI build fix** (Feb 27, 2026)
+>
+> Three surgical fixes per direct user spec.
+> 1. **`isRatingAllowed` export added to `/lib/profiles.js`** — Detail.jsx imports it at line 27.  Missing export was breaking the GitHub Actions React production build (`craco build` → "Attempted import error").  Verified `yarn build` exits 0.
+> 2. **Always boot to Profile picker (cold start)** — `App.js` module-level boot block now CLEARS `onnowtv-active-profile-v1` whenever the URL has no `?profile=` deep-link param.  Sticky-session removed — every cold launch lands on `/profiles` so a child can never sneak into a grown-up profile and grown-ups always get a fresh choice.  The Kids tile on the launcher still bypasses via `?profile=kids` exactly as before.
+> 3. **Kids Home initial focus = top-left tile (just like Vesper)** — added `initialFocus` prop through `Shelf → PosterTile`, set `data-initial-focus="true"` on the first tile of the first shelf, plus a defensive retry useEffect in `KidsHome.jsx` ([60, 180, 360, 700, 1100] ms) that force-focuses the leftmost poster when shelves load after the global `useSpatialFocus` priming window closes.  Also wrapped each Kids shelf in `data-testid="shelf-page"` so the left-edge hard-stop logic matches Vesper exactly (leftmost tile of non-first shelf STAYS PUT instead of escaping to KidsSideNav).  Verified via screenshot: `document.activeElement` = `poster-kids-family-favorites-1226863` (top-left of first shelf), ArrowDown then ArrowLeft hard-stops at `poster-kids-animated-magic-1226863`.
+>
+> Previous: **v2.7.98 — Launcher App Store redesign + Admin Devices tab + APK auto-detect** (Feb 26, 2026)
 >
 > Big day for the launcher app experience.
 > 1. **Launcher's native "Apps" screen rewritten** as a gorgeous Vesper-style "ON NOW TV 2 · App Store" — brand hero header (cyan-glowing "2"), 4-column grid of LARGE 108 dp rounded-icon tiles with 1.08× overshoot focus + bright cyan ring + 8 dp elevation lift.  Pill-shaped INSTALL ALL CTA.

@@ -14,7 +14,7 @@ import useLongPress from '@/hooks/useLongPress';
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
  */
-export default function PosterTile({ item, onSelect }) {
+export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
 
     const onTap = () => {
@@ -57,6 +57,7 @@ export default function PosterTile({ item, onSelect }) {
             data-testid={`poster-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
+            {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
