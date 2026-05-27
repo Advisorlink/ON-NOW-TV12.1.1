@@ -144,8 +144,17 @@ class AppsDrawerActivity : AppCompatActivity() {
             scaleType = ImageView.ScaleType.FIT_XY
             setBackgroundColor(Color.parseColor("#FF04060B"))
         }
-        // Banner height: 280 px on 1080p TV (full-width 1920×280).
-        val heroHeight = dp(280)
+        // v2.8.15 — Hero height locked to PHYSICAL pixels (NOT dp).
+        // The user's design source is always in pixels — if we used
+        // dp here, a TV reporting density 1.5 or 2.0 would scale the
+        // ImageView to 420 or 560 PHYSICAL pixels tall, and FIT_XY
+        // would stretch the 1920×280 source vertically to fill it
+        // (the "stretched out vertically" complaint).  Locking the
+        // height to literal 280 pixels means a 1920×280 design
+        // always fills the rectangle exactly with no stretch on
+        // any device.  MATCH_PARENT width is already in physical
+        // pixels (always = screen width).
+        val heroHeight = 280  // physical pixels, NOT dp
         outerColumn.addView(heroImage, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             heroHeight,
