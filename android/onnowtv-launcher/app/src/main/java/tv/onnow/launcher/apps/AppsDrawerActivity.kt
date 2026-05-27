@@ -80,27 +80,15 @@ class AppsDrawerActivity : AppCompatActivity() {
            content floats over it.  scaleType=CENTER_CROP because the
            backend already auto-fits to the exact 1920×1080 target
            — CENTER_CROP just hides any sub-pixel rounding on odd
-           density boxes.  Tinted overlay sits on top to keep grid
-           tiles readable against bright wallpapers. */
+           density boxes.
+           v2.8.16 — Per direct user spec: NO scrim, NO overlay,
+           full-brightness background.  The admin handles fade/
+           tint inside the image they upload. */
         backgroundImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             visibility = View.GONE
         }
         root.addView(backgroundImage, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        ))
-        // Dark scrim so the apps remain legible over photo wallpapers.
-        val scrim = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(
-                    Color.parseColor("#A6040611"),
-                    Color.parseColor("#CC040611"),
-                ),
-            )
-        }
-        root.addView(scrim, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         ))
