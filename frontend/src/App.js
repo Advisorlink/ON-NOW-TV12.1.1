@@ -15,6 +15,7 @@ import ProfileEdit from '@/pages/ProfileEdit';
 import ProfileLoad from '@/pages/ProfileLoad';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
+import KidsSetup from '@/pages/KidsSetup';
 import WatchTogether from '@/pages/WatchTogether';
 import LiveTV from '@/pages/LiveTV';
 import SportsGuide from '@/pages/SportsGuide';
@@ -32,7 +33,7 @@ import FeatureNudge from '@/components/FeatureNudge';
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import { ThemeProvider } from '@/themes/ThemeProvider';
-import { getActiveProfile, isKidsActive } from '@/lib/profiles';
+import { getActiveProfile, isKidsActive, getKidsConfig } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -114,23 +115,52 @@ if (typeof window !== 'undefined') {
         const profileParam = params.get('profile');
         const ACTIVE_KEY = 'onnowtv-active-profile-v1';
         const LAST_NON_KIDS_KEY = 'onnowtv-last-non-kids-profile';
+        const KIDS_CFG_KEY = 'onnowtv-kids-config-v1';
+
+        // v2.8.4 — Kids PIN lockdown.  If the user is currently in
+        // Kids mode AND has a PIN set, IGNORE any `profile=exit-kids`
+        // deep-link from the launcher — the kid must enter the PIN
+        // via the in-app gate (`/kids/exit-pin`).  Without this,
+        // pressing Home, opening the Movies / TV tile on the launcher,
+        // and returning to Vesper would silently drop the kid out of
+        // Kids mode with no security check.
+        const cur = (() => {
+            try { return localStorage.getItem(ACTIVE_KEY); }
+            catch { return null; }
+        })();
+        const kidsPin = (() => {
+            try {
+                const raw = localStorage.getItem(KIDS_CFG_KEY);
+                if (!raw) return '';
+                const parsed = JSON.parse(raw);
+                return (parsed && parsed.pin) || '';
+            } catch { return ''; }
+        })();
+        const lockedInKids = cur === 'kids' && kidsPin && kidsPin.length === 4;
+
         if (profileParam === 'kids') {
             // Remember the user's adult profile BEFORE we switch to
             // Kids — so a later Movies/TV tap restores them, not
             // dump them on the profile picker.
-            const current = localStorage.getItem(ACTIVE_KEY);
-            if (current && current !== 'kids') {
-                localStorage.setItem(LAST_NON_KIDS_KEY, current);
+            if (cur && cur !== 'kids') {
+                localStorage.setItem(LAST_NON_KIDS_KEY, cur);
             }
             localStorage.setItem(ACTIVE_KEY, 'kids');
         } else if (profileParam === 'exit-kids') {
-            const previous = localStorage.getItem(LAST_NON_KIDS_KEY);
-            if (previous) {
-                localStorage.setItem(ACTIVE_KEY, previous);
+            if (lockedInKids) {
+                // PIN-protected — refuse the silent switch.  The
+                // route handler below will strip the query so a
+                // refresh doesn't keep re-trying.  The kid stays in
+                // Kids mode and must hit "Exit Kids" → enter PIN.
             } else {
-                // No adult profile remembered → clear so the
-                // ProfileSelect picker takes over.
-                localStorage.removeItem(ACTIVE_KEY);
+                const previous = localStorage.getItem(LAST_NON_KIDS_KEY);
+                if (previous) {
+                    localStorage.setItem(ACTIVE_KEY, previous);
+                } else {
+                    // No adult profile remembered → clear so the
+                    // ProfileSelect picker takes over.
+                    localStorage.removeItem(ACTIVE_KEY);
+                }
             }
         }
     } catch { /* ignore — malformed URL / disabled storage */ }
@@ -187,6 +217,17 @@ function RequireProfile({ children }) {
     // /kids/exit-pin, which then clears the active profile after a
     // correct PIN.
     if (active && active.kids) {
+        // v2.8.4 — First-time Kids activation: if no PIN is set yet,
+        // FORCE the user through `/kids/setup` before any content
+        // renders.  The setup wizard writes the PIN + content
+        // ratings, then redirects to "/".  This means a kid can
+        // never reach the Movies / TV browse routes until a
+        // responsible adult has configured the parental controls.
+        const kidsCfg = getKidsConfig();
+        const needsSetup = !kidsCfg.pin || kidsCfg.pin.length !== 4;
+        if (needsSetup && location.pathname !== '/kids/setup') {
+            return <Navigate to="/kids/setup" replace />;
+        }
         const allowedKids = [
             '/',
             '/play',
@@ -194,6 +235,7 @@ function RequireProfile({ children }) {
             '/search',
             '/resolve/',
             '/kids/exit-pin',
+            '/kids/setup',
         ];
         const ok = allowedKids.some((p) =>
             p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
@@ -221,6 +263,7 @@ const MOBILE_NAV_HIDDEN_PREFIXES = [
     '/play',
     '/profiles',
     '/kids/exit-pin',
+    '/kids/setup',
     '/watch-together',
     '/resolve/',
 ];
@@ -382,6 +425,7 @@ function App() {
                                 <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/load" element={<RequireProfile><ProfileLoad /></RequireProfile>} />
                                 <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
+                                <Route path="/kids/setup" element={<RequireProfile><KidsSetup /></RequireProfile>} />
 
                                 <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
                                 <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />

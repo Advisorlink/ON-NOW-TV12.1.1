@@ -480,9 +480,29 @@ class MainActivity : AppCompatActivity() {
                 // exit-kids: restore the previously-active non-kids
                 // profile if we have one; otherwise clear so the
                 // ProfileSelect picker shows.
+                //
+                // v2.8.4 — Kids PIN lockdown: if a PIN is configured
+                // we REFUSE the exit and stay in Kids.  The kid must
+                // use the in-app PIN gate.  We can't actually read
+                // localStorage from Kotlin (it lives in WebView's
+                // sandbox), so we just inject JS that checks it.
                 """
                 (function(){
                     try {
+                        var cfgRaw = localStorage.getItem('onnowtv-kids-config-v1');
+                        var hasPin = false;
+                        if (cfgRaw) {
+                            try {
+                                var cfg = JSON.parse(cfgRaw);
+                                hasPin = !!(cfg && cfg.pin && cfg.pin.length === 4);
+                            } catch (e) {}
+                        }
+                        var cur = localStorage.getItem('onnowtv-active-profile-v1');
+                        if (cur === 'kids' && hasPin) {
+                            // PIN-locked — silently stay in Kids.
+                            window.location.hash = '#/';
+                            return;
+                        }
                         var prev = localStorage.getItem('onnowtv-last-non-kids-profile');
                         if (prev) {
                             localStorage.setItem('onnowtv-active-profile-v1', prev);

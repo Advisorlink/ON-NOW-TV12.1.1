@@ -21,10 +21,48 @@ android {
         getByName("release") {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Use the stable debug signing config for local sideloading
+            // so the launcher can be upgraded across CI builds (debug
+            // and release APKs share the same signature).
+            signingConfig = signingConfigs.getByName("debug")
         }
         getByName("debug") {
             // Debug APK installs over the production one on the same box
             // — same applicationId so Android treats it as an upgrade.
+        }
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            // v2.8.4 — Force v1 (JAR) signing ON so cheap Android 6/7
+            // set-top boxes can parse the APK.  Modern AGP defaults to
+            // v2-only which those boxes can't read — that's the classic
+            // "problem parsing the package" error users see.
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+
+            // STABLE DEBUG KEYSTORE for upgrade-safe APKs across CI
+            // builds.  Without this, GitHub Actions' fresh runner
+            // auto-generates a brand-new debug keystore EVERY run, so
+            // users see "this app's signature does not match" / "not
+            // installed" when trying to upgrade from build N to N+1
+            // and have to fully uninstall first.
+            //
+            // The keystore is generated once by the
+            // `bootstrap-launcher-keystore.yml` workflow and committed
+            // at android/onnowtv-launcher/app/onnow-launcher-debug.keystore.
+            // We only override the default debug-signing config when
+            // that file is present, so fresh clones (without the
+            // committed keystore) still build with the standard
+            // Gradle-managed debug key.
+            val stableKs = file("onnow-launcher-debug.keystore")
+            if (stableKs.exists()) {
+                storeFile = stableKs
+                storePassword = "onnow-launcher-debug"
+                keyAlias = "onnow-launcher-debug"
+                keyPassword = "onnow-launcher-debug"
+            }
         }
     }
 

@@ -1534,3 +1534,4 @@ launcher-backend/data/tile_apks/*
 !launcher-backend/data/tile_apks/.gitkeep
 frontend/node_modules/.cache/default-development/186.pack
 launcher-backend/data/apks/916656ec098c_onnowtv-v2-debug
+frontend/node_modules/.cache/default-development/190.pack

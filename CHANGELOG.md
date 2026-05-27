@@ -7,6 +7,54 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.4 — Kids PIN lockdown + first-time setup wizard + launcher upgrade-safe signing
+
+  • **Kids first-time setup wizard.**  New `/kids/setup` page +
+    `<KidsSetup/>` component.  Three-step inline wizard:
+       1. Choose a 4-digit parent PIN
+       2. Confirm the PIN (mismatch → start over)
+       3. Pick max content rating (Movies + TV separately)
+    Until the wizard finishes (PIN saved), `<RequireProfile>` forces
+    the kid through `/kids/setup` — they CANNOT reach Home, Movies,
+    TV, Search until a responsible adult has configured controls.
+
+  • **Kids PIN lockdown — `exit-kids` deep-link blocked.**  The
+    launcher's Movies / TV / Music / etc. tiles fire Vesper with
+    `?profile=exit-kids`.  Without this fix, a kid could press
+    Home → launcher → Movies tile → BYPASS the Kids gate with no
+    PIN.  Now:
+      1. App.js synchronous reader CHECKS `kids-config.pin` before
+         flipping the active profile.  If `pin` is set (4 chars)
+         and the current profile is `kids`, the `exit-kids` query
+         is silently ignored — kid stays in Kids.
+      2. Vesper Kotlin `onNewIntent` mirrors the same logic — even
+         the hot-restart path (Vesper already running, kid taps a
+         non-Kids tile) reads `localStorage` via `evaluateJavascript`
+         and refuses to exit Kids without the PIN.
+      3. The only escape route is `/kids/exit-pin` from inside the
+         Kids UI (existing, unchanged).
+
+  • **Launcher upgrade-safe signing.**  GitHub Actions was using
+    Gradle's auto-generated debug keystore which RESETS on every CI
+    run, so users sideloading launcher build N+1 over build N
+    saw "this app's signature does not match" / "not installed"
+    and had to fully uninstall first.  Fixes:
+       1. Added `signingConfigs.debug` block to launcher
+          `build.gradle.kts` that reads a stable PKCS12 keystore
+          at `app/onnow-launcher-debug.keystore` when present.
+       2. Generated that keystore (RSA 2048, valid until 2126) and
+          committed it to the repo so every CI build signs with
+          the same cert.
+       3. Release builds inherit the same signing config so
+          debug ↔ release upgrades also work.
+       4. v1+v2+v3 signature schemes all enabled — fixes "problem
+          parsing the package" on cheap Android 6 / 7 set-top boxes
+          that can't read v2-only APKs.
+       5. New `bootstrap-launcher-keystore.yml` workflow lets
+          contributors regenerate the keystore from a fresh clone.
+
+  • Bumped Vesper APK → **v2.8.4** (versionCode 259).
+
 ## v2.8.3 — Admin drawer blur fix + Launcher install/uninstall fixes
 
 Three coordinated fixes shipping together.

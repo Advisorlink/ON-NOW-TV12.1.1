@@ -1,5 +1,5 @@
 {
-  "generation": 286,
+  "generation": 289,
   "dock_tiles": [
     {
       "key": "movies",
@@ -151,6 +151,16 @@
       "apk_url": "/assets/apks/916656ec098c_onnowtv-v2-debug (4).apk",
       "description": null,
       "added_at": 1779846735
+    },
+    {
+      "id": "087f1e127976",
+      "name": "Swift Backup",
+      "package_id": "org.swiftapps.swiftbackup",
+      "version_name": "5.0.6",
+      "icon_url": "/assets/apk_icons/087f1e127976.png",
+      "apk_url": "/assets/apks/087f1e127976_5.0.6 (598).apk",
+      "description": null,
+      "added_at": 1779847307
     }
   ],
   "notifications": [],
@@ -297,8 +307,13 @@
     },
     "36cf8043-d8c1-4ed9-a828-50aaac72694b": {
       "device_id": "36cf8043-d8c1-4ed9-a828-50aaac72694b",
-      "last_seen": 1779847184,
-      "last_generation": 286
+      "last_seen": 1779847674,
+      "last_generation": 287
+    },
+    "9dc8d91c-6992-4076-a982-3ccbc752ae06": {
+      "device_id": "9dc8d91c-6992-4076-a982-3ccbc752ae06",
+      "last_seen": 1779847912,
+      "last_generation": 289
     }
   },
   "layout": {
@@ -6616,7 +6631,16 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779846140,
-      "last_seen_at": 1779847181,
+      "last_seen_at": 1779847673,
+      "last_ip": "34.160.159.238"
+    },
+    "4c72a43d-fc2d-41a2-b0b7-eea0eb86f9e2": {
+      "id": "4c72a43d-fc2d-41a2-b0b7-eea0eb86f9e2",
+      "name": "ccc",
+      "model": "Amlogic HK1 BOX S905X3",
+      "status": "active",
+      "registered_at": 1779847793,
+      "last_seen_at": 1779847909,
       "last_ip": "34.160.159.238"
     }
   },
