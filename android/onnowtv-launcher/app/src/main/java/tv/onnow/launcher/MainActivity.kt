@@ -550,7 +550,7 @@ class MainActivity : AppCompatActivity() {
                 parent.addView(logoView)
             }
             logoView.visibility = android.view.View.VISIBLE
-            tv.onnow.launcher.util.ImageLoader.load(logoView, logo)
+            tv.onnow.launcher.ImageLoader.load(logoView, logo)
         }
 
         // Pill background + text colors.
