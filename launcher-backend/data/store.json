@@ -1,5 +1,5 @@
 {
-  "generation": 272,
+  "generation": 286,
   "dock_tiles": [
     {
       "key": "movies",
@@ -112,16 +112,6 @@
   ],
   "apks": [
     {
-      "id": "069a4e9f88c9",
-      "name": "Swift Backup",
-      "package_id": "org.swiftapps.swiftbackup",
-      "version_name": "5.0.6",
-      "icon_url": "/assets/apk_icons/069a4e9f88c9.png",
-      "apk_url": "/assets/apks/069a4e9f88c9_5.0.6 (598).apk",
-      "description": null,
-      "added_at": 1779807374
-    },
-    {
       "id": "95fcc481be01",
       "name": "WuPlay",
       "package_id": "app.wuplay.androidtv",
@@ -146,10 +136,11 @@
       "name": "OnNow TV V2",
       "package_id": "tv.onnow.launcher",
       "version_name": "0.1.29",
-      "icon_url": null,
+      "icon_url": "/assets/apk_icons/3abf14217805.png",
       "apk_url": "/assets/apks/3abf14217805_onnowtv-launcher-debug (13).apk",
       "description": null,
-      "added_at": 1779845851
+      "added_at": 1779845851,
+      "category": null
     },
     {
       "id": "916656ec098c",
@@ -306,8 +297,8 @@
     },
     "36cf8043-d8c1-4ed9-a828-50aaac72694b": {
       "device_id": "36cf8043-d8c1-4ed9-a828-50aaac72694b",
-      "last_seen": 1779846823,
-      "last_generation": 271
+      "last_seen": 1779847184,
+      "last_generation": 286
     }
   },
   "layout": {
@@ -6625,7 +6616,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779846140,
-      "last_seen_at": 1779846822,
+      "last_seen_at": 1779847181,
       "last_ip": "34.160.159.238"
     }
   },
