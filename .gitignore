@@ -1532,3 +1532,4 @@ launcher-backend/data/tile_apks/*
 !launcher-backend/data/apks/.gitkeep
 !launcher-backend/data/apk_icons/.gitkeep
 !launcher-backend/data/tile_apks/.gitkeep
+frontend/node_modules/.cache/default-development/186.pack

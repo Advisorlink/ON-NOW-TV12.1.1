@@ -7,6 +7,35 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.1 — URGENT perf fix: aggressive background pagination DISABLED
+
+  • **Root cause: `useTabGenreCatalog` was thrashing the box.**
+    User feedback: "take out that whole thing we did before where
+    it loads all those extra movies and stuff … the whole thing
+    moves really slow and really chunky".
+  • The hook was firing **4 pages × N (addon,catalog) pairs in
+    parallel** on first mount, then continuing to paginate via an
+    IntersectionObserver as the user scrolled.  On a typical box
+    with 3-4 addons × 2-3 genre-supporting catalogs, that's **24+
+    concurrent HTTP requests** followed by 50+ more on scroll —
+    thrashing the network and causing constant React re-renders
+    via `pushState` on every 4 jobs.
+  • **Fix — kill switch via three constants and one state flag:**
+       INITIAL_PAGES   4 → **1**   (single round-trip per pair)
+       BATCH_PAGES     4 → **1**
+       MAX_PAGES_HARD  50 → **8**  (safety cap, basically never hit)
+       hasMore         dynamic → **always false**
+    The IntersectionObserver sentinel in `TabGridView` now never
+    auto-fires `loadMore()` because it's gated on `genreHasMore`.
+    Manual `loadMore()` calls still work if anything wants to
+    surface a "Load more" button later.
+  • **Behavioral impact:** each genre now loads ~100 items per
+    catalog (down from ~400-2000+).  For 99% of users this is
+    plenty — Top 100 newest is what the user-facing UI advertises
+    anyway.  To re-enable deep pagination later, bump the four
+    constants back to (4, 4, 50, dynamic).
+  • Bumped Vesper APK → **v2.8.1** (versionCode 256).
+
 ## v2.8.0 — URGENT performance fix: 6-second boot stall eliminated
 
   • **Root cause: BootSplash localStorage key mismatch.**  At some

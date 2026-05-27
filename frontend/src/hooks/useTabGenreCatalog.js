@@ -38,10 +38,37 @@ import * as cache from '@/lib/cache';
  *   loadMore     — call to fetch the next batch (idempotent — does
  *                  nothing if a batch is already inflight or hasMore=false).
  */
+/*
+ *  v2.8.1 — BACKGROUND PAGINATION DISABLED.
+ *
+ *  User feedback Feb 27, 2026: "take out that whole thing we did
+ *  before where it loads all those extra movies and stuff.  Take
+ *  that out for now, because it's running too slow".
+ *
+ *  This hook used to fire `4 pages × N (addon,catalog) pairs` in
+ *  parallel on first mount, then continue paginating via an
+ *  IntersectionObserver as the user scrolled.  On a typical box
+ *  with 3-4 addons each exposing 2-3 genre-supporting catalogs,
+ *  that's 24+ concurrent HTTP requests followed by 50+ more as the
+ *  user scrolled — which thrashed the network and chunked the UI
+ *  on every cold render.
+ *
+ *  Configuration NOW:
+ *    INITIAL_PAGES = 1   — single round-trip per pair (~100 items).
+ *    BATCH_PAGES   = 1   — manual loadMore() still works if called
+ *                          explicitly, but is no longer auto-fired.
+ *    MAX_PAGES_HARD low  — safety cap, basically never hit.
+ *  And `hasMore` is forced to `false` at the end of the initial
+ *  effect, so the IntersectionObserver sentinel in `TabGridView`
+ *  never triggers `loadMore()` on scroll.
+ *
+ *  To re-enable deep pagination later, bump these constants back
+ *  to (4, 4, 50) and remove the `setHasMore(false)` override.
+ */
 const PAGE_SIZE = 100;
-const INITIAL_PAGES = 4;
-const BATCH_PAGES = 4;
-const MAX_PAGES_HARD = 50;
+const INITIAL_PAGES = 1;
+const BATCH_PAGES = 1;
+const MAX_PAGES_HARD = 8;
 const TTL_MS = 30 * 60 * 1000;
 
 function buildKey(type, addons, genre) {
@@ -267,16 +294,15 @@ export function useTabGenreCatalog(addons, type, genre, seedItems) {
             setProgress(1);
             if (!cache.isStale(cur, TTL_MS)) {
                 // Cache is fresh — skip the initial burst entirely.
-                // The consumer can still call loadMore() if they
-                // scroll past the cached extent (lastSkip is reset
-                // to 0, so the next loadMore will start from page 0
-                // again, but the dedup map filters out repeats).
+                // v2.8.1 — Background pagination is OFF (see top
+                // comment), so `hasMore` stays false; `loadMore`
+                // is only callable explicitly.
                 pairsRef.current = (addonsRef.current || []).flatMap(
                     (addon) => (addon.catalogs || [])
                         .filter((c) => c.type === type && catalogSupportsGenre(c, genre))
                         .map((cat) => ({ addon, cat }))
                 );
-                setHasMore(pairsRef.current.length > 0);
+                setHasMore(false);
                 return;
             }
         } else {
@@ -343,7 +369,12 @@ export function useTabGenreCatalog(addons, type, genre, seedItems) {
             pushState();
             setLoading(false);
             setProgress(1);
-            setHasMore(exhaustedRef.current.size < pairs.length);
+            // v2.8.1 — KEEP `hasMore` FALSE so the IntersectionObserver
+            // in TabGridView NEVER auto-fires `loadMore()` on scroll.
+            // This is the kill switch for the aggressive background
+            // pagination — see top-of-file note for context / how to
+            // re-enable later.
+            setHasMore(false);
 
             // Cache what we have so far (initial burst).
             try { cache.set(key, { items: Array.from(seenRef.current.values()) }); }
