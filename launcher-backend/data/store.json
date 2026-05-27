@@ -1,5 +1,5 @@
 {
-  "generation": 307,
+  "generation": 311,
   "dock_tiles": [
     {
       "key": "movies",
@@ -326,8 +326,8 @@
     },
     "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc": {
       "device_id": "9ee7f357-1deb-4ffd-bf53-2fd45bcf20bc",
-      "last_seen": 1779853478,
-      "last_generation": 307
+      "last_seen": 1779853787,
+      "last_generation": 311
     }
   },
   "layout": {
@@ -6627,8 +6627,26 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779852836,
-      "last_seen_at": 1779853508,
+      "last_seen_at": 1779853786,
       "last_ip": "34.160.159.238"
+    },
+    "onnow-test-1779853758": {
+      "id": "onnow-test-1779853758",
+      "name": "Allwinner H313 \u00b7 abc123",
+      "model": "HK1 Box",
+      "status": "active",
+      "registered_at": 1779853758,
+      "last_seen_at": 1779853758,
+      "last_ip": "127.0.0.1"
+    },
+    "onnow-old-uuid-test-1779853768": {
+      "id": "onnow-old-uuid-test-1779853768",
+      "name": "Trying Again",
+      "model": "Box",
+      "status": "blocked",
+      "registered_at": 1779853768,
+      "last_seen_at": 1779853768,
+      "last_ip": "127.0.0.1"
     }
   },
   "appstore": {

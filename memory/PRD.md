@@ -1,6 +1,31 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.7 — Launcher: stable device ID across reinstalls + auto-claim + fixed register screen** (Feb 27, 2026)
+> Latest: **v2.8.8 — Auto-approve registrations + silent auto-register on Launcher** (Feb 27, 2026)
+>
+> Direct response to "I've got over 500 people that are a part of this. I can't just sit there and keep approving them all".
+>
+> **Backend (`/app/launcher-backend/main.py`):**
+> - Added `AUTO_APPROVE_DEVICES` env var (default `1`, set `0` to revert to legacy gating).
+> - `/api/launcher/register` now defaults new device records to `status="active"` when AUTO_APPROVE is on.  No admin click required for new boxes.
+> - Existing records are still idempotent: re-registering a `blocked` id keeps it blocked, re-registering an `active` id stays active, etc.  The admin's explicit decisions are never overridden.
+> - End-to-end verified via curl: new id → active; block → block; re-register blocked → still blocked.
+>
+> **Launcher (`OnboardingActivity.kt`):**
+> - When `/api/launcher/activation` returns `unregistered`, the launcher now silently POSTs `/api/launcher/register` with a generated default name `"{MANUFACTURER} {MODEL} · {last 6 of device id}"` (e.g., "Allwinner H313 · 4f8b2a").  Combined with backend auto-approve, the next activation poll returns `active` → launcher boots straight into Home with ZERO user interaction.
+> - The manual registration UI only renders as a fallback if the silent auto-register call itself fails (e.g., network drop mid-handshake).
+> - Combined with v2.8.7's `ANDROID_ID`-derived stable device id, every box that the user's 500+ clients install will: register itself silently → auto-approve → boot.  And every future reinstall on the same box will: lookup by stable id → find existing `active` record → boot.  No typing, no approval, no friction.
+>
+> **What this means for the user's existing 500 devices with legacy UUID records:**
+> - Those records become historical.  They keep working as-is (idempotent).  Once a box reinstalls under the v2.8.8 launcher, it gets a fresh ANDROID_ID-based record (silently auto-approved) and the old UUID record is orphaned but harmless.  The admin can prune orphaned records at leisure from the Devices tab.
+>
+> **Admin still has full control:**
+> - Block a device → permanent (preserved on re-register).
+> - Delete a device → the next install creates a fresh `active` record (per user spec: "if I delete it, you have to register it" — register happens automatically, no manual step required since the user is part of his 500-client trust pool).
+> - Set `AUTO_APPROVE_DEVICES=0` in env → reverts to old manual-approval behaviour.
+>
+> Files touched (2): `launcher-backend/main.py`, `android/onnowtv-launcher/.../onboarding/OnboardingActivity.kt`.
+>
+> Previous: **v2.8.7 — Launcher: stable device ID across reinstalls + auto-claim + fixed register screen** (Feb 27, 2026)
 >
 > Three coupled fixes addressing direct user spec: "I don't want to have to register my device every time that I reinstall the application".
 >

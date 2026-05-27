@@ -185,7 +185,38 @@ class OnboardingActivity : AppCompatActivity() {
         }
         // We DO have network — go ask the backend first.
         lifecycleScope.launch {
-            val (remoteStatus, name) = fetchActivationStatus()
+            var (remoteStatus, name) = fetchActivationStatus()
+
+            // v2.8.8 — Silent auto-register flow.  Per direct user
+            // requirement: with 500+ trusted clients the user can
+            // NOT manually approve every device.  When the backend
+            // says "unregistered" we automatically POST a fresh
+            // registration with a sensible default name (device
+            // make + last 6 of the device id) — and because the
+            // backend now defaults new devices to status="active"
+            // (AUTO_APPROVE_DEVICES=1), the very next activation
+            // poll returns "active" and the launcher boots with
+            // ZERO user interaction.  The manual register UI only
+            // appears as a last-resort fallback if the auto-register
+            // call itself fails (e.g. network glitch mid-handshake).
+            if (remoteStatus == "unregistered") {
+                val defaultName = autoRegisterDeviceName()
+                val regErr = doRegister(defaultName)
+                if (regErr == null) {
+                    // Re-fetch — should now be "active" with
+                    // AUTO_APPROVE_DEVICES on, or "pending" if the
+                    // admin has explicitly disabled auto-approve.
+                    val (after, afterName) = fetchActivationStatus()
+                    remoteStatus = after
+                    name = afterName
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString(KEY_NAME, defaultName)
+                        .apply()
+                }
+                // If regErr != null, fall through with status still
+                // "unregistered" → manual register UI as fallback.
+            }
+
             // Persist whatever the backend says (so we have a
             // useful fallback next time the network is down).
             if (remoteStatus in listOf("active", "pending", "blocked")) {
@@ -196,6 +227,20 @@ class OnboardingActivity : AppCompatActivity() {
             }
             applyPhaseFromLocalStatus(remoteOverride = remoteStatus)
         }
+    }
+
+    /** v2.8.8 — Default device name used for silent auto-registration.
+     *  Combines the device manufacturer + model with the last 6
+     *  characters of the device id so the admin can still distinguish
+     *  multiple identical boxes in the same household.  The user can
+     *  rename any device from the admin UI later. */
+    private fun autoRegisterDeviceName(): String {
+        val id = deviceId(this)
+        val suffix = id.takeLast(6)
+        val maker = Build.MANUFACTURER.ifBlank { "Box" }
+        val model = Build.MODEL.ifBlank { "" }
+        val combined = "$maker $model".trim().ifBlank { "TV Box" }
+        return "$combined · $suffix"
     }
 
     /** Pick the phase from `KEY_STATUS` in SharedPreferences (or

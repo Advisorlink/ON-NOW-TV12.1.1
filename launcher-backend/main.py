@@ -100,6 +100,17 @@ JWT_ALG = "HS256"
 # / APK files directly.  Default = same host, port 8002.
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8002").rstrip("/")
 
+# v2.8.8 — Per direct user requirement: with 500+ trusted clients,
+# manually approving each new device registration is not practical.
+# When AUTO_APPROVE_DEVICES is truthy (default), every brand-new
+# device that hits /api/launcher/register lands as status="active"
+# straight away — no admin click required.  Existing device records
+# keep whatever status the admin has set (idempotent re-register).
+# Set AUTO_APPROVE_DEVICES=0 in the env to revert to the legacy
+# "pending until admin approves" gate.
+_AUTO_APPROVE_RAW = os.environ.get("AUTO_APPROVE_DEVICES", "1").strip().lower()
+AUTO_APPROVE_DEVICES: bool = _AUTO_APPROVE_RAW not in ("0", "false", "no", "off", "")
+
 
 # ════════════════════════════════════════════════════════════════════
 #  Models
@@ -590,11 +601,18 @@ def register_device(req: RegisterRequest, request: Request) -> dict:
         existing["last_seen_at"] = now
         existing["last_ip"] = ip
     else:
+        # v2.8.8 — Brand-new device.  Default to "active" when
+        # AUTO_APPROVE_DEVICES is on (which it is by default) so the
+        # operator doesn't have to manually approve every box his
+        # 500+ trusted clients install.  The admin can still BLOCK
+        # any device at any time from the admin UI; a blocked
+        # status is preserved on re-register.
+        initial_status = "active" if AUTO_APPROVE_DEVICES else "pending"
         devices[req.id] = {
             "id": req.id,
             "name": name,
             "model": model,
-            "status": "pending",
+            "status": initial_status,
             "registered_at": now,
             "last_seen_at": now,
             "last_ip": ip,
