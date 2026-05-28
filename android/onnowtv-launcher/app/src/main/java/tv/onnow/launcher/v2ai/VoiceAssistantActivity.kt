@@ -379,18 +379,25 @@ class VoiceAssistantActivity : AppCompatActivity() {
         // v2.8.35 — Result area gets the FULL screen height when
         // results are shown (standby is hidden).  Inner cards are
         // rectangular and fit comfortably without clipping.
+        // v2.8.37 — gravity=CENTER on the inner LinearLayout +
+        // setFillViewport(true) on the HorizontalScrollView mean
+        // a small number of cards stay centered horizontally,
+        // while a long carousel (10-20 cards) still scrolls
+        // smoothly with the first card flush to the left edge.
+        // The card row is also centered vertically so it never
+        // hugs the top or bottom of the 1080p screen.
         resultArea = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
         }
         val resultScroller = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFocusable = false
             isFillViewport = true
-            addView(resultArea, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.MATCH_PARENT,
-            ).apply { gravity = Gravity.CENTER_VERTICAL })
+            addView(resultArea, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            ))
         }
         results.addView(resultScroller, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -780,20 +787,16 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
         // v2.8.35 — Switch to full-screen result mode so cards
         // aren't clipped by the waveform / hold button above.
+        // v2.8.37 — Removed left/right padding spacers; the parent
+        // resultArea uses gravity=CENTER so a small set of cards
+        // (3-5) auto-centers horizontally, and a long carousel
+        // (10-20) overflows naturally for the user to scroll.
         setResultMode(true)
-        // Leading margin so the first card isn't flush left.
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(8), 1)
-        })
         for (i in 0 until arr.length()) {
             val item = arr.optJSONObject(i) ?: continue
             resultArea.addView(buildPosterCard(item))
         }
-        // Trailing margin so the last card has room.
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(8), 1)
-        })
-        resultArea.post { resultArea.getChildAt(1)?.requestFocus() }
+        resultArea.post { resultArea.getChildAt(0)?.requestFocus() }
     }
 
     /** v2.8.29 — Glassy card backdrop with focus-driven accent. */
@@ -824,10 +827,8 @@ class VoiceAssistantActivity : AppCompatActivity() {
         val year    = parsed.opt("subject_year")?.toString()?.takeIf { it != "null" } ?: ""
         val overview = parsed.optString("subject_overview", "")
 
-        // Leading spacer.
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
-        })
+        // v2.8.37 — No leading spacer; gravity=CENTER on the parent
+        // resultArea centers the QA card horizontally on the screen.
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -930,9 +931,6 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
         card.addView(text)
         resultArea.addView(card)
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
-        })
     }
 
     /** v2.8.30 — Render an actor / director / writer info card
@@ -948,10 +946,8 @@ class VoiceAssistantActivity : AppCompatActivity() {
         val profile = parsed.optString("person_profile_url", "").trim()
         val known   = parsed.optJSONArray("known_for")
 
-        // Leading spacer.
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
-        })
+        // v2.8.37 — No leading spacer; gravity=CENTER on the parent
+        // resultArea centers the bio card + carousel as a unit.
 
         // Big person-bio card.
         val card = LinearLayout(this).apply {
@@ -1021,10 +1017,6 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 resultArea.addView(buildPosterCard(item))
             }
         }
-        // Trailing spacer.
-        resultArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
-        })
     }
 
     /** v2.8.35 — Shared rectangle card.  Each is a single tall

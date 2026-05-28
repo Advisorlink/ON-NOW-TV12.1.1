@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.37 — V2 AI result carousel centered on 1920×1080
+
+  • **🎯 Cards now perfectly centered.**  Was: `resultArea`
+    had `gravity = CENTER_VERTICAL` and a 48 dp leading spacer,
+    so cards rendered flush-left and looked off-balance on a
+    1920×1080 screen.  Now: `gravity = CENTER` on the inner
+    LinearLayout + `setFillViewport(true)` on the
+    HorizontalScrollView means the LinearLayout grows to AT
+    LEAST the viewport width, so a small set of cards (3-5)
+    auto-centers horizontally on screen.  A long carousel
+    (10-20 cards) extends naturally beyond the viewport and the
+    user scrolls D-pad — first card flush-left as before.
+
+  • **🗑 Leading/trailing 48 dp + 8 dp spacers removed** from
+    `renderRecommendations`, `renderQa`, `renderPersonInfo`.
+    The new gravity-based centering handles it cleanly without
+    any manual padding.
+
+Files touched (1):
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (buildLayout result area gravity, renderRecommendations,
+    renderQa, renderPersonInfo)
+
 ## v2.8.36 — V2 AI broader Q&A: trending, net worth, age, awards, box office
 
 Per user request — answer any entertainment-related question, not
