@@ -7,6 +7,54 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.36 — V2 AI broader Q&A: trending, net worth, age, awards, box office
+
+Per user request — answer any entertainment-related question, not
+just movie/TV-only.
+
+  • **🔥 NEW `trending` intent.**  "What's trending right now?",
+    "Top 10 movies this week", "Most popular TV shows" → backend
+    calls TMDB `/trending/{movie|tv|all}/week` and returns 20
+    real titles with posters, ratings, year, and synopsis.  No
+    GPT guesswork about "what's popular" — TMDB has the official
+    list and it's always up-to-date.
+
+  • **💸 Celebrity / film fact questions.**  System prompt rewrite
+    explicitly ALLOWS questions about: net worth, age, deaths,
+    marriages, relationships, awards, box office, gossip,
+    filmography, plot, characters, episodes, industry news.
+    Verified on the preview pod:
+      - "Vin Diesel's net worth" → $225M with his TMDB photo
+      - "How old is Tom Cruise" → 61
+      - "Did Heath Ledger win an Oscar" → Yes, Best Supporting
+        Actor for The Dark Knight (2008), with Dark Knight poster
+      - "Highest grossing movie of all time" → Avatar ($2.92B)
+      - "Who is Pedro Pascal married to" → answer with face
+
+  • **👤 Person fallback in QA enrichment.**  GPT now sets
+    `answer_subject_type` ∈ {movie, series, person}.  The backend
+    routes person subjects to `_tmdb_person_lookup` so actor /
+    director questions get a profile photo + biography on the
+    answer card (was getting no image at all).
+
+  • **🚫 Strict reject UNCHANGED.**  Box / device troubleshooting,
+    settings how-to, weather, recipes, math, programming, sports
+    scores, politics still reject.  Verified 4/4 troubleshooting
+    queries reject.
+
+  • **🎤 Wider Whisper domain prompt.**  Added celebrity names
+    (DiCaprio, Cruise, Vin Diesel, Pitt, Tarantino, Nolan,
+    Scarlett Johansson, Zendaya, Pedro Pascal, etc.) + question
+    verbs (trending, popular, net worth, top, hot, who married,
+    when died) so Whisper transcribes them correctly.
+
+Files touched (2):
+  • `launcher-backend/main.py` (V2AI_SYSTEM_PROMPT rewrite,
+    `_tmdb_trending`, trending intent enrichment, person fallback
+    in QA enrichment, wider Whisper prompt)
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (handleIntent treats trending like recommend → carousel)
+
 ## v2.8.35 — V2 AI result UI rewrite: no clipping + BACK works + memory
 
 Per direct user feedback ("cuts off the top and cuts off the bottom",

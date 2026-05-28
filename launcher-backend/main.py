@@ -662,29 +662,38 @@ def health() -> dict:
 
 import json as _json
 
-V2AI_SYSTEM_PROMPT = """You are V2 AI — a voice assistant for the ON NOW TV V2 \
-streaming launcher.  You handle requests about MOVIES, TV SHOWS, ACTORS, \
-DIRECTORS, EPISODES, and apps installed on the box.
+V2AI_SYSTEM_PROMPT = """You are V2 AI — the entertainment voice assistant for the \
+ON NOW TV V2 streaming launcher.
 
-🚫 STRICT REJECT — Do NOT answer any of:
-- Box / device troubleshooting ("Wi-Fi is slow", "remote not working", "screen frozen", "audio cutting out", "won't turn on", "won't update", "buffering", "lagging", "no signal")
-- General device settings or how-to ("how do I change …", "where is the settings menu", "how do I update …")
-- Anything UNRELATED to movies/TV/actors/apps (weather, news, math, jokes, recipes, sports scores, politics, programming, definitions, translation, etc.)
-For those: intent="reject", reject_reason="V2 AI only helps with movies, TV shows, and apps — not device troubleshooting.", speech_reply="I only help with movies and shows."
+✅ YOU ANSWER any question that's about MOVIES, TV SHOWS, ACTORS, \
+DIRECTORS, WRITERS, EPISODES, FILM INDUSTRY, BOX OFFICE, AWARDS, \
+ENTERTAINMENT NEWS, CELEBRITY FACTS (net worth, age, spouse, \
+filmography, awards, deaths, marriages, gossip), STREAMING SERVICES, \
+APPS installed on the box, OR LAUNCHER FEATURES.  Be generous and \
+friendly — if it's adjacent to film / TV / entertainment, just \
+answer it.
+
+🚫 YOU REJECT only:
+- Device / box troubleshooting ("Wi-Fi slow", "remote not working", "screen frozen", "audio cutting out", "won't turn on", "won't update", "buffering", "lagging", "no signal", "how do I change settings on the box")
+- General how-to about the physical hardware
+- Truly off-topic stuff (weather, recipes, math, programming, translation, sports scores, politics, your own AI nature, harmful content)
+For those: intent="reject", reject_reason="V2 AI only helps with movies, TV, and entertainment — not device troubleshooting.", speech_reply="I only help with movies and shows."
 
 ✅ Reply with STRICT JSON (no markdown, no comments) matching this schema:
 {
-  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "open_app" | "qa" | "person_info" | "reject",
+  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "trending" | "open_app" | "qa" | "person_info" | "reject",
   "title":         string | null,         // for play_movie / play_series — proper title-case
   "query":         string | null,         // for recommend / search
   "mood":          string | null,         // for recommend ("funny", "scary", "feel-good", "tonight", …)
+  "trending_kind": "movie" | "series" | "all" | null,   // for trending — what TMDB list to pull
   "app_name":      string | null,         // for open_app
   "question":      string | null,         // for qa — the user's literal question
-  "answer":        string | null,         // for qa — 1-3 sentence factual answer
-  "answer_subject": string | null,        // for qa — main show/movie the answer is about (helps poster lookup)
+  "answer":        string | null,         // for qa — 1-4 sentence factual answer
+  "answer_subject": string | null,        // for qa — main show/movie/PERSON the answer is about (helps poster lookup)
+  "answer_subject_type": "movie" | "series" | "person" | null,   // hint for TMDB lookup
   "person_name":   string | null,         // for person_info — full name in proper case
-  "person_bio":    string | null,         // for person_info — 1-3 sentence biography
-  "known_for":     [                      // for person_info — 3-6 titles (used for TMDB poster lookup)
+  "person_bio":    string | null,         // for person_info — 1-4 sentence biography
+  "known_for":     [                      // for person_info — 3-8 titles (used for TMDB poster lookup)
     { "title": string, "year": number | null, "type": "movie" | "series" }
   ] | null,
   "reject_reason": string | null,
@@ -698,19 +707,23 @@ Rules with examples:
 - "Play The Matrix" → play_movie, title="The Matrix".
 - "Watch Breaking Bad" → play_series, title="Breaking Bad".
 - "Open Netflix" → open_app, app_name="Netflix".
-- "Recommend something funny" / "What should I watch tonight" / "I'm bored find me something" → recommend with 10-20 titles + 1-line "why" each (more for broad asks, fewer for specific).  Use mood="tonight" for "tonight"/"now" type queries.
-- "What episode of Breaking Bad does Walter meet Gus?" → qa, answer="Season 2 Episode 11 'Mandala'.", answer_subject="Breaking Bad".
-- "Who played the joker in The Dark Knight?" → person_info, person_name="Heath Ledger", person_bio="Australian actor known for his Oscar-winning role as the Joker in The Dark Knight (2008).", known_for=[{title:"The Dark Knight", year:2008, type:"movie"}, {title:"Brokeback Mountain", year:2005, type:"movie"}, …].
-- "Who's the main actor in Inception?" → person_info, person_name="Leonardo DiCaprio", with bio + known_for.
+- "Recommend something funny" / "What should I watch tonight" / "I'm bored find me something" → recommend with 10-20 titles + 1-line "why" each.  Use mood="tonight" for "tonight"/"now" type queries.
+- "What's trending right now?" / "What movies are popular this week?" / "What are the top 10 shows?" → trending, trending_kind="movie" or "series" or "all".  Leave recommendations EMPTY — the backend fills it from TMDB.  speech_reply="Here's what's hot right now.".
+- "What episode of Breaking Bad does Walter meet Gus?" → qa, answer="Season 2 Episode 11 'Mandala'.", answer_subject="Breaking Bad", answer_subject_type="series".
+- "What's Vin Diesel's net worth?" → qa, answer="Vin Diesel's estimated net worth is around $225 million as of 2024, mainly from the Fast & Furious franchise.", answer_subject="Vin Diesel", answer_subject_type="person".  Be CONFIDENT with rounded ballpark figures — better than refusing.
+- "How old is Tom Cruise?" → qa, answer=<his current age>, answer_subject="Tom Cruise", answer_subject_type="person".
+- "Did Heath Ledger win an Oscar?" → qa, answer="Yes — Best Supporting Actor for The Dark Knight (2008), posthumously.", answer_subject="The Dark Knight", answer_subject_type="movie".
+- "What's the highest grossing movie of all time?" → qa, answer="Avatar (2009) at ~$2.92 billion globally.", answer_subject="Avatar", answer_subject_type="movie".
+- "Who's the main actor in Inception?" → person_info, person_name="Leonardo DiCaprio".
 - "Who directed Pulp Fiction?" → person_info, person_name="Quentin Tarantino".
-- "What's the Sopranos about?" → qa, answer=<plot summary 1-2 sentences>, answer_subject="The Sopranos".
-- "Tell me about Stranger Things" → qa with overview, answer_subject="Stranger Things".
-- "Is the Bear good?" → qa, answer="Yes — The Bear has received critical acclaim …", answer_subject="The Bear".
+- "Tell me about Stranger Things" → qa with overview, answer_subject="Stranger Things", answer_subject_type="series".
 - "Why is my Wi-Fi slow?" / "Remote not working" / "Box keeps freezing" → reject.
 
-For "person_info": person_bio MUST be a real 1-3 sentence biography focused on their acting / directing career.  known_for MUST contain 3-6 of their most famous works.
+For "qa": 1-4 sentences max.  Factual, confident, friendly — never refuse a celebrity / film question just because it's "personal info"; entertainment fact-files are public knowledge.  Always set answer_subject + answer_subject_type so the UI can fetch the poster or actor photo.
 
-For "qa": 1-3 sentences max.  Factual.  Always set answer_subject so the UI can fetch the poster.
+For "person_info": person_bio MUST be a real 1-3 sentence biography focused on their acting / directing career.  known_for MUST contain 3-8 of their most famous works.
+
+For "trending": leave `recommendations` empty; the backend fills the list from TMDB's official trending feed.  Just set intent + trending_kind + speech_reply.
 
 Always title-case proper nouns ("Breaking Bad", "Heath Ledger", not "breaking bad").  Critical."""
 
@@ -802,6 +815,54 @@ async def _enrich_person_info(parsed: dict) -> None:
             if (k.get("title") or k.get("name"))
         ][:6]
     parsed["known_for"] = await _enrich_recommendations(model_known)
+
+
+async def _tmdb_trending(kind: str = "all", limit: int = 20) -> list[dict]:
+    """v2.8.36 — Pull TMDB's official trending list.
+
+    `kind` ∈ {"movie", "series" (mapped to "tv"), "all"}.
+    Returns a list shaped like `_enrich_recommendations` output —
+    {title, year, type, poster_url, backdrop_url, rating, overview}.
+    """
+    if not TMDB_BEARER_TOKEN:
+        return []
+    import httpx
+    endpoint = {
+        "movie":  "trending/movie/week",
+        "series": "trending/tv/week",
+        "tv":     "trending/tv/week",
+        "all":    "trending/all/week",
+    }.get(kind.lower(), "trending/all/week")
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
+        "accept": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{TMDB_BASE}/{endpoint}", headers=headers)
+            if resp.status_code != 200:
+                return []
+            results = (resp.json() or {}).get("results") or []
+    except Exception:  # noqa: BLE001
+        log.exception("TMDB trending lookup failed for %r", kind)
+        return []
+    out = []
+    for r in results[:limit]:
+        media = r.get("media_type") or ("movie" if kind == "movie" else "tv")
+        ret_kind = "series" if media == "tv" else "movie"
+        date_key = "release_date" if media == "movie" else "first_air_date"
+        year_str = (r.get(date_key) or "")[:4]
+        out.append({
+            "title":        r.get("title") or r.get("name") or "?",
+            "year":         int(year_str) if year_str.isdigit() else None,
+            "type":         ret_kind,
+            "poster_url":   f"{TMDB_IMG}{r['poster_path']}" if r.get("poster_path") else None,
+            "backdrop_url": f"https://image.tmdb.org/t/p/w780{r['backdrop_path']}" if r.get("backdrop_path") else None,
+            "rating":       round(float(r.get("vote_average") or 0), 1),
+            "overview":     (r.get("overview") or "").strip(),
+            "why":          "Trending this week",
+        })
+    return out
 
 
 async def _tmdb_lookup(
@@ -1065,18 +1126,50 @@ async def v2ai_process(
         recs = parsed.get("recommendations") or []
         if recs:
             parsed["recommendations"] = await _enrich_recommendations(recs)
+
+    # v2.8.36 — Trending intent: fill recommendations from TMDB's
+    # official trending list.  Faster + more authoritative than
+    # GPT guessing what's popular.
+    if parsed.get("intent") == "trending":
+        kind = (parsed.get("trending_kind") or "all").lower()
+        parsed["recommendations"] = await _tmdb_trending(kind)
+
     # For QA — fetch the answer_subject's poster + backdrop so the
     # launcher can render a beautiful answer overlay with hero art.
+    # v2.8.36 — Also handles person subjects (Vin Diesel net worth,
+    # Tom Cruise age, etc) by falling back to TMDB person lookup
+    # when `answer_subject_type == "person"`.
     if parsed.get("intent") == "qa":
         subj = (parsed.get("answer_subject") or "").strip()
+        subj_type = (parsed.get("answer_subject_type") or "").strip().lower()
         if subj:
-            tm = await _tmdb_lookup(subj)
-            if tm:
-                parsed["subject_poster_url"]   = tm.get("poster_url")
-                parsed["subject_backdrop_url"] = tm.get("backdrop_url")
-                parsed["subject_rating"]      = tm.get("rating")
-                parsed["subject_overview"]    = tm.get("overview")
-                parsed["subject_year"]        = tm.get("year")
+            if subj_type == "person":
+                tm = await _tmdb_person_lookup(subj)
+                if tm:
+                    parsed["subject_poster_url"]   = tm.get("profile_url")
+                    parsed["subject_backdrop_url"] = None
+                    parsed["subject_rating"]       = None
+                    parsed["subject_overview"]     = tm.get("biography") or ""
+                    parsed["subject_year"]         = None
+            else:
+                tm = await _tmdb_lookup(
+                    subj,
+                    kind=(subj_type if subj_type in ("movie", "series") else None),
+                )
+                if tm:
+                    parsed["subject_poster_url"]   = tm.get("poster_url")
+                    parsed["subject_backdrop_url"] = tm.get("backdrop_url")
+                    parsed["subject_rating"]      = tm.get("rating")
+                    parsed["subject_overview"]    = tm.get("overview")
+                    parsed["subject_year"]        = tm.get("year")
+                else:
+                    # Movie/show lookup missed — try person fallback so
+                    # actor-name subjects still get a face on the card.
+                    tm = await _tmdb_person_lookup(subj)
+                    if tm:
+                        parsed["subject_poster_url"]   = tm.get("profile_url")
+                        parsed["subject_backdrop_url"] = None
+                        parsed["subject_overview"]     = tm.get("biography") or parsed.get("subject_overview", "")
 
     # v2.8.30 — For person_info, look up the actor / director on
     # TMDB and enrich their known_for titles with posters.
@@ -1224,22 +1317,34 @@ async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
     # with the user's most common verbs + actual movie / TV / app
     # names so the model anchors on these instead of generic English.
     domain_prompt = (
-        "Voice command for a smart TV launcher.  The user asks to "
-        "play a movie or TV show, open an app, get recommendations, "
-        "or ask a question about a movie / show / episode / actor. "
+        "Voice command for a smart TV entertainment assistant.  The "
+        "user asks to play movies / TV shows, open apps, get "
+        "recommendations, see what's trending or popular, or ask "
+        "questions about movies, TV, actors, directors, awards, box "
+        "office, net worth, age, deaths, relationships, plot, "
+        "characters, episodes, or entertainment trivia. "
         "Verbs: play, watch, put on, start, stream, launch, open, "
-        "switch to, fire up, recommend, suggest, what should I watch, "
-        "find me, surprise me, who played, what episode, when does. "
-        "Apps: Netflix, Disney Plus, HBO Max, Max, Hulu, Prime Video, "
-        "Apple TV, Paramount Plus, Peacock, YouTube, Spotify, Plex, "
-        "Jellyfin, Kodi, VLC, Twitch, Crunchyroll. "
-        "Titles: The Matrix, Inception, Interstellar, Avatar, Top Gun "
-        "Maverick, Oppenheimer, Barbie, Dune, Tenet, Breaking Bad, "
-        "Stranger Things, The Last of Us, House of the Dragon, Game "
-        "of Thrones, Succession, The Bear, Severance, Wednesday, "
-        "Squid Game, Peaky Blinders, The Crown, The Mandalorian, "
-        "Loki, Andor, The Boys, Yellowstone, Better Call Saul, Ted "
-        "Lasso, Friends, Seinfeld, The Office, Lost, The Sopranos."
+        "switch to, fire up, recommend, suggest, show me, find me, "
+        "surprise me, what should I watch, what's trending, what's "
+        "popular, what's the top, what's new, what's hot, who "
+        "played, who directed, who starred, what episode, when "
+        "does, how old, what's the net worth, what's the rating. "
+        "Apps: Netflix, Disney Plus, HBO Max, Max, Hulu, Prime "
+        "Video, Apple TV, Paramount Plus, Peacock, YouTube, "
+        "Spotify, Plex, Jellyfin, Kodi, VLC, Twitch, Crunchyroll. "
+        "Famous people: Leonardo DiCaprio, Tom Cruise, Vin Diesel, "
+        "Brad Pitt, Heath Ledger, Quentin Tarantino, Christopher "
+        "Nolan, Scarlett Johansson, Ryan Reynolds, Margot Robbie, "
+        "Cillian Murphy, Dwayne Johnson, Zendaya, Timothée "
+        "Chalamet, Pedro Pascal, Florence Pugh, Pedro Almodóvar. "
+        "Titles: The Matrix, Inception, Interstellar, Avatar, Top "
+        "Gun Maverick, Oppenheimer, Barbie, Dune, Tenet, Breaking "
+        "Bad, Stranger Things, The Last of Us, House of the "
+        "Dragon, Game of Thrones, Succession, The Bear, Severance, "
+        "Wednesday, Squid Game, Peaky Blinders, The Crown, The "
+        "Mandalorian, Loki, Andor, The Boys, Yellowstone, Better "
+        "Call Saul, Ted Lasso, Friends, Seinfeld, The Office, "
+        "Lost, The Sopranos."
     )
     try:
         resp = await stt.transcribe(

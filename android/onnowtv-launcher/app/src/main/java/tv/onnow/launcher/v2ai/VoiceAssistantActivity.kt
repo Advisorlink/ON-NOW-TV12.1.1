@@ -676,7 +676,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 setResultMode(false)
                 openAppByName(appName)
             }
-            "recommend", "search" -> {
+            "recommend", "search", "trending" -> {
                 bigHint.text = reply.ifBlank { "Here are some picks for you." }
                 renderRecommendations(parsed.optJSONArray("recommendations"))
             }
