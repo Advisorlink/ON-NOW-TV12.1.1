@@ -1,6 +1,20 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.30 — Smart V2 AI: actor/director Q&A, hold-button customisation, strict troubleshooting reject** (Feb 28, 2026)
+> Latest: **v2.8.31 — 5 premium "Apple-feel" V2 AI visualizers** (Feb 28, 2026)
+>
+> Per user request: "add another five really, really high-end looking AI talking things … really flowy, multicolor … Apple sort of feeling".  Built 5 new Canvas painters with BlurMaskFilter + RadialGradient + multi-layer drop shadow:
+>
+> 1. **Aurora** — twin sine ribbons (cyan→teal, pink→violet) gliding with heavy Gaussian blur (BlurMaskFilter NORMAL, 14 px) for that aurora-borealis luminescence.
+> 2. **Liquid Orb** — Siri-style morphing sphere with two-frequency wobble (24 perturbed radii rebuilt every frame), multi-stop RadialGradient (white-hot core → cyan → violet → pink), plus soft outer glow rings.
+> 3. **Particles** — 36-particle swirling field on polar paths; hues interpolate through cyan/teal/pink/violet/gold; inner glow halo for depth.
+> 4. **Neon Wave** — compound-sine chromatic line with two-layer drop shadow (cyan 18 px + magenta 10 px) and a crisp gradient-stroked top edge.
+> 5. **Prism** — 7 spectrum bars (full rainbow) each on its own sine phase, with iridescent BlurMaskFilter glow + per-bar vertical highlight gradient for jewel-like polish.
+>
+> Admin sees all 10 tiles (5 default + 5 premium) with CSS-only live previews mimicking the actual look.  Premium tiles have a subtle purple-tinted border to signal their tier.
+>
+> ⚠️ Backend allow-list LIVE on preview pod.  Android paint code needs Save to GitHub → APK rebuild → reinstall.
+
+> Previous: **v2.8.30 — Smart V2 AI: actor/director Q&A + hold button + troubleshooting reject** (Feb 28, 2026)
 >
 > Three coordinated upgrades responding to the user's video feedback ("more variety of questions", "Hold button needs to be customisable", "don't answer troubleshooting questions"):
 >

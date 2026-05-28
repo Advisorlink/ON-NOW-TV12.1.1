@@ -1,5 +1,5 @@
 {
-  "generation": 548,
+  "generation": 559,
   "dock_tiles": [
     {
       "key": "movies",
@@ -367,8 +367,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779960420,
-      "last_generation": 548
+      "last_seen": 1779960875,
+      "last_generation": 559
     }
   },
   "layout": {
@@ -6695,7 +6695,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779960419,
+      "last_seen_at": 1779960874,
       "last_ip": "34.160.159.238"
     }
   },

@@ -7,6 +7,58 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.31 — 5 premium "Apple-feel" V2 AI visualizers
+
+Added FIVE high-end waveform variants alongside the existing 5,
+giving admin a total of 10 styles to pick from.  Each premium
+variant uses Android Canvas + BlurMaskFilter + RadialGradient /
+LinearGradient for genuine Apple-quality smoothness.
+
+  • **Aurora** — flowing multi-ribbon northern-lights effect.
+    Two horizontal sine ribbons in cyan→teal and pink→violet
+    glide across the screen with phase + amplitude derived from
+    audio level.  Heavy Gaussian blur via BlurMaskFilter.
+
+  • **Liquid Orb** — Siri-style morphing sphere.  A centred blob
+    whose Path is rebuilt every frame from 24 cosine-perturbed
+    radii (two-frequency wobble for organic feel).  Multi-stop
+    RadialGradient core (white-hot → cyan → violet → pink) +
+    soft outer glow rings.
+
+  • **Particles** — swirling multicoloured dot field.  36
+    pre-seeded particles orbit on polar paths with per-particle
+    radius factor + angular velocity offset.  Particle hues
+    interpolate through cyan → teal → pink → violet → gold.
+    Inner glow halo for depth.
+
+  • **Neon Wave** — chromatic sine line with neon-sign glow.
+    Two-layer drop shadow (cyan wide + magenta narrow) under
+    a crisp gradient-stroked path.  Compound sine for natural
+    motion.  Stroke widens with amp.
+
+  • **Prism** — rainbow spectrum bars (red → orange → yellow →
+    teal → cyan → violet → pink).  Each bar flexes vertically
+    on its own sine phase, mixed with the global amp.  Iridescent
+    BlurMaskFilter glow + vertical gradient highlight per bar
+    for a polished, jewel-like sheen.
+
+Backend:
+  • `_ALLOWED_WAVEFORM_STYLES` now includes the 5 new keys.
+  • Admin UI adds 5 new tile cards with CSS-only live previews
+    (gradient ribbons, morphing blob, swirling dots, neon line,
+    rainbow bars) so admins can preview the vibe before saving.
+
+Files touched (4):
+  • `launcher-backend/main.py` (allow-list)
+  • `launcher-backend/admin/index.html` (5 new tiles)
+  • `launcher-backend/admin/static/style.css` (5 CSS preview
+    animations: aurora-flow, orb-morph, particle-swirl,
+    neon-pulse, prism-flex)
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (5 new Canvas painter methods: drawAurora, drawOrb,
+    drawParticles, drawNeon, drawPrism + Style enum extension
+    + when-branch wiring)
+
 ## v2.8.30 — Smart V2 AI: actor/director Q&A, hold-button customisation, troubleshooting reject
 
   • **🎭 Actor / director Q&A with TMDB photo + filmography.**  New

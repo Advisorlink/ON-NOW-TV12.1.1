@@ -112,11 +112,16 @@ class VoiceAssistantActivity : AppCompatActivity() {
         // v2.8.26 — Waveform style ('bars' default).
         val style = (cfg.v2ai.waveformStyle ?: "bars").lowercase()
         waveform.style = when (style) {
-            "dots"  -> VoiceWaveform.Style.DOTS
-            "ring"  -> VoiceWaveform.Style.RING
-            "sweep" -> VoiceWaveform.Style.SWEEP
-            "pulse" -> VoiceWaveform.Style.PULSE
-            else    -> VoiceWaveform.Style.BARS
+            "dots"      -> VoiceWaveform.Style.DOTS
+            "ring"      -> VoiceWaveform.Style.RING
+            "sweep"     -> VoiceWaveform.Style.SWEEP
+            "pulse"     -> VoiceWaveform.Style.PULSE
+            "aurora"    -> VoiceWaveform.Style.AURORA
+            "orb"       -> VoiceWaveform.Style.ORB
+            "particles" -> VoiceWaveform.Style.PARTICLES
+            "neon"      -> VoiceWaveform.Style.NEON
+            "prism"     -> VoiceWaveform.Style.PRISM
+            else        -> VoiceWaveform.Style.BARS
         }
         // v2.8.30 — Hold-to-talk button: visibility + optional image
         // override.  Admin can hide the badge entirely OR replace it
@@ -1140,8 +1145,9 @@ class VoiceWaveform @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
 
-    /* v2.8.26 — 5 admin-selectable render styles.  Default = bars. */
-    enum class Style { BARS, DOTS, RING, SWEEP, PULSE }
+    /* v2.8.26 — 5 admin-selectable render styles + v2.8.31 — 5
+     * additional premium "Apple-feel" variants.  10 total. */
+    enum class Style { BARS, DOTS, RING, SWEEP, PULSE, AURORA, ORB, PARTICLES, NEON, PRISM }
 
     var style: Style = Style.BARS
         set(value) {
@@ -1232,11 +1238,16 @@ class VoiceWaveform @JvmOverloads constructor(
             Shader.TileMode.CLAMP,
         )
         when (style) {
-            Style.BARS  -> drawBars(canvas, w, h)
-            Style.DOTS  -> drawDots(canvas, w, h)
-            Style.RING  -> drawRing(canvas, w, h)
-            Style.SWEEP -> drawSweep(canvas, w, h)
-            Style.PULSE -> drawPulse(canvas, w, h)
+            Style.BARS      -> drawBars(canvas, w, h)
+            Style.DOTS      -> drawDots(canvas, w, h)
+            Style.RING      -> drawRing(canvas, w, h)
+            Style.SWEEP     -> drawSweep(canvas, w, h)
+            Style.PULSE     -> drawPulse(canvas, w, h)
+            Style.AURORA    -> drawAurora(canvas, w, h)
+            Style.ORB       -> drawOrb(canvas, w, h)
+            Style.PARTICLES -> drawParticles(canvas, w, h)
+            Style.NEON      -> drawNeon(canvas, w, h)
+            Style.PRISM     -> drawPrism(canvas, w, h)
         }
     }
 
@@ -1321,5 +1332,299 @@ class VoiceWaveform @JvmOverloads constructor(
         fillPaint.shader = barPaint.shader
         fillPaint.color = Color.WHITE
         canvas.drawCircle(cx, cy, baseR * (0.55f + amp * 0.30f), fillPaint)
+    }
+
+    // ── v2.8.31 — Premium "Apple-feel" visualizers ────────────────
+
+    /** Aurora — flowing multi-ribbon northern-lights effect.
+     *  Two horizontal sine ribbons in cyan→teal and pink→violet
+     *  glide across the canvas with phase + amplitude derived
+     *  from the audio level.  Heavy Gaussian-like falloff via
+     *  RadialGradient + maskFilter blur for a soft glow. */
+    private fun drawAurora(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        // Ribbon paint with soft blur.
+        val ribbonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.style = Paint.Style.FILL
+            maskFilter = android.graphics.BlurMaskFilter(
+                14f, android.graphics.BlurMaskFilter.Blur.NORMAL,
+            )
+        }
+        // Ribbon 1 — cyan → teal, upper half.
+        val path1 = android.graphics.Path()
+        val midY1 = h * 0.40f
+        val phase1 = idlePhase
+        path1.moveTo(0f, midY1)
+        var x = 0f
+        while (x <= w) {
+            val s = sin((phase1 + x / w * (2f * Math.PI).toFloat() * 2.5f).toDouble()).toFloat()
+            val y = midY1 + s * h * (0.10f + amp * 0.25f)
+            path1.lineTo(x, y)
+            x += 6f
+        }
+        // Close into a thick ribbon.
+        x = w
+        while (x >= 0f) {
+            val s = sin((phase1 + x / w * (2f * Math.PI).toFloat() * 2.5f).toDouble()).toFloat()
+            val y = midY1 + s * h * (0.10f + amp * 0.25f) + h * (0.18f + amp * 0.12f)
+            path1.lineTo(x, y)
+            x -= 6f
+        }
+        path1.close()
+        ribbonPaint.shader = LinearGradient(
+            0f, 0f, w, 0f,
+            intArrayOf(
+                Color.argb(0, 0x2B, 0xB6, 0xFF),
+                Color.argb(220, 0x2B, 0xB6, 0xFF),
+                Color.argb(220, 0x00, 0xE0, 0xB5),
+                Color.argb(0, 0x00, 0xE0, 0xB5),
+            ),
+            floatArrayOf(0f, 0.25f, 0.75f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawPath(path1, ribbonPaint)
+        // Ribbon 2 — pink → violet, lower half, reversed phase.
+        val path2 = android.graphics.Path()
+        val midY2 = h * 0.62f
+        val phase2 = -idlePhase * 0.6f
+        path2.moveTo(0f, midY2)
+        x = 0f
+        while (x <= w) {
+            val s = sin((phase2 + x / w * (2f * Math.PI).toFloat() * 3.0f).toDouble()).toFloat()
+            val y = midY2 + s * h * (0.10f + amp * 0.30f)
+            path2.lineTo(x, y)
+            x += 6f
+        }
+        x = w
+        while (x >= 0f) {
+            val s = sin((phase2 + x / w * (2f * Math.PI).toFloat() * 3.0f).toDouble()).toFloat()
+            val y = midY2 + s * h * (0.10f + amp * 0.30f) + h * (0.16f + amp * 0.12f)
+            path2.lineTo(x, y)
+            x -= 6f
+        }
+        path2.close()
+        ribbonPaint.shader = LinearGradient(
+            0f, 0f, w, 0f,
+            intArrayOf(
+                Color.argb(0, 0xFF, 0x7A, 0xB6),
+                Color.argb(220, 0xFF, 0x7A, 0xB6),
+                Color.argb(220, 0x9B, 0x57, 0xFF),
+                Color.argb(0, 0x9B, 0x57, 0xFF),
+            ),
+            floatArrayOf(0f, 0.25f, 0.75f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawPath(path2, ribbonPaint)
+    }
+
+    /** Liquid Orb — Siri-style morphing sphere.  Single centred
+     *  blob whose Path is rebuilt every frame from 16 cosine-
+     *  perturbed radii.  Multi-stop RadialGradient fill + glow
+     *  ring shadow for the premium feel. */
+    private fun drawOrb(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        val cx = w / 2f; val cy = h / 2f
+        val baseR = (kotlin.math.min(w, h) / 2f) * (0.34f + amp * 0.18f)
+        val path = android.graphics.Path()
+        val pts = 24
+        for (i in 0..pts) {
+            val t = i / pts.toFloat() * (2f * Math.PI).toFloat()
+            // Two-frequency perturbation for an organic morph.
+            val wob = (
+                sin((t * 3f + idlePhase * 1.4f).toDouble()).toFloat() * (0.05f + amp * 0.10f) +
+                sin((t * 5f - idlePhase * 0.7f).toDouble()).toFloat() * (0.03f + amp * 0.05f)
+            )
+            val r = baseR * (1f + wob)
+            val x = cx + cos(t.toDouble()).toFloat() * r
+            val y = cy + sin(t.toDouble()).toFloat() * r
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        path.close()
+        // Outer glow rings — drawn first so they sit behind the orb.
+        val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.style = Paint.Style.FILL }
+        for (idx in 2 downTo 1) {
+            glow.color = Color.argb((24 - idx * 6).coerceAtLeast(6), 0x5D, 0xC8, 0xFF)
+            canvas.drawCircle(cx, cy, baseR * (1f + idx * 0.45f), glow)
+        }
+        // Orb body — radial gradient (white-hot core → cyan → magenta).
+        val grad = android.graphics.RadialGradient(
+            cx - baseR * 0.25f, cy - baseR * 0.30f, baseR * 1.4f,
+            intArrayOf(
+                Color.parseColor("#FFFFFFFF"),
+                Color.parseColor("#FF5DC8FF"),
+                Color.parseColor("#FF9B57FF"),
+                Color.parseColor("#FFFF7AB6"),
+            ),
+            floatArrayOf(0f, 0.35f, 0.75f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        fillPaint.shader = grad
+        fillPaint.color = Color.WHITE
+        canvas.drawPath(path, fillPaint)
+    }
+
+    /** Particles — swirling multicoloured dot field that follows
+     *  a polar parametric path.  Each particle has a fixed radius
+     *  + angular velocity offset, both pre-computed.  Cheap,
+     *  smooth, scales perfectly with amplitude. */
+    private val particleCount = 36
+    private val particleSeed = FloatArray(particleCount * 3).also {
+        // [radius_factor, angle_offset, hue_t] per particle.
+        val r = java.util.Random(7L)
+        for (i in 0 until particleCount) {
+            it[i * 3]     = 0.30f + r.nextFloat() * 0.55f      // radius factor
+            it[i * 3 + 1] = r.nextFloat() * (2f * Math.PI).toFloat()  // angle offset
+            it[i * 3 + 2] = r.nextFloat()                      // hue [0,1]
+        }
+    }
+    private fun particleHue(t: Float): Int {
+        // Premium palette interpolation: cyan → teal → pink → violet → gold.
+        val stops = intArrayOf(
+            Color.parseColor("#5DC8FF"),
+            Color.parseColor("#00E0B5"),
+            Color.parseColor("#FF7AB6"),
+            Color.parseColor("#9B57FF"),
+            Color.parseColor("#FFC857"),
+        )
+        val seg = (t * (stops.size - 1)).coerceIn(0f, (stops.size - 1).toFloat())
+        val i0 = seg.toInt().coerceAtMost(stops.size - 2)
+        val frac = seg - i0
+        fun lerp(a: Int, b: Int) = (a + (b - a) * frac).toInt().coerceIn(0, 255)
+        val c0 = stops[i0]; val c1 = stops[i0 + 1]
+        return Color.argb(
+            255,
+            lerp(Color.red(c0),   Color.red(c1)),
+            lerp(Color.green(c0), Color.green(c1)),
+            lerp(Color.blue(c0),  Color.blue(c1)),
+        )
+    }
+    private fun drawParticles(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        val cx = w / 2f; val cy = h / 2f
+        val baseR = kotlin.math.min(w, h) / 2f * 0.85f
+        fillPaint.shader = null
+        // Inner glow halo for depth.
+        for (idx in 2 downTo 1) {
+            fillPaint.color = Color.argb((20 - idx * 5).coerceAtLeast(5), 0x5D, 0xC8, 0xFF)
+            canvas.drawCircle(cx, cy, baseR * (0.40f + idx * 0.10f), fillPaint)
+        }
+        for (i in 0 until particleCount) {
+            val radF   = particleSeed[i * 3]
+            val angOff = particleSeed[i * 3 + 1]
+            val hueT   = particleSeed[i * 3 + 2]
+            val angle  = angOff + idlePhase * (0.4f + radF * 0.4f) * if (i % 2 == 0) 1f else -1f
+            val r      = baseR * (radF + amp * 0.15f * (0.5f - radF))
+            val px     = cx + cos(angle.toDouble()).toFloat() * r
+            val py     = cy + sin(angle.toDouble()).toFloat() * r * 0.42f  // squished vertically
+            val dotR   = (1.5f + amp * 4f) * (0.6f + radF * 0.7f)
+            fillPaint.color = particleHue(hueT)
+            canvas.drawCircle(px, py, dotR, fillPaint)
+        }
+    }
+
+    /** Neon Wave — a single thick chromatic sine line with
+     *  multi-layer drop shadow (cyan + magenta) for a neon-sign
+     *  glow.  Apple-feel "Hey Siri" line. */
+    private fun drawNeon(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        val midY = h / 2f
+        val amplitude = h * (0.08f + amp * 0.32f)
+        val path = android.graphics.Path()
+        path.moveTo(0f, midY)
+        var x = 0f
+        while (x <= w) {
+            val s = sin((idlePhase * 1.6f + x / w * (2f * Math.PI).toFloat() * 3f).toDouble()).toFloat()
+            val s2 = sin((idlePhase * -0.8f + x / w * (2f * Math.PI).toFloat() * 7f).toDouble()).toFloat() * 0.35f
+            val y = midY + (s + s2) * amplitude
+            path.lineTo(x, y)
+            x += 4f
+        }
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            strokeWidth = 6f + amp * 4f
+        }
+        // Glow layer 1 (cyan, blurred wide).
+        linePaint.color = Color.parseColor("#FF5DC8FF")
+        linePaint.maskFilter = android.graphics.BlurMaskFilter(
+            18f, android.graphics.BlurMaskFilter.Blur.NORMAL,
+        )
+        linePaint.alpha = 180
+        canvas.drawPath(path, linePaint)
+        // Glow layer 2 (magenta, narrower blur).
+        linePaint.color = Color.parseColor("#FFFF7AB6")
+        linePaint.maskFilter = android.graphics.BlurMaskFilter(
+            10f, android.graphics.BlurMaskFilter.Blur.NORMAL,
+        )
+        linePaint.alpha = 200
+        canvas.drawPath(path, linePaint)
+        // Crisp top line with shader gradient.
+        linePaint.maskFilter = null
+        linePaint.alpha = 255
+        linePaint.shader = LinearGradient(
+            0f, 0f, w, 0f,
+            intArrayOf(
+                Color.parseColor("#FF5DC8FF"),
+                Color.parseColor("#FFFFFFFF"),
+                Color.parseColor("#FFFF7AB6"),
+            ),
+            null, Shader.TileMode.CLAMP,
+        )
+        canvas.drawPath(path, linePaint)
+    }
+
+    /** Prism — rainbow spectrum bars that flex up/down with amp,
+     *  fixed colour per bar for a perfect chromatic gradient.
+     *  Iridescent drop-shadow for shine. */
+    private val prismColors = intArrayOf(
+        Color.parseColor("#FFFF6B6B"),
+        Color.parseColor("#FFFF9F43"),
+        Color.parseColor("#FFFFC857"),
+        Color.parseColor("#FF00E0B5"),
+        Color.parseColor("#FF2BB6FF"),
+        Color.parseColor("#FF9B57FF"),
+        Color.parseColor("#FFFF7AB6"),
+    )
+    private fun drawPrism(canvas: Canvas, w: Float, h: Float) {
+        val barCount = prismColors.size
+        val gapTotal = w * 0.18f
+        val barW = (w - gapTotal) / barCount
+        val gap = gapTotal / (barCount + 1)
+        val cy = h / 2f
+        for (i in 0 until barCount) {
+            val phase = idlePhase + i * 0.35f
+            val s = sin(phase.toDouble()).toFloat().coerceAtLeast(-1f)
+            val ampMix = peakAmp()
+            val factor = 0.45f + (0.5f + 0.5f * s) * (0.4f + ampMix * 0.6f)
+            val bh = h * factor.coerceIn(0.18f, 0.95f)
+            val left = gap + i * (barW + gap)
+            val top = cy - bh / 2f
+            val rect = android.graphics.RectF(left, top, left + barW, top + bh)
+            // Glow shadow.
+            fillPaint.shader = null
+            fillPaint.maskFilter = android.graphics.BlurMaskFilter(
+                14f, android.graphics.BlurMaskFilter.Blur.NORMAL,
+            )
+            fillPaint.color = prismColors[i]
+            fillPaint.alpha = 150
+            canvas.drawRoundRect(rect, barW / 2f, barW / 2f, fillPaint)
+            // Crisp bar with gentle vertical gradient.
+            fillPaint.maskFilter = null
+            fillPaint.shader = LinearGradient(
+                left, top, left, top + bh,
+                Color.argb(255,
+                    (Color.red(prismColors[i])   + 60).coerceAtMost(255),
+                    (Color.green(prismColors[i]) + 60).coerceAtMost(255),
+                    (Color.blue(prismColors[i])  + 60).coerceAtMost(255),
+                ),
+                prismColors[i],
+                Shader.TileMode.CLAMP,
+            )
+            fillPaint.alpha = 255
+            canvas.drawRoundRect(rect, barW / 2f, barW / 2f, fillPaint)
+        }
+        fillPaint.shader = null
+        fillPaint.maskFilter = null
     }
 }

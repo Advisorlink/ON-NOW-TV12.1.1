@@ -2121,7 +2121,11 @@ class V2AIConfigBody(BaseModel):
     hold_button_visible: Optional[bool] = None
 
 
-_ALLOWED_WAVEFORM_STYLES = {"bars", "dots", "ring", "sweep", "pulse"}
+_ALLOWED_WAVEFORM_STYLES = {
+    "bars", "dots", "ring", "sweep", "pulse",
+    # v2.8.31 — premium "Apple-feel" visualizers.
+    "aurora", "orb", "particles", "neon", "prism",
+}
 
 
 @app.post("/api/admin/v2ai/config", dependencies=[Depends(require_admin)])
