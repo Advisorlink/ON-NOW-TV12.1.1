@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🎵 NEXT MAJOR FEATURE on user's roadmap: ON NOW TV TUNES (music app)**
+> Full strategy document at `/app/memory/MUSIC_APP_STRATEGY.md` —
+> covers content sources (Spotify Web API + ytmusicapi + Radio
+> Browser + Podcast Index), reusable Vesper components, 3-phase
+> rollout plan. User explicitly said: *"please make a strong note
+> in our somewhere which remembers exactly what you just said about
+> all the music stuff, 'cause I definitely want to do that next."*
+> Do not implement until the user says go — but when they do,
+> MUSIC_APP_STRATEGY.md is the source of truth.
+
 > Latest: **v2.8.40 — VPS cutover: every APK now points at Contabo (no more preview pod)** (Feb 28, 2026)
 >
 > Picking up the half-finished migration from the previous session. Source-of-truth audit found the **launcher backend code + Vesper backend code were already 100% in sync** with `/opt/onnowtv-launcher/` and `/opt/onnowtv/backend/` on the Contabo VPS (per-file md5sum verified). The actual gap was on the Android side: **three hardcoded preview-pod URLs** were silently keeping deployed boxes pointed at the dev sandbox whenever their `SharedPreferences` override was empty or the env-var fallback fired:
