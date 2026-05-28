@@ -35,9 +35,9 @@ class LauncherRepository(
         /** Override at runtime via SharedPreferences "launcher.base_url".
          *
          *  v2.8.40 — Cut over to the Contabo VPS production host.
-         *  Nginx proxies `/launcher/*` → `127.0.0.1:8002` (the
-         *  launcher backend's uvicorn).  FastAPI's `root_path` is
-         *  configured for the `/launcher` prefix server-side, so
+         *  Nginx proxies the /launcher/ path to 127.0.0.1:8002 (the
+         *  launcher backend's uvicorn).  FastAPI's root_path is
+         *  configured for the /launcher prefix server-side, so
          *  every relative path under this base URL Just Works.
          *
          *  Earlier value (preview pod, retired):
