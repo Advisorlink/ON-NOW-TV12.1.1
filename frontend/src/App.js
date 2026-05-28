@@ -8,6 +8,7 @@ import Player from '@/pages/Player';
 import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Resolve from '@/pages/Resolve';
+import V2AIResolve from '@/pages/V2AIResolve';
 import Settings from '@/pages/Settings';
 import Library from '@/pages/Library';
 import ProfileSelect from '@/pages/ProfileSelect';
@@ -118,6 +119,40 @@ if (typeof window !== 'undefined') {
         const LAST_NON_KIDS_KEY = 'onnowtv-last-non-kids-profile';
         const KIDS_CFG_KEY = 'onnowtv-kids-config-v1';
 
+        // v2.8.23 — V2 AI deep-link.  The Launcher's V2 AI voice
+        // assistant opens Vesper with `?v2ai=<title>&type=movie|series&autoplay=1`.
+        // Rewrite this to the SPA route `/v2ai-play?title=...&type=...`
+        // BEFORE React Router mounts so the user lands on the
+        // V2AIResolve page that handles the search → resolve → play
+        // flow.  Works under both BrowserRouter (preview) and
+        // HashRouter (APK with file://).
+        const v2aiTitle = params.get('v2ai');
+        if (v2aiTitle) {
+            const v2aiType = (params.get('type') || 'movie').toLowerCase();
+            const target =
+                `/v2ai-play?title=${encodeURIComponent(v2aiTitle)}` +
+                `&type=${encodeURIComponent(v2aiType)}`;
+            // HashRouter detection — same logic as everywhere else
+            // in this file: under `file://` we run hash routing.
+            const isFile = window.location.protocol === 'file:';
+            if (isFile) {
+                window.location.hash = '#' + target;
+                // Also strip the v2ai query so refresh doesn't loop.
+                history.replaceState(
+                    null, '',
+                    window.location.pathname + window.location.hash,
+                );
+            } else {
+                history.replaceState(null, '', target);
+            }
+            // CRITICAL: V2 AI deep-links carry no `?profile=` — they
+            // expect to land on whatever profile the user already had
+            // active.  Skip the v2.8.5 "clear active profile on cold
+            // boot" logic so the V2AIResolve page isn't bounced into
+            // /profiles right before it can run its search.
+            window.__vesperSkipProfileClear = true;
+        }
+
         // v2.8.4 — Kids PIN lockdown.  If the user is currently in
         // Kids mode AND has a PIN set, IGNORE any `profile=exit-kids`
         // deep-link from the launcher — the kid must enter the PIN
@@ -173,11 +208,11 @@ if (typeof window !== 'undefined') {
             // get a fresh choice.  The Kids tile on the launcher
             // still bypasses this via `?profile=kids`.
             //
-            // Boot-only check: `performance.navigation.type === 1`
-            // (reload) and the React-internal SPA route changes
-            // never re-execute this module-level block, so this
-            // only fires on a true cold start.
-            if (cur) {
+            // v2.8.23 — V2 AI deep-links carry no `?profile=` either
+            // (the user is invoking the assistant FROM the launcher,
+            // not switching profiles), so honour the in-flight
+            // skip-flag set up by the v2ai handler above.
+            if (cur && !window.__vesperSkipProfileClear) {
                 localStorage.removeItem(ACTIVE_KEY);
             }
         }
@@ -457,6 +492,7 @@ function App() {
                                 <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
+                                <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
                                 <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
                                 <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
                                 <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
