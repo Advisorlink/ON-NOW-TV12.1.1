@@ -171,16 +171,9 @@ class ApkEntry(BaseModel):
 
 
 class AppStoreMeta(BaseModel):
-    """v2.0 — On-launcher App Store branding.  v2.8.10 added a second
-    fullscreen background image that sits BEHIND the apps grid.
-    v2.8.18 added admin-editable tile colors.  v2.8.20 added logo +
-    top-bar pill colors.  v2.8.22 adds:
-      • speed_test_package      — package name to launch when the
-        Speed Test pill is pressed (e.g. "org.zwanoo.android.speedtest"
-        for Ookla).  Falls back to the system VPN settings if empty.
-      • topbar_btn_focus_bg_color   — focused-pill background color.
-      • topbar_btn_focus_text_color — focused-pill text + icon tint.
-    Tile colors are stored as 8-char "#AARRGGBB" hex strings."""
+    """v2.0 — On-launcher App Store branding.  v2.8.10+ adds image
+    + color customisation; v2.8.23 adds speed-test target.  Tile
+    colors are stored as 8-char "#AARRGGBB" hex strings."""
     hero_image_url: Optional[str]                = None
     background_image_url: Optional[str]          = None
     logo_image_url: Optional[str]                = None
@@ -191,6 +184,19 @@ class AppStoreMeta(BaseModel):
     topbar_btn_focus_bg_color: Optional[str]     = None
     topbar_btn_focus_text_color: Optional[str]   = None
     speed_test_package: Optional[str]            = None
+
+
+# v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
+# Dropbox / HTTP video link, backend generates a QR PNG anyone can
+# scan with their phone to open the video.  Each entry can be hidden
+# from the launcher home or visible as a tile.
+class QrVideo(BaseModel):
+    id: str
+    name: str
+    url: str          # the actual video URL the QR encodes
+    visible: bool = True
+    qr_image_url: Optional[str] = None  # absolute URL to the PNG
+    created_at: int = 0
 
 
 class Notification(BaseModel):
@@ -322,6 +328,10 @@ class LauncherConfig(BaseModel):
     # v2.0 — App Store branding (hero image).  Always present so
     # older Android builds don't crash on JSON parse.
     appstore: AppStoreMeta = AppStoreMeta()
+    # v2.8.24 — Admin-curated QR-coded sharing videos.  Devices
+    # that ignore the field still work — older Launcher builds
+    # never deserialize it.
+    qr_videos: list[QrVideo] = []
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -460,6 +470,9 @@ app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks
 app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
 app.mount("/assets/apk_icons",   StaticFiles(directory=str(DATA_DIR / "apk_icons")),   name="apk-icons")
 app.mount("/assets/appstore",    StaticFiles(directory=str(DATA_DIR / "appstore")),    name="appstore")
+# v2.8.24 — QR code PNGs for admin-uploaded sharing videos.
+(DATA_DIR / "qr").mkdir(parents=True, exist_ok=True)
+app.mount("/assets/qr",          StaticFiles(directory=str(DATA_DIR / "qr")),          name="qr")
 
 # Static admin UI
 ADMIN_DIR = Path(__file__).parent / "admin"
@@ -538,6 +551,15 @@ def _build_config(store: dict) -> LauncherConfig:
             topbar_btn_focus_text_color=(store.get("appstore") or {}).get("topbar_btn_focus_text_color"),
             speed_test_package=(store.get("appstore") or {}).get("speed_test_package"),
         ),
+        qr_videos=[
+            QrVideo(
+                id=v["id"], name=v["name"], url=v["url"],
+                visible=bool(v.get("visible", True)),
+                qr_image_url=_abs(v.get("qr_image_url")),
+                created_at=int(v.get("created_at") or 0),
+            )
+            for v in store.get("qr_videos", [])
+        ],
     )
 
 
@@ -1695,6 +1717,113 @@ def clear_appstore_logo() -> dict:
         pass
     store = _load_store()
     store.setdefault("appstore", {})["logo_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
+# ── v2.8.24 — QR Videos ───────────────────────────────────────────
+# Admin pastes a Google Drive / Dropbox / direct-HTTP video URL.
+# We generate a QR PNG encoding that URL.  Each entry can be flagged
+# visible (shown on the launcher home as a tile) or hidden (kept on
+# the backend for future use without polluting the home screen).
+
+class QrVideoIn(BaseModel):
+    name: str
+    url: str
+    visible: bool = True
+
+
+class QrVideoUpdate(BaseModel):
+    name: Optional[str]    = None
+    url: Optional[str]     = None
+    visible: Optional[bool] = None
+
+
+def _generate_qr_png(out_path: Path, payload: str) -> None:
+    """Write a 512×512 QR PNG encoding `payload`."""
+    import qrcode
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#04060B", back_color="#FFFFFF")
+    img = img.convert("RGBA").resize((512, 512))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path, format="PNG", optimize=True)
+
+
+@app.get("/api/admin/qr-videos", dependencies=[Depends(require_admin)])
+def list_qr_videos() -> dict:
+    store = _load_store()
+    return {"data": store.get("qr_videos", [])}
+
+
+@app.post("/api/admin/qr-videos", dependencies=[Depends(require_admin)])
+def create_qr_video(body: QrVideoIn) -> dict:
+    name = body.name.strip()
+    url = body.url.strip()
+    if not name:
+        raise HTTPException(400, "name required")
+    if not url:
+        raise HTTPException(400, "url required")
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(400, "url must start with http:// or https://")
+    qid = uuid.uuid4().hex[:12]
+    out_path = DATA_DIR / "qr" / f"{qid}.png"
+    _generate_qr_png(out_path, url)
+    entry = {
+        "id":            qid,
+        "name":          name,
+        "url":           url,
+        "visible":       bool(body.visible),
+        "qr_image_url":  f"/assets/qr/{qid}.png?ts={now_ts()}",
+        "created_at":    now_ts(),
+    }
+    store = _load_store()
+    store.setdefault("qr_videos", []).insert(0, entry)
+    _save_store(store)
+    return {"ok": True, "entry": entry}
+
+
+@app.patch("/api/admin/qr-videos/{qid}", dependencies=[Depends(require_admin)])
+def update_qr_video(qid: str, body: QrVideoUpdate) -> dict:
+    store = _load_store()
+    videos = store.setdefault("qr_videos", [])
+    entry = next((v for v in videos if v["id"] == qid), None)
+    if not entry:
+        raise HTTPException(404, "not found")
+    if body.name is not None:
+        entry["name"] = body.name.strip() or entry["name"]
+    if body.visible is not None:
+        entry["visible"] = bool(body.visible)
+    if body.url is not None:
+        new_url = body.url.strip()
+        if new_url and new_url != entry["url"]:
+            if not (new_url.startswith("http://") or new_url.startswith("https://")):
+                raise HTTPException(400, "url must start with http:// or https://")
+            entry["url"] = new_url
+            _generate_qr_png(DATA_DIR / "qr" / f"{qid}.png", new_url)
+            entry["qr_image_url"] = f"/assets/qr/{qid}.png?ts={now_ts()}"
+    _save_store(store)
+    return {"ok": True, "entry": entry}
+
+
+@app.delete("/api/admin/qr-videos/{qid}", dependencies=[Depends(require_admin)])
+def delete_qr_video(qid: str) -> dict:
+    store = _load_store()
+    videos = store.setdefault("qr_videos", [])
+    before = len(videos)
+    store["qr_videos"] = [v for v in videos if v["id"] != qid]
+    if len(store["qr_videos"]) == before:
+        raise HTTPException(404, "not found")
+    try:
+        (DATA_DIR / "qr" / f"{qid}.png").unlink()
+    except FileNotFoundError:
+        pass
     _save_store(store)
     return {"ok": True}
 

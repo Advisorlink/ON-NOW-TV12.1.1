@@ -8,3 +8,4 @@ aiofiles==24.1.0
 # from uploaded APK so admins don't have to type anything).
 pyaxmlparser==0.3.31
 Pillow==12.2.0
+qrcode==8.2

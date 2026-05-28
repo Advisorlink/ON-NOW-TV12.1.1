@@ -1,5 +1,5 @@
 {
-  "generation": 466,
+  "generation": 467,
   "dock_tiles": [
     {
       "key": "movies",
@@ -403,13 +403,13 @@
     },
     "test": {
       "device_id": "test",
-      "last_seen": 1779889290,
-      "last_generation": 431
+      "last_seen": 1779936137,
+      "last_generation": 467
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779934640,
-      "last_generation": 466
+      "last_seen": 1779936196,
+      "last_generation": 467
     }
   },
   "layout": {
@@ -6736,7 +6736,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779934639,
+      "last_seen_at": 1779936195,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6751,5 +6751,15 @@
     "topbar_btn_focus_bg_color": "#FF0D2845",
     "topbar_btn_focus_text_color": "#FF04060B",
     "speed_test_package": "org.zwanoo.android.speedtest"
-  }
+  },
+  "qr_videos": [
+    {
+      "id": "e2b13f9177ce",
+      "name": "Promo Reel",
+      "url": "https://drive.google.com/file/d/abc123/view",
+      "visible": true,
+      "qr_image_url": "/assets/qr/e2b13f9177ce.png?ts=1779936137",
+      "created_at": 1779936137
+    }
+  ]
 }
