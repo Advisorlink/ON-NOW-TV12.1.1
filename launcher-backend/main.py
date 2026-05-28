@@ -689,7 +689,7 @@ For those: intent="reject", reject_reason="V2 AI only helps with movies, TV show
   ] | null,
   "reject_reason": string | null,
   "speech_reply":  string,                // ALWAYS present — short TTS-friendly sentence
-  "recommendations": [                    // for recommend / search (3-6 entries)
+  "recommendations": [                    // for recommend / search (10-20 entries)
     { "title": string, "year": number | null, "type": "movie" | "series", "why": string }
   ]
 }
@@ -698,7 +698,7 @@ Rules with examples:
 - "Play The Matrix" → play_movie, title="The Matrix".
 - "Watch Breaking Bad" → play_series, title="Breaking Bad".
 - "Open Netflix" → open_app, app_name="Netflix".
-- "Recommend something funny" / "What should I watch tonight" / "I'm bored find me something" → recommend with 3-6 titles + 1-line "why" each.  Use mood="tonight" for "tonight"/"now" type queries.
+- "Recommend something funny" / "What should I watch tonight" / "I'm bored find me something" → recommend with 10-20 titles + 1-line "why" each (more for broad asks, fewer for specific).  Use mood="tonight" for "tonight"/"now" type queries.
 - "What episode of Breaking Bad does Walter meet Gus?" → qa, answer="Season 2 Episode 11 'Mandala'.", answer_subject="Breaking Bad".
 - "Who played the joker in The Dark Knight?" → person_info, person_name="Heath Ledger", person_bio="Australian actor known for his Oscar-winning role as the Joker in The Dark Knight (2008).", known_for=[{title:"The Dark Knight", year:2008, type:"movie"}, {title:"Brokeback Mountain", year:2005, type:"movie"}, …].
 - "Who's the main actor in Inception?" → person_info, person_name="Leonardo DiCaprio", with bio + known_for.
@@ -904,6 +904,67 @@ async def _enrich_recommendations(items: list) -> list:
     return await asyncio.gather(*(one(it) for it in items if it))
 
 
+# ── v2.8.35 — Per-device conversation memory ───────────────────────
+# Each launcher box keeps a rolling buffer of its 6 most recent
+# (user transcript → assistant intent summary) exchanges on the
+# backend.  These are pasted into GPT's prompt as "Recent
+# conversation context" so follow-up questions like "and what about
+# his other movies?" or "tell me more about that" work naturally.
+#
+# Stored in-memory only — restart clears all sessions, which is
+# fine because conversations are ephemeral by nature.
+from collections import deque
+_v2ai_conversations: dict[str, "deque[tuple[str,str]]"] = {}
+_V2AI_HISTORY_LEN = 6  # last 6 user+assistant turns
+
+
+def _v2ai_summarise_for_history(parsed: dict) -> str:
+    """Compress an intent dict to a short 1-line assistant-side
+    message for the conversation buffer.  Pure text, no JSON, so
+    GPT's context window stays small."""
+    intent = parsed.get("intent", "reject")
+    if intent in ("play_movie", "play_series"):
+        return f"Played '{parsed.get('title', '?')}'."
+    if intent == "open_app":
+        return f"Opened the {parsed.get('app_name', '?')} app."
+    if intent == "recommend":
+        titles = [r.get("title", "?") for r in (parsed.get("recommendations") or [])[:5]]
+        return f"Suggested: {', '.join(titles)}."
+    if intent == "search":
+        return f"Searched for '{parsed.get('query', '?')}'."
+    if intent == "qa":
+        subj = parsed.get("answer_subject") or ""
+        ans  = (parsed.get("answer") or "")[:140]
+        return f"Answered about {subj}: {ans}"
+    if intent == "person_info":
+        return f"Showed info about {parsed.get('person_name', '?')}."
+    return parsed.get("reject_reason") or parsed.get("speech_reply") or "Rejected."
+
+
+def _v2ai_history_block(device_id: str) -> str:
+    """Format the device's recent exchanges as a single prompt
+    paragraph.  Empty string if the device has no history yet."""
+    buf = _v2ai_conversations.get(device_id)
+    if not buf:
+        return ""
+    lines = ["Recent conversation context:"]
+    for user, assist in buf:
+        lines.append(f"  User: {user}")
+        lines.append(f"  V2 AI: {assist}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _v2ai_remember(device_id: str, transcript: str, parsed: dict) -> None:
+    """Push the current exchange onto the device's history buffer."""
+    if not device_id:
+        return
+    buf = _v2ai_conversations.setdefault(
+        device_id, deque(maxlen=_V2AI_HISTORY_LEN),
+    )
+    buf.append((transcript.strip(), _v2ai_summarise_for_history(parsed)))
+
+
 # ── v2.8.26 — Diagnostic ping endpoint ─────────────────────────────
 # Returns instantly (no LLM call).  Lets the launcher Android client
 # verify it can reach the V2 AI backend before attempting an audio
@@ -923,17 +984,28 @@ def v2ai_ping() -> dict:
 
 
 @app.post("/api/launcher/v2ai/process", dependencies=[Depends(_optional_admin_no_op)] if False else [])
-async def v2ai_process(file: UploadFile = File(...)) -> dict:
+async def v2ai_process(
+    file: UploadFile = File(...),
+    device_id: Optional[str] = Form(None),
+) -> dict:
     """Accept an audio recording, return a strict JSON intent the
     launcher acts on.  Endpoint is unauthenticated (every box
-    registered with the launcher gets to use it)."""
+    registered with the launcher gets to use it).
+
+    v2.8.35 — Optional `device_id` form field lets the backend
+    maintain a 6-turn conversation buffer per device.  Follow-up
+    queries like "and what about his other movies?" now resolve
+    against the earlier exchange."""
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "empty audio")
     if len(raw) > 25 * 1024 * 1024:
         raise HTTPException(413, "audio file too large (25 MB max)")
 
-    log.info("v2ai_process: %d bytes received (filename=%s)", len(raw), file.filename)
+    log.info(
+        "v2ai_process: %d bytes received (filename=%s device=%s)",
+        len(raw), file.filename, (device_id or "?")[:24],
+    )
 
     # 1) Transcribe via Whisper.
     import time as _time
@@ -978,11 +1050,13 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
                         "overview": tm.get("overview") or "",
                     }]
         fast["transcript"] = transcript
+        _v2ai_remember(device_id or "", transcript, fast)
         return fast
 
     # 2b) Parse intent via GPT (slow fallback for ambiguous queries).
     _t1 = _time.monotonic()
-    parsed = await _v2ai_parse_intent(transcript)
+    history_block = _v2ai_history_block(device_id or "")
+    parsed = await _v2ai_parse_intent(transcript, history_block=history_block)
     log.info("v2ai_process: GPT took %.1fs → intent=%s", _time.monotonic() - _t1, parsed.get("intent"))
 
     # v2.8.29 — Enrich any recommendations from GPT with TMDB
@@ -1010,6 +1084,7 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
         await _enrich_person_info(parsed)
 
     parsed["transcript"] = transcript
+    _v2ai_remember(device_id or "", transcript, parsed)
     return parsed
 
 
@@ -1180,7 +1255,7 @@ async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
     return (getattr(resp, "text", "") or "").strip()
 
 
-async def _v2ai_parse_intent(transcript: str) -> dict:
+async def _v2ai_parse_intent(transcript: str, history_block: str = "") -> dict:
     """GPT intent parser — returns the schema described in
     V2AI_SYSTEM_PROMPT.  Falls back to a safe reject if the model
     returns garbage.
@@ -1189,15 +1264,22 @@ async def _v2ai_parse_intent(transcript: str) -> dict:
     JSON intent task gpt-4o-mini is ~5-8 s vs gpt-5's ~12-18 s, with
     no measurable accuracy drop.  Combined with the regex fast-path
     this brings worst-case end-to-end V2 AI latency under 15 s on
-    the user's HK1 box."""
+    the user's HK1 box.
+
+    v2.8.35 — Optional `history_block` prepended to the system
+    prompt so follow-up queries ("and what about his other movies?")
+    resolve against earlier context."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
+    system_msg = V2AI_SYSTEM_PROMPT
+    if history_block:
+        system_msg = f"{V2AI_SYSTEM_PROMPT}\n\n{history_block}"
     chat = LlmChat(
         api_key=api_key,
         session_id=f"v2ai-{uuid.uuid4().hex[:8]}",
-        system_message=V2AI_SYSTEM_PROMPT,
+        system_message=system_msg,
     ).with_model("openai", "gpt-4o-mini")
     msg = UserMessage(text=transcript)
     try:

@@ -7,6 +7,64 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.35 — V2 AI result UI rewrite: no clipping + BACK works + memory
+
+Per direct user feedback ("cuts off the top and cuts off the bottom",
+"BACK should go back to V2 AI not home", "remember the conversation").
+
+  • **🎴 Rectangle result cards (NO MORE CLIPPING).**  Cards are now
+    rectangles: 240 dp wide × wrapping height with a 16:9 landscape
+    backdrop on top, then title (16 sp), Year · Type · ★ Rating chip
+    row, and a 5-line synopsis (13 sp).  Per-card height ≈ 360 dp —
+    fits 4-5 across a 1920 dp screen with NO clipping at the top or
+    bottom, even with the launcher's status bar present.
+
+  • **🖼 Standby UI HIDDEN when results show.**  Was: waveform +
+    heading kept eating vertical space, pushing cards off-screen.
+    Now: a new `setResultMode(true)` hides the entire standby
+    group (eyebrow, heading, waveform, hold button, status line)
+    and gives the card carousel the FULL screen height.  Result
+    mode adds a small "Press BACK to ask again" hint at the top.
+
+  • **⏮ BACK → standby (not home).**  `onBackPressed` overridden:
+    if result cards visible → clear them + restore standby UI
+    (waveform reappears, ready for the next question).  Only the
+    SECOND BACK press leaves V2 AI for the home screen.  Natural
+    two-step exit.
+
+  • **🧠 Conversation memory — 6-turn rolling buffer per device.**
+    Backend now keeps a per-`device_id` deque of the last 6
+    exchanges (user transcript + assistant intent summary).
+    History is prepended to GPT's system prompt as "Recent
+    conversation context:" so follow-up queries resolve naturally.
+    Verified: ask "recommend a funny movie" → "and what about
+    something more like the second one" → GPT picks Other Guys /
+    21 Jump Street / Zoolander because it knows the user liked
+    Step Brothers.
+
+  • **📈 Up to 20 recommendations per query.**  System prompt now
+    asks for 10-20 titles (was 3-6) for broad asks like "what's
+    some good action movies".  Specific narrow asks still get
+    smaller sets.
+
+  • **🎯 Vesper deep-link from any card.**  Every poster card is
+    focusable + OnClick → opens the title in Vesper (calls
+    `launchVesperPlay`).  Person-info known_for cards work the
+    same way.
+
+Files touched (3):
+  • `launcher-backend/main.py` (conversation buffer
+    `_v2ai_conversations`, `_v2ai_history_block`,
+    `_v2ai_remember`, `_v2ai_summarise_for_history`,
+    `device_id` form param, `_v2ai_parse_intent(history_block=)`,
+    system prompt 3-6 → 10-20)
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (standbyGroup / resultGroup containers, `setResultMode`,
+    `showStandby`, `onBackPressed`, new compact `buildPosterCard`
+    layout, renderRecommendations / renderQa / renderPersonInfo
+    rewrites, device_id in multipart body)
+  • `android/vesper-tv/app/build.gradle.kts` (v2.8.35 fallback)
+
 ## v2.8.34 — CI fix for v2.8.33 mic upgrade (audioSessionId not on MediaRecorder)
 
 v2.8.33 tried to attach `NoiseSuppressor.create(rec.audioSessionId)`
