@@ -158,14 +158,19 @@ data class AppStoreMeta(
 
 /* v2.8.25 — V2 AI screen customisation pulled from the backend.
    v2.8.26 — Adds waveform style + top-bar button icon.
-   v2.8.30 — Adds in-activity HOLD-button image + visibility. */
+   v2.8.30 — Adds in-activity HOLD-button image + visibility.
+   v2.8.38 — Adds per-V2-AI-pill color overrides for the top bar. */
 data class V2AIConfig(
-    val headingText: String?         = null,
-    val backgroundImageUrl: String?  = null,
-    val waveformStyle: String?       = null,  // "bars" (default), "dots", "ring", "sweep", "pulse"
-    val buttonImageUrl: String?      = null,  // square icon for the top-bar V2 AI pill
-    val holdButtonImageUrl: String?  = null,  // image painted on the in-activity Hold button
-    val holdButtonVisible: Boolean   = true,  // show / hide the in-activity Hold button entirely
+    val headingText: String?           = null,
+    val backgroundImageUrl: String?    = null,
+    val waveformStyle: String?         = null,  // "bars" (default), "dots", "ring", "sweep", "pulse"
+    val buttonImageUrl: String?        = null,  // square icon for the top-bar V2 AI pill
+    val holdButtonImageUrl: String?    = null,  // image painted on the in-activity Hold button
+    val holdButtonVisible: Boolean     = true,  // show / hide the in-activity Hold button entirely
+    val buttonBgColor: String?         = null,
+    val buttonTextColor: String?       = null,
+    val buttonFocusBgColor: String?    = null,
+    val buttonFocusTextColor: String?  = null,
 )
 
 data class NotificationRemote(
@@ -325,6 +330,10 @@ fun parseLauncherConfig(json: String): LauncherConfig {
         buttonImageUrl        = v2aiObj.optStringOrNull("button_image_url"),
         holdButtonImageUrl    = v2aiObj.optStringOrNull("hold_button_image_url"),
         holdButtonVisible     = v2aiObj.optBoolean("hold_button_visible", true),
+        buttonBgColor         = v2aiObj.optStringOrNull("button_bg_color"),
+        buttonTextColor       = v2aiObj.optStringOrNull("button_text_color"),
+        buttonFocusBgColor    = v2aiObj.optStringOrNull("button_focus_bg_color"),
+        buttonFocusTextColor  = v2aiObj.optStringOrNull("button_focus_text_color"),
     )
     // v2.8.24 — QR videos (optional).
     val qrArr = root.optJSONArray("qr_videos") ?: JSONArray()

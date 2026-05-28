@@ -627,15 +627,24 @@ class MainActivity : AppCompatActivity() {
         val focusBgColor   = parseHexSafely(focusBgHex, Color.parseColor("#FF2BB6FF"))
         val focusTextColor = parseHexSafely(focusFgHex, Color.parseColor("#FF04060B"))
         listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed, binding.topbarBtnV2ai).forEach { pill ->
+            // v2.8.38 — V2 AI pill can override the shared top-bar
+            // palette with its own colors set on the V2 AI admin
+            // tab.  Any null override falls back to the shared
+            // value above.
+            val isV2ai = pill === binding.topbarBtnV2ai
+            val pillBg = if (isV2ai) parseHexSafely(v2ai.buttonBgColor       ?: bgHex,      bgColor)        else bgColor
+            val pillTx = if (isV2ai) parseHexSafely(v2ai.buttonTextColor     ?: textHex,    textColor)      else textColor
+            val pillFB = if (isV2ai) parseHexSafely(v2ai.buttonFocusBgColor  ?: focusBgHex, focusBgColor)   else focusBgColor
+            val pillFT = if (isV2ai) parseHexSafely(v2ai.buttonFocusTextColor?: focusFgHex, focusTextColor) else focusTextColor
             // Replace the pill's background with a state selector
             // honouring the admin-chosen resting + focused colors.
             val resting = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 9999f
-                setColor(bgColor)
+                setColor(pillBg)
             }
             val focused = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 9999f
-                setColor(focusBgColor)
+                setColor(pillFB)
             }
             val sel = android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), focused)
@@ -649,7 +658,7 @@ class MainActivity : AppCompatActivity() {
                     intArrayOf(android.R.attr.state_focused),
                     intArrayOf(),
                 ),
-                intArrayOf(focusTextColor, textColor),
+                intArrayOf(pillFT, pillTx),
             )
             for (i in 0 until pill.childCount) {
                 when (val child = pill.getChildAt(i)) {

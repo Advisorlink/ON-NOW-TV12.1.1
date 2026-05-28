@@ -210,6 +210,13 @@ class V2AIConfig(BaseModel):
     button_image_url: Optional[str] = None     # square icon replacing the topbar lightning bolt
     hold_button_image_url: Optional[str] = None  # image painted on the in-activity Hold button
     hold_button_visible: bool = True             # show / hide the in-activity Hold button entirely
+    # v2.8.38 — Per-V2-AI top-bar pill color overrides.  Each can
+    # be null to fall back to the shared top-bar colors set in the
+    # App Store tab.  When SET, only the V2 AI pill picks them up.
+    button_bg_color: Optional[str] = None
+    button_text_color: Optional[str] = None
+    button_focus_bg_color: Optional[str] = None
+    button_focus_text_color: Optional[str] = None
 
 
 # v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
@@ -625,6 +632,10 @@ def _build_config(store: dict) -> LauncherConfig:
             hold_button_visible=bool(
                 (store.get("v2ai") or {}).get("hold_button_visible", True)
             ),
+            button_bg_color=(store.get("v2ai") or {}).get("button_bg_color"),
+            button_text_color=(store.get("v2ai") or {}).get("button_text_color"),
+            button_focus_bg_color=(store.get("v2ai") or {}).get("button_focus_bg_color"),
+            button_focus_text_color=(store.get("v2ai") or {}).get("button_focus_text_color"),
         ),
         qr_videos=[
             QrVideo(
@@ -1202,6 +1213,12 @@ _TYPE_HINT_MOVIE  = r"\b(?:movie|film)\b"
 _TYPE_HINT_SERIES = r"\b(?:show|series|tv\s+show|tv\s+series|episode|season)\b"
 _TRAIL_FILLER_RX  = r"\b(?:please|thanks|now|for\s+me|on\s+the\s+tv|on\s+tv|app|application)\b"
 
+# v2.8.38 — Trending fast-path.  Matches "what's trending", "top
+# movies", "popular shows", "hot right now", "what's hot", "top 10
+# this week" etc.  When this matches we skip GPT entirely and hit
+# TMDB directly — saves ~5-8 s on the common "what's popular" query.
+_TRENDING_RX      = r"(?:trending|trendy|popular|hot|top\s*\d*|number\s+one|what's\s+hot|what's\s+new|what\s+is\s+everyone\s+watching|whats\s+everyone\s+watching)"
+
 
 def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
     raw = transcript.strip()
@@ -1224,11 +1241,31 @@ def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
     # answer factual questions about movies / TV.  EXCEPT for the
     # specific "what should I watch / what's on" recommendation
     # prefixes handled below.
+    # v2.8.38 — Also except for the trending fast-path so "what's
+    # trending" / "top movies" skip GPT entirely.
     is_recommend_question = re.search(_RECOMMEND_RX, t) is not None
-    if not is_recommend_question and re.match(
+    is_trending_question  = re.search(_TRENDING_RX, t) is not None
+    if not is_recommend_question and not is_trending_question and re.match(
         r"^(?:what|who|when|where|why|how|is|are|does|did|do)\b", t,
     ):
         return None
+
+    # v2.8.38 — Trending fast-path.  Detect "what's trending" /
+    # "popular movies" / "top shows" / "top 10 this week" — we'll
+    # let v2ai_process do the TMDB call.  Returning a stub here
+    # short-circuits GPT entirely.
+    if is_trending_question:
+        kind = "all"
+        if re.search(r"\bmovies?\b|\bfilms?\b", t):
+            kind = "movie"
+        elif re.search(r"\bshows?\b|\bseries\b|\btv\b", t):
+            kind = "series"
+        return {
+            "intent": "trending",
+            "trending_kind": kind,
+            "speech_reply": "Here's what's hot right now.",
+            "recommendations": [],
+        }
 
     # "recommend …" / "what should i watch …"
     if re.search(_RECOMMEND_RX, t):
@@ -2306,6 +2343,12 @@ class V2AIConfigBody(BaseModel):
     heading_text: Optional[str] = None
     waveform_style: Optional[str] = None
     hold_button_visible: Optional[bool] = None
+    # v2.8.38 — V2 AI top-bar pill color overrides.  8-char
+    # "#AARRGGBB" hex strings; empty string clears the override.
+    button_bg_color: Optional[str] = None
+    button_text_color: Optional[str] = None
+    button_focus_bg_color: Optional[str] = None
+    button_focus_text_color: Optional[str] = None
 
 
 _ALLOWED_WAVEFORM_STYLES = {
@@ -2329,6 +2372,20 @@ def set_v2ai_config(body: V2AIConfigBody) -> dict:
         v2ai["waveform_style"] = wf or None
     if body.hold_button_visible is not None:
         v2ai["hold_button_visible"] = bool(body.hold_button_visible)
+    # v2.8.38 — Per-V2-AI pill color updates.  Empty string clears
+    # the override so the pill falls back to the shared top-bar
+    # palette set on the App Store tab.
+    for field in (
+        "button_bg_color", "button_text_color",
+        "button_focus_bg_color", "button_focus_text_color",
+    ):
+        val = getattr(body, field)
+        if val is None:
+            continue
+        v = val.strip()
+        if v and not re.fullmatch(r"#[A-Fa-f0-9]{6,8}", v):
+            raise HTTPException(400, f"{field} must be a hex color (#RRGGBB or #AARRGGBB)")
+        v2ai[field] = v or None
     _save_store(store)
     return {"ok": True, "v2ai": v2ai}
 

@@ -350,7 +350,39 @@
                 <button id="topbarColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
                 <button id="topbarColorsReset" type="button" class="apk-drop-link">Reset to default</button>
             </div>
-            <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills.  Focused state activates when the user navigates onto the pill with the remote.</p>
+            <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills.  Focused state activates when the user navigates onto the pill with the remote.  <strong>The V2 AI pill has its own colors below</strong> — set them blank to fall back to these.</p>
+        </div>
+
+        <!-- v2.8.38 — V2 AI top-bar pill colors (override) -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">V2 AI top-bar button colors</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field">
+                    <span>Background</span>
+                    <input type="color" id="v2aiBtnBgColor" value="#203A5C">
+                    <code id="v2aiBtnBgColorHex">#203A5C</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Text + icon</span>
+                    <input type="color" id="v2aiBtnTextColor" value="#FFFFFF">
+                    <code id="v2aiBtnTextColorHex">#FFFFFF</code>
+                </label>
+            </div>
+            <div class="appstore-colors-row" style="margin-top:12px;">
+                <label class="appstore-color-field">
+                    <span>Focused background</span>
+                    <input type="color" id="v2aiBtnFocusBgColor" value="#2BB6FF">
+                    <code id="v2aiBtnFocusBgColorHex">#2BB6FF</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Focused text + icon</span>
+                    <input type="color" id="v2aiBtnFocusTextColor" value="#04060B">
+                    <code id="v2aiBtnFocusTextColorHex">#04060B</code>
+                </label>
+                <button id="v2aiBtnColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save V2 AI colors</button>
+                <button id="v2aiBtnColorsReset" type="button" class="apk-drop-link">Use shared colors</button>
+            </div>
+            <p class="appstore-colors-hint">Overrides the shared top-bar palette JUST for the V2 AI pill — perfect for branding the AI button with a distinct accent.  Click <em>Use shared colors</em> to clear the override.</p>
         </div>
 
         <!-- v2.8.22 — Speed Test pill target APK -->

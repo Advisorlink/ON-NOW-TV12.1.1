@@ -1105,6 +1105,8 @@ function renderApks(store) {
     syncSpeedTestTarget(store);
     // v2.8.25 — Mirror V2 AI heading + background preview.
     syncV2AIInputs(store);
+    // v2.8.38 — Mirror V2 AI pill-specific color inputs.
+    syncV2AIBtnColorInputs(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1468,6 +1470,79 @@ function syncTopbarColorInputs(store) {
                 }),
             });
             toast('Top-bar colors reset to defaults');
+            refreshAll();
+        } catch (err) { toast('Reset failed: ' + err.message, true); }
+    });
+})();
+
+/* v2.8.38 — V2 AI pill-specific color editor.  Overrides the shared
+ * top-bar palette JUST for the V2 AI pill.  Uses /api/admin/v2ai/config
+ * which already accepts button_* color fields. */
+function syncV2AIBtnColorInputs(store) {
+    const v2ai = (store && store.v2ai) || {};
+    const stripAlpha = (c) => {
+        if (!c) return null;
+        if (c.length === 9) return '#' + c.slice(3);
+        return c.length === 7 ? c : null;
+    };
+    const set = (inputId, hexId, val, fallback) => {
+        const v = stripAlpha(val) || fallback;
+        const $i = document.getElementById(inputId);
+        const $h = document.getElementById(hexId);
+        if ($i) $i.value = v;
+        if ($h) $h.textContent = v.toUpperCase();
+    };
+    set('v2aiBtnBgColor',        'v2aiBtnBgColorHex',        v2ai.button_bg_color,         '#203A5C');
+    set('v2aiBtnTextColor',      'v2aiBtnTextColorHex',      v2ai.button_text_color,       '#FFFFFF');
+    set('v2aiBtnFocusBgColor',   'v2aiBtnFocusBgColorHex',   v2ai.button_focus_bg_color,   '#2BB6FF');
+    set('v2aiBtnFocusTextColor', 'v2aiBtnFocusTextColorHex', v2ai.button_focus_text_color, '#04060B');
+}
+
+(function setupV2AIBtnColorEditor() {
+    const ids = [
+        'v2aiBtnBgColor', 'v2aiBtnTextColor',
+        'v2aiBtnFocusBgColor', 'v2aiBtnFocusTextColor',
+    ];
+    ids.forEach((id) => {
+        const $i = document.getElementById(id);
+        const $h = document.getElementById(id + 'Hex');
+        if (!$i) return;
+        $i.addEventListener('input', () => {
+            if ($h) $h.textContent = $i.value.toUpperCase();
+        });
+    });
+    const $save  = document.getElementById('v2aiBtnColorsSave');
+    const $reset = document.getElementById('v2aiBtnColorsReset');
+    if (!$save) return;
+    $save.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    button_bg_color:         document.getElementById('v2aiBtnBgColor').value,
+                    button_text_color:       document.getElementById('v2aiBtnTextColor').value,
+                    button_focus_bg_color:   document.getElementById('v2aiBtnFocusBgColor').value,
+                    button_focus_text_color: document.getElementById('v2aiBtnFocusTextColor').value,
+                }),
+            });
+            toast('V2 AI button colors saved');
+            refreshAll();
+        } catch (err) { toast('Save failed: ' + err.message, true); }
+    });
+    $reset.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    button_bg_color:         '',
+                    button_text_color:       '',
+                    button_focus_bg_color:   '',
+                    button_focus_text_color: '',
+                }),
+            });
+            toast('V2 AI button now uses shared top-bar colors');
             refreshAll();
         } catch (err) { toast('Reset failed: ' + err.message, true); }
     });

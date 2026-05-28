@@ -7,6 +7,60 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.38 — Snappier V2 AI + V2 AI top-bar pill color override
+
+Per user request — "speed up the time between hearing and answering"
++ "V2 AI top-bar button needs colour customisation".
+
+  • **⚡ Trending fast-path (saves ~5-8 s).**  Common "what's
+    trending" / "popular movies" / "top 10 shows" / "what's hot"
+    queries now skip the GPT round-trip entirely.  The regex
+    matcher detects 7+ trending phrases and immediately returns
+    `intent="trending"` — the backend then calls TMDB's official
+    trending feed directly (~1 s).  Total response: Whisper
+    (~3 s) + TMDB (~1 s) = **~4 s** instead of ~12 s.
+    Tested 9 phrases — all 7 trending variants route fast-path;
+    "what's vin diesel's net worth" + "who played the joker"
+    still correctly fall through to GPT for proper QA.
+
+  • **🎨 V2 AI top-bar button color overrides.**  New admin
+    section ("V2 AI top-bar button colors") on the App Store tab
+    lets the user set 4 separate colors JUST for the V2 AI pill:
+      - Background
+      - Text + icon
+      - Focused background
+      - Focused text + icon
+    Each color is OPTIONAL — leave blank to fall back to the
+    shared top-bar palette set above.  "Use shared colors"
+    button clears the V2 AI overrides.
+
+    Backend: 4 new fields in `V2AIConfig` model; same `POST
+    /api/admin/v2ai/config` endpoint accepts `button_bg_color`,
+    `button_text_color`, `button_focus_bg_color`,
+    `button_focus_text_color`.  Hex format validated server-side
+    (#RRGGBB or #AARRGGBB).
+
+    Kotlin: `applyTopBarBranding` in `MainActivity` now branches
+    on the V2 AI pill — uses `v2ai.button*Color` if set,
+    otherwise falls back to the shared `appstore.topbarBtn*Color`.
+
+  • Also bonus: image upload for the V2 AI top-bar pill icon
+    (added in v2.8.26) and the new color overrides combine — set
+    a pink background + a custom rocket icon for instance.
+
+Files touched (5):
+  • `launcher-backend/main.py` (V2AIConfig fields, V2AIConfigBody,
+    set_v2ai_config color validation, `_TRENDING_RX`, trending
+    fast-path in `_v2ai_fast_intent`)
+  • `launcher-backend/admin/index.html` (V2 AI button colors
+    section)
+  • `launcher-backend/admin/static/app.js` (V2 AI button color
+    editor + sync)
+  • `android/onnowtv-launcher/.../data/LauncherConfig.kt`
+    (4 button color fields on V2AIConfig)
+  • `android/onnowtv-launcher/.../MainActivity.kt`
+    (per-pill color override in applyTopBarBranding)
+
 ## v2.8.37 — V2 AI result carousel centered on 1920×1080
 
   • **🎯 Cards now perfectly centered.**  Was: `resultArea`

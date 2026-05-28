@@ -1,5 +1,5 @@
 {
-  "generation": 609,
+  "generation": 622,
   "dock_tiles": [
     {
       "key": "movies",
@@ -367,8 +367,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779966967,
-      "last_generation": 609
+      "last_seen": 1779968977,
+      "last_generation": 622
     }
   },
   "layout": {
@@ -6662,40 +6662,13 @@
       "legacy": true,
       "not_hk1": true
     },
-    "520dfd4b-ca06-4d42-9405-5b2d8e973ebe": {
-      "id": "520dfd4b-ca06-4d42-9405-5b2d8e973ebe",
-      "name": "n",
-      "model": "Amlogic HK1 BOX S905X3",
-      "status": "active",
-      "registered_at": 1779852836,
-      "last_seen_at": 1779858810,
-      "last_ip": "34.160.159.238"
-    },
-    "onnow-test-1779853758": {
-      "id": "onnow-test-1779853758",
-      "name": "Allwinner H313 \u00b7 abc123",
-      "model": "HK1 Box",
-      "status": "active",
-      "registered_at": 1779853758,
-      "last_seen_at": 1779853758,
-      "last_ip": "127.0.0.1"
-    },
-    "onnow-old-uuid-test-1779853768": {
-      "id": "onnow-old-uuid-test-1779853768",
-      "name": "Trying Again",
-      "model": "Box",
-      "status": "blocked",
-      "registered_at": 1779853768,
-      "last_seen_at": 1779853768,
-      "last_ip": "127.0.0.1"
-    },
     "onnow-2279499f3d06f84b": {
       "id": "onnow-2279499f3d06f84b",
       "name": "Amlogic HK1 BOX S905X3 \u00b7 06f84b",
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
-      "registered_at": 1779858905,
-      "last_seen_at": 1779966966,
+      "registered_at": 1779968880,
+      "last_seen_at": 1779968977,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6749,6 +6722,8 @@
     "waveform_style": "bars",
     "button_image_url": "/assets/v2ai/button.png?ts=1779941981",
     "hold_button_image_url": null,
-    "hold_button_visible": false
+    "hold_button_visible": false,
+    "button_bg_color": null,
+    "button_focus_bg_color": null
   }
 }
