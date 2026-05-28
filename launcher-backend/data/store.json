@@ -1,5 +1,5 @@
 {
-  "generation": 514,
+  "generation": 548,
   "dock_tiles": [
     {
       "key": "movies",
@@ -367,8 +367,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779946533,
-      "last_generation": 514
+      "last_seen": 1779960327,
+      "last_generation": 548
     }
   },
   "layout": {
@@ -6695,7 +6695,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779946533,
+      "last_seen_at": 1779960357,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6717,7 +6717,7 @@
       "name": "Welcome To ON NOW V2",
       "url": "https://www.dropbox.com/scl/fi/bictryykqlpmpf2nw7bjr/lv_0_20260528131623.mp4?rlkey=l40cslq5ubxng6dxxioye96zc&st=heu1t7xf&raw=1",
       "caption": "Scan ME for Demo",
-      "visible": true,
+      "visible": false,
       "qr_image_url": "/assets/qr/e5a82b54ed08.png?ts=1779941453",
       "player_url": "http://localhost:8002/qr-play/e5a82b54ed08",
       "created_at": 1779941453
@@ -6744,9 +6744,11 @@
     }
   ],
   "v2ai": {
-    "heading_text": "Hold OK and ask anything about movies,Tv shows, Recomendations, or even play a movie",
+    "heading_text": "Hold OK and ask me something",
     "background_image_url": "/assets/v2ai/background.png?ts=1779943967",
-    "waveform_style": "ring",
-    "button_image_url": "/assets/v2ai/button.png?ts=1779941981"
+    "waveform_style": "bars",
+    "button_image_url": "/assets/v2ai/button.png?ts=1779941981",
+    "hold_button_image_url": null,
+    "hold_button_visible": true
   }
 }

@@ -202,11 +202,14 @@ class AppStoreMeta(BaseModel):
 # image for the voice-assistant activity.
 # v2.8.26 — Adds waveform style selector + optional V2 AI button
 # icon image (replaces the top-bar lightning bolt SVG).
+# v2.8.30 — Adds in-activity hold-button image + visibility toggle.
 class V2AIConfig(BaseModel):
     heading_text: Optional[str] = None         # default in-app fallback if null
     background_image_url: Optional[str] = None # 1920×1080 fullscreen
     waveform_style: Optional[str] = None       # "bars" (default), "dots", "ring", "sweep", "pulse"
     button_image_url: Optional[str] = None     # square icon replacing the topbar lightning bolt
+    hold_button_image_url: Optional[str] = None  # image painted on the in-activity Hold button
+    hold_button_visible: bool = True             # show / hide the in-activity Hold button entirely
 
 
 # v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
@@ -616,6 +619,12 @@ def _build_config(store: dict) -> LauncherConfig:
             button_image_url=_abs(
                 (store.get("v2ai") or {}).get("button_image_url")
             ),
+            hold_button_image_url=_abs(
+                (store.get("v2ai") or {}).get("hold_button_image_url")
+            ),
+            hold_button_visible=bool(
+                (store.get("v2ai") or {}).get("hold_button_visible", True)
+            ),
         ),
         qr_videos=[
             QrVideo(
@@ -654,31 +663,245 @@ def health() -> dict:
 import json as _json
 
 V2AI_SYSTEM_PROMPT = """You are V2 AI — a voice assistant for the ON NOW TV V2 \
-streaming launcher.  You ONLY handle requests about movies, TV shows, \
-or apps installed on the box.  ALL OTHER REQUESTS (troubleshooting, \
-weather, news, math, settings, jokes, general chat) MUST be rejected.
+streaming launcher.  You handle requests about MOVIES, TV SHOWS, ACTORS, \
+DIRECTORS, EPISODES, and apps installed on the box.
 
-Reply with STRICT JSON (no markdown, no comments) matching this schema:
+🚫 STRICT REJECT — Do NOT answer any of:
+- Box / device troubleshooting ("Wi-Fi is slow", "remote not working", "screen frozen", "audio cutting out", "won't turn on", "won't update", "buffering", "lagging", "no signal")
+- General device settings or how-to ("how do I change …", "where is the settings menu", "how do I update …")
+- Anything UNRELATED to movies/TV/actors/apps (weather, news, math, jokes, recipes, sports scores, politics, programming, definitions, translation, etc.)
+For those: intent="reject", reject_reason="V2 AI only helps with movies, TV shows, and apps — not device troubleshooting.", speech_reply="I only help with movies and shows."
+
+✅ Reply with STRICT JSON (no markdown, no comments) matching this schema:
 {
-  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "open_app" | "reject",
-  "title":         string | null,         // for play_movie / play_series
+  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "open_app" | "qa" | "person_info" | "reject",
+  "title":         string | null,         // for play_movie / play_series — proper title-case
   "query":         string | null,         // for recommend / search
-  "mood":          string | null,         // for recommend (e.g. "funny", "scary", "feel-good")
+  "mood":          string | null,         // for recommend ("funny", "scary", "feel-good", "tonight", …)
   "app_name":      string | null,         // for open_app
-  "reject_reason": string | null,         // for reject — short user-facing line
+  "question":      string | null,         // for qa — the user's literal question
+  "answer":        string | null,         // for qa — 1-3 sentence factual answer
+  "answer_subject": string | null,        // for qa — main show/movie the answer is about (helps poster lookup)
+  "person_name":   string | null,         // for person_info — full name in proper case
+  "person_bio":    string | null,         // for person_info — 1-3 sentence biography
+  "known_for":     [                      // for person_info — 3-6 titles (used for TMDB poster lookup)
+    { "title": string, "year": number | null, "type": "movie" | "series" }
+  ] | null,
+  "reject_reason": string | null,
   "speech_reply":  string,                // ALWAYS present — short TTS-friendly sentence
-  "recommendations": [                    // for recommend / search
+  "recommendations": [                    // for recommend / search (3-6 entries)
     { "title": string, "year": number | null, "type": "movie" | "series", "why": string }
   ]
 }
 
-Rules:
-- "Play <something>" → intent="play_movie" if it's a movie, "play_series" if a TV show.  Set "title" exactly as the user said.
-- "What should I watch when I'm sad?" → intent="recommend", mood="feel-good or uplifting", recommendations=[3-5 titles].
-- "Open Netflix" → intent="open_app", app_name="Netflix".
-- "Why is my Wi-Fi slow?" → intent="reject", reject_reason="V2 AI only helps with movies, TV, and apps.", speech_reply="Sorry, I only help with movies, TV shows, and apps.".
-- speech_reply is what gets shown / spoken back to the user.  Keep it under 12 words and friendly.
-- Never include fields you don't need (use null or omit empty arrays)."""
+Rules with examples:
+- "Play The Matrix" → play_movie, title="The Matrix".
+- "Watch Breaking Bad" → play_series, title="Breaking Bad".
+- "Open Netflix" → open_app, app_name="Netflix".
+- "Recommend something funny" / "What should I watch tonight" / "I'm bored find me something" → recommend with 3-6 titles + 1-line "why" each.  Use mood="tonight" for "tonight"/"now" type queries.
+- "What episode of Breaking Bad does Walter meet Gus?" → qa, answer="Season 2 Episode 11 'Mandala'.", answer_subject="Breaking Bad".
+- "Who played the joker in The Dark Knight?" → person_info, person_name="Heath Ledger", person_bio="Australian actor known for his Oscar-winning role as the Joker in The Dark Knight (2008).", known_for=[{title:"The Dark Knight", year:2008, type:"movie"}, {title:"Brokeback Mountain", year:2005, type:"movie"}, …].
+- "Who's the main actor in Inception?" → person_info, person_name="Leonardo DiCaprio", with bio + known_for.
+- "Who directed Pulp Fiction?" → person_info, person_name="Quentin Tarantino".
+- "What's the Sopranos about?" → qa, answer=<plot summary 1-2 sentences>, answer_subject="The Sopranos".
+- "Tell me about Stranger Things" → qa with overview, answer_subject="Stranger Things".
+- "Is the Bear good?" → qa, answer="Yes — The Bear has received critical acclaim …", answer_subject="The Bear".
+- "Why is my Wi-Fi slow?" / "Remote not working" / "Box keeps freezing" → reject.
+
+For "person_info": person_bio MUST be a real 1-3 sentence biography focused on their acting / directing career.  known_for MUST contain 3-6 of their most famous works.
+
+For "qa": 1-3 sentences max.  Factual.  Always set answer_subject so the UI can fetch the poster.
+
+Always title-case proper nouns ("Breaking Bad", "Heath Ledger", not "breaking bad").  Critical."""
+
+
+# ── v2.8.29 — TMDB metadata lookup for V2 AI ───────────────────────
+# Used to enrich recommendation + QA responses with poster art,
+# rating, and synopsis so the launcher can render a beautiful card
+# layout instead of plain text.
+TMDB_BEARER_TOKEN = os.environ.get("TMDB_BEARER_TOKEN", "")
+TMDB_BASE = "https://api.themoviedb.org/3"
+TMDB_IMG  = "https://image.tmdb.org/t/p/w342"
+
+
+async def _tmdb_person_lookup(name: str) -> Optional[dict]:
+    """Look up an actor / director / writer on TMDB.  Returns
+    {name, profile_url, known_for, biography} or None."""
+    if not TMDB_BEARER_TOKEN or not name.strip():
+        return None
+    import httpx
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
+        "accept": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{TMDB_BASE}/search/person",
+                params={"query": name, "include_adult": "false"},
+                headers=headers,
+            )
+            if resp.status_code != 200:
+                return None
+            results = (resp.json() or {}).get("results") or []
+            if not results:
+                return None
+            top = results[0]
+            profile = top.get("profile_path")
+            # Fetch their biography (only available on the detail endpoint).
+            bio = ""
+            try:
+                d = await client.get(
+                    f"{TMDB_BASE}/person/{top['id']}",
+                    headers=headers,
+                )
+                if d.status_code == 200:
+                    bio = (d.json() or {}).get("biography") or ""
+            except Exception:  # noqa: BLE001
+                pass
+            return {
+                "name":        top.get("name") or name,
+                "profile_url": f"https://image.tmdb.org/t/p/w342{profile}" if profile else None,
+                "biography":   bio.strip()[:600],   # cap at ~600 chars
+                "known_for":   top.get("known_for") or [],
+            }
+    except Exception:  # noqa: BLE001
+        log.exception("TMDB person lookup failed for %r", name)
+        return None
+
+
+async def _enrich_person_info(parsed: dict) -> None:
+    """Mutate `parsed` in place — pull profile + bio from TMDB.
+
+    The model may have already supplied a `person_bio` + `known_for`
+    list; we OVERWRITE the bio with TMDB's canonical text (much more
+    authoritative) but keep the model's `known_for` titles if they
+    came back, then enrich each known_for entry with poster art."""
+    name = (parsed.get("person_name") or "").strip()
+    if not name:
+        return
+    tm = await _tmdb_person_lookup(name)
+    if not tm:
+        return
+    parsed["person_profile_url"] = tm.get("profile_url")
+    # Prefer TMDB's biography (more accurate) but fall back to the
+    # model's if TMDB returned empty.
+    if tm.get("biography"):
+        parsed["person_bio"] = tm["biography"]
+    # Enrich the model's known_for list with poster art + ratings.
+    model_known = parsed.get("known_for") or []
+    if not isinstance(model_known, list) or not model_known:
+        # No known_for from the model — fall back to TMDB's list.
+        model_known = [
+            {
+                "title": (k.get("title") or k.get("name") or ""),
+                "year":  ((k.get("release_date") or k.get("first_air_date") or "")[:4] or None),
+                "type":  ("series" if k.get("media_type") == "tv" else "movie"),
+            }
+            for k in (tm.get("known_for") or [])
+            if (k.get("title") or k.get("name"))
+        ][:6]
+    parsed["known_for"] = await _enrich_recommendations(model_known)
+
+
+async def _tmdb_lookup(
+    title: str,
+    kind: Optional[str] = None,
+    year: Optional[int] = None,
+) -> Optional[dict]:
+    """Look up `title` on TMDB.  Returns the first hit with
+    {title, year, type, poster_url, rating, overview} or None.
+
+    `kind` ∈ {"movie", "series", None} — narrows the search.  Uses
+    a 10 s timeout per call.  Failures swallowed quietly so a
+    flaky TMDB call never crashes V2 AI."""
+    if not TMDB_BEARER_TOKEN or not title.strip():
+        return None
+    import httpx
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
+        "accept": "application/json",
+    }
+    paths = []
+    if kind == "movie":
+        paths.append(("movie", "movie"))
+    elif kind in ("series", "tv"):
+        paths.append(("tv", "series"))
+    else:
+        # Try both — pick whichever has higher popularity.
+        paths.extend([("movie", "movie"), ("tv", "series")])
+    best: Optional[dict] = None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for endpoint, ret_kind in paths:
+                params: dict = {"query": title, "include_adult": "false"}
+                if year and endpoint == "movie":
+                    params["primary_release_year"] = year
+                elif year:
+                    params["first_air_date_year"] = year
+                resp = await client.get(
+                    f"{TMDB_BASE}/search/{endpoint}",
+                    params=params, headers=headers,
+                )
+                if resp.status_code != 200:
+                    continue
+                results = (resp.json() or {}).get("results") or []
+                if not results:
+                    continue
+                top = results[0]
+                pop = float(top.get("popularity") or 0)
+                if best and pop <= float(best.get("_pop") or 0):
+                    continue
+                poster = top.get("poster_path")
+                backdrop = top.get("backdrop_path")
+                date_key = "release_date" if endpoint == "movie" else "first_air_date"
+                year_str = (top.get(date_key) or "")[:4]
+                best = {
+                    "title":      top.get("title") or top.get("name") or title,
+                    "year":       int(year_str) if year_str.isdigit() else None,
+                    "type":       ret_kind,
+                    "poster_url": f"{TMDB_IMG}{poster}" if poster else None,
+                    "backdrop_url": f"https://image.tmdb.org/t/p/w780{backdrop}" if backdrop else None,
+                    "rating":     round(float(top.get("vote_average") or 0), 1),
+                    "overview":   (top.get("overview") or "").strip(),
+                    "_pop":       pop,
+                }
+    except Exception:  # noqa: BLE001
+        log.exception("TMDB lookup failed for %r", title)
+        return None
+    if best:
+        best.pop("_pop", None)
+    return best
+
+
+async def _enrich_recommendations(items: list) -> list:
+    """Replace each `{title, year, type, why}` entry with a richer
+    `{title, year, type, why, poster_url, rating, overview}` dict.
+    Fan-out concurrent TMDB lookups, skip silently on any failure
+    so a slow TMDB never blocks V2 AI's main response."""
+    if not items:
+        return []
+    async def one(it: dict) -> dict:
+        if not isinstance(it, dict):
+            return {}
+        title = (it.get("title") or "").strip()
+        kind  = (it.get("type") or "").lower()
+        year  = it.get("year")
+        try:
+            year_int = int(year) if year not in (None, "", "null") else None
+        except (TypeError, ValueError):
+            year_int = None
+        tm = await _tmdb_lookup(title, kind=kind or None, year=year_int)
+        merged = dict(it)
+        if tm:
+            merged["poster_url"]    = tm.get("poster_url")
+            merged["backdrop_url"]  = tm.get("backdrop_url")
+            merged["rating"]        = tm.get("rating")
+            merged["overview"]      = tm.get("overview") or it.get("why") or ""
+            if not merged.get("year"):
+                merged["year"] = tm.get("year")
+        return merged
+    return await asyncio.gather(*(one(it) for it in items if it))
 
 
 # ── v2.8.26 — Diagnostic ping endpoint ─────────────────────────────
@@ -733,6 +956,27 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
     fast = _v2ai_fast_intent(transcript)
     if fast is not None:
         log.info("v2ai_process: fast-path intent=%s title=%r", fast.get("intent"), fast.get("title") or fast.get("app_name") or fast.get("query"))
+        # v2.8.29 — Enrich recommendations on the fast path too so
+        # the launcher always renders posters even for "what should
+        # I watch" style queries (rare on the fast path but handled).
+        if fast.get("intent") in ("recommend", "search"):
+            recs = fast.get("recommendations") or []
+            if recs:
+                fast["recommendations"] = await _enrich_recommendations(recs)
+            elif fast.get("query"):
+                # search intent without explicit recommendations — do
+                # a TMDB lookup on the query itself.
+                tm = await _tmdb_lookup(fast["query"])
+                if tm:
+                    fast["recommendations"] = [{
+                        "title": tm["title"], "year": tm.get("year"),
+                        "type": tm.get("type", "movie"),
+                        "why": tm.get("overview") or "",
+                        "poster_url": tm.get("poster_url"),
+                        "backdrop_url": tm.get("backdrop_url"),
+                        "rating": tm.get("rating"),
+                        "overview": tm.get("overview") or "",
+                    }]
         fast["transcript"] = transcript
         return fast
 
@@ -740,6 +984,31 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
     _t1 = _time.monotonic()
     parsed = await _v2ai_parse_intent(transcript)
     log.info("v2ai_process: GPT took %.1fs → intent=%s", _time.monotonic() - _t1, parsed.get("intent"))
+
+    # v2.8.29 — Enrich any recommendations from GPT with TMDB
+    # metadata (poster, rating, overview) for the rich card UI.
+    if parsed.get("intent") in ("recommend", "search"):
+        recs = parsed.get("recommendations") or []
+        if recs:
+            parsed["recommendations"] = await _enrich_recommendations(recs)
+    # For QA — fetch the answer_subject's poster + backdrop so the
+    # launcher can render a beautiful answer overlay with hero art.
+    if parsed.get("intent") == "qa":
+        subj = (parsed.get("answer_subject") or "").strip()
+        if subj:
+            tm = await _tmdb_lookup(subj)
+            if tm:
+                parsed["subject_poster_url"]   = tm.get("poster_url")
+                parsed["subject_backdrop_url"] = tm.get("backdrop_url")
+                parsed["subject_rating"]      = tm.get("rating")
+                parsed["subject_overview"]    = tm.get("overview")
+                parsed["subject_year"]        = tm.get("year")
+
+    # v2.8.30 — For person_info, look up the actor / director on
+    # TMDB and enrich their known_for titles with posters.
+    if parsed.get("intent") == "person_info":
+        await _enrich_person_info(parsed)
+
     parsed["transcript"] = transcript
     return parsed
 
@@ -780,6 +1049,17 @@ def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
     t = re.sub(r"\s+(?:uh+|um+|er+|hmm+)\s+", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     if not t:
+        return None
+
+    # v2.8.29 — WH-question detection.  ANY "what", "who", "when",
+    # "where", "why", "how" prefix → skip the fast path so GPT can
+    # answer factual questions about movies / TV.  EXCEPT for the
+    # specific "what should I watch / what's on" recommendation
+    # prefixes handled below.
+    is_recommend_question = re.search(_RECOMMEND_RX, t) is not None
+    if not is_recommend_question and re.match(
+        r"^(?:what|who|when|where|why|how|is|are|does|did|do)\b", t,
+    ):
         return None
 
     # "recommend …" / "what should i watch …"
@@ -849,34 +1129,42 @@ async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
     Whisper is dramatically more accurate when seeded with the
     correct lexicon — "Play The Matrix" no longer comes back as
     "Play the matrices" or "Play them at this".  Also lowers
-    temperature to 0 for deterministic output."""
+    temperature to 0 for deterministic output.
+
+    v2.8.29 — Massively expanded the prompt with the user's most
+    common verbs, app names, and a wider catalogue of titles so
+    Whisper handles faster speech + accents better.  Whisper's
+    `prompt` is interpreted as a *lexical anchor* — the more of the
+    target vocabulary it sees, the better its acoustic-to-text
+    decoding becomes."""
     from emergentintegrations.llm.openai import OpenAISpeechToText
     import io
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
     stt = OpenAISpeechToText(api_key=api_key)
-    # The SDK accepts a file-like object with a `.name` attribute.
     buf = io.BytesIO(raw)
     buf.name = filename
-    # Domain prompt — Whisper uses this as a lexical hint, NOT a
-    # literal prefix.  Cram it with movie titles, TV shows, and app
-    # names the user is most likely to say.  Keeping it < 224 tokens
-    # per Whisper's documented limit.
+    # Whisper accepts up to ~224 prompt tokens.  Keep this packed
+    # with the user's most common verbs + actual movie / TV / app
+    # names so the model anchors on these instead of generic English.
     domain_prompt = (
-        "Voice command for a smart TV launcher.  The user is asking "
-        "to play a movie or TV show, open an app, or get a "
-        "recommendation.  Common phrases: 'play', 'watch', 'open', "
-        "'put on', 'start', 'launch', 'recommend', 'what should I "
-        "watch'.  Common titles: The Matrix, Inception, Interstellar, "
-        "Avatar, Top Gun Maverick, Breaking Bad, Stranger Things, "
-        "The Last of Us, House of the Dragon, Game of Thrones, "
-        "Succession, The Bear, Severance, Wednesday, Squid Game, "
-        "Peaky Blinders, The Crown, The Mandalorian, Loki, Andor, "
-        "The Boys, Yellowstone, Better Call Saul, Ted Lasso. "
-        "Common apps: Netflix, Disney Plus, HBO Max, Hulu, Prime "
-        "Video, Apple TV, Paramount Plus, Peacock, YouTube, Spotify, "
-        "Plex, Jellyfin, Kodi, VLC, Twitch."
+        "Voice command for a smart TV launcher.  The user asks to "
+        "play a movie or TV show, open an app, get recommendations, "
+        "or ask a question about a movie / show / episode / actor. "
+        "Verbs: play, watch, put on, start, stream, launch, open, "
+        "switch to, fire up, recommend, suggest, what should I watch, "
+        "find me, surprise me, who played, what episode, when does. "
+        "Apps: Netflix, Disney Plus, HBO Max, Max, Hulu, Prime Video, "
+        "Apple TV, Paramount Plus, Peacock, YouTube, Spotify, Plex, "
+        "Jellyfin, Kodi, VLC, Twitch, Crunchyroll. "
+        "Titles: The Matrix, Inception, Interstellar, Avatar, Top Gun "
+        "Maverick, Oppenheimer, Barbie, Dune, Tenet, Breaking Bad, "
+        "Stranger Things, The Last of Us, House of the Dragon, Game "
+        "of Thrones, Succession, The Bear, Severance, Wednesday, "
+        "Squid Game, Peaky Blinders, The Crown, The Mandalorian, "
+        "Loki, Andor, The Boys, Yellowstone, Better Call Saul, Ted "
+        "Lasso, Friends, Seinfeld, The Office, Lost, The Sopranos."
     )
     try:
         resp = await stt.transcribe(
@@ -1830,6 +2118,7 @@ def clear_appstore_background() -> dict:
 class V2AIConfigBody(BaseModel):
     heading_text: Optional[str] = None
     waveform_style: Optional[str] = None
+    hold_button_visible: Optional[bool] = None
 
 
 _ALLOWED_WAVEFORM_STYLES = {"bars", "dots", "ring", "sweep", "pulse"}
@@ -1847,6 +2136,8 @@ def set_v2ai_config(body: V2AIConfigBody) -> dict:
         if wf and wf not in _ALLOWED_WAVEFORM_STYLES:
             raise HTTPException(400, f"waveform_style must be one of {sorted(_ALLOWED_WAVEFORM_STYLES)}")
         v2ai["waveform_style"] = wf or None
+    if body.hold_button_visible is not None:
+        v2ai["hold_button_visible"] = bool(body.hold_button_visible)
     _save_store(store)
     return {"ok": True, "v2ai": v2ai}
 
@@ -1926,6 +2217,47 @@ def clear_v2ai_button() -> dict:
         pass
     store = _load_store()
     store.setdefault("v2ai", {})["button_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
+# ── v2.8.30 — V2 AI in-activity HOLD button ────────────────────────
+# A second, larger image painted on the V2 AI screen itself
+# (centered, between waveform + status line).  Tappable to start
+# recording on touch devices; also acts as a visual focal point on
+# TV remotes.  Separate from the top-bar pill icon — that one stays
+# small and lives in the launcher home top bar.
+@app.post("/api/admin/v2ai/hold-button", dependencies=[Depends(require_admin)])
+async def upload_v2ai_hold_button(file: UploadFile = File(...)) -> dict:
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "v2ai" / "hold-button.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        # 256×256 — big enough for any TV; keeps aspect via contain.
+        img = ImageOps.contain(img, (256, 256), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    v2ai = store.setdefault("v2ai", {})
+    v2ai["hold_button_image_url"] = f"/assets/v2ai/hold-button.png?ts={now_ts()}"
+    _save_store(store)
+    return {"ok": True, "hold_button_image_url": _abs(v2ai["hold_button_image_url"])}
+
+
+@app.delete("/api/admin/v2ai/hold-button", dependencies=[Depends(require_admin)])
+def clear_v2ai_hold_button() -> dict:
+    out_path = DATA_DIR / "v2ai" / "hold-button.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("v2ai", {})["hold_button_image_url"] = None
     _save_store(store)
     return {"ok": True}
 

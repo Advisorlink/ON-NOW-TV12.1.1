@@ -72,6 +72,18 @@ class VoiceAssistantActivity : AppCompatActivity() {
     private lateinit var statusLine: TextView
     private lateinit var bigHint: TextView
     private lateinit var resultArea: LinearLayout
+    /* v2.8.29 — Optional dimming scrim painted over the activity
+     * root whenever we're showing recommendation / QA results so
+     * the user's eye locks onto the cards instead of competing
+     * with the admin-uploaded background image. */
+    private var stageDim: View? = null
+    /* v2.8.30 — Visual "HOLD OK" affordance painted between the
+     * waveform and the status line.  Admin can supply a custom
+     * image OR hide it entirely via the launcher portal.  Default
+     * state shows a circular cyan button with the text "HOLD OK". */
+    private var holdButton: android.widget.FrameLayout? = null
+    private var holdButtonLabel: TextView? = null
+    private var holdButtonImage: android.widget.ImageView? = null
 
     private var recorder: MediaRecorder? = null
     private var audioFile: File? = null
@@ -105,6 +117,30 @@ class VoiceAssistantActivity : AppCompatActivity() {
             "sweep" -> VoiceWaveform.Style.SWEEP
             "pulse" -> VoiceWaveform.Style.PULSE
             else    -> VoiceWaveform.Style.BARS
+        }
+        // v2.8.30 — Hold-to-talk button: visibility + optional image
+        // override.  Admin can hide the badge entirely OR replace it
+        // with any uploaded PNG.
+        val hb = holdButton
+        if (hb != null) {
+            if (!cfg.v2ai.holdButtonVisible) {
+                hb.visibility = View.GONE
+            } else {
+                hb.visibility = View.VISIBLE
+                val url = cfg.v2ai.holdButtonImageUrl
+                if (!url.isNullOrBlank()) {
+                    // Image override — show the ImageView, hide the
+                    // default badge TextView.
+                    holdButtonLabel?.visibility = View.GONE
+                    holdButtonImage?.visibility = View.VISIBLE
+                    holdButtonImage?.let {
+                        tv.onnow.launcher.ImageLoader.load(it, url)
+                    }
+                } else {
+                    holdButtonLabel?.visibility = View.VISIBLE
+                    holdButtonImage?.visibility = View.GONE
+                }
+            }
         }
         cfg.v2ai.backgroundImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
             // v2.8.27 — User wants the uploaded background rendered
@@ -199,6 +235,45 @@ class VoiceAssistantActivity : AppCompatActivity() {
         column.addView(waveform)
         column.addView(spacer(dp(16)))
 
+        // v2.8.30 — Hold-to-talk button.  Default: a glassy
+        // circular cyan badge with the text "HOLD OK".  Admin can
+        // swap the badge for any uploaded image OR hide it via the
+        // launcher portal.  We use a FrameLayout container that
+        // holds BOTH the default badge (TextView) AND the override
+        // ImageView so we can switch between them at runtime
+        // without rebuilding the layout.
+        val holdContainer = android.widget.FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(140), dp(140))
+        }
+        val holdLabel = TextView(this).apply {
+            text = "HOLD OK"
+            textSize = 16f
+            setTextColor(Color.parseColor("#FF04060B"))
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = makeDefaultHoldButtonBg()
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+        val holdImage = android.widget.ImageView(this).apply {
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            visibility = View.GONE
+            contentDescription = "Hold OK to talk"
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+        holdContainer.addView(holdLabel)
+        holdContainer.addView(holdImage)
+        holdButton       = holdContainer
+        holdButtonLabel  = holdLabel
+        holdButtonImage  = holdImage
+        column.addView(holdContainer)
+        column.addView(spacer(dp(16)))
+
         statusLine = TextView(this).apply {
             text = "Ready"
             textSize = 14f
@@ -209,14 +284,26 @@ class VoiceAssistantActivity : AppCompatActivity() {
         column.addView(statusLine)
         column.addView(spacer(dp(20)))
 
-        // Result area — holds either the speech_reply card or
-        // the recommendation list.
+        // Result area — holds either the speech_reply card, the
+        // recommendation poster carousel, or the QA hero card.
+        // v2.8.29 — Now a horizontal scroller so multiple poster
+        // cards fit side-by-side.  Width = full screen minus
+        // padding so cards have room to breathe.
         resultArea = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        column.addView(resultArea, LinearLayout.LayoutParams(
-            dp(720),
+        val resultScroller = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFocusable = false
+            isFillViewport = true
+            addView(resultArea, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { gravity = Gravity.CENTER_VERTICAL })
+        }
+        column.addView(resultScroller, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
         ))
 
@@ -224,8 +311,40 @@ class VoiceAssistantActivity : AppCompatActivity() {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT,
         ).apply { gravity = Gravity.CENTER })
+
+        // v2.8.29 — Stage-dimmer scrim.  Sits between the
+        // background image and the foreground column; toggled by
+        // `setStageDimmed` whenever the user gets recommendation
+        // or QA results so the content stays legible against
+        // any bright admin-uploaded background.
+        stageDim = View(this).apply {
+            setBackgroundColor(Color.parseColor("#B3000000"))
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+        // Insert under the column (z-order: bg → scrim → column).
+        root.addView(stageDim, root.childCount - 1)
         return root
     }
+
+    /** v2.8.29 — Toggle the stage-dimmer scrim on/off. */
+    private fun setStageDimmed(dim: Boolean) {
+        stageDim?.visibility = if (dim) View.VISIBLE else View.GONE
+    }
+
+    /** v2.8.30 — Default circular badge for the hold-to-talk
+     *  button when the admin hasn't uploaded an image.  Solid
+     *  cyan circle so the centred "HOLD OK" TextView reads
+     *  cleanly against any background. */
+    private fun makeDefaultHoldButtonBg(): android.graphics.drawable.Drawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.parseColor("#FF2BB6FF"))
+            setStroke(dp(3), Color.parseColor("#FFFFFFFF"))
+        }
 
     private fun spacer(h: Int) = View(this).apply {
         layoutParams = LinearLayout.LayoutParams(1, h)
@@ -270,6 +389,11 @@ class VoiceAssistantActivity : AppCompatActivity() {
             requestMicIfNeeded()
             return
         }
+        // v2.8.29 — Clear any previous result card + un-dim the stage
+        // so the user always sees the waveform unobstructed while
+        // they're speaking.
+        resultArea.removeAllViews()
+        setStageDimmed(false)
         resultArea.removeAllViews()
         statusLine.text = "Listening…"
         bigHint.text = "Speaking…"
@@ -422,16 +546,26 @@ class VoiceAssistantActivity : AppCompatActivity() {
                     return
                 }
                 bigHint.text = reply.ifBlank { "Loading $title…" }
+                setStageDimmed(false)
                 launchVesperPlay(title, intent == "play_series")
             }
             "open_app" -> {
                 val appName = parsed.optString("app_name", "").trim()
                 bigHint.text = reply.ifBlank { "Opening $appName…" }
+                setStageDimmed(false)
                 openAppByName(appName)
             }
             "recommend", "search" -> {
                 bigHint.text = reply.ifBlank { "Here are some picks for you." }
                 renderRecommendations(parsed.optJSONArray("recommendations"))
+            }
+            "qa" -> {
+                bigHint.text = reply.ifBlank { "Here's what I found." }
+                renderQa(parsed)
+            }
+            "person_info" -> {
+                bigHint.text = reply.ifBlank { "Here's the person you asked about." }
+                renderPersonInfo(parsed)
             }
             else -> renderRejectCard(
                 parsed.optString("reject_reason", "I only help with movies, TV, and apps."),
@@ -508,6 +642,8 @@ class VoiceAssistantActivity : AppCompatActivity() {
     private fun renderRejectCard(reason: String) {
         bigHint.text = "Sorry"
         resultArea.removeAllViews()
+        // v2.8.29 — Reject cards do NOT need the stage-dimmer.
+        setStageDimmed(false)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(28), dp(24), dp(28), dp(24))
@@ -531,46 +667,464 @@ class VoiceAssistantActivity : AppCompatActivity() {
             renderRejectCard("No matches found.")
             return
         }
+        // v2.8.29 — Beautiful poster carousel.  Each card:
+        //   • 220×320 dp portrait poster art on top (TMDB)
+        //   • 16-point title + rating chip
+        //   • 13-point 3-line synopsis
+        //   • Glassy dark card behind, focus ring on D-pad highlight
+        setStageDimmed(true)
+        // Add leading margin so the first card isn't flush left.
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
         for (i in 0 until arr.length()) {
             val item = arr.optJSONObject(i) ?: continue
-            val title = item.optString("title", "")
-            val year  = item.opt("year")?.toString()?.takeIf { it != "null" } ?: ""
-            val why   = item.optString("why", "")
-            val type  = item.optString("type", "movie")
+            val title    = item.optString("title", "")
+            val year     = item.opt("year")?.toString()?.takeIf { it != "null" && it.isNotBlank() } ?: ""
+            val type     = item.optString("type", "movie")
+            val poster   = item.optString("poster_url", "").trim()
+            val overview = item.optString("overview", "").ifBlank { item.optString("why", "") }
+            val rating   = item.opt("rating")?.toString()?.takeIf { it != "null" } ?: ""
 
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(16), dp(20), dp(16))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
-                    setColor(Color.parseColor("#33203A5C"))
-                    setStroke(dp(1), Color.parseColor("#33B3D4FF"))
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { setMargins(0, 0, 0, dp(10)) }
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                background = makeRecCardBg(focused = false)
+                layoutParams = LinearLayout.LayoutParams(dp(248), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { setMargins(0, 0, dp(16), 0) }
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setOnClickListener { launchVesperPlay(title, type == "series") }
+                setOnFocusChangeListener { v, hasFocus ->
+                    v.background = makeRecCardBg(focused = hasFocus)
+                    if (hasFocus) v.animate().scaleX(1.04f).scaleY(1.04f).setDuration(180).start()
+                    else v.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+                }
             }
-            card.addView(TextView(this@VoiceAssistantActivity).apply {
-                text = if (year.isNotEmpty()) "$title  ·  $year" else title
-                textSize = 18f
+
+            // Poster art (or gradient placeholder if TMDB lookup missed).
+            val posterView = android.widget.ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(220), dp(320))
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    colors = intArrayOf(
+                        Color.parseColor("#FF1A2542"),
+                        Color.parseColor("#FF0E1834"),
+                    )
+                    orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                }
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, dp(12).toFloat())
+                    }
+                }
+            }
+            if (poster.isNotEmpty()) {
+                tv.onnow.launcher.ImageLoader.load(posterView, poster)
+            }
+            card.addView(posterView)
+            card.addView(spacer(dp(12)))
+
+            // Title + rating chip row.
+            val titleRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+                text = title
+                textSize = 16f
                 setTextColor(Color.parseColor("#FFF4F7FB"))
                 setTypeface(typeface, Typeface.BOLD)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
-            if (why.isNotBlank()) card.addView(TextView(this@VoiceAssistantActivity).apply {
-                text = why
-                textSize = 13f
-                setTextColor(Color.parseColor("#FF8EA0B7"))
-                setPadding(0, dp(4), 0, 0)
-            })
+            if (rating.isNotEmpty() && rating != "0.0" && rating != "0") {
+                titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+                    text = "★ $rating"
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#FF0E1834"))
+                    setTypeface(typeface, Typeface.BOLD)
+                    setPadding(dp(8), dp(3), dp(8), dp(3))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(999).toFloat()
+                        setColor(Color.parseColor("#FFFFC857"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { setMargins(dp(8), 0, 0, 0) }
+                })
+            }
+            card.addView(titleRow)
+
+            // Year + type meta line.
+            if (year.isNotEmpty()) {
+                card.addView(TextView(this@VoiceAssistantActivity).apply {
+                    text = if (type == "series") "$year  ·  TV series" else "$year  ·  Movie"
+                    textSize = 11f
+                    setTextColor(Color.parseColor("#FF8EA0B7"))
+                    letterSpacing = 0.06f
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
+
+            // Overview (3 lines max).
+            if (overview.isNotBlank()) {
+                card.addView(TextView(this@VoiceAssistantActivity).apply {
+                    text = overview
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#FFC2D1E6"))
+                    setLineSpacing(0f, 1.25f)
+                    maxLines = 3
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(0, dp(8), 0, 0)
+                })
+            }
             resultArea.addView(card)
         }
-        // Auto-focus the first recommendation so the user can hit OK
-        // to play it immediately.
-        resultArea.post { resultArea.getChildAt(0)?.requestFocus() }
+        // Trailing margin so the last card has room.
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
+        resultArea.post { resultArea.getChildAt(1)?.requestFocus() }
+    }
+
+    /** v2.8.29 — Glassy card backdrop with focus-driven accent. */
+    private fun makeRecCardBg(focused: Boolean): GradientDrawable =
+        GradientDrawable().apply {
+            cornerRadius = dp(18).toFloat()
+            setColor(
+                if (focused) Color.parseColor("#E61A2542")
+                else         Color.parseColor("#B30E1834")
+            )
+            setStroke(
+                dp(2),
+                if (focused) Color.parseColor("#FF2BB6FF")
+                else         Color.parseColor("#3343587F")
+            )
+        }
+
+    /** v2.8.29 — Render a QA (factual Q&A) response.  Big hero
+     *  layout: poster on the left, big answer text on the right,
+     *  rating + year row underneath the title. */
+    private fun renderQa(parsed: JSONObject) {
+        resultArea.removeAllViews()
+        setStageDimmed(true)
+        val answer  = parsed.optString("answer", "").ifBlank { parsed.optString("speech_reply", "") }
+        val subject = parsed.optString("answer_subject", "")
+        val poster  = parsed.optString("subject_poster_url", "").trim()
+        val rating  = parsed.opt("subject_rating")?.toString()?.takeIf { it != "null" } ?: ""
+        val year    = parsed.opt("subject_year")?.toString()?.takeIf { it != "null" } ?: ""
+        val overview = parsed.optString("subject_overview", "")
+
+        // Leading spacer.
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            background = makeRecCardBg(focused = false)
+            layoutParams = LinearLayout.LayoutParams(dp(900), LinearLayout.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        // Left — poster.
+        if (poster.isNotEmpty()) {
+            val posterView = android.widget.ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(200), dp(290))
+                    .apply { setMargins(0, 0, dp(24), 0) }
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, dp(12).toFloat())
+                    }
+                }
+            }
+            tv.onnow.launcher.ImageLoader.load(posterView, poster)
+            card.addView(posterView)
+        }
+
+        // Right — text column.
+        val text = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        // Eyebrow.
+        text.addView(TextView(this@VoiceAssistantActivity).apply {
+            text = "V2 AI ANSWER"
+            textSize = 11f
+            letterSpacing = 0.30f
+            setTextColor(Color.parseColor("#FF5DC8FF"))
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        text.addView(spacer(dp(6)))
+        // Subject title.
+        if (subject.isNotEmpty()) {
+            val titleRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+                text = subject
+                textSize = 24f
+                setTextColor(Color.parseColor("#FFF4F7FB"))
+                setTypeface(typeface, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            if (rating.isNotEmpty() && rating != "0.0" && rating != "0") {
+                titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+                    text = "★ $rating"
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#FF0E1834"))
+                    setTypeface(typeface, Typeface.BOLD)
+                    setPadding(dp(10), dp(4), dp(10), dp(4))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(999).toFloat()
+                        setColor(Color.parseColor("#FFFFC857"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { setMargins(dp(12), 0, 0, 0) }
+                })
+            }
+            text.addView(titleRow)
+            if (year.isNotEmpty()) {
+                text.addView(TextView(this@VoiceAssistantActivity).apply {
+                    this.text = year
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#FF8EA0B7"))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
+            text.addView(spacer(dp(14)))
+        }
+        // Answer body.
+        text.addView(TextView(this@VoiceAssistantActivity).apply {
+            this.text = answer
+            textSize = 17f
+            setTextColor(Color.parseColor("#FFF4F7FB"))
+            setLineSpacing(0f, 1.35f)
+        })
+        // Show overview underneath if non-empty and different.
+        if (overview.isNotBlank() && !answer.contains(overview, ignoreCase = true)) {
+            text.addView(spacer(dp(12)))
+            text.addView(TextView(this@VoiceAssistantActivity).apply {
+                this.text = overview
+                textSize = 12f
+                setTextColor(Color.parseColor("#FFC2D1E6"))
+                setLineSpacing(0f, 1.30f)
+                maxLines = 4
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
+        card.addView(text)
+        resultArea.addView(card)
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
+    }
+
+    /** v2.8.30 — Render an actor / director / writer info card
+     *  with their photo, bio, and a poster carousel of their
+     *  known_for titles.  Same beautiful design language as the
+     *  QA layout but tuned for a person rather than a single
+     *  movie / show. */
+    private fun renderPersonInfo(parsed: JSONObject) {
+        resultArea.removeAllViews()
+        setStageDimmed(true)
+        val name    = parsed.optString("person_name", "")
+        val bio     = parsed.optString("person_bio", "").ifBlank { parsed.optString("speech_reply", "") }
+        val profile = parsed.optString("person_profile_url", "").trim()
+        val known   = parsed.optJSONArray("known_for")
+
+        // Leading spacer.
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
+
+        // Big person-bio card.
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            background = makeRecCardBg(focused = false)
+            layoutParams = LinearLayout.LayoutParams(dp(720), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { setMargins(0, 0, dp(20), 0) }
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        // Left — circular profile photo.
+        if (profile.isNotEmpty()) {
+            val photo = android.widget.ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(160), dp(220))
+                    .apply { setMargins(0, 0, dp(20), 0) }
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, dp(12).toFloat())
+                    }
+                }
+            }
+            tv.onnow.launcher.ImageLoader.load(photo, profile)
+            card.addView(photo)
+        }
+
+        // Right — text column.
+        val text = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        text.addView(TextView(this@VoiceAssistantActivity).apply {
+            this.text = "V2 AI · CAST INFO"
+            textSize = 11f
+            letterSpacing = 0.30f
+            setTextColor(Color.parseColor("#FF5DC8FF"))
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        text.addView(spacer(dp(6)))
+        text.addView(TextView(this@VoiceAssistantActivity).apply {
+            this.text = name
+            textSize = 24f
+            setTextColor(Color.parseColor("#FFF4F7FB"))
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        text.addView(spacer(dp(10)))
+        if (bio.isNotBlank()) {
+            text.addView(TextView(this@VoiceAssistantActivity).apply {
+                this.text = bio
+                textSize = 14f
+                setTextColor(Color.parseColor("#FFC2D1E6"))
+                setLineSpacing(0f, 1.40f)
+                maxLines = 6
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
+        card.addView(text)
+        resultArea.addView(card)
+
+        // Known-for carousel — same shape as the recommendations
+        // (220×320 poster, title + rating + year, focusable).
+        if (known != null) {
+            for (i in 0 until known.length()) {
+                val item = known.optJSONObject(i) ?: continue
+                resultArea.addView(buildPosterCard(item))
+            }
+        }
+        // Trailing spacer.
+        resultArea.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), 1)
+        })
+    }
+
+    /** v2.8.30 — Shared poster-card builder used by both the
+     *  recommendation carousel and the person-info known-for list.
+     *  Returns a tappable Linearlayout — clicking it opens the
+     *  title in Vesper.  Focus animation matches the rec cards. */
+    private fun buildPosterCard(item: JSONObject): View {
+        val title    = item.optString("title", "")
+        val year     = item.opt("year")?.toString()?.takeIf { it != "null" && it.isNotBlank() } ?: ""
+        val type     = item.optString("type", "movie")
+        val poster   = item.optString("poster_url", "").trim()
+        val overview = item.optString("overview", "").ifBlank { item.optString("why", "") }
+        val rating   = item.opt("rating")?.toString()?.takeIf { it != "null" } ?: ""
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = makeRecCardBg(focused = false)
+            layoutParams = LinearLayout.LayoutParams(dp(248), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { setMargins(0, 0, dp(16), 0) }
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { launchVesperPlay(title, type == "series") }
+            setOnFocusChangeListener { v, hasFocus ->
+                v.background = makeRecCardBg(focused = hasFocus)
+                if (hasFocus) v.animate().scaleX(1.04f).scaleY(1.04f).setDuration(180).start()
+                else v.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+            }
+        }
+        val posterView = android.widget.ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(220), dp(320))
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                colors = intArrayOf(
+                    Color.parseColor("#FF1A2542"),
+                    Color.parseColor("#FF0E1834"),
+                )
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            }
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(12).toFloat())
+                }
+            }
+        }
+        if (poster.isNotEmpty()) {
+            tv.onnow.launcher.ImageLoader.load(posterView, poster)
+        }
+        card.addView(posterView)
+        card.addView(spacer(dp(12)))
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+            this.text = title
+            textSize = 16f
+            setTextColor(Color.parseColor("#FFF4F7FB"))
+            setTypeface(typeface, Typeface.BOLD)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        if (rating.isNotEmpty() && rating != "0.0" && rating != "0") {
+            titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
+                this.text = "★ $rating"
+                textSize = 12f
+                setTextColor(Color.parseColor("#FF0E1834"))
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(dp(8), dp(3), dp(8), dp(3))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(999).toFloat()
+                    setColor(Color.parseColor("#FFFFC857"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { setMargins(dp(8), 0, 0, 0) }
+            })
+        }
+        card.addView(titleRow)
+        if (year.isNotEmpty()) {
+            card.addView(TextView(this@VoiceAssistantActivity).apply {
+                this.text = if (type == "series") "$year  ·  TV series" else "$year  ·  Movie"
+                textSize = 11f
+                setTextColor(Color.parseColor("#FF8EA0B7"))
+                letterSpacing = 0.06f
+                setPadding(0, dp(3), 0, 0)
+            })
+        }
+        if (overview.isNotBlank()) {
+            card.addView(TextView(this@VoiceAssistantActivity).apply {
+                this.text = overview
+                textSize = 12f
+                setTextColor(Color.parseColor("#FFC2D1E6"))
+                setLineSpacing(0f, 1.25f)
+                maxLines = 3
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(8), 0, 0)
+            })
+        }
+        return card
     }
 }
 

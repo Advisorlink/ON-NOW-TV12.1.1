@@ -7,6 +7,78 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.30 — Smart V2 AI: actor/director Q&A, hold-button customisation, troubleshooting reject
+
+  • **🎭 Actor / director Q&A with TMDB photo + filmography.**  New
+    `person_info` intent.  Ask "Who's the main actor in Inception?",
+    "Who played the Joker?", "Who directed Pulp Fiction?" — V2 AI
+    returns a beautiful card with the person's profile photo, a real
+    3-paragraph bio from TMDB, and a 5-card carousel of their
+    biggest films (each focusable → press OK to play).
+
+  • **🚫 STRICT box-troubleshooting reject.**  Updated
+    `V2AI_SYSTEM_PROMPT` to ALWAYS reject any device-troubleshooting
+    questions ("Wi-Fi slow", "remote not working", "box freezing",
+    "won't update", "buffering", settings how-to).  Verified: 4/4
+    test queries reject with "V2 AI only helps with movies, TV
+    shows, and apps — not device troubleshooting."
+
+  • **🎚 Hold-button customisation.**  Admin can now:
+      - Upload a custom 256×256 image to replace the default circular
+        cyan "HOLD OK" badge in the V2 AI screen.
+      - Toggle the entire hold button off (some users prefer just
+        the waveform + heading text).
+    New endpoints: `POST /api/admin/v2ai/hold-button`,
+    `DELETE /api/admin/v2ai/hold-button`, and
+    `POST /api/admin/v2ai/config {hold_button_visible: bool}`.
+
+  • **💡 Smarter question routing.**  The system prompt now handles
+    actor info, director info, plot summaries ("What's The Sopranos
+    about?"), and "tonight" mood recommendations as first-class
+    intents.  TMDB enrichment fills posters + ratings + bios.
+
+  Files touched (6):
+    • `launcher-backend/main.py` (V2AI_SYSTEM_PROMPT rewrite,
+      `_tmdb_person_lookup`, `_enrich_person_info`, hold-button
+      admin endpoints, hold_button_visible in V2AIConfig body)
+    • `launcher-backend/admin/index.html` (hold-button drop-zone
+      + visibility toggle)
+    • `launcher-backend/admin/static/app.js` (hold-button dropzone
+      registration + visibility checkbox handler)
+    • `android/onnowtv-launcher/.../data/LauncherConfig.kt`
+      (`holdButtonImageUrl`, `holdButtonVisible`)
+    • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+      (FrameLayout hold button with image override, applyAdmin-
+      Customisation, `renderPersonInfo`, `buildPosterCard`)
+
+## v2.8.29 — Beautiful recommendation cards + QA intent + TMDB enrichment
+
+  • **🎨 Rich recommendation carousel.**  V2 AI now returns a
+    horizontal carousel of poster cards (220×320 TMDB posters,
+    title, ★ rating chip, 3-line synopsis, focus animation) when
+    the user asks "what should I watch" / "recommend something".
+    The wallpaper is dimmed behind the cards so the content reads
+    cleanly against any admin background.
+
+  • **❓ Q&A intent.**  Ask "What episode of Breaking Bad does
+    Walter meet Gus?" or "Who played the Joker?" — V2 AI returns
+    a hero-style card with the subject's poster, year, ★ rating,
+    1-3 sentence factual answer, and the subject's overview.
+
+  • **🌐 TMDB enrichment.**  Backend looks up every
+    recommendation / answer subject on TMDB (poster, backdrop,
+    rating, year, overview) in parallel so the launcher never
+    waits on more than one round-trip.
+
+  Files touched (3):
+    • `launcher-backend/main.py` (V2AI_SYSTEM_PROMPT with qa intent,
+      _tmdb_lookup, _enrich_recommendations, wh-question routing
+      to GPT, TMDB token loaded via .env)
+    • `launcher-backend/.env` (TMDB_BEARER_TOKEN added)
+    • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+      (horizontal-scroll resultArea, renderQa, stage-dimmer scrim,
+      makeRecCardBg helper)
+
 ## v2.8.28 — CI build fix: handleIntent type mismatch
 
   • **🛠 Compile error fix.**  v2.8.26's refactor of

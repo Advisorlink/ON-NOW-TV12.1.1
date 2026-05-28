@@ -437,6 +437,30 @@
             </div>
         </div>
 
+        <!-- v2.8.30 — V2 AI in-activity HOLD button image + visibility toggle -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">V2 AI hold-to-talk button</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field qr-field-toggle" style="gap:10px;">
+                    <input type="checkbox" id="v2aiHoldVisible" checked style="width:18px; height:18px; accent-color:var(--accent); cursor:pointer;">
+                    <span style="text-transform:none; letter-spacing:0;">Show the hold-to-talk button on the V2 AI screen</span>
+                </label>
+            </div>
+            <p class="appstore-colors-hint">Painted between the waveform and status line.  Uncheck to hide it entirely (the V2 AI screen still works — users just press OK on the remote).</p>
+        </div>
+        <div class="appstore-hero-section">
+            <div id="v2aiHoldPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:200px;">
+                <div class="appstore-hero-placeholder">Default ring + “HOLD OK” circle.</div>
+                <img id="v2aiHoldImg" alt="" hidden>
+                <button id="v2aiHoldClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiHoldDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiHoldFile" accept="image/png,image/jpeg,image/webp" hidden>
+                <span><strong>Drop hold-button image</strong> · or <button id="v2aiHoldBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Replaces the default circular hold-to-talk button.  Square <strong>256 × 256 px</strong> recommended (transparent PNG looks best).  Image rendered at the centre of the V2 AI screen — make it click-bait so users know to hold OK.</span>
+            </div>
+        </div>
+
         <!-- v2.8.20 — Top-bar logo (drag-drop) -->
         <div class="appstore-hero-section">
             <div id="appstoreLogoPreview" class="appstore-hero-preview" style="aspect-ratio:520/112;background:#04060B;">

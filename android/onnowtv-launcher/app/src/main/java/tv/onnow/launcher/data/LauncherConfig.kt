@@ -157,12 +157,15 @@ data class AppStoreMeta(
 )
 
 /* v2.8.25 — V2 AI screen customisation pulled from the backend.
-   v2.8.26 — Adds waveform style + top-bar button icon. */
+   v2.8.26 — Adds waveform style + top-bar button icon.
+   v2.8.30 — Adds in-activity HOLD-button image + visibility. */
 data class V2AIConfig(
-    val headingText: String?        = null,
-    val backgroundImageUrl: String? = null,
-    val waveformStyle: String?      = null,  // "bars" (default), "dots", "ring", "sweep", "pulse"
-    val buttonImageUrl: String?     = null,  // square icon for the top-bar V2 AI pill
+    val headingText: String?         = null,
+    val backgroundImageUrl: String?  = null,
+    val waveformStyle: String?       = null,  // "bars" (default), "dots", "ring", "sweep", "pulse"
+    val buttonImageUrl: String?      = null,  // square icon for the top-bar V2 AI pill
+    val holdButtonImageUrl: String?  = null,  // image painted on the in-activity Hold button
+    val holdButtonVisible: Boolean   = true,  // show / hide the in-activity Hold button entirely
 )
 
 data class NotificationRemote(
@@ -316,10 +319,12 @@ fun parseLauncherConfig(json: String): LauncherConfig {
     // v2.8.25 — V2 AI screen customisation (optional).
     val v2aiObj = root.optJSONObject("v2ai")
     val v2ai = if (v2aiObj == null) V2AIConfig() else V2AIConfig(
-        headingText        = v2aiObj.optStringOrNull("heading_text"),
-        backgroundImageUrl = v2aiObj.optStringOrNull("background_image_url"),
-        waveformStyle      = v2aiObj.optStringOrNull("waveform_style"),
-        buttonImageUrl     = v2aiObj.optStringOrNull("button_image_url"),
+        headingText           = v2aiObj.optStringOrNull("heading_text"),
+        backgroundImageUrl    = v2aiObj.optStringOrNull("background_image_url"),
+        waveformStyle         = v2aiObj.optStringOrNull("waveform_style"),
+        buttonImageUrl        = v2aiObj.optStringOrNull("button_image_url"),
+        holdButtonImageUrl    = v2aiObj.optStringOrNull("hold_button_image_url"),
+        holdButtonVisible     = v2aiObj.optBoolean("hold_button_visible", true),
     )
     // v2.8.24 — QR videos (optional).
     val qrArr = root.optJSONArray("qr_videos") ?: JSONArray()

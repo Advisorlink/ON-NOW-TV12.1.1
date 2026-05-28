@@ -1233,6 +1233,15 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         endpoint:  '/api/admin/v2ai/button',
         label:     'V2 AI button icon',
     });
+    // v2.8.30 — V2 AI in-activity HOLD-button image dropzone.
+    setupAppstoreDropzone({
+        zoneSel:   '#v2aiHoldDrop',
+        inputSel:  '#v2aiHoldFile',
+        browseSel: '#v2aiHoldBrowse',
+        clearSel:  '#v2aiHoldClear',
+        endpoint:  '/api/admin/v2ai/hold-button',
+        label:     'V2 AI hold button',
+    });
 })();
 
 /* v2.8.25 — V2 AI screen heading text editor. */
@@ -1248,6 +1257,13 @@ function syncV2AIInputs(store) {
         '#v2aiBtnImg', '#v2aiBtnPreview', '#v2aiBtnClear',
         v2ai.button_image_url,
     );
+    // v2.8.30 — Mirror hold-button image + visibility toggle.
+    syncAppstoreImg(
+        '#v2aiHoldImg', '#v2aiHoldPreview', '#v2aiHoldClear',
+        v2ai.hold_button_image_url,
+    );
+    const $hv = document.getElementById('v2aiHoldVisible');
+    if ($hv) $hv.checked = v2ai.hold_button_visible !== false;
     // v2.8.26 — Mirror waveform style selection.
     const selectedStyle = (v2ai.waveform_style || 'bars').toLowerCase();
     document.querySelectorAll('#v2aiWaveformGrid .v2ai-wf-card').forEach(card => {
@@ -1297,6 +1313,22 @@ function syncV2AIInputs(store) {
                 refreshAll();
             } catch (e) { toast('Could not save: ' + e.message, true); }
         });
+    });
+    // v2.8.30 — Hold-button visibility toggle.
+    const $hv = document.getElementById('v2aiHoldVisible');
+    $hv?.addEventListener('change', async () => {
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hold_button_visible: $hv.checked }),
+            });
+            toast($hv.checked ? 'Hold button visible' : 'Hold button hidden');
+            refreshAll();
+        } catch (e) {
+            toast('Could not save: ' + e.message, true);
+            $hv.checked = !$hv.checked;  // revert UI
+        }
     });
 })();
 

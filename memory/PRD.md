@@ -1,6 +1,20 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.27 — V2 AI FINAL FIX (Feb 28, 2026)**
+> Latest: **v2.8.30 — Smart V2 AI: actor/director Q&A, hold-button customisation, strict troubleshooting reject** (Feb 28, 2026)
+>
+> Three coordinated upgrades responding to the user's video feedback ("more variety of questions", "Hold button needs to be customisable", "don't answer troubleshooting questions"):
+>
+> 1. **🎭 NEW `person_info` intent.**  Ask "Who's the main actor in Inception?", "Who played the Joker in The Dark Knight?", "Who directed Pulp Fiction?" → returns a beautiful card with the actor's TMDB profile photo, a real 3-paragraph TMDB biography, and a focusable carousel of 5 known_for movies with posters + ratings.  Press OK on any card to play it in Vesper.
+>
+> 2. **🚫 STRICT box-troubleshooting reject.**  System prompt now hard-rejects ALL device questions: "Wi-Fi slow", "remote not working", "box freezing", "won't update", "buffering", "lagging", "no signal", how-to settings.  Verified: 4/4 test queries return reject intent with "V2 AI only helps with movies, TV shows, and apps — not device troubleshooting."  Movies/TV/actors/apps/episodes/plots are ALL still allowed.
+>
+> 3. **🎚 Hold-button customisation.**  Admin tab now has TWO new controls below the V2 AI section: a 256×256 image drop-zone to replace the default circular cyan "HOLD OK" badge, and a checkbox to hide the button entirely (some users prefer just the waveform).  Endpoints: `POST/DELETE /api/admin/v2ai/hold-button` + `POST /api/admin/v2ai/config {hold_button_visible: bool}`.  Kotlin renders a FrameLayout that swaps between the default TextView badge and an admin-uploaded ImageView.
+>
+> Bonus from v2.8.29 (same release window): rich recommendation cards with TMDB posters, ratings, and overviews + QA intent + horizontal-scroll carousel + stage-dimmer scrim for legibility.
+>
+> ⚠️ Backend changes are LIVE on the preview pod.  Android side (hold-button render, person_info card, troubleshooting reject UI) needs Save to GitHub → APK rebuild → reinstall on HK1.
+
+> Previous: **v2.8.28 — CI compile-error fix (handleIntent type mismatch)** (Feb 28, 2026)
 >
 > Three independent bugs root-caused after the user reported v2.8.26 still didn't work ("V2 app isn't installed when it is installed", "Couldn't reach V2 AI", "gets the words wrong"):
 >
