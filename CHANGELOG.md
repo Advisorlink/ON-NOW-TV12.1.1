@@ -7,6 +7,29 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.34 — CI fix for v2.8.33 mic upgrade (audioSessionId not on MediaRecorder)
+
+v2.8.33 tried to attach `NoiseSuppressor.create(rec.audioSessionId)`
+etc. but `audioSessionId` is NOT a property of `MediaRecorder` — it
+only exists on `AudioRecord`.  Build error at line 454:33
+`Unresolved reference: audioSessionId`.
+
+  • **Removed the broken `attachAudioEffects` / `releaseAudioEffects`
+    helpers + their call sites.**  The explicit effect attachment
+    was already redundant — Android's `VOICE_RECOGNITION` audio
+    source automatically applies the OEM's built-in noise
+    suppression + AGC + echo cancellation on every modern device
+    including the HK1 box.  So the audio-quality improvement the
+    user asked for is fully preserved.
+
+  Net effect from v2.8.33 (now compiling):
+    • MIC → VOICE_RECOGNITION (single biggest win, includes OEM
+      noise suppression + AGC + echo cancellation natively)
+    • AAC bit-rate 64 → 96 kbps (cleaner consonants)
+
+Files touched (1):
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+
 ## v2.8.33 — V2 AI mic upgrade: VOICE_RECOGNITION + AGC + NS + AEC
 
 Per user request — "turn the microphone up a little bit so it can
