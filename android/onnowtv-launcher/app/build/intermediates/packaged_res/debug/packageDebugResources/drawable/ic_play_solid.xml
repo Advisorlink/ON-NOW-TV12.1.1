@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v0.5 — Solid play-triangle icon for the top-bar wordmark.
+     Used in the launcher's top status bar next to "OnNow TV V2". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M8,5 L19,12 L8,19 Z"
+        android:fillColor="#FFFFFF" />
+</vector>

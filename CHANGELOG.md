@@ -7,7 +7,25 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
-## v2.8.40 — VPS cutover: every APK now points at Contabo (no more preview pod)
+## v2.8.40 — VPS cutover + Launcher build fix (out-of-scope `dp()`)
+
+  • **🐛 Build fix.**  v2.8.40's V2 AI pill image-override added a
+    `setOnFocusChangeListener { v, hasFocus -> v.animate().translationZ(dp(12).toFloat()) … }`
+    inside `MainActivity.applyTopBarBranding()`.  Problem: `dp()`
+    is a **LOCAL function inside `applyLayoutSettings()`** (line
+    741) — not a member of `MainActivity` — so the call from a
+    different function was an Unresolved Reference.  The cascading
+    Kotlin compile failure also surfaced fake "Unresolved
+    reference: DEFAULT_BASE_URL" + "Cannot infer a type" errors
+    elsewhere.  Fixed by inlining the px conversion:
+    `val popZ = 12f * resources.displayMetrics.density`.
+
+  • **🐛 Build fix.**  v2.8.40's `LauncherRepository.kt` KDoc
+    contained `` `/launcher/*` `` — Kotlin block comments are
+    NESTABLE, so the `/*` opened a nested block comment inside
+    the `/** … */` which silently swallowed the closing `*/` and
+    commented out the `const val DEFAULT_BASE_URL` declaration.
+    Rewrote the KDoc with plain prose (no `/*` or `*/` sequences).
 
   • **🏭 Production migration completed.**  The Vesper APK and the
     new ON NOW TV Launcher APK were still carrying the

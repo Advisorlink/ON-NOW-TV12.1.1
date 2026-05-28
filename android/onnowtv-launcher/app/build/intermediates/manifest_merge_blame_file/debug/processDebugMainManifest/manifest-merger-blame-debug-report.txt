@@ -1,0 +1,350 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="tv.onnow.launcher"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- Internet for future backend config / APK downloads. -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:6:5-67
+12-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:6:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:7:5-79
+13-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:7:22-76
+14    <!-- v2.8.23 — Mic for V2 AI push-and-hold voice assistant. -->
+15    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+15-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:9:5-71
+15-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:9:22-68
+16    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+16-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:10:5-76
+16-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:10:22-73
+17
+18    <!-- Sideload APKs published from the admin backend. -->
+19    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+19-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:13:5-83
+19-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:13:22-80
+20    <!--
+21         v2.8.5 — REQUEST_DELETE_PACKAGES is REQUIRED on Android 11+
+22         (API 30) before ACTION_UNINSTALL_PACKAGE / ACTION_DELETE
+23         intents will resolve to the system uninstaller.  Without
+24         this, tapping "Uninstall" in the App Store silently no-ops
+25         because resolveActivity() returns null.
+26    -->
+27    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+27-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:19:5-82
+27-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:19:22-79
+28    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+28-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:20:5-22:53
+28-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:21:9-61
+29
+30    <!--
+31         v2.8.27 — Even with QUERY_ALL_PACKAGES, some firmware (and
+32         Play Store policy) requires an explicit <queries> block to
+33         resolve `getLaunchIntentForPackage` against specific apps.
+34         Declare every package the launcher launches by name.
+35    -->
+36    <queries>
+36-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:28:5-43:15
+37
+38        <!-- The Vesper / ON NOW TV V2 streaming app. -->
+39        <package android:name="tv.onnowtv.app" />
+39-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:30:9-50
+39-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:30:18-47
+40        <!-- The Vesper compile-time namespace, defensive. -->
+41        <package android:name="tv.vesper.app" />
+41-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:32:9-49
+41-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:32:18-46
+42        <!-- Speed-test app candidates the user can wire to. -->
+43        <package android:name="org.zwanoo.android.speedtest" />
+43-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:34:9-64
+43-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:34:18-61
+44        <package android:name="com.fast.android.app" />
+44-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:35:9-56
+44-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:35:18-53
+45        <!--
+46             Generic LAUNCHER intent — covers everything in the
+47             Apps Drawer regardless of package name.  Belt-and-
+48             braces alongside QUERY_ALL_PACKAGES.
+49        -->
+50        <intent>
+50-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:39:9-42:18
+51            <action android:name="android.intent.action.MAIN" />
+51-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:40:13-65
+51-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:40:21-62
+52
+53            <category android:name="android.intent.category.LAUNCHER" />
+53-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:41:13-73
+53-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:41:23-70
+54        </intent>
+55    </queries>
+56
+57    <!--
+58         Restart this app on device boot so the launcher is the first
+59         thing the user sees after a power-cycle.
+60    -->
+61    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+61-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:47:5-81
+61-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:47:22-78
+62
+63    <!--
+64         Android TV requires the leanback hardware feature, but we
+65         declare it as NOT required so the same APK can also install
+66         on standard tablets / phones used for QA.
+67    -->
+68    <uses-feature
+68-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:52:5-54:36
+69        android:name="android.software.leanback"
+69-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:53:9-49
+70        android:required="false" />
+70-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:54:9-33
+71    <uses-feature
+71-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:55:5-57:36
+72        android:name="android.hardware.touchscreen"
+72-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:56:9-52
+73        android:required="false" />
+73-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:57:9-33
+74
+75    <permission
+75-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+76        android:name="tv.onnow.launcher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+76-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+77        android:protectionLevel="signature" />
+77-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+78
+79    <uses-permission android:name="tv.onnow.launcher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+79-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+79-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+80
+81    <application
+81-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:59:5-144:19
+82        android:name="tv.onnow.launcher.OnNowApp"
+82-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:60:9-33
+83        android:allowBackup="true"
+83-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:61:9-35
+84        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+84-->[androidx.core:core:1.13.1] /root/.gradle/caches/transforms-4/24e4e526f469cf087615bd6353e6949e/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+85        android:banner="@drawable/launcher_banner"
+85-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:65:9-51
+86        android:debuggable="true"
+87        android:extractNativeLibs="false"
+88        android:hardwareAccelerated="true"
+88-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:68:9-43
+89        android:icon="@mipmap/ic_launcher"
+89-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:62:9-43
+90        android:label="@string/app_name"
+90-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:63:9-41
+91        android:roundIcon="@mipmap/ic_launcher_round"
+91-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:64:9-54
+92        android:supportsRtl="false"
+92-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:67:9-36
+93        android:theme="@style/Theme.OnNowLauncher" >
+93-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:66:9-51
+94        <activity
+94-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:70:9-90:20
+95            android:name="tv.onnow.launcher.MainActivity"
+95-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:71:13-41
+96            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+96-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:76:13-98
+97            android:exported="true"
+97-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:72:13-36
+98            android:launchMode="singleTask"
+98-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:73:13-44
+99            android:resumeWhilePausing="true"
+99-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:75:13-46
+100            android:screenOrientation="landscape"
+100-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:78:13-50
+101            android:stateNotNeeded="true"
+101-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:74:13-42
+102            android:theme="@style/Theme.OnNowLauncher.NoActionBar" >
+102-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:77:13-67
+103
+104            <!--
+105                 Launcher / HOME identity — these intent filters are
+106                 what make the app installable as the device's default
+107                 launcher on both Android TV and standard Android.
+108            -->
+109            <intent-filter android:priority="1000" >
+109-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:83:13-89:29
+109-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:83:28-51
+110                <action android:name="android.intent.action.MAIN" />
+110-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:40:13-65
+110-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:40:21-62
+111
+112                <category android:name="android.intent.category.HOME" />
+112-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:85:17-73
+112-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:85:27-70
+113                <category android:name="android.intent.category.DEFAULT" />
+113-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:86:17-76
+113-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:86:27-73
+114                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+114-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:87:17-86
+114-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:87:27-83
+115                <category android:name="android.intent.category.LAUNCHER" />
+115-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:41:13-73
+115-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:41:23-70
+116            </intent-filter>
+117        </activity>
+118
+119        <!--
+120             Apps drawer — opened from the dock's "Apps" tile.
+121             Lists APKs the admin curated in /api/admin/apks.
+122        -->
+123        <activity
+123-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:94:9-99:53
+124            android:name="tv.onnow.launcher.apps.AppsDrawerActivity"
+124-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:95:13-52
+125            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+125-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:97:13-98
+126            android:exported="false"
+126-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:96:13-37
+127            android:screenOrientation="landscape"
+127-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:99:13-50
+128            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+128-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:98:13-67
+129
+130        <!--
+131             v1.7 — Onboarding gate (Wi-Fi → Register → Pending/Blocked).
+132             MainActivity launches this on cold start when the
+133             SharedPreferences activation status isn't "active".
+134        -->
+135        <activity
+135-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:104:9-109:53
+136            android:name="tv.onnow.launcher.onboarding.OnboardingActivity"
+136-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:105:13-58
+137            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+137-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:107:13-98
+138            android:exported="false"
+138-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:106:13-37
+139            android:screenOrientation="landscape"
+139-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:109:13-50
+140            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+140-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:108:13-67
+141
+142        <!--
+143             v2.8.22 — SpeedTestActivity removed; the Speed Test
+144             pill now opens an admin-configured external APK
+145             (e.g. Ookla).  No activity registration needed.
+146        -->
+147
+148
+149        <!-- v2.8.23 — V2 AI voice assistant. -->
+150        <activity
+150-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:116:9-121:53
+151            android:name="tv.onnow.launcher.v2ai.VoiceAssistantActivity"
+151-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:117:13-56
+152            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+152-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:119:13-98
+153            android:exported="false"
+153-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:118:13-37
+154            android:screenOrientation="landscape"
+154-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:121:13-50
+155            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+155-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:120:13-67
+156
+157        <!-- v2.8.19 — VPN status + system VPN settings launcher. -->
+158        <activity
+158-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:124:9-129:53
+159            android:name="tv.onnow.launcher.vpn.VpnControlActivity"
+159-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:125:13-51
+160            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+160-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:127:13-98
+161            android:exported="false"
+161-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:126:13-37
+162            android:screenOrientation="landscape"
+162-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:129:13-50
+163            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+163-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:128:13-67
+164
+165        <!--
+166             FileProvider — exposes the downloaded APK files in cache
+167             dir so the system package installer can read them on
+168             Android N+.
+169        -->
+170        <provider
+171            android:name="androidx.core.content.FileProvider"
+171-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:135:13-62
+172            android:authorities="tv.onnow.launcher.fileprovider"
+172-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:136:13-64
+173            android:exported="false"
+173-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:137:13-37
+174            android:grantUriPermissions="true" >
+174-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:138:13-47
+175            <meta-data
+175-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:139:13-141:63
+176                android:name="android.support.FILE_PROVIDER_PATHS"
+176-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:140:17-67
+177                android:resource="@xml/file_provider_paths" />
+177-->/app/android/onnowtv-launcher/app/src/main/AndroidManifest.xml:141:17-60
+178        </provider>
+179        <provider
+179-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+180            android:name="androidx.startup.InitializationProvider"
+180-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+181            android:authorities="tv.onnow.launcher.androidx-startup"
+181-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+182            android:exported="false" >
+182-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+183            <meta-data
+183-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+184                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+184-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+185                android:value="androidx.startup" />
+185-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/22926a299c7147a4803d0c9d0a02a9c2/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+186            <meta-data
+186-->[androidx.lifecycle:lifecycle-process:2.8.4] /root/.gradle/caches/transforms-4/356adf952dc403e452386b2c8851b842/transformed/lifecycle-process-2.8.4/AndroidManifest.xml:29:13-31:52
+187                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+187-->[androidx.lifecycle:lifecycle-process:2.8.4] /root/.gradle/caches/transforms-4/356adf952dc403e452386b2c8851b842/transformed/lifecycle-process-2.8.4/AndroidManifest.xml:30:17-78
+188                android:value="androidx.startup" />
+188-->[androidx.lifecycle:lifecycle-process:2.8.4] /root/.gradle/caches/transforms-4/356adf952dc403e452386b2c8851b842/transformed/lifecycle-process-2.8.4/AndroidManifest.xml:31:17-49
+189            <meta-data
+189-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+190                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+190-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+191                android:value="androidx.startup" />
+191-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+192        </provider>
+193
+194        <receiver
+194-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+195            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+195-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+196            android:directBootAware="false"
+196-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+197            android:enabled="true"
+197-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+198            android:exported="true"
+198-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+199            android:permission="android.permission.DUMP" >
+199-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+200            <intent-filter>
+200-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+201                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+201-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+201-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+202            </intent-filter>
+203            <intent-filter>
+203-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+204                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+204-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+204-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+205            </intent-filter>
+206            <intent-filter>
+206-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+207                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+207-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+207-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+208            </intent-filter>
+209            <intent-filter>
+209-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+210                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+210-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+210-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/c643c47b18ab6c9d28889fb5fc01f141/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+211            </intent-filter>
+212        </receiver>
+213    </application>
+214
+215</manifest>

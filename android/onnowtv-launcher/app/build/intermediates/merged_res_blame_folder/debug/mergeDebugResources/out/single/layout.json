@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "tv.onnow.launcher.app-mergeDebugResources-3:/layout/activity_main.xml",
+        "source": "tv.onnow.launcher.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-mergeDebugResources-3:/layout/item_dock.xml",
+        "source": "tv.onnow.launcher.app-main-6:/layout/item_dock.xml"
+    }
+]

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.4 — Static-weight font family for montserrat.
+     Android picks the matching TTF based on requested weight,
+     so Typeface.create(this, 700, false) renders the bold file
+     directly (no system Sans Bold fallback). -->
+<font-family xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font app:fontStyle="normal" app:fontWeight="400" app:font="@font/montserrat_regular" />
+    <font app:fontStyle="normal" app:fontWeight="700" app:font="@font/montserrat_bold" />
+</font-family>

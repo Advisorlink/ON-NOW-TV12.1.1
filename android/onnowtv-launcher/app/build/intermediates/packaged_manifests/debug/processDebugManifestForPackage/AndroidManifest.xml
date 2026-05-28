@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="tv.onnow.launcher"
+    android:versionCode="1"
+    android:versionName="0.1.0" >
+
+    <uses-sdk
+        android:minSdkVersion="23"
+        android:targetSdkVersion="34" />
+
+    <!-- Internet for future backend config / APK downloads. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- v2.8.23 — Mic for V2 AI push-and-hold voice assistant. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Sideload APKs published from the admin backend. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+         v2.8.5 — REQUEST_DELETE_PACKAGES is REQUIRED on Android 11+
+         (API 30) before ACTION_UNINSTALL_PACKAGE / ACTION_DELETE
+         intents will resolve to the system uninstaller.  Without
+         this, tapping "Uninstall" in the App Store silently no-ops
+         because resolveActivity() returns null.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <!--
+         v2.8.27 — Even with QUERY_ALL_PACKAGES, some firmware (and
+         Play Store policy) requires an explicit <queries> block to
+         resolve `getLaunchIntentForPackage` against specific apps.
+         Declare every package the launcher launches by name.
+    -->
+    <queries>
+
+        <!-- The Vesper / ON NOW TV V2 streaming app. -->
+        <package android:name="tv.onnowtv.app" />
+        <!-- The Vesper compile-time namespace, defensive. -->
+        <package android:name="tv.vesper.app" />
+        <!-- Speed-test app candidates the user can wire to. -->
+        <package android:name="org.zwanoo.android.speedtest" />
+        <package android:name="com.fast.android.app" />
+        <!--
+             Generic LAUNCHER intent — covers everything in the
+             Apps Drawer regardless of package name.  Belt-and-
+             braces alongside QUERY_ALL_PACKAGES.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <!--
+         Restart this app on device boot so the launcher is the first
+         thing the user sees after a power-cycle.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+         Android TV requires the leanback hardware feature, but we
+         declare it as NOT required so the same APK can also install
+         on standard tablets / phones used for QA.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <permission
+        android:name="tv.onnow.launcher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="tv.onnow.launcher.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+
+    <application
+        android:name="tv.onnow.launcher.OnNowApp"
+        android:allowBackup="true"
+        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+        android:banner="@drawable/launcher_banner"
+        android:debuggable="true"
+        android:extractNativeLibs="false"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.OnNowLauncher" >
+        <activity
+            android:name="tv.onnow.launcher.MainActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resumeWhilePausing="true"
+            android:screenOrientation="landscape"
+            android:stateNotNeeded="true"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar" >
+
+            <!--
+                 Launcher / HOME identity — these intent filters are
+                 what make the app installable as the device's default
+                 launcher on both Android TV and standard Android.
+            -->
+            <intent-filter android:priority="1000" >
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+             Apps drawer — opened from the dock's "Apps" tile.
+             Lists APKs the admin curated in /api/admin/apks.
+        -->
+        <activity
+            android:name="tv.onnow.launcher.apps.AppsDrawerActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+
+        <!--
+             v1.7 — Onboarding gate (Wi-Fi → Register → Pending/Blocked).
+             MainActivity launches this on cold start when the
+             SharedPreferences activation status isn't "active".
+        -->
+        <activity
+            android:name="tv.onnow.launcher.onboarding.OnboardingActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+
+        <!--
+             v2.8.22 — SpeedTestActivity removed; the Speed Test
+             pill now opens an admin-configured external APK
+             (e.g. Ookla).  No activity registration needed.
+        -->
+
+
+        <!-- v2.8.23 — V2 AI voice assistant. -->
+        <activity
+            android:name="tv.onnow.launcher.v2ai.VoiceAssistantActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+
+        <!-- v2.8.19 — VPN status + system VPN settings launcher. -->
+        <activity
+            android:name="tv.onnow.launcher.vpn.VpnControlActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar" />
+
+        <!--
+             FileProvider — exposes the downloaded APK files in cache
+             dir so the system package installer can read them on
+             Android N+.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="tv.onnow.launcher.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="tv.onnow.launcher.androidx-startup"
+            android:exported="false" >
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+
+        <receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            android:directBootAware="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP" >
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

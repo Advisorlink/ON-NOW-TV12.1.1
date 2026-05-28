@@ -707,11 +707,12 @@ class MainActivity : AppCompatActivity() {
             }
             iconView?.let { tv.onnow.launcher.ImageLoader.load(it, v2aiIconUrl) }
             // Smooth "pop out" focus animation — scale + elevation.
+            val popZ = (12f * resources.displayMetrics.density)
             pill.setOnFocusChangeListener { v, hasFocus ->
                 v.animate()
                     .scaleX(if (hasFocus) 1.14f else 1f)
                     .scaleY(if (hasFocus) 1.14f else 1f)
-                    .translationZ(if (hasFocus) dp(12).toFloat() else 0f)
+                    .translationZ(if (hasFocus) popZ else 0f)
                     .setDuration(180)
                     .start()
             }

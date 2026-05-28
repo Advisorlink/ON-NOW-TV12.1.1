@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v0.4 — Background for the debug status pill on the launcher
+  home screen.  Dark translucent fill + amber outline so it sits
+  cleanly on any wallpaper without being too distracting.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#CC000000" />
+    <stroke android:width="1dp" android:color="#FFD700" />
+    <corners android:radius="999dp" />
+</shape>

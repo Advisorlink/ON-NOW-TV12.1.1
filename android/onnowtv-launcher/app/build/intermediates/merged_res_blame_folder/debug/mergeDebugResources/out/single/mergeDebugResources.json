@@ -1,0 +1,330 @@
+[
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_poppins_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/poppins_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_status_dot_off.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_status_dot_off.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_inter.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/inter.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_gear.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_gear.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_roboto_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/roboto_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_roboto.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/roboto.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/mipmap-anydpi_ic_launcher.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/mipmap-anydpi/ic_launcher.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_oswald_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/oswald_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_primary_focused.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_primary_focused.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_qr_panel_bg.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/qr_panel_bg.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_primary_resting.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_primary_resting.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_poppins_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/poppins_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_dm_serif_display.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/dm_serif_display.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_montserrat.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/montserrat.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_debug_pill.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_debug_pill.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_merriweather_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/merriweather_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_cta_pill.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_cta_pill.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_topbar.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_topbar.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_merriweather.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/merriweather.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/xml_file_provider_paths.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/xml/file_provider_paths.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_vpn_shield.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_vpn_shield.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_reflection_clip.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_reflection_clip.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_logo_play.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_logo_play.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_anton.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/anton.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_grid.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_grid.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_nunito.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/nunito.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_card_glass.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_card_glass.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/layout_activity_main.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_topbar_btn_resting.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_topbar_btn_resting.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_tile_bg.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_tile_bg.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_tile_focused.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_tile_focused.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_music.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_music.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_inter_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/inter_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_key_resting.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_key_resting.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_bg_glow.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_bg_glow.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_status_dot_on.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_status_dot_on.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_roboto_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/roboto_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_input_glass.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_input_glass.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/mipmap-anydpi_ic_launcher_round.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/mipmap-anydpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_montserrat_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/montserrat_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_play_solid.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_play_solid.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_primary_selector.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_primary_selector.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_montserrat_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/montserrat_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_pacifico.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/pacifico.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_nunito_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/nunito_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_oswald_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/oswald_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_oswald.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/oswald.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_tile_resting.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_tile_resting.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_arrow_right.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_arrow_right.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_tv.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_tv.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_key_focused.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_key_focused.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_v2ai_sparkle.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_v2ai_sparkle.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_film.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_film.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_playfair_display.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/playfair_display.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_playfair_display_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/playfair_display_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_dock_scrim.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_dock_scrim.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_cta.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_cta.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_poppins.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/poppins.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_merriweather_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/merriweather_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_launcher_banner.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/launcher_banner.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_dock_globe.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_dock_globe.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_russo_one.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/russo_one.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_reflection_fade.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_reflection_fade.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_inter_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/inter_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_paginator_dot.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_paginator_dot.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_playfair_display_regular.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/playfair_display_regular.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_topbar_btn.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_topbar_btn.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_speed_gauge.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_speed_gauge.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_key_selector.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_key_selector.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_onb_key_active.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/onb_key_active.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_topbar_btn_focused.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_topbar_btn_focused.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_dock_tile_focus_overlay.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/dock_tile_focus_overlay.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_nunito_bold.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/nunito_bold.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/layout_item_dock.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/layout/item_dock.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_lobster.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/lobster.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_launcher_background.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_ic_wifi.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/ic_wifi.xml"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/font_bebas_neue.ttf.flat",
+        "source": "tv.onnow.launcher.app-main-6:/font/bebas_neue.ttf"
+    },
+    {
+        "merged": "tv.onnow.launcher.app-debug-4:/drawable_bg_aurora_glow.xml.flat",
+        "source": "tv.onnow.launcher.app-main-6:/drawable/bg_aurora_glow.xml"
+    }
+]
