@@ -395,18 +395,31 @@ class MainActivity : AppCompatActivity() {
         //   • profile=kids       → flip to Kids mode + clean URL
         //   • profile=exit-kids  → leave Kids mode + clean URL
         //                          (v2.7.97 — Movies/TV tile)
+        //
+        // v2.8.25 — Also detects `v2ai=<title>&type=…&autoplay=1` from
+        // the Launcher's V2 AI voice assistant.  Same plumbing — the
+        // launcher fires us with the same `vesper_route` extra and
+        // `onnowtv://launch?v2ai=…` data URI, and we append the query
+        // to the boot URL so App.js's synchronous reader picks it up
+        // and routes to /v2ai-play which auto-plays the title.
         val routeExtra = intent?.getStringExtra("vesper_route").orEmpty()
         val dataQuery  = intent?.data?.encodedQuery.orEmpty()
         val isKidsDeepLink     = routeExtra.contains("profile=kids") ||
                                  dataQuery.contains("profile=kids")
         val isExitKidsDeepLink = routeExtra.contains("profile=exit-kids") ||
                                  dataQuery.contains("profile=exit-kids")
+        val isV2AIDeepLink     = routeExtra.contains("v2ai=") ||
+                                 dataQuery.contains("v2ai=")
         val isProfileDeepLink  = isKidsDeepLink || isExitKidsDeepLink
 
         val bootUrl = when {
             // Any profile-switch deep-link → always start from a
             // clean default URL, never the last-restored route.
             isProfileDeepLink -> defaultBoot
+            // V2 AI deep-link → also start fresh so the auto-play
+            // page handles the new title rather than landing on a
+            // stale restored route.
+            isV2AIDeepLink    -> defaultBoot
             else              -> devUrl ?: restoreUrl ?: defaultBoot
         }
 
@@ -415,7 +428,9 @@ class MainActivity : AppCompatActivity() {
         val finalBootUrl = run {
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
+                routeExtra.contains("v2ai=")    -> routeExtra.substringAfter("?")
                 dataQuery.contains("profile=")  -> dataQuery
+                dataQuery.contains("v2ai=")     -> dataQuery
                 else                            -> ""
             }
             if (deepLinkQuery.isEmpty()) bootUrl
@@ -461,7 +476,38 @@ class MainActivity : AppCompatActivity() {
                              dataQuery.contains("profile=kids")
             val isExitKids = routeExtra.contains("profile=exit-kids") ||
                              dataQuery.contains("profile=exit-kids")
-            if (!webViewReady || (!isKids && !isExitKids)) return
+            val isV2AI     = routeExtra.contains("v2ai=") ||
+                             dataQuery.contains("v2ai=")
+            if (!webViewReady || (!isKids && !isExitKids && !isV2AI)) return
+            // v2.8.25 — V2 AI deep-link: navigate the live React Router
+            // to /v2ai-play?title=…&type=… which kicks the search →
+            // resolve → autoplay flow.  Re-uses the SAME query the
+            // launcher built, only swap `v2ai=` → `title=` for the
+            // V2AIResolve page contract.
+            if (isV2AI) {
+                val rawQuery = when {
+                    routeExtra.contains("v2ai=") -> routeExtra.substringAfter("?")
+                    else                          -> dataQuery
+                }
+                // Translate `v2ai=` to `title=` and drop autoplay (the
+                // resolve page assumes autoplay).  The encoded title
+                // value is preserved verbatim.
+                val translated = rawQuery
+                    .replaceFirst(Regex("(^|&)v2ai="), "$1title=")
+                    .replace(Regex("(^|&)autoplay=[^&]*"), "")
+                    .trim('&')
+                val js = """
+                    (function(){
+                        try {
+                            window.location.hash = '#/v2ai-play?${translated.replace("'", "\\'")}';
+                        } catch (e) {}
+                    })();
+                """.trimIndent()
+                webView.post {
+                    try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
+                }
+                return
+            }
             val js = if (isKids) {
                 """
                 (function(){

@@ -75,6 +75,7 @@ async function refreshAll() {
     renderDock(store);
     renderLayout(store);
     renderApks(store);
+    renderQrVideos();
     renderNotifications(store);
     refreshDevices();   // v0.4 — re-pull the connected devices panel
 }
@@ -1102,6 +1103,8 @@ function renderApks(store) {
     syncTopbarColorInputs(store);
     // v2.8.22 — Mirror Speed Test target package.
     syncSpeedTestTarget(store);
+    // v2.8.25 — Mirror V2 AI heading + background preview.
+    syncV2AIInputs(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1211,6 +1214,56 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         clearSel:  '#appstoreLogoClear',
         endpoint:  '/api/admin/appstore/logo',
         label:     'Logo image',
+    });
+    // v2.8.25 — V2 AI screen background dropzone.
+    setupAppstoreDropzone({
+        zoneSel:   '#v2aiBgDrop',
+        inputSel:  '#v2aiBgFile',
+        browseSel: '#v2aiBgBrowse',
+        clearSel:  '#v2aiBgClear',
+        endpoint:  '/api/admin/v2ai/background',
+        label:     'V2 AI background',
+    });
+})();
+
+/* v2.8.25 — V2 AI screen heading text editor. */
+function syncV2AIInputs(store) {
+    const v2ai = (store && store.v2ai) || {};
+    const $i = document.getElementById('v2aiHeadingText');
+    if ($i) $i.value = v2ai.heading_text || '';
+    // Mirror background preview.
+    syncAppstoreImg(
+        '#v2aiBgImg', '#v2aiBgPreview', '#v2aiBgClear',
+        v2ai.background_image_url,
+    );
+}
+(function setupV2AIControls() {
+    const $i     = document.getElementById('v2aiHeadingText');
+    const $save  = document.getElementById('v2aiHeadingSave');
+    const $reset = document.getElementById('v2aiHeadingReset');
+    if (!$i || !$save) return;
+    $save.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ heading_text: $i.value }),
+            });
+            toast('V2 AI heading saved');
+            refreshAll();
+        } catch (e) { toast('Save failed: ' + e.message, true); }
+    });
+    $reset?.addEventListener('click', async () => {
+        $i.value = '';
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ heading_text: '' }),
+            });
+            toast('Reset to default');
+            refreshAll();
+        } catch (e) { toast('Reset failed: ' + e.message, true); }
     });
 })();
 
@@ -1493,6 +1546,160 @@ $('#drawerIconFile')?.addEventListener('change', async (e) => {
         refreshAll();
     } catch (err) { toast('Icon upload failed: ' + err.message, true); }
     e.target.value = '';
+});
+
+/* ─────────────  QR Videos  ───────────── */
+function _qrKindFor(url) {
+    const u = String(url || '').trim();
+    if (!u) return 'link';
+    if (/drive\.google\.com\/file\/d\//.test(u)) return 'iframe';
+    if (/drive\.google\.com\/.*[?&]id=/.test(u)) return 'iframe';
+    if (/dropbox\.com/.test(u)) return 'video';
+    if (/youtube\.com\/watch\?v=|youtu\.be\//.test(u)) return 'iframe';
+    if (/\.(mp4|m4v|mov|webm|ogg|mkv)(\?|$)/i.test(u)) return 'video';
+    return 'link';
+}
+function _qrKindLabel(kind) {
+    if (kind === 'iframe') return 'EMBED';
+    if (kind === 'video')  return 'INLINE VIDEO';
+    return 'OPEN LINK';
+}
+
+async function _fetchQrVideos() {
+    const r = await api('/api/admin/qr-videos');
+    return r.data || [];
+}
+
+async function renderQrVideos() {
+    const list = $('#qrVideoList');
+    const empty = $('#qrVideoEmpty');
+    if (!list) return;
+    let items;
+    try { items = await _fetchQrVideos(); }
+    catch { items = []; }
+    if (!items.length) {
+        list.innerHTML = '';
+        empty.hidden = false;
+        return;
+    }
+    empty.hidden = true;
+    list.innerHTML = items.map(v => {
+        const kind = _qrKindFor(v.url);
+        const kindLabel = _qrKindLabel(kind);
+        const visBadge = v.visible
+            ? '<span class="qr-badge visible-on">Visible on home</span>'
+            : '<span class="qr-badge visible-off">Hidden</span>';
+        const cardCls = v.visible ? 'qr-card' : 'qr-card hidden-card';
+        const caption = v.caption
+            ? `<div class="qr-card-caption">${escapeAttr(v.caption)}</div>`
+            : '';
+        const toggleLabel = v.visible ? 'Hide from home' : 'Show on home';
+        return `
+        <li class="${cardCls}" data-id="${escapeAttr(v.id)}">
+            <div class="qr-card-head">
+                <img class="qr-card-img" src="${escapeAttr(v.qr_image_url)}" alt="QR code">
+                <div class="qr-card-body">
+                    <div class="qr-card-title">${escapeAttr(v.name)}</div>
+                    ${caption}
+                    <div class="qr-card-url">${escapeAttr(v.url)}</div>
+                    <div class="qr-card-badges">
+                        <span class="qr-badge kind-${kind}">${kindLabel}</span>
+                        ${visBadge}
+                    </div>
+                </div>
+            </div>
+            <div class="qr-card-actions">
+                <a class="primary" href="${escapeAttr(v.player_url || '#')}" target="_blank" rel="noopener" data-testid="qrv-preview-${escapeAttr(v.id)}">Preview player</a>
+                <a href="${escapeAttr(v.qr_image_url)}" target="_blank" rel="noopener" download="qr-${escapeAttr(v.id)}.png" data-testid="qrv-download-${escapeAttr(v.id)}">Download QR</a>
+                <button class="qrv-edit" data-testid="qrv-edit-${escapeAttr(v.id)}">Edit</button>
+                <button class="qrv-toggle" data-testid="qrv-toggle-${escapeAttr(v.id)}">${toggleLabel}</button>
+                <button class="qrv-delete danger" data-testid="qrv-delete-${escapeAttr(v.id)}">Delete</button>
+            </div>
+        </li>`;
+    }).join('');
+
+    list.querySelectorAll('.qrv-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.closest('li').dataset.id;
+            const current = items.find(v => v.id === id);
+            try {
+                await api('/api/admin/qr-videos/' + encodeURIComponent(id), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ visible: !current.visible }),
+                });
+                toast(current.visible ? 'Hidden from home' : 'Now visible on home');
+                renderQrVideos();
+            } catch (e) { toast('Toggle failed: ' + e.message, true); }
+        });
+    });
+    list.querySelectorAll('.qrv-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.closest('li').dataset.id;
+            if (!confirm('Delete this QR video?  The QR code will stop working.')) return;
+            try {
+                await api('/api/admin/qr-videos/' + encodeURIComponent(id), {
+                    method: 'DELETE',
+                });
+                toast('Deleted');
+                renderQrVideos();
+            } catch (e) { toast('Delete failed: ' + e.message, true); }
+        });
+    });
+    list.querySelectorAll('.qrv-edit').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.closest('li').dataset.id;
+            const v = items.find(x => x.id === id);
+            if (!v) return;
+            const newName = prompt('Title:', v.name);
+            if (newName === null) return;
+            const newCaption = prompt(
+                'Caption (leave blank for none):',
+                v.caption || '',
+            );
+            if (newCaption === null) return;
+            const newUrl = prompt('Video URL:', v.url);
+            if (newUrl === null) return;
+            try {
+                await api('/api/admin/qr-videos/' + encodeURIComponent(id), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newName.trim() || null,
+                        caption: newCaption.trim(),
+                        url: newUrl.trim() || null,
+                    }),
+                });
+                toast('Saved');
+                renderQrVideos();
+            } catch (e) { toast('Save failed: ' + e.message, true); }
+        });
+    });
+}
+
+$('#qrVideoForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#qrvName').value.trim();
+    const url = $('#qrvUrl').value.trim();
+    const caption = $('#qrvCaption').value.trim();
+    const visible = $('#qrvVisible').checked;
+    if (!name || !url) {
+        toast('Title and URL are required', true);
+        return;
+    }
+    try {
+        await api('/api/admin/qr-videos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, url, caption, visible }),
+        });
+        $('#qrvName').value = '';
+        $('#qrvUrl').value = '';
+        $('#qrvCaption').value = '';
+        $('#qrvVisible').checked = true;
+        toast('QR generated');
+        renderQrVideos();
+    } catch (err) { toast('Failed: ' + err.message, true); }
 });
 
 /* ─────────────  Notifications  ───────────── */

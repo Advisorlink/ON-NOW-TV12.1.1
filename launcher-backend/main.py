@@ -38,6 +38,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+# v2.8.25 — Load /app/launcher-backend/.env so secrets like
+# EMERGENT_LLM_KEY (used by the V2 AI voice assistant) are picked up
+# without having to bake them into the supervisor / Docker env.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except Exception:
+    pass
+
 import aiofiles
 import jwt
 from fastapi import (
@@ -75,6 +84,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "apk_icons").mkdir(exist_ok=True)
 # v2.0 — App Store hero image (single file, admin-uploadable).
 (DATA_DIR / "appstore").mkdir(exist_ok=True)
+# v2.8.25 — V2 AI screen background image lives here.
+(DATA_DIR / "v2ai").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
 
@@ -186,16 +197,29 @@ class AppStoreMeta(BaseModel):
     speed_test_package: Optional[str]            = None
 
 
+# v2.8.25 — V2 AI screen customisation.  Admin can swap the heading
+# text shown above the waveform and upload a fullscreen background
+# image for the voice-assistant activity.
+class V2AIConfig(BaseModel):
+    heading_text: Optional[str] = None         # default in-app fallback if null
+    background_image_url: Optional[str] = None # 1920×1080 fullscreen
+
+
 # v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
 # Dropbox / HTTP video link, backend generates a QR PNG anyone can
-# scan with their phone to open the video.  Each entry can be hidden
-# from the launcher home or visible as a tile.
+# scan with their phone to open a mobile-friendly inline player page.
+# Each entry can be hidden from the launcher home or visible as a
+# tile.  The QR encodes /qr-play/<id> (NOT the raw video URL) so
+# the admin can rotate / fix the underlying Google Drive / Dropbox
+# link without reprinting the QR code.
 class QrVideo(BaseModel):
     id: str
     name: str
-    url: str          # the actual video URL the QR encodes
+    url: str          # the actual video URL the player page loads
+    caption: Optional[str] = None  # shown under the QR on the TV
     visible: bool = True
     qr_image_url: Optional[str] = None  # absolute URL to the PNG
+    player_url: Optional[str] = None    # absolute URL the QR encodes
     created_at: int = 0
 
 
@@ -328,6 +352,8 @@ class LauncherConfig(BaseModel):
     # v2.0 — App Store branding (hero image).  Always present so
     # older Android builds don't crash on JSON parse.
     appstore: AppStoreMeta = AppStoreMeta()
+    # v2.8.25 — V2 AI screen customisation (heading text + bg image).
+    v2ai: V2AIConfig = V2AIConfig()
     # v2.8.24 — Admin-curated QR-coded sharing videos.  Devices
     # that ignore the field still work — older Launcher builds
     # never deserialize it.
@@ -393,6 +419,30 @@ def _load_store() -> dict:
         # v1.7 migration — registered device list (keyed by device id).
         if "registered_devices" not in store or not isinstance(store["registered_devices"], dict):
             store["registered_devices"] = {}
+        # v2.8.24 migration — QR videos: ensure each entry has a
+        # `player_url` and `caption` field, and that the on-disk QR PNG
+        # encodes the player URL (not the raw video URL).  Legacy
+        # entries from the pre-caption build are upgraded in-place.
+        qr_dirty = False
+        for v in store.get("qr_videos", []):
+            qid = v.get("id")
+            if not qid:
+                continue
+            v.setdefault("caption", None)
+            expected_player = f"{PUBLIC_BASE_URL}/qr-play/{qid}"
+            if v.get("player_url") != expected_player:
+                v["player_url"] = expected_player
+                try:
+                    _generate_qr_png(DATA_DIR / "qr" / f"{qid}.png", expected_player)
+                    v["qr_image_url"] = f"/assets/qr/{qid}.png?ts={now_ts()}"
+                except Exception:
+                    log.exception("Failed to regenerate QR PNG for %s", qid)
+                qr_dirty = True
+        if qr_dirty:
+            # Persist without bumping `generation` — pure migration.
+            tmp = STORE_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(store, indent=2))
+            tmp.replace(STORE_FILE)
         return store
 
 
@@ -470,6 +520,8 @@ app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks
 app.mount("/assets/apks",        StaticFiles(directory=str(DATA_DIR / "apks")),        name="apks")
 app.mount("/assets/apk_icons",   StaticFiles(directory=str(DATA_DIR / "apk_icons")),   name="apk-icons")
 app.mount("/assets/appstore",    StaticFiles(directory=str(DATA_DIR / "appstore")),    name="appstore")
+# v2.8.25 — V2 AI screen background image asset.
+app.mount("/assets/v2ai",        StaticFiles(directory=str(DATA_DIR / "v2ai")),        name="v2ai")
 # v2.8.24 — QR code PNGs for admin-uploaded sharing videos.
 (DATA_DIR / "qr").mkdir(parents=True, exist_ok=True)
 app.mount("/assets/qr",          StaticFiles(directory=str(DATA_DIR / "qr")),          name="qr")
@@ -551,14 +603,23 @@ def _build_config(store: dict) -> LauncherConfig:
             topbar_btn_focus_text_color=(store.get("appstore") or {}).get("topbar_btn_focus_text_color"),
             speed_test_package=(store.get("appstore") or {}).get("speed_test_package"),
         ),
+        v2ai=V2AIConfig(
+            heading_text=(store.get("v2ai") or {}).get("heading_text"),
+            background_image_url=_abs(
+                (store.get("v2ai") or {}).get("background_image_url")
+            ),
+        ),
         qr_videos=[
             QrVideo(
                 id=v["id"], name=v["name"], url=v["url"],
+                caption=v.get("caption"),
                 visible=bool(v.get("visible", True)),
                 qr_image_url=_abs(v.get("qr_image_url")),
+                player_url=_abs(v.get("player_url")) or f"{PUBLIC_BASE_URL}/qr-play/{v['id']}",
                 created_at=int(v.get("created_at") or 0),
             )
             for v in store.get("qr_videos", [])
+            if v.get("visible", True)
         ],
     )
 
@@ -1585,6 +1646,68 @@ def clear_appstore_background() -> dict:
     return {"ok": True}
 
 
+# ── v2.8.25 — V2 AI screen customisation ──────────────────────────
+# Admin can swap the heading text shown above the waveform and
+# upload a fullscreen background image for the voice-assistant
+# Activity.  Both are surfaced via /api/launcher/config so the
+# launcher reads them on the next ~30 s poll.
+
+class V2AIConfigBody(BaseModel):
+    heading_text: Optional[str] = None
+
+
+@app.post("/api/admin/v2ai/config", dependencies=[Depends(require_admin)])
+def set_v2ai_config(body: V2AIConfigBody) -> dict:
+    store = _load_store()
+    v2ai = store.setdefault("v2ai", {})
+    if body.heading_text is not None:
+        text = body.heading_text.strip()
+        v2ai["heading_text"] = text or None
+    _save_store(store)
+    return {"ok": True, "v2ai": v2ai}
+
+
+@app.post("/api/admin/v2ai/background", dependencies=[Depends(require_admin)])
+async def upload_v2ai_background(file: UploadFile = File(...)) -> dict:
+    """Drag-drop a fullscreen background painted behind the V2 AI
+    voice-assistant Activity.  Auto-fits to 1920×1080 via centre-crop
+    so any aspect uploads cleanly."""
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "v2ai" / "background.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img = ImageOps.fit(img, (1920, 1080), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    v2ai = store.setdefault("v2ai", {})
+    v2ai["background_image_url"] = f"/assets/v2ai/background.png?ts={now_ts()}"
+    _save_store(store)
+    return {
+        "ok": True,
+        "background_image_url": _abs(v2ai["background_image_url"]),
+    }
+
+
+@app.delete("/api/admin/v2ai/background", dependencies=[Depends(require_admin)])
+def clear_v2ai_background() -> dict:
+    """Remove the current V2 AI screen background image."""
+    out_path = DATA_DIR / "v2ai" / "background.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("v2ai", {})["background_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
 # ── v2.8.18 — Admin-editable app-tile colors ──────────────────────
 class TileColorsBody(BaseModel):
     tile_bg_color:   Optional[str] = None
@@ -1730,12 +1853,14 @@ def clear_appstore_logo() -> dict:
 class QrVideoIn(BaseModel):
     name: str
     url: str
+    caption: Optional[str] = None
     visible: bool = True
 
 
 class QrVideoUpdate(BaseModel):
     name: Optional[str]    = None
     url: Optional[str]     = None
+    caption: Optional[str] = None
     visible: Optional[bool] = None
 
 
@@ -1756,16 +1881,32 @@ def _generate_qr_png(out_path: Path, payload: str) -> None:
     img.save(out_path, format="PNG", optimize=True)
 
 
+def _player_url_for(qid: str) -> str:
+    """Absolute URL of the mobile inline-player page that the QR
+    encodes.  We never encode the raw video URL — that way the admin
+    can rotate / fix the underlying Google Drive / Dropbox link
+    without reprinting the QR code."""
+    return f"{PUBLIC_BASE_URL}/qr-play/{qid}"
+
+
 @app.get("/api/admin/qr-videos", dependencies=[Depends(require_admin)])
 def list_qr_videos() -> dict:
     store = _load_store()
-    return {"data": store.get("qr_videos", [])}
+    out = []
+    for v in store.get("qr_videos", []):
+        out.append({
+            **v,
+            "qr_image_url": _abs(v.get("qr_image_url")),
+            "player_url":   _abs(v.get("player_url")) or _player_url_for(v["id"]),
+        })
+    return {"data": out}
 
 
 @app.post("/api/admin/qr-videos", dependencies=[Depends(require_admin)])
 def create_qr_video(body: QrVideoIn) -> dict:
     name = body.name.strip()
     url = body.url.strip()
+    caption = (body.caption or "").strip()
     if not name:
         raise HTTPException(400, "name required")
     if not url:
@@ -1773,20 +1914,31 @@ def create_qr_video(body: QrVideoIn) -> dict:
     if not (url.startswith("http://") or url.startswith("https://")):
         raise HTTPException(400, "url must start with http:// or https://")
     qid = uuid.uuid4().hex[:12]
+    player_url = _player_url_for(qid)
     out_path = DATA_DIR / "qr" / f"{qid}.png"
-    _generate_qr_png(out_path, url)
+    _generate_qr_png(out_path, player_url)
     entry = {
         "id":            qid,
         "name":          name,
         "url":           url,
+        "caption":       caption or None,
         "visible":       bool(body.visible),
         "qr_image_url":  f"/assets/qr/{qid}.png?ts={now_ts()}",
+        "player_url":    player_url,
         "created_at":    now_ts(),
     }
     store = _load_store()
     store.setdefault("qr_videos", []).insert(0, entry)
     _save_store(store)
-    return {"ok": True, "entry": entry}
+    # Return absolute URLs to the admin UI for instant rendering.
+    return {
+        "ok": True,
+        "entry": {
+            **entry,
+            "qr_image_url": _abs(entry["qr_image_url"]),
+            "player_url":   _abs(entry["player_url"]),
+        },
+    }
 
 
 @app.patch("/api/admin/qr-videos/{qid}", dependencies=[Depends(require_admin)])
@@ -1796,8 +1948,14 @@ def update_qr_video(qid: str, body: QrVideoUpdate) -> dict:
     entry = next((v for v in videos if v["id"] == qid), None)
     if not entry:
         raise HTTPException(404, "not found")
+    # Ensure player_url + caption fields exist on legacy rows.
+    entry.setdefault("caption", None)
+    entry.setdefault("player_url", _player_url_for(qid))
     if body.name is not None:
         entry["name"] = body.name.strip() or entry["name"]
+    if body.caption is not None:
+        c = body.caption.strip()
+        entry["caption"] = c or None
     if body.visible is not None:
         entry["visible"] = bool(body.visible)
     if body.url is not None:
@@ -1806,10 +1964,22 @@ def update_qr_video(qid: str, body: QrVideoUpdate) -> dict:
             if not (new_url.startswith("http://") or new_url.startswith("https://")):
                 raise HTTPException(400, "url must start with http:// or https://")
             entry["url"] = new_url
-            _generate_qr_png(DATA_DIR / "qr" / f"{qid}.png", new_url)
-            entry["qr_image_url"] = f"/assets/qr/{qid}.png?ts={now_ts()}"
+            # The QR still encodes /qr-play/<id> — no need to regen
+            # the PNG.  Only regenerate if the player_url is somehow
+            # missing or stale (defensive).
+            if not entry.get("player_url"):
+                entry["player_url"] = _player_url_for(qid)
+                _generate_qr_png(DATA_DIR / "qr" / f"{qid}.png", entry["player_url"])
+                entry["qr_image_url"] = f"/assets/qr/{qid}.png?ts={now_ts()}"
     _save_store(store)
-    return {"ok": True, "entry": entry}
+    return {
+        "ok": True,
+        "entry": {
+            **entry,
+            "qr_image_url": _abs(entry["qr_image_url"]),
+            "player_url":   _abs(entry["player_url"]),
+        },
+    }
 
 
 @app.delete("/api/admin/qr-videos/{qid}", dependencies=[Depends(require_admin)])
@@ -1826,6 +1996,130 @@ def delete_qr_video(qid: str) -> dict:
         pass
     _save_store(store)
     return {"ok": True}
+
+
+# ── Public: inline player page (where the QR points) ───────────────
+# Mobile-first HTML that auto-detects the URL kind and renders the
+# appropriate player:
+#   • Google Drive  →  https://drive.google.com/file/d/<id>/preview iframe
+#   • Dropbox       →  rewrite ?dl=0 → ?raw=1 for inline <video>
+#   • Direct video  →  HTML5 <video autoplay playsinline>
+#   • Anything else →  open the URL directly (fallback link)
+def _to_inline_url(raw: str) -> tuple[str, str]:
+    """Return (kind, embed_url) where kind ∈ {iframe, video, link}."""
+    u = (raw or "").strip()
+    if not u:
+        return ("link", "")
+    # Google Drive share link
+    m = re.search(r"drive\.google\.com/file/d/([A-Za-z0-9_-]+)", u)
+    if m:
+        return ("iframe", f"https://drive.google.com/file/d/{m.group(1)}/preview")
+    m = re.search(r"drive\.google\.com/.*[?&]id=([A-Za-z0-9_-]+)", u)
+    if m:
+        return ("iframe", f"https://drive.google.com/file/d/{m.group(1)}/preview")
+    # Dropbox share link — force raw=1 for inline playback
+    if "dropbox.com" in u:
+        if "dl=0" in u:
+            u = u.replace("dl=0", "raw=1")
+        elif "raw=" not in u and "dl=" not in u:
+            sep = "&" if "?" in u else "?"
+            u = f"{u}{sep}raw=1"
+        return ("video", u)
+    # YouTube — let it embed as an iframe (rare, but works)
+    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]+)", u)
+    if m:
+        return ("iframe", f"https://www.youtube.com/embed/{m.group(1)}?autoplay=1&playsinline=1")
+    # Direct video — match common extensions
+    if re.search(r"\.(mp4|m4v|mov|webm|ogg|mkv)(\?|$)", u, re.I):
+        return ("video", u)
+    # Fallback — open the URL in the browser
+    return ("link", u)
+
+
+@app.get("/qr-play/{qid}", response_class=HTMLResponse)
+def qr_play_page(qid: str) -> HTMLResponse:
+    store = _load_store()
+    entry = next(
+        (v for v in store.get("qr_videos", []) if v["id"] == qid),
+        None,
+    )
+    if not entry:
+        return HTMLResponse(
+            "<h1 style='font-family:system-ui;padding:48px;'>Video not found</h1>",
+            status_code=404,
+        )
+    name    = entry.get("name", "Video")
+    caption = entry.get("caption") or ""
+    kind, embed = _to_inline_url(entry.get("url", ""))
+    # HTML-escape user-supplied text fields.
+    def esc(s: str) -> str:
+        return (
+            s.replace("&", "&amp;")
+             .replace("<", "&lt;")
+             .replace(">", "&gt;")
+             .replace('"', "&quot;")
+             .replace("'", "&#39;")
+        )
+    name_e    = esc(name)
+    caption_e = esc(caption)
+    embed_e   = esc(embed)
+    if kind == "iframe":
+        player_html = (
+            f'<iframe src="{embed_e}" allow="autoplay; fullscreen; encrypted-media" '
+            f'allowfullscreen playsinline></iframe>'
+        )
+    elif kind == "video":
+        player_html = (
+            f'<video src="{embed_e}" controls autoplay playsinline preload="auto"></video>'
+        )
+    else:
+        player_html = (
+            f'<a class="open-link" href="{embed_e}" target="_blank" rel="noopener">'
+            f'Open video ↗</a>'
+        )
+    return HTMLResponse(f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{name_e}</title>
+<style>
+  *,*::before,*::after {{ box-sizing: border-box; }}
+  html, body {{ margin:0; padding:0; height:100%; background:#04060B; color:#F4F7FB;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+  body {{ display:flex; flex-direction:column; min-height:100dvh; }}
+  header {{ padding: 18px 20px 10px; }}
+  .eyebrow {{ font-size: 10px; letter-spacing:0.22em; text-transform:uppercase;
+              color:#2BB6FF; font-weight:700; }}
+  h1 {{ margin:6px 0 0; font-size:22px; font-weight:700; letter-spacing:-0.01em; }}
+  .caption {{ margin: 6px 0 0; font-size:14px; color:#A0AEC0; line-height:1.5; }}
+  .stage {{ flex:1; display:flex; align-items:center; justify-content:center;
+            padding: 14px 12px 24px; }}
+  .frame {{ position:relative; width:100%; max-width:560px; aspect-ratio: 16/9;
+            background:#000; border-radius:14px; overflow:hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5); }}
+  .frame video, .frame iframe {{ position:absolute; inset:0; width:100%; height:100%;
+                                 border:0; background:#000; object-fit: contain; }}
+  .open-link {{ display:flex; align-items:center; justify-content:center;
+                width:100%; height:100%; color:#2BB6FF; font-weight:700;
+                font-size:18px; text-decoration:none; background:#0A1224; }}
+  footer {{ padding: 10px 20px 22px; font-size:11px; color:#5C6B82; text-align:center;
+            letter-spacing:0.06em; }}
+  footer strong {{ color:#A0AEC0; font-weight:600; }}
+</style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">ON NOW TV V2 · scan to watch</div>
+    <h1>{name_e}</h1>
+    {f'<p class="caption">{caption_e}</p>' if caption_e else ''}
+  </header>
+  <div class="stage">
+    <div class="frame">{player_html}</div>
+  </div>
+  <footer>Played from <strong>ON NOW TV V2</strong></footer>
+</body>
+</html>""")
 
 
 # ── Notifications ─────────────────────────────────────────────────

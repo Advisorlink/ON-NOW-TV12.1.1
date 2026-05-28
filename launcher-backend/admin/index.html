@@ -368,6 +368,36 @@
             <p class="appstore-colors-hint">Tapping the Speed Test pill in the launcher will open this app.  Common values: <code>org.zwanoo.android.speedtest</code> (Ookla), <code>com.fast.android.app</code> (fast.com by Netflix).  Make sure the APK is installed via the App Store.</p>
         </div>
 
+        <!-- v2.8.25 — V2 AI screen customisation -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">V2 AI screen</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field" style="flex:1;">
+                    <span>Heading text</span>
+                    <input type="text" id="v2aiHeadingText"
+                           placeholder="Hold OK and ask anything about movies, TV, or apps."
+                           style="flex:1; min-width:320px; background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px;">
+                </label>
+                <button id="v2aiHeadingSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save</button>
+                <button id="v2aiHeadingReset" type="button" class="apk-drop-link">Reset to default</button>
+            </div>
+            <p class="appstore-colors-hint">Shown above the waveform on the voice-assistant screen.  Leave blank to use the default copy.</p>
+        </div>
+
+        <!-- V2 AI background image — drag-drop (1920×1080) -->
+        <div class="appstore-hero-section">
+            <div id="v2aiBgPreview" class="appstore-hero-preview">
+                <div class="appstore-hero-placeholder">No V2 AI background — drop one below.</div>
+                <img id="v2aiBgImg" alt="" hidden>
+                <button id="v2aiBgClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiBgDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiBgFile" accept="image/png,image/jpeg,image/webp" hidden>
+                <span><strong>Drop V2 AI background</strong> · or <button id="v2aiBgBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Rendered fullscreen on the voice-assistant screen: <strong>1920 × 1080 px (16:9)</strong>.  Any aspect accepted — auto-fit centred.</span>
+            </div>
+        </div>
+
         <!-- v2.8.20 — Top-bar logo (drag-drop) -->
         <div class="appstore-hero-section">
             <div id="appstoreLogoPreview" class="appstore-hero-preview" style="aspect-ratio:520/112;background:#04060B;">
@@ -455,6 +485,43 @@
         </div>
         <div class="store-drawer-backdrop" id="appStoreDrawerBackdrop"></div>
     </div>
+
+    <!-- QR VIDEOS TAB -->
+    <section id="tab-qrvideos" class="tab-panel">
+        <div class="panel-head">
+            <h2>QR Videos</h2>
+            <p>Paste any <strong>Google Drive</strong>, <strong>Dropbox</strong>, or direct <strong>HTTP(S)</strong> video link.  We generate a scannable QR code that opens a mobile-friendly inline player — no YouTube needed.  Toggle <em>Show on home</em> to surface a tile on every launcher device, or keep it hidden in the backend.</p>
+        </div>
+
+        <form id="qrVideoForm" class="qr-form">
+            <div class="qr-form-row">
+                <label class="qr-field">
+                    <span>Title</span>
+                    <input id="qrvName" type="text" placeholder="e.g. Welcome message" required>
+                </label>
+                <label class="qr-field qr-field-toggle">
+                    <span>Show on home</span>
+                    <input id="qrvVisible" type="checkbox" checked>
+                </label>
+            </div>
+            <label class="qr-field">
+                <span>Video URL</span>
+                <input id="qrvUrl" type="url" placeholder="https://drive.google.com/file/d/… or https://www.dropbox.com/s/…?dl=0 or https://…/clip.mp4" required>
+            </label>
+            <label class="qr-field">
+                <span>Caption <small>(optional — shown under the QR on the TV)</small></span>
+                <input id="qrvCaption" type="text" placeholder="e.g. Scan to watch our promo on your phone">
+            </label>
+            <div class="qr-form-actions">
+                <button type="submit" class="primary">Generate QR</button>
+                <p class="hint-inline">The QR encodes a server-hosted player page — change the underlying video URL anytime without reprinting.</p>
+            </div>
+        </form>
+
+        <h3 class="sub">Library</h3>
+        <ul id="qrVideoList" class="qr-list"></ul>
+        <p id="qrVideoEmpty" class="qr-empty" hidden>No QR videos yet.  Add your first one above.</p>
+    </section>
 
     <!-- NOTIFY TAB -->
     <section id="tab-notify" class="tab-panel">

@@ -21,6 +21,12 @@ data class LauncherConfig(
     /* v2.0 — App Store branding (hero image).  Optional; null = use
        the bundled gradient placeholder. */
     val appstore: AppStoreMeta = AppStoreMeta(),
+    /* v2.8.25 — V2 AI screen customisation (heading text + bg). */
+    val v2ai: V2AIConfig = V2AIConfig(),
+    /* v2.8.24 — Admin-curated QR-coded sharing videos.  Optional;
+       backend only sends entries flagged `visible`.  When empty the
+       launcher hides the on-home QR overlay entirely. */
+    val qrVideos: List<QrVideoRemote> = emptyList(),
 )
 
 /**
@@ -150,6 +156,12 @@ data class AppStoreMeta(
     val speedTestPackage: String?        = null,
 )
 
+/* v2.8.25 — V2 AI screen customisation pulled from the backend. */
+data class V2AIConfig(
+    val headingText: String?        = null,
+    val backgroundImageUrl: String? = null,
+)
+
 data class NotificationRemote(
     val id: String,
     val title: String,
@@ -157,6 +169,19 @@ data class NotificationRemote(
     val imageUrl: String?,
     val createdAt: Long,
     val expiresAt: Long,
+)
+
+/* v2.8.24 — QR-coded sharing video as seen by the launcher.  The
+   admin types a Google Drive / Dropbox / direct video URL into the
+   backend, which generates a PNG QR encoding the server-hosted
+   /qr-play/<id> page.  The launcher renders the PNG + title +
+   optional caption in the on-home overlay panel. */
+data class QrVideoRemote(
+    val id: String,
+    val name: String,
+    val caption: String?,
+    val qrImageUrl: String?,
+    val playerUrl: String?,
 )
 
 /* ────────────────  JSON parsing  ─────────────────── */
@@ -285,6 +310,24 @@ fun parseLauncherConfig(json: String): LauncherConfig {
         topbarBtnFocusTextColor = appstoreObj.optStringOrNull("topbar_btn_focus_text_color"),
         speedTestPackage        = appstoreObj.optStringOrNull("speed_test_package"),
     )
+    // v2.8.25 — V2 AI screen customisation (optional).
+    val v2aiObj = root.optJSONObject("v2ai")
+    val v2ai = if (v2aiObj == null) V2AIConfig() else V2AIConfig(
+        headingText        = v2aiObj.optStringOrNull("heading_text"),
+        backgroundImageUrl = v2aiObj.optStringOrNull("background_image_url"),
+    )
+    // v2.8.24 — QR videos (optional).
+    val qrArr = root.optJSONArray("qr_videos") ?: JSONArray()
+    val qrList = (0 until qrArr.length()).map {
+        val o = qrArr.getJSONObject(it)
+        QrVideoRemote(
+            id          = o.optString("id"),
+            name        = o.optString("name"),
+            caption     = o.optStringOrNull("caption"),
+            qrImageUrl  = o.optStringOrNull("qr_image_url"),
+            playerUrl   = o.optStringOrNull("player_url"),
+        )
+    }
     return LauncherConfig(
         dockTiles = tilesList,
         activeWallpaperUrl = root.optStringOrNull("active_wallpaper_url"),
@@ -293,5 +336,7 @@ fun parseLauncherConfig(json: String): LauncherConfig {
         generation = root.optInt("generation", 0),
         layout = layout,
         appstore = appstore,
+        v2ai = v2ai,
+        qrVideos = qrList,
     )
 }

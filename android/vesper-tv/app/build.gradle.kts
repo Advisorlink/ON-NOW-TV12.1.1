@@ -27,8 +27,8 @@ android {
         // your laptop, and the floor below which CI must never
         // publish.  Bump them by hand only when you cut a major
         // version locally.
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 260
-        versionName = (project.findProperty("versionName") as String?) ?: "2.8.5"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 285
+        versionName = (project.findProperty("versionName") as String?) ?: "2.8.25"
 
         // v2.7.82 SECURITY — Build watermark.  Every APK that comes out
         // of CI carries the exact git commit SHA + build timestamp baked

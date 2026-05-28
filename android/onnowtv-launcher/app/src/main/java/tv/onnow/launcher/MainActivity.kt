@@ -65,6 +65,21 @@ class MainActivity : AppCompatActivity() {
      * the cached config is loaded from disk). */
     private val dockItems: MutableList<DockItem> = mutableListOf()
 
+    /* v2.8.24 — QR videos rendered in the on-home overlay panel.
+     * Cycles every 8 s when more than one is visible.  Empty list
+     * hides the panel entirely. */
+    private val qrVideos: MutableList<tv.onnow.launcher.data.QrVideoRemote> = mutableListOf()
+    private var qrCycleIndex = 0
+    private val qrCycleTick = object : Runnable {
+        override fun run() {
+            if (qrVideos.size > 1) {
+                qrCycleIndex = (qrCycleIndex + 1) % qrVideos.size
+                paintQrPanel()
+            }
+            handler.postDelayed(this, 8_000)
+        }
+    }
+
     /* Ticking clock for the top bar — updates every 30s. */
     private val clockTick = object : Runnable {
         override fun run() {
@@ -108,6 +123,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         handler.post(clockTick)
+        handler.postDelayed(qrCycleTick, 8_000)
         startBackendPolling()
         // v2.8.19 — Refresh the top-bar VPN status dot whenever the
         // launcher gains focus, so a freshly-connected VPN client
@@ -118,6 +134,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(clockTick)
+        handler.removeCallbacks(qrCycleTick)
         configPollJob?.cancel()
     }
 
@@ -524,6 +541,38 @@ class MainActivity : AppCompatActivity() {
         surfaceNotifications(config)
         // v2.8.20 — Apply admin-uploadable logo + top-bar pill colors.
         applyTopBarBranding(config.appstore)
+        // v2.8.24 — Refresh the on-home QR overlay panel.
+        applyQrVideos(config.qrVideos)
+    }
+
+    /** v2.8.24 — Update the QR video list + repaint the overlay
+     *  panel.  Hides the panel entirely if no visible QRs exist. */
+    private fun applyQrVideos(list: List<tv.onnow.launcher.data.QrVideoRemote>) {
+        qrVideos.clear()
+        qrVideos.addAll(list.filter { !it.qrImageUrl.isNullOrBlank() })
+        qrCycleIndex = 0
+        paintQrPanel()
+    }
+
+    private fun paintQrPanel() {
+        if (!::binding.isInitialized) return
+        val panel = binding.qrVideoPanel
+        if (qrVideos.isEmpty()) {
+            panel.visibility = View.GONE
+            return
+        }
+        val v = qrVideos[qrCycleIndex.coerceIn(0, qrVideos.size - 1)]
+        panel.visibility = View.VISIBLE
+        binding.qrVideoTitle.text = v.name
+        if (v.caption.isNullOrBlank()) {
+            binding.qrVideoCaption.visibility = View.GONE
+        } else {
+            binding.qrVideoCaption.visibility = View.VISIBLE
+            binding.qrVideoCaption.text = v.caption
+        }
+        v.qrImageUrl?.let {
+            tv.onnow.launcher.ImageLoader.load(binding.qrVideoImage, it)
+        }
     }
 
     /** v2.8.20 — Recolour the top-bar action pills and swap the

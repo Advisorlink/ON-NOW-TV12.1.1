@@ -7,6 +7,57 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.25 — V2 AI fixed + QR Videos + admin V2 AI customisation
+
+  • **🛠 V2 AI was completely broken — fixed.**  The preview-pod
+    launcher backend was missing `EMERGENT_LLM_KEY`, so every voice
+    request returned a 500 from `/api/launcher/v2ai/process` and the
+    user's HK1 box rendered the generic
+    "Couldn't reach V2 AI. Check Wi-Fi and try again." reject card.
+    Wired `python-dotenv` into `launcher-backend/main.py` so the
+    existing `/app/launcher-backend/.env` (which already carries the
+    key) is loaded on startup.  End-to-end verified via curl: Whisper
+    transcribes the audio → GPT-5 returns a strict-JSON intent.
+
+  • **🎬 NEW — QR Video sharing.**  Admin can paste a Google Drive /
+    Dropbox / direct video URL, we generate a scannable QR code that
+    encodes a server-hosted `/qr-play/<id>` mobile-friendly inline
+    player page.  Phones that scan it land on a video player which
+    auto-detects the source kind:
+      - Google Drive → `<iframe src="…/preview">` embed
+      - Dropbox → rewrites `?dl=0` → `?raw=1` for inline `<video>`
+      - YouTube → embed
+      - Direct `.mp4/.mov/.webm/.mkv` → HTML5 `<video autoplay>`
+    Each entry can be hidden from the launcher home or toggled
+    visible.  Visible entries appear in a glassy overlay panel in
+    the upper-right corner of the launcher home screen; if multiple
+    are visible the launcher cycles every 8 s.  Encoding the player
+    URL (not the raw video URL) means the admin can rotate / fix the
+    underlying Drive / Dropbox link anytime WITHOUT having to
+    reprint the QR.
+
+  • **🎙 V2 AI screen customisation.**  Two new admin controls on the
+    App Store tab:
+      - **Heading text** — overrides the default "Hold OK and ask
+        anything about movies, TV, or apps." copy shown above the
+        waveform.
+      - **Background image** — 1920×1080 image painted behind the
+        voice-assistant Activity, with a dark scrim to keep text
+        legible.
+    Both surface via `/api/launcher/config → v2ai` and propagate to
+    the launcher on the next ~30 s config poll.
+
+  Files touched (10): `launcher-backend/main.py`,
+  `launcher-backend/admin/index.html`,
+  `launcher-backend/admin/static/app.js`,
+  `launcher-backend/admin/static/style.css`,
+  `android/onnowtv-launcher/.../data/LauncherConfig.kt`,
+  `android/onnowtv-launcher/.../MainActivity.kt`,
+  `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`,
+  `android/onnowtv-launcher/.../res/layout/activity_main.xml`,
+  `android/onnowtv-launcher/.../res/drawable/qr_panel_bg.xml`,
+  `launcher-backend/.env` (loaded via python-dotenv).
+
 ## v2.8.5 — Uninstall actually works + Kids rating gate on Detail page
 
   • **Launcher Uninstall finally fires.**  v2.8.3 added intent

@@ -1,6 +1,36 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.14 — G/PG cascade restored + edge-to-edge full-width hero banner** (Feb 27, 2026)
+> Latest: **v2.8.25 — V2 AI fixed + QR Videos + admin V2 AI customisation** (Feb 28, 2026)
+>
+> Three tightly-coupled launcher backend + Android changes per direct user video feedback ("V2 AI not working ... Press hold and ... change the Text").
+>
+> **A — 🛠 V2 AI was completely broken — fixed.**  Every voice request hit a 500 from `/api/launcher/v2ai/process` and the user's HK1 rendered the generic "Couldn't reach V2 AI. Check Wi-Fi and try again." reject card.  Root cause: the preview-pod launcher backend (`launcher-backend/main.py`) was reading `EMERGENT_LLM_KEY` directly from the process env, but supervisor's `environment=…` directive didn't include it.  The file `/app/launcher-backend/.env` already carried the key but nothing loaded it.  Fix: wired `python-dotenv` into `main.py` so `.env` is loaded at startup.  End-to-end verified via curl on the preview URL → Whisper transcribes → GPT-5 returns a strict-JSON intent.  Same `.env` pattern will work on the Contabo VPS.
+>
+> **B — 🎬 NEW — QR Video sharing.**  Admin section in the Launcher portal (`/admin → QR Videos` tab) where the user pastes any Google Drive / Dropbox / direct video URL.  The backend generates a 512×512 PNG QR code that encodes a server-hosted `/qr-play/<id>` mobile inline player page.  When a phone scans the QR, it lands on a dark, mobile-friendly player page that auto-detects the source kind and renders the right widget: Google Drive → `<iframe …/preview>`; Dropbox → rewrites `?dl=0` → `?raw=1` for inline `<video>`; YouTube → embed; direct `.mp4/.mov/.webm/.mkv` → HTML5 `<video autoplay>`.  Each entry has a per-card *Show on home* toggle — visible entries render in a glassy overlay panel in the upper-right corner of the launcher home (cycling every 8 s if there's more than one).  CRITICAL design choice: the QR encodes the PLAYER URL (`/qr-play/<id>`), not the raw video URL, so the admin can rotate / fix the underlying Drive / Dropbox link anytime WITHOUT having to reprint the QR.  Verified end-to-end via curl + admin UI screenshot.
+>
+> **C — 🎙 V2 AI screen customisation.**  Two new admin controls under App Store tab:
+>   - **Heading text** — overrides the default "Hold OK and ask anything about movies, TV, or apps." copy shown above the waveform.  Saved via `POST /api/admin/v2ai/config`.
+>   - **Background image** — 1920×1080 image painted behind the voice-assistant Activity, with a dark scrim to keep text legible.  Saved via `POST /api/admin/v2ai/background`.
+>   Both surface via `/api/launcher/config → v2ai` and propagate to the launcher on the next ~30 s config poll.  Kotlin reads `cfg.v2ai.headingText` / `cfg.v2ai.backgroundImageUrl` and applies them in `applyAdminCustomisation()` inside `VoiceAssistantActivity.onCreate`.
+>
+> **D — V2 AI → Vesper deep-link fixed.**  The launcher's `VoiceAssistantActivity.launchVesperPlay()` used an `ACTION_VIEW https://onnowtv.app/play?v2ai=…` intent that NEVER resolved (Vesper's manifest has no http intent-filter), so `resolveActivity` returned null and the fallback `getLaunchIntentForPackage("tv.vesper.app")` dropped the query.  Switched to the EXISTING `profile=kids` deep-link contract: `getLaunchIntentForPackage` + `putExtra("vesper_route", …)` + `data = onnowtv://launch?v2ai=…`.  Vesper's `MainActivity.onCreate` + `onNewIntent` now also detect `v2ai=` (cold-boot appends to boot URL; foreground-deliver navigates the WebView hash to `/v2ai-play?title=…&type=…`).
+>
+> Files touched (10):
+> - `launcher-backend/main.py` (V2 AI dotenv, QR caption+player_url+migration, /qr-play page, V2 AI endpoints)
+> - `launcher-backend/admin/index.html` (V2 AI section + QR Videos panel)
+> - `launcher-backend/admin/static/app.js` (V2 AI handlers + QR Videos CRUD)
+> - `launcher-backend/admin/static/style.css` (.qr-* card styles)
+> - `android/onnowtv-launcher/.../data/LauncherConfig.kt` (`V2AIConfig`, `QrVideoRemote` data classes + parsing)
+> - `android/onnowtv-launcher/.../MainActivity.kt` (`applyQrVideos` panel renderer + cycler)
+> - `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt` (admin customisation + fixed Vesper deep-link)
+> - `android/onnowtv-launcher/.../res/layout/activity_main.xml` (qr_video_panel overlay)
+> - `android/onnowtv-launcher/.../res/drawable/qr_panel_bg.xml` (glassy bg)
+> - `android/vesper-tv/.../MainActivity.kt` (v2ai deep-link in cold-boot + onNewIntent)
+> - `android/vesper-tv/app/build.gradle.kts` (versionCode 285, versionName 2.8.25)
+>
+> ⚠️ The Android changes need a Save to GitHub → CI APK rebuild → reinstall cycle to hit the HK1.  The backend changes (V2 AI working, admin UI live) are usable immediately on the preview / production URL.
+
+> Previous: **v2.8.14 — G/PG cascade restored + edge-to-edge full-width hero banner** (Feb 27, 2026)
 >
 > Two coupled fixes per direct user spec.
 >

@@ -84,7 +84,42 @@ class VoiceAssistantActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildLayout())
+        applyAdminCustomisation()
         requestMicIfNeeded()
+    }
+
+    /** v2.8.25 — Pull the admin-set V2 AI heading text + background
+     *  image from the cached LauncherConfig.  Applied on every
+     *  activity launch so any admin edit propagates within ~30 s. */
+    private fun applyAdminCustomisation() {
+        val cfg = try {
+            tv.onnow.launcher.data.LauncherRepository(applicationContext).loadCached()
+        } catch (_: Throwable) { null } ?: return
+        cfg.v2ai.headingText?.takeIf { it.isNotBlank() }?.let { bigHint.text = it }
+        cfg.v2ai.backgroundImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            val host = (window.decorView as? ViewGroup) ?: return@let
+            val root = host.findViewById<View>(android.R.id.content) as? ViewGroup
+                ?: return@let
+            val frame = (root.getChildAt(0) as? FrameLayout) ?: return@let
+            val bgView = android.widget.ImageView(this).apply {
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            }
+            frame.addView(bgView, 0)
+            // Dark scrim on top of the bg so text stays legible.
+            val scrim = View(this).apply {
+                setBackgroundColor(Color.parseColor("#99000000"))
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            }
+            frame.addView(scrim, 1)
+            tv.onnow.launcher.ImageLoader.load(bgView, url)
+        }
     }
 
     override fun onPause() {
@@ -347,28 +382,32 @@ class VoiceAssistantActivity : AppCompatActivity() {
     /* ──────────────  Intent dispatch  ────────────── */
 
     private fun launchVesperPlay(title: String, isSeries: Boolean) {
-        // Open Vesper with an `?v2ai=<encoded title>` query.  The
-        // Vesper React app auto-detects this flag on cold-start and
+        // Open Vesper with `?v2ai=<encoded title>` deep-link.  The
+        // Vesper React app auto-detects this on cold-start and
         // routes to its search → first-result → play flow, hitting
-        // ExoPlayer fullscreen.  Falls back to the launcher tile if
-        // Vesper isn't installed.
+        // ExoPlayer fullscreen.
+        //
+        // v2.8.25 — Match the EXISTING `profile=kids` deep-link
+        // contract: use `packageManager.getLaunchIntentForPackage`
+        // (Vesper's MAIN/LAUNCHER intent) and attach the deep-link
+        // BOTH as a `vesper_route` extra AND as an `onnowtv://launch`
+        // data URI.  The previous `ACTION_VIEW https://onnowtv.app`
+        // intent never resolved because Vesper's manifest doesn't
+        // claim that host — `resolveActivity` returned null and we
+        // fell back to a bare launcher entry, losing the query.
         val encoded = java.net.URLEncoder.encode(title, "UTF-8")
         val typeArg = if (isSeries) "series" else "movie"
-        val uri = android.net.Uri.parse(
-            "https://onnowtv.app/play?v2ai=$encoded&type=$typeArg&autoplay=1"
-        )
-        val tryLaunch = Intent(Intent.ACTION_VIEW, uri).apply {
-            setPackage("tv.vesper.app")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val resolved = packageManager.resolveActivity(tryLaunch, 0)
-        val launch: Intent? = if (resolved != null) {
-            tryLaunch
-        } else {
-            // Fallback — start Vesper at its main launcher entry.
-            packageManager.getLaunchIntentForPackage("tv.vesper.app")
-                ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        }
+        val launch  = packageManager.getLaunchIntentForPackage("tv.vesper.app")
+            ?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(
+                    "vesper_route",
+                    "/?v2ai=$encoded&type=$typeArg&autoplay=1",
+                )
+                data = android.net.Uri.parse(
+                    "onnowtv://launch?v2ai=$encoded&type=$typeArg&autoplay=1",
+                )
+            }
         if (launch != null) {
             startActivity(launch)
             finish()

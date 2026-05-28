@@ -1,5 +1,5 @@
 {
-  "generation": 467,
+  "generation": 481,
   "dock_tiles": [
     {
       "key": "movies",
@@ -408,8 +408,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779936196,
-      "last_generation": 467
+      "last_seen": 1779937740,
+      "last_generation": 469
     }
   },
   "layout": {
@@ -6736,7 +6736,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779936195,
+      "last_seen_at": 1779937739,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6754,12 +6754,28 @@
   },
   "qr_videos": [
     {
+      "id": "41b8bc7aafd0",
+      "name": "Welcome to our hotel",
+      "url": "https://drive.google.com/file/d/1xY2zABCDEF/view",
+      "caption": "Scan to watch our welcome message on your phone",
+      "visible": true,
+      "qr_image_url": "/assets/qr/41b8bc7aafd0.png?ts=1779938055",
+      "player_url": "http://localhost:8002/qr-play/41b8bc7aafd0",
+      "created_at": 1779938055
+    },
+    {
       "id": "e2b13f9177ce",
       "name": "Promo Reel",
       "url": "https://drive.google.com/file/d/abc123/view",
       "visible": true,
-      "qr_image_url": "/assets/qr/e2b13f9177ce.png?ts=1779936137",
-      "created_at": 1779936137
+      "qr_image_url": "/assets/qr/e2b13f9177ce.png?ts=1779936815",
+      "created_at": 1779936137,
+      "caption": null,
+      "player_url": "http://localhost:8002/qr-play/e2b13f9177ce"
     }
-  ]
+  ],
+  "v2ai": {
+    "heading_text": null,
+    "background_image_url": null
+  }
 }
