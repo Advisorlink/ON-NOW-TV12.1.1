@@ -570,7 +570,7 @@ class MainActivity : AppCompatActivity() {
         val textColor      = parseHexSafely(textHex,    Color.parseColor("#FFFFFFFF"))
         val focusBgColor   = parseHexSafely(focusBgHex, Color.parseColor("#FF2BB6FF"))
         val focusTextColor = parseHexSafely(focusFgHex, Color.parseColor("#FF04060B"))
-        listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed).forEach { pill ->
+        listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed, binding.topbarBtnV2ai).forEach { pill ->
             // Replace the pill's background with a state selector
             // honouring the admin-chosen resting + focused colors.
             val resting = android.graphics.drawable.GradientDrawable().apply {
@@ -940,12 +940,13 @@ class MainActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this,
                 tv.onnow.launcher.vpn.VpnControlActivity::class.java))
         }
-        // v2.8.22 — Speed Test pill now launches an admin-configured
-        // APK package (e.g. Ookla `org.zwanoo.android.speedtest`).
-        // Falls back to a toast if the package isn't installed yet
-        // so the user knows to install it via the App Store.
         binding.topbarBtnSpeed.setOnClickListener {
             launchSpeedTestApp()
+        }
+        // v2.8.23 — V2 AI push-and-hold voice assistant.
+        binding.topbarBtnV2ai.setOnClickListener {
+            startActivity(android.content.Intent(this,
+                tv.onnow.launcher.v2ai.VoiceAssistantActivity::class.java))
         }
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()

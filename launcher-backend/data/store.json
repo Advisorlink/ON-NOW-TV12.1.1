@@ -1,12 +1,12 @@
 {
-  "generation": 431,
+  "generation": 466,
   "dock_tiles": [
     {
       "key": "movies",
       "label": "Movies/Tv",
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
-      "wallpaper_url": "/assets/wallpapers/tile-movies-54c36af1.png",
+      "wallpaper_url": "/assets/wallpapers/tile-movies-08302cb0.png",
       "apk_url": null,
       "apk_filename": null,
       "apk_package_id": null,
@@ -29,7 +29,7 @@
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": null,
+      "target_package": "ar.tvplayer.tv",
       "target_url": null,
       "accent": "#2eea7a",
       "heading": "Live Tv",
@@ -83,7 +83,7 @@
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": null,
+      "target_package": "chrome.android.chrome",
       "target_url": null,
       "accent": "#d4ff00",
       "heading": "Google",
@@ -101,7 +101,7 @@
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": null,
+      "target_package": "com.teamsmart.videomanager.tv",
       "target_url": null,
       "accent": "#ff2600",
       "heading": "YouTube No Ads",
@@ -197,6 +197,36 @@
       "apk_url": "/assets/apks/02931c0eaf3d_onnowtv-v2-debug (6).apk",
       "description": null,
       "added_at": 1779858715
+    },
+    {
+      "id": "6878bf6fc5d6",
+      "name": "On Now Tv Live",
+      "package_id": "ar.tvplayer.tv",
+      "version_name": "5.1.0",
+      "icon_url": "/assets/apk_icons/6878bf6fc5d6.png",
+      "apk_url": "/assets/apks/6878bf6fc5d6_On Now Tv Live.apk",
+      "description": null,
+      "added_at": 1779895219
+    },
+    {
+      "id": "3929bd68f023",
+      "name": "On Now VIP",
+      "package_id": "com.haxapps.stremio",
+      "version_name": "1.6.7",
+      "icon_url": "/assets/apk_icons/3929bd68f023.png",
+      "apk_url": "/assets/apks/3929bd68f023_On Now VIP.apk",
+      "description": null,
+      "added_at": 1779895305
+    },
+    {
+      "id": "367cd0c99c7a",
+      "name": "SmartTube",
+      "package_id": "com.teamsmart.videomanager.tv",
+      "version_name": "30.48",
+      "icon_url": "/assets/apk_icons/367cd0c99c7a.png",
+      "apk_url": "/assets/apks/367cd0c99c7a_SmartTube.apk",
+      "description": null,
+      "added_at": 1779895329
     }
   ],
   "notifications": [],
@@ -378,8 +408,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779889387,
-      "last_generation": 431
+      "last_seen": 1779932312,
+      "last_generation": 466
     }
   },
   "layout": {
@@ -399,8 +429,8 @@
     "featured_subheading_size_sp": 17,
     "featured_subheading_font": "montserrat",
     "featured_subheading_weight": "semibold",
-    "featured_subheading_color": "#00CCFF",
-    "featured_description_size_sp": 17,
+    "featured_subheading_color": "#2BB6FF",
+    "featured_description_size_sp": 14,
     "featured_description_font": "montserrat",
     "featured_description_weight": "regular",
     "featured_description_color": "#D8E2EF",
@@ -422,7 +452,7 @@
     "featured_heading_image_url": "",
     "featured_heading_image_height_dp": 80,
     "featured_group_offset_x_dp": 0,
-    "featured_group_offset_y_dp": 0
+    "featured_group_offset_y_dp": -50
   },
   "registered_devices": {
     "AF53CE146F95DB53C107CDD647EEA49B": {
@@ -6706,7 +6736,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779889386,
+      "last_seen_at": 1779932311,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6715,10 +6745,10 @@
     "background_image_url": "/assets/appstore/background.png?ts=1779878661",
     "tile_bg_color": "#FF081244",
     "tile_text_color": "#FFFFFFFF",
-    "topbar_btn_bg_color": "#FF203A5C",
+    "topbar_btn_bg_color": "#FF05182E",
     "topbar_btn_text_color": "#FFFFFFFF",
-    "logo_image_url": "/assets/appstore/logo.png?ts=1779886616",
-    "topbar_btn_focus_bg_color": "#FFFFD43B",
+    "logo_image_url": "/assets/appstore/logo.png?ts=1779889706",
+    "topbar_btn_focus_bg_color": "#FF0D2845",
     "topbar_btn_focus_text_color": "#FF04060B",
     "speed_test_package": "org.zwanoo.android.speedtest"
   }

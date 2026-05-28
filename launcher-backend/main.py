@@ -546,6 +546,148 @@ def health() -> dict:
     return {"ok": True, "ts": now_ts(), "version": app.version}
 
 
+# ════════════════════════════════════════════════════════════════════
+#  V2 AI — voice assistant pipeline
+# ════════════════════════════════════════════════════════════════════
+# Pipeline:
+#   1. Launcher records audio (push-and-hold), POSTs the m4a/wav file.
+#   2. We transcribe via OpenAI Whisper (whisper-1).
+#   3. We parse the transcript with GPT-5.4 into a strict JSON intent.
+#   4. Launcher acts on the intent — either deep-links into Vesper for
+#      auto-play, or shows the recommendation list in-screen.
+#
+# IMPORTANT scope restriction: GPT is instructed to REJECT anything
+# that isn't about movies / TV shows / installed apps.  Troubleshooting,
+# weather, settings, etc. all return `intent: "reject"`.
+
+import json as _json
+
+V2AI_SYSTEM_PROMPT = """You are V2 AI — a voice assistant for the ON NOW TV V2 \
+streaming launcher.  You ONLY handle requests about movies, TV shows, \
+or apps installed on the box.  ALL OTHER REQUESTS (troubleshooting, \
+weather, news, math, settings, jokes, general chat) MUST be rejected.
+
+Reply with STRICT JSON (no markdown, no comments) matching this schema:
+{
+  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "open_app" | "reject",
+  "title":         string | null,         // for play_movie / play_series
+  "query":         string | null,         // for recommend / search
+  "mood":          string | null,         // for recommend (e.g. "funny", "scary", "feel-good")
+  "app_name":      string | null,         // for open_app
+  "reject_reason": string | null,         // for reject — short user-facing line
+  "speech_reply":  string,                // ALWAYS present — short TTS-friendly sentence
+  "recommendations": [                    // for recommend / search
+    { "title": string, "year": number | null, "type": "movie" | "series", "why": string }
+  ]
+}
+
+Rules:
+- "Play <something>" → intent="play_movie" if it's a movie, "play_series" if a TV show.  Set "title" exactly as the user said.
+- "What should I watch when I'm sad?" → intent="recommend", mood="feel-good or uplifting", recommendations=[3-5 titles].
+- "Open Netflix" → intent="open_app", app_name="Netflix".
+- "Why is my Wi-Fi slow?" → intent="reject", reject_reason="V2 AI only helps with movies, TV, and apps.", speech_reply="Sorry, I only help with movies, TV shows, and apps.".
+- speech_reply is what gets shown / spoken back to the user.  Keep it under 12 words and friendly.
+- Never include fields you don't need (use null or omit empty arrays)."""
+
+
+@app.post("/api/launcher/v2ai/process", dependencies=[Depends(_optional_admin_no_op)] if False else [])
+async def v2ai_process(file: UploadFile = File(...)) -> dict:
+    """Accept an audio recording, return a strict JSON intent the
+    launcher acts on.  Endpoint is unauthenticated (every box
+    registered with the launcher gets to use it)."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty audio")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(413, "audio file too large (25 MB max)")
+
+    # 1) Transcribe via Whisper.
+    transcript = await _v2ai_transcribe(raw, filename=file.filename or "audio.m4a")
+    if not transcript or len(transcript.strip()) < 2:
+        return {
+            "intent": "reject",
+            "reject_reason": "I didn't catch that.",
+            "speech_reply": "I didn't catch that, please try again.",
+            "transcript": transcript or "",
+        }
+
+    # 2) Parse intent via GPT.
+    parsed = await _v2ai_parse_intent(transcript)
+    parsed["transcript"] = transcript
+    return parsed
+
+
+async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
+    """OpenAI Whisper STT via emergentintegrations."""
+    from emergentintegrations.llm.openai import OpenAISpeechToText
+    import io
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
+    stt = OpenAISpeechToText(api_key=api_key)
+    # The SDK accepts a file-like object with a `.name` attribute.
+    buf = io.BytesIO(raw)
+    buf.name = filename
+    try:
+        resp = await stt.transcribe(
+            file=buf,
+            model="whisper-1",
+            response_format="json",
+            language="en",
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"transcription failed: {exc}")
+    return (getattr(resp, "text", "") or "").strip()
+
+
+async def _v2ai_parse_intent(transcript: str) -> dict:
+    """GPT-5.4 intent parser — returns the schema described in
+    V2AI_SYSTEM_PROMPT.  Falls back to a safe reject if the model
+    returns garbage."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"v2ai-{uuid.uuid4().hex[:8]}",
+        system_message=V2AI_SYSTEM_PROMPT,
+    ).with_model("openai", "gpt-5")
+    msg = UserMessage(text=transcript)
+    try:
+        reply = await chat.send_message(msg)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"intent parsing failed: {exc}")
+
+    text = str(reply).strip()
+    # Strip any accidental code-fence wrapping.
+    if text.startswith("```"):
+        text = text.strip("`")
+        # remove leading 'json' fence label if present
+        if text.lower().startswith("json"):
+            text = text[4:]
+    text = text.strip()
+    try:
+        parsed = _json.loads(text)
+    except Exception:
+        # Fallback — model didn't return JSON.  Treat as a safe reject.
+        return {
+            "intent": "reject",
+            "reject_reason": "I couldn't understand that request.",
+            "speech_reply": "Sorry, I couldn't understand that.",
+        }
+    # Ensure required keys exist.
+    parsed.setdefault("intent", "reject")
+    parsed.setdefault("speech_reply", "Done.")
+    return parsed
+
+
+def _optional_admin_no_op():
+    """Placeholder so the decorator above resolves cleanly when we
+    want the endpoint open.  No-op."""
+    return None
+
+
 @app.get("/api/launcher/config", response_model=LauncherConfig)
 def get_launcher_config(device_id: Optional[str] = None) -> LauncherConfig:
     """Polled by every launcher device every few seconds.  Returns

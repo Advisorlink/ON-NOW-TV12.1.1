@@ -5,6 +5,8 @@
     <!-- Internet for future backend config / APK downloads. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- v2.8.23 — Mic for V2 AI push-and-hold voice assistant. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <!-- Sideload APKs published from the admin backend. -->
@@ -88,6 +90,14 @@
         <!-- v2.8.22 — SpeedTestActivity removed; the Speed Test
              pill now opens an admin-configured external APK
              (e.g. Ookla).  No activity registration needed. -->
+
+        <!-- v2.8.23 — V2 AI voice assistant. -->
+        <activity
+            android:name=".v2ai.VoiceAssistantActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
 
         <!-- v2.8.19 — VPN status + system VPN settings launcher. -->
         <activity

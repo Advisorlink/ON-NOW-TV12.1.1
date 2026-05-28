@@ -148,7 +148,8 @@
                 android:focusableInTouchMode="false"
                 android:clickable="true"
                 android:nextFocusDown="@id/dock"
-                android:nextFocusLeft="@id/topbar_btn_vpn">
+                android:nextFocusLeft="@id/topbar_btn_vpn"
+                android:nextFocusRight="@id/topbar_btn_v2ai">
 
                 <ImageView
                     android:layout_width="18dp"
@@ -166,6 +167,40 @@
                     android:letterSpacing="0.06"
                     android:fontFamily="sans-serif-medium"
                     android:text="Speed Test" />
+            </LinearLayout>
+
+            <!-- v2.8.23 — V2 AI push-and-hold voice assistant. -->
+            <LinearLayout
+                android:id="@+id/topbar_btn_v2ai"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="10dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="18dp"
+                android:background="@drawable/bg_topbar_btn"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:nextFocusDown="@id/dock"
+                android:nextFocusLeft="@id/topbar_btn_speed">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_v2ai_sparkle"
+                    android:tint="@color/text_primary"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.06"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="V2 AI" />
             </LinearLayout>
         </LinearLayout>
 
