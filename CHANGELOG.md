@@ -7,6 +7,58 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.41 — V2 AI on Groq (10× cheaper, 5× faster, no Emergent dependency)
+
+  • **🚨 V2 AI was 502'ing on production.**  Curl-tested the Emergent
+    Universal Key from the Contabo VPS and got:
+    `Error code: 403 - Free users can only use Universal Key from
+    within Emergent platform. Please upgrade to paid plan for
+    external access.`  Emergent recently restricted the LLM gateway
+    to in-pod use only.
+
+  • **🏎 Cut over to Groq.**  Both V2 AI legs (Whisper STT + intent
+    parsing LLM) now run on Groq's LPU silicon:
+    - STT: `whisper-large-v3-turbo`  (~$0.04/hr audio vs OpenAI's
+      $0.36/hr — 9× cheaper, ~5× faster)
+    - LLM: `llama-3.1-8b-instant`  (~$0.05/M input tokens vs
+      gpt-4o-mini's $0.15 — 3× cheaper, ~5× faster, valid strict-JSON)
+    Groq's API is OpenAI-compatible — implementation is just
+    `AsyncOpenAI(base_url="https://api.groq.com/openai/v1")` + a
+    different model name.  Zero changes to call sites or
+    intent-schema downstream.
+
+  • **🔧 Provider precedence in `_v2ai_transcribe()` and
+    `_v2ai_parse_intent()`:**
+    1. `GROQ_API_KEY` set → Groq (production default)
+    2. else `OPENAI_API_KEY` set → direct OpenAI
+    3. else `EMERGENT_LLM_KEY` set → Emergent gateway (dev pod only)
+    Any future agent can swap providers without touching call sites.
+
+  • **🐛 Groq prompt-length fix.**  Groq's Whisper caps the `prompt`
+    parameter at 896 chars; our domain prompt was 1508.  Created a
+    Groq-specific 773-char prompt with the most useful seed
+    vocabulary (titles + actor names) — those are what drive
+    transcription accuracy.
+
+  • **Live end-to-end verified** against the production VPS:
+    `POST https://onnowtv.duckdns.org/launcher/api/launcher/v2ai/process`
+    with a wav file → HTTP 200, 7.6 s total (Whisper + LLM together
+    <1 s; the rest is TMDB enrichment for ~30 recommendation cards).
+
+  • **Cost projection** at user's 500-box scale (5 voice questions
+    per box per day): **~$1.55/month** (was ~$16/month on OpenAI,
+    was blocked entirely on Emergent VPS-side).
+
+Files touched (2):
+  • `launcher-backend/main.py`  (Groq paths in `_v2ai_transcribe` +
+    `_v2ai_parse_intent` — synced to VPS)
+  • `/opt/onnowtv-launcher/.env` (GROQ_API_KEY appended on VPS,
+    older Emergent key kept as fallback for dev pod use)
+
+⚠️ Backend-only change (the new APK isn't required).  Existing
+launcher APKs on every HK1 will start using Groq on the next voice
+press — no reinstall needed.
+
 ## v2.8.40 — VPS cutover + Launcher build fix (out-of-scope `dp()`)
 
   • **🐛 Build fix.**  v2.8.40's V2 AI pill image-override added a

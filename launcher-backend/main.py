@@ -1375,6 +1375,48 @@ async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
         "Lost, The Sopranos."
     )
     openai_key = os.environ.get("OPENAI_API_KEY")
+    groq_key = os.environ.get("GROQ_API_KEY")
+
+    # v2.8.41 — Groq path takes precedence (10× cheaper, 5× faster
+    # than OpenAI Whisper).  Groq's API is OpenAI-compatible — we
+    # just point the AsyncOpenAI client at api.groq.com and pick
+    # `whisper-large-v3-turbo` instead of `whisper-1`.
+    # Groq caps the Whisper `prompt` at 896 chars (OpenAI allows ~1000).
+    # We use a shorter domain hint here — still seeds the model with
+    # the most useful vocabulary (titles + actor names) which is
+    # what biases transcription accuracy.
+    if groq_key:
+        groq_prompt = (
+            "Voice command for a smart TV. User asks to play movies, TV "
+            "shows, open apps, get recommendations, ask trivia. Apps: "
+            "Netflix, Disney Plus, HBO Max, Hulu, Prime Video, Apple TV, "
+            "Paramount Plus, Peacock, YouTube, Spotify, Plex, Jellyfin, "
+            "Kodi, VLC, Twitch, Crunchyroll. People: Leonardo DiCaprio, "
+            "Tom Cruise, Brad Pitt, Heath Ledger, Quentin Tarantino, "
+            "Christopher Nolan, Scarlett Johansson, Ryan Reynolds, "
+            "Margot Robbie, Cillian Murphy, Dwayne Johnson, Zendaya, "
+            "Timothee Chalamet, Pedro Pascal, Florence Pugh. Titles: "
+            "The Matrix, Inception, Interstellar, Avatar, Top Gun "
+            "Maverick, Oppenheimer, Barbie, Dune, Breaking Bad, "
+            "Stranger Things, The Last of Us, House of the Dragon, "
+            "Game of Thrones, Succession, The Bear, Severance, "
+            "Wednesday, Squid Game, Peaky Blinders, The Crown."
+        )
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=groq_key, base_url="https://api.groq.com/openai/v1")
+        try:
+            resp = await client.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=(filename, raw, "audio/m4a"),
+                response_format="json",
+                language="en",
+                prompt=groq_prompt,
+                temperature=0,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"transcription failed (groq): {exc}")
+        return (getattr(resp, "text", "") or "").strip()
+
     if openai_key:
         # Direct OpenAI path — works from any server.
         from openai import AsyncOpenAI
@@ -1438,6 +1480,43 @@ async def _v2ai_parse_intent(transcript: str, history_block: str = "") -> dict:
         system_msg = f"{V2AI_SYSTEM_PROMPT}\n\n{history_block}"
 
     openai_key = os.environ.get("OPENAI_API_KEY")
+    groq_key = os.environ.get("GROQ_API_KEY")
+
+    # v2.8.41 — Groq path takes precedence for intent parsing:
+    # llama-3.1-8b-instant on Groq returns valid JSON in ~200-400 ms
+    # vs gpt-4o-mini's ~1-2 s, at ~8× lower cost.  OpenAI-compatible
+    # API so we just swap `base_url` + model name.
+    if groq_key:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=groq_key, base_url="https://api.groq.com/openai/v1")
+        try:
+            resp = await client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                temperature=0.2,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user",   "content": transcript},
+                ],
+            )
+            raw = resp.choices[0].message.content or "{}"
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Groq chat failed")
+            return {
+                "intent": "reject",
+                "reject_reason": "I couldn't process that — try again.",
+                "speech_reply": "Something went wrong, please try again.",
+            }
+        try:
+            import json
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {
+                "intent": "reject",
+                "reject_reason": "I couldn't parse the response — try again.",
+                "speech_reply": "Something went wrong, please try again.",
+            }
+
     if openai_key:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=openai_key)
