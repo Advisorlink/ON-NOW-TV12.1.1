@@ -7,6 +7,62 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.40 — VPS cutover: every APK now points at Contabo (no more preview pod)
+
+  • **🏭 Production migration completed.**  The Vesper APK and the
+    new ON NOW TV Launcher APK were still carrying the
+    `https://rebrand-app-5.preview.emergentagent.com/` preview-pod
+    URL as their hardcoded default (Launcher `DEFAULT_BASE_URL`,
+    Vesper `strings.xml app_url`, ExoPlayer `readBackendBase()`
+    fallback).  CI was already overriding `REACT_APP_BACKEND_URL`
+    to the Contabo VPS for the bundled React frontend, but the
+    Kotlin / XML defaults were never updated, so any time those
+    fallbacks fired the launcher would silently hit the preview
+    pod (which has zero uptime guarantee, can be paused, and was
+    never meant for the user's 500+ deployed boxes).
+
+  • **Three files flipped to the VPS host:**
+    - `LauncherRepository.kt` — `DEFAULT_BASE_URL` now
+      `https://onnowtv.duckdns.org/launcher` (Nginx proxy →
+      127.0.0.1:8002 launcher backend with `root_path="/launcher"`).
+    - `vesper-tv/.../res/values/strings.xml` — `app_url` now
+      `https://onnowtv.duckdns.org/` (WebView base for the bundled
+      React app + LiveGuideController TMDB lookups).
+    - `vesper-tv/.../ExoPlayerActivity.kt` — `readBackendBase()`
+      fallback now `https://onnowtv.duckdns.org`.
+
+  • **Verified live end-to-end:**  All four migration surfaces
+    healthy on `onnowtv.duckdns.org`:
+      `/api/`                → 200 (Vesper backend v2.8.39)
+      `/launcher/`           → 200 (Launcher backend v2.8.26)
+      `/launcher/admin/`     → 200 (admin portal)
+      `/api/launcher/v2ai/ping` → ok
+    Heartbeat `/api/launcher/config` returns full schema with
+    `v2ai`, `qr_videos`, `appstore`, `dock_tiles`, `apks`, `layout`.
+
+  • **Backend code already in sync.**  `server.py` (3,985 lines),
+    `main.py` (3,049 lines), all 9 helper modules, full
+    `admin/index.html`, `app.js`, `style.css`, `apk_meta.py`,
+    `requirements.txt` — md5sums match exactly between `/app/` and
+    the VPS.  No backend sync needed for this release.
+
+  • **Documentation polish:** launcher README now describes the
+    correct `onnowtv.duckdns.org/launcher` URL (was incorrectly
+    saying `launcher.onnowtv.duckdns.org` which doesn't exist).
+    `PartyVoiceManager.kt` doc comment also updated.
+
+Files touched (5):
+  • `android/onnowtv-launcher/.../data/LauncherRepository.kt`
+  • `android/vesper-tv/.../res/values/strings.xml`
+  • `android/vesper-tv/.../java/tv/vesper/app/ExoPlayerActivity.kt`
+  • `android/vesper-tv/.../java/tv/vesper/app/PartyVoiceManager.kt`
+  • `android/onnowtv-launcher/README.md`
+  • `android/vesper-tv/app/build.gradle.kts` (v2.8.40 / vc 300)
+
+⚠️ Both APKs need a Save to GitHub → CI rebuild → reinstall on the
+HK1 to pick up the new base URLs.  Until then, deployed boxes
+still poll the preview pod (currently still up but unsupported).
+
 ## v2.8.39 — Dedicated V2 AI admin tab + transcript header on results
 
   • **📑 NEW dedicated "V2 AI" admin tab.**  All V2-AI-related

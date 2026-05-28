@@ -1,6 +1,22 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.31 — 5 premium "Apple-feel" V2 AI visualizers** (Feb 28, 2026)
+> Latest: **v2.8.40 — VPS cutover: every APK now points at Contabo (no more preview pod)** (Feb 28, 2026)
+>
+> Picking up the half-finished migration from the previous session. Source-of-truth audit found the **launcher backend code + Vesper backend code were already 100% in sync** with `/opt/onnowtv-launcher/` and `/opt/onnowtv/backend/` on the Contabo VPS (per-file md5sum verified). The actual gap was on the Android side: **three hardcoded preview-pod URLs** were silently keeping deployed boxes pointed at the dev sandbox whenever their `SharedPreferences` override was empty or the env-var fallback fired:
+>
+> 1. `LauncherRepository.DEFAULT_BASE_URL` (the single line every Launcher APK uses for `/api/launcher/config` heartbeats) — was `https://rebrand-app-5.preview.emergentagent.com/api/launcher-admin`, **now `https://onnowtv.duckdns.org/launcher`**.
+> 2. `vesper-tv/res/values/strings.xml app_url` (the WebView base URL + `LiveGuideController.backendBase` TMDB lookups) — was preview pod, **now `https://onnowtv.duckdns.org/`**.
+> 3. `vesper-tv/ExoPlayerActivity.readBackendBase()` fallback (used by the player when no `app_meta.backend_base` SharedPreference is set) — was preview pod, **now `https://onnowtv.duckdns.org`**.
+>
+> Frontend `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` was already baked into the React build by `.github/workflows/build-apk.yml` (line 32), so the JS bundle inside the APK was already calling the VPS — but the three Kotlin/XML defaults above bypassed that and could leak preview-pod traffic.
+>
+> **Live VPS smoke test (11/11 endpoints PASS):** Vesper backend root, latest-version, Launcher root HTML, V2 AI ping, launcher config heartbeat (10 v2ai fields + appstore + qr_videos + dock_tiles + apks), admin login (form), admin store, qr-videos, devices, registered-devices, admin portal HTML.
+>
+> Both APKs need a Save to GitHub → CI rebuild → reinstall on the HK1 to pick up the new base URLs. Until then, deployed boxes still poll the preview pod (currently still up but unsupported).
+>
+> ⚠️ Production admin token is `onnow-launcher-admin-PROD-x9Kqz3mWp8aT5vB` (`/opt/onnowtv-launcher/.env`). The `onnow-launcher-admin-dev` token only works on the preview pod. `/app/memory/test_credentials.md` now documents both.
+
+> Previous: **v2.8.31 — 5 premium "Apple-feel" V2 AI visualizers** (Feb 28, 2026)
 >
 > Per user request: "add another five really, really high-end looking AI talking things … really flowy, multicolor … Apple sort of feeling".  Built 5 new Canvas painters with BlurMaskFilter + RadialGradient + multi-layer drop shadow:
 >

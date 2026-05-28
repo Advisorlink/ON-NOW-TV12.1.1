@@ -45,7 +45,7 @@ class PartyVoiceManager(
     private val ctx: Context,
     private val partyCode: String,
     private val partyWsUrl: String,
-    private val backendBase: String,         // e.g. https://rebrand-app-5.preview…
+    private val backendBase: String,         // e.g. https://onnowtv.duckdns.org
     initialMemberId: String,
     private val selfDisplayName: String,
     private val selfAvatarId: String,

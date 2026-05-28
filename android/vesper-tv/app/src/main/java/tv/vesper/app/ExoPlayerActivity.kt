@@ -794,7 +794,7 @@ class ExoPlayerActivity : ComponentActivity() {
             ?.trim()
             ?.trimEnd('/')
             ?.takeIf { it.isNotBlank() }
-            ?: "https://rebrand-app-5.preview.emergentagent.com"
+            ?: "https://onnowtv.duckdns.org"
     }
     /** Tune the running ExoPlayer to a different live channel in-place
      *  — no activity restart, no black flash.  Just swaps the media

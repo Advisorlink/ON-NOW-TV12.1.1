@@ -5,8 +5,15 @@
         🛠  EDIT ME 🛠
         Point this at your deployed ON NOW TV V2 instance.  This is the
         only line you should ever need to change in this project.
+
+        v2.8.40 — Migrated to the Contabo VPS production host
+        (onnowtv.duckdns.org).  Nginx terminates TLS via Let's Encrypt
+        and reverse-proxies /api/* → backend on 127.0.0.1:8001 and
+        /launcher/* → the launcher admin backend on 127.0.0.1:8002.
+        Earlier value (preview pod, retired):
+            https://rebrand-app-5.preview.emergentagent.com/
     -->
     <string name="app_url" translatable="false">
-        https://rebrand-app-5.preview.emergentagent.com/
+        https://onnowtv.duckdns.org/
     </string>
 </resources>

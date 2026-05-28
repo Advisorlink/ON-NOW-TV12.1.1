@@ -24,7 +24,7 @@ A pure-native Android launcher that replaces the device's home screen on Android
 
 ## Connecting to your backend
 
-The launcher polls `https://launcher.onnowtv.duckdns.org` by default. Change `LauncherRepository.DEFAULT_BASE_URL` to point at a different host before building, or add a settings screen later that persists the URL in SharedPreferences.
+The launcher polls `https://onnowtv.duckdns.org/launcher` by default (Contabo VPS, Nginx-proxied to the launcher backend on `127.0.0.1:8002`). Change `LauncherRepository.DEFAULT_BASE_URL` to point at a different host before building, or add a settings screen later that persists the URL in SharedPreferences.
 
 See `/app/launcher-backend/README.md` for backend deployment instructions.
 
