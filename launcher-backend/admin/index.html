@@ -43,6 +43,7 @@
             <button class="tab"        data-tab="layout">Layout</button>
             <button class="tab"        data-tab="devices">Devices</button>
             <button class="tab"        data-tab="apks">App Store</button>
+            <button class="tab"        data-tab="v2ai">V2 AI</button>
             <button class="tab"        data-tab="qrvideos">QR Videos</button>
             <button class="tab"        data-tab="notify">Notify</button>
             <button id="logout" class="logout">Sign out</button>
@@ -353,38 +354,6 @@
             <p class="appstore-colors-hint">Applies to the VPN + Speed Test pills.  Focused state activates when the user navigates onto the pill with the remote.  <strong>The V2 AI pill has its own colors below</strong> — set them blank to fall back to these.</p>
         </div>
 
-        <!-- v2.8.38 — V2 AI top-bar pill colors (override) -->
-        <div class="appstore-colors-section">
-            <h3 class="appstore-colors-title">V2 AI top-bar button colors</h3>
-            <div class="appstore-colors-row">
-                <label class="appstore-color-field">
-                    <span>Background</span>
-                    <input type="color" id="v2aiBtnBgColor" value="#203A5C">
-                    <code id="v2aiBtnBgColorHex">#203A5C</code>
-                </label>
-                <label class="appstore-color-field">
-                    <span>Text + icon</span>
-                    <input type="color" id="v2aiBtnTextColor" value="#FFFFFF">
-                    <code id="v2aiBtnTextColorHex">#FFFFFF</code>
-                </label>
-            </div>
-            <div class="appstore-colors-row" style="margin-top:12px;">
-                <label class="appstore-color-field">
-                    <span>Focused background</span>
-                    <input type="color" id="v2aiBtnFocusBgColor" value="#2BB6FF">
-                    <code id="v2aiBtnFocusBgColorHex">#2BB6FF</code>
-                </label>
-                <label class="appstore-color-field">
-                    <span>Focused text + icon</span>
-                    <input type="color" id="v2aiBtnFocusTextColor" value="#04060B">
-                    <code id="v2aiBtnFocusTextColorHex">#04060B</code>
-                </label>
-                <button id="v2aiBtnColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save V2 AI colors</button>
-                <button id="v2aiBtnColorsReset" type="button" class="apk-drop-link">Use shared colors</button>
-            </div>
-            <p class="appstore-colors-hint">Overrides the shared top-bar palette JUST for the V2 AI pill — perfect for branding the AI button with a distinct accent.  Click <em>Use shared colors</em> to clear the override.</p>
-        </div>
-
         <!-- v2.8.22 — Speed Test pill target APK -->
         <div class="appstore-colors-section">
             <h3 class="appstore-colors-title">Speed Test app target</h3>
@@ -400,119 +369,7 @@
             <p class="appstore-colors-hint">Tapping the Speed Test pill in the launcher will open this app.  Common values: <code>org.zwanoo.android.speedtest</code> (Ookla), <code>com.fast.android.app</code> (fast.com by Netflix).  Make sure the APK is installed via the App Store.</p>
         </div>
 
-        <!-- v2.8.25 — V2 AI screen customisation -->
-        <div class="appstore-colors-section">
-            <h3 class="appstore-colors-title">V2 AI screen</h3>
-            <div class="appstore-colors-row">
-                <label class="appstore-color-field" style="flex:1;">
-                    <span>Heading text</span>
-                    <input type="text" id="v2aiHeadingText"
-                           placeholder="Hold OK and ask anything about movies, TV, or apps."
-                           style="flex:1; min-width:320px; background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px;">
-                </label>
-                <button id="v2aiHeadingSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save</button>
-                <button id="v2aiHeadingReset" type="button" class="apk-drop-link">Reset to default</button>
-            </div>
-            <p class="appstore-colors-hint">Shown above the waveform on the voice-assistant screen.  Leave blank to use the default copy.</p>
-
-            <!-- v2.8.26 — Waveform style picker -->
-            <h4 class="appstore-colors-subtitle">Waveform style</h4>
-            <div class="v2ai-waveform-grid" id="v2aiWaveformGrid">
-                <button type="button" class="v2ai-wf-card" data-style="bars">
-                    <span class="v2ai-wf-preview v2ai-wf-bars" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Bars <small>· default</small></span>
-                </button>
-                <button type="button" class="v2ai-wf-card" data-style="dots">
-                    <span class="v2ai-wf-preview v2ai-wf-dots" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Dots</span>
-                </button>
-                <button type="button" class="v2ai-wf-card" data-style="ring">
-                    <span class="v2ai-wf-preview v2ai-wf-ring" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Pulse ring</span>
-                </button>
-                <button type="button" class="v2ai-wf-card" data-style="sweep">
-                    <span class="v2ai-wf-preview v2ai-wf-sweep" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Gradient sweep</span>
-                </button>
-                <button type="button" class="v2ai-wf-card" data-style="pulse">
-                    <span class="v2ai-wf-preview v2ai-wf-pulse" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Soft pulse</span>
-                </button>
-                <!-- v2.8.31 — premium Apple-feel visualisers -->
-                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="aurora">
-                    <span class="v2ai-wf-preview v2ai-wf-aurora" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Aurora <small>· flowing ribbons</small></span>
-                </button>
-                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="orb">
-                    <span class="v2ai-wf-preview v2ai-wf-orb" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Liquid orb <small>· Siri-style</small></span>
-                </button>
-                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="particles">
-                    <span class="v2ai-wf-preview v2ai-wf-particles" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Particles <small>· swirling field</small></span>
-                </button>
-                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="neon">
-                    <span class="v2ai-wf-preview v2ai-wf-neon" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Neon wave <small>· chromatic glow</small></span>
-                </button>
-                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="prism">
-                    <span class="v2ai-wf-preview v2ai-wf-prism" aria-hidden="true"></span>
-                    <span class="v2ai-wf-label">Prism <small>· spectrum</small></span>
-                </button>
-            </div>
-        </div>
-
-        <!-- V2 AI background image — drag-drop (1920×1080) -->
-        <div class="appstore-hero-section">
-            <div id="v2aiBgPreview" class="appstore-hero-preview">
-                <div class="appstore-hero-placeholder">No V2 AI background — drop one below.</div>
-                <img id="v2aiBgImg" alt="" hidden>
-                <button id="v2aiBgClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
-            </div>
-            <div id="v2aiBgDrop" class="appstore-hero-drop">
-                <input type="file" id="v2aiBgFile" accept="image/png,image/jpeg,image/webp" hidden>
-                <span><strong>Drop V2 AI background</strong> · or <button id="v2aiBgBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Rendered fullscreen on the voice-assistant screen: <strong>1920 × 1080 px (16:9)</strong>.  Any aspect accepted — auto-fit centred.</span>
-            </div>
-        </div>
-
-        <!-- v2.8.26 — V2 AI top-bar button icon -->
-        <div class="appstore-hero-section">
-            <div id="v2aiBtnPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:160px;">
-                <div class="appstore-hero-placeholder">Default lightning-bolt icon.</div>
-                <img id="v2aiBtnImg" alt="" hidden>
-                <button id="v2aiBtnClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
-            </div>
-            <div id="v2aiBtnDrop" class="appstore-hero-drop">
-                <input type="file" id="v2aiBtnFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
-                <span><strong>Drop V2 AI button icon</strong> · or <button id="v2aiBtnBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Replaces the lightning-bolt icon on the V2 AI pill in the top bar.  Square <strong>96 × 96 px</strong> recommended (transparent PNG looks best).</span>
-            </div>
-        </div>
-
-        <!-- v2.8.30 — V2 AI in-activity HOLD button image + visibility toggle -->
-        <div class="appstore-colors-section">
-            <h3 class="appstore-colors-title">V2 AI hold-to-talk button</h3>
-            <div class="appstore-colors-row">
-                <label class="appstore-color-field qr-field-toggle" style="gap:10px;">
-                    <input type="checkbox" id="v2aiHoldVisible" checked style="width:18px; height:18px; accent-color:var(--accent); cursor:pointer;">
-                    <span style="text-transform:none; letter-spacing:0;">Show the hold-to-talk button on the V2 AI screen</span>
-                </label>
-            </div>
-            <p class="appstore-colors-hint">Painted between the waveform and status line.  Uncheck to hide it entirely (the V2 AI screen still works — users just press OK on the remote).</p>
-        </div>
-        <div class="appstore-hero-section">
-            <div id="v2aiHoldPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:200px;">
-                <div class="appstore-hero-placeholder">Default ring + “HOLD OK” circle.</div>
-                <img id="v2aiHoldImg" alt="" hidden>
-                <button id="v2aiHoldClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
-            </div>
-            <div id="v2aiHoldDrop" class="appstore-hero-drop">
-                <input type="file" id="v2aiHoldFile" accept="image/png,image/jpeg,image/webp" hidden>
-                <span><strong>Drop hold-button image</strong> · or <button id="v2aiHoldBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Replaces the default circular hold-to-talk button.  Square <strong>256 × 256 px</strong> recommended (transparent PNG looks best).  Image rendered at the centre of the V2 AI screen — make it click-bait so users know to hold OK.</span>
-            </div>
-        </div>
+        <!-- v2.8.20 — Top-bar logo (drag-drop) -->
 
         <!-- v2.8.20 — Top-bar logo (drag-drop) -->
         <div class="appstore-hero-section">
@@ -601,6 +458,163 @@
         </div>
         <div class="store-drawer-backdrop" id="appStoreDrawerBackdrop"></div>
     </div>
+
+    <!-- V2 AI TAB (v2.8.39 — split out from App Store) -->
+    <section id="tab-v2ai" class="tab-panel">
+        <div class="panel-head">
+            <h2>V2 AI</h2>
+            <p>Everything that controls the V2 AI voice assistant — heading copy, waveform style, screen background, the lightning-bolt pill on the top bar, and the in-activity hold-to-talk button.</p>
+        </div>
+
+        <!-- V2 AI top-bar pill image (renamed prominently). -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">Top-bar pill — pick image OR colors</h3>
+            <p class="appstore-colors-hint" style="margin-top:-4px;">Upload an image to use INSTEAD of the lightning-bolt icon, OR set the four colors below to brand the default icon.  You can use both — the image sits on top, the colors paint the pill background behind it.</p>
+        </div>
+
+        <div class="appstore-hero-section">
+            <div id="v2aiBtnPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:160px;">
+                <div class="appstore-hero-placeholder">Default lightning-bolt icon.</div>
+                <img id="v2aiBtnImg" alt="" hidden>
+                <button id="v2aiBtnClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiBtnDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiBtnFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+                <span><strong>Drop V2 AI button image</strong> · or <button id="v2aiBtnBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Replaces the lightning-bolt icon on the V2 AI pill in the launcher's top bar.  Square <strong>96 × 96 px</strong> recommended — transparent PNG looks best.  Remove it to fall back to the default icon.</span>
+            </div>
+        </div>
+
+        <!-- V2 AI top-bar pill colors (override). -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">Top-bar pill colors</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field">
+                    <span>Background</span>
+                    <input type="color" id="v2aiBtnBgColor" value="#203A5C">
+                    <code id="v2aiBtnBgColorHex">#203A5C</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Text + icon</span>
+                    <input type="color" id="v2aiBtnTextColor" value="#FFFFFF">
+                    <code id="v2aiBtnTextColorHex">#FFFFFF</code>
+                </label>
+            </div>
+            <div class="appstore-colors-row" style="margin-top:12px;">
+                <label class="appstore-color-field">
+                    <span>Focused background</span>
+                    <input type="color" id="v2aiBtnFocusBgColor" value="#2BB6FF">
+                    <code id="v2aiBtnFocusBgColorHex">#2BB6FF</code>
+                </label>
+                <label class="appstore-color-field">
+                    <span>Focused text + icon</span>
+                    <input type="color" id="v2aiBtnFocusTextColor" value="#04060B">
+                    <code id="v2aiBtnFocusTextColorHex">#04060B</code>
+                </label>
+                <button id="v2aiBtnColorsSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save colors</button>
+                <button id="v2aiBtnColorsReset" type="button" class="apk-drop-link">Use shared colors</button>
+            </div>
+            <p class="appstore-colors-hint">Overrides the shared top-bar palette JUST for the V2 AI pill.  <em>Use shared colors</em> clears the override so the pill falls back to the App Store tab's top-bar palette.</p>
+        </div>
+
+        <!-- V2 AI screen heading + waveform style. -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">V2 AI screen</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field" style="flex:1;">
+                    <span>Heading text</span>
+                    <input type="text" id="v2aiHeadingText"
+                           placeholder="Hold OK and ask anything about movies, TV, or apps."
+                           style="flex:1; min-width:320px; background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px;">
+                </label>
+                <button id="v2aiHeadingSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save</button>
+                <button id="v2aiHeadingReset" type="button" class="apk-drop-link">Reset to default</button>
+            </div>
+            <p class="appstore-colors-hint">Shown above the waveform on the voice-assistant screen.  Leave blank to use the default copy.</p>
+
+            <h4 class="appstore-colors-subtitle">Waveform style</h4>
+            <div class="v2ai-waveform-grid" id="v2aiWaveformGrid">
+                <button type="button" class="v2ai-wf-card" data-style="bars">
+                    <span class="v2ai-wf-preview v2ai-wf-bars" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Bars <small>· default</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="dots">
+                    <span class="v2ai-wf-preview v2ai-wf-dots" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Dots</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="ring">
+                    <span class="v2ai-wf-preview v2ai-wf-ring" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Pulse ring</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="sweep">
+                    <span class="v2ai-wf-preview v2ai-wf-sweep" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Gradient sweep</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="pulse">
+                    <span class="v2ai-wf-preview v2ai-wf-pulse" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Soft pulse</span>
+                </button>
+                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="aurora">
+                    <span class="v2ai-wf-preview v2ai-wf-aurora" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Aurora <small>· flowing ribbons</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="orb">
+                    <span class="v2ai-wf-preview v2ai-wf-orb" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Liquid orb <small>· Siri-style</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="particles">
+                    <span class="v2ai-wf-preview v2ai-wf-particles" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Particles <small>· swirling field</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="neon">
+                    <span class="v2ai-wf-preview v2ai-wf-neon" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Neon wave <small>· chromatic glow</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card v2ai-wf-premium" data-style="prism">
+                    <span class="v2ai-wf-preview v2ai-wf-prism" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Prism <small>· spectrum</small></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- V2 AI screen background image — drag-drop (1920×1080). -->
+        <div class="appstore-hero-section">
+            <div id="v2aiBgPreview" class="appstore-hero-preview">
+                <div class="appstore-hero-placeholder">No V2 AI background — drop one below.</div>
+                <img id="v2aiBgImg" alt="" hidden>
+                <button id="v2aiBgClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiBgDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiBgFile" accept="image/png,image/jpeg,image/webp" hidden>
+                <span><strong>Drop V2 AI background</strong> · or <button id="v2aiBgBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Rendered fullscreen on the voice-assistant screen: <strong>1920 × 1080 px (16:9)</strong>.  Any aspect accepted — auto-fit centred.</span>
+            </div>
+        </div>
+
+        <!-- V2 AI in-activity HOLD-button image + visibility. -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">V2 AI hold-to-talk button</h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field qr-field-toggle" style="gap:10px;">
+                    <input type="checkbox" id="v2aiHoldVisible" checked style="width:18px; height:18px; accent-color:var(--accent); cursor:pointer;">
+                    <span style="text-transform:none; letter-spacing:0;">Show the hold-to-talk button on the V2 AI screen</span>
+                </label>
+            </div>
+            <p class="appstore-colors-hint">Painted between the waveform and status line.  Uncheck to hide it entirely (the V2 AI screen still works — users just press OK on the remote).</p>
+        </div>
+        <div class="appstore-hero-section">
+            <div id="v2aiHoldPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:200px;">
+                <div class="appstore-hero-placeholder">Default ring + “HOLD OK” circle.</div>
+                <img id="v2aiHoldImg" alt="" hidden>
+                <button id="v2aiHoldClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiHoldDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiHoldFile" accept="image/png,image/jpeg,image/webp" hidden>
+                <span><strong>Drop hold-button image</strong> · or <button id="v2aiHoldBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Replaces the default circular hold-to-talk button.  Square <strong>256 × 256 px</strong> recommended (transparent PNG looks best).  Image rendered at the centre of the V2 AI screen — make it click-bait so users know to hold OK.</span>
+            </div>
+        </div>
+    </section>
 
     <!-- QR VIDEOS TAB -->
     <section id="tab-qrvideos" class="tab-panel">

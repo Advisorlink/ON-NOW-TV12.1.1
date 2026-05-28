@@ -7,6 +7,42 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.39 — Dedicated V2 AI admin tab + transcript header on results
+
+  • **📑 NEW dedicated "V2 AI" admin tab.**  All V2-AI-related
+    controls (top-bar pill image, top-bar pill colors, heading
+    text, waveform style picker, screen background, hold-to-talk
+    button image + visibility) now live in their OWN tab in the
+    launcher admin nav, between "App Store" and "QR Videos".
+    Reduces clutter on the App Store tab and groups everything
+    V2-AI in one place.  Top of tab has a clear hint: "Upload an
+    image to use INSTEAD of the lightning-bolt icon, OR set the
+    four colors below to brand the default icon. You can use both
+    — the image sits on top, the colors paint the pill background
+    behind it."
+
+  • **🎤 Result screen now echoes the user's question.**  When V2
+    AI returns recommendations / Q&A / person info, the top of
+    the result screen now shows the user's transcribed question
+    in big italic-quoted text (e.g., `"recommend a funny movie"`).
+    The user instantly sees what V2 AI is answering — critical
+    feedback for trusting the results.  Implemented as a new
+    `resultQuestion` TextView between the "Press BACK to ask
+    again" hint and the card carousel.  `setResultMode(true,
+    transcript)` paints it; the standby switch hides it.
+
+  • **No backend changes** — same /api/admin/v2ai/config + image
+    upload endpoints, same /api/launcher/config schema.  Pure
+    admin-UI reorganization + Kotlin result-screen polish.
+
+Files touched (3):
+  • `launcher-backend/admin/index.html` (V2 AI sections moved
+    out of App Store tab into new `<section id="tab-v2ai">`)
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (resultQuestion TextView, lastTranscript state, setResultMode
+    transcript parameter, render*** methods pass lastTranscript)
+  • `android/vesper-tv/app/build.gradle.kts` (v2.8.39 fallback)
+
 ## v2.8.38 — Snappier V2 AI + V2 AI top-bar pill color override
 
 Per user request — "speed up the time between hearing and answering"

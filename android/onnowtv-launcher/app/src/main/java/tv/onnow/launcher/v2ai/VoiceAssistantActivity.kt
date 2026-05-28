@@ -73,6 +73,13 @@ class VoiceAssistantActivity : AppCompatActivity() {
     private lateinit var statusLine: TextView
     private lateinit var bigHint: TextView
     private lateinit var resultArea: LinearLayout
+    /* v2.8.39 — Header label at the top of the result screen that
+     * echoes the user's transcribed question/statement so they
+     * know what V2 AI is answering. */
+    private lateinit var resultQuestion: TextView
+    /* v2.8.39 — Last successful Whisper transcript.  Read by all
+     * three render* methods to populate the result-screen header. */
+    private var lastTranscript: String = ""
     /* v2.8.35 — Standby group (heading + waveform + hold button +
      * status line) is hidden when results are shown so the result
      * cards get the full screen height and never get clipped at
@@ -202,11 +209,21 @@ class VoiceAssistantActivity : AppCompatActivity() {
 
     /** v2.8.35 — Switch between standby (heading + waveform +
      *  hold button visible, no results) and result (cards full
-     *  screen, standby hidden) modes. */
-    private fun setResultMode(showResults: Boolean) {
+     *  screen, standby hidden) modes.
+     *  v2.8.39 — Also paints the transcribed question header
+     *  at the top of the result screen when transitioning into
+     *  result mode. */
+    private fun setResultMode(showResults: Boolean, transcript: String? = null) {
         standbyGroup?.visibility = if (showResults) View.GONE else View.VISIBLE
         resultGroup?.visibility  = if (showResults) View.VISIBLE else View.GONE
         setStageDimmed(showResults)
+        if (showResults && !transcript.isNullOrBlank()) {
+            resultQuestion.text = "“${transcript.trim()}”"
+            resultQuestion.visibility = View.VISIBLE
+        } else if (!showResults) {
+            resultQuestion.visibility = View.GONE
+            resultQuestion.text = ""
+        }
     }
 
     /** v2.8.35 — Reset to the standby screen + restore mic state. */
@@ -370,6 +387,22 @@ class VoiceAssistantActivity : AppCompatActivity() {
             setPadding(dp(8), 0, 0, dp(14))
         }
         results.addView(resultsHint)
+
+        // v2.8.39 — Shows the user's transcribed question/statement
+        // at the top of the result screen so they know what V2 AI
+        // is answering.  Populated by setResultMode(true, transcript).
+        resultQuestion = TextView(this).apply {
+            this.text = ""
+            textSize = 22f
+            setTextColor(Color.parseColor("#FFF4F7FB"))
+            setTypeface(typeface, Typeface.BOLD)
+            letterSpacing = -0.01f
+            setPadding(dp(8), 0, dp(8), dp(18))
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            visibility = View.GONE
+        }
+        results.addView(resultQuestion)
 
         // Result area — holds either the speech_reply card, the
         // recommendation poster carousel, or the QA hero card.
@@ -665,7 +698,10 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
         val intent = parsed.optString("intent", "reject")
         val reply  = parsed.optString("speech_reply", "Done.")
-        statusLine.text = parsed.optString("transcript", "")
+        // v2.8.39 — Remember the transcript so all 3 render methods
+        // can show it as a question header on the result screen.
+        lastTranscript = parsed.optString("transcript", "")
+        statusLine.text = lastTranscript
         when (intent) {
             "play_movie", "play_series" -> {
                 val title = parsed.optString("title", "").trim()
@@ -787,11 +823,8 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
         // v2.8.35 — Switch to full-screen result mode so cards
         // aren't clipped by the waveform / hold button above.
-        // v2.8.37 — Removed left/right padding spacers; the parent
-        // resultArea uses gravity=CENTER so a small set of cards
-        // (3-5) auto-centers horizontally, and a long carousel
-        // (10-20) overflows naturally for the user to scroll.
-        setResultMode(true)
+        // v2.8.39 — Echo the user's question at the top.
+        setResultMode(true, lastTranscript)
         for (i in 0 until arr.length()) {
             val item = arr.optJSONObject(i) ?: continue
             resultArea.addView(buildPosterCard(item))
@@ -819,7 +852,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
      *  rating + year row underneath the title. */
     private fun renderQa(parsed: JSONObject) {
         resultArea.removeAllViews()
-        setResultMode(true)
+        setResultMode(true, lastTranscript)
         val answer  = parsed.optString("answer", "").ifBlank { parsed.optString("speech_reply", "") }
         val subject = parsed.optString("answer_subject", "")
         val poster  = parsed.optString("subject_poster_url", "").trim()
@@ -940,7 +973,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
      *  movie / show. */
     private fun renderPersonInfo(parsed: JSONObject) {
         resultArea.removeAllViews()
-        setResultMode(true)
+        setResultMode(true, lastTranscript)
         val name    = parsed.optString("person_name", "")
         val bio     = parsed.optString("person_bio", "").ifBlank { parsed.optString("speech_reply", "") }
         val profile = parsed.optString("person_profile_url", "").trim()
