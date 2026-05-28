@@ -7,6 +7,46 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.33 — V2 AI mic upgrade: VOICE_RECOGNITION + AGC + NS + AEC
+
+Per user request — "turn the microphone up a little bit so it can
+hear voices a bit better and get the right text into V2 AI".
+
+Four coordinated changes to the MediaRecorder pipeline in
+`VoiceAssistantActivity.startRecording`:
+
+  • **AudioSource: MIC → VOICE_RECOGNITION.**  Android's
+    VOICE_RECOGNITION source applies the OEM's built-in DSP chain
+    tuned for ASR — automatic gain control, noise suppression,
+    voice clarity boost.  Same hardware mic, dramatically cleaner
+    signal.  This is the single biggest win.
+
+  • **AutomaticGainControl effect attached.**  Sits on top of the
+    source's native AGC for an additional gain boost — keeps a
+    quiet voice on the far side of the room within Whisper's
+    usable dynamic range.
+
+  • **NoiseSuppressor effect attached.**  Strips constant
+    background hiss (TV fan, fluorescent lights, distant traffic)
+    so Whisper isn't trying to decode noise into phantom words.
+
+  • **AcousticEchoCanceler effect attached.**  Kills TV-speaker
+    echo when the user holds OK while content is still audible
+    in the background.  Stops Whisper hearing the show.
+
+  • **Bit-rate 64 → 96 kbps.**  Faster speech and consonant
+    sounds (s, t, k) survive AAC compression better at the higher
+    bit-rate.  No change in upload size (~12 KB extra per second).
+
+All four DSP effects gracefully no-op on devices that don't ship
+them, but every modern Android box including the HK1 supports the
+full stack.  Effects released cleanly on `stopRecording`.
+
+Files touched (1):
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+    (startRecording, stopRecording, attachAudioEffects /
+    releaseAudioEffects helpers, attachedAudioEffects list)
+
 ## v2.8.32 — CI fix for v2.8.31 visualizers (cos import + text shadowing)
 
 Three compile errors blocking v2.8.31's premium visualizer rollout —
