@@ -4,6 +4,23 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+/* v2.8.40 — When the admin UI is served behind a reverse proxy at
+ * a sub-path (e.g. https://onnowtv.duckdns.org/launcher/admin), all
+ * absolute `/api/...` requests would 404.  Detect the prefix from
+ * the current page URL once at startup and prepend it to every
+ * call.  In local dev (where the page lives at /admin) the prefix
+ * is "" — backwards compatible. */
+const API_BASE = (() => {
+    const p = window.location.pathname;
+    const m = p.match(/^(.*?)\/admin(?:\/|$)/);
+    return m && m[1] ? m[1] : '';
+})();
+
+function _abs(path) {
+    if (!path || path.startsWith('http') || !path.startsWith('/')) return path;
+    return API_BASE + path;
+}
+
 function toast(msg, isError = false) {
     const el = $('#toast');
     if (!el) { console.log(msg); return; }
@@ -15,7 +32,7 @@ function toast(msg, isError = false) {
 }
 
 async function api(path, opts = {}) {
-    const r = await fetch(path, { credentials: 'same-origin', ...opts });
+    const r = await fetch(_abs(path), { credentials: 'same-origin', ...opts });
     if (r.status === 401) {
         showLogin();
         throw new Error('Unauthorized');
@@ -38,7 +55,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     try {
         const form = new FormData();
         form.append('token', token);
-        const r = await fetch('/api/admin/login', { method: 'POST', body: form, credentials: 'same-origin' });
+        const r = await fetch(_abs('/api/admin/login'), { method: 'POST', body: form, credentials: 'same-origin' });
         if (!r.ok) throw new Error('Invalid token');
         showApp();
     } catch (err) {

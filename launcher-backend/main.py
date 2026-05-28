@@ -60,7 +60,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -514,6 +514,9 @@ app = FastAPI(
     title="ON NOW TV V2 Launcher API",
     description="Admin-driven config, wallpapers, APKs, and popup notifications for the OnNow TV V2 Android TV launcher.",
     version="0.1.0",
+    # v2.8.40 — Behind nginx at https://<host>/launcher when ROOT_PATH
+    # is set in prod.  Empty default keeps local dev unaffected.
+    root_path=os.environ.get("ROOT_PATH", ""),
 )
 
 # CORS — admin UI fetches relative paths but the API may eventually be
@@ -1327,32 +1330,20 @@ def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
 
 
 async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
-    """OpenAI Whisper STT via emergentintegrations.
+    """OpenAI Whisper STT.
+
+    v2.8.40 — Supports TWO authentication modes:
+      1. `OPENAI_API_KEY` set → direct OpenAI API call (works
+         from ANY server including production VPS).  This is the
+         path used on the user's Contabo deployment.
+      2. Else `EMERGENT_LLM_KEY` set → routes through the Emergent
+         platform gateway.  Only works from inside Emergent's
+         preview pod (used for dev).
 
     v2.8.27 — Adds a domain-specific `prompt` so Whisper biases
     toward movie / TV / app vocabulary instead of generic English.
-    Whisper is dramatically more accurate when seeded with the
-    correct lexicon — "Play The Matrix" no longer comes back as
-    "Play the matrices" or "Play them at this".  Also lowers
-    temperature to 0 for deterministic output.
-
-    v2.8.29 — Massively expanded the prompt with the user's most
-    common verbs, app names, and a wider catalogue of titles so
-    Whisper handles faster speech + accents better.  Whisper's
-    `prompt` is interpreted as a *lexical anchor* — the more of the
-    target vocabulary it sees, the better its acoustic-to-text
-    decoding becomes."""
-    from emergentintegrations.llm.openai import OpenAISpeechToText
+    Also temperature=0 for deterministic output."""
     import io
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
-    stt = OpenAISpeechToText(api_key=api_key)
-    buf = io.BytesIO(raw)
-    buf.name = filename
-    # Whisper accepts up to ~224 prompt tokens.  Keep this packed
-    # with the user's most common verbs + actual movie / TV / app
-    # names so the model anchors on these instead of generic English.
     domain_prompt = (
         "Voice command for a smart TV entertainment assistant.  The "
         "user asks to play movies / TV shows, open apps, get "
@@ -1383,6 +1374,34 @@ async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
         "Call Saul, Ted Lasso, Friends, Seinfeld, The Office, "
         "Lost, The Sopranos."
     )
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        # Direct OpenAI path — works from any server.
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=openai_key)
+        buf = io.BytesIO(raw)
+        buf.name = filename
+        try:
+            resp = await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=(filename, raw, "audio/m4a"),
+                response_format="json",
+                language="en",
+                prompt=domain_prompt,
+                temperature=0,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"transcription failed: {exc}")
+        return (getattr(resp, "text", "") or "").strip()
+
+    # Fallback — Emergent platform gateway (dev preview pod only).
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(500, "Set OPENAI_API_KEY (production) or EMERGENT_LLM_KEY (dev) on the backend")
+    from emergentintegrations.llm.openai import OpenAISpeechToText
+    stt = OpenAISpeechToText(api_key=api_key)
+    buf = io.BytesIO(raw)
+    buf.name = filename
     try:
         resp = await stt.transcribe(
             file=buf,
@@ -1410,14 +1429,51 @@ async def _v2ai_parse_intent(transcript: str, history_block: str = "") -> dict:
 
     v2.8.35 — Optional `history_block` prepended to the system
     prompt so follow-up queries ("and what about his other movies?")
-    resolve against earlier context."""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(500, "EMERGENT_LLM_KEY missing on the backend")
+    resolve against earlier context.
+
+    v2.8.40 — Direct OpenAI when `OPENAI_API_KEY` is set (prod);
+    Emergent gateway otherwise (dev)."""
     system_msg = V2AI_SYSTEM_PROMPT
     if history_block:
         system_msg = f"{V2AI_SYSTEM_PROMPT}\n\n{history_block}"
+
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=openai_key)
+        try:
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.2,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user",   "content": transcript},
+                ],
+            )
+            raw = resp.choices[0].message.content or "{}"
+        except Exception as exc:  # noqa: BLE001
+            log.exception("OpenAI chat failed")
+            return {
+                "intent": "reject",
+                "reject_reason": "I couldn't process that — try again.",
+                "speech_reply": "Something went wrong, please try again.",
+            }
+        try:
+            import json
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {
+                "intent": "reject",
+                "reject_reason": "I couldn't parse the response — try again.",
+                "speech_reply": "Something went wrong, please try again.",
+            }
+
+    # Fallback — Emergent platform gateway (dev preview pod only).
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(500, "Set OPENAI_API_KEY (production) or EMERGENT_LLM_KEY (dev) on the backend")
     chat = LlmChat(
         api_key=api_key,
         session_id=f"v2ai-{uuid.uuid4().hex[:8]}",
@@ -2959,6 +3015,14 @@ def delete_notification(nid: str) -> dict:
 #  Admin dashboard (single-page HTML)
 # ─────────────────────────────────────────────────────────────────
 @app.get("/admin", response_class=HTMLResponse)
+def admin_root_redirect():
+    """v2.8.40 — Redirect /admin → /admin/ so the trailing slash
+    makes relative asset paths (`static/style.css`) resolve cleanly
+    both locally AND behind a reverse-proxy sub-path."""
+    return RedirectResponse(url="admin/", status_code=307)
+
+
+@app.get("/admin/", response_class=HTMLResponse)
 def admin_index() -> HTMLResponse:
     """Serve the static admin dashboard."""
     html_path = ADMIN_DIR / "index.html"

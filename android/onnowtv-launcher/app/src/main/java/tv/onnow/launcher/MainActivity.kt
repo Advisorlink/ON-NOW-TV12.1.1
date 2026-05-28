@@ -667,20 +667,53 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        // v2.8.26 — V2 AI pill button icon override.  If the admin
-        // uploaded a custom button image, swap the lightning-bolt
-        // ImageView's src for it AND drop the tint so colour PNGs
-        // render exactly as uploaded.
+        // v2.8.40 — V2 AI pill image override.  When the admin
+        // uploads an image, we make the ENTIRE pill that image
+        // (not just swap the icon inside).  Steps:
+        //   1. Hide the label TextView + the existing inner icon
+        //   2. Stretch the icon ImageView to fill the whole pill
+        //   3. Replace the pill's background with a transparent
+        //      rounded outline so there's no double-frame (image +
+        //      pill behind it)
+        //   4. Load the admin image with no tint
+        //   5. Add a smooth scale-up animation on focus so hovering
+        //      the image "pops out" exactly like the user described
         val v2aiIconUrl = v2ai.buttonImageUrl
+        val pill = binding.topbarBtnV2ai
         if (!v2aiIconUrl.isNullOrBlank()) {
-            val pill = binding.topbarBtnV2ai
+            // Drop the pill background entirely — the image IS the pill now.
+            pill.background = null
+            pill.setPadding(0, 0, 0, 0)
+            // Hide label + reveal icon at full pill size.
+            var iconView: android.widget.ImageView? = null
             for (i in 0 until pill.childCount) {
-                val child = pill.getChildAt(i)
-                if (child is android.widget.ImageView) {
-                    child.imageTintList = null
-                    tv.onnow.launcher.ImageLoader.load(child, v2aiIconUrl)
-                    break
+                when (val child = pill.getChildAt(i)) {
+                    is android.widget.TextView  -> child.visibility = View.GONE
+                    is android.widget.ImageView -> {
+                        child.imageTintList = null
+                        child.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                        val lp = child.layoutParams
+                        lp.width  = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        child.layoutParams = lp
+                        // Drop the inner margin / padding so the
+                        // image fills the pill end-to-end.
+                        child.setPadding(0, 0, 0, 0)
+                        (lp as? android.view.ViewGroup.MarginLayoutParams)
+                            ?.setMargins(0, 0, 0, 0)
+                        iconView = child
+                    }
                 }
+            }
+            iconView?.let { tv.onnow.launcher.ImageLoader.load(it, v2aiIconUrl) }
+            // Smooth "pop out" focus animation — scale + elevation.
+            pill.setOnFocusChangeListener { v, hasFocus ->
+                v.animate()
+                    .scaleX(if (hasFocus) 1.14f else 1f)
+                    .scaleY(if (hasFocus) 1.14f else 1f)
+                    .translationZ(if (hasFocus) dp(12).toFloat() else 0f)
+                    .setDuration(180)
+                    .start()
             }
         }
     }
