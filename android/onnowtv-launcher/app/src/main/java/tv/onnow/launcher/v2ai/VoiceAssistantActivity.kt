@@ -41,6 +41,7 @@ import org.json.JSONObject
 import tv.onnow.launcher.R
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -738,7 +739,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
-                text = title
+                this.text = title
                 textSize = 16f
                 setTextColor(Color.parseColor("#FFF4F7FB"))
                 setTypeface(typeface, Typeface.BOLD)
@@ -748,7 +749,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
             })
             if (rating.isNotEmpty() && rating != "0.0" && rating != "0") {
                 titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
-                    text = "★ $rating"
+                    this.text = "★ $rating"
                     textSize = 12f
                     setTextColor(Color.parseColor("#FF0E1834"))
                     setTypeface(typeface, Typeface.BOLD)
@@ -768,7 +769,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
             // Year + type meta line.
             if (year.isNotEmpty()) {
                 card.addView(TextView(this@VoiceAssistantActivity).apply {
-                    text = if (type == "series") "$year  ·  TV series" else "$year  ·  Movie"
+                    this.text = if (type == "series") "$year  ·  TV series" else "$year  ·  Movie"
                     textSize = 11f
                     setTextColor(Color.parseColor("#FF8EA0B7"))
                     letterSpacing = 0.06f
@@ -779,7 +780,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
             // Overview (3 lines max).
             if (overview.isNotBlank()) {
                 card.addView(TextView(this@VoiceAssistantActivity).apply {
-                    text = overview
+                    this.text = overview
                     textSize = 12f
                     setTextColor(Color.parseColor("#FFC2D1E6"))
                     setLineSpacing(0f, 1.25f)
@@ -862,7 +863,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
         // Eyebrow.
         text.addView(TextView(this@VoiceAssistantActivity).apply {
-            text = "V2 AI ANSWER"
+            this.text = "V2 AI ANSWER"
             textSize = 11f
             letterSpacing = 0.30f
             setTextColor(Color.parseColor("#FF5DC8FF"))
@@ -876,7 +877,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
-                text = subject
+                this.text = subject
                 textSize = 24f
                 setTextColor(Color.parseColor("#FFF4F7FB"))
                 setTypeface(typeface, Typeface.BOLD)
@@ -884,7 +885,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
             })
             if (rating.isNotEmpty() && rating != "0.0" && rating != "0") {
                 titleRow.addView(TextView(this@VoiceAssistantActivity).apply {
-                    text = "★ $rating"
+                    this.text = "★ $rating"
                     textSize = 13f
                     setTextColor(Color.parseColor("#FF0E1834"))
                     setTypeface(typeface, Typeface.BOLD)

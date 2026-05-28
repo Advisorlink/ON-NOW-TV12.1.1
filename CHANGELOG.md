@@ -7,6 +7,35 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.32 — CI fix for v2.8.31 visualizers (cos import + text shadowing)
+
+Three compile errors blocking v2.8.31's premium visualizer rollout —
+all fixed in this build.
+
+  • **Missing `kotlin.math.cos` import.**  The new
+    `drawAurora`, `drawOrb`, `drawParticles` painters all use
+    `cos(t.toDouble()).toFloat()` for polar coords / morphing
+    paths, but the import line only had `sin`.  CI errors at
+    `VoiceAssistantActivity.kt:1438` + `:1517`: `Unresolved
+    reference: cos`.  Added `import kotlin.math.cos`.
+
+  • **`text` property shadowed by local val.**  Inside both
+    `renderQa()` and `renderPersonInfo()`, a local
+    `val text = LinearLayout(...)` was declared to hold the
+    text column.  Subsequent `apply { text = "★ $rating" }`
+    blocks on TextView instances had their `text` reference
+    resolved to the OUTER LinearLayout val (not TextView's
+    text property), causing `Type mismatch: inferred type is
+    String but LinearLayout was expected` at line 887.  Fixed
+    by using `this.text = ...` everywhere inside TextView apply
+    blocks for unambiguous receiver resolution.  Same defensive
+    fix applied to renderRecommendations (lines 742/783) even
+    though it didn't have the shadowing — keeps the pattern
+    uniform.
+
+Files touched (1):
+  • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+
 ## v2.8.31 — 5 premium "Apple-feel" V2 AI visualizers
 
 Added FIVE high-end waveform variants alongside the existing 5,
