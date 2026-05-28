@@ -367,7 +367,7 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779962177,
+      "last_seen": 1779962385,
       "last_generation": 588
     }
   },
@@ -6695,7 +6695,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779962176,
+      "last_seen_at": 1779962385,
       "last_ip": "34.160.159.238"
     }
   },
