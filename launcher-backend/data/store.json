@@ -1,5 +1,5 @@
 {
-  "generation": 501,
+  "generation": 514,
   "dock_tiles": [
     {
       "key": "movies",
@@ -367,8 +367,8 @@
     },
     "onnow-2279499f3d06f84b": {
       "device_id": "onnow-2279499f3d06f84b",
-      "last_seen": 1779942069,
-      "last_generation": 501
+      "last_seen": 1779946533,
+      "last_generation": 514
     }
   },
   "layout": {
@@ -6695,7 +6695,7 @@
       "model": "Amlogic HK1 BOX S905X3",
       "status": "active",
       "registered_at": 1779858905,
-      "last_seen_at": 1779942069,
+      "last_seen_at": 1779946533,
       "last_ip": "34.160.159.238"
     }
   },
@@ -6744,9 +6744,9 @@
     }
   ],
   "v2ai": {
-    "heading_text": null,
-    "background_image_url": null,
-    "waveform_style": "dots",
+    "heading_text": "Hold OK and ask anything about movies,Tv shows, Recomendations, or even play a movie",
+    "background_image_url": "/assets/v2ai/background.png?ts=1779943967",
+    "waveform_style": "ring",
     "button_image_url": "/assets/v2ai/button.png?ts=1779941981"
   }
 }

@@ -107,6 +107,12 @@ class VoiceAssistantActivity : AppCompatActivity() {
             else    -> VoiceWaveform.Style.BARS
         }
         cfg.v2ai.backgroundImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            // v2.8.27 — User wants the uploaded background rendered
+            // VIBRANT, no dark overlay.  Removed the 60 % black scrim.
+            // Text legibility is preserved via the heading's existing
+            // shadow + the activity's content stays in the lower-
+            // centre of the screen where backgrounds typically have
+            // less detail.
             val host = (window.decorView as? ViewGroup) ?: return@let
             val root = host.findViewById<View>(android.R.id.content) as? ViewGroup
                 ?: return@let
@@ -119,15 +125,6 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 )
             }
             frame.addView(bgView, 0)
-            // Dark scrim on top of the bg so text stays legible.
-            val scrim = View(this).apply {
-                setBackgroundColor(Color.parseColor("#99000000"))
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                )
-            }
-            frame.addView(scrim, 1)
             tv.onnow.launcher.ImageLoader.load(bgView, url)
         }
     }
@@ -439,9 +436,16 @@ class VoiceAssistantActivity : AppCompatActivity() {
         // intent never resolved because Vesper's manifest doesn't
         // claim that host — `resolveActivity` returned null and we
         // fell back to a bare launcher entry, losing the query.
+        //
+        // v2.8.27 — CRITICAL FIX: the Vesper APK's installed
+        // applicationId is `tv.onnowtv.app` (the Kotlin namespace
+        // `tv.vesper.app` is compile-time only).  Using the wrong
+        // package made `getLaunchIntentForPackage` return null on
+        // every device, so V2 AI always fell into the "isn't
+        // installed" reject card.
         val encoded = java.net.URLEncoder.encode(title, "UTF-8")
         val typeArg = if (isSeries) "series" else "movie"
-        val launch  = packageManager.getLaunchIntentForPackage("tv.vesper.app")
+        val launch  = packageManager.getLaunchIntentForPackage("tv.onnowtv.app")
             ?.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(

@@ -21,6 +21,27 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- v2.8.27 — Even with QUERY_ALL_PACKAGES, some firmware (and
+         Play Store policy) requires an explicit <queries> block to
+         resolve `getLaunchIntentForPackage` against specific apps.
+         Declare every package the launcher launches by name. -->
+    <queries>
+        <!-- The Vesper / ON NOW TV V2 streaming app. -->
+        <package android:name="tv.onnowtv.app" />
+        <!-- The Vesper compile-time namespace, defensive. -->
+        <package android:name="tv.vesper.app" />
+        <!-- Speed-test app candidates the user can wire to. -->
+        <package android:name="org.zwanoo.android.speedtest" />
+        <package android:name="com.fast.android.app" />
+        <!-- Generic LAUNCHER intent — covers everything in the
+             Apps Drawer regardless of package name.  Belt-and-
+             braces alongside QUERY_ALL_PACKAGES. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <!-- Restart this app on device boot so the launcher is the first
          thing the user sees after a power-cycle. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

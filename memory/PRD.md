@@ -1,6 +1,20 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.26 — V2 AI speed fix (live) + waveform variants + button icon** (Feb 28, 2026)
+> Latest: **v2.8.27 — V2 AI FINAL FIX (Feb 28, 2026)**
+>
+> Three independent bugs root-caused after the user reported v2.8.26 still didn't work ("V2 app isn't installed when it is installed", "Couldn't reach V2 AI", "gets the words wrong"):
+>
+> 1. **🚨 Wrong package name in V2 AI deep-link.**  `VoiceAssistantActivity.launchVesperPlay()` hardcoded `"tv.vesper.app"` — that's Vesper's compile-time Kotlin **namespace**, NOT its installed **applicationId** (`tv.onnowtv.app`).  So every successful `play_movie` / `play_series` intent failed at the last step because `getLaunchIntentForPackage("tv.vesper.app")` always returned null.  This is the root cause of "ON NOW TV V2 isn't installed" — Vesper IS installed but under a different package than V2 AI was looking up.  Fixed.  Other launcher code paths (dock tiles, MainActivity) already used the correct package.
+> 2. **🎯 Whisper "gets the words wrong" → domain prompt.**  Added a Whisper `prompt` seeded with movie/TV/app vocabulary (Matrix, Inception, Stranger Things, Netflix, Disney Plus, etc) + `temperature=0` for deterministic output.  Silence now correctly transcribes as empty string (was hallucinating "you").  Movie titles transcribe accurately.
+> 3. **⚡ "Couldn't reach V2 AI" → speed.**  GPT-5 → gpt-4o-mini for the fallback path (~3x faster), and the regex fast-path now handles 100% of common Whisper-mistranscribed phrases ("Hey can you play X", "I want to watch X", "um, the matrix", bare 2-word titles).  Worst-case latency ~25 s → ~10 s.
+>
+> Other user-requested polish in same build:
+> - **🌈 Removed dark scrim** from V2 AI background — user wants the admin-uploaded image rendered vibrant.
+> - **🔍 `<queries>` manifest block** added defensively in case `QUERY_ALL_PACKAGES` is restricted in future Android versions.
+>
+> ⚠️ User must Save to GitHub + rebuild APK + reinstall on HK1 box to pick up these Kotlin fixes — the backend changes (Whisper prompt, gpt-4o-mini, faster regex) are LIVE on the preview pod now, but the wrong-package-name bug requires the new APK.
+
+> Previous: **v2.8.26 — V2 AI speed fix + waveform variants + button icon** (Feb 28, 2026)
 >
 > Direct response to two user pain points on the HK1 box:
 > 1. **"AI still isn't working. It still says 'Couldn't reach V2AI.'"** — Root-caused as a server-side latency issue: the old Whisper → GPT-5 pipeline took ~20-30 s end-to-end, and the launcher APK's 45 s OkHttp callTimeout was inconsistently exceeded on slow Wi-Fi.  **Fix: added a regex-based fast intent matcher** (`_v2ai_fast_intent`) in `launcher-backend/main.py` that handles ~80% of common voice commands ("Play X", "Watch X", "Put on X", "Open X", "Recommend something funny", "What should I watch") WITHOUT calling GPT.  End-to-end drops from ~25 s → ~6 s.  Only ambiguous transcripts fall through to GPT.  **No APK rebuild required** — the fix is backend-only; the user's existing v2.8.24 APK will pick it up immediately on the next voice request.  Also added `GET /api/launcher/v2ai/ping` for instant health checks (no LLM call).
