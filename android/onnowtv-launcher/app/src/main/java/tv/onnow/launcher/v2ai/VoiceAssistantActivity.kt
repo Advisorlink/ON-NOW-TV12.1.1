@@ -387,10 +387,29 @@ class VoiceAssistantActivity : AppCompatActivity() {
         object NoNetwork : UploadResult()
     }
 
-    private fun handleIntent(parsed: JSONObject?) {
-        if (parsed == null) {
-            renderRejectCard("Couldn't reach V2 AI. Check Wi-Fi and try again.")
-            return
+    private fun handleIntent(result: UploadResult) {
+        // v2.8.26 — Branch on the rich UploadResult sealed class so
+        // the UI surfaces SPECIFIC failure reasons (DNS/TLS vs HTTP
+        // 5xx vs timeout) instead of the generic "Couldn't reach
+        // V2 AI" card that hid the actual problem.
+        val parsed = when (result) {
+            is UploadResult.Ok          -> result.json
+            is UploadResult.HttpError   -> {
+                renderRejectCard("Server returned ${result.code}.  Please try again in a moment.")
+                return
+            }
+            is UploadResult.Timeout     -> {
+                renderRejectCard("V2 AI took too long.  Try a shorter command on a faster Wi-Fi network.")
+                return
+            }
+            is UploadResult.NoNetwork   -> {
+                renderRejectCard("No internet — check Wi-Fi and try again.")
+                return
+            }
+            is UploadResult.NetworkError -> {
+                renderRejectCard("Couldn't reach V2 AI (${result.reason}).  Check Wi-Fi and try again.")
+                return
+            }
         }
         val intent = parsed.optString("intent", "reject")
         val reply  = parsed.optString("speech_reply", "Done.")

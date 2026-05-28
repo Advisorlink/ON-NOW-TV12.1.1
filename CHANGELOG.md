@@ -7,6 +7,24 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.28 — CI build fix: handleIntent type mismatch
+
+  • **🛠 Compile error fix.**  v2.8.26's refactor of
+    `uploadAndParse` to return a `UploadResult` sealed class (richer
+    error reporting — DNS / TLS / HTTP code / timeout) left the
+    `handleIntent(parsed: JSONObject?)` caller untouched.  CI
+    surfaced as `Type mismatch: inferred type is UploadResult but
+    JSONObject? was expected` at `VoiceAssistantActivity.kt:327`.
+    Updated `handleIntent` to switch on the sealed class and render
+    SPECIFIC reject cards for each failure mode:
+      - HTTP 5xx  → "Server returned 500.  Please try again …"
+      - Timeout  → "V2 AI took too long.  Try a shorter command …"
+      - NoNetwork → "No internet — check Wi-Fi and try again."
+      - NetworkError → "Couldn't reach V2 AI (<reason>) …"
+    This is a STRICT IMPROVEMENT over the previous generic catch-
+    all — the user now sees the actual failure reason instead of
+    the same "Couldn't reach V2 AI" card for every error.
+
 ## v2.8.27 — V2 AI FINAL FIX — wrong package name + Whisper domain prompt + scrim removed
 
 The user reported on v2.8.26 that V2 AI STILL failed: "V2 app isn't
