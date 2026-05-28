@@ -156,10 +156,13 @@ data class AppStoreMeta(
     val speedTestPackage: String?        = null,
 )
 
-/* v2.8.25 — V2 AI screen customisation pulled from the backend. */
+/* v2.8.25 — V2 AI screen customisation pulled from the backend.
+   v2.8.26 — Adds waveform style + top-bar button icon. */
 data class V2AIConfig(
     val headingText: String?        = null,
     val backgroundImageUrl: String? = null,
+    val waveformStyle: String?      = null,  // "bars" (default), "dots", "ring", "sweep", "pulse"
+    val buttonImageUrl: String?     = null,  // square icon for the top-bar V2 AI pill
 )
 
 data class NotificationRemote(
@@ -315,6 +318,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
     val v2ai = if (v2aiObj == null) V2AIConfig() else V2AIConfig(
         headingText        = v2aiObj.optStringOrNull("heading_text"),
         backgroundImageUrl = v2aiObj.optStringOrNull("background_image_url"),
+        waveformStyle      = v2aiObj.optStringOrNull("waveform_style"),
+        buttonImageUrl     = v2aiObj.optStringOrNull("button_image_url"),
     )
     // v2.8.24 — QR videos (optional).
     val qrArr = root.optJSONArray("qr_videos") ?: JSONArray()

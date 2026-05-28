@@ -1224,6 +1224,15 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         endpoint:  '/api/admin/v2ai/background',
         label:     'V2 AI background',
     });
+    // v2.8.26 — V2 AI top-bar button icon dropzone.
+    setupAppstoreDropzone({
+        zoneSel:   '#v2aiBtnDrop',
+        inputSel:  '#v2aiBtnFile',
+        browseSel: '#v2aiBtnBrowse',
+        clearSel:  '#v2aiBtnClear',
+        endpoint:  '/api/admin/v2ai/button',
+        label:     'V2 AI button icon',
+    });
 })();
 
 /* v2.8.25 — V2 AI screen heading text editor. */
@@ -1231,11 +1240,19 @@ function syncV2AIInputs(store) {
     const v2ai = (store && store.v2ai) || {};
     const $i = document.getElementById('v2aiHeadingText');
     if ($i) $i.value = v2ai.heading_text || '';
-    // Mirror background preview.
     syncAppstoreImg(
         '#v2aiBgImg', '#v2aiBgPreview', '#v2aiBgClear',
         v2ai.background_image_url,
     );
+    syncAppstoreImg(
+        '#v2aiBtnImg', '#v2aiBtnPreview', '#v2aiBtnClear',
+        v2ai.button_image_url,
+    );
+    // v2.8.26 — Mirror waveform style selection.
+    const selectedStyle = (v2ai.waveform_style || 'bars').toLowerCase();
+    document.querySelectorAll('#v2aiWaveformGrid .v2ai-wf-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.style === selectedStyle);
+    });
 }
 (function setupV2AIControls() {
     const $i     = document.getElementById('v2aiHeadingText');
@@ -1264,6 +1281,22 @@ function syncV2AIInputs(store) {
             toast('Reset to default');
             refreshAll();
         } catch (e) { toast('Reset failed: ' + e.message, true); }
+    });
+    // v2.8.26 — Waveform style picker.
+    document.querySelectorAll('#v2aiWaveformGrid .v2ai-wf-card').forEach(card => {
+        card.addEventListener('click', async () => {
+            const style = card.dataset.style;
+            if (!style) return;
+            try {
+                await api('/api/admin/v2ai/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ waveform_style: style }),
+                });
+                toast(`Waveform set to "${style}"`);
+                refreshAll();
+            } catch (e) { toast('Could not save: ' + e.message, true); }
+        });
     });
 })();
 

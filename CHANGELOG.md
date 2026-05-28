@@ -7,6 +7,59 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.26 — V2 AI speed fix (LIVE) + waveform variants + button icon
+
+  • **🚀 V2 AI speed fix — UNBLOCKS the user's current APK.**  The
+    old path was Whisper → GPT-5 (~20-30 s end-to-end), which on a
+    slow HK1 Wi-Fi link hit the launcher APK's 45 s OkHttp callTimeout
+    inconsistently → "Couldn't reach V2 AI" error card.  Added a
+    fast regex intent matcher (`_v2ai_fast_intent`) that handles the
+    80 % common cases — "Play X", "Watch X", "Put on X", "Open X",
+    "Recommend something funny", "What should I watch" — WITHOUT
+    calling GPT.  End-to-end response drops from ~25 s → ~6 s (Whisper
+    only).  Only ambiguous transcripts now fall back to GPT.  **No
+    APK rebuild required** — fix is purely backend.
+
+  • **🔎 Diagnostic ping endpoint.**  `GET /api/launcher/v2ai/ping`
+    returns instantly with backend health (no LLM call).  Lets the
+    launcher Android client surface specific failures: "DNS broken",
+    "Server busy", "Mic permission missing" etc.  Used by the next
+    APK rebuild's richer error reporting.
+
+  • **🎛 Waveform variants.**  Five admin-selectable waveform render
+    styles for the V2 AI screen (`/admin → App Store → Waveform style`):
+      - Bars (default — the existing animated EQ)
+      - Dots — pulsing circular dots
+      - Pulse ring — concentric rings + solid core (Siri-style)
+      - Gradient sweep — flowing horizontal ribbon
+      - Soft pulse — radial halo + white core
+    Each rendered as a separate branch in `VoiceWaveform.onDraw`.  Live
+    preview tiles in admin UI; selection saved via `POST /api/admin/v2ai/config`
+    `{waveform_style: "ring"}`.
+
+  • **🎨 V2 AI button icon upload.**  Admin can drop a square PNG
+    that replaces the lightning-bolt SVG on the V2 AI pill in the
+    launcher top bar (`/admin → App Store → Drop V2 AI button icon`).
+    Auto-scales to 96 × 96.  Tint dropped on the override so colour
+    PNGs render exactly as uploaded.
+
+  Files touched (8):
+    • `launcher-backend/main.py` (fast intent matcher, ping, waveform
+      validator, V2 AI button upload/clear, logging)
+    • `launcher-backend/admin/index.html` (waveform grid + button icon
+      drop zone in V2 AI section)
+    • `launcher-backend/admin/static/style.css` (5 CSS-painted preview
+      tiles for waveform variants)
+    • `launcher-backend/admin/static/app.js` (waveform picker handler +
+      V2 AI button icon dropzone)
+    • `android/onnowtv-launcher/.../data/LauncherConfig.kt` (`V2AIConfig`
+      adds `waveformStyle`, `buttonImageUrl`)
+    • `android/onnowtv-launcher/.../MainActivity.kt` (`applyTopBarBranding`
+      swaps V2 AI pill icon)
+    • `android/onnowtv-launcher/.../v2ai/VoiceAssistantActivity.kt`
+      (`VoiceWaveform.Style` enum + 5 paint branches; richer
+      `UploadResult` sealed class + 90 s callTimeout)
+
 ## v2.8.25 — V2 AI fixed + QR Videos + admin V2 AI customisation
 
   • **🛠 V2 AI was completely broken — fixed.**  The preview-pod

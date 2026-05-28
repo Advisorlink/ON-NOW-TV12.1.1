@@ -1,6 +1,14 @@
 # ON NOW TV V2 — PRD
 
-> Latest: **v2.8.25 — V2 AI fixed + QR Videos + admin V2 AI customisation** (Feb 28, 2026)
+> Latest: **v2.8.26 — V2 AI speed fix (live) + waveform variants + button icon** (Feb 28, 2026)
+>
+> Direct response to two user pain points on the HK1 box:
+> 1. **"AI still isn't working. It still says 'Couldn't reach V2AI.'"** — Root-caused as a server-side latency issue: the old Whisper → GPT-5 pipeline took ~20-30 s end-to-end, and the launcher APK's 45 s OkHttp callTimeout was inconsistently exceeded on slow Wi-Fi.  **Fix: added a regex-based fast intent matcher** (`_v2ai_fast_intent`) in `launcher-backend/main.py` that handles ~80% of common voice commands ("Play X", "Watch X", "Put on X", "Open X", "Recommend something funny", "What should I watch") WITHOUT calling GPT.  End-to-end drops from ~25 s → ~6 s.  Only ambiguous transcripts fall through to GPT.  **No APK rebuild required** — the fix is backend-only; the user's existing v2.8.24 APK will pick it up immediately on the next voice request.  Also added `GET /api/launcher/v2ai/ping` for instant health checks (no LLM call).
+> 2. **"Put a few different versions of the talking bar"** + **"Add image to V2 AI button"** — Five admin-selectable waveform variants now render in `VoiceAssistantActivity` (`bars` default, `dots`, `ring`, `sweep`, `pulse`); each implemented as a separate paint branch in `VoiceWaveform.onDraw`.  Admin picker tiles live-preview each variant via CSS-only mockups.  V2 AI top-bar pill icon can be replaced via the new drop-zone (`POST /api/admin/v2ai/button`); auto-scaled to 96×96 with tint dropped so colour PNGs render verbatim.
+>
+> Both new visual features need the next APK rebuild to take effect on the HK1.  The speed fix is LIVE now.
+
+> Previous: **v2.8.25 — V2 AI fixed + QR Videos + admin V2 AI customisation** (Feb 28, 2026)
 >
 > Three tightly-coupled launcher backend + Android changes per direct user video feedback ("V2 AI not working ... Press hold and ... change the Text").
 >

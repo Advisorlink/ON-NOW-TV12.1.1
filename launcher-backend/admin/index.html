@@ -382,6 +382,31 @@
                 <button id="v2aiHeadingReset" type="button" class="apk-drop-link">Reset to default</button>
             </div>
             <p class="appstore-colors-hint">Shown above the waveform on the voice-assistant screen.  Leave blank to use the default copy.</p>
+
+            <!-- v2.8.26 — Waveform style picker -->
+            <h4 class="appstore-colors-subtitle">Waveform style</h4>
+            <div class="v2ai-waveform-grid" id="v2aiWaveformGrid">
+                <button type="button" class="v2ai-wf-card" data-style="bars">
+                    <span class="v2ai-wf-preview v2ai-wf-bars" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Bars <small>· default</small></span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="dots">
+                    <span class="v2ai-wf-preview v2ai-wf-dots" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Dots</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="ring">
+                    <span class="v2ai-wf-preview v2ai-wf-ring" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Pulse ring</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="sweep">
+                    <span class="v2ai-wf-preview v2ai-wf-sweep" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Gradient sweep</span>
+                </button>
+                <button type="button" class="v2ai-wf-card" data-style="pulse">
+                    <span class="v2ai-wf-preview v2ai-wf-pulse" aria-hidden="true"></span>
+                    <span class="v2ai-wf-label">Soft pulse</span>
+                </button>
+            </div>
         </div>
 
         <!-- V2 AI background image — drag-drop (1920×1080) -->
@@ -395,6 +420,20 @@
                 <input type="file" id="v2aiBgFile" accept="image/png,image/jpeg,image/webp" hidden>
                 <span><strong>Drop V2 AI background</strong> · or <button id="v2aiBgBrowse" type="button" class="apk-drop-link">browse</button>.<br>
                 Rendered fullscreen on the voice-assistant screen: <strong>1920 × 1080 px (16:9)</strong>.  Any aspect accepted — auto-fit centred.</span>
+            </div>
+        </div>
+
+        <!-- v2.8.26 — V2 AI top-bar button icon -->
+        <div class="appstore-hero-section">
+            <div id="v2aiBtnPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:160px;">
+                <div class="appstore-hero-placeholder">Default lightning-bolt icon.</div>
+                <img id="v2aiBtnImg" alt="" hidden>
+                <button id="v2aiBtnClear" type="button" class="appstore-hero-clear" hidden>Remove</button>
+            </div>
+            <div id="v2aiBtnDrop" class="appstore-hero-drop">
+                <input type="file" id="v2aiBtnFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+                <span><strong>Drop V2 AI button icon</strong> · or <button id="v2aiBtnBrowse" type="button" class="apk-drop-link">browse</button>.<br>
+                Replaces the lightning-bolt icon on the V2 AI pill in the top bar.  Square <strong>96 × 96 px</strong> recommended (transparent PNG looks best).</span>
             </div>
         </div>
 

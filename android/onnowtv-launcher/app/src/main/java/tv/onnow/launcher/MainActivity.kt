@@ -540,7 +540,7 @@ class MainActivity : AppCompatActivity() {
         // Surface any new admin-broadcast notifications.
         surfaceNotifications(config)
         // v2.8.20 — Apply admin-uploadable logo + top-bar pill colors.
-        applyTopBarBranding(config.appstore)
+        applyTopBarBranding(config.appstore, config.v2ai)
         // v2.8.24 — Refresh the on-home QR overlay panel.
         applyQrVideos(config.qrVideos)
     }
@@ -576,8 +576,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** v2.8.20 — Recolour the top-bar action pills and swap the
-     *  bundled logo for an admin-uploaded image, if set. */
-    private fun applyTopBarBranding(appstore: tv.onnow.launcher.data.AppStoreMeta) {
+     *  bundled logo for an admin-uploaded image, if set.
+     *  v2.8.26 — Also swaps the V2 AI pill's lightning-bolt icon
+     *  for an admin-uploaded image if `cfg.v2ai.buttonImageUrl` is
+     *  set.  Tint is dropped on the override so colour PNGs render
+     *  as uploaded. */
+    private fun applyTopBarBranding(
+        appstore: tv.onnow.launcher.data.AppStoreMeta,
+        v2ai: tv.onnow.launcher.data.V2AIConfig = tv.onnow.launcher.data.V2AIConfig(),
+    ) {
         // Logo: prefer the admin upload, fall back to the bundled
         // play-tile + wordmark layout that's already in the XML.
         val logo = appstore.logoImageUrl
@@ -648,6 +655,22 @@ class MainActivity : AppCompatActivity() {
                 when (val child = pill.getChildAt(i)) {
                     is android.widget.ImageView -> child.imageTintList = tints
                     is android.widget.TextView  -> child.setTextColor(tints)
+                }
+            }
+        }
+        // v2.8.26 — V2 AI pill button icon override.  If the admin
+        // uploaded a custom button image, swap the lightning-bolt
+        // ImageView's src for it AND drop the tint so colour PNGs
+        // render exactly as uploaded.
+        val v2aiIconUrl = v2ai.buttonImageUrl
+        if (!v2aiIconUrl.isNullOrBlank()) {
+            val pill = binding.topbarBtnV2ai
+            for (i in 0 until pill.childCount) {
+                val child = pill.getChildAt(i)
+                if (child is android.widget.ImageView) {
+                    child.imageTintList = null
+                    tv.onnow.launcher.ImageLoader.load(child, v2aiIconUrl)
+                    break
                 }
             }
         }

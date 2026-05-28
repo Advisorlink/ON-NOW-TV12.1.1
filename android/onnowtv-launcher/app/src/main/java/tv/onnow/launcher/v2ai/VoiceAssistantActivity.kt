@@ -90,12 +90,22 @@ class VoiceAssistantActivity : AppCompatActivity() {
 
     /** v2.8.25 — Pull the admin-set V2 AI heading text + background
      *  image from the cached LauncherConfig.  Applied on every
-     *  activity launch so any admin edit propagates within ~30 s. */
+     *  activity launch so any admin edit propagates within ~30 s.
+     *  v2.8.26 — Also applies the waveform style. */
     private fun applyAdminCustomisation() {
         val cfg = try {
             tv.onnow.launcher.data.LauncherRepository(applicationContext).loadCached()
         } catch (_: Throwable) { null } ?: return
         cfg.v2ai.headingText?.takeIf { it.isNotBlank() }?.let { bigHint.text = it }
+        // v2.8.26 — Waveform style ('bars' default).
+        val style = (cfg.v2ai.waveformStyle ?: "bars").lowercase()
+        waveform.style = when (style) {
+            "dots"  -> VoiceWaveform.Style.DOTS
+            "ring"  -> VoiceWaveform.Style.RING
+            "sweep" -> VoiceWaveform.Style.SWEEP
+            "pulse" -> VoiceWaveform.Style.PULSE
+            else    -> VoiceWaveform.Style.BARS
+        }
         cfg.v2ai.backgroundImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
             val host = (window.decorView as? ViewGroup) ?: return@let
             val root = host.findViewById<View>(android.R.id.content) as? ViewGroup
@@ -321,12 +331,23 @@ class VoiceAssistantActivity : AppCompatActivity() {
         }
     }
 
-    private fun uploadAndParse(file: File): JSONObject? {
+    private fun uploadAndParse(file: File): UploadResult {
         return try {
             val base = tv.onnow.launcher.data.LauncherRepository
                 .DEFAULT_BASE_URL.trimEnd('/')
+            // v2.8.26 — Bumped timeouts.  The backend's Whisper +
+            // GPT-5 round-trip is ~20-30 s on the preview pod; the
+            // HK1's slow Wi-Fi can add another 10 s on top.  A 45 s
+            // callTimeout was too tight — bumped to 90 s.  Separate
+            // connect/read/write timeouts so we fail fast on actual
+            // network errors (no DNS, no TLS) rather than waiting
+            // the full 90 s for a connect that will never succeed.
             val client = OkHttpClient.Builder()
-                .callTimeout(45, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .writeTimeout(45, TimeUnit.SECONDS)
+                .readTimeout(75, TimeUnit.SECONDS)
+                .callTimeout(90, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
                 .build()
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -340,10 +361,33 @@ class VoiceAssistantActivity : AppCompatActivity() {
                 .post(body)
                 .build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return null
-                JSONObject(resp.body?.string().orEmpty())
+                val raw = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    return UploadResult.HttpError(resp.code, raw.take(200))
+                }
+                UploadResult.Ok(JSONObject(raw))
             }
-        } catch (_: Throwable) { null }
+        } catch (e: java.net.SocketTimeoutException) {
+            UploadResult.Timeout
+        } catch (e: java.net.UnknownHostException) {
+            UploadResult.NoNetwork
+        } catch (e: javax.net.ssl.SSLException) {
+            UploadResult.NetworkError("TLS: ${e.message ?: "unknown"}")
+        } catch (e: java.io.IOException) {
+            UploadResult.NetworkError(e.message ?: "I/O failure")
+        } catch (e: Throwable) {
+            UploadResult.NetworkError(e.javaClass.simpleName + ": " + (e.message ?: ""))
+        }
+    }
+
+    /* v2.8.26 — Richer failure modes so the UI can render specific
+     * reasons instead of the generic "Couldn't reach V2 AI" card. */
+    private sealed class UploadResult {
+        data class Ok(val json: JSONObject) : UploadResult()
+        data class HttpError(val code: Int, val body: String) : UploadResult()
+        data class NetworkError(val reason: String) : UploadResult()
+        object Timeout : UploadResult()
+        object NoNetwork : UploadResult()
     }
 
     private fun handleIntent(parsed: JSONObject?) {
@@ -519,12 +563,27 @@ class VoiceWaveform @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
 
+    /* v2.8.26 — 5 admin-selectable render styles.  Default = bars. */
+    enum class Style { BARS, DOTS, RING, SWEEP, PULSE }
+
+    var style: Style = Style.BARS
+        set(value) {
+            if (field != value) { field = value; invalidate() }
+        }
+
     private val bars = 48
     private val levels = FloatArray(bars) { 0f }
     private var pollJob: Job? = null
     private var sampler: (() -> Int)? = null
     private var idlePhase = 0f
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.style = Paint.Style.STROKE
+        strokeWidth = 6f
+    }
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.style = Paint.Style.FILL
+    }
 
     fun startAnimating(amp: () -> Int) {
         sampler = amp
@@ -559,17 +618,32 @@ class VoiceWaveform @JvmOverloads constructor(
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener {
                 idlePhase = it.animatedValue as Float
+                // Always invalidate during idle for live shimmer/ring effects.
                 if (pollJob == null) invalidate()
             }
             start()
         }
     }
 
+    private fun ampAt(i: Int): Float =
+        if (pollJob != null) levels[i] else {
+            val phase = idlePhase + (i / bars.toFloat()) * (2 * Math.PI).toFloat()
+            0.10f + 0.05f * sin(phase.toDouble()).toFloat()
+        }
+
+    /** Avg of the rolling buffer — used by ring/pulse variants. */
+    private fun peakAmp(): Float {
+        var max = 0f
+        for (v in levels) if (v > max) max = v
+        if (pollJob == null) {
+            return 0.18f + 0.10f * sin(idlePhase.toDouble()).toFloat().coerceAtLeast(0f)
+        }
+        return max
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat(); val h = height.toFloat()
-        val barW = w / (bars * 1.5f)
-        val gap  = barW * 0.5f
         barPaint.shader = LinearGradient(
             0f, 0f, w, 0f,
             intArrayOf(
@@ -580,21 +654,95 @@ class VoiceWaveform @JvmOverloads constructor(
             null,
             Shader.TileMode.CLAMP,
         )
+        when (style) {
+            Style.BARS  -> drawBars(canvas, w, h)
+            Style.DOTS  -> drawDots(canvas, w, h)
+            Style.RING  -> drawRing(canvas, w, h)
+            Style.SWEEP -> drawSweep(canvas, w, h)
+            Style.PULSE -> drawPulse(canvas, w, h)
+        }
+    }
+
+    private fun drawBars(canvas: Canvas, w: Float, h: Float) {
+        val barW = w / (bars * 1.5f)
+        val gap = barW * 0.5f
         for (i in 0 until bars) {
-            val activeAmp = levels[i]
-            val amp = if (pollJob != null) {
-                activeAmp
-            } else {
-                // Idle: subtle sine wave.
-                val phase = idlePhase + (i / bars.toFloat()) * (2 * Math.PI).toFloat()
-                0.10f + 0.05f * sin(phase.toDouble()).toFloat()
-            }
-            val bh = (h * (0.10f + amp * 0.85f)).coerceAtMost(h)
+            val bh = (h * (0.10f + ampAt(i) * 0.85f)).coerceAtMost(h)
             val left = i * (barW + gap)
             val top = (h - bh) / 2f
-            canvas.drawRoundRect(
-                left, top, left + barW, top + bh, barW / 2f, barW / 2f, barPaint,
-            )
+            canvas.drawRoundRect(left, top, left + barW, top + bh, barW / 2f, barW / 2f, barPaint)
         }
+    }
+
+    private fun drawDots(canvas: Canvas, w: Float, h: Float) {
+        val cols = bars
+        val colW = w / cols
+        fillPaint.shader = barPaint.shader
+        for (i in 0 until cols) {
+            val a = ampAt(i)
+            val r = (colW * 0.4f) * (0.35f + a * 0.65f)
+            val cx = i * colW + colW / 2f
+            val cy = h / 2f + (sin((idlePhase + i * 0.4f).toDouble()).toFloat()) * (h * 0.20f) * a
+            canvas.drawCircle(cx, cy, r, fillPaint)
+        }
+    }
+
+    private fun drawRing(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        val cx = w / 2f; val cy = h / 2f
+        val baseR = (kotlin.math.min(w, h) / 2f) * 0.32f
+        // Three concentric rings — each scales differently to amp.
+        ringPaint.shader = barPaint.shader
+        for (idx in 0..2) {
+            val factor = 1f + idx * 0.4f + amp * (0.4f + idx * 0.3f)
+            ringPaint.alpha = (255 - idx * 70).coerceAtLeast(40)
+            ringPaint.strokeWidth = 7f - idx * 1.5f
+            canvas.drawCircle(cx, cy, baseR * factor, ringPaint)
+        }
+        // Solid core
+        fillPaint.shader = barPaint.shader
+        fillPaint.alpha = 255
+        canvas.drawCircle(cx, cy, baseR * (0.55f + amp * 0.25f), fillPaint)
+    }
+
+    private fun drawSweep(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        // Horizontal flowing gradient ribbon that thickens with amp.
+        val ribH = (h * (0.10f + amp * 0.45f))
+        val top  = (h - ribH) / 2f
+        val sweep = (idlePhase / (2 * Math.PI).toFloat()) * w * 2f
+        val ribbon = LinearGradient(
+            -w + sweep, 0f, w + sweep, 0f,
+            intArrayOf(
+                Color.parseColor("#005DC8FF"),
+                Color.parseColor("#FF2BB6FF"),
+                Color.parseColor("#FFFF7AB6"),
+                Color.parseColor("#005DC8FF"),
+            ),
+            floatArrayOf(0f, 0.4f, 0.6f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        fillPaint.shader = ribbon
+        canvas.drawRoundRect(0f, top, w, top + ribH, ribH / 2f, ribH / 2f, fillPaint)
+    }
+
+    private fun drawPulse(canvas: Canvas, w: Float, h: Float) {
+        val amp = peakAmp()
+        val cx = w / 2f; val cy = h / 2f
+        val baseR = (kotlin.math.min(w, h) / 2f) * 0.30f
+        // Outer halos (soft, low-alpha).
+        for (idx in 0..2) {
+            val factor = 1.4f + idx * 0.5f + amp * 1.2f
+            fillPaint.shader = null
+            fillPaint.color = Color.argb(
+                ((50 - idx * 14).coerceAtLeast(8)).coerceAtMost(120),
+                0x2B, 0xB6, 0xFF,
+            )
+            canvas.drawCircle(cx, cy, baseR * factor, fillPaint)
+        }
+        // Solid core
+        fillPaint.shader = barPaint.shader
+        fillPaint.color = Color.WHITE
+        canvas.drawCircle(cx, cy, baseR * (0.55f + amp * 0.30f), fillPaint)
     }
 }

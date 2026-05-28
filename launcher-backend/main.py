@@ -200,9 +200,13 @@ class AppStoreMeta(BaseModel):
 # v2.8.25 — V2 AI screen customisation.  Admin can swap the heading
 # text shown above the waveform and upload a fullscreen background
 # image for the voice-assistant activity.
+# v2.8.26 — Adds waveform style selector + optional V2 AI button
+# icon image (replaces the top-bar lightning bolt SVG).
 class V2AIConfig(BaseModel):
     heading_text: Optional[str] = None         # default in-app fallback if null
     background_image_url: Optional[str] = None # 1920×1080 fullscreen
+    waveform_style: Optional[str] = None       # "bars" (default), "dots", "ring", "sweep", "pulse"
+    button_image_url: Optional[str] = None     # square icon replacing the topbar lightning bolt
 
 
 # v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
@@ -608,6 +612,10 @@ def _build_config(store: dict) -> LauncherConfig:
             background_image_url=_abs(
                 (store.get("v2ai") or {}).get("background_image_url")
             ),
+            waveform_style=(store.get("v2ai") or {}).get("waveform_style"),
+            button_image_url=_abs(
+                (store.get("v2ai") or {}).get("button_image_url")
+            ),
         ),
         qr_videos=[
             QrVideo(
@@ -673,6 +681,24 @@ Rules:
 - Never include fields you don't need (use null or omit empty arrays)."""
 
 
+# ── v2.8.26 — Diagnostic ping endpoint ─────────────────────────────
+# Returns instantly (no LLM call).  Lets the launcher Android client
+# verify it can reach the V2 AI backend before attempting an audio
+# upload.  Surfaces specific error messages in the UI:
+#   • DNS / TLS failure → "Wi-Fi is off or DNS is broken"
+#   • 4xx/5xx           → "Server is busy — please try again"
+@app.get("/api/launcher/v2ai/ping")
+def v2ai_ping() -> dict:
+    """Return immediately with backend health.  No LLM call."""
+    have_key = bool(os.environ.get("EMERGENT_LLM_KEY"))
+    return {
+        "ok":   have_key,
+        "build": "v2.8.26",
+        "ts":   now_ts(),
+        "reason": None if have_key else "EMERGENT_LLM_KEY missing on the backend",
+    }
+
+
 @app.post("/api/launcher/v2ai/process", dependencies=[Depends(_optional_admin_no_op)] if False else [])
 async def v2ai_process(file: UploadFile = File(...)) -> dict:
     """Accept an audio recording, return a strict JSON intent the
@@ -684,8 +710,13 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
     if len(raw) > 25 * 1024 * 1024:
         raise HTTPException(413, "audio file too large (25 MB max)")
 
+    log.info("v2ai_process: %d bytes received (filename=%s)", len(raw), file.filename)
+
     # 1) Transcribe via Whisper.
+    import time as _time
+    _t0 = _time.monotonic()
     transcript = await _v2ai_transcribe(raw, filename=file.filename or "audio.m4a")
+    log.info("v2ai_process: whisper took %.1fs → '%s'", _time.monotonic() - _t0, transcript[:80])
     if not transcript or len(transcript.strip()) < 2:
         return {
             "intent": "reject",
@@ -694,10 +725,89 @@ async def v2ai_process(file: UploadFile = File(...)) -> dict:
             "transcript": transcript or "",
         }
 
-    # 2) Parse intent via GPT.
+    # 2a) FAST PATH — regex matcher for the 80% common cases.
+    # Avoids the 8-15 s GPT round-trip when the user is clearly
+    # saying "play X" / "open X" / "watch X".  This is the
+    # difference between a 6 s and a 20 s end-to-end response on
+    # the user's HK1 box.
+    fast = _v2ai_fast_intent(transcript)
+    if fast is not None:
+        log.info("v2ai_process: fast-path intent=%s title=%r", fast.get("intent"), fast.get("title") or fast.get("app_name") or fast.get("query"))
+        fast["transcript"] = transcript
+        return fast
+
+    # 2b) Parse intent via GPT (slow fallback for ambiguous queries).
+    _t1 = _time.monotonic()
     parsed = await _v2ai_parse_intent(transcript)
+    log.info("v2ai_process: GPT took %.1fs → intent=%s", _time.monotonic() - _t1, parsed.get("intent"))
     parsed["transcript"] = transcript
     return parsed
+
+
+# ── v2.8.26 — Fast regex intent matcher ────────────────────────────
+# Returns a fully-formed intent dict for the common voice patterns,
+# or None if the transcript is too ambiguous and we should fall back
+# to GPT.  The patterns mirror the strict JSON shape produced by
+# V2AI_SYSTEM_PROMPT so downstream code is identical.
+_PLAY_TRIGGER     = r"(?:please\s+)?(?:could\s+you\s+|can\s+you\s+|now\s+)?(?:play|watch|put\s+on|start|stream)"
+_OPEN_TRIGGER     = r"(?:please\s+)?(?:could\s+you\s+|can\s+you\s+)?(?:open|launch|start|go\s+to)"
+_RECOMMEND_RX     = r"(?:recommend|suggest|what\s+should\s+i\s+watch|what\s+can\s+i\s+watch|what's\s+(?:good|new)|show\s+me\s+something)"
+_FILLER_RX        = r"\b(?:the|a|an)\s+(?:movie|film|show|series|tv\s+show|tv\s+series|tv|episode)\b"
+_TYPE_HINT_MOVIE  = r"\b(?:movie|film)\b"
+_TYPE_HINT_SERIES = r"\b(?:show|series|tv\s+show|tv\s+series|episode|season)\b"
+
+
+def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
+    t = transcript.strip().rstrip(".!?,;: ").lower()
+    if not t or len(t) < 3:
+        return None
+
+    # "recommend …" / "what should i watch …"
+    if re.search(_RECOMMEND_RX, t):
+        # Try to extract a mood like "something funny" / "scary"
+        mood_match = re.search(r"(?:something|anything)\s+(\w+(?:\s+\w+)?)", t)
+        mood = mood_match.group(1).strip() if mood_match else None
+        return {
+            "intent": "recommend",
+            "mood": mood,
+            "speech_reply": f"Here are some {mood} picks." if mood else "Here are a few picks for you.",
+        }
+
+    # "open <app>" — capture trailing text as app name
+    m = re.match(rf"^{_OPEN_TRIGGER}\s+(.+)$", t)
+    if m:
+        app_name = m.group(1).strip()
+        # Drop trailing filler words.
+        app_name = re.sub(r"\b(?:app|application|please)\b\s*$", "", app_name).strip()
+        if app_name and len(app_name) <= 50:
+            return {
+                "intent": "open_app",
+                "app_name": app_name,
+                "speech_reply": f"Opening {app_name}.",
+            }
+
+    # "play <title>" / "watch <title>" / "put on <title>" / "start <title>"
+    m = re.match(rf"^{_PLAY_TRIGGER}\s+(.+)$", t)
+    if m:
+        title_raw = m.group(1).strip()
+        # Detect type hint BEFORE stripping fillers.
+        is_series = bool(re.search(_TYPE_HINT_SERIES, title_raw))
+        is_movie  = bool(re.search(_TYPE_HINT_MOVIE,  title_raw))
+        # Strip "the movie" / "the show" prefix/suffix.
+        title = re.sub(_FILLER_RX, " ", title_raw)
+        title = re.sub(r"\s+", " ", title).strip(" ,.;:")
+        # Drop leading "on", "the", "a" once.
+        title = re.sub(r"^(?:on|the|a|an)\s+", "", title).strip()
+        if not title or len(title) > 80:
+            return None
+        intent = "play_series" if is_series and not is_movie else "play_movie"
+        return {
+            "intent": intent,
+            "title": title.title(),
+            "speech_reply": f"Loading {title.title()}.",
+        }
+
+    return None
 
 
 async def _v2ai_transcribe(raw: bytes, filename: str = "audio.m4a") -> str:
@@ -1654,6 +1764,10 @@ def clear_appstore_background() -> dict:
 
 class V2AIConfigBody(BaseModel):
     heading_text: Optional[str] = None
+    waveform_style: Optional[str] = None
+
+
+_ALLOWED_WAVEFORM_STYLES = {"bars", "dots", "ring", "sweep", "pulse"}
 
 
 @app.post("/api/admin/v2ai/config", dependencies=[Depends(require_admin)])
@@ -1663,6 +1777,11 @@ def set_v2ai_config(body: V2AIConfigBody) -> dict:
     if body.heading_text is not None:
         text = body.heading_text.strip()
         v2ai["heading_text"] = text or None
+    if body.waveform_style is not None:
+        wf = body.waveform_style.strip().lower()
+        if wf and wf not in _ALLOWED_WAVEFORM_STYLES:
+            raise HTTPException(400, f"waveform_style must be one of {sorted(_ALLOWED_WAVEFORM_STYLES)}")
+        v2ai["waveform_style"] = wf or None
     _save_store(store)
     return {"ok": True, "v2ai": v2ai}
 
@@ -1704,6 +1823,44 @@ def clear_v2ai_background() -> dict:
         pass
     store = _load_store()
     store.setdefault("v2ai", {})["background_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
+# ── v2.8.26 — V2 AI top-bar button icon ────────────────────────────
+# Admin uploads a square PNG that replaces the default lightning-bolt
+# SVG drawn on the V2 AI pill in the launcher top bar.  Auto-scales
+# to 96×96 for crisp rendering at every density.
+@app.post("/api/admin/v2ai/button", dependencies=[Depends(require_admin)])
+async def upload_v2ai_button(file: UploadFile = File(...)) -> dict:
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "v2ai" / "button.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img = ImageOps.contain(img, (96, 96), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    v2ai = store.setdefault("v2ai", {})
+    v2ai["button_image_url"] = f"/assets/v2ai/button.png?ts={now_ts()}"
+    _save_store(store)
+    return {"ok": True, "button_image_url": _abs(v2ai["button_image_url"])}
+
+
+@app.delete("/api/admin/v2ai/button", dependencies=[Depends(require_admin)])
+def clear_v2ai_button() -> dict:
+    out_path = DATA_DIR / "v2ai" / "button.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("v2ai", {})["button_image_url"] = None
     _save_store(store)
     return {"ok": True}
 
