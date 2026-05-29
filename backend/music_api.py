@@ -1192,6 +1192,10 @@ def _safe_cookie_name(name: str) -> str:
     base = os.path.basename(name or "").strip() or "account.txt"
     # Replace whitespace + uppercase the .txt extension defensively.
     base = base.replace(" ", "_")
+    # Collapse repeated .txt suffixes (Windows quirk where a user named the
+    # file `account-1.txt` and the upload form still appended another).
+    while base.lower().endswith(".txt.txt"):
+        base = base[:-4]
     if not base.lower().endswith(".txt"):
         base = base + ".txt"
     if not _COOKIE_FILENAME_RE.match(base):
@@ -1213,13 +1217,29 @@ def _cookie_file_summary(path: str) -> Dict[str, Any]:
     except OSError:
         size, mtime = 0, 0
     stats = _yt_cookie_stats.get(name, {})
-    # Quick sniff for a YouTube cookies file — look for the LOGIN_INFO
-    # cookie name which only authenticated sessions have.
+    # Strict sniff for "this file proves the user is signed INTO YOUTUBE
+    # specifically" — must have either:
+    #   • `LOGIN_INFO` (set only when youtube.com login flow completes), OR
+    #   • a row with both `.youtube.com` AND a cookie named exactly `SID`
+    #     (the YouTube-domain SID, distinct from __Secure-3PSID which is
+    #     a tracking cookie set just from being signed into Google).
     looks_signed_in = False
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            head = f.read(8192)
-        looks_signed_in = ("LOGIN_INFO" in head) or ("__Secure-3PSID" in head)
+            lines = f.readlines()
+        for ln in lines:
+            if ln.startswith("#") or "\t" not in ln:
+                continue
+            parts = ln.rstrip("\n").split("\t")
+            if len(parts) < 7:
+                continue
+            domain, name_field = parts[0], parts[5]
+            if name_field == "LOGIN_INFO":
+                looks_signed_in = True
+                break
+            if domain.endswith("youtube.com") and name_field in ("SID", "HSID", "SSID"):
+                looks_signed_in = True
+                break
     except OSError:
         pass
     return {
@@ -1293,7 +1313,19 @@ async def admin_cookies_upload(
                             detail=f"write failed: {exc}") from exc
     # Reset stats for this file (fresh upload = clean slate).
     _yt_cookie_stats.pop(safe, None)
-    return {"ok": True, "saved": _cookie_file_summary(target)}
+    summary = _cookie_file_summary(target)
+    # Soft warning if the file uploaded fine but isn't actually signed
+    # into YouTube — the user almost always wants to know immediately
+    # rather than after a failed test resolve.
+    if not summary.get("looks_signed_in"):
+        summary["warning"] = (
+            "File saved but no YouTube sign-in cookie detected "
+            "(LOGIN_INFO / SID on .youtube.com missing). Open "
+            "youtube.com, click SIGN IN in the top-right, complete "
+            "the flow, verify you see your account avatar, then "
+            "re-export with the extension."
+        )
+    return {"ok": True, "saved": summary}
 
 
 @music_api.delete("/admin/cookies/{name}")

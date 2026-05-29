@@ -4002,9 +4002,10 @@ _ADMIN_MUSIC_COOKIES_HTML = r"""<!doctype html>
       filesEl.innerHTML = data.files.map(f => {
         const total = (f.used || 0);
         const failRate = total > 0 ? (f.fail / total) : 0;
-        let badge;
+        let badge, hint = '';
         if (!f.looks_signed_in) {
-          badge = '<span class="badge warn">no login</span>';
+          badge = '<span class="badge fail">not signed into youtube</span>';
+          hint = '<br/><span style="color:var(--amber);font-size:12px">⚠ Open youtube.com, click SIGN IN top-right, then re-export.</span>';
         } else if (total === 0) {
           badge = '<span class="badge ok">ready</span>';
         } else if (failRate > 0.5) {
@@ -4020,7 +4021,7 @@ _ADMIN_MUSIC_COOKIES_HTML = r"""<!doctype html>
             <div class="file-icon">🍪</div>
             <div class="file-info">
               <div class="file-name">${f.name} ${badge}</div>
-              <div class="file-meta">${stats}</div>
+              <div class="file-meta">${stats}${hint}</div>
             </div>
             <div class="file-actions">
               <button class="danger" data-del="${f.name}" data-testid="delete-cookie-${f.name}">Delete</button>
