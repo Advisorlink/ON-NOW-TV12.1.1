@@ -7,6 +7,62 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.50 — Tunes: NewPipe desugaring + HD V2 AI pill + drag-drop heading image
+
+  • **🔧 NewPipeExtractor now runs on Android 9–12 (FIX).**  The
+    Tunes app was crashing on every track with
+    `NoSuchMethodError: URLEncoder.encode(String, Charset)`.  That
+    method was added in Android 13 / API 33, but NewPipe and
+    several transitive deps (Rhino, NanoJson) call it.  Fix: enabled
+    **core library desugaring** in `app/build.gradle.kts` —
+    `isCoreLibraryDesugaringEnabled = true` + `desugar_jdk_libs:2.0.4`.
+    This injects polyfills into the APK so modern Java APIs work
+    on every Android version ≥ API 23 (Android 6).  Confirmed via
+    the resolver-debug overlay on a real HK1 box (Android 11).
+
+  • **🖼 V2 AI pill image: HD at any size.**  Upload cap raised from
+    96×96 → 2048×1024 px (LANCZOS).  Was making the pill look
+    pixelated whenever the admin used a width > 96 dp.  Also added
+    `isFilterBitmap = true` on the ImageView for bilinear scaling.
+
+  • **🎯 Heading image drag-and-drop upload.**  New endpoints
+    `POST/DELETE /api/admin/layout/heading-image` paired with a
+    drag-drop zone in the Layout Editor.  Saves at
+    `/assets/layout/heading.png?ts=…` (cache-busted on every
+    upload).  The old URL field stays as a fallback for power users.
+    Both routes write to the same `featured_heading_image_url`.
+
+  • **🪟 Resolver debug overlay.**  Shows on `?box=1` (Tunes APK
+    boots into `/music?box=1`) or `?debug=1` URL flag.  Three
+    sections: Native bridge status + buildName, Test native /
+    Test backend buttons, scrolling history of recent resolves
+    with timing + error.  Made the Adele crash trivially
+    diagnosable without needing logcat.
+
+  • **🌐 React frontend deployed to VPS.**  Built with
+    `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` and
+    rsynced to `/var/www/onnowtv-frontend/`.  nginx now serves
+    `/static/*` with immutable cache + SPA fallback to
+    `/index.html` for React Router paths (`/music`, `/kids`,
+    `/watch-party`, …).  Was the reason the box was hitting 404s
+    after the VPS migration.
+
+  • **🍪 Music cookies sign-in detection tightened.**  `looks_signed_in`
+    now requires `LOGIN_INFO` OR a `.youtube.com`-scoped `SID`/`HSID`/
+    `SSID` — `__Secure-3PSID` alone (Google tracking cookie) no
+    longer counts as signed in.  Surfaces "NOT SIGNED INTO YOUTUBE"
+    badge with a yellow inline hint on the admin UI.
+
+  • **🛠 Tunes CI release-signing fix.**  The release build was
+    failing with `signingConfig missing storeFile` when the keystore
+    secret wasn't present.  Now the release config falls back to the
+    debug keystore so the APK still packages for sideloading.
+
+  • **📦 NewPipeExtractor coordinates corrected.**  `0.24.6` →
+    `v0.24.8` (`v` tag prefix is required by JitPack, and 0.24.8
+    is the latest 0.24.x patch).
+
+
 ## v2.8.49 — Launcher: hero V2 AI pill + independent header image controls
 
   • **🌈 V2 AI button = HERO PILL by default.**  The little 44-dp
