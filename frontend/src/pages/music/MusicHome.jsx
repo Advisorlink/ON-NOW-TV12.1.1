@@ -18,7 +18,7 @@ function AlbumCard({ album, onClick }) {
                 className="tunes-card__art"
                 loading="lazy"
             />
-            <div className="tunes-card__body">
+            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                 <p className="tunes-card__title">{album.title}</p>
                 <p className="tunes-card__subtitle">{album.artist?.name || ''}</p>
             </div>
@@ -40,7 +40,7 @@ function ArtistCard({ artist }) {
                 className="tunes-card__art tunes-card__art--round"
                 loading="lazy"
             />
-            <div className="tunes-card__body" style={{ textAlign: 'center' }}>
+            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body" style={{ textAlign: 'center' }}>
                 <p className="tunes-card__title">{artist.name}</p>
                 <p className="tunes-card__subtitle">
                     {artist.nb_fan ? `${(artist.nb_fan / 1000).toFixed(0)}K fans` : 'Artist'}
@@ -82,7 +82,7 @@ function TrackCard({ track, queue }) {
                     </div>
                 </div>
             </div>
-            <div className="tunes-card__body">
+            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                 <p className="tunes-card__title">{track.title}</p>
                 <p className="tunes-card__subtitle">{track.artist?.name || ''}</p>
             </div>
@@ -98,7 +98,7 @@ function GenreTile({ genre }) {
             data-testid={`tunes-genre-${genre.id}`}
             style={{ backgroundImage: genre.picture ? `url(${genre.picture})` : undefined }}
         >
-            <div className="tunes-genre-tile__overlay">{genre.name}</div>
+            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-genre-tile__overlay">{genre.name}</div>
         </Link>
     );
 }

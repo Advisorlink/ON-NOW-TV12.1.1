@@ -43,7 +43,7 @@ export default function PodcastDetail() {
                 {episodes.map((ep, i) => {
                     const isCurrent = state.kind === 'episode' && state.current?.id === ep.id;
                     return (
-                        <div
+                        <div data-focusable="true" data-focus-style="tile"
                             key={ep.id}
                             className={'tunes-track-row' + (isCurrent ? ' tunes-track-row--playing' : '')}
                             style={{ gridTemplateColumns: '32px 1fr auto' }}
@@ -52,7 +52,7 @@ export default function PodcastDetail() {
                             onKeyDown={(e) => { if (e.key === 'Enter') { if (isCurrent) controls.toggle(); else controls.playEpisode(ep, podcast); } }}
                             data-testid={`tunes-podcast-episode-${i}`}
                         >
-                            <div className="tunes-track-row__num">
+                            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">
                                 {isCurrent && state.isPlaying ? <Pause size={14} /> : <Play size={14} />}
                             </div>
                             <div>

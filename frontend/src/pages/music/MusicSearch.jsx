@@ -47,6 +47,9 @@ export default function MusicSearch() {
                     onChange={(e) => setQ(e.target.value)}
                     autoFocus
                     data-testid="tunes-search-input"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
                 />
             </div>
 
@@ -65,7 +68,7 @@ export default function MusicSearch() {
                             <h2 className="tunes-section__title">Tracks</h2>
                             <div className="tunes-track-list">
                                 {results.tracks.slice(0, 8).map((t, i) => (
-                                    <div
+                                    <div data-focusable="true" data-focus-style="tile"
                                         key={t.id}
                                         className="tunes-track-row"
                                         tabIndex={0}
@@ -73,7 +76,7 @@ export default function MusicSearch() {
                                         onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, results.tracks); }}
                                         data-testid={`tunes-result-track-${t.id}`}
                                     >
-                                        <div className="tunes-track-row__num">{i + 1}</div>
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">{i + 1}</div>
                                         <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />
                                         <div>
                                             <p className="tunes-track-row__title">{t.title}</p>
@@ -91,9 +94,9 @@ export default function MusicSearch() {
                             <h2 className="tunes-section__title">Albums</h2>
                             <div className="tunes-grid">
                                 {results.albums.slice(0, 12).map((a) => (
-                                    <Link key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
+                                    <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
                                         <img src={a.cover || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                        <div className="tunes-card__body">
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                             <p className="tunes-card__title">{a.title}</p>
                                             <p className="tunes-card__subtitle">{a.artist?.name}</p>
                                         </div>
@@ -108,9 +111,9 @@ export default function MusicSearch() {
                             <h2 className="tunes-section__title">Artists</h2>
                             <div className="tunes-grid">
                                 {results.artists.slice(0, 10).map((ar) => (
-                                    <Link key={ar.id} to={`/music/artist/${ar.id}`} className="tunes-card" style={{ textAlign: 'center' }}>
+                                    <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={ar.id} to={`/music/artist/${ar.id}`} className="tunes-card" style={{ textAlign: 'center' }}>
                                         <img src={ar.picture || ''} alt="" className="tunes-card__art tunes-card__art--round" loading="lazy" />
-                                        <div className="tunes-card__body" style={{ textAlign: 'center' }}>
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body" style={{ textAlign: 'center' }}>
                                             <p className="tunes-card__title">{ar.name}</p>
                                             <p className="tunes-card__subtitle">Artist</p>
                                         </div>
@@ -136,8 +139,8 @@ export default function MusicSearch() {
                                         data-testid={`tunes-result-radio-${s.id}`}
                                         style={{ textAlign: 'left', cursor: 'pointer' }}
                                     >
-                                        <div className="tunes-card__art" style={{ background: s.favicon ? `center/cover no-repeat url(${s.favicon}), linear-gradient(135deg, #064a59, #0a0118)` : 'linear-gradient(135deg, #064a59, #0a0118)' }} />
-                                        <div className="tunes-card__body">
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__art" style={{ background: s.favicon ? `center/cover no-repeat url(${s.favicon}), linear-gradient(135deg, #064a59, #0a0118)` : 'linear-gradient(135deg, #064a59, #0a0118)' }} />
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                             <p className="tunes-card__title">{s.name}</p>
                                             <p className="tunes-card__subtitle">{s.country || 'Radio'}</p>
                                         </div>
@@ -155,9 +158,9 @@ export default function MusicSearch() {
                             </h2>
                             <div className="tunes-grid">
                                 {results.podcasts.map((p) => (
-                                    <Link key={p.id} to={`/music/podcast/${encodeURIComponent(p.feed_url)}`} className="tunes-card">
+                                    <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={p.id} to={`/music/podcast/${encodeURIComponent(p.feed_url)}`} className="tunes-card">
                                         <img src={p.artwork || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                        <div className="tunes-card__body">
+                                        <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                             <p className="tunes-card__title">{p.title}</p>
                                             <p className="tunes-card__subtitle">{p.artist || p.genre}</p>
                                         </div>

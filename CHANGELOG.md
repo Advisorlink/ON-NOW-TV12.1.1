@@ -7,6 +7,90 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.45 — Tunes: true OS-level fullscreen + big discoverable "Full screen" button
+
+  • **🖥 Real OS-level fullscreen.**  When the Now Playing view
+    opens, it now requests the browser's Fullscreen API (with
+    Safari/Firefox/Chromium prefixes) — the WebView goes truly
+    edge-to-edge, hiding URL bar / status bar / system chrome.
+    A corner button toggles in/out (icon flips Maximize ↔
+    Minimize).  Auto-exits fullscreen when the player closes so
+    the rest of the app isn't trapped.
+
+  • **🎯 Big discoverable "Full screen" button.**  Replaced the
+    tiny Maximize icon in the mini-player with a bright pink
+    pill button labelled "Full screen".  Sits at the bottom-right
+    next to the volume slider, hard to miss, focusable with the
+    D-pad.  Live-verified on production.
+
+Files touched (2):
+  • `frontend/src/pages/music/FullScreenPlayer.jsx` — Fullscreen API + toggle btn
+  • `frontend/src/components/music/MiniPlayer.jsx` — bigger pink "Full screen" button
+
+⚠️ Frontend-only.  No APK rebuild required — the WebView picks
+up the change on next page load.
+
+## v2.8.44 — Tunes: full TV/remote support + 1920×1080 polish
+
+  • **🎮 D-pad / remote-control spatial navigation wired into the
+    entire Music app.**  Reused Vesper's `useSpatialFocus` hook
+    (`/app/frontend/src/hooks/useSpatialFocus.js`).  110+ focusable
+    surfaces now respond to Tab + Arrow keys + Enter:
+    - Side-nav items (Home / Search / Radio / Podcasts / Library)
+    - Album / artist / radio / podcast / genre / track cards on every page
+    - All track-rows on album / artist / search / podcast pages
+    - Mini-player buttons (prev / play / next / expand / volume)
+    - Full-screen player buttons + scrubber
+    - Search input
+    - Radio genre chips
+    - Hero play-button + primary CTAs
+    Side-nav uses Vesper's `data-testid="side-nav"` so the hook
+    treats nav-row movement strictly (no accidental jumps into
+    the content grid).  Live-verified: `Tab → ArrowRight →
+    ArrowDown → Enter` navigates from the Home nav item into the
+    Top Charts shelf and opens an album detail page.
+
+  • **📺 1920×1080 polish for 10-foot UI:**
+    - Page title 38 px → 46 px, subtitle 15 → 17
+    - Side nav width 240 → 280 px, items 14 → 16 px font, big 26 px icons
+    - Card grid minimum width 180 → 220 px, gap 18 → 22
+    - Card border-radius 14 → 16, body padding 12/14 → 14/16
+    - Card title 14 → 15 px, subtitle 12 → 13 px
+    - Track-row art 56 → 64 px, title 15 → 17 px, padding 10/14 → 12/16
+    - Section title 22 → 26 px
+    - Chip padding 9/18 → 11/22 px, border 1 → 2 px
+    - Mini icon-buttons 40 → 46 px, play button 52 → 58 px
+    - Main content padding 28/42 → 36/60 px (proper TV-safe area)
+
+  • **🌟 New TV-grade focus styling.**  Every focusable surface
+    now gets a strong, branded focus indicator:
+    - Cards: 4-px pink halo + lift+scale to 1.06 + deep shadow
+    - Track rows: pink left-slide + accent border + soft halo
+    - Nav items: 4-px pink halo + 4-px slide-right + brand gradient
+    - Icon buttons: scale to 1.08 + accent ring + glow
+    - Chips: scale + halo (cyan in the Radio section, pink elsewhere)
+    Focus rings use `:focus-visible` AND `[data-focused="true"]`
+    so they activate for both browser-tab focus AND the spatial
+    hook's synthesized focus state.
+
+  • **Live verified:**
+    - `data-focusable="true"` elements: 110+ on the Music home alone
+    - Tab → Arrow → Enter traversal: nav → card → album-detail
+      page successfully opens MESÓN MASÓN with full track list
+    - All 5 nav items show distinct focus rings on Tab
+
+Files touched (3):
+  • `frontend/src/pages/music/MusicLayout.jsx` — hook wire-up + nav testid
+  • `frontend/src/pages/music/tunes.css` — every focus style + size bump
+  • `frontend/src/pages/music/*.jsx` (7 files) — sprinkled `data-focusable`
+    on every interactive element
+  • `frontend/src/components/music/MiniPlayer.jsx` — focusable mini-player buttons
+
+⚠️ Frontend-only change.  No backend touched, no APK rebuild
+needed for the Music app to feel like a proper TV experience.
+Existing Tunes / launcher APKs see the change on the next page
+load via the WebView.
+
 ## v2.8.43 — ON NOW TV TUNES launch (separate music app)
 
   • **🎵 Brand-new standalone Music app**: `tv.onnowtv.tunes` —

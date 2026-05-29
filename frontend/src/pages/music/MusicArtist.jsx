@@ -65,7 +65,7 @@ export default function MusicArtist() {
                     <h2 className="tunes-section__title">Popular</h2>
                     <div className="tunes-track-list">
                         {top.slice(0, 10).map((t, i) => (
-                            <div
+                            <div data-focusable="true" data-focus-style="tile"
                                 key={t.id}
                                 className="tunes-track-row"
                                 tabIndex={0}
@@ -73,7 +73,7 @@ export default function MusicArtist() {
                                 onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, top); }}
                                 data-testid={`tunes-artist-track-${t.id}`}
                             >
-                                <div className="tunes-track-row__num">{i + 1}</div>
+                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">{i + 1}</div>
                                 <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />
                                 <div>
                                     <p className="tunes-track-row__title">{t.title}</p>
@@ -91,9 +91,9 @@ export default function MusicArtist() {
                     <h2 className="tunes-section__title">Discography</h2>
                     <div className="tunes-grid">
                         {data.albums.map((a) => (
-                            <Link key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
+                            <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
                                 <img src={a.cover || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                <div className="tunes-card__body">
+                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                     <p className="tunes-card__title">{a.title}</p>
                                     <p className="tunes-card__subtitle">{a.release_date?.slice(0, 4) || ''}</p>
                                 </div>

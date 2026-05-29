@@ -31,7 +31,7 @@ export default function PodcastBrowse() {
                             data-testid={`tunes-podcast-${p.id}`}
                         >
                             <img src={p.artwork || ''} alt="" className="tunes-card__art" loading="lazy" />
-                            <div className="tunes-card__body">
+                            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                 <p className="tunes-card__title">{p.title}</p>
                                 <p className="tunes-card__subtitle">{p.artist || p.genre}</p>
                             </div>

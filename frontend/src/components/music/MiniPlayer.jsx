@@ -30,6 +30,9 @@ export function MiniPlayer() {
                     className="tunes-mini__now"
                     onClick={() => setExpanded(true)}
                     data-testid="tunes-mini-now-btn"
+                    data-focusable="true"
+                    data-focus-style="tile"
+                    tabIndex={0}
                     style={{ background: 'none', border: 'none', color: 'inherit', textAlign: 'left', padding: 0 }}
                 >
                     {t.artwork ? (
@@ -50,7 +53,7 @@ export function MiniPlayer() {
 
                 <div className="tunes-mini__controls">
                     <div className="tunes-mini__buttons">
-                        <button
+                        <button data-focusable="true" data-focus-style="pill" tabIndex={0}
                             className="tunes-iconbtn"
                             onClick={controls.previous}
                             data-testid="tunes-mini-prev"
@@ -60,7 +63,7 @@ export function MiniPlayer() {
                         >
                             <SkipBack size={20} />
                         </button>
-                        <button
+                        <button data-focusable="true" data-focus-style="pill" tabIndex={0}
                             className="tunes-iconbtn tunes-iconbtn--play"
                             onClick={controls.toggle}
                             data-testid="tunes-mini-toggle"
@@ -68,7 +71,7 @@ export function MiniPlayer() {
                         >
                             {state.isPlaying ? <Pause size={22} /> : <Play size={22} style={{ marginLeft: 2 }} />}
                         </button>
-                        <button
+                        <button data-focusable="true" data-focus-style="pill" tabIndex={0}
                             className="tunes-iconbtn"
                             onClick={controls.next}
                             data-testid="tunes-mini-next"
@@ -112,13 +115,29 @@ export function MiniPlayer() {
                         style={{ width: 100, accentColor: 'var(--tunes-accent)' }}
                         data-testid="tunes-mini-volume"
                     />
-                    <button
-                        className="tunes-iconbtn"
+                    <button data-focusable="true" data-focus-style="pill" tabIndex={0}
+                        type="button"
                         onClick={() => setExpanded(true)}
-                        aria-label="Expand player"
+                        aria-label="Open Now Playing fullscreen"
                         data-testid="tunes-mini-expand"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '10px 18px',
+                            background: 'linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2))',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 999,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            boxShadow: '0 6px 18px rgba(255,45,127,0.35)',
+                            transition: 'transform 0.15s, box-shadow 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                     >
-                        <Maximize2 size={18} />
+                        <Maximize2 size={16} />
+                        Full screen
                     </button>
                 </div>
             </div>

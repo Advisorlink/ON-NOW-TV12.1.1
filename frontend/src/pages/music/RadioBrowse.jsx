@@ -39,6 +39,9 @@ export default function RadioBrowse() {
                     className={'tunes-chip tunes-chip--radio' + (!activeTag ? ' tunes-chip--active' : '')}
                     onClick={() => setActiveTag(null)}
                     data-testid="tunes-radio-chip-all"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
                 >Top stations</button>
                 {genres.map((g) => (
                     <button
@@ -47,6 +50,9 @@ export default function RadioBrowse() {
                         className={'tunes-chip tunes-chip--radio' + (activeTag === g.name ? ' tunes-chip--active' : '')}
                         onClick={() => setActiveTag(g.name)}
                         data-testid={`tunes-radio-chip-${g.name}`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
                     >{g.name}</button>
                 ))}
             </div>
@@ -68,6 +74,9 @@ export default function RadioBrowse() {
                                 className="tunes-card"
                                 onClick={() => { controls.playRadio(s); musicAPI.radioClick(s.id); }}
                                 data-testid={`tunes-radio-${s.id}`}
+                                data-focusable="true"
+                                data-focus-style="tile"
+                                tabIndex={0}
                                 style={{ textAlign: 'left', cursor: 'pointer', borderColor: isCurrent ? 'var(--tunes-radio)' : undefined }}
                             >
                                 <div
@@ -81,7 +90,7 @@ export default function RadioBrowse() {
                                 >
                                     {!s.favicon && <RadioIcon size={56} color="rgba(255,255,255,0.55)" />}
                                 </div>
-                                <div className="tunes-card__body">
+                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
                                     <p className="tunes-card__title">{s.name}</p>
                                     <p className="tunes-card__subtitle">
                                         {[s.country, s.bitrate ? `${s.bitrate}kbps` : ''].filter(Boolean).join(' · ')}
