@@ -7,6 +7,69 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.48 — Tunes: client-side YouTube resolution (NewPipeExtractor, Tier 1)
+
+  • **🎯 Architecture shift: full-length tracks now resolve on the
+    BOX, not the VPS.**  The Tunes Android app now embeds
+    NewPipeExtractor 0.24.6 and exposes a native bridge
+    `window.OnNowTV.resolveYouTubeAudio(artist, title, cbId)`.  The
+    React music player calls the bridge FIRST; backend
+    `/api/music/stream/{id}` is only the fallback for users on the
+    web preview (no native bridge available).
+
+  • **🚫 No more datacenter bot block.**  YouTube's "Sign in to
+    confirm you're not a bot" check that blocked our Contabo VPS
+    is based on datacenter-IP fingerprinting.  HK1 boxes on home
+    Wi-Fi are residential IPs — YouTube treats them like any normal
+    viewer.  Most users get full mainstream songs INSTANTLY with
+    zero sign-in.
+
+  • **🔁 3-tier resolver chain** (in `lib/musicResolver.js`):
+    1. Native bridge (NewPipeExtractor on box's IP) — preferred
+    2. Backend `/api/music/stream/{id}` (admin cookies → JioSaavn → Audius)
+    3. Deezer 30-s preview (always works)
+    Each tier has its own timeout; failures cascade silently so
+    the user always hears SOMETHING.
+
+  • **🧱 New Android source files**:
+    - `youtube/OkHttpDownloader.kt` — the `Downloader` interface
+      NewPipeExtractor needs, backed by OkHttp.  Cookie injection
+      ready for the Tier 2 sign-in flow.
+    - `youtube/YouTubeResolver.kt` — search ("artist title audio")
+      → first StreamInfoItem → StreamInfo.getInfo → best
+      audioStream by bitrate.  4-h in-memory cache per
+      (artist|title).  Localised to en-GB.
+    - `OnNowTvBridge.kt` — `@JavascriptInterface` wired into the
+      WebView as `window.OnNowTV`.  Callback-id pattern for
+      async results: Kotlin calls `window.__onnowtvMusicCB(cbId,
+      payload)` when the resolve completes.
+
+  • **💾 Caching**: Resolved URLs cached 4 h per (artist | title)
+    on the box (googlevideo signatures live ~6 h, so we stay well
+    under expiry).  Survives app restarts? No — RAM only, by
+    design (lower complexity, fresh URLs after relaunch).
+
+  • **🔐 Privacy win**: ZERO cookies stored on our VPS for client
+    music resolution.  Each user's YouTube interaction is fully
+    theirs.  We literally cannot be blamed for what someone's
+    individual box requests.
+
+  • **Bundle impact**: NewPipeExtractor + transitive deps
+    (NanoJson, Rhino, jsoup) add ~3.5 MB to the Tunes APK.
+    Trade-off accepted — that's tiny compared to the value of
+    in-app full-track playback without admin maintenance.
+
+  • **⚠️ Requires APK rebuild + reinstall on every box.**  Save to
+    GitHub → CI builds the Tunes APK → reinstall on the HK1 boxes.
+    Web preview falls back to the backend resolver automatically.
+
+  • **Coming next (Tier 2)**: per-user YouTube sign-in WebView
+    modal for the rare case where a box's home IP gets
+    rate-limited.  Cookies will be stored locally on the box (never
+    sent to the VPS) and injected into the NewPipe downloader
+    transparently.
+
+
 ## v2.8.47 — Tunes: full-length tracks via YouTube cookies (cookie admin UI)
 
   • **🎵 Resolver chain restructured.**  `/api/music/stream/{id}` now

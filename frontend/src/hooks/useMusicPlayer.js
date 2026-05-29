@@ -22,6 +22,7 @@
 //   controls.seek(seconds)
 //   controls.setVolume(0..1)
 import { useEffect, useState } from 'react';
+import { resolveTrackStream } from '../lib/musicResolver';
 
 class PlayerEngine {
     constructor() {
@@ -84,16 +85,13 @@ class PlayerEngine {
         this._loadTrackStream(track);
     }
     async _loadTrackStream(track) {
-        const artist = track.artist?.name || '';
-        const title  = track.title || '';
-        const base = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
-        const url  = `${base}/api/music/stream/${encodeURIComponent(track.id)}`
-            + `?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
-        let resolved = null;
-        try {
-            const r = await fetch(url);
-            if (r.ok) resolved = (await r.json()).data || null;
-        } catch (e) { /* fall back to preview below */ }
+        // v2.8.48 — Resolver chain:
+        //   1) Native bridge (NewPipeExtractor on the box's residential IP)
+        //   2) Backend `/api/music/stream/{id}` (admin cookies → JioSaavn → Audius)
+        //   3) Deezer 30-s preview
+        // All branches live in `lib/musicResolver.js` so the player
+        // only deals with the final URL.
+        const resolved = await resolveTrackStream(track);
 
         // Confirm the user hasn't navigated away
         if (!this.state.current || this.state.current.id !== track.id) return;
@@ -109,16 +107,16 @@ class PlayerEngine {
             });
             this._setSource(resolved.stream_url);
         } else {
-            // Fall back to the 30-s preview Deezer already gave us.
+            // Nothing playable.  Update state so the UI can show
+            // "unavailable" — and don't try to play anything.
             this.update({
                 current: {
                     ...track,
                     _resolving: false,
                     _isFullTrack: false,
-                    _streamSource: 'preview',
+                    _streamSource: 'unavailable',
                 },
             });
-            this._setSource(track.preview_url);
         }
     }
     playRadio(station) {

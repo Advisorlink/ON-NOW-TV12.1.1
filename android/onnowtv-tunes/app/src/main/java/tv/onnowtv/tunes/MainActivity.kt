@@ -68,6 +68,11 @@ class MainActivity : AppCompatActivity() {
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
         }
+        // Native bridge — exposes `window.OnNowTV.resolveYouTubeAudio(...)`
+        // so the React music player can resolve full-length YouTube
+        // streams from the BOX'S residential IP (bypassing the bot
+        // detection that blocks our datacenter VPS).
+        web.addJavascriptInterface(OnNowTvBridge(web), "OnNowTV")
         setContentView(web)
 
         // Boot directly into /music — never the Vesper profile picker.

@@ -50,7 +50,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { viewBinding = true }
+    buildFeatures { viewBinding = true; buildConfig = true }
     packaging {
         resources.excludes += setOf(
             "META-INF/AL2.0", "META-INF/LGPL2.1",
@@ -65,4 +65,13 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("com.google.android.material:material:1.12.0")
+
+    // Tier 1 — client-side YouTube audio resolution (NewPipeExtractor).
+    // Runs the YouTube InnerTube API directly from the box's residential
+    // IP so the bot-detection that blocks our datacenter VPS doesn't
+    // apply.  Returns a direct googlevideo.com CDN URL the HTML5
+    // <audio> element can stream.
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:0.24.6")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 }
