@@ -23,6 +23,15 @@ import { useEffect } from 'react';
 export default function useSpatialFocus() {
     useEffect(() => {
         const NAV_RAIL = '[data-testid="side-nav"], [data-testid="kids-side-nav"]';
+        // v2.8.59 — Row-boundary selector.  Was hard-coded to
+        // `[data-testid="shelf-page"]` (Vesper convention); now
+        // ALSO matches the Tunes app's `.tunes-shelf`, `.tunes-section`
+        // and `.tunes-tracklist` wrappers.  This is what makes UP /
+        // DOWN navigate row-by-row inside the Music app without
+        // touching 30+ JSX call sites.
+        const ROW_PAGE =
+            '[data-testid="shelf-page"], ' +
+            '.tunes-shelf, .tunes-section, .tunes-tracklist';
 
         // -------- focusables cache --------
         // Calling document.querySelectorAll on every keypress (with
@@ -157,13 +166,13 @@ export default function useSpatialFocus() {
                 (dir === 'up' || dir === 'down') &&
                 !currentInNav
             ) {
-                const curPage = current.closest('[data-testid="shelf-page"]');
+                const curPage = current.closest(ROW_PAGE);
                 if (curPage) {
                     let targetPage = null;
                     if (dir === 'down') {
                         let n = curPage.nextElementSibling;
                         while (n) {
-                            if (n.matches('[data-testid="shelf-page"]')) {
+                            if (n.matches(ROW_PAGE)) {
                                 targetPage = n;
                                 break;
                             }
@@ -172,7 +181,7 @@ export default function useSpatialFocus() {
                     } else {
                         let p = curPage.previousElementSibling;
                         while (p) {
-                            if (p.matches('[data-testid="shelf-page"]')) {
+                            if (p.matches(ROW_PAGE)) {
                                 targetPage = p;
                                 break;
                             }
@@ -219,7 +228,7 @@ export default function useSpatialFocus() {
                     );
                     if (region) {
                         const firstPage = region.querySelector(
-                            '[data-testid="shelf-page"]'
+                            ROW_PAGE
                         );
                         if (firstPage) {
                             const pick = firstPage.querySelector(
@@ -561,7 +570,7 @@ export default function useSpatialFocus() {
              * For You, addon catalogues, Upcoming).  This is the
              * "treat every row the same way" guarantee the user
              * explicitly asked for. */
-            const snapPage = el.closest('[data-testid="shelf-page"]');
+            const snapPage = el.closest(ROW_PAGE);
             if (snapPage) {
                 try {
                     snapPage.scrollIntoView({
@@ -654,7 +663,7 @@ export default function useSpatialFocus() {
                 );
                 const inNav = active.closest(NAV_RAIL);
                 if (!inNav && navItems.length > 0) {
-                    const curPage = active.closest('[data-testid="shelf-page"]');
+                    const curPage = active.closest(ROW_PAGE);
                     if (curPage) {
                         // Only allow nav escape from the FIRST shelf
                         // page (Continue Watching).  Detect by DOM
@@ -662,7 +671,7 @@ export default function useSpatialFocus() {
                         let prev = curPage.previousElementSibling;
                         let isFirstShelf = true;
                         while (prev) {
-                            if (prev.matches('[data-testid="shelf-page"]')) {
+                            if (prev.matches(ROW_PAGE)) {
                                 isFirstShelf = false;
                                 break;
                             }
@@ -742,7 +751,7 @@ export default function useSpatialFocus() {
                         const regionRect = region.getBoundingClientRect();
                         const probeY = regionRect.top + regionRect.height / 2;
                         const pages = Array.from(
-                            region.querySelectorAll('[data-testid="shelf-page"]')
+                            region.querySelectorAll(ROW_PAGE)
                         );
                         const visible = pages.find((p) => {
                             const r = p.getBoundingClientRect();
