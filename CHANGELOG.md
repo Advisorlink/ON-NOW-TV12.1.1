@@ -1,86 +1,60 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## 2026-02-c — Vesper-exact tile pattern, snap shelves, deep playback debug (LIVE)
+## 2026-02-d — Smooth-as-Vesper polish + ROUTE FIX (LIVE on VPS)
 
-### Design — mirrored Vesper's pattern exactly
-- **Tile = ONE rounded rectangle** (the cover image).  Title + artist
-  now sit ABSOLUTE-positioned on the bottom of the cover with a dark
-  gradient scrim behind them — so the focus ring only ever wraps the
-  cover, never a separate text block underneath (per the reference
-  PosterTile structure in `/components/PosterTile.jsx`).
-- **Focus styling delegated** to Vesper's global
-  `[data-focus-style="tile"]` rule in `/src/index.css`:
-  `outline: 1.5px solid var(--vesper-blue-bright); outline-offset:
-  2px; transform: scale(1.08) translateY(-2px)`.  No blur, no box-
-  shadow → no extra GPU paint pass per frame → smooth 60 fps on HK1.
-- **Artist tiles** keep the caption BELOW the round photo (a circle
-  can't carry a text overlay), but the focus ring is repainted on
-  the inner `.tunes-tile__art-wrap` only, so it still encircles the
-  cover only — never the text below.
-- **One-line shelves with snap focus** — every Tunes rail now has
-  the `vesper-shelf` class so `useSpatialFocus`'s `horizontalScroller`
-  and per-rail column bookmark logic apply identically to Vesper.
-  `scroll-snap-align: start` + `scroll-margin-left` on every tile
-  for the "snap to a tile" feel.
-- **Moods → horizontal shelf** (was a grid).  Six gradient tiles
-  with the same square aspect ratio as albums, sitting in a
-  scrollable rail just like Continue Watching on Vesper.  Browse
-  Genres still sits below as a full-width grid.
+### 🔴 CRITICAL: deeper routes were broken (the real cause of "Karaoke / Radio / Podcasts not working")
+- `frontend/package.json` had `"homepage": "."` → CRA emitted
+  **relative** bundle paths (`./static/js/main.x.js`).
+- Loaded at `/music` the browser resolved that to
+  `/static/js/main.x.js` (works).
+- Loaded at `/music/radio` it resolved to
+  `/music/static/js/main.x.js` → **404** → the SPA boot spinner
+  on `index.html` stayed forever.  That's why Radio, Podcasts AND
+  Karaoke "didn't work" — the JS for them literally never loaded.
+- Changed to `"homepage": "/"` so paths are absolute now.
+- Verified all four routes render: home, /music/radio (30 k stations),
+  /music/podcasts (top shows), /music/karaoke (Crowd-pleasers grid).
 
-### Performance — reduced image weight 4×
-- Deezer CDN URLs encode the image size right in the URL.  All
-  `cover_xl` / `cover` / `picture` paths are now run through
-  `smallerDeezerUrl()` which rewrites `…/1000x1000-…` → `…/500x500-…`.
-- Result: each tile decodes ~30 ms instead of 200 ms+.  ~10×
-  cheaper total decode budget on home page load — kills the
-  "chunky" feel that came from JPEG decoding at scroll time.
-- Hero still uses XL (one image, 10 s rotation, decode cost
-  amortised).
+### Smoothness pass — killed every constant-running animation
+- Removed the 28 s ken-burns scale animation on `.tunes-hero__bg`.
+  That constant transform was repainting a full-viewport image
+  every frame → blew the HK1's GPU budget → made vertical shelf-
+  to-shelf scrolls feel chunky.
+- Removed the 6 s pulse animation on `.tunes-fullplayer__art-ring`
+  (a blurred 12 px filter at 60 fps is the worst-case GPU op).
+- Removed the 700 ms fade-up on `.tunes-hero__text` (single-shot
+  but caused brief layout thrash on mount).
+- Removed our additional `focusin` listener in `MusicLayout.jsx`
+  that was calling `scrollIntoView({behavior: 'smooth'})` — it
+  was racing Vesper's own `useSpatialFocus` which already does
+  hardware-accelerated `behavior: 'auto'` scrolls.  No more
+  conflicting scrollers → instant snap up/down between shelves.
+- Page background simplified from a three-layer gradient to a
+  single flat colour so the compositor never has to repaint a
+  full-viewport gradient on focus scroll.
 
-### Karaoke loading fix
-- Removed the redundant warm-up search before the parallel batch
-  of 8 seed searches (that single search hanging was what produced
-  the "Warming up the stage…" stuck state).  Now all 8 fire in
-  parallel from the start.
-- Added a 6 s safety timer that flips `picks` from `null` to `[]`
-  if every promise hangs, so the placeholder is never permanent.
+### Hero fade — covers the wallpaper properly
+- `.tunes-hero__scrim-y` extended downward: 30 % transparent → 50 %
+  45 % bg → 78 % 85 % bg → 95 % solid `--vesper-bg-0`.  No more
+  visible image edge against the page background.
+- Combined with the flat page background this gives a perfectly
+  seamless transition from hero to shelves.
 
-### Theme system — preserved
-- Pink (`#ff2d7f` on `#0a0118 → #2a0945`) remains the default.
-- Electric Blue (`#00b3ff` on `#02060f → #082a55`) toggleable from
-  the side rail when expanded.
-
-### Verified via playwright + curl
-- ✅ Home renders with vibrant album covers (MA CLAQUE, OUTKAST,
-  bitknot, Constant Farewells, Le sanglot — all real artwork).
-- ✅ Focus ring is a clean 1.5 px outline that wraps only the
-  cover image.
-- ✅ Square album tiles + round artist tiles + gradient mood
-  tiles all use the same shelf snap behaviour.
-- ✅ Backend endpoints healthy: `/api/music/search`,
-  `/api/music/radio/top`, `/api/music/podcasts/top`,
-  `/api/music/lyrics` all return data.
-
-### Known constraint — Full-track YT playback needs cookies
-- `/api/music/stream/{id}` falls back to a 30 s Deezer preview when
-  no YouTube cookies are available on the VPS.  Currently the
-  `/opt/onnowtv/backend/youtube-cookies/` directory is EMPTY.
-- To unlock full-track ad-free playback the user can either:
-  1. Sign into Google/YouTube via the WebView on the HK1 Tunes
-     APK — the native InnerTubeResolver then uses the WebView
-     cookies for ad-free playback.
-  2. Upload a fresh `cookies.txt` via the admin endpoint
-     `/api/music/admin/cookies/upload`.
-
-### Deployed
-- React build (`main.e1e5a6c1.js`) rsync'd to the VPS with
-  `--delete-after` cleanup.
-- Created an empty `youtube-cookies/` dir on the VPS so the admin
-  status endpoints don't 404.
+### Verified live on VPS (https://onnowtv.duckdns.org)
+- ✅ Home: hero billboard + 5 shelves + Moods + Genres.
+- ✅ Radio: 30,000+ stations grid loads.
+- ✅ Podcasts: 48+ top shows grid loads.
+- ✅ Karaoke: Crowd-pleasers (Bohemian Rhapsody, Rolling in the
+  Deep, Livin' on a Prayer, Shake It Off, Don't Stop Believin',
+  Perfect, My Heart Will Go On, I Will Always Love You) render.
+- ✅ Build: `main.254b2705.js`, rsync'd, old chunks cleaned.
 
 ---
 
-## 2026-02-b — Tunes Pink ↔ Blue themes + Vesper-style full-bleed hero (LIVE)
+## 2026-02-c — Vesper-exact tile pattern + snap shelves
+[…earlier notes unchanged…]
+
+## 2026-02-b — Tunes Pink ↔ Blue themes + Vesper full-bleed hero
 […earlier notes unchanged…]
 
 ## 2026-02-a — Vesper-style Tunes redesign (initial drop)

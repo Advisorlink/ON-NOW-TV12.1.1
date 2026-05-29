@@ -32,10 +32,14 @@
     --vesper-text-2: rgba(255, 255, 255, 0.72);
     --vesper-text-3: rgba(255, 255, 255, 0.40);
 
-    /* Ambient page glow — soft accent halo from the top-right. */
-    background:
-        radial-gradient(1200px 800px at 80% -10%, rgba(var(--vesper-blue-rgb), 0.18), transparent 60%),
-        linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-1) 60%, var(--vesper-bg-2) 100%);
+    /* Solid page background — using a SINGLE flat colour (no
+       gradient) so the hero scrim's solid endpoint matches the
+       page below seamlessly.  A previous version layered three
+       gradients which (a) caused a visible seam at the hero's
+       bottom edge and (b) forced the compositor to repaint a
+       full-viewport gradient on every focus scroll.  Flat colour
+       = zero per-frame cost on the HK1 box. */
+    background: var(--vesper-bg-0);
     color: var(--vesper-text);
     font-family: 'Geist', system-ui, sans-serif;
     width: 100vw;
@@ -329,27 +333,28 @@
     inset: 0;
     background-size: cover;
     background-position: center 30%;
-    transform: scale(1.02);
+    /* No ken-burns animation — a constantly-running transform was
+       eating CPU/GPU budget which made the vertical shelf-to-shelf
+       focus scroll feel chunky on the HK1. */
+    transform: translateZ(0);
     filter: saturate(1.18) contrast(1.04);
-    animation: tunes-kenburns 28s ease-in-out infinite alternate;
 }
 
-@keyframes tunes-kenburns {
-    0%   { transform: scale(1.02) translate(0, 0); }
-    100% { transform: scale(1.10) translate(-2%, -2%); }
-}
-
-/* Vertical scrim — fades the image into the page bg at the bottom. */
+/* Vertical scrim — extends the fade DOWN further so the
+   wallpaper is fully covered at the bottom of the hero (no
+   visible image edge against the page background). */
 .tunes-hero__scrim-y {
     position: absolute;
     inset: 0;
     background: linear-gradient(
         180deg,
         rgba(0, 0, 0, 0.55)             0%,
-        rgba(0, 0, 0, 0)               22%,
-        rgba(0, 0, 0, 0)               42%,
-        rgba(var(--vesper-bg-0-rgb, 10, 1, 24), 0.55) 70%,
-        var(--vesper-bg-0)             100%
+        rgba(0, 0, 0, 0)               18%,
+        rgba(0, 0, 0, 0)               30%,
+        rgba(var(--vesper-bg-0-rgb, 10, 1, 24), 0.45) 50%,
+        rgba(var(--vesper-bg-0-rgb, 10, 1, 24), 0.85) 78%,
+        var(--vesper-bg-0)             95%,
+        var(--vesper-bg-0)            100%
     );
     pointer-events: none;
 }
@@ -394,7 +399,8 @@
     max-width: 62vw;
     padding-left: clamp(92px, 6.5vw, 132px);
     padding-bottom: clamp(38px, 4vw, 64px);
-    animation: tunes-fade-up 700ms ease;
+    /* No fade-up animation — keyframed transform on mount was
+       producing a brief layout thrash on slow hardware. */
 }
 
 .tunes-hero__eyebrow {
@@ -1407,9 +1413,10 @@
         transparent 60%
     );
     filter: blur(12px);
+    /* No constant pulse animation — was repainting a blur(12px)
+       layer at 60 fps which obliterates the GPU budget on HK1. */
     z-index: -1;
     pointer-events: none;
-    animation: tunes-pulse 6s ease-in-out infinite;
 }
 
 .tunes-fullplayer__meta {
