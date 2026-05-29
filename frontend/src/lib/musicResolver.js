@@ -119,10 +119,27 @@ export async function resolveTrackStream(track) {
         const native = await resolveViaNative(artist, title);
         const ms = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
         if (native && native.ok) {
-            // v2.8.53 — Native bridge can return EITHER a direct
-            // stream URL (legacy NewPipe path) OR a YouTube videoId
-            // for the IFrame Player route.  Both count as a "full
-            // track" success — the engine branches on `source`.
+            // v2.8.55 — Three possible shapes from the bridge:
+            //   • `source: 'youtube-direct'` + `url` → AD-FREE
+            //     direct googlevideo.com URL from authenticated
+            //     TVHTML5 InnerTube call.  Plays in HTML5 <audio>.
+            //   • `source: 'youtube-iframe'` + `yt_id` → fallback
+            //     to YouTube's IFrame Player (may show ads on free
+            //     accounts; Premium accounts still ad-free).
+            //   • Legacy `source: 'newpipe'` + `url` (kept for
+            //     backwards compat with v2.8.48-style bridges).
+            if (native.source === 'youtube-direct' && native.url) {
+                emit({ artist, title, source: 'youtube-direct', ms, ok: true });
+                return {
+                    stream_url: native.url,
+                    source: 'youtube-direct',
+                    is_full_track: true,
+                    title: native.title,
+                    uploader: native.uploader,
+                    duration: native.duration,
+                    yt_id: native.yt_id,
+                };
+            }
             if (native.source === 'youtube-iframe' && native.yt_id) {
                 emit({ artist, title, source: 'youtube-iframe', ms, ok: true });
                 return {

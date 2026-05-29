@@ -7,6 +7,59 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.55 — Tunes: TRULY ad-free YouTube playback via authenticated TVHTML5
+
+  • **🎯 The whole reason we added per-user sign-in.**  Now that
+    each box has a signed-in YouTube session, the resolver does
+    authenticated `/youtubei/v1/player` calls to the **TVHTML5**
+    client (the same client smart TVs use).  TVHTML5 returns
+    `streamingData.adaptiveFormats[].url` with DIRECT
+    `googlevideo.com` audio URLs.  HTML5 `<audio>` element streams
+    these → **zero ads, zero IFrame, zero YouTube branding**.
+
+  • **🧱 New files / changes**:
+    - `youtube/WebViewCookieJar.kt` — OkHttp CookieJar backed by
+      Android's process-wide `CookieManager`.  Lets the same
+      signed-in cookies that power the WebView UI also authenticate
+      our Kotlin OkHttp calls.
+    - `youtube/InnerTubeResolver.kt` — rewritten with the
+      authenticated TVHTML5 path.  Returns `source: 'youtube-direct'`
+      with a clean CDN URL on success.
+
+  • **🔐 SAPISIDHASH auth**:
+    Reads `SAPISID` (or `__Secure-3PAPISID`) from the WebView
+    cookie store, computes
+    `sha1(unix_ts + " " + SAPISID + " " + origin)`, sends
+    `Authorization: SAPISIDHASH <ts>_<hex>` on every TVHTML5
+    InnerTube call.  Plus `X-Origin`, `X-Goog-AuthUser: 0`, full
+    `Cookie:` header via the cookie jar.  Same recipe YouTube's
+    own web app uses.
+
+  • **🪜 Resolver chain inside the bridge**:
+    1. Authenticated **TVHTML5** → returns `youtube-direct` with
+       direct URL → AD-FREE HTML5 audio playback.
+    2. (Fallback) IFrame Player API → returns `youtube-iframe`
+       with just the videoId → may show ads on free YouTube
+       accounts; Premium accounts still ad-free.
+    3. (Last resort) Backend `/api/music/stream/{id}`.
+
+  • **🤔 Why TVHTML5 still works** when every other unauth
+    InnerTube client returns `LOGIN_REQUIRED`: YouTube hasn't
+    rolled PoToken / visitor-data onto the smart-TV client yet
+    because TVs can't run BotGuard JS.  Auth-as-TV is the one path
+    they kept open.
+
+  • **🛟 Graceful degradation**: if the user isn't signed in
+    (no `SAPISID` cookie), or TVHTML5 returns empty / signature-
+    ciphered formats, we transparently fall back to the IFrame
+    Player route from v2.8.54.  The user always gets playback —
+    just with ads on the fallback path.
+
+  • **🎁 Bonus**: the same code path benefits YouTube Premium
+    users automatically — they were already ad-free on IFrame
+    Player, and TVHTML5 direct streams are ad-free for everyone.
+
+
 ## v2.8.54 — Tunes: per-user YouTube sign-in (the right architecture)
 
   • **🎯 Every box now owns its OWN YouTube session.**  No more
