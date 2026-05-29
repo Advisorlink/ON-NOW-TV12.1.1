@@ -10,6 +10,9 @@ function AlbumCard({ album, onClick }) {
             to={`/music/album/${album.id}`}
             className="tunes-card"
             data-testid={`tunes-album-${album.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
             onClick={onClick}
         >
             <img
@@ -32,6 +35,9 @@ function ArtistCard({ artist }) {
             to={`/music/artist/${artist.id}`}
             className="tunes-card"
             data-testid={`tunes-artist-${artist.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
             style={{ textAlign: 'center' }}
         >
             <img
@@ -57,6 +63,9 @@ function TrackCard({ track, queue }) {
             type="button"
             className="tunes-card"
             data-testid={`tunes-track-${track.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
             onClick={() => controls.playTrack(track, queue)}
             style={{ background: 'var(--tunes-glass-bg)', textAlign: 'left', color: 'inherit', cursor: 'pointer' }}
         >
@@ -96,9 +105,12 @@ function GenreTile({ genre }) {
             to={`/music/genre/${genre.id}`}
             className="tunes-genre-tile"
             data-testid={`tunes-genre-${genre.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
             style={{ backgroundImage: genre.picture ? `url(${genre.picture})` : undefined }}
         >
-            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-genre-tile__overlay">{genre.name}</div>
+            <div className="tunes-genre-tile__overlay">{genre.name}</div>
         </Link>
     );
 }
@@ -107,7 +119,11 @@ function Shelf({ shelf }) {
     const items = shelf.items || [];
     if (!items.length) return null;
     return (
-        <section className="tunes-shelf" data-testid={`tunes-shelf-${shelf.id}`}>
+        <section
+            className="tunes-shelf"
+            data-testid="shelf-page"
+            data-shelf-id={shelf.id}
+        >
             <div className="tunes-shelf__head">
                 <h2 className="tunes-shelf__title">{shelf.title}</h2>
             </div>
@@ -195,7 +211,7 @@ export default function MusicHome() {
             {data?.shelves?.map((s) => <Shelf key={s.id} shelf={s} />)}
 
             {data?.genres?.length > 0 && (
-                <section className="tunes-section">
+                <section className="tunes-section" data-testid="shelf-page" data-shelf-id="genres">
                     <h2 className="tunes-section__title">Browse genres</h2>
                     <div className="tunes-grid">
                         {data.genres.map((g) => <GenreTile key={g.id} genre={g} />)}

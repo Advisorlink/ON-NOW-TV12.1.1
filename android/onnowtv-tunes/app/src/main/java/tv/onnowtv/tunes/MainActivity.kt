@@ -112,21 +112,16 @@ class MainActivity : AppCompatActivity() {
         if (isSignedInToYouTube()) {
             navigateToMusic()
         } else {
-            // v2.8.57 — Auto-sign-in path.  Per the operator's
-            // request, the Tunes APK ships with a baked-in throwaway
-            // YouTube account so users never have to type credentials
-            // (even after uninstall + reinstall, which wipes cookies).
-            //
-            // We don't hardcode-and-submit blindly — that would trip
-            // Google's anti-automation.  Instead the WebViewClient
-            // watches each step of the standard sign-in flow and
-            // injects the right field values via JavaScript right
-            // before clicking Next / Sign In.  Looks to the user
-            // like the screens flash by automatically.
+            // v2.8.58 — Reverted auto-fill.  Google's anti-automation
+            // flagged the programmatic value-setter and the sign-in
+            // would silently fail or get held in a "Couldn't verify
+            // it's you" loop.  Manual sign-in only.  WebView cookies
+            // persist across normal launches; only `uninstall →
+            // reinstall` wipes them.
             Toast.makeText(
                 this,
-                "Signing into music account…",
-                Toast.LENGTH_SHORT,
+                "Sign in to YouTube to play music · use any account, fake is fine",
+                Toast.LENGTH_LONG,
             ).show()
             webView.webViewClient = signInWatcherClient()
             webView.loadUrl(SIGN_IN_URL)
@@ -140,30 +135,14 @@ class MainActivity : AppCompatActivity() {
         return cookies.contains("LOGIN_INFO") || cookies.contains("SAPISID")
     }
 
-    /** WebViewClient that watches the Google sign-in flow:
-     *
-     *   • Auto-fills the email field + clicks Next on the first step.
-     *   • Auto-fills the password field + clicks Sign In on the
-     *     second step.
-     *   • Watches for the final youtube.com redirect → confirms
-     *     cookies are now in place → advances to /music.
-     *
-     * Each step is identified by a CSS-selector pattern that's
-     * stable across Google's recent UI iterations (input fields are
-     * always `input[type=email]` / `input[type=password]`, "Next"
-     * is always `#identifierNext button` / `#passwordNext button`).
-     * If Google A/B-tests a new sign-in UI that breaks these
-     * selectors, the user still sees the standard form and can
-     * sign in by hand — graceful degradation.
-     */
+    /** WebViewClient that watches for the YouTube homepage URL that
+     *  Google redirects to after a successful sign-in.  Verifies
+     *  cookies are present, then advances to /music. */
     private fun signInWatcherClient() = object : WebViewClient() {
         private var advanced = false
-        private var lastFilledStep = ""
 
         override fun onPageFinished(view: WebView?, url: String?) {
-            if (advanced || url == null || view == null) return
-
-            // Step 1: success → user landed on YouTube + cookies present.
+            if (advanced || url == null) return
             val onYouTube = url.startsWith("https://www.youtube.com/")
                     || url.startsWith("https://m.youtube.com/")
             val isAuthPage = url.contains("signin")
@@ -178,81 +157,8 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_SHORT,
                 ).show()
                 navigateToMusic()
-                return
-            }
-
-            // Step 2: email-entry page.  Auto-fill once per page load
-            // (lastFilledStep guards against double-firing when the
-            // SPA re-renders without a full navigation).
-            if (url.contains("accounts.google.com") && lastFilledStep != "email-$url") {
-                lastFilledStep = "email-$url"
-                view.postDelayed({ injectAutofillScript(view) }, AUTOFILL_DELAY_MS)
             }
         }
-    }
-
-    /** Run the autofill JS in the WebView.  Idempotent — looks
-     *  for whichever field is visible and fills it.  If neither
-     *  email nor password input is present, the script is a no-op. */
-    private fun injectAutofillScript(view: WebView) {
-        val js = """
-            (function() {
-                try {
-                    var email = document.querySelector('input[type=email][name=identifier], input[type=email]');
-                    if (email && !email.value) {
-                        email.focus();
-                        // Use the native value-setter so React-style
-                        // controlled inputs fire their onChange handlers.
-                        var nativeSetter = Object.getOwnPropertyDescriptor(
-                            window.HTMLInputElement.prototype, 'value'
-                        ).set;
-                        nativeSetter.call(email, ${jsString(AUTO_EMAIL)});
-                        email.dispatchEvent(new Event('input', { bubbles: true }));
-                        email.dispatchEvent(new Event('change', { bubbles: true }));
-                        setTimeout(function() {
-                            var next = document.querySelector('#identifierNext button, #identifierNext, button[jsname]');
-                            if (next) next.click();
-                        }, 300);
-                        return 'filled-email';
-                    }
-                    var pw = document.querySelector('input[type=password][name=Passwd], input[type=password]');
-                    if (pw && pw.offsetParent !== null && !pw.value) {
-                        pw.focus();
-                        var nativeSetterPw = Object.getOwnPropertyDescriptor(
-                            window.HTMLInputElement.prototype, 'value'
-                        ).set;
-                        nativeSetterPw.call(pw, ${jsString(AUTO_PASSWORD)});
-                        pw.dispatchEvent(new Event('input', { bubbles: true }));
-                        pw.dispatchEvent(new Event('change', { bubbles: true }));
-                        setTimeout(function() {
-                            var next = document.querySelector('#passwordNext button, #passwordNext, button[jsname]');
-                            if (next) next.click();
-                        }, 300);
-                        return 'filled-password';
-                    }
-                    return 'nothing-to-fill';
-                } catch (e) {
-                    return 'error: ' + e.message;
-                }
-            })();
-        """.trimIndent()
-        view.evaluateJavascript(js, null)
-        // Re-run the script a couple times — Google's sign-in is an
-        // SPA, the email-then-password step transition doesn't
-        // always fire onPageFinished a second time.
-        view.postDelayed({ view.evaluateJavascript(js, null) }, AUTOFILL_RETRY_MS)
-        view.postDelayed({ view.evaluateJavascript(js, null) }, AUTOFILL_RETRY_MS * 2)
-    }
-
-    /** Escape a String into a JS string literal so it embeds safely
-     *  inside `evaluateJavascript`. */
-    private fun jsString(s: String): String {
-        val esc = s
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-        return "'$esc'"
     }
 
     private fun navigateToMusic() {
@@ -284,20 +190,5 @@ class MainActivity : AppCompatActivity() {
             "?service=youtube" +
             "&continue=https%3A%2F%2Fwww.youtube.com%2F" +
             "&hl=en"
-
-        // v2.8.57 — Auto-sign-in credentials.  Throwaway YouTube
-        // account managed by the operator; only used by the Tunes
-        // APK so users never have to type credentials (even after
-        // uninstall + reinstall, which wipes WebView cookies).  Safe
-        // to embed in the APK — the account has no Drive / Gmail /
-        // payments tied to it.  Operator can rotate by updating
-        // these constants and pushing a new build.
-        private const val AUTO_EMAIL    = "onnowv2@gmail.com"
-        private const val AUTO_PASSWORD = "Onnowtv123!"
-
-        // Wait for the React-style sign-in SPA to settle before
-        // injecting fields; retry twice in case the form re-renders.
-        private const val AUTOFILL_DELAY_MS = 700L
-        private const val AUTOFILL_RETRY_MS = 1500L
     }
 }

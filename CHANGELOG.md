@@ -7,6 +7,44 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.59 — Tunes: revert auto-sign-in + true Vesper-style D-pad navigation
+
+  • **🔁 Reverted auto-sign-in.**  Google's anti-automation flagged
+    the programmatic value-setter (would hold the user in a
+    "Couldn't verify it's you" loop).  Sign-in is back to manual,
+    BUT cookies still persist across launches → user only signs in
+    once per install (only `uninstall → reinstall` wipes them).
+
+  • **🎯 D-pad navigation finally feels like Vesper.**  Root cause:
+    `useSpatialFocus` hard-coded `[data-testid="shelf-page"]` as the
+    row-boundary selector — that's the Vesper convention.  The Tunes
+    React app uses `.tunes-shelf` / `.tunes-section` / `.tunes-tracklist`
+    instead.  Single-line fix in the hook now matches BOTH sets.
+
+  • **🪜 Behaviour now matches Vesper exactly**:
+    - LEFT from any content card → focuses the sidebar nav
+    - RIGHT from a nav item → focuses the first content card on that
+      page (bookmarked to its row + column)
+    - UP / DOWN inside the content → moves shelf-by-shelf (smooth
+      vertical scrolling)
+    - LEFT/RIGHT inside a shelf rail → moves card-by-card horizontally
+    - `scrollIntoView` smooth-scrolls the focused card into view
+      with a 60 px breathing-room offset.
+
+  • **🃏 Music cards are now focusable.**  `AlbumCard`, `ArtistCard`,
+    `TrackCard`, and `GenreTile` all got `data-focusable="true"`
+    `data-focus-style="tile"` + `tabIndex={0}`.  Was the missing
+    half of the fix.
+
+  • **🛟 Graceful fallback** in the sign-in WebViewClient — the URL
+    redirect detection that advances to `/music` after a successful
+    login was kept; only the autofill code was removed.
+
+  • **🧹 Code clean-up**: 100+ lines of autofill JS + constants
+    deleted from `MainActivity.kt`.  Net diff: smaller, simpler,
+    more reliable.
+
+
 ## v2.8.57 — Tunes: auto-sign-in (zero credential prompts ever) + Radio tile density fix
 
   • **🔐 Tunes APK ships with a baked-in YouTube account.**  The
