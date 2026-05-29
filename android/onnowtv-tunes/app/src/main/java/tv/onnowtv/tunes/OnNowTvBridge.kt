@@ -44,12 +44,19 @@ class OnNowTvBridge(private val webView: WebView) {
     fun buildName(): String = BuildConfig.VERSION_NAME
 
     /**
-     * Resolve a YouTube audio URL for the given artist + title via
-     * NewPipeExtractor (running on this box's residential IP).
+     * Resolve a YouTube audio URL for the given artist + title.
+     *
+     * v2.8.52 — Tries the **custom InnerTubeResolver first** (direct
+     * youtubei/v1 calls with the ANDROID client — no PoToken, no
+     * signature deciphering, no NewPipe baggage).  Falls back to
+     * NewPipeExtractor only if InnerTube returns no result.
+     *
+     * Both resolvers run on this box's residential IP, so the bot
+     * detection that blocks our datacenter VPS doesn't apply.
      *
      * Invokes `window.__onnowtvMusicCB(callbackId, jsonPayload)` when
-     * done.  `jsonPayload` matches the structure of
-     * [YouTubeResolver.resolve]'s return value.
+     * done.  `jsonPayload` follows the same shape regardless of which
+     * resolver actually succeeded.
      */
     @JavascriptInterface
     fun resolveYouTubeAudio(artist: String, title: String, callbackId: String) {
@@ -60,7 +67,24 @@ class OnNowTvBridge(private val webView: WebView) {
         scope.launch {
             val payload = try {
                 withContext(Dispatchers.IO) {
-                    YouTubeResolver.resolve(artist, title)
+                    // 1) InnerTube (our own resolver) — primary path.
+                    val direct = tv.onnowtv.tunes.youtube.InnerTubeResolver
+                        .resolve(artist, title)
+                    if (direct.optBoolean("ok", false)) {
+                        direct
+                    } else {
+                        // 2) NewPipeExtractor fallback (kept around in
+                        //    case InnerTube starts requiring PoToken
+                        //    in the future).  Most "ok=false" returns
+                        //    from InnerTube will land here.
+                        val np = YouTubeResolver.resolve(artist, title)
+                        // Stash the InnerTube error on the payload so
+                        // the debug overlay can show both reasons.
+                        if (!np.optBoolean("ok", false)) {
+                            np.put("inner_tube_error", direct.optString("error", ""))
+                        }
+                        np
+                    }
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "bridge resolve crashed", t)

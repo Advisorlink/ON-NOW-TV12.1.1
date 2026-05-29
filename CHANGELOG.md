@@ -7,6 +7,46 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.52 — Tunes: custom InnerTubeResolver (NewPipe bypass, Plan C)
+
+  • **🎯 Bypassed NewPipeExtractor entirely.**  v2.8.51 confirmed
+    desugaring was working (no more `URLEncoder` crashes), but
+    NewPipeExtractor 0.24.8 still threw
+    `ContentNotAvailableException: The page needs to be reloaded.`
+    on every search — that's YouTube's WEB InnerTube client now
+    requiring PoToken / visitor-data tokens that NewPipe can't
+    easily acquire.
+
+  • **🧱 New file**: `youtube/InnerTubeResolver.kt` (~250 lines).
+    Two raw OkHttp POSTs:
+    1. `/youtubei/v1/search` with WEB client headers → find the
+       first matching video ID.
+    2. `/youtubei/v1/player` with **ANDROID client headers** →
+       audio adaptiveFormats with no signature-cipher step
+       (Android client's special grace period).
+    Recursive JSON walker finds `videoRenderer.videoId` regardless
+    of YouTube's frequent layout reshuffles.  Audio formats picked
+    by highest bitrate.
+
+  • **🪜 Resolver chain inside the bridge**:
+    1. **InnerTube** (custom, NO PoToken needed) — primary.
+    2. NewPipeExtractor — fallback for the future case where
+       InnerTube starts requiring PoToken too.
+    3. Backend (cookies → JioSaavn → Audius → preview) — final.
+
+  • **🛠 No third-party additions**: pure Kotlin + OkHttp (already
+    on the classpath).  ~250 lines easy to maintain ourselves.
+    No URLEncoder.encode(String, Charset) anywhere in this file.
+
+  • **🤖 Why ANDROID client works**:
+    - URLs aren't signature-encrypted (no cipher deciphering)
+    - No PoToken / visitor-data required (yet)
+    - Works on every IP type (residential / datacenter — but our
+      box is residential anyway)
+    - If YouTube ever revokes this grace period we'd migrate to
+      iOS / TVHTML5 with the same code pattern.
+
+
 ## v2.8.51 — Tunes: desugaring _nio variant + full-classpath transform (NewPipe fix attempt #2)
 
   • **🔧 Switched to `desugar_jdk_libs_nio:2.0.4`** (was the base
