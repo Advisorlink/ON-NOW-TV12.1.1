@@ -1,6 +1,48 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## 2026-02 — Vesper-style Tunes redesign (LIVE on VPS)
+## 2026-02-b — Tunes Pink ↔ Blue themes + Vesper-style full-bleed hero (LIVE)
+
+### Theme system restored
+- `.tunes-root` locally redefines Vesper's CSS variables, so the
+  entire music app inherits the **classic Tunes identity** —
+  hot pink on deep grape (default) — while keeping Vesper itself
+  untouched.
+- Two themes, switchable from the side-nav theme picker:
+  - **Pink** (default)   `#ff2d7f` on `#0a0118 → #160329 → #2a0945`
+  - **Electric Blue**    `#00b3ff` on `#02060f → #051a32 → #082a55`
+- Theme picker visible only when the side rail is expanded
+  (matches Vesper's collapse-on-blur pattern).
+
+### Hero billboard — Vesper full-bleed pattern
+- Removed the framed cover on the right.  The hero image now
+  fills the **whole** banner area and fades smoothly into the
+  page background at the bottom (180° scrim → `--vesper-bg-0`),
+  exactly like Vesper.
+- Image is anchored at `center 30%` so faces / album-cover
+  centerpieces sit comfortably.
+- Vibrancy boost: `saturate(1.18) contrast(1.04)` + slow
+  ken-burns (28 s loop) for cinematic motion.
+- 90° horizontal scrim darkens the left side for title
+  legibility; soft theme-coloured radial glow on the right.
+- Hero now prefers the **artist photo** as the backdrop (more
+  cinematic) and falls back to the album cover.
+
+### Deployed
+- React build rsync'd to the Contabo VPS at
+  `/var/www/onnowtv-frontend/`.  Old hashed assets cleaned with
+  `--delete-after`.
+- HK1 box picks up the new look the next time the Tunes APK
+  opens (no APK rebuild required).
+
+### Notes for existing users
+- Users whose `localStorage.onnowtv-tunes-theme` is already set
+  to `electric-blue` will keep seeing the blue theme — their
+  preference is preserved.  Toggle to Pink via the side-rail
+  theme picker.
+
+---
+
+## 2026-02-a — Vesper-style Tunes redesign (initial drop)
 
 ### Music app frontend (`/app/frontend/src/pages/music`)
 - **Complete visual overhaul** to mirror Vesper's polished home/billboard
@@ -9,80 +51,34 @@
 
   1. **Music Home** (`MusicHome.jsx`)
      - Rotating hero billboard cycles through trending tracks +
-       new releases (~9.5 s cadence) with blurred album-cover
-       background, cyan glow ring, eyebrow / huge title / meta /
-       Play · More Info · Add to Library pills.
-     - "Trending Now" shelf — **square** album-cover tiles
-       with title + artist underneath (per the user's request).
-     - "Top Charts" shelf — square track tiles.
-     - "Top Artists" shelf — round artist tiles.
-     - "New Releases" shelf.
-     - **NEW Moods grid** — six colour-gradient mood tiles
-       (Chill, Energetic, Romantic, Focus, Party, Sunshine) that
-       deep-link into `/music/search?q=<curated query>`.
-     - "Browse Genres" photographic grid (when API returns
-       genre images).
+       new releases (~9.5 s cadence).
+     - "Trending Now" shelf — **square** album-cover tiles.
+     - "Top Charts", "Top Artists" (round), "New Releases" shelves.
+     - **NEW Moods grid** — six colour-gradient mood tiles.
+     - "Browse Genres" photographic grid.
 
   2. **Album detail** (`MusicAlbum.jsx`)
-     - Big cover top-left + "ALBUM" eyebrow + uppercase display
-       title + cyan "by ARTIST" link + meta row + synopsis.
-     - Play Album (white pill) · Shuffle · Add to Library
-       (cyan toggle when liked) · ⋯ more.
-     - Track list with the currently-playing row tinted cyan
-       (matches the Neon Dreams reference).
+     - Big cover top-left + ALBUM eyebrow + uppercase display
+       title + cyan/pink "by ARTIST" link + meta + synopsis.
+     - Play Album / Shuffle / Add to Library / ⋯
+     - Track list with currently-playing row tinted to theme.
 
   3. **Full-screen Now Playing** (`FullScreenPlayer.jsx`)
-     - V2 cyan emblem + "NOW PLAYING" eyebrow top-left.
-     - Cover artwork (1:1) on the left with **animated neon
-       ring** backdrop.
-     - Center column: huge title + cyan artist + album + year /
-       Full Track or 30 s Preview chip + heart-like toggle.
-     - Right panel: **synced LRCLIB lyrics** (auto-scrolling
-       with active line highlighted) + **Up Next** queue
-       (next 5 tracks).
-     - Bottom dock: scrubber + Shuffle · Prev · BIG circular
-       play (cyan ring) · Next · Repeat + volume slider +
-       visualizer icon.
+     - Cover artwork (1:1) on the left with animated neon ring.
+     - Title + artist + album + chips + heart-like.
+     - LRCLIB synced lyrics + Up Next queue on the right.
+     - Bottom dock: scrubber + Shuffle / Prev / BIG circular
+       play / Next / Repeat + volume slider.
 
-- **Mini player** (`MiniPlayer.jsx`)
-  - Bottom-bar redesign: cover thumb + title/artist + heart
-    on the left, transport cluster (with big circular cyan-ringed
-    play) + scrub bar in the center, volume + maximize on the right.
+- **Mini player** (`MiniPlayer.jsx`) — bottom-bar redesign with
+  cover thumb, transport, scrub, volume + maximize.
 
-- **Layout** (`MusicLayout.jsx`)
-  - Vesper-style collapsible side rail: 76 → 248 px on focus
-    dwell (300 ms) or mouse hover.
-  - Glowing cyan **V2** emblem when collapsed; "ON NOW TV / Tunes"
-    wordmark when expanded.
-  - Nav: Home, Search, Karaoke, Radio, Australia, Podcasts,
-    Library, Profile, Settings.
-  - Theme picker (Electric Blue / Pink) revealed only when expanded.
-
-- **Stylesheet** (`tunes.css`)
-  - Rewritten end-to-end using Vesper's existing CSS variables
-    (`--vesper-bg-0`, `--vesper-blue`, etc.) so the focus ring
-    (3 px cyan outline) and spatial navigation behave identically
-    to Vesper.
+- **Layout** (`MusicLayout.jsx`) — Vesper-style collapsible side
+  rail with glowing V2 emblem and theme picker.
 
 ### Music search
-- `MusicSearch.jsx` now reads the initial query from `?q=` URL
-  search params so Mood-tile deep-links work end-to-end.
+- Reads `?q=` URL search params so Mood-tile deep-links work.
 
 ### Deployment
-- React build produced (`main.5c75351f.js`) and rsync'd to the
-  Contabo VPS (`/var/www/onnowtv-frontend/`).  Stale old chunks
-  cleaned up with `--delete-after` so the Karaoke chunk-loading
-  error (`Unexpected token '<'`) from the previous session is
-  resolved as a side-effect.
-
-### Verified
-- ✅ `/music` home: hero + Trending shelves + Moods render on VPS.
-- ✅ `/music/album/<id>`: cover + track list + Play/Shuffle/Add.
-- ✅ Mini-player + Full-screen player visuals match references.
-- ✅ `/music/karaoke` and `/music/radio/au` SPA routes return 200.
-- ✅ `/api/music/lyrics` endpoint healthy.
-
-### Not changed (intentionally)
-- Native Android `InnerTubeResolver.kt` + `WebViewCookieJar.kt`
-  untouched — ad-free YouTube playback flow preserved.
-- Vesper (`/vesper`) and Launcher (`/launcher`) UI untouched.
+- Karaoke `Unexpected token '<'` chunk-loading error resolved
+  by the fresh build + `--delete-after` rsync cleanup.
