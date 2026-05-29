@@ -3836,6 +3836,298 @@ async def admin_addons_page(token: Optional[str] = None):
     return HTMLResponse(_ADMIN_ADDONS_HTML)
 
 
+# ════════════════════════════════════════════════════════════════════
+#  Admin · YouTube cookies for the Music app
+# ════════════════════════════════════════════════════════════════════
+_ADMIN_MUSIC_COOKIES_HTML = r"""<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ON NOW TV TUNES · YouTube cookies</title>
+<style>
+  :root {
+    --bg-0:#06080F; --bg-1:#0E1626; --panel:rgba(15,22,38,0.92);
+    --text:#E6EAF2; --text-2:#A6AFC0; --text-3:#7C8497;
+    --cyan:#5DC8FF; --cyan-soft:rgba(93,200,255,.16);
+    --green:#5BE39A; --red:#FF6B6B; --amber:#FFC46B;
+    --line:rgba(255,255,255,.08); --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:radial-gradient(ellipse at top,#162033 0%,var(--bg-0) 70%);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;min-height:100vh}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 96px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:24px;flex-wrap:wrap}
+  h1{font-size:28px;font-weight:600;letter-spacing:-.01em;margin:0}
+  h1 .accent{color:var(--cyan)}
+  .sub{color:var(--text-2);font-size:14px;margin-top:6px;max-width:560px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--cyan-soft);color:var(--cyan);border-radius:99px;font-size:13px;font-weight:500}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:28px;margin-bottom:24px;backdrop-filter:blur(20px)}
+  .card h2{font-size:16px;font-weight:600;margin:0 0 16px;letter-spacing:.01em;color:var(--text)}
+  .card h2 .count{color:var(--text-3);font-weight:400;margin-left:8px}
+  .drop{display:block;border:1.5px dashed rgba(93,200,255,.45);border-radius:var(--radius);padding:48px 24px;text-align:center;cursor:pointer;transition:all .15s ease;background:rgba(93,200,255,.04)}
+  .drop:hover,.drop.active{border-color:var(--cyan);background:rgba(93,200,255,.08)}
+  .drop-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:8px}
+  .drop-hint{color:var(--text-2);font-size:13px;line-height:1.6}
+  .drop input{display:none}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .files{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+  .file-card{display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px}
+  .file-icon{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--cyan-soft);border-radius:8px;font-size:18px}
+  .file-info{flex:1;min-width:0}
+  .file-name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
+  .badge.ok{background:rgba(91,227,154,.16);color:var(--green)}
+  .badge.warn{background:rgba(255,196,107,.16);color:var(--amber)}
+  .badge.fail{background:rgba(255,107,107,.16);color:var(--red)}
+  .file-meta{font-size:12px;color:var(--text-3);margin-top:4px;font-family:'SF Mono',ui-monospace,Menlo,monospace}
+  .file-actions{display:flex;gap:8px}
+  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;transition:all .15s ease}
+  button.primary{background:var(--cyan);color:#001423}
+  button.primary:hover{background:#74D2FF}
+  button.ghost{background:rgba(255,255,255,.05);color:var(--text-2)}
+  button.ghost:hover{background:rgba(255,255,255,.1);color:var(--text)}
+  button.danger{background:rgba(255,107,107,.15);color:var(--red)}
+  button.danger:hover{background:rgba(255,107,107,.3)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .empty{text-align:center;color:var(--text-3);padding:32px 12px;font-size:14px}
+  details{margin-top:16px}
+  details summary{cursor:pointer;color:var(--text-2);font-size:13px;font-weight:500;padding:8px 0;user-select:none}
+  details summary:hover{color:var(--text)}
+  details ol{padding-left:22px;color:var(--text-2);font-size:13px;line-height:1.7}
+  details code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-family:'SF Mono',ui-monospace,Menlo,monospace;font-size:12px;color:var(--cyan)}
+  .test-row{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+  .test-row input{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--text);font:inherit;font-size:13px;min-width:120px}
+  .test-result{margin-top:12px;padding:12px;border-radius:10px;font-size:13px;font-family:'SF Mono',ui-monospace,Menlo,monospace;display:none;white-space:pre-wrap;word-break:break-all}
+  .test-result.ok{display:block;background:rgba(91,227,154,.08);border:1px solid rgba(91,227,154,.3);color:var(--green)}
+  .test-result.fail{display:block;background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.3);color:var(--red)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:99px;background:var(--cyan);color:#001423;font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .toast.fail{background:var(--red);color:#fff}
+</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>ON NOW TV <span class="accent">TUNES</span> · YouTube cookies</h1>
+      <div class="sub">Drop signed-in YouTube <code>cookies.txt</code> files here so the Music app can resolve full-length tracks. Bytes still stream direct from YouTube's CDN — your VPS only resolves the URL.</div>
+    </div>
+    <span class="chip" id="dirChip">cookies dir…</span>
+  </header>
+
+  <div class="card">
+    <h2>1. Upload cookies</h2>
+    <label class="drop" id="dropZone" for="fileInput" data-testid="cookies-dropzone">
+      <div class="drop-title">Drop <code>cookies.txt</code> here or click to browse</div>
+      <div class="drop-hint">Max 1 MiB · Netscape format · From a signed-in YouTube session.<br/>Upload 2–3 files (different accounts) for automatic round-robin failover.</div>
+      <input type="file" id="fileInput" accept=".txt,text/plain" multiple data-testid="cookies-file-input"/>
+    </label>
+
+    <details>
+      <summary>How do I get a cookies.txt? (step-by-step)</summary>
+      <ol>
+        <li>Create or sign into a <strong>throwaway</strong> Google account — never your personal one.</li>
+        <li>Install the Chrome extension <strong>"Get cookies.txt LOCALLY"</strong> (make sure it's the "LOCALLY" one).</li>
+        <li>Open <code>https://youtube.com</code> in that browser session.</li>
+        <li>Click the extension icon → <strong>Export As</strong>: choose <strong>Netscape</strong> → save as <code>account-1.txt</code>.</li>
+        <li>Drag the file into the drop zone above.</li>
+        <li>Repeat with a second / third account to enable round-robin (recommended).</li>
+        <li>Rotate every 2–4 weeks — sign out / sign in / re-export.</li>
+      </ol>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>2. Loaded cookies <span class="count" id="countLabel"></span></h2>
+    <div id="filesContainer" class="files"></div>
+  </div>
+
+  <div class="card">
+    <h2>3. Test a track</h2>
+    <div class="sub" style="margin-bottom:8px">Verifies cookies are healthy by doing a real YouTube resolve. Returns a signed CDN URL on success.</div>
+    <div class="test-row">
+      <input id="testArtist" value="Adele" data-testid="test-artist-input"/>
+      <input id="testTitle" value="Hello" data-testid="test-title-input"/>
+      <button class="primary" id="testBtn" data-testid="test-resolve-btn">Resolve →</button>
+    </div>
+    <div id="testResult" class="test-result"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
+  const TOKEN = qs.get('token') || '';
+  const API = location.pathname.replace(/\/admin\/music-cookies\/?$/, '').replace(/\/$/, '');
+  // The route lives at both `/admin/music-cookies` and `/api/admin/music-cookies`.
+  // Music API routes always live under `/api/music/admin/cookies/…` regardless
+  // of how the admin page itself was reached.
+  const ROOT = API.endsWith('/api') ? API.replace(/\/api$/, '') : API;
+  const BASE = ROOT + '/api/music/admin/cookies';
+
+  const $ = (s) => document.querySelector(s);
+  const dirChip = $('#dirChip');
+  const filesEl = $('#filesContainer');
+  const countLabel = $('#countLabel');
+  const toast = $('#toast');
+
+  function showToast(msg, fail) {
+    toast.textContent = msg;
+    toast.classList.toggle('fail', !!fail);
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+  function fmtTs(ts) {
+    if (!ts) return '—';
+    const dt = new Date(ts * 1000);
+    return dt.toLocaleString();
+  }
+  function fmtBytes(n) {
+    if (!n) return '0 B';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KiB';
+    return (n / 1024 / 1024).toFixed(1) + ' MiB';
+  }
+
+  async function refresh() {
+    try {
+      const r = await fetch(`${BASE}/status?token=${encodeURIComponent(TOKEN)}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      dirChip.textContent = '📁 ' + data.cookies_dir;
+      countLabel.textContent = `· ${data.count} file${data.count === 1 ? '' : 's'}`;
+      if (!data.files.length) {
+        filesEl.innerHTML = '<div class="empty">No cookies uploaded yet. Drop a <code>cookies.txt</code> above to get started.</div>';
+        return;
+      }
+      filesEl.innerHTML = data.files.map(f => {
+        const total = (f.used || 0);
+        const failRate = total > 0 ? (f.fail / total) : 0;
+        let badge;
+        if (!f.looks_signed_in) {
+          badge = '<span class="badge warn">no login</span>';
+        } else if (total === 0) {
+          badge = '<span class="badge ok">ready</span>';
+        } else if (failRate > 0.5) {
+          badge = '<span class="badge fail">failing</span>';
+        } else {
+          badge = '<span class="badge ok">healthy</span>';
+        }
+        const stats = total > 0
+          ? `${f.success}/${total} ok · last ok ${fmtTs(f.last_success_ts)}` + (f.last_error ? ` · err: ${f.last_error}` : '')
+          : `uploaded ${fmtTs(f.uploaded_at)} · ${fmtBytes(f.size_bytes)}`;
+        return `
+          <div class="file-card" data-testid="cookie-file-${f.name}">
+            <div class="file-icon">🍪</div>
+            <div class="file-info">
+              <div class="file-name">${f.name} ${badge}</div>
+              <div class="file-meta">${stats}</div>
+            </div>
+            <div class="file-actions">
+              <button class="danger" data-del="${f.name}" data-testid="delete-cookie-${f.name}">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      filesEl.querySelectorAll('[data-del]').forEach(b => {
+        b.addEventListener('click', () => del(b.dataset.del));
+      });
+    } catch (e) {
+      dirChip.textContent = '⚠️ failed to load — wrong token?';
+      filesEl.innerHTML = `<div class="empty" style="color:var(--red)">Status check failed: ${e.message}</div>`;
+    }
+  }
+
+  async function upload(files) {
+    if (!files || !files.length) return;
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('token', TOKEN);
+      fd.append('file', file);
+      fd.append('name', file.name);
+      try {
+        const r = await fetch(`${BASE}/upload`, { method: 'POST', body: fd });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+        showToast('✓ Uploaded ' + file.name);
+      } catch (e) {
+        showToast('Upload failed: ' + e.message, true);
+      }
+    }
+    refresh();
+  }
+
+  async function del(name) {
+    if (!confirm(`Delete ${name}?`)) return;
+    try {
+      const r = await fetch(`${BASE}/${encodeURIComponent(name)}?token=${encodeURIComponent(TOKEN)}`, { method: 'DELETE' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      showToast('Deleted ' + name);
+    } catch (e) {
+      showToast('Delete failed: ' + e.message, true);
+    }
+    refresh();
+  }
+
+  // Drag-and-drop
+  const dropZone = $('#dropZone');
+  const fileInput = $('#fileInput');
+  ['dragenter', 'dragover'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('active'); });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('active'); });
+  });
+  dropZone.addEventListener('drop', e => upload(e.dataTransfer.files));
+  fileInput.addEventListener('change', e => upload(e.target.files));
+
+  // Test resolve
+  $('#testBtn').addEventListener('click', async () => {
+    const btn = $('#testBtn');
+    const out = $('#testResult');
+    const artist = $('#testArtist').value || 'Adele';
+    const title = $('#testTitle').value || 'Hello';
+    btn.disabled = true; btn.textContent = 'Resolving…';
+    out.className = 'test-result';
+    try {
+      const fd = new FormData();
+      fd.append('token', TOKEN);
+      fd.append('artist', artist);
+      fd.append('title', title);
+      const r = await fetch(`${BASE}/test`, { method: 'POST', body: fd });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) {
+        out.className = 'test-result ok';
+        out.textContent = `✓ ${data.title}\n  by ${data.uploader}\n  yt_id: ${data.yt_id}\n  duration: ${data.duration}s\n  resolved in ${data.elapsed_ms}ms\n  url: ${data.preview_url}`;
+      } else {
+        out.className = 'test-result fail';
+        out.textContent = `✗ ${(data && data.error) || 'resolve failed'} (${data && data.elapsed_ms}ms)`;
+      }
+    } catch (e) {
+      out.className = 'test-result fail';
+      out.textContent = '✗ network error: ' + e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Resolve →';
+      refresh();
+    }
+  });
+
+  refresh();
+})();
+</script>
+</body></html>
+"""
+
+
+@app.get("/admin/music-cookies", response_class=HTMLResponse)
+@app.get("/api/admin/music-cookies", response_class=HTMLResponse)
+async def admin_music_cookies_page(token: Optional[str] = None):
+    if not _admin_token_ok(token):
+        # Generic 404 instead of 401 so probers can't tell the page exists.
+        raise HTTPException(404, "Not Found")
+    return HTMLResponse(_ADMIN_MUSIC_COOKIES_HTML)
+
+
 # Xtream Codes IPTV proxy (auth, categories, streams, EPG)
 from xtream import router as xtream_router  # noqa: E402
 app.include_router(xtream_router)

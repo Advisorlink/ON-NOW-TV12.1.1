@@ -1,5 +1,32 @@
 # ON NOW TV V2 — PRD
 
+> **🎵 v2.8.44 — TUNES full-length tracks via YouTube cookies.**
+> The Music app's 30-second-preview problem is solved.  The resolver
+> chain now goes **YouTube (cookies) → JioSaavn → Audius → preview**,
+> with a drag-and-drop admin UI for managing cookies at
+> `/api/admin/music-cookies?token=…`.  Round-robin across uploaded
+> cookie files for failover; per-cookie health stats; safe filename
+> validation; max 1 MiB upload.  Audio bytes still stream direct
+> from `googlevideo.com` CDN to the client — the VPS only resolves
+> the URL.  See `/app/memory/MUSIC_APP_STRATEGY.md → UPDATE — Feb 28,
+> 2026` for the operator playbook (account creation, Chrome
+> extension, rotation schedule).
+>
+> Backend files: `/app/backend/music_api.py` (resolver chain +
+> admin endpoints), `/app/backend/server.py` (HTML admin page).
+> Lint-clean, both endpoints verified end-to-end via curl and
+> Playwright on the preview pod.
+>
+> ⚠️ **VPS sync required** (this is a backend-only change — no APK
+> rebuild needed):
+> ```
+> rsync /app/backend/music_api.py vps:/opt/onnowtv/backend/music_api.py
+> rsync /app/backend/server.py    vps:/opt/onnowtv/backend/server.py
+> ssh vps 'systemctl restart onnowtv-backend.service'
+> ```
+> After sync, upload cookies via
+> `https://onnowtv.duckdns.org/api/admin/music-cookies?token=onnowtv-admin-7b2f9e1c`.
+
 > **🎵 v2.8.43 — ON NOW TV TUNES IS LIVE.** Standalone Music app
 > (`tv.onnowtv.tunes`) with its own Android APK + GitHub release
 > tag (`tunes-latest`).  Music + Live Radio (30 000+ stations) +

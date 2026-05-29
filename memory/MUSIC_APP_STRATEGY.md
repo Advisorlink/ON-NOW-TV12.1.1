@@ -85,7 +85,62 @@ this file is the source of truth.
   pure-clean: skip this and use Plex/Jellyfin + Jamendo only — but
   you'll lose "new releases" and "search any mainstream artist".
 
-## Suggested rollout phases
+## ⏩ UPDATE — Feb 28, 2026 · Phase 2 full-track resolver SHIPPED (cookies-based)
+
+After Phase 1 + Music UI shipped (v2.8.43), the user reported tracks
+only played 30-second previews.  We tried every free unauthenticated
+path — yt-dlp without cookies (datacenter-IP-blocked), Piped /
+Cobalt proxies (rate-limited or JWT-walled), JioSaavn (delivered too
+many Indian regional covers), Audius (mostly indie remixes).
+
+**Final solution shipped: yt-dlp + signed-in cookies** (per the
+user's "let's do the Google thingamajig" decision).  Backend
+`/app/backend/music_api.py`:
+
+- Resolver chain: **YouTube (cookies) → JioSaavn → Audius → Deezer
+  preview**.  YouTube wins ~98 % of mainstream queries when cookies
+  are healthy.  Bytes stream direct from `googlevideo.com` CDN to
+  the client; the VPS only resolves the URL.
+- Round-robin across all uploaded cookies — uploading 2-3 cookie
+  files means a single account ban only takes out one slot.
+- Cookie health stats tracked in-memory (used / success / fail /
+  last error per file).
+- Smart default path: `/opt/onnowtv/backend/youtube-cookies` on the
+  VPS, falls back to `<music_api.py-dir>/youtube-cookies` on dev /
+  preview pods.
+
+Admin upload UI at `/api/admin/music-cookies?token=…`:
+
+- Drag-and-drop `cookies.txt` files (max 1 MiB each).
+- Live status per cookie: healthy / ready / no-login / failing.
+- One-click delete + "Test a track" button that does a real resolve.
+- Validates the file looks like a Netscape cookies.txt with at
+  least one `.youtube.com` entry.
+
+**Operator's playbook** for sourcing cookies:
+
+1. Create a throwaway Google account (NOT a personal one) from a
+   residential IP — desktop signup hits a QR-code anti-bot check;
+   easiest workaround is the Gmail mobile app sign-up flow.
+2. Sign into YouTube in Chrome on that account; watch one or two
+   videos to warm the session.
+3. Install Chrome extension **"Get cookies.txt LOCALLY"** (the one
+   with "LOCALLY" in the name — earlier "Get cookies.txt" was
+   compromised).
+4. Click extension on `youtube.com` → Export As: **Netscape** → save
+   as `account-1.txt`.
+5. Open `https://onnowtv.duckdns.org/api/admin/music-cookies?token=…`
+   and drag the file in.
+6. Repeat with a second / third disposable account to enable
+   round-robin failover (highly recommended).
+7. Rotate every 2-4 weeks (sign out / sign in / re-export).
+
+**Why we DIDN'T use Spotify Web API**: it requires per-user OAuth +
+Premium subscriptions for full-track playback (Web API previews are
+30-s).  Catalog metadata via Spotify is a future "nice to have"
+upgrade once Deezer's metadata becomes insufficient.
+
+---
 
 ### Phase 1 — Radio + Podcasts + Plex/Jellyfin (~1 week)
 **This is the proof-of-concept phase.** Smallest possible working

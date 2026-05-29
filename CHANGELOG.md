@@ -7,6 +7,49 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.47 — Tunes: full-length tracks via YouTube cookies (cookie admin UI)
+
+  • **🎵 Resolver chain restructured.**  `/api/music/stream/{id}` now
+    tries **YouTube (cookies) → JioSaavn → Audius → Deezer preview**
+    in that order.  YouTube wins ~98 % of mainstream queries when
+    cookies are healthy.  Bytes stream direct from `googlevideo.com`
+    CDN to the client — the VPS only resolves the URL.  Cache TTL 4 h
+    (well under YouTube's ~6 h signature expiry).  No more
+    Indian-cover surprises for Western songs.
+
+  • **🍪 Cookies admin UI** at `/api/admin/music-cookies?token=…`.
+    Drag-and-drop multiple `cookies.txt` files (Netscape format, max
+    1 MiB each).  Live per-cookie status: healthy / ready / no-login
+    / failing, with used / success / fail counters + last-error.
+    One-click delete.  "Test a track" button does a real resolve to
+    verify cookies work.
+
+  • **🔁 Round-robin failover.**  When multiple cookies are uploaded,
+    requests rotate across them.  A single account ban only takes
+    out one slot; the rest keep serving music.
+
+  • **🛡 File safety.**  Filename validation (`[A-Za-z0-9._-]{1,80}`),
+    chmod 600 on save, content validation (must contain `.youtube.com`
+    cookie or "Netscape HTTP Cookie File" header), 1 MiB hard cap.
+    Probe-resistant 404 for missing / wrong token.
+
+  • **🧠 Bug fix discovered en-route.**  `_youtube_resolve()` had been
+    dead code since v2.8.43 — `music_api.py` was missing `import os`
+    so any cookie-based call would crash before reaching yt-dlp.
+    Fixed (alongside `import re` + `import time`).
+
+  • **Operator playbook**: see
+    `/app/memory/MUSIC_APP_STRATEGY.md → "UPDATE — Feb 28, 2026"`.
+    TL;DR: create a throwaway Google account, install the Chrome
+    extension "Get cookies.txt LOCALLY", export from a signed-in
+    YouTube session, drop into the admin page.  Repeat 2-3× for
+    failover.  Rotate every 2-4 weeks.
+
+  • **Backend-only change** — no APK rebuild needed.  VPS sync:
+    `rsync music_api.py + server.py → /opt/onnowtv/backend/ &&
+    systemctl restart onnowtv-backend.service`.
+
+
 ## v2.8.46 — Tunes: in-app "Full screen" button + scroll-follows-focus + Like / Add-to-Playlist / Library
 
   • **🖥 "Full screen" button in the side-nav.**  Sits at the

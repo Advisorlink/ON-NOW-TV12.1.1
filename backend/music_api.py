@@ -33,12 +33,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -669,22 +672,72 @@ async def podcast_episodes(feed_url: str = Query(...)):
 # Bytes still stream DIRECT from YouTube's CDN to the client — the
 # VPS only resolves the URL.  No proxy, no bandwidth burden.
 
-YT_COOKIES_DIR = os.environ.get(
-    "YOUTUBE_COOKIES_DIR", "/opt/onnowtv/backend/youtube-cookies"
-)
+YT_COOKIES_DIR_ENV = os.environ.get("YOUTUBE_COOKIES_DIR")
+
+
+def _resolve_cookies_dir() -> str:
+    """Pick the cookies dir.
+
+    Priority:
+      1. `YOUTUBE_COOKIES_DIR` env var (explicit override).
+      2. `/opt/onnowtv/backend/youtube-cookies` (Contabo VPS layout).
+      3. `<music_api.py dir>/youtube-cookies` (preview pod / local dev).
+    """
+    if YT_COOKIES_DIR_ENV:
+        return YT_COOKIES_DIR_ENV
+    if os.path.isdir("/opt/onnowtv/backend"):
+        return "/opt/onnowtv/backend/youtube-cookies"
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "youtube-cookies")
+
+
+YT_COOKIES_DIR = _resolve_cookies_dir()
 _yt_cookie_rr_idx = 0
+
+# Per-file health stats (key: basename, value: dict with counters/timestamps).
+# Reset on process restart — purely informational for the admin UI.
+_yt_cookie_stats: Dict[str, Dict[str, Any]] = {}
+
+
+def _ensure_cookies_dir() -> bool:
+    """Create the cookies dir if missing; return True on success."""
+    try:
+        os.makedirs(YT_COOKIES_DIR, exist_ok=True)
+        return True
+    except OSError as exc:
+        log.warning("Could not create cookies dir %s: %s", YT_COOKIES_DIR, exc)
+        return False
+
+
+def _list_cookie_files() -> List[str]:
+    """Return absolute paths to all *.txt files in the cookies dir."""
+    if not os.path.isdir(YT_COOKIES_DIR):
+        return []
+    return sorted(
+        os.path.join(YT_COOKIES_DIR, f)
+        for f in os.listdir(YT_COOKIES_DIR)
+        if f.endswith(".txt") and not f.startswith(".")
+    )
+
+
+def _bump_cookie_stat(basename: str, key: str, value: Any = None) -> None:
+    """Increment a per-cookie counter or stash a value (lock-free, OK
+    because dict mutations on CPython are atomic for these ops)."""
+    entry = _yt_cookie_stats.setdefault(basename, {
+        "used": 0, "success": 0, "fail": 0,
+        "last_used_ts": 0, "last_success_ts": 0, "last_fail_ts": 0,
+        "last_error": "",
+    })
+    if value is None:
+        entry[key] = entry.get(key, 0) + 1
+    else:
+        entry[key] = value
 
 
 def _pick_cookie_file() -> Optional[str]:
     """Pick the next cookie file (round-robin); None if none exist."""
     global _yt_cookie_rr_idx
-    if not os.path.isdir(YT_COOKIES_DIR):
-        return None
-    files = sorted(
-        os.path.join(YT_COOKIES_DIR, f)
-        for f in os.listdir(YT_COOKIES_DIR)
-        if f.endswith(".txt") and not f.startswith(".")
-    )
+    files = _list_cookie_files()
     if not files:
         return None
     chosen = files[_yt_cookie_rr_idx % len(files)]
@@ -693,17 +746,26 @@ def _pick_cookie_file() -> Optional[str]:
 
 
 async def _youtube_resolve(artist: str, title: str) -> Optional[Dict[str, Any]]:
-    """Search YouTube via yt-dlp + cookies and return an audio URL."""
+    """Search YouTube via yt-dlp + cookies and return an audio URL.
+
+    Returns None if no cookies are loaded, yt-dlp isn't installed, or
+    the search fails (e.g. cookie expired → triggers fallback).
+    """
     cookies = _pick_cookie_file()
     if not cookies:
         return None
     try:
         import yt_dlp  # lazy import
     except ImportError:
+        log.warning("yt_dlp not installed — cannot resolve YouTube tracks")
         return None
 
+    basename = os.path.basename(cookies)
+    _bump_cookie_stat(basename, "used")
+    _bump_cookie_stat(basename, "last_used_ts", value=int(time.time()))
+
     # "<artist> <title> audio" biases toward official-audio uploads
-    # (no music-video intros).
+    # (no music-video intros, no fan covers).
     search = f"ytsearch1:{artist} {title} audio"
 
     def resolve_blocking():
@@ -756,10 +818,22 @@ async def _youtube_resolve(artist: str, title: str) -> Optional[Dict[str, Any]]:
             }
 
     try:
-        return await asyncio.to_thread(resolve_blocking)
+        result = await asyncio.to_thread(resolve_blocking)
+        if result and result.get("url"):
+            _bump_cookie_stat(basename, "success")
+            _bump_cookie_stat(basename, "last_success_ts",
+                              value=int(time.time()))
+            _bump_cookie_stat(basename, "last_error", value="")
+            return result
+        _bump_cookie_stat(basename, "fail")
+        _bump_cookie_stat(basename, "last_fail_ts", value=int(time.time()))
+        _bump_cookie_stat(basename, "last_error", value="empty result")
+        return None
     except Exception as exc:  # noqa: BLE001
-        log.warning("yt-dlp resolve failed (cookies=%s): %s",
-                    os.path.basename(cookies), exc)
+        log.warning("yt-dlp resolve failed (cookies=%s): %s", basename, exc)
+        _bump_cookie_stat(basename, "fail")
+        _bump_cookie_stat(basename, "last_fail_ts", value=int(time.time()))
+        _bump_cookie_stat(basename, "last_error", value=str(exc)[:200])
         return None
 
 
@@ -929,31 +1003,32 @@ async def _jiosaavn_resolve(artist: str, title: str) -> Optional[Dict[str, Any]]
 #  Full-track stream resolver
 # ════════════════════════════════════════════════════════════════════
 #
-# Honest landscape — 2026 reality check:
+# Resolver chain (Feb 2026, post-cookies rollout):
 #
-#   • YouTube blocks unauthenticated requests from datacenter IPs
-#     with "Sign in to confirm you're not a bot."  This affects
-#     yt-dlp, Piped, Invidious — every YouTube-derived service.
-#     The only reliable workaround needs a Google account cookie
-#     refreshed periodically.  Out of scope for an unattended VPS.
+#   1. **YouTube via yt-dlp + signed-in cookies** — primary path.
+#      Massive mainstream catalog (literally every song that exists),
+#      direct CDN streams from googlevideo.com, ~1 s latency.  Bypasses
+#      the datacenter-IP bot block by authenticating each request with
+#      cookies from a real (throwaway) Google account.  Round-robin
+#      across all uploaded cookies so a single account ban only takes
+#      out one of N slots.
 #
-#   • JioSaavn (massive mainstream catalog) requires session
-#     cookies bound to a real browser session — their auth-token
-#     endpoint returns False for headless requests.
+#   2. **JioSaavn** — Indian streaming service with a surprisingly
+#      broad Western mainstream catalog at 320 kbps m4a.  Used as
+#      fallback when no YouTube cookies are loaded OR when YouTube
+#      fails (cookie expired, rate-limit, etc.).  Bytes stream direct
+#      from saavncdn.com.
 #
-#   • Cobalt v10 now requires JWT keys (rate-limit defence).
+#   3. **Audius** — decentralized music network.  Mostly indie /
+#      remix / electronic.  Last-ditch fallback; quality-gated so
+#      covers / karaoke / "lyrics" uploads are rejected.
 #
-# What DOES work reliably without auth + from any IP:
+#   4. **Deezer 30-second preview** — the client already has this
+#      URL on every track; we return `source: "preview"` to signal it
+#      should play the preview instead.
 #
-#   • **Audius** — decentralized music network with an official
-#     public API.  Lots of indie / covers / remixes / electronic.
-#     Less mainstream chart-music than YouTube but the bytes
-#     stream cleanly with no friction.
-#
-# Strategy: try Audius first; if no hit, the client falls back to
-# Deezer's 30-second preview URL it already received.  We return
-# `source: "audius"` on hit, `source: "preview"` when we have
-# nothing (signals the client to use its preview_url instead).
+# Bytes always stream DIRECT from the source CDN to the client — our
+# VPS only resolves the URL.  Zero bandwidth burden on Contabo.
 @music_api.get("/stream/{track_id}")
 async def music_stream(
     track_id: str,
@@ -961,14 +1036,31 @@ async def music_stream(
     title: str = Query(..., min_length=1, max_length=200),
 ):
     norm = f"{artist.strip().lower()}|{title.strip().lower()}"
-    cache_key = f"music:stream:v3:{norm}"
+    cache_key = f"music:stream:v4:{norm}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
 
-    # Resolve via JioSaavn FIRST (the catalog has all mainstream
-    # music — Adele, Taylor Swift, Drake, etc. — at 320kbps m4a,
-    # streamed direct from saavncdn.com with no auth required).
+    # 1) YouTube — primary (cookies required).
+    yt = await _youtube_resolve(artist, title)
+    if yt and yt.get("url"):
+        result = {
+            "stream_url": yt["url"],
+            "duration": yt.get("duration"),
+            "title": yt.get("title"),
+            "uploader": yt.get("uploader"),
+            "artwork": None,  # client already has Deezer artwork
+            "yt_id": yt.get("yt_id"),
+            "ext": yt.get("ext"),
+            "source": "youtube",
+            "is_full_track": True,
+        }
+        # Cache YouTube URLs for 4 h — googlevideo signatures live ~6 h
+        # so we stay well under their expiry.
+        await cache.set(cache_key, result, ttl_seconds=4 * 3600)
+        return {"cached": False, "data": result}
+
+    # 2) JioSaavn — fallback for mainstream when YouTube didn't deliver.
     jiosaavn_url = await _jiosaavn_resolve(artist, title)
     if jiosaavn_url:
         result = {
@@ -983,7 +1075,7 @@ async def music_stream(
         await cache.set(cache_key, result, ttl_seconds=4 * 3600)
         return {"cached": False, "data": result}
 
-    # Fallback: Audius (decentralised, mostly indie/remix catalog).
+    # 3) Audius — last-ditch indie fallback (quality-gated below).
     audius_host = "https://api.audius.co"
     search_q = f"{artist} {title}"
 
@@ -1057,17 +1149,199 @@ async def music_stream(
             await cache.set(cache_key, result, ttl_seconds=4 * 3600)
             return {"cached": False, "data": result}
 
-    # No Audius hit — explicit signal so the client falls back to
-    # its already-loaded 30-second preview.  Cache briefly so we
-    # don't hammer Audius for known-bad queries.
+    # 4) No full-track match anywhere — explicit signal so the client
+    # falls back to its already-loaded 30-second Deezer preview.
+    # Cache briefly so we don't hammer the upstream APIs for queries
+    # that consistently come up empty.
     result = {
         "stream_url": None,
         "source": "preview",
         "is_full_track": False,
-        "reason": "no full-track match found on free sources",
+        "reason": "no full-track match found on YouTube / JioSaavn / Audius",
     }
     await cache.set(cache_key, result, ttl_seconds=15 * 60)
     return {"cached": False, "data": result}
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Admin — YouTube cookies management
+# ════════════════════════════════════════════════════════════════════
+#
+# Lets the operator upload Netscape-format `cookies.txt` files via the
+# admin HTML page (`/admin/music-cookies?token=…`).  No SSH required.
+#
+# Token check matches the main backend's pattern:
+#   ADMIN_TOKEN  (preferred)  or  XTREAM_ADMIN_TOKEN (legacy fallback)
+
+_COOKIE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+
+
+def _check_admin_token(token: Optional[str]) -> None:
+    expected = (
+        os.environ.get("ADMIN_TOKEN")
+        or os.environ.get("XTREAM_ADMIN_TOKEN")
+        or ""
+    ).strip()
+    if not expected or (token or "").strip() != expected:
+        # Generic 404 so probers can't tell the route exists.
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _safe_cookie_name(name: str) -> str:
+    """Strip the upload to a safe basename ending in .txt."""
+    base = os.path.basename(name or "").strip() or "account.txt"
+    # Replace whitespace + uppercase the .txt extension defensively.
+    base = base.replace(" ", "_")
+    if not base.lower().endswith(".txt"):
+        base = base + ".txt"
+    if not _COOKIE_FILENAME_RE.match(base):
+        raise HTTPException(
+            status_code=400,
+            detail="filename must be 1-80 chars: letters, digits, dot, "
+                   "dash, underscore",
+        )
+    return base
+
+
+def _cookie_file_summary(path: str) -> Dict[str, Any]:
+    """Return a small dict summarising a cookies file for the admin UI."""
+    name = os.path.basename(path)
+    try:
+        st = os.stat(path)
+        size = st.st_size
+        mtime = int(st.st_mtime)
+    except OSError:
+        size, mtime = 0, 0
+    stats = _yt_cookie_stats.get(name, {})
+    # Quick sniff for a YouTube cookies file — look for the LOGIN_INFO
+    # cookie name which only authenticated sessions have.
+    looks_signed_in = False
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            head = f.read(8192)
+        looks_signed_in = ("LOGIN_INFO" in head) or ("__Secure-3PSID" in head)
+    except OSError:
+        pass
+    return {
+        "name": name,
+        "size_bytes": size,
+        "uploaded_at": mtime,
+        "looks_signed_in": looks_signed_in,
+        "used": stats.get("used", 0),
+        "success": stats.get("success", 0),
+        "fail": stats.get("fail", 0),
+        "last_used_ts": stats.get("last_used_ts", 0),
+        "last_success_ts": stats.get("last_success_ts", 0),
+        "last_fail_ts": stats.get("last_fail_ts", 0),
+        "last_error": stats.get("last_error", ""),
+    }
+
+
+@music_api.get("/admin/cookies/status")
+async def admin_cookies_status(token: Optional[str] = Query(default=None)):
+    """List all cookie files with their per-file stats."""
+    _check_admin_token(token)
+    files = _list_cookie_files()
+    return {
+        "cookies_dir": YT_COOKIES_DIR,
+        "dir_exists": os.path.isdir(YT_COOKIES_DIR),
+        "count": len(files),
+        "files": [_cookie_file_summary(p) for p in files],
+    }
+
+
+@music_api.post("/admin/cookies/upload")
+async def admin_cookies_upload(
+    token: str = Form(...),
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(default=None),
+):
+    """Upload a Netscape-format cookies.txt file (max 1 MiB)."""
+    _check_admin_token(token)
+    if not _ensure_cookies_dir():
+        raise HTTPException(
+            status_code=500,
+            detail=f"cookies dir not writable: {YT_COOKIES_DIR}",
+        )
+    safe = _safe_cookie_name(name or file.filename or "account.txt")
+    # Read max 1 MiB — cookies.txt is typically 5-50 KiB.
+    body = await file.read(1024 * 1024 + 1)
+    if len(body) > 1024 * 1024:
+        raise HTTPException(status_code=413, detail="file too large (max 1 MiB)")
+    if not body:
+        raise HTTPException(status_code=400, detail="empty file")
+    # Validate it looks like a Netscape cookies file.
+    head = body[:512].decode("utf-8", errors="ignore")
+    if "# Netscape HTTP Cookie File" not in head and ".youtube.com" not in head[:8192].lower():
+        # be lenient — Get cookies.txt LOCALLY sometimes omits the header
+        if "youtube" not in body[:8192].decode("utf-8", errors="ignore").lower():
+            raise HTTPException(
+                status_code=400,
+                detail="file does not look like a YouTube cookies.txt "
+                       "(no youtube.com entry found)",
+            )
+    target = os.path.join(YT_COOKIES_DIR, safe)
+    try:
+        with open(target, "wb") as f:
+            f.write(body)
+        try:
+            os.chmod(target, 0o600)
+        except OSError:
+            pass
+    except OSError as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"write failed: {exc}") from exc
+    # Reset stats for this file (fresh upload = clean slate).
+    _yt_cookie_stats.pop(safe, None)
+    return {"ok": True, "saved": _cookie_file_summary(target)}
+
+
+@music_api.delete("/admin/cookies/{name}")
+async def admin_cookies_delete(
+    name: str,
+    token: Optional[str] = Query(default=None),
+):
+    """Delete a cookies.txt file by basename."""
+    _check_admin_token(token)
+    safe = _safe_cookie_name(name)
+    target = os.path.join(YT_COOKIES_DIR, safe)
+    if not os.path.isfile(target):
+        raise HTTPException(status_code=404, detail="cookie file not found")
+    try:
+        os.remove(target)
+    except OSError as exc:
+        raise HTTPException(status_code=500,
+                            detail=f"delete failed: {exc}") from exc
+    _yt_cookie_stats.pop(safe, None)
+    return {"ok": True, "deleted": safe}
+
+
+@music_api.post("/admin/cookies/test")
+async def admin_cookies_test(
+    token: str = Form(...),
+    artist: str = Form(default="Adele"),
+    title: str = Form(default="Hello"),
+):
+    """Try a sample YouTube resolve to verify cookies are healthy."""
+    _check_admin_token(token)
+    started = time.time()
+    result = await _youtube_resolve(artist, title)
+    elapsed_ms = int((time.time() - started) * 1000)
+    if result and result.get("url"):
+        return {
+            "ok": True,
+            "elapsed_ms": elapsed_ms,
+            "title": result.get("title"),
+            "uploader": result.get("uploader"),
+            "yt_id": result.get("yt_id"),
+            "duration": result.get("duration"),
+            "preview_url": (result.get("url") or "")[:120] + "…",
+        }
+    return {
+        "ok": False,
+        "elapsed_ms": elapsed_ms,
+        "error": "no cookies loaded or every cookie failed — see /status",
+    }
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1075,4 +1349,4 @@ async def music_stream(
 # ════════════════════════════════════════════════════════════════════
 @music_api.get("/ping")
 async def music_ping():
-    return {"ok": True, "service": "music_api", "build": "v0.1.0"}
+    return {"ok": True, "service": "music_api", "build": "v0.2.0"}
