@@ -16,8 +16,6 @@ jobs:
   build:
     name: Build & sign Tunes APK
     runs-on: ubuntu-latest
-    env:
-      ANDROID_KS_DIR: ${{ runner.temp }}/ks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +52,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
         shell: bash
         run: |
+          ANDROID_KS_DIR="${RUNNER_TEMP}/ks"
           mkdir -p "$ANDROID_KS_DIR"
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
