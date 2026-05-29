@@ -212,29 +212,12 @@ export default function MusicLayout() {
         try { window.localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* ignore */ }
     };
 
-    // Scroll-follows-focus for tile grids that aren't using a snap container.
-    useEffect(() => {
-        const onFocus = (e) => {
-            const el = e.target;
-            if (!(el instanceof HTMLElement)) return;
-            if (!el.closest('.tunes-root')) return;
-            const focusable = el.matches('[data-focusable="true"]')
-                ? el
-                : el.closest('[data-focusable="true"]');
-            if (!focusable) return;
-            requestAnimationFrame(() => {
-                try {
-                    focusable.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center',
-                        inline: 'nearest',
-                    });
-                } catch { /* ignore */ }
-            });
-        };
-        document.addEventListener('focusin', onFocus, true);
-        return () => document.removeEventListener('focusin', onFocus, true);
-    }, []);
+    // No extra focusin scroll handler.  Vesper's useSpatialFocus()
+    // already handles edge-comfort horizontal scroll inside rails
+    // and row-pin vertical scroll between shelves with hardware-
+    // accelerated `behavior: 'auto'` calls — adding our own
+    // `scrollIntoView({behavior: 'smooth'})` here was racing
+    // Vesper's logic and producing the chunky up/down feel.
 
     return (
         <div
