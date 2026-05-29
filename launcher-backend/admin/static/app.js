@@ -145,7 +145,7 @@ const LAYOUT_DEFAULTS = {
     featured_show_description: true,
     featured_heading_image_url: '',
     featured_heading_image_height_dp: 80,
-    featured_heading_image_placement: 'replace',
+    featured_heading_image_placement: 'above',
     featured_heading_image_offset_x_dp: 0,
     featured_heading_image_offset_y_dp: 0,
     // v1.8 — Group offset (nudge whole panel as one block).
@@ -1282,6 +1282,24 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         endpoint:  '/api/admin/layout/heading-image',
         label:     'Heading image',
     });
+    // v2.8.58 — Inline "× Clear image" button next to the URL field.
+    // Hits the same DELETE endpoint as the Remove badge on the
+    // preview tile — gives the admin a second, more obvious path
+    // to clear an image they uploaded.  Also blanks the URL input
+    // immediately so the next Save reflects the cleared state.
+    const inlineClear = document.getElementById('layoutHeadingImgClearInline');
+    if (inlineClear) {
+        inlineClear.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                await api('/api/admin/layout/heading-image', { method: 'DELETE' });
+                const urlInput = document.getElementById('layout_featured_heading_image_url');
+                if (urlInput) urlInput.value = '';
+                toast('Heading image cleared');
+                refreshAll();
+            } catch (err) { toast('Clear failed: ' + err.message, true); }
+        });
+    }
 })();
 
 /* v2.8.25 — V2 AI screen heading text editor. */

@@ -147,25 +147,30 @@
                          use either).  Saved at /assets/layout/heading.png
                          with a `ts=` cache-buster. -->
                     <div class="span-2" style="display:flex; gap:14px; align-items:flex-start;">
-                        <div id="layoutHeadingImgPreview" class="appstore-hero-preview" style="aspect-ratio:4/1; max-width:200px; flex:0 0 auto;">
-                            <div class="appstore-hero-placeholder">No image.</div>
+                        <div id="layoutHeadingImgPreview" class="appstore-hero-preview" style="aspect-ratio:1/1; max-width:120px; flex:0 0 auto; height:120px;">
+                            <div class="appstore-hero-placeholder" style="font-size:11px;">No image.</div>
                             <img id="layoutHeadingImg" alt="" hidden>
                             <button id="layoutHeadingImgClear" type="button" class="appstore-hero-clear" hidden data-testid="heading-image-clear">Remove</button>
                         </div>
                         <div id="layoutHeadingImgDrop" class="appstore-hero-drop" style="flex:1;">
                             <input type="file" id="layoutHeadingImgFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-testid="heading-image-file-input">
                             <span><strong>Drop heading image</strong> · or <button id="layoutHeadingImgBrowse" type="button" class="apk-drop-link" data-testid="heading-image-browse">browse</button>.<br>
-                            Brand logo or wordmark for the home-screen heading.  Stored at up to <strong>2048 × 1024 px</strong> so it stays crisp at any TV resolution.  Use the placement + offsets below to position it.</span>
+                            Brand logo or wordmark to show <strong>alongside</strong> the heading text by default (v2.8.58+).  Stored at up to <strong>2048 × 1024 px</strong> so it stays crisp at any TV resolution.  Use the placement + offsets below to position it.</span>
                         </div>
                     </div>
 
-                    <div class="span-2"><label>Heading image URL <small>(optional — pasted URL works too if you'd rather link to an external image instead of uploading)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
+                    <div class="span-2"><label>Heading image URL <small>(optional — pasted URL works too if you'd rather link to an external image instead of uploading)</small></label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…" style="flex:1;">
+                            <button id="layoutHeadingImgClearInline" type="button" class="apk-drop-link" data-testid="heading-image-clear-inline" style="white-space:nowrap;">× Clear image</button>
+                        </div>
+                    </div>
                     <div><label>Image height <small>(dp — only used when an image URL is set)</small></label><input id="layout_featured_heading_image_height_dp" type="number" min="20" max="280" step="2"></div>
                     <div><label>Image placement <small>(where it sits relative to the heading text)</small></label>
                         <select id="layout_featured_heading_image_placement" class="layout-select">
-                            <option value="replace">Replace heading text</option>
-                            <option value="above">Above heading text</option>
+                            <option value="above">Above heading text (default)</option>
                             <option value="below">Below heading text</option>
+                            <option value="replace">Replace heading text (hide text)</option>
                         </select>
                     </div>
                     <div><label>Image offset X <small>(dp — moves the image left/right without affecting other elements)</small></label><input id="layout_featured_heading_image_offset_x_dp" type="number" min="-400" max="400" step="2"></div>
