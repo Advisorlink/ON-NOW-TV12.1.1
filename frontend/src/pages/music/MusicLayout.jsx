@@ -3,6 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { Home, Search, Radio, Mic, Library, Music2, Maximize, Minimize } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
+import { YouTubeIFrameHost } from '../../components/music/YouTubeIFrameHost';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 
@@ -161,6 +162,7 @@ export default function MusicLayout() {
             </div>
             <MiniPlayer />
             <ResolverDebug />
+            <YouTubeIFrameHost />
         </div>
     );
 }

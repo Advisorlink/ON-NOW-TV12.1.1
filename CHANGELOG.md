@@ -7,6 +7,51 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.53 — Tunes: YouTube IFrame Player API (Plan D — the one that actually works)
+
+  • **🎯 Pivoted to YouTube's own IFrame Player API.**  Late 2025
+    InnerTube tests on a residential IP returned:
+    - `ANDROID` client → `playabilityStatus: null` (rejected)
+    - `IOS` client → same
+    - `TVHTML5_SIMPLY_EMBEDDED_PLAYER` → "YouTube is no longer
+      supported in this application or device"
+    YouTube has rolled PoToken across every unauthenticated
+    InnerTube client.  Generating PoToken ourselves needs a bundled
+    JS interpreter + ~3 kloc of crypto — not worth fighting an
+    arms race.
+
+  • **🪟 New architecture**: native bridge does ONLY the
+    `/youtubei/v1/search` call (still PoToken-free) → returns the
+    videoId → React engine routes through YouTube's own IFrame
+    Player API (offscreen iframe attached to the DOM at 1×1 px,
+    opacity 0).  YouTube's player handles PoToken, signatures, ads,
+    and signed CDN URLs internally — 100 % within their published
+    API terms.
+
+  • **🧱 Files**:
+    - `youtube/InnerTubeResolver.kt`: stripped to just the search
+      step.  Returns `{source: 'youtube-iframe', yt_id: '...'}`.
+    - `components/music/YouTubeIFrameHost.jsx`: mounts the IFrame
+      API script + a hidden host div inside `MusicLayout`.
+    - `hooks/useMusicPlayer.js`: dual-engine.  HTMLAudio for non-
+      YouTube sources (Deezer previews, Radio Browser, RSS, etc.),
+      YouTube IFrame Player API for `source === 'youtube-iframe'`
+      tracks.  All controls (play/pause/seek/volume) route through
+      `activeEngine` to the right backend.
+
+  • **🎚 IFrame Player niceties**: `controls=0`, `disablekb=1`,
+    `playsinline=1`, `modestbranding=1`, `rel=0` — no chrome, no
+    "Up Next" surprises, no autoplay continuation.  Volume +
+    play/pause stay in lockstep with the existing music UI via
+    `onStateChange` events.
+
+  • **📺 Ads**: YouTube's free tier may play 5-15 s pre-roll ads
+    before the song starts.  Same trade-off NewPipe, ViMusic and
+    every other free YouTube-music app accepts.  Pro alternative
+    (later): use the YouTube IFrame API's "Premium" cookie if the
+    user signs in.
+
+
 ## v2.8.52 — Tunes: custom InnerTubeResolver (NewPipe bypass, Plan C)
 
   • **🎯 Bypassed NewPipeExtractor entirely.**  v2.8.51 confirmed

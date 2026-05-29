@@ -38,16 +38,33 @@ class PlayerEngine {
             duration: 0,
             volume: 0.85,
         };
+        // v2.8.53 — YouTube IFrame Player API instance (lazy-built).
+        // Tracks resolved via the native bridge as
+        // `source: 'youtube-iframe'` play through here instead of
+        // the HTML5 <audio> element.
+        this.yt = null;
+        this.ytReady = false;
+        this.ytPollTimer = null;
+        this.activeEngine = 'audio'; // 'audio' | 'youtube'
         if (!this.audio) return;
         this.audio.preload = 'auto';
         this.audio.volume = this.state.volume;
-        this.audio.addEventListener('play',  () => this.update({ isPlaying: true }));
-        this.audio.addEventListener('pause', () => this.update({ isPlaying: false }));
-        this.audio.addEventListener('ended', () => this.next());
-        this.audio.addEventListener('timeupdate', () => this.update({
-            position: this.audio.currentTime || 0,
-            duration: this.audio.duration || 0,
-        }));
+        this.audio.addEventListener('play',  () => {
+            if (this.activeEngine === 'audio') this.update({ isPlaying: true });
+        });
+        this.audio.addEventListener('pause', () => {
+            if (this.activeEngine === 'audio') this.update({ isPlaying: false });
+        });
+        this.audio.addEventListener('ended', () => {
+            if (this.activeEngine === 'audio') this.next();
+        });
+        this.audio.addEventListener('timeupdate', () => {
+            if (this.activeEngine !== 'audio') return;
+            this.update({
+                position: this.audio.currentTime || 0,
+                duration: this.audio.duration || 0,
+            });
+        });
         this.audio.addEventListener('error', (e) => {
             // eslint-disable-next-line no-console
             console.warn('[music-player] audio error', e);
@@ -63,10 +80,126 @@ class PlayerEngine {
     }
     _setSource(url) {
         if (!this.audio || !url) return;
+        this._stopYouTube();
+        this.activeEngine = 'audio';
         try {
             this.audio.src = url;
             this.audio.play().catch(() => {});
         } catch (e) { /* swallow */ }
+    }
+
+    // ── YouTube IFrame Player adapter ──────────────────────────
+    //
+    // v2.8.53 — Tracks resolved as `source: 'youtube-iframe'` play
+    // through YouTube's own IFrame Player API instead of HTML5
+    // <audio>.  This is the only path that consistently works in
+    // late 2025 / early 2026 — every "InnerTube + ANDROID/IOS/
+    // TVHTML5 client" extraction route now requires PoToken /
+    // visitor-data that we can't generate without bundling a JS
+    // interpreter.  YouTube's own iframe player handles PoToken,
+    // signatures, ads, and signed CDN URLs internally — and it's
+    // 100 % within their published API terms.
+
+    _ensureYouTubePlayer() {
+        if (typeof window === 'undefined') return Promise.resolve(null);
+        if (this.yt && this.ytReady) return Promise.resolve(this.yt);
+        // YouTubeIFrameHost mounts the script + host div; we
+        // wait on its promise.
+        const apiPromise = window.__ytApiLoadingPromise
+            || Promise.resolve(window.YT);
+        return apiPromise.then((YT) => {
+            if (!YT || !YT.Player) return null;
+            if (this.yt && this.ytReady) return this.yt;
+            return new Promise((resolve) => {
+                this.yt = new YT.Player('onnowtv-ytplayer-target', {
+                    height: '1',
+                    width: '1',
+                    playerVars: {
+                        autoplay: 1,
+                        controls: 0,
+                        disablekb: 1,
+                        playsinline: 1,
+                        modestbranding: 1,
+                        // Stops "Up Next" from queueing a different video.
+                        rel: 0,
+                    },
+                    events: {
+                        onReady: () => {
+                            this.ytReady = true;
+                            try {
+                                this.yt.setVolume(Math.round(this.state.volume * 100));
+                            } catch { /* ignore */ }
+                            resolve(this.yt);
+                        },
+                        onStateChange: (e) => this._onYouTubeStateChange(e),
+                        onError: (e) => {
+                            // eslint-disable-next-line no-console
+                            console.warn('[music-player] yt error', e?.data);
+                        },
+                    },
+                });
+            });
+        });
+    }
+
+    _onYouTubeStateChange(e) {
+        if (!window.YT || !window.YT.PlayerState) return;
+        const { PLAYING, PAUSED, ENDED, BUFFERING } = window.YT.PlayerState;
+        if (this.activeEngine !== 'youtube') return;
+        if (e.data === PLAYING) {
+            this.update({ isPlaying: true });
+            this._startYouTubeTimeUpdates();
+        } else if (e.data === PAUSED) {
+            this.update({ isPlaying: false });
+            this._stopYouTubeTimeUpdates();
+        } else if (e.data === ENDED) {
+            this._stopYouTubeTimeUpdates();
+            this.next();
+        } else if (e.data === BUFFERING) {
+            this._startYouTubeTimeUpdates();
+        }
+    }
+
+    _startYouTubeTimeUpdates() {
+        if (this.ytPollTimer) return;
+        this.ytPollTimer = setInterval(() => {
+            if (this.activeEngine !== 'youtube' || !this.yt || !this.ytReady) return;
+            try {
+                const pos = this.yt.getCurrentTime() || 0;
+                const dur = this.yt.getDuration() || 0;
+                this.update({ position: pos, duration: dur });
+            } catch { /* ignore */ }
+        }, 500);
+    }
+    _stopYouTubeTimeUpdates() {
+        if (this.ytPollTimer) {
+            clearInterval(this.ytPollTimer);
+            this.ytPollTimer = null;
+        }
+    }
+    _stopYouTube() {
+        this._stopYouTubeTimeUpdates();
+        if (this.yt && this.ytReady) {
+            try { this.yt.stopVideo(); } catch { /* ignore */ }
+        }
+    }
+    async _playYouTubeVideo(videoId) {
+        if (this.audio) {
+            try { this.audio.pause(); this.audio.src = ''; } catch { /* ignore */ }
+        }
+        this.activeEngine = 'youtube';
+        const player = await this._ensureYouTubePlayer();
+        if (!player) {
+            console.warn('[music-player] YouTube IFrame API failed to load');
+            return;
+        }
+        try {
+            player.loadVideoById({ videoId });
+            // Volume sync — IFrame uses 0-100 scale.
+            player.setVolume(Math.round(this.state.volume * 100));
+        } catch (e) {
+            console.warn('[music-player] loadVideoById failed', e);
+        }
     }
     playTrack(track, queue = null) {
         if (!track) return;
@@ -85,16 +218,34 @@ class PlayerEngine {
         this._loadTrackStream(track);
     }
     async _loadTrackStream(track) {
-        // v2.8.48 — Resolver chain:
-        //   1) Native bridge (NewPipeExtractor on the box's residential IP)
-        //   2) Backend `/api/music/stream/{id}` (admin cookies → JioSaavn → Audius)
-        //   3) Deezer 30-s preview
-        // All branches live in `lib/musicResolver.js` so the player
-        // only deals with the final URL.
+        // v2.8.53 — Resolver chain:
+        //   1) Native bridge — returns either a direct stream_url
+        //      (legacy code paths) OR `source: 'youtube-iframe'`
+        //      with a yt_id, which routes through YouTube's IFrame
+        //      Player API (only consistently-working full-track
+        //      path in late 2025 / early 2026).
+        //   2) Backend `/api/music/stream/{id}` (admin cookies →
+        //      JioSaavn → Audius → preview).
+        //   3) Deezer 30-s preview as last resort.
         const resolved = await resolveTrackStream(track);
 
         // Confirm the user hasn't navigated away
         if (!this.state.current || this.state.current.id !== track.id) return;
+
+        // YouTube IFrame route — no audio URL, just a videoId.
+        if (resolved && resolved.source === 'youtube-iframe' && resolved.yt_id) {
+            this.update({
+                current: {
+                    ...track,
+                    _resolving: false,
+                    _isFullTrack: true,
+                    _streamSource: 'youtube-iframe',
+                    _ytId: resolved.yt_id,
+                },
+            });
+            this._playYouTubeVideo(resolved.yt_id);
+            return;
+        }
 
         if (resolved?.stream_url) {
             this.update({
@@ -155,9 +306,28 @@ class PlayerEngine {
         });
         this._setSource(episode.audio_url);
     }
-    pause() { this.audio?.pause(); }
-    resume() { this.audio?.play().catch(() => {}); }
+    pause() {
+        if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
+            try { this.yt.pauseVideo(); } catch { /* ignore */ }
+            return;
+        }
+        this.audio?.pause();
+    }
+    resume() {
+        if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
+            try { this.yt.playVideo(); } catch { /* ignore */ }
+            return;
+        }
+        this.audio?.play().catch(() => {});
+    }
     toggle() {
+        if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
+            try {
+                if (this.state.isPlaying) this.yt.pauseVideo();
+                else this.yt.playVideo();
+            } catch { /* ignore */ }
+            return;
+        }
         if (!this.audio) return;
         if (this.state.isPlaying) this.audio.pause();
         else this.audio.play().catch(() => {});
@@ -193,13 +363,19 @@ class PlayerEngine {
         this._loadTrackStream(prev);
     }
     seek(seconds) {
+        if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
+            try { this.yt.seekTo(seconds, true); } catch { /* ignore */ }
+            return;
+        }
         if (!this.audio) return;
         try { this.audio.currentTime = seconds; } catch {/*ignore*/}
     }
     setVolume(v) {
-        if (!this.audio) return;
         const vv = Math.max(0, Math.min(1, v));
-        this.audio.volume = vv;
+        if (this.audio) this.audio.volume = vv;
+        if (this.yt && this.ytReady) {
+            try { this.yt.setVolume(Math.round(vv * 100)); } catch { /* ignore */ }
+        }
         this.update({ volume: vv });
     }
 }
