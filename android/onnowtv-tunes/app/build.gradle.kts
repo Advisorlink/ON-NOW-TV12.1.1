@@ -107,9 +107,11 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
-    // v2.8.50 — Backports `URLEncoder.encode(String, Charset)` and
-    // friends to API 23 so NewPipeExtractor runs on Android 9-12.
-    // Must be paired with `isCoreLibraryDesugaringEnabled = true`
-    // in `compileOptions` above.
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // v2.8.50/51 — Backports modern java.{net,nio,util,time,…} APIs
+    // to API 23 so NewPipeExtractor runs on Android 9-12.  The `_nio`
+    // variant is REQUIRED because NewPipe + its transitive deps
+    // (Rhino, NanoJson) call `URLEncoder.encode(String, Charset)`
+    // which lives under `java.nio` desugaring rules.  Must be paired
+    // with `isCoreLibraryDesugaringEnabled = true` in `compileOptions`.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.0.4")
 }

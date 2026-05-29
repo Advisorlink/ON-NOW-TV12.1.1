@@ -7,6 +7,27 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.51 — Tunes: desugaring _nio variant + full-classpath transform (NewPipe fix attempt #2)
+
+  • **🔧 Switched to `desugar_jdk_libs_nio:2.0.4`** (was the base
+    `desugar_jdk_libs:2.0.4`).  The base variant doesn't cover
+    `java.net.URLEncoder.encode(String, Charset)` — that overload
+    lives in the `_nio` desugaring rule-set per Google's official
+    API support table.
+
+  • **🔧 Added `android.useFullClasspathForDexingTransform=true`** to
+    `gradle.properties`.  Without it, AGP's desugaring tool only
+    rewrites the app's direct dependencies — NewPipeExtractor's
+    transitive deps (Rhino, NanoJson) were slipping through and
+    keeping the unrewritten `URLEncoder.encode(String, Charset)`
+    call site that crashed on Android 9-12.
+
+  • **No code changes** — pure build-config fix.  If this APK still
+    shows the same `NoSuchMethodError` in the resolver-debug
+    overlay, we'll pivot to a hand-rolled InnerTube resolver
+    (v2.8.52) that bypasses NewPipeExtractor entirely.
+
+
 ## v2.8.50 — Tunes: NewPipe desugaring + HD V2 AI pill + drag-drop heading image
 
   • **🔧 NewPipeExtractor now runs on Android 9–12 (FIX).**  The
