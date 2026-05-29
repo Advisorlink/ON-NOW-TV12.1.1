@@ -121,23 +121,31 @@ export default function KaraokePage() {
 
     return (
         <div className="tunes-karaoke" data-testid="music-karaoke">
-            <div className="tunes-karaoke__hero">
-                <div className="tunes-karaoke__hero-icon">
-                    <Mic size={36} strokeWidth={1.5} />
-                    <Sparkles size={18} className="tunes-karaoke__sparkle" />
-                </div>
-                <div>
-                    <h1 className="tunes-karaoke__title">V2 Karaoke</h1>
-                    <p className="tunes-karaoke__subtitle">
-                        Pick any song · lyrics light up in time · sing along to your screen.
+            {/* Party hero — vibrant karaoke stage photo + glowing
+                neon mic + "Tonight, You're The Star" headline. */}
+            <section className="karaoke-party-hero" data-testid="karaoke-hero">
+                <div className="karaoke-party-hero__bg" />
+                <div className="karaoke-party-hero__neon" />
+                <div className="karaoke-party-hero__scrim" />
+                <div className="karaoke-party-hero__content">
+                    <span className="karaoke-party-hero__mic" aria-hidden="true">
+                        <Mic size={26} strokeWidth={2.2} />
+                    </span>
+                    <p className="karaoke-party-hero__eyebrow">PICK YOUR JAM · SING IT LOUD</p>
+                    <h1 className="karaoke-party-hero__title">
+                        Tonight, You&apos;re&nbsp;
+                        <em>The Star</em>
+                    </h1>
+                    <p className="karaoke-party-hero__subtitle">
+                        Any song. Live lyrics. Your voice. Pick a tune below,
+                        grab the mic and steal the show.
                     </p>
                 </div>
-            </div>
+            </section>
 
-            <div className="tunes-karaoke__search">
-                <SearchIcon size={20} className="tunes-karaoke__search-icon" />
+            <div className="karaoke-search">
+                <SearchIcon size={20} className="karaoke-search__icon" />
                 <input
-                    className="tunes-search-input tunes-karaoke__search-input"
                     placeholder="Search any song to sing…"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
@@ -148,57 +156,102 @@ export default function KaraokePage() {
             </div>
 
             {results !== null && (
-                <section className="tunes-section" data-testid="shelf-page" data-shelf-id="karaoke-results">
-                    <h2 className="tunes-section__title">
-                        {loading ? 'Searching…' : `${results.length} result${results.length === 1 ? '' : 's'}`}
-                    </h2>
-                    <div className="tunes-karaoke__grid">
+                <section className="tunes-shelf" data-testid="shelf-page" data-shelf-id="karaoke-results">
+                    <header className="tunes-shelf__header">
+                        <div className="tunes-shelf__header-left">
+                            <span className="tunes-shelf__eyebrow">YOUR PICK</span>
+                            <h2 className="tunes-shelf__title">
+                                {loading ? 'Searching…' : `${results.length} song${results.length === 1 ? '' : 's'} ready to belt out`}
+                            </h2>
+                        </div>
+                    </header>
+                    <div className="tunes-shelf__rail vesper-shelf" data-shelf-rail>
                         {results.map((t) => (
                             <KaraokeSongCard key={t.id} track={t} onClick={() => startKaraoke(t)} />
                         ))}
-                        {!loading && results.length === 0 && (
-                            <p className="tunes-empty">Nothing matched. Try another song.</p>
-                        )}
                     </div>
+                    {!loading && results.length === 0 && (
+                        <p className="tunes-empty">Nothing matched. Try another song.</p>
+                    )}
                 </section>
             )}
 
             {results === null && (
-                <section className="tunes-section" data-testid="shelf-page" data-shelf-id="karaoke-picks">
-                    <h2 className="tunes-section__title">Crowd-pleasers</h2>
-                    {picks === null && <p className="tunes-empty">Warming up the stage…</p>}
-                    <div className="tunes-karaoke__grid">
-                        {(picks || []).map((t) => (
-                            <KaraokeSongCard key={t.id} track={t} onClick={() => startKaraoke(t)} />
-                        ))}
-                    </div>
-                </section>
+                <>
+                    <section className="tunes-shelf" data-testid="shelf-crowd-pleasers" data-shelf-id="karaoke-picks">
+                        <header className="tunes-shelf__header">
+                            <div className="tunes-shelf__header-left">
+                                <span className="tunes-shelf__eyebrow">FAN FAVES · BELT-IT-OUT BANGERS</span>
+                                <h2 className="tunes-shelf__title">Crowd-Pleasers</h2>
+                            </div>
+                        </header>
+                        {picks === null && <p className="tunes-empty">Warming up the stage…</p>}
+                        <div className="tunes-shelf__rail vesper-shelf" data-shelf-rail>
+                            {(picks || []).map((t) => (
+                                <KaraokeSongCard key={t.id} track={t} onClick={() => startKaraoke(t)} />
+                            ))}
+                        </div>
+                    </section>
+                </>
             )}
         </div>
     );
 }
 
-/** A single song tile on the karaoke landing screen. */
+/** A single song tile on the karaoke landing screen.  Uses the
+ *  same `.tunes-tile` structure as the main music shelves so it
+ *  inherits the snap-focus + outline-only-on-cover behaviour.
+ *  Added: a pink "mic" badge in the top-right corner so users
+ *  immediately see this is a karaoke action, not a regular
+ *  album-cover click. */
 function KaraokeSongCard({ track, onClick }) {
-    const cover = track?.album?.cover || track?.artwork;
+    const cover = track?.album?.cover_medium || track?.album?.cover || track?.artwork;
     return (
         <button
             type="button"
-            className="tunes-karaoke-card"
+            className="tunes-tile"
             onClick={onClick}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`karaoke-song-${track.id}`}
         >
-            <div className="tunes-karaoke-card__art" style={{ backgroundImage: cover ? `url(${cover})` : undefined }}>
-                <div className="tunes-karaoke-card__play">
-                    <Mic size={28} />
+            {cover ? (
+                <img
+                    src={cover}
+                    alt={track.title}
+                    className="tunes-tile__art"
+                    loading="lazy"
+                    decoding="async"
+                />
+            ) : (
+                <div className="tunes-tile__art-fallback">
+                    {(track.title || '?')[0]}
                 </div>
+            )}
+            <div className="tunes-tile__scrim" />
+            <div
+                className="tunes-tile__mic-badge"
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(180deg, var(--vesper-blue-bright), var(--vesper-blue))',
+                    color: '#0a0118',
+                    display: 'grid',
+                    placeItems: 'center',
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.10)',
+                }}
+            >
+                <Mic size={18} strokeWidth={2.2} />
             </div>
-            <div className="tunes-karaoke-card__body">
-                <p className="tunes-karaoke-card__title">{track.title}</p>
-                <p className="tunes-karaoke-card__artist">{track.artist?.name || ''}</p>
+            <div className="tunes-tile__caption">
+                <p className="tunes-tile__title">{track.title}</p>
+                <p className="tunes-tile__subtitle">{track.artist?.name || ''}</p>
             </div>
         </button>
     );

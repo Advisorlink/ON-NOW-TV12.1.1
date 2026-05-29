@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
-import { YouTubeIFrameHost } from '../../components/music/YouTubeIFrameHost';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 import './karaoke.css';
@@ -233,7 +232,7 @@ export default function MusicLayout() {
             </div>
             <MiniPlayer />
             <ResolverDebug />
-            <YouTubeIFrameHost />
+            {/* YouTubeIFrameHost lifted to App.js — global mount. */}
         </div>
     );
 }

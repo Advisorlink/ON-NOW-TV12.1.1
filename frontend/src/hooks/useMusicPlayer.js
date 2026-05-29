@@ -100,7 +100,7 @@ class PlayerEngine {
     // signatures, ads, and signed CDN URLs internally — and it's
     // 100 % within their published API terms.
 
-    _ensureYouTubePlayer() {
+    _ensureYouTubePlayer(initialVideoId = null) {
         if (typeof window === 'undefined') return Promise.resolve(null);
         if (this.yt && this.ytReady) return Promise.resolve(this.yt);
         // YouTubeIFrameHost mounts the script + host div; we
@@ -111,7 +111,7 @@ class PlayerEngine {
             if (!YT || !YT.Player) return null;
             if (this.yt && this.ytReady) return this.yt;
             return new Promise((resolve) => {
-                this.yt = new YT.Player('onnowtv-ytplayer-target', {
+                const opts = {
                     height: '1',
                     width: '1',
                     playerVars: {
@@ -120,7 +120,6 @@ class PlayerEngine {
                         disablekb: 1,
                         playsinline: 1,
                         modestbranding: 1,
-                        // Stops "Up Next" from queueing a different video.
                         rel: 0,
                     },
                     events: {
@@ -128,6 +127,10 @@ class PlayerEngine {
                             this.ytReady = true;
                             try {
                                 this.yt.setVolume(Math.round(this.state.volume * 100));
+                                // v2.8.64 — Force playback start on
+                                // ready (autoplay attribute alone is
+                                // unreliable across browsers).
+                                this.yt.playVideo();
                             } catch { /* ignore */ }
                             resolve(this.yt);
                         },
@@ -137,7 +140,13 @@ class PlayerEngine {
                             console.warn('[music-player] yt error', e?.data);
                         },
                     },
-                });
+                };
+                // v2.8.64 — pass videoId at construction.  Some
+                // browsers silently ignore `loadVideoById` calls
+                // on players that were never given an initial
+                // videoId, leaving the iframe stuck at /embed/?.
+                if (initialVideoId) opts.videoId = initialVideoId;
+                this.yt = new YT.Player('onnowtv-ytplayer-target', opts);
             });
         });
     }
@@ -188,15 +197,26 @@ class PlayerEngine {
             try { this.audio.pause(); this.audio.src = ''; } catch { /* ignore */ }
         }
         this.activeEngine = 'youtube';
-        const player = await this._ensureYouTubePlayer();
+        // Pass the videoId on first init so the iframe loads it
+        // immediately.  On subsequent calls, the player already
+        // exists and we use loadVideoById to swap tracks.
+        const firstInit = !this.yt;
+        const player = await this._ensureYouTubePlayer(firstInit ? videoId : null);
         if (!player) {
             console.warn('[music-player] YouTube IFrame API failed to load');
             return;
         }
+        if (firstInit) {
+            // Already loaded with the correct videoId in constructor.
+            try { player.setVolume(Math.round(this.state.volume * 100)); } catch { /* ignore */ }
+            return;
+        }
         try {
-            player.loadVideoById({ videoId });
-            // Volume sync — IFrame uses 0-100 scale.
+            player.loadVideoById(videoId);
             player.setVolume(Math.round(this.state.volume * 100));
+            setTimeout(() => {
+                try { player.playVideo(); } catch { /* ignore */ }
+            }, 120);
         } catch (e) {
             console.warn('[music-player] loadVideoById failed', e);
         }
