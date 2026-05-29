@@ -65,6 +65,10 @@ import java.util.concurrent.TimeUnit
 object InnerTubeResolver {
 
     private const val TAG = "InnerTubeResolver"
+    private const val CACHE_TTL_MS = 4L * 60 * 60 * 1000  // 4 h
+
+    private data class CacheEntry(val payload: JSONObject, val expiresAt: Long)
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, CacheEntry>()
 
     // WEB client — used only for the search step (still works
     // unauthenticated in 2026).
@@ -97,6 +101,17 @@ object InnerTubeResolver {
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
     fun resolve(artist: String, title: String): JSONObject {
+        // v2.8.55 — 4-hour cache.  Googlevideo URLs are signed and
+        // typically live ~6 h, so we stay well under expiry.  This
+        // makes scrubbing back to a recent track + re-playing it
+        // essentially instant (no network calls at all).
+        val cacheKey = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
+        val now = System.currentTimeMillis()
+        val cached = cache[cacheKey]
+        if (cached != null && cached.expiresAt > now) {
+            return JSONObject(cached.payload.toString()).put("cached", true)
+        }
+
         return try {
             val videoId = searchFirstVideoId("$artist $title")
                 ?: return error("no search result for '$artist $title'")
@@ -105,17 +120,25 @@ object InnerTubeResolver {
             // direct CDN URL on success → ad-free playback via
             // HTML5 <audio>.
             val direct = directAudioUrl(videoId)
-            if (direct != null) return direct
+            if (direct != null) {
+                cache[cacheKey] = CacheEntry(direct, now + CACHE_TTL_MS)
+                return direct
+            }
 
             // Fallback — hand back just the videoId so the React
             // side mounts the IFrame Player.  May show ads on free
             // YouTube accounts; Premium accounts still ad-free.
-            JSONObject().apply {
+            val fallback = JSONObject().apply {
                 put("ok", true)
                 put("yt_id", videoId)
                 put("source", "youtube-iframe")
                 put("fallback_reason", "tvhtml5 auth path returned no URL")
             }
+            // Cache the videoId for 24 h — the videoId itself
+            // doesn't expire; only the audio URL did.  Saves the
+            // search roundtrip on retry.
+            cache[cacheKey] = CacheEntry(fallback, now + 24 * 60 * 60 * 1000L)
+            fallback
         } catch (t: Throwable) {
             Log.w(TAG, "resolve failed for $artist - $title", t)
             error(t.javaClass.simpleName + ": " + (t.message ?: "unknown"))
