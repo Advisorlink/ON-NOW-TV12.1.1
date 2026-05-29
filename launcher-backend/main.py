@@ -321,15 +321,20 @@ class LayoutSettings(BaseModel):
     # image alongside (or in place of) the text heading.  The
     # image is sized at `featured_heading_image_height_dp` and
     # positioned by `featured_heading_image_placement`:
-    #   "replace" → image replaces the text heading (legacy)
-    #   "above"   → image renders ABOVE the text heading
+    #   "above"   → image renders ABOVE the text heading (default)
     #   "below"   → image renders BELOW the text heading
+    #   "replace" → image replaces the text heading (legacy)
     # Fine position tweaks: `featured_heading_image_offset_x_dp`
     # and `_y_dp` translate the ImageView without disturbing the
     # surrounding layout — handy for nudging a logo a few pixels.
+    #
+    # v2.8.58 — Default flipped from "replace" → "above" so that
+    # uploading an image doesn't silently hide the heading TEXT.
+    # The admin can still pick "replace" explicitly for legacy
+    # logo-only behaviour.
     featured_heading_image_url: Optional[str] = None
     featured_heading_image_height_dp: int     = 80
-    featured_heading_image_placement: str     = "replace"
+    featured_heading_image_placement: str     = "above"
     featured_heading_image_offset_x_dp: int   = 0
     featured_heading_image_offset_y_dp: int   = 0
     # v1.8 — Group offset.  Lets the admin nudge the ENTIRE featured

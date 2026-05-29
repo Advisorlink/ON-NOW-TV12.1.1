@@ -89,15 +89,18 @@ data class LayoutSettings(
        When `featuredHeadingImageUrl` is null/blank the launcher
        renders the heading TEXT as before; when set, behaviour is
        controlled by `featuredHeadingImagePlacement`:
-         "replace" (default) → image replaces the text heading
-         "above"             → image renders ABOVE the text heading
-         "below"             → image renders BELOW the text heading
+         "above"   (default v2.8.58+) → image renders ABOVE the text heading
+         "below"               → image renders BELOW the text heading
+         "replace" (legacy)    → image replaces the text heading
+       v2.8.58 flipped the default from "replace" to "above" so an
+       admin uploading an image doesn't silently hide the heading
+       text; they have to ASK for "replace" explicitly now.
        Image position can be fine-tuned via `featuredHeadingImage
        OffsetXDp` / `OffsetYDp` (applied as `translationX/Y` on the
        ImageView itself — does not affect surrounding layout). */
     val featuredHeadingImageUrl: String? = null,
     val featuredHeadingImageHeightDp: Int = 80,
-    val featuredHeadingImagePlacement: String = "replace",
+    val featuredHeadingImagePlacement: String = "above",
     val featuredHeadingImageOffsetXDp: Int = 0,
     val featuredHeadingImageOffsetYDp: Int = 0,
     /* v1.8 — Group nudge.  Shifts the WHOLE featured panel as a
