@@ -47,7 +47,7 @@
       "apk_filename": null,
       "apk_package_id": null,
       "apk_version": null,
-      "target_package": null,
+      "target_package": "tv.onnowtv.tunes",
       "target_url": null,
       "accent": "#2bb6ff",
       "heading": "Music",

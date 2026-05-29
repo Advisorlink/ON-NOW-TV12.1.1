@@ -7,6 +7,93 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.43 — ON NOW TV TUNES launch (separate music app)
+
+  • **🎵 Brand-new standalone Music app**: `tv.onnowtv.tunes` —
+    a completely separate Android APK with its own package id,
+    its own launcher tile, its own admin slot, and its own GitHub
+    release tag (`tunes-latest`).  Boots directly into the
+    `/music` route of the shared React bundle, so the UI lives
+    inside the existing frontend codebase but the Android process
+    is fully independent (as the user explicitly requested).
+
+  • **🎨 Stunning, dedicated visual identity**: deep-cosmic
+    gradient (`#0a0118 → #2a0945`) with electric-pink accent
+    (`#ff2d7f`), cyan tint for Radio, warm-orange for Podcasts.
+    Side nav, glass-morphism cards, sticky bottom mini-player,
+    full-screen expanded player with rotating album art.
+    Completely distinct from Vesper's blue movie-theatre vibe.
+
+  • **3 content pillars, 100 % free, no API keys:**
+    - **Music**     (Deezer Public API) — search, top charts,
+      new releases, top artists, top albums, browse genres,
+      album/artist deep-dives.  30-second high-quality preview
+      streams for every track.
+    - **Live Radio** (Radio Browser API) — 30 000+ stations
+      worldwide with full live streams.  60+ genre chips, big
+      tiles with real station favicons, click-through to
+      Radio Browser's voting/popularity system.
+    - **Podcasts**   (iTunes Search + RSS via feedparser) —
+      48+ top podcasts (The Daily, Joe Rogan, Crime Junkie,
+      etc.), full episode lists from each publisher's RSS feed,
+      audio streams direct from each show's CDN.
+
+  • **🔍 Unified search** — single query fans out to all 5
+    content categories in parallel (Deezer tracks/albums/artists
+    + Radio Browser + iTunes podcasts) — typically returns 60-80
+    results in ~600 ms.
+
+  • **🎧 Universal player engine** — singleton HTMLAudioElement
+    + queue management + Zustand-style subscription, lives in
+    `useMusicPlayer.js`.  Plays any audio URL transparently:
+    30-s music previews, live radio streams, podcast episode
+    enclosures.  Persistent mini-player at the bottom with
+    scrubber + volume; tap art to expand into a full-screen
+    player with album-art rotation animation when playing.
+
+  • **🚀 Backend** — single new file
+    `/app/backend/music_api.py` mounted under `/api/music/*`.
+    Self-contained TTL cache (1 h catalog, 24 h top-podcasts).
+    Required `feedparser` added to backend requirements +
+    installed on VPS venv.
+
+  • **🏪 Launcher integration** — the `music` dock tile
+    `target_package` is now `tv.onnowtv.tunes` so pressing it on
+    the HK1 launches the dedicated Music APK.
+
+  • **📦 CI workflow** — `.github/workflows/build-tunes.yml`
+    publishes `onnowtv-tunes-debug.apk` + `onnowtv-tunes-release.apk`
+    to the `tunes-latest` GitHub Release tag on every push that
+    touches `android/onnowtv-tunes/**`.  Reuses the Launcher's
+    release keystore (same dev signing chain).
+
+  • **Live verified on production VPS:**
+    - `/api/music/ping`                      → ok
+    - `/api/music/home`                      → 4 shelves, 15 genres
+    - `/api/music/search?q=adele`            → 80+ results across 5 categories
+    - `/api/music/radio/top`                 → 60 live stations
+    - `/api/music/podcasts/top?country=us`   → 48 top podcasts
+    - `/api/music/podcasts/episodes?feed_url=…` → 45 episodes
+      from "The Daily" (NYT)
+  • **Screenshots taken**: Music home, Live Radio, Search results
+    (Billie Eilish — all real tracks), Podcasts grid.  Every
+    surface renders beautifully on 1920×1080.
+
+Files created (~25):
+  • backend: `music_api.py` (single file, all endpoints)
+  • frontend: `pages/music/*` (8 files), `components/music/MiniPlayer.jsx`,
+    `hooks/useMusicPlayer.js`, `lib/music-api.js`, `App.js` route wiring
+  • android: `android/onnowtv-tunes/` (full Android project,
+    11 files including gradle scripts, manifest, Kotlin shell,
+    themes, colors, adaptive icon, README)
+  • CI: `.github/workflows/build-tunes.yml`
+
+⚠️ Tunes APK rebuild required: Save to GitHub will fire the new
+build-tunes workflow and publish `onnowtv-tunes-debug.apk` /
+`onnowtv-tunes-release.apk` to the `tunes-latest` release tag.
+Sideload onto the HK1 → tap the launcher's Music tile → enjoy.
+Backend (catalog + streams) is LIVE on `onnowtv.duckdns.org`.
+
 ## v2.8.42 — Kids sandbox: HOME-button lockdown + bigger Babies catalog + clean Vesper/Kids separation
 
   • **🛡 HOME-button lockdown for Kids+PIN.**  Kids can no longer

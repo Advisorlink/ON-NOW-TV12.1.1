@@ -1,0 +1,110 @@
+name: Build ON NOW TV Tunes APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/onnowtv-tunes/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/build-tunes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & sign Tunes APK
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KS_DIR: ${{ runner.temp }}/ks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Derive versionCode + versionName
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # versionCode = 1 + commit count touching android/onnowtv-tunes/
+          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-tunes/ || echo 0) ))
+          # versionName = first ## v2.8.x heading in CHANGELOG.md, else 1.0.0
+          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
+          [ -z "$VN" ] && VN="1.0.0"
+          echo "VC=$VC" >> $GITHUB_OUTPUT
+          echo "VN=$VN" >> $GITHUB_OUTPUT
+          echo "versionCode=$VC versionName=$VN"
+
+      - name: Set up keystore (reuse launcher's, same dev signing chain)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          mkdir -p "$ANDROID_KS_DIR"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
+            echo "RELEASE_STORE_FILE=$ANDROID_KS_DIR/release.jks"      >> $GITHUB_ENV
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"           >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"                        >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"                  >> $GITHUB_ENV
+          else
+            echo "No release keystore — debug APK will still build."
+          fi
+
+      - name: Bootstrap gradle wrapper (no wrapper jar in repo)
+        working-directory: android/onnowtv-tunes
+        run: |
+          set -euo pipefail
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.7 || true
+          fi
+          chmod +x ./gradlew || true
+
+      - name: Build debug + release APKs
+        working-directory: android/onnowtv-tunes
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VC }}
+          VERSION_NAME: ${{ steps.version.outputs.VN }}
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleRelease \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=$VERSION_NAME \
+            --no-daemon \
+            --warning-mode summary
+
+      - name: Rename APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android/onnowtv-tunes/app/build/outputs/apk
+          cp debug/app-debug.apk ../../../../../onnowtv-tunes-debug.apk
+          if [ -f release/app-release.apk ]; then
+            cp release/app-release.apk ../../../../../onnowtv-tunes-release.apk
+          fi
+          ls -la ../../../../../onnowtv-tunes-*.apk
+
+      - name: Publish to GitHub Releases (tunes-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tunes-latest
+          name: "ON NOW TV Tunes ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          files: |
+            onnowtv-tunes-debug.apk
+            onnowtv-tunes-release.apk
+          prerelease: true
+          make_latest: 'false'

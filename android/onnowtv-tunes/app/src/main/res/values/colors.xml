@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tunes_bg">#0a0118</color>
+    <color name="tunes_bg_dark">#08010f</color>
+    <color name="tunes_accent">#ff2d7f</color>
+    <color name="tunes_accent_2">#ff7eb3</color>
+    <color name="tunes_radio">#06b6d4</color>
+    <color name="tunes_podcast">#f97316</color>
+</resources>

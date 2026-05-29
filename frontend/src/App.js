@@ -42,6 +42,16 @@ import UpdateGate from '@/components/UpdateGate';
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
 import Person from '@/pages/Person';
+// v2.8.43 — ON NOW TV TUNES (music app)
+import MusicLayout from '@/pages/music/MusicLayout';
+import MusicHome from '@/pages/music/MusicHome';
+import MusicSearch from '@/pages/music/MusicSearch';
+import MusicAlbum from '@/pages/music/MusicAlbum';
+import MusicArtist from '@/pages/music/MusicArtist';
+import RadioBrowse from '@/pages/music/RadioBrowse';
+import PodcastBrowse from '@/pages/music/PodcastBrowse';
+import PodcastDetail from '@/pages/music/PodcastDetail';
+import MusicLibrary from '@/pages/music/MusicLibrary';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 import useKidsBackGuard from '@/hooks/useKidsBackGuard';
@@ -502,6 +512,21 @@ function App() {
                                 <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
                                 <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
                                 <Route path="/person/:tmdbId" element={<RequireProfile><Person /></RequireProfile>} />
+
+                                {/* v2.8.43 — ON NOW TV TUNES (music app).
+                                    Routes are NOT wrapped in <RequireProfile> because
+                                    the Tunes APK boots directly here and has its
+                                    own first-run flow (no Vesper profile picker). */}
+                                <Route path="/music" element={<MusicLayout />}>
+                                    <Route index             element={<MusicHome />} />
+                                    <Route path="search"     element={<MusicSearch />} />
+                                    <Route path="radio"      element={<RadioBrowse />} />
+                                    <Route path="podcasts"   element={<PodcastBrowse />} />
+                                    <Route path="library"    element={<MusicLibrary />} />
+                                    <Route path="album/:id"  element={<MusicAlbum />} />
+                                    <Route path="artist/:id" element={<MusicArtist />} />
+                                    <Route path="podcast/:feedUrl" element={<PodcastDetail />} />
+                                </Route>
                             </Routes>
                             {/* Auto-update gate re-enabled in v2.6.22.
                                 Every device running v2.6.21+ will

@@ -1,0 +1,715 @@
+/* ON NOW TV TUNES — global theme
+   ============================================================
+   Distinct identity from Vesper: deep-cosmic gradient with
+   electric pink accent.  Self-scoped under .tunes-root so it
+   never bleeds into the Vesper movie/TV UI. */
+
+.tunes-root {
+    --tunes-bg-0: #0a0118;
+    --tunes-bg-1: #160329;
+    --tunes-bg-2: #2a0945;
+    --tunes-accent:    #ff2d7f;      /* electric pink — music */
+    --tunes-accent-2:  #ff7eb3;
+    --tunes-accent-3:  #ffd6e0;
+    --tunes-radio:     #06b6d4;      /* cyan — radio */
+    --tunes-podcast:   #f97316;      /* warm orange — podcasts */
+    --tunes-glass-bg:  rgba(255,255,255,0.04);
+    --tunes-glass-border: rgba(255,255,255,0.08);
+    --tunes-text:      #ffffff;
+    --tunes-text-dim:  rgba(255,255,255,0.65);
+    --tunes-text-faint:rgba(255,255,255,0.35);
+    --tunes-focus:     #ff2d7f;
+    --tunes-mini-h:    96px;
+
+    min-height: 100vh;
+    color: var(--tunes-text);
+    background:
+        radial-gradient(1200px 800px at 80% -10%, rgba(255,45,127,0.15), transparent 60%),
+        radial-gradient(900px 600px at 10% 110%, rgba(6,182,212,0.10), transparent 55%),
+        linear-gradient(180deg, var(--tunes-bg-0) 0%, var(--tunes-bg-1) 60%, var(--tunes-bg-2) 100%);
+    background-attachment: fixed;
+    font-family: -apple-system, "Segoe UI", "SF Pro Display", system-ui, sans-serif;
+    letter-spacing: 0.01em;
+}
+
+.tunes-root *,
+.tunes-root *::before,
+.tunes-root *::after {
+    box-sizing: border-box;
+}
+
+.tunes-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+    padding-bottom: var(--tunes-mini-h);
+}
+
+/* ── Side Nav ─────────────────────────────────────────────── */
+.tunes-nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 32px 18px 24px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+    border-right: 1px solid var(--tunes-glass-border);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+}
+.tunes-nav__brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 36px;
+    padding: 0 6px;
+}
+.tunes-nav__logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-radio));
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 18px rgba(255,45,127,0.45);
+}
+.tunes-nav__title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+.tunes-nav__subtitle {
+    font-size: 11px;
+    color: var(--tunes-text-faint);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+.tunes-nav__item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color: var(--tunes-text-dim);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.18s, color 0.18s, transform 0.18s, border-color 0.18s;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+.tunes-nav__item:hover,
+.tunes-nav__item:focus,
+.tunes-nav__item--active {
+    background: rgba(255,255,255,0.06);
+    color: var(--tunes-text);
+    outline: none;
+    border-color: rgba(255,255,255,0.08);
+}
+.tunes-nav__item--active {
+    background: linear-gradient(135deg, rgba(255,45,127,0.22), rgba(255,45,127,0.06));
+    border-color: rgba(255,45,127,0.35);
+    box-shadow: 0 4px 18px rgba(255,45,127,0.18);
+}
+.tunes-nav__item svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.tunes-nav__section {
+    margin-top: 24px;
+    margin-bottom: 8px;
+    padding: 0 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--tunes-text-faint);
+}
+
+/* ── Main content ─────────────────────────────────────────── */
+.tunes-main {
+    padding: 28px 42px 60px;
+    overflow-x: hidden;
+}
+.tunes-page-title {
+    font-size: 38px;
+    font-weight: 800;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+    background: linear-gradient(90deg, #fff 0%, var(--tunes-accent-3) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.tunes-page-subtitle {
+    color: var(--tunes-text-dim);
+    margin: 0 0 28px;
+    font-size: 15px;
+}
+
+/* ── Search bar ───────────────────────────────────────────── */
+.tunes-search-wrap {
+    position: relative;
+    margin-bottom: 24px;
+    max-width: 720px;
+}
+.tunes-search-input {
+    width: 100%;
+    padding: 18px 24px 18px 56px;
+    background: var(--tunes-glass-bg);
+    border: 1px solid var(--tunes-glass-border);
+    border-radius: 16px;
+    color: var(--tunes-text);
+    font-size: 17px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.tunes-search-input:focus {
+    border-color: var(--tunes-accent);
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 0 4px rgba(255,45,127,0.15);
+}
+.tunes-search-input::placeholder { color: var(--tunes-text-faint); }
+.tunes-search-icon {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--tunes-text-faint);
+    pointer-events: none;
+}
+
+/* ── Shelves ──────────────────────────────────────────────── */
+.tunes-shelf {
+    margin-bottom: 36px;
+}
+.tunes-shelf__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+.tunes-shelf__title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+.tunes-shelf__rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(180px, 1fr);
+    gap: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.tunes-shelf__rail::-webkit-scrollbar { height: 8px; }
+.tunes-shelf__rail::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 4px;
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+.tunes-card {
+    scroll-snap-align: start;
+    background: var(--tunes-glass-bg);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+    display: flex;
+    flex-direction: column;
+}
+.tunes-card:hover,
+.tunes-card:focus {
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--tunes-accent);
+    box-shadow: 0 18px 38px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,45,127,0.45);
+    outline: none;
+}
+.tunes-card__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: linear-gradient(135deg, #1f0b30, #0a0118);
+    display: block;
+}
+.tunes-card__art--round {
+    border-radius: 50%;
+    margin: 18px auto 6px;
+    width: calc(100% - 36px);
+}
+.tunes-card__body {
+    padding: 12px 14px 16px;
+    min-height: 64px;
+}
+.tunes-card__title {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-card__subtitle {
+    font-size: 12px;
+    color: var(--tunes-text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Track row ────────────────────────────────────────────── */
+.tunes-track-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.tunes-track-row {
+    display: grid;
+    grid-template-columns: 24px 56px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.tunes-track-row:hover,
+.tunes-track-row:focus,
+.tunes-track-row--playing {
+    background: rgba(255,255,255,0.06);
+    outline: none;
+}
+.tunes-track-row:focus,
+.tunes-track-row--playing {
+    border-color: rgba(255,45,127,0.55);
+}
+.tunes-track-row__num {
+    text-align: right;
+    color: var(--tunes-text-faint);
+    font-size: 13px;
+}
+.tunes-track-row__art {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+.tunes-track-row__title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-track-row__artist {
+    font-size: 12px;
+    color: var(--tunes-text-dim);
+    margin: 2px 0 0;
+}
+.tunes-track-row__duration {
+    color: var(--tunes-text-dim);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Mini-player (sticky bottom bar) ──────────────────────── */
+.tunes-mini {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--tunes-mini-h);
+    padding: 0 24px;
+    background: linear-gradient(180deg, rgba(20,3,40,0.78) 0%, rgba(8,1,20,0.95) 100%);
+    border-top: 1px solid var(--tunes-glass-border);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto minmax(220px, 1fr);
+    align-items: center;
+    z-index: 100;
+    gap: 24px;
+}
+.tunes-mini__now {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    overflow: hidden;
+}
+.tunes-mini__art {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: linear-gradient(135deg, #341054, #08010a);
+    flex-shrink: 0;
+}
+.tunes-mini__text { overflow: hidden; }
+.tunes-mini__title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-mini__subtitle {
+    font-size: 12px;
+    color: var(--tunes-text-dim);
+    margin: 2px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-mini__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-direction: column;
+}
+.tunes-mini__buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.tunes-iconbtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--tunes-text-dim);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background 0.15s, color 0.15s, transform 0.15s, border-color 0.15s;
+}
+.tunes-iconbtn:hover,
+.tunes-iconbtn:focus {
+    background: rgba(255,255,255,0.08);
+    color: var(--tunes-text);
+    outline: none;
+}
+.tunes-iconbtn:focus { border-color: var(--tunes-accent); }
+.tunes-iconbtn--play {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
+    color: #fff;
+    box-shadow: 0 6px 24px rgba(255,45,127,0.4);
+}
+.tunes-iconbtn--play:hover { transform: scale(1.05); }
+.tunes-mini__scrubber {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 520px;
+}
+.tunes-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+}
+.tunes-progress__bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, var(--tunes-accent), var(--tunes-accent-2));
+    border-radius: 2px;
+    transition: width 0.18s linear;
+}
+.tunes-progress__time {
+    font-size: 11px;
+    color: var(--tunes-text-faint);
+    font-variant-numeric: tabular-nums;
+    min-width: 36px;
+}
+.tunes-mini__right {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Hero block ───────────────────────────────────────────── */
+.tunes-hero {
+    border-radius: 22px;
+    padding: 36px 40px;
+    margin-bottom: 36px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    background:
+        radial-gradient(700px 400px at 90% 0%, rgba(255,45,127,0.35), transparent 60%),
+        linear-gradient(135deg, rgba(106,33,222,0.25), rgba(255,45,127,0.15));
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+}
+.tunes-hero__eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--tunes-accent-3);
+    margin: 0 0 8px;
+}
+.tunes-hero__title {
+    font-size: 42px;
+    font-weight: 800;
+    margin: 0 0 14px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+}
+.tunes-hero__desc {
+    color: var(--tunes-text-dim);
+    font-size: 16px;
+    line-height: 1.5;
+    max-width: 680px;
+    margin: 0 0 22px;
+}
+.tunes-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 26px;
+    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
+    color: #fff;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255,45,127,0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.tunes-btn-primary:hover,
+.tunes-btn-primary:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(255,45,127,0.5);
+    outline: none;
+}
+
+/* ── Skeleton ─────────────────────────────────────────────── */
+.tunes-skel {
+    background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+    background-size: 200% 100%;
+    animation: tunes-skel 1.4s linear infinite;
+    border-radius: 10px;
+}
+@keyframes tunes-skel {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* ── Radio / Podcast section tints ────────────────────────── */
+.tunes-section--radio .tunes-card:hover,
+.tunes-section--radio .tunes-card:focus {
+    border-color: var(--tunes-radio);
+    box-shadow: 0 18px 38px rgba(0,0,0,0.45), 0 0 0 1px rgba(6,182,212,0.5);
+}
+.tunes-section--podcast .tunes-card:hover,
+.tunes-section--podcast .tunes-card:focus {
+    border-color: var(--tunes-podcast);
+    box-shadow: 0 18px 38px rgba(0,0,0,0.45), 0 0 0 1px rgba(249,115,22,0.5);
+}
+
+/* ── Full-screen player ───────────────────────────────────── */
+.tunes-fullplayer {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    background:
+        radial-gradient(1200px 800px at 50% 0%, rgba(255,45,127,0.35), transparent 60%),
+        linear-gradient(180deg, var(--tunes-bg-0), var(--tunes-bg-1) 60%, var(--tunes-bg-2));
+    padding: 40px 60px;
+    backdrop-filter: blur(40px);
+}
+.tunes-fullplayer__close {
+    justify-self: end;
+}
+.tunes-fullplayer__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    height: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+.tunes-fullplayer__art {
+    aspect-ratio: 1 / 1;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
+    background: linear-gradient(135deg, #341054, #08010a);
+}
+.tunes-fullplayer__art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.tunes-fullplayer__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.tunes-fullplayer__eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--tunes-accent-3);
+    margin: 0;
+}
+.tunes-fullplayer__title {
+    font-size: 48px;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+.tunes-fullplayer__artist {
+    font-size: 20px;
+    color: var(--tunes-text-dim);
+    margin: 0;
+}
+.tunes-fullplayer__progress {
+    margin-top: 24px;
+    display: grid;
+    gap: 6px;
+}
+.tunes-fullplayer__progress-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+.tunes-fullplayer__progress-bar > div {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, var(--tunes-accent), var(--tunes-accent-2));
+}
+.tunes-fullplayer__times {
+    display: flex;
+    justify-content: space-between;
+    color: var(--tunes-text-dim);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+.tunes-fullplayer__controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 26px;
+}
+.tunes-fullplayer .tunes-iconbtn--play {
+    width: 72px;
+    height: 72px;
+}
+.tunes-fullplayer__footer {
+    padding-top: 24px;
+}
+
+/* ── Lists/grid ───────────────────────────────────────────── */
+.tunes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 18px;
+}
+.tunes-section {
+    margin-bottom: 40px;
+}
+.tunes-section__title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 18px;
+}
+
+/* ── Genre chips (radio) ──────────────────────────────────── */
+.tunes-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 22px;
+}
+.tunes-chip {
+    padding: 9px 18px;
+    background: var(--tunes-glass-bg);
+    border: 1px solid var(--tunes-glass-border);
+    border-radius: 999px;
+    color: var(--tunes-text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tunes-chip:hover,
+.tunes-chip:focus,
+.tunes-chip--active {
+    background: rgba(255,45,127,0.18);
+    color: var(--tunes-text);
+    border-color: var(--tunes-accent);
+    outline: none;
+}
+.tunes-chip--radio.tunes-chip--active {
+    background: rgba(6,182,212,0.18);
+    border-color: var(--tunes-radio);
+}
+
+.tunes-empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--tunes-text-faint);
+    font-size: 15px;
+}
+
+/* ── Genre tile ───────────────────────────────────────────── */
+.tunes-genre-tile {
+    aspect-ratio: 16 / 9;
+    background-size: cover;
+    background-position: center;
+    background-color: #2a0945;
+    border-radius: 14px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 2px solid transparent;
+}
+.tunes-genre-tile:hover,
+.tunes-genre-tile:focus {
+    transform: scale(1.03);
+    box-shadow: 0 16px 30px rgba(0,0,0,0.4);
+    border-color: var(--tunes-accent);
+    outline: none;
+}
+.tunes-genre-tile__overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 16px 18px;
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.7) 100%);
+}

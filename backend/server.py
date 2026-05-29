@@ -3510,6 +3510,10 @@ async def launcher_admin_proxy(full_path: str, request: Request):
 
 
 # ----- App wiring ----------------------------------------------------------
+# v2.8.43 — Mount the standalone Music API so its endpoints surface
+# under /api/music/* without polluting Vesper's home server.py file.
+from music_api import music_api as _music_api_router
+api.include_router(_music_api_router)
 app.include_router(api)
 
 
