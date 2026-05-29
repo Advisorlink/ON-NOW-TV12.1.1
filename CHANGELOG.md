@@ -7,6 +7,42 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.57 — Tunes: auto-sign-in (zero credential prompts ever) + Radio tile density fix
+
+  • **🔐 Tunes APK ships with a baked-in YouTube account.**  The
+    operator can install / uninstall / reinstall the APK as many
+    times as they want; the app NEVER asks for credentials.
+    First launch flashes through Google's sign-in screens
+    automatically — fills `onnowv2@gmail.com` → clicks Next → fills
+    `Onnowtv123!` → clicks Sign In → lands on YouTube → cookies
+    saved → navigates to /music.
+
+  • **🛡 Anti-automation aware**: the autofill uses the native
+    HTMLInputElement value setter so React-style controlled inputs
+    fire their `onChange` handlers (Google's sign-in is a React
+    SPA).  300 ms settling delay between field-fill and button-
+    click so the form's validation has time to mark the field
+    valid.  Three injection attempts spaced 1.5 s apart to handle
+    the SPA re-rendering between email and password steps.
+
+  • **🛟 Graceful fallback**: if Google A/B-tests a new sign-in
+    flow that breaks our CSS selectors, the user sees the
+    standard form and can type by hand.  No app crash, no
+    soft-lock.
+
+  • **📡 Radio tile density fix.**  `.tunes-grid` was still using
+    the old `minmax(220px, 1fr)` from v2.8.55 — the home shelves
+    were tightened to 180 px in v2.8.56 but Radio kept the chunky
+    tiles.  Fixed: Radio now matches Vesper density too.
+
+  • **⚠️ Note**: credentials are embedded in the Kotlin source +
+    compiled into the APK.  Anyone decompiling can read them.
+    Since the account is a dedicated throwaway with no Drive,
+    Gmail, or payment tied to it, the exposure is acceptable.
+    Operator can rotate by editing `AUTO_EMAIL` /
+    `AUTO_PASSWORD` constants and pushing a new build.
+
+
 ## v2.8.56 — Tunes: smooth-as-butter polish + Electric Blue theme
 
   • **🎨 Theme toggle: PINK ↔ ELECTRIC BLUE.**  New pill at the
