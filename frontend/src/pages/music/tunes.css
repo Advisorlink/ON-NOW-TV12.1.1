@@ -32,6 +32,15 @@
     --vesper-text-2: rgba(255, 255, 255, 0.72);
     --vesper-text-3: rgba(255, 255, 255, 0.40);
 
+    /* SINGLE source of truth for the horizontal indent every
+       content block uses.  Reducing this from clamp(92px,6.5vw,
+       132px) → clamp(40px,4vw,72px) so the shelves and hero text
+       feel more "edge to edge" like Vesper's actual home page. */
+    --tunes-pad-x: clamp(40px, 4vw, 72px);
+    /* Right padding can be smaller — content scrolls horizontally
+       inside the rails so the right edge doesn't need much air. */
+    --tunes-pad-right: clamp(24px, 2.4vw, 48px);
+
     /* Solid page background — using a SINGLE flat colour (no
        gradient) so the hero scrim's solid endpoint matches the
        page below seamlessly.  A previous version layered three
@@ -286,8 +295,8 @@
 }
 
 .tunes-side-pad {
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
 }
 
 /* ============================================================
@@ -397,7 +406,7 @@
 .tunes-hero__text {
     position: relative;
     max-width: 62vw;
-    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-left: var(--tunes-pad-x);
     padding-bottom: clamp(38px, 4vw, 64px);
     /* No fade-up animation — keyframed transform on mount was
        producing a brief layout thrash on slow hardware. */
@@ -564,8 +573,8 @@
     align-items: baseline;
     justify-content: space-between;
     margin-bottom: 12px;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
 }
 
 .tunes-shelf__header-left {
@@ -608,7 +617,7 @@
 .tunes-shelf__rail {
     display: flex;
     gap: clamp(14px, 1.25vw, 24px);
-    padding: clamp(14px, 1.4vw, 22px) clamp(40px, 4.2vw, 80px) clamp(14px, 1.4vw, 24px) clamp(92px, 6.5vw, 132px);
+    padding: clamp(14px, 1.4vw, 22px) var(--tunes-pad-right) clamp(14px, 1.4vw, 24px) var(--tunes-pad-x);
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x proximity;
@@ -651,7 +660,7 @@
     padding: 0;
     text-decoration: none;
     scroll-snap-align: start;
-    scroll-margin-left: clamp(92px, 6.5vw, 132px);
+    scroll-margin-left: var(--tunes-pad-x);
     /* Pure compositor promotion — no blur, no transition on
        transform here.  The global tile focus rule supplies
        scale(1.08) translateY(-2px); we don't add a duration so
@@ -810,8 +819,8 @@
 }
 
 .tunes-section__head {
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
     margin-bottom: 14px;
 }
 
@@ -866,8 +875,8 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
 }
 
 .tunes-genre-tile {
@@ -936,8 +945,8 @@
     grid-template-columns: clamp(260px, 22vw, 360px) 1fr;
     gap: 36px;
     align-items: end;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
     padding-bottom: 32px;
 }
 
@@ -1020,8 +1029,8 @@
     position: relative;
     z-index: 1;
     margin: 12px 0 80px;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
     display: flex;
     flex-direction: column;
 }
@@ -1690,14 +1699,14 @@
 
 .tunes-page-head {
     padding-top: 32px;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
     padding-bottom: 12px;
 }
 
 /* Search input */
 .tunes-search-wrap {
-    padding: 12px clamp(40px, 4.2vw, 80px) 12px clamp(92px, 6.5vw, 132px);
+    padding: 12px var(--tunes-pad-right) 12px var(--tunes-pad-x);
 }
 
 .tunes-search-input {
@@ -1722,7 +1731,7 @@
 
 /* Empty / loading states */
 .tunes-empty {
-    padding: 60px clamp(92px, 6.5vw, 132px);
+    padding: 60px var(--tunes-pad-x);
     color: var(--vesper-text-2);
     font-size: 16px;
 }
@@ -1807,8 +1816,8 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 18px;
-    padding-left: clamp(92px, 6.5vw, 132px);
-    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
 }
 
 /* Legacy aliases for old page styles that still reference the
@@ -1831,3 +1840,411 @@
 }
 
 .tunes-btn-primary:hover { transform: scale(1.03); }
+
+
+/* ============================================================
+   📱 MOBILE RESPONSIVE  (≤ 768 px)
+   ----------------------------------------------------------
+   Goals:
+     - Side rail collapses to a sticky BOTTOM TAB BAR (Spotify-/
+       Apple-Music-style) so the full screen width is usable.
+     - Tighter horizontal padding (16 px) — phone screens can't
+       afford 72 px of left air.
+     - Smaller hero title + tighter shelf rhythm.
+     - Album tiles size up to ~3 per visible row instead of 6+.
+     - Mini-player condensed to a single-row sticky bar above the
+       tab bar.
+============================================================ */
+
+@media (max-width: 768px) {
+    .tunes-root {
+        --tunes-pad-x: 16px;
+        --tunes-pad-right: 16px;
+    }
+
+    /* Side rail → bottom tab bar */
+    .tunes-nav {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100% !important;
+        height: 64px;
+        padding: 4px 6px;
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+        background: rgba(8, 1, 18, 0.96) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        z-index: 60;
+    }
+    .tunes-nav[data-expanded="true"] { width: 100% !important; }
+
+    /* Hide brand + profile/settings + theme picker — too much UI for a
+       phone tab bar.  We keep ONLY the five main destinations. */
+    .tunes-nav__brand,
+    .tunes-nav__spacer,
+    .tunes-nav__theme {
+        display: none !important;
+    }
+
+    /* Hide the second .tunes-nav__items group (Profile/Settings). */
+    .tunes-nav > .tunes-nav__items:nth-of-type(2) {
+        display: none !important;
+    }
+
+    .tunes-nav__items {
+        display: flex !important;
+        flex-direction: row !important;
+        flex: 1;
+        gap: 4px;
+        justify-content: space-between;
+    }
+
+    .tunes-nav__item {
+        flex: 1;
+        flex-direction: column;
+        height: 56px;
+        padding: 6px 4px 4px;
+        gap: 2px;
+        border-radius: 10px;
+        font-size: 10px;
+    }
+    .tunes-nav__item-icon { width: 22px; height: 22px; }
+    .tunes-nav__item-icon svg { width: 22px; height: 22px; }
+    .tunes-nav__item-label {
+        opacity: 1 !important;
+        font-size: 10px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .tunes-nav__item--active::before {
+        top: -4px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: auto;
+        width: 28px;
+        height: 3px;
+        border-radius: 3px;
+    }
+
+    /* Main content area no longer has a left rail to clear. */
+    .tunes-main {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .tunes-shell {
+        /* Reserve bottom space for tab bar (64) + mini-player (60). */
+        padding-bottom: 124px;
+    }
+
+    /* Hero — phone proportions */
+    .tunes-hero {
+        height: clamp(360px, 65vh, 520px);
+    }
+    .tunes-hero__text {
+        max-width: 100%;
+        padding-bottom: 24px;
+    }
+    .tunes-hero__title { font-size: clamp(36px, 9vw, 56px); }
+    .tunes-hero__synopsis { display: none; }
+    .tunes-hero__buttons { flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .tunes-btn { height: 42px; padding: 0 16px; font-size: 13px; }
+    .tunes-hero__dots { right: 16px; bottom: 12px; }
+
+    /* Shelves — more compact */
+    .tunes-shelf { padding-top: 12px; padding-bottom: 12px; }
+    .tunes-shelf__header { margin-bottom: 6px; }
+    .tunes-shelf__title { font-size: 20px; }
+    .tunes-shelf__eyebrow { font-size: 9px; letter-spacing: 0.18em; }
+    .tunes-shelf__rail { gap: 12px; }
+
+    /* Tiles — show ~2.6 per viewport so users see there's more
+       to scroll.  Use a fixed width so all rails feel uniform. */
+    .tunes-tile { width: 140px; }
+    .tunes-tile--artist { width: 100px; }
+
+    .tunes-tile__caption { padding: 10px 10px 8px; }
+    .tunes-tile__title { font-size: 13px; }
+    .tunes-tile__subtitle { font-size: 10px; }
+
+    /* Album detail */
+    .tunes-album__head {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .tunes-album__cover {
+        max-width: 220px;
+        margin: 0 auto;
+    }
+    .tunes-album__title { font-size: clamp(28px, 7vw, 40px); }
+    .tunes-album__synopsis { display: none; }
+    .tunes-album__actions { flex-wrap: wrap; }
+
+    .tunes-track-row {
+        grid-template-columns: 32px 1fr 50px;
+        gap: 12px;
+    }
+    .tunes-track-row__pill,
+    .tunes-track-row__add { display: none; }
+
+    /* Mini player — single row */
+    .tunes-mini {
+        bottom: 64px;  /* sit above the bottom tab bar */
+        height: 60px;
+        padding: 0 12px;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto;
+        gap: 12px;
+    }
+    .tunes-mini__left { gap: 10px; }
+    .tunes-mini__art { width: 44px; height: 44px; border-radius: 8px; }
+    .tunes-mini__title { font-size: 13px; }
+    .tunes-mini__subtitle { font-size: 11px; }
+    .tunes-mini__like { display: none; }
+    .tunes-mini__center {
+        min-width: 0;
+        grid-row: auto;
+    }
+    .tunes-mini__buttons { gap: 8px; }
+    .tunes-iconbtn { width: 32px; height: 32px; }
+    .tunes-iconbtn--play { width: 44px; height: 44px; }
+    .tunes-mini__scrub { display: none; }
+    .tunes-mini__right { display: none; }
+
+    /* Full-screen player — single-column on phone */
+    .tunes-fullplayer__body {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 64px 16px 220px;
+        overflow-y: auto;
+    }
+    .tunes-fullplayer__art { max-width: 280px; margin: 0 auto; }
+    .tunes-fullplayer__title { font-size: clamp(32px, 8vw, 48px); }
+    .tunes-fullplayer__queue {
+        max-height: none;
+        padding: 16px;
+    }
+    .tunes-fullplayer__dock {
+        left: 12px;
+        right: 12px;
+        bottom: 18px;
+    }
+    .tunes-fullplayer__transport { gap: 14px; }
+    .tunes-fullplayer__transport .tunes-iconbtn--play {
+        width: 60px;
+        height: 60px;
+    }
+    .tunes-fullplayer__bottom-row .tunes-volume { display: none; }
+    .tunes-fullplayer__corner-left {
+        top: 16px;
+        left: 16px;
+        font-size: 9px;
+    }
+    .tunes-fullplayer__corner-right {
+        top: 12px;
+        right: 12px;
+    }
+
+    /* Genre grid: 2 columns instead of auto-fit */
+    .tunes-genre-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    /* Search input — touch-friendly */
+    .tunes-search-input {
+        height: 48px;
+        font-size: 16px; /* iOS Safari avoids zoom at 16+ */
+    }
+
+    /* Album backdrop — turn off on phones, the cover is enough */
+    .tunes-album__backdrop { display: none; }
+
+    /* Side nav theme picker hidden on mobile (declared above) */
+}
+
+/* Even smaller phones (≤ 380 px) — reduce tile size further. */
+@media (max-width: 380px) {
+    .tunes-tile { width: 124px; }
+    .tunes-tile--artist { width: 90px; }
+    .tunes-hero__title { font-size: clamp(30px, 8.5vw, 44px); }
+    .tunes-hero__buttons .tunes-btn--outline { display: none; }
+}
+
+/* ============================================================
+   🎤 KARAOKE — Selection screen "party hero" overrides
+   ----------------------------------------------------------
+   Custom hero header with a vibrant karaoke party photo,
+   eye-catching neon-pink title, and a cool "PICK YOUR JAM"
+   eyebrow.  Selection shelves carry singing-themed eyebrows.
+============================================================ */
+
+.karaoke-party-hero {
+    position: relative;
+    width: 100%;
+    height: clamp(280px, 36vh, 420px);
+    overflow: hidden;
+    isolation: isolate;
+    margin-bottom: 8px;
+}
+
+.karaoke-party-hero__bg {
+    position: absolute;
+    inset: 0;
+    /* Unsplash karaoke / concert photo — vibrant pink-purple
+       neon stage lights with a microphone, no watermark.
+       We cache-bust the URL with a stable parameter so the CDN
+       returns the same image every load. */
+    background-image: url('https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1920&q=70');
+    background-size: cover;
+    background-position: center 40%;
+    filter: saturate(1.25) contrast(1.05);
+}
+
+.karaoke-party-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg,
+            rgba(0, 0, 0, 0.78) 0%,
+            rgba(0, 0, 0, 0.45) 35%,
+            rgba(0, 0, 0, 0)   65%,
+            rgba(0, 0, 0, 0)   100%),
+        linear-gradient(180deg,
+            rgba(0, 0, 0, 0.35) 0%,
+            rgba(0, 0, 0, 0)   28%,
+            rgba(var(--vesper-bg-0-rgb), 0.55) 70%,
+            var(--vesper-bg-0) 100%);
+    pointer-events: none;
+}
+
+.karaoke-party-hero__neon {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse 60% 70% at 78% 38%,
+        rgba(var(--vesper-blue-rgb), 0.30) 0%,
+        rgba(var(--vesper-blue-rgb), 0.10) 35%,
+        transparent 70%
+    );
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+.karaoke-party-hero__content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 var(--tunes-pad-right) clamp(28px, 3vw, 48px) var(--tunes-pad-x);
+    z-index: 2;
+}
+
+.karaoke-party-hero__mic {
+    /* The microphone "K" emblem — a stylized pink-glow shape */
+    display: inline-grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--vesper-blue-bright), var(--vesper-blue));
+    color: #0a0118;
+    box-shadow:
+        0 0 0 4px rgba(var(--vesper-blue-rgb), 0.25),
+        0 12px 32px rgba(var(--vesper-blue-rgb), 0.6);
+    margin-bottom: 18px;
+}
+
+.karaoke-party-hero__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(10px, 0.85vw, 13px);
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--vesper-blue-bright);
+    margin: 0 0 10px;
+    text-shadow: 0 0 18px var(--vesper-blue-glow);
+}
+
+.karaoke-party-hero__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(38px, 5.4vw, 72px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    margin: 0;
+    color: #ffffff;
+    text-shadow: 0 4px 32px rgba(0, 0, 0, 0.6);
+}
+.karaoke-party-hero__title em {
+    color: var(--vesper-blue-bright);
+    font-style: normal;
+    font-weight: 800;
+    text-shadow: 0 0 32px var(--vesper-blue-glow);
+}
+
+.karaoke-party-hero__subtitle {
+    margin: 12px 0 0;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: clamp(13px, 1vw, 16px);
+    max-width: 52ch;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+/* Karaoke search input wrapper — neon-glow border */
+.karaoke-search {
+    position: relative;
+    margin: -18px auto 16px;
+    max-width: 720px;
+    width: calc(100% - var(--tunes-pad-x) * 2);
+    padding: 0 var(--tunes-pad-x);
+    box-sizing: border-box;
+    z-index: 3;
+}
+
+.karaoke-search input {
+    width: 100%;
+    height: 56px;
+    padding: 0 22px 0 52px;
+    border-radius: 16px;
+    background: rgba(20, 5, 36, 0.92);
+    border: 1px solid rgba(var(--vesper-blue-rgb), 0.35);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 16px;
+    outline: none;
+    box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 0 0 1px rgba(var(--vesper-blue-rgb), 0.15);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.karaoke-search input:focus {
+    border-color: var(--vesper-blue-bright);
+    box-shadow:
+        0 0 0 3px rgba(var(--vesper-blue-rgb), 0.30),
+        0 16px 38px rgba(0, 0, 0, 0.55);
+}
+
+.karaoke-search__icon {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--tunes-pad-x) + 18px);
+    transform: translateY(-50%);
+    color: var(--vesper-blue-bright);
+    pointer-events: none;
+}
+
+@media (max-width: 768px) {
+    .karaoke-party-hero { height: clamp(220px, 35vh, 320px); }
+    .karaoke-party-hero__mic { width: 44px; height: 44px; margin-bottom: 12px; }
+    .karaoke-party-hero__title { font-size: clamp(28px, 8vw, 42px); }
+    .karaoke-party-hero__eyebrow { font-size: 10px; letter-spacing: 0.28em; }
+    .karaoke-search input { height: 48px; padding-left: 46px; }
+    .karaoke-search__icon { left: calc(var(--tunes-pad-x) + 14px); }
+}

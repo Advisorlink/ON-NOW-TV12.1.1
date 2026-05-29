@@ -1516,6 +1516,75 @@ async def admin_cookies_upload(
     return {"ok": True, "saved": summary}
 
 
+# ============================================================================
+# Public YouTube SEARCH endpoint — no cookies required
+# ----------------------------------------------------------------------------
+# Returns the top YouTube video ID for a given query.  The IFrame Player in
+# the React frontend can then play it (full track, may show ads on free
+# accounts, but works WITHOUT needing the user's YouTube cookies on the VPS).
+#
+# This is the reliable Karaoke playback path that works on EVERY platform
+# (desktop, mobile, HK1 APK) regardless of whether the native InnerTube
+# bridge is present.
+# ============================================================================
+
+@music_api.get("/yt-search")
+async def yt_search(q: str = Query(..., min_length=1)):
+    """Returns `{ yt_id, title?, uploader? }` for the top search hit.
+
+    Uses yt-dlp's `extract_flat=True` mode so we only need the video ID,
+    not the underlying signed CDN URL — which means **no cookies are
+    required** and the request is reliably fast (~1-2 s).
+
+    The frontend plays the returned `yt_id` via the YouTube IFrame
+    Player API in `MiniPlayer`/`KaraokeStage`.
+    """
+    cache_key = f"yt-search:{q}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    try:
+        import yt_dlp  # type: ignore
+    except ImportError:
+        return {"cached": False, "data": {"yt_id": None, "error": "yt-dlp not installed"}}
+
+    def search_blocking():
+        opts = {
+            "quiet": True,
+            "skip_download": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "default_search": "ytsearch1",
+            "socket_timeout": 8,
+            "geo_bypass": True,
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(f"ytsearch1:{q}", download=False)
+                if not info:
+                    return None
+                if info.get("_type") == "playlist":
+                    entries = info.get("entries") or []
+                    if not entries:
+                        return None
+                    info = entries[0]
+                return {
+                    "yt_id": info.get("id"),
+                    "title": info.get("title"),
+                    "uploader": info.get("uploader") or info.get("channel"),
+                    "duration": info.get("duration"),
+                }
+        except Exception as exc:
+            log.warning("yt-search failed for %s: %s", q, exc)
+            return {"yt_id": None, "error": str(exc)[:200]}
+
+    result = await asyncio.to_thread(search_blocking)
+    if result and result.get("yt_id"):
+        await cache.set(cache_key, result, ttl_seconds=86400)  # 24 h
+    return {"cached": False, "data": result or {"yt_id": None}}
+
+
 @music_api.delete("/admin/cookies/{name}")
 async def admin_cookies_delete(
     name: str,

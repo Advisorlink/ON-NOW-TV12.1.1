@@ -175,20 +175,66 @@ export async function resolveTrackStream(track) {
     const tb0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const backend = await resolveViaBackend(track.id, artist, title);
     const tbMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tb0);
-    if (backend && backend.stream_url) {
-        emit({ artist, title, source: backend.source || 'backend', ms: tbMs, ok: !!backend.is_full_track });
+    if (backend && backend.stream_url && backend.is_full_track) {
+        emit({ artist, title, source: backend.source || 'backend', ms: tbMs, ok: true });
         return {
             stream_url: backend.stream_url,
             source: backend.source,
-            is_full_track: !!backend.is_full_track,
+            is_full_track: true,
             title: backend.title,
             uploader: backend.uploader,
             duration: backend.duration,
         };
     }
-    emit({ artist, title, source: 'backend', ms: tbMs, ok: false, error: backend ? (backend.reason || 'no stream_url') : 'fetch failed' });
+    // backend returned only a 30 s preview (or nothing) — try the
+    // YT IFrame route below before falling back to that preview.
+    const backendPreview = backend && backend.stream_url ? backend : null;
+    emit({ artist, title, source: 'backend', ms: tbMs, ok: false, error: backend ? (backend.reason || 'no full stream_url') : 'fetch failed' });
 
-    // 3) Last-resort 30 s Deezer preview.
+    // 2.5) YouTube IFrame player fallback (works WITHOUT cookies).
+    // v2.8.64 — Uses `/api/music/yt-search` to get the top YouTube
+    // video ID for "artist title".  The IFrame Player handles audio
+    // playback in-browser — works on desktop, mobile AND the HK1
+    // APK regardless of whether the native InnerTube bridge is
+    // present.  This is the reliable Karaoke playback path.
+    try {
+        const base = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
+        const tyt0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        const r = await fetch(`${base}/api/music/yt-search?q=${encodeURIComponent(artist + ' ' + title + ' audio')}`);
+        const tytMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tyt0);
+        if (r.ok) {
+            const body = await r.json();
+            const ytId = body?.data?.yt_id;
+            if (ytId) {
+                emit({ artist, title, source: 'yt-iframe-search', ms: tytMs, ok: true });
+                return {
+                    stream_url: null,
+                    source: 'youtube-iframe',
+                    is_full_track: true,
+                    yt_id: ytId,
+                    title: body?.data?.title,
+                    uploader: body?.data?.uploader,
+                    duration: body?.data?.duration,
+                };
+            }
+        }
+        emit({ artist, title, source: 'yt-iframe-search', ms: tytMs, ok: false, error: 'no yt_id from search' });
+    } catch (e) {
+        emit({ artist, title, source: 'yt-iframe-search', ms: 0, ok: false, error: 'yt-search threw: ' + (e?.message || e) });
+    }
+
+    // 3) Last-resort previews:  prefer the backend's preview (it may
+    //    have additional metadata) over Deezer's, but both work the
+    //    same way at the audio element.
+    if (backendPreview && backendPreview.stream_url) {
+        emit({ artist, title, source: 'preview-backend', ms: 0, ok: false, error: 'using backend preview' });
+        return {
+            stream_url: backendPreview.stream_url,
+            source: backendPreview.source || 'preview',
+            is_full_track: false,
+            duration: backendPreview.duration,
+        };
+    }
     if (track.preview_url) {
         emit({ artist, title, source: 'preview', ms: 0, ok: false, error: 'using Deezer 30s' });
         return {

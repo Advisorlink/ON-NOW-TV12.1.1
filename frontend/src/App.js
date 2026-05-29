@@ -55,8 +55,17 @@ import MusicLibrary from '@/pages/music/MusicLibrary';
 // v2.8.60 — V2 Karaoke + Australia radio
 import AustraliaRadio from '@/pages/music/AustraliaRadio';
 import KaraokePage, { KaraokeStage } from '@/pages/music/Karaoke';
+import { YouTubeIFrameHost } from '@/components/music/YouTubeIFrameHost';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
+
+// v2.8.64 — Globally-mounted YouTube IFrame Player host.  Renders
+// the offscreen iframe target ONCE for the whole app so audio
+// keeps playing across SPA route changes (including in/out of
+// the KaraokeStage which lives OUTSIDE MusicLayout).
+function GlobalYouTubeHost() {
+    return <YouTubeIFrameHost />;
+}
 import useKidsBackGuard from '@/hooks/useKidsBackGuard';
 import { runNotifyScanner } from '@/lib/notifyScanner';
 
@@ -538,6 +547,15 @@ function App() {
                                     mini-player). */}
                                 <Route path="/music/karaoke/play/:trackId" element={<KaraokeStage />} />
                             </Routes>
+                            {/* v2.8.64 — YouTube IFrame Player host
+                                lifted from MusicLayout to App level
+                                so it stays mounted for /music/karaoke/
+                                play/* (which lives OUTSIDE MusicLayout
+                                to take the full screen).  Without
+                                this, the music engine had no iframe
+                                target on the Karaoke stage and audio
+                                stayed at 0:00. */}
+                            <GlobalYouTubeHost />
                             {/* Auto-update gate re-enabled in v2.6.22.
                                 Every device running v2.6.21+ will
                                 check on launch + every 6 h, prompt
