@@ -764,6 +764,29 @@ class MainActivity : AppCompatActivity() {
             // tab.  Any null override falls back to the shared
             // value above.
             val isV2ai = pill === binding.topbarBtnV2ai
+            // v2.8.49 — When the V2 AI tab has NO color overrides at
+            // all, leave the XML-defined cyan→magenta→violet gradient
+            // background in place (it's the new "hero" look).  Solid
+            // colors only kick in when the admin explicitly customises.
+            val v2aiHasColorOverride = isV2ai && (
+                !v2ai.buttonBgColor.isNullOrBlank() ||
+                !v2ai.buttonTextColor.isNullOrBlank() ||
+                !v2ai.buttonFocusBgColor.isNullOrBlank() ||
+                !v2ai.buttonFocusTextColor.isNullOrBlank()
+            )
+            if (isV2ai && !v2aiHasColorOverride) {
+                // Keep the gradient drawable from the XML — but still
+                // apply the white tint to icon + text since the gradient
+                // background is colourful.
+                val tints = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+                for (i in 0 until pill.childCount) {
+                    when (val child = pill.getChildAt(i)) {
+                        is android.widget.ImageView -> child.imageTintList = tints
+                        is android.widget.TextView  -> child.setTextColor(android.graphics.Color.WHITE)
+                    }
+                }
+                return@forEach
+            }
             val pillBg = if (isV2ai) parseHexSafely(v2ai.buttonBgColor       ?: bgHex,      bgColor)        else bgColor
             val pillTx = if (isV2ai) parseHexSafely(v2ai.buttonTextColor     ?: textHex,    textColor)      else textColor
             val pillFB = if (isV2ai) parseHexSafely(v2ai.buttonFocusBgColor  ?: focusBgHex, focusBgColor)   else focusBgColor
@@ -799,6 +822,28 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        // v2.8.49 — Admin-configurable V2 AI pill size.  Height
+        // applied unconditionally (default 64 dp from the XML, but
+        // can be tweaked).  Width applied only when explicitly set
+        // (>0) — leaves `wrap_content` otherwise so the pill still
+        // hugs its text.  When the admin uploads an image (below)
+        // and ALSO sets a width, the image gets the full big canvas.
+        val v2aiPill = binding.topbarBtnV2ai
+        try {
+            val densityScale = resources.displayMetrics.density
+            v2aiPill.updateLayoutParams<android.view.ViewGroup.LayoutParams> {
+                height = (v2ai.buttonHeightDp.coerceAtLeast(32) * densityScale).toInt()
+                width = if (v2ai.buttonWidthDp > 0) {
+                    (v2ai.buttonWidthDp * densityScale).toInt()
+                } else {
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                }
+            }
+            v2aiPill.requestLayout()
+        } catch (t: Throwable) {
+            android.util.Log.e("LayoutEditor", "V2 AI pill resize failed", t)
+        }
+
         // v2.8.40 — V2 AI pill image override.  When the admin
         // uploads an image, we make the ENTIRE pill that image
         // (not just swap the icon inside).  Steps:
@@ -811,7 +856,7 @@ class MainActivity : AppCompatActivity() {
         //   5. Add a smooth scale-up animation on focus so hovering
         //      the image "pops out" exactly like the user described
         val v2aiIconUrl = v2ai.buttonImageUrl
-        val pill = binding.topbarBtnV2ai
+        val pill = v2aiPill
         if (!v2aiIconUrl.isNullOrBlank()) {
             // Drop the pill background entirely — the image IS the pill now.
             pill.background = null
@@ -920,19 +965,33 @@ class MainActivity : AppCompatActivity() {
         // 3b. v1.6 — Per-element show/hide toggles for the featured
         //     panel.  Honour the admin's global "show" flag AND any
         //     content-driven hides (empty heading still hides itself).
-        //     Heading-as-image overrides the text heading when set.
+        //
+        //     v2.8.49 — Heading image + text are now INDEPENDENT.
+        //     `featured_heading_image_placement`:
+        //       "replace" → image replaces the text heading (legacy)
+        //       "above"   → image renders ABOVE the text heading
+        //       "below"   → image renders BELOW the text heading
+        //     Image position can be fine-tuned via the offset X/Y dp.
         try {
             val headingImageUrl = layout.featuredHeadingImageUrl?.trim().orEmpty()
             val useHeadingImage = headingImageUrl.isNotEmpty()
+            val placement = layout.featuredHeadingImagePlacement.trim().lowercase()
+                .ifEmpty { "replace" }
+
+            // IMAGE visibility — shown whenever there's an image URL
+            // AND the heading section is enabled.
             binding.featuredHeadingImage.visibility = when {
                 !layout.featuredShowHeading -> View.GONE
                 useHeadingImage             -> View.VISIBLE
                 else                        -> View.GONE
             }
+            // TEXT visibility — shown unless heading is hidden OR the
+            // admin chose "replace" mode (legacy behaviour).
             binding.featuredHeading.visibility = when {
-                !layout.featuredShowHeading -> View.GONE
-                useHeadingImage             -> View.GONE
-                else                        -> View.VISIBLE
+                !layout.featuredShowHeading                  -> View.GONE
+                useHeadingImage && placement == "replace"    -> View.GONE
+                binding.featuredHeading.text.isNullOrEmpty() -> View.GONE
+                else                                         -> View.VISIBLE
             }
             binding.featuredSubheading.visibility = when {
                 !layout.featuredShowSubheading -> View.GONE
@@ -944,16 +1003,46 @@ class MainActivity : AppCompatActivity() {
                 binding.featuredDescription.text.isNullOrEmpty() -> View.GONE
                 else                            -> View.VISIBLE
             }
-            // Resize and load the heading image.
+            // Resize, position and load the heading image.
             if (useHeadingImage) {
                 binding.featuredHeadingImage.updateLayoutParams<android.widget.LinearLayout.LayoutParams> {
                     height = dp(layout.featuredHeadingImageHeightDp)
+                }
+                // Position offsets — translation doesn't disturb the
+                // surrounding layout, so admins can nudge the image
+                // independently of the text heading.
+                binding.featuredHeadingImage.translationX =
+                    dp(layout.featuredHeadingImageOffsetXDp).toFloat()
+                binding.featuredHeadingImage.translationY =
+                    dp(layout.featuredHeadingImageOffsetYDp).toFloat()
+                // Re-order: when placement is "below", physically
+                // move the ImageView AFTER the text TextView inside
+                // the vertical LinearLayout container.  "above" and
+                // "replace" both want the image first (which is the
+                // XML default).  Idempotent — checks current order.
+                val container = binding.featuredHeadingImage.parent as? android.widget.LinearLayout
+                if (container != null) {
+                    val imgIdx  = container.indexOfChild(binding.featuredHeadingImage)
+                    val textIdx = container.indexOfChild(binding.featuredHeading)
+                    val wantImgAfter = placement == "below"
+                    if (wantImgAfter && imgIdx < textIdx) {
+                        container.removeView(binding.featuredHeadingImage)
+                        container.addView(binding.featuredHeadingImage, textIdx)
+                    } else if (!wantImgAfter && imgIdx > textIdx) {
+                        container.removeView(binding.featuredHeadingImage)
+                        container.addView(binding.featuredHeadingImage, textIdx)
+                    }
                 }
                 ImageLoader.load(
                     binding.featuredHeadingImage,
                     headingImageUrl,
                     R.drawable.ic_dock_tv,
                 )
+            } else {
+                // Reset any leftover offsets if the admin clears the
+                // image — keeps state clean across config polls.
+                binding.featuredHeadingImage.translationX = 0f
+                binding.featuredHeadingImage.translationY = 0f
             }
         } catch (t: Throwable) {
             android.util.Log.e("LayoutEditor", "visibility toggles failed", t)

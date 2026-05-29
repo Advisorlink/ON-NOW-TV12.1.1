@@ -218,6 +218,13 @@ class V2AIConfig(BaseModel):
     button_text_color: Optional[str] = None
     button_focus_bg_color: Optional[str] = None
     button_focus_text_color: Optional[str] = None
+    # v2.8.49 — V2 AI "hero" pill sizing.  Height is always applied;
+    # width is only applied when >0 (otherwise pill wraps its text).
+    # When the admin uploads a custom image, set `button_width_dp`
+    # to give the image a proper canvas (e.g. 200 dp wide → 64 dp
+    # tall image, plenty of space for a wordmark).
+    button_height_dp: int = 64
+    button_width_dp: int  = 0
 
 
 # v2.8.24 — QR-coded sharing videos.  Admin pastes a Google Drive /
@@ -307,12 +314,21 @@ class LayoutSettings(BaseModel):
     featured_show_heading: bool     = True
     featured_show_subheading: bool  = True
     featured_show_description: bool = True
-    # v1.6 — Heading-as-image.  When set, the launcher REPLACES the
-    # heading text with this image (useful for brand logos).  The
-    # image is rendered at the configured heading height so it
-    # composites cleanly with the rest of the panel.
+    # v1.6 — Heading-as-image.  When set, the launcher renders this
+    # image alongside (or in place of) the text heading.  The
+    # image is sized at `featured_heading_image_height_dp` and
+    # positioned by `featured_heading_image_placement`:
+    #   "replace" → image replaces the text heading (legacy)
+    #   "above"   → image renders ABOVE the text heading
+    #   "below"   → image renders BELOW the text heading
+    # Fine position tweaks: `featured_heading_image_offset_x_dp`
+    # and `_y_dp` translate the ImageView without disturbing the
+    # surrounding layout — handy for nudging a logo a few pixels.
     featured_heading_image_url: Optional[str] = None
     featured_heading_image_height_dp: int     = 80
+    featured_heading_image_placement: str     = "replace"
+    featured_heading_image_offset_x_dp: int   = 0
+    featured_heading_image_offset_y_dp: int   = 0
     # v1.8 — Group offset.  Lets the admin nudge the ENTIRE featured
     # panel (heading + subheading + description + CTA) as a single
     # block, horizontally or vertically, AFTER the per-element sizes
@@ -640,6 +656,8 @@ def _build_config(store: dict) -> LauncherConfig:
             button_text_color=(store.get("v2ai") or {}).get("button_text_color"),
             button_focus_bg_color=(store.get("v2ai") or {}).get("button_focus_bg_color"),
             button_focus_text_color=(store.get("v2ai") or {}).get("button_focus_text_color"),
+            button_height_dp=int((store.get("v2ai") or {}).get("button_height_dp", 64)),
+            button_width_dp=int((store.get("v2ai") or {}).get("button_width_dp", 0)),
         ),
         qr_videos=[
             QrVideo(
@@ -2527,6 +2545,10 @@ class V2AIConfigBody(BaseModel):
     button_text_color: Optional[str] = None
     button_focus_bg_color: Optional[str] = None
     button_focus_text_color: Optional[str] = None
+    # v2.8.49 — V2 AI hero-pill sizing.  None means "no change"; an
+    # integer updates the corresponding dimension on the launcher.
+    button_height_dp: Optional[int] = None
+    button_width_dp: Optional[int]  = None
 
 
 _ALLOWED_WAVEFORM_STYLES = {
@@ -2564,6 +2586,16 @@ def set_v2ai_config(body: V2AIConfigBody) -> dict:
         if v and not re.fullmatch(r"#[A-Fa-f0-9]{6,8}", v):
             raise HTTPException(400, f"{field} must be a hex color (#RRGGBB or #AARRGGBB)")
         v2ai[field] = v or None
+    # v2.8.49 — pill height / width updates.  Clamp into a sane
+    # range so a typo can't render the pill invisible.
+    if body.button_height_dp is not None:
+        if not (32 <= body.button_height_dp <= 200):
+            raise HTTPException(400, "button_height_dp must be between 32 and 200")
+        v2ai["button_height_dp"] = body.button_height_dp
+    if body.button_width_dp is not None:
+        if body.button_width_dp != 0 and not (60 <= body.button_width_dp <= 600):
+            raise HTTPException(400, "button_width_dp must be 0 (auto) or between 60 and 600")
+        v2ai["button_width_dp"] = body.button_width_dp
     _save_store(store)
     return {"ok": True, "v2ai": v2ai}
 

@@ -145,6 +145,9 @@ const LAYOUT_DEFAULTS = {
     featured_show_description: true,
     featured_heading_image_url: '',
     featured_heading_image_height_dp: 80,
+    featured_heading_image_placement: 'replace',
+    featured_heading_image_offset_x_dp: 0,
+    featured_heading_image_offset_y_dp: 0,
     // v1.8 — Group offset (nudge whole panel as one block).
     featured_group_offset_x_dp: 0,
     featured_group_offset_y_dp: 0,
@@ -188,6 +191,7 @@ const LAYOUT_INT_FIELDS = [
     'featured_description_letter_spacing', 'featured_button_letter_spacing',
     'featured_description_line_height_pct',
     'featured_heading_image_height_dp',
+    'featured_heading_image_offset_x_dp', 'featured_heading_image_offset_y_dp',
     // v1.8 — Group offset for the whole featured panel.
     'featured_group_offset_x_dp', 'featured_group_offset_y_dp',
 ];
@@ -198,6 +202,7 @@ const LAYOUT_STR_FIELDS = [
     'featured_description_font', 'featured_description_weight', 'featured_description_color',
     'featured_button_font', 'featured_button_weight', 'featured_button_text_color',
     'featured_heading_image_url',
+    'featured_heading_image_placement',
 ];
 const LAYOUT_BOOL_FIELDS = [
     'topbar_visible', 'featured_show_button',
@@ -1124,6 +1129,8 @@ function renderApks(store) {
     syncV2AIInputs(store);
     // v2.8.38 — Mirror V2 AI pill-specific color inputs.
     syncV2AIBtnColorInputs(store);
+    // v2.8.49 — Mirror V2 AI hero-pill size inputs.
+    syncV2AIBtnSizeInputs(store);
     if (!grid) return;
     if (!apks.length) {
         grid.innerHTML = '';
@@ -1564,6 +1571,55 @@ function syncV2AIBtnColorInputs(store) {
         } catch (err) { toast('Reset failed: ' + err.message, true); }
     });
 })();
+
+/* v2.8.49 — V2 AI hero-pill size editor (height + width).  Height
+ * applies always (default 64 dp); width 0 = wrap_content (default),
+ * otherwise pill is fixed at that width — important when the admin
+ * uploads a custom image so the image gets a proper hero canvas. */
+function syncV2AIBtnSizeInputs(store) {
+    const v2ai = (store && store.v2ai) || {};
+    const $h = document.getElementById('v2aiBtnHeightDp');
+    const $w = document.getElementById('v2aiBtnWidthDp');
+    if ($h) $h.value = Number.isInteger(v2ai.button_height_dp) ? v2ai.button_height_dp : 64;
+    if ($w) $w.value = Number.isInteger(v2ai.button_width_dp)  ? v2ai.button_width_dp  : 0;
+}
+
+(function setupV2AIBtnSizeEditor() {
+    const $save  = document.getElementById('v2aiBtnSizeSave');
+    const $reset = document.getElementById('v2aiBtnSizeReset');
+    if (!$save) return;
+    $save.addEventListener('click', async () => {
+        try {
+            const h = parseInt(document.getElementById('v2aiBtnHeightDp').value, 10);
+            const w = parseInt(document.getElementById('v2aiBtnWidthDp').value,  10);
+            if (!Number.isInteger(h) || h < 32 || h > 200) {
+                toast('Height must be 32–200 dp', true); return;
+            }
+            if (!Number.isInteger(w) || (w !== 0 && (w < 60 || w > 600))) {
+                toast('Width must be 0 (auto) or 60–600 dp', true); return;
+            }
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ button_height_dp: h, button_width_dp: w }),
+            });
+            toast('V2 AI pill size saved');
+            refreshAll();
+        } catch (err) { toast('Save failed: ' + err.message, true); }
+    });
+    if ($reset) $reset.addEventListener('click', async () => {
+        try {
+            await api('/api/admin/v2ai/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ button_height_dp: 64, button_width_dp: 0 }),
+            });
+            toast('V2 AI pill size reset (64 dp · auto)');
+            refreshAll();
+        } catch (err) { toast('Reset failed: ' + err.message, true); }
+    });
+})();
+
 
 /* v2.8.22 — Speed Test target APK package editor. */
 function syncSpeedTestTarget(store) {

@@ -87,10 +87,19 @@ data class LayoutSettings(
     val featuredShowDescription: Boolean = true,
     /* v1.6 — Heading replaced by an image (e.g. brand logo).
        When `featuredHeadingImageUrl` is null/blank the launcher
-       renders the heading TEXT as before; when set, the image is
-       shown in place of the text at `featuredHeadingImageHeightDp`. */
+       renders the heading TEXT as before; when set, behaviour is
+       controlled by `featuredHeadingImagePlacement`:
+         "replace" (default) → image replaces the text heading
+         "above"             → image renders ABOVE the text heading
+         "below"             → image renders BELOW the text heading
+       Image position can be fine-tuned via `featuredHeadingImage
+       OffsetXDp` / `OffsetYDp` (applied as `translationX/Y` on the
+       ImageView itself — does not affect surrounding layout). */
     val featuredHeadingImageUrl: String? = null,
     val featuredHeadingImageHeightDp: Int = 80,
+    val featuredHeadingImagePlacement: String = "replace",
+    val featuredHeadingImageOffsetXDp: Int = 0,
+    val featuredHeadingImageOffsetYDp: Int = 0,
     /* v1.8 — Group nudge.  Shifts the WHOLE featured panel as a
        single block via View.translationX / Y on the panel.  Does NOT
        affect the underlying layout measurement, so adjacent elements
@@ -171,6 +180,12 @@ data class V2AIConfig(
     val buttonTextColor: String?       = null,
     val buttonFocusBgColor: String?    = null,
     val buttonFocusTextColor: String?  = null,
+    /* v2.8.49 — V2 AI top-bar pill becomes a "hero" pill by default
+       (64 dp tall + colourful gradient).  Admin can resize via these
+       fields.  When an image is uploaded, the image is rendered at
+       FULL pill size — so a wider pill = a bigger admin image. */
+    val buttonHeightDp: Int            = 64,
+    val buttonWidthDp: Int             = 0,    // 0 = wrap_content; >0 = fixed width in dp
 )
 
 data class NotificationRemote(
@@ -304,6 +319,9 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             featuredShowDescription   = layoutObj.optBoolean("featured_show_description", def.featuredShowDescription),
             featuredHeadingImageUrl   = layoutObj.optStringOrNull("featured_heading_image_url"),
             featuredHeadingImageHeightDp = layoutObj.optInt("featured_heading_image_height_dp", def.featuredHeadingImageHeightDp),
+            featuredHeadingImagePlacement = layoutObj.optString("featured_heading_image_placement", def.featuredHeadingImagePlacement),
+            featuredHeadingImageOffsetXDp = layoutObj.optInt("featured_heading_image_offset_x_dp", def.featuredHeadingImageOffsetXDp),
+            featuredHeadingImageOffsetYDp = layoutObj.optInt("featured_heading_image_offset_y_dp", def.featuredHeadingImageOffsetYDp),
             featuredGroupOffsetXDp    = layoutObj.optInt("featured_group_offset_x_dp", def.featuredGroupOffsetXDp),
             featuredGroupOffsetYDp    = layoutObj.optInt("featured_group_offset_y_dp", def.featuredGroupOffsetYDp),
         )
@@ -334,6 +352,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
         buttonTextColor       = v2aiObj.optStringOrNull("button_text_color"),
         buttonFocusBgColor    = v2aiObj.optStringOrNull("button_focus_bg_color"),
         buttonFocusTextColor  = v2aiObj.optStringOrNull("button_focus_text_color"),
+        buttonHeightDp        = v2aiObj.optInt("button_height_dp", V2AIConfig().buttonHeightDp),
+        buttonWidthDp         = v2aiObj.optInt("button_width_dp", V2AIConfig().buttonWidthDp),
     )
     // v2.8.24 — QR videos (optional).
     val qrArr = root.optJSONArray("qr_videos") ?: JSONArray()

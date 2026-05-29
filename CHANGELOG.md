@@ -7,6 +7,54 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.49 — Launcher: hero V2 AI pill + independent header image controls
+
+  • **🌈 V2 AI button = HERO PILL by default.**  The little 44-dp
+    monochrome pill next to Speed Test is now a 64-dp tall,
+    148-dp wide button with a cyan→magenta→violet gradient
+    background, 26-dp icon, 18-sp bold "V2 AI" text, white drop
+    shadow.  It visually screams "use me" without any admin work.
+
+  • **🎛 Pill is fully resizable from the admin V2 AI tab.**  New
+    section: <strong>Top-bar pill size (v2.8.49 — hero pill)</strong>
+    - Height: 32–200 dp (default 64)
+    - Width: 0 (auto-fit to text) or 60–600 dp
+    When the admin uploads a custom image (existing feature), set
+    the width to e.g. 200 dp so the image renders at FULL hero
+    size — not a thumbnail.
+
+  • **🖼 Header image + text are now INDEPENDENT.**  The Layout
+    Editor's "Heading style" section gets 3 new controls:
+    - <strong>Image Placement</strong>: <code>Replace</code> /
+      <code>Above</code> / <code>Below</code> the text heading
+    - <strong>Image Offset X</strong>: ±400 dp (translationX,
+      doesn't affect surrounding layout)
+    - <strong>Image Offset Y</strong>: ±400 dp (translationY)
+    Old "Heading Image URL" + "Image Height" stay where they were
+    — the new fields just expand what you can do with them.
+
+  • **🛡 Back-compat**: default placement = <code>replace</code>,
+    matching the v2.8.43 behaviour (image replaces text).  Existing
+    setups keep working exactly as before until the admin changes
+    placement.
+
+  • **🧱 Files changed**:
+    - <code>android/onnowtv-launcher/app/src/main/res/drawable/bg_topbar_btn_v2ai.xml</code> (new gradient drawable)
+    - <code>android/onnowtv-launcher/app/src/main/res/layout/activity_main.xml</code> (pill defaults bumped)
+    - <code>android/onnowtv-launcher/app/src/main/java/.../MainActivity.kt</code> (placement + offsets + pill size)
+    - <code>android/onnowtv-launcher/app/src/main/java/.../data/LauncherConfig.kt</code> (5 new fields)
+    - <code>launcher-backend/main.py</code> (Pydantic models + admin endpoint validation)
+    - <code>launcher-backend/admin/index.html</code> (3 new layout inputs + V2 AI size section)
+    - <code>launcher-backend/admin/static/app.js</code> (sync + save handlers)
+
+  • **Deploy**: backend changes already synced to
+    <code>onnowtv.duckdns.org</code> + <code>systemctl restart
+    onnowtv-launcher.service</code>.  Admin can configure
+    placement/offsets/pill-size RIGHT NOW.  The new XML pill
+    defaults require the Launcher APK rebuild to land on boxes —
+    save to GitHub and let CI build.
+
+
 ## v2.8.48 — Tunes: client-side YouTube resolution (NewPipeExtractor, Tier 1)
 
   • **🎯 Architecture shift: full-length tracks now resolve on the

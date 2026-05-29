@@ -141,8 +141,17 @@
                         <input id="layout_featured_show_heading" type="checkbox">
                         <span>Show heading</span>
                     </label>
-                    <div class="span-2"><label>Heading image URL <small>(optional — when set, replaces the text heading with this image, perfect for brand logos)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
+                    <div class="span-2"><label>Heading image URL <small>(optional — brand logo / wordmark to show alongside or instead of the heading text)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
                     <div><label>Image height <small>(dp — only used when an image URL is set)</small></label><input id="layout_featured_heading_image_height_dp" type="number" min="20" max="280" step="2"></div>
+                    <div><label>Image placement <small>(where it sits relative to the heading text)</small></label>
+                        <select id="layout_featured_heading_image_placement" class="layout-select">
+                            <option value="replace">Replace heading text</option>
+                            <option value="above">Above heading text</option>
+                            <option value="below">Below heading text</option>
+                        </select>
+                    </div>
+                    <div><label>Image offset X <small>(dp — moves the image left/right without affecting other elements)</small></label><input id="layout_featured_heading_image_offset_x_dp" type="number" min="-400" max="400" step="2"></div>
+                    <div><label>Image offset Y <small>(dp — moves the image up/down without affecting other elements)</small></label><input id="layout_featured_heading_image_offset_y_dp" type="number" min="-400" max="400" step="2"></div>
                     <div><label>Font</label><select id="layout_featured_heading_font" class="layout-select layout-font-select"></select></div>
                     <div><label>Weight</label><select id="layout_featured_heading_weight" class="layout-select layout-weight-select"></select></div>
                     <div><label>Size <small>(sp)</small></label><input id="layout_featured_heading_size_sp" type="number" min="14" max="160" step="2"></div>
@@ -515,6 +524,26 @@
                 <button id="v2aiBtnColorsReset" type="button" class="apk-drop-link">Use shared colors</button>
             </div>
             <p class="appstore-colors-hint">Overrides the shared top-bar palette JUST for the V2 AI pill.  <em>Use shared colors</em> clears the override so the pill falls back to the App Store tab's top-bar palette.</p>
+        </div>
+
+        <!-- v2.8.49 — V2 AI top-bar pill SIZE.  Height applies always;
+             width 0 = wrap text (default); set a width when you upload
+             a custom image so the image gets a proper canvas. -->
+        <div class="appstore-colors-section">
+            <h3 class="appstore-colors-title">Top-bar pill size <small>(v2.8.49 — hero pill)</small></h3>
+            <div class="appstore-colors-row">
+                <label class="appstore-color-field" style="flex:1;">
+                    <span>Height <small>(dp · 32–200)</small></span>
+                    <input type="number" id="v2aiBtnHeightDp" min="32" max="200" step="2" value="64" style="background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px; min-width:90px;">
+                </label>
+                <label class="appstore-color-field" style="flex:1;">
+                    <span>Width <small>(dp · 0 = auto, else 60–600)</small></span>
+                    <input type="number" id="v2aiBtnWidthDp" min="0" max="600" step="2" value="0" style="background:#0a1424; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px; min-width:90px;">
+                </label>
+                <button id="v2aiBtnSizeSave" type="button" class="apk-drop-link" style="margin-left:auto;">Save size</button>
+                <button id="v2aiBtnSizeReset" type="button" class="apk-drop-link">Reset to default (64 · auto)</button>
+            </div>
+            <p class="appstore-colors-hint">Set <strong>Width</strong> to <code>0</code> for auto-sizing (pill hugs the "V2 AI" label).  When you upload a custom image above, bump the width to e.g. <code>200</code> so the image renders at the full hero size — not a thumbnail.</p>
         </div>
 
         <!-- V2 AI screen heading + waveform style. -->
