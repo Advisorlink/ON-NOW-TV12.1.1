@@ -34,11 +34,29 @@ android {
         }
     }
 
+    // Detect whether a real release keystore is available.  Used below
+    // to decide whether to wire the `release` build type to the real
+    // release signing config OR fall back to the debug signing
+    // config — without a fallback the AGP packaging task fails with
+    // "SigningConfig "release" is missing required property "storeFile"".
+    val releaseStoreFileProp = (project.findProperty("RELEASE_STORE_FILE") as String?)
+        ?: System.getenv("RELEASE_STORE_FILE")
+    val hasReleaseKeystore = releaseStoreFileProp != null && file(releaseStoreFileProp).exists()
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = signingConfigs.getByName("release")
+            // Only attach the real release config when its `storeFile`
+            // is actually populated.  CI builds without the keystore
+            // secret (e.g. PR forks, or this repo) automatically fall
+            // back to the debug signing config so packaging still
+            // succeeds and the user can sideload the APK.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         getByName("debug") {
             isMinifyEnabled = false
