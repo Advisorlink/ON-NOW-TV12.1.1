@@ -84,7 +84,10 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- LEFT slot: action pills (VPN + Speed Test). -->
+        <!-- LEFT slot: action pills.  v2.8.52 — Order is now
+             V2 AI (hero) → VPN → Speed Test so the hero pill grabs
+             attention first.  D-pad focus chain follows the same
+             left-to-right order. -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -93,10 +96,56 @@
             android:gravity="start|center_vertical"
             android:clipChildren="false">
 
+            <!-- v2.8.23 — V2 AI push-and-hold voice assistant.
+                 v2.8.49 — "Hero" pill — much bigger than the others by
+                 default (64 dp tall) with a multi-stop cyan→magenta→
+                 violet gradient, so it visually screams "use me".
+                 v2.8.52 — Moved to the FIRST position in the top bar.
+                 Admin can override height/width via the V2 AI tab. -->
+            <LinearLayout
+                android:id="@+id/topbar_btn_v2ai"
+                android:layout_width="wrap_content"
+                android:layout_height="64dp"
+                android:minWidth="148dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingHorizontal="26dp"
+                android:background="@drawable/bg_topbar_btn_v2ai"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:elevation="6dp"
+                android:nextFocusDown="@id/dock"
+                android:nextFocusRight="@id/topbar_btn_vpn">
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@drawable/ic_v2ai_sparkle"
+                    android:tint="#FFFFFFFF"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="18sp"
+                    android:letterSpacing="0.16"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:shadowColor="#A6000814"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="6"
+                    android:text="V2 AI" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/topbar_btn_vpn"
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
+                android:layout_marginStart="14dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="18dp"
@@ -105,6 +154,7 @@
                 android:focusableInTouchMode="false"
                 android:clickable="true"
                 android:nextFocusDown="@id/dock"
+                android:nextFocusLeft="@id/topbar_btn_v2ai"
                 android:nextFocusRight="@id/topbar_btn_speed">
 
                 <ImageView
@@ -148,8 +198,7 @@
                 android:focusableInTouchMode="false"
                 android:clickable="true"
                 android:nextFocusDown="@id/dock"
-                android:nextFocusLeft="@id/topbar_btn_vpn"
-                android:nextFocusRight="@id/topbar_btn_v2ai">
+                android:nextFocusLeft="@id/topbar_btn_vpn">
 
                 <ImageView
                     android:layout_width="18dp"
@@ -167,51 +216,6 @@
                     android:letterSpacing="0.06"
                     android:fontFamily="sans-serif-medium"
                     android:text="Speed Test" />
-            </LinearLayout>
-
-            <!-- v2.8.23 — V2 AI push-and-hold voice assistant.
-                 v2.8.49 — "Hero" pill — much bigger than the others by
-                 default (64 dp tall) with a multi-stop cyan→magenta→
-                 violet gradient, so it visually screams "use me".
-                 Admin can override height/width via the V2 AI tab. -->
-            <LinearLayout
-                android:id="@+id/topbar_btn_v2ai"
-                android:layout_width="wrap_content"
-                android:layout_height="64dp"
-                android:layout_marginStart="14dp"
-                android:minWidth="148dp"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:paddingHorizontal="26dp"
-                android:background="@drawable/bg_topbar_btn_v2ai"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:clickable="true"
-                android:elevation="6dp"
-                android:nextFocusDown="@id/dock"
-                android:nextFocusLeft="@id/topbar_btn_speed">
-
-                <ImageView
-                    android:layout_width="26dp"
-                    android:layout_height="26dp"
-                    android:src="@drawable/ic_v2ai_sparkle"
-                    android:tint="#FFFFFFFF"
-                    android:contentDescription="@null" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="18sp"
-                    android:letterSpacing="0.16"
-                    android:fontFamily="sans-serif-medium"
-                    android:textStyle="bold"
-                    android:shadowColor="#A6000814"
-                    android:shadowDx="0"
-                    android:shadowDy="2"
-                    android:shadowRadius="6"
-                    android:text="V2 AI" />
             </LinearLayout>
         </LinearLayout>
 
