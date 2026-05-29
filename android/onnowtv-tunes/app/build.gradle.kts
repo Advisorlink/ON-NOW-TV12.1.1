@@ -66,6 +66,15 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // v2.8.50 — Core library desugaring backports modern
+        // java.{net,nio,util,time,...} APIs to older Android
+        // versions.  Required because NewPipeExtractor (and a
+        // bunch of its transitive deps — Rhino, NanoJson) call
+        // `URLEncoder.encode(String, Charset)` which was added in
+        // Android 13 / API 33.  Without desugaring the resolver
+        // crashes on Android 9-12 with `NoSuchMethodError` (which
+        // is exactly what was happening on the user's HK1 box).
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { viewBinding = true; buildConfig = true }
@@ -97,4 +106,10 @@ dependencies {
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.8")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
+    // v2.8.50 — Backports `URLEncoder.encode(String, Charset)` and
+    // friends to API 23 so NewPipeExtractor runs on Android 9-12.
+    // Must be paired with `isCoreLibraryDesugaringEnabled = true`
+    // in `compileOptions` above.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
