@@ -74,11 +74,52 @@ class PlayerEngine {
         const finalIdx = idx >= 0 ? idx : 0;
         this.update({
             kind: 'track',
-            current: track,
+            current: { ...track, _resolving: true, _isFullTrack: false },
             queue: newQueue,
             queueIndex: finalIdx,
         });
-        this._setSource(track.preview_url);
+        // v2.8.47 — Try resolving the full-track URL via the backend.
+        // If a full track is found we swap to it; otherwise we play
+        // the 30-second Deezer preview as a graceful fallback.
+        this._loadTrackStream(track);
+    }
+    async _loadTrackStream(track) {
+        const artist = track.artist?.name || '';
+        const title  = track.title || '';
+        const base = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
+        const url  = `${base}/api/music/stream/${encodeURIComponent(track.id)}`
+            + `?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
+        let resolved = null;
+        try {
+            const r = await fetch(url);
+            if (r.ok) resolved = (await r.json()).data || null;
+        } catch (e) { /* fall back to preview below */ }
+
+        // Confirm the user hasn't navigated away
+        if (!this.state.current || this.state.current.id !== track.id) return;
+
+        if (resolved?.stream_url) {
+            this.update({
+                current: {
+                    ...track,
+                    _resolving: false,
+                    _isFullTrack: !!resolved.is_full_track,
+                    _streamSource: resolved.source,
+                },
+            });
+            this._setSource(resolved.stream_url);
+        } else {
+            // Fall back to the 30-s preview Deezer already gave us.
+            this.update({
+                current: {
+                    ...track,
+                    _resolving: false,
+                    _isFullTrack: false,
+                    _streamSource: 'preview',
+                },
+            });
+            this._setSource(track.preview_url);
+        }
     }
     playRadio(station) {
         if (!station) return;
@@ -133,8 +174,11 @@ class PlayerEngine {
             return;
         }
         const nxt = queue[ni];
-        this.update({ current: nxt, queueIndex: ni });
-        this._setSource(nxt.preview_url);
+        this.update({
+            current: { ...nxt, _resolving: true, _isFullTrack: false },
+            queueIndex: ni,
+        });
+        this._loadTrackStream(nxt);
     }
     previous() {
         const { queue, queueIndex, kind } = this.state;
@@ -144,8 +188,11 @@ class PlayerEngine {
         }
         const ni = queueIndex - 1;
         const prev = queue[ni];
-        this.update({ current: prev, queueIndex: ni });
-        this._setSource(prev.preview_url);
+        this.update({
+            current: { ...prev, _resolving: true, _isFullTrack: false },
+            queueIndex: ni,
+        });
+        this._loadTrackStream(prev);
     }
     seek(seconds) {
         if (!this.audio) return;

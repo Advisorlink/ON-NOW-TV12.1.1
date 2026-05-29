@@ -41,7 +41,51 @@ export function MiniPlayer() {
                         <div className="tunes-mini__art" />
                     )}
                     <div className="tunes-mini__text">
-                        <p className="tunes-mini__title">{t.title}</p>
+                        <p className="tunes-mini__title">
+                            {t.title}
+                            {state.kind === 'track' && t._isFullTrack && (
+                                <span style={{
+                                    marginLeft: 10,
+                                    padding: '3px 8px',
+                                    background: 'linear-gradient(135deg, #10b981, #34d399)',
+                                    color: '#fff',
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    verticalAlign: 'middle',
+                                }}>Full track</span>
+                            )}
+                            {state.kind === 'track' && t._streamSource === 'preview' && !t._resolving && (
+                                <span style={{
+                                    marginLeft: 10,
+                                    padding: '3px 8px',
+                                    background: 'rgba(255,255,255,0.12)',
+                                    color: 'rgba(255,255,255,0.7)',
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    verticalAlign: 'middle',
+                                }}>30s preview</span>
+                            )}
+                            {t._resolving && (
+                                <span style={{
+                                    marginLeft: 10,
+                                    padding: '3px 8px',
+                                    background: 'rgba(255,45,127,0.18)',
+                                    color: 'var(--tunes-accent-3)',
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    letterSpacing: '0.05em',
+                                    textTransform: 'uppercase',
+                                    verticalAlign: 'middle',
+                                }}>Loading…</span>
+                            )}
+                        </p>
                         <p className="tunes-mini__subtitle">
                             {state.kind === 'track'   ? (t.artist?.name || '') :
                              state.kind === 'radio'   ? `LIVE · ${t.subtitle || ''}` :

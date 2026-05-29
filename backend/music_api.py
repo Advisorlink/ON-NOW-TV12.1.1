@@ -651,6 +651,313 @@ async def podcast_episodes(feed_url: str = Query(...)):
 
 
 # ════════════════════════════════════════════════════════════════════
+#  JioSaavn full-track resolver
+# ════════════════════════════════════════════════════════════════════
+#
+# JioSaavn (https://www.jiosaavn.com) is a major Indian streaming
+# service with a massive **mainstream catalog** — Adele, Taylor
+# Swift, Drake, Bad Bunny, Coldplay, etc. — and a public API that
+# returns DES-encrypted CDN URLs.  Decryption uses the well-known
+# fixed key `38346591` in DES-ECB + PKCS5 padding.  The decrypted
+# URL is in `_96.mp4` form; we upgrade to `_320.mp4` for HQ audio
+# (m4a / AAC, ~8 MB per song).
+#
+# Bytes stream direct from `saavncdn.com` to the client — our VPS
+# only resolves the URL.  No bandwidth burden, no proxy.
+
+_SAAVN_KEY = b"38346591"
+
+
+def _saavn_decrypt(emu: str) -> Optional[str]:
+    """DES-ECB decrypt a JioSaavn encrypted_media_url to a playable URL."""
+    try:
+        import base64
+        from Crypto.Cipher import DES  # pycryptodome
+    except ImportError:
+        return None
+    try:
+        raw = base64.b64decode(emu)
+        if len(raw) % 8:
+            return None
+        cipher = DES.new(_SAAVN_KEY, DES.MODE_ECB)
+        plain = cipher.decrypt(raw)
+        # PKCS5 unpad if the last byte looks like padding
+        p = plain[-1]
+        if 0 < p <= 8 and plain.endswith(bytes([p]) * p):
+            plain = plain[:-p]
+        return plain.decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _jiosaavn_resolve(artist: str, title: str) -> Optional[Dict[str, Any]]:
+    """Search JioSaavn for the track and return a streamable URL."""
+    q = f"{artist} {title}".strip()
+    if not q:
+        return None
+    params = {
+        "p": "1",
+        "q": q,
+        "_format": "json",
+        "_marker": "0",
+        "api_version": "4",
+        "ctx": "web6dot0",
+        "__call": "search.getResults",
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Referer": "https://www.jiosaavn.com/",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://www.jiosaavn.com/api.php",
+                params=params,
+                headers=headers,
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("JioSaavn search failed: %s", exc)
+        return None
+
+    results = (data.get("results") or [])
+    if not results:
+        return None
+
+    # Pick the best match: prefer hits with the artist name in the
+    # "primary_artists" field AND a clean title (no Nightcore/Karaoke
+    # /Tribute/Cover variants).  JioSaavn ranks by popularity but
+    # remix/karaoke uploads sometimes outrank the original on
+    # less-popular tracks.
+    BAD_VARIANT_TAGS = (
+        "nightcore", "karaoke", "instrumental", "tribute",
+        "originally performed by", "originally perfomed by",
+        "in the style of", "made famous by", "tributo a",
+        "lo-fi", "lofi", "8d audio", "slowed", "reverb",
+        "tribute version", "melody karaoke", "remix",
+        "(cover)", " cover)", "cover version",
+        "acoustic version", "acapella",
+    )
+    artist_l = (artist or "").lower().strip()
+    title_l  = (title  or "").lower().strip()
+
+    chosen = None
+    for r in results[:15]:
+        mi = r.get("more_info") or {}
+        # JioSaavn primary artists live under `more_info.artistMap.primary_artists[].name`
+        # NOT under `more_info.primary_artists` (which is often empty).
+        am = mi.get("artistMap") or {}
+        pa_list = am.get("primary_artists") or []
+        pa_l = " ".join(
+            str(a.get("name") or "").lower() for a in pa_list
+        ) if isinstance(pa_list, list) else ""
+        # Also check the `subtitle` field — JioSaavn sometimes
+        # includes the artist there as a free-form string.
+        sub_l = (r.get("subtitle") or "").lower()
+        r_title = (r.get("title") or "").lower()
+
+        # Reject variant uploads.
+        if any(tag in r_title for tag in BAD_VARIANT_TAGS):
+            continue
+        if any(tag in sub_l for tag in BAD_VARIANT_TAGS):
+            continue
+
+        artist_ok = (not artist_l) or any(
+            (w in pa_l or w in sub_l)
+            for w in artist_l.split() if len(w) > 2
+        )
+        title_ok = (not title_l) or all(
+            w in r_title for w in title_l.split() if len(w) > 2
+        )
+        if artist_ok and title_ok:
+            chosen = r
+            break
+
+    # No clean variant matched — bail to preview (better to play 30 s
+    # of the real song than 4 min of a Karaoke version).
+    if chosen is None:
+        return None
+
+    mi = chosen.get("more_info") or {}
+    emu = mi.get("encrypted_media_url")
+    if not emu:
+        return None
+
+    url96 = _saavn_decrypt(emu)
+    if not url96 or "saavncdn" not in url96:
+        return None
+    # Upgrade default _96.mp4 → _320.mp4 for HQ streaming.
+    url320 = url96.replace("_96.mp4", "_320.mp4")
+
+    # Pull artist + image from the canonical artistMap field.
+    am = mi.get("artistMap") or {}
+    pa_list = am.get("primary_artists") or []
+    if isinstance(pa_list, list) and pa_list:
+        primary_artist = ", ".join(
+            str(a.get("name") or "") for a in pa_list if a.get("name")
+        )
+    else:
+        primary_artist = chosen.get("subtitle") or ""
+
+    return {
+        "url": url320,
+        "duration": int(mi.get("duration") or 0) or None,
+        "title": chosen.get("title"),
+        "primary_artist": primary_artist,
+        "image": chosen.get("image"),
+    }
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Full-track stream resolver
+# ════════════════════════════════════════════════════════════════════
+#
+# Honest landscape — 2026 reality check:
+#
+#   • YouTube blocks unauthenticated requests from datacenter IPs
+#     with "Sign in to confirm you're not a bot."  This affects
+#     yt-dlp, Piped, Invidious — every YouTube-derived service.
+#     The only reliable workaround needs a Google account cookie
+#     refreshed periodically.  Out of scope for an unattended VPS.
+#
+#   • JioSaavn (massive mainstream catalog) requires session
+#     cookies bound to a real browser session — their auth-token
+#     endpoint returns False for headless requests.
+#
+#   • Cobalt v10 now requires JWT keys (rate-limit defence).
+#
+# What DOES work reliably without auth + from any IP:
+#
+#   • **Audius** — decentralized music network with an official
+#     public API.  Lots of indie / covers / remixes / electronic.
+#     Less mainstream chart-music than YouTube but the bytes
+#     stream cleanly with no friction.
+#
+# Strategy: try Audius first; if no hit, the client falls back to
+# Deezer's 30-second preview URL it already received.  We return
+# `source: "audius"` on hit, `source: "preview"` when we have
+# nothing (signals the client to use its preview_url instead).
+@music_api.get("/stream/{track_id}")
+async def music_stream(
+    track_id: str,
+    artist: str = Query(..., min_length=1, max_length=200),
+    title: str = Query(..., min_length=1, max_length=200),
+):
+    norm = f"{artist.strip().lower()}|{title.strip().lower()}"
+    cache_key = f"music:stream:v3:{norm}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    # Resolve via JioSaavn FIRST (the catalog has all mainstream
+    # music — Adele, Taylor Swift, Drake, etc. — at 320kbps m4a,
+    # streamed direct from saavncdn.com with no auth required).
+    jiosaavn_url = await _jiosaavn_resolve(artist, title)
+    if jiosaavn_url:
+        result = {
+            "stream_url": jiosaavn_url["url"],
+            "duration": jiosaavn_url.get("duration"),
+            "title": jiosaavn_url.get("title"),
+            "uploader": jiosaavn_url.get("primary_artist"),
+            "artwork": jiosaavn_url.get("image"),
+            "source": "jiosaavn",
+            "is_full_track": True,
+        }
+        await cache.set(cache_key, result, ttl_seconds=4 * 3600)
+        return {"cached": False, "data": result}
+
+    # Fallback: Audius (decentralised, mostly indie/remix catalog).
+    audius_host = "https://api.audius.co"
+    search_q = f"{artist} {title}"
+
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+        try:
+            r = await client.get(
+                f"{audius_host}/v1/tracks/search",
+                params={"query": search_q, "app_name": "ONNOWTUNES"},
+            )
+            r.raise_for_status()
+            results = (r.json() or {}).get("data") or []
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Audius search failed: %s", exc)
+            results = []
+
+    if results:
+        # Quality gate: Audius hosts a lot of covers / remixes /
+        # bootleg uploads.  We only present a result as a "Full
+        # track" if it looks like the OFFICIAL version (artist name
+        # matches the uploader and the title isn't tagged as a
+        # cover/remix/etc.).  Otherwise we fall through to the
+        # preview-only response so the user doesn't get tricked
+        # into thinking they're hearing the real Adele.
+        BLOCKED_TAGS = ("cover", "remix", "freestyle", "bootleg",
+                        "mashup", "karaoke", "instrumental", "tribute",
+                        "(lyrics)", "(visualizer)", "type beat")
+        artist_l = artist.strip().lower()
+        title_l = title.strip().lower()
+
+        official = None
+        for t in results[:20]:
+            t_title = (t.get("title") or "").lower()
+            t_user  = ((t.get("user") or {}).get("name") or "").lower()
+            t_verified = bool((t.get("user") or {}).get("is_verified"))
+            # Reject obvious covers/remixes
+            if any(tag in t_title for tag in BLOCKED_TAGS):
+                continue
+            # Title must contain (most of) the requested track title
+            # — single-word search terms are too noisy.
+            title_match = title_l in t_title or all(
+                w in t_title for w in title_l.split() if len(w) > 2
+            )
+            if not title_match:
+                continue
+            # Bonus: uploader name should somehow relate to the
+            # requested artist.  Be lenient — strict equality is too
+            # restrictive (cdg/CDG label uploads, etc.).
+            artist_match = (
+                t_verified
+                or artist_l in t_user
+                or t_user in artist_l
+                or any(w in t_user for w in artist_l.split() if len(w) > 2)
+            )
+            if artist_match:
+                official = t
+                break
+
+        if official:
+            result = {
+                "stream_url": (
+                    f"{audius_host}/v1/tracks/{official['id']}/stream"
+                    f"?app_name=ONNOWTUNES"
+                ),
+                "duration": official.get("duration"),
+                "title": official.get("title"),
+                "uploader": (official.get("user") or {}).get("name"),
+                "artwork": (official.get("artwork") or {}).get("480x480"),
+                "source": "audius",
+                "is_full_track": True,
+            }
+            await cache.set(cache_key, result, ttl_seconds=4 * 3600)
+            return {"cached": False, "data": result}
+
+    # No Audius hit — explicit signal so the client falls back to
+    # its already-loaded 30-second preview.  Cache briefly so we
+    # don't hammer Audius for known-bad queries.
+    result = {
+        "stream_url": None,
+        "source": "preview",
+        "is_full_track": False,
+        "reason": "no full-track match found on free sources",
+    }
+    await cache.set(cache_key, result, ttl_seconds=15 * 60)
+    return {"cached": False, "data": result}
+
+
+# ════════════════════════════════════════════════════════════════════
 #  Health
 # ════════════════════════════════════════════════════════════════════
 @music_api.get("/ping")
