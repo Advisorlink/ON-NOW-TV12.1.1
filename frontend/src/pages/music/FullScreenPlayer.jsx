@@ -113,11 +113,43 @@ export function FullScreenPlayer({ onClose }) {
                 <div className="tunes-fullplayer__art" style={{
                     animation: state.isPlaying && state.kind === 'track' ? 'tunes-spin 24s linear infinite' : 'none',
                 }}>
-                    {t.artwork ? (
-                        <img src={t.artwork} alt={t.title} />
-                    ) : (
-                        <div style={{ width: '100%', height: '100%' }} />
-                    )}
+                    {/* v2.8.56 — Album-art resolution chain:
+                          1. Deezer / Radio Browser / RSS artwork  (`t.artwork`)
+                          2. YouTube thumbnail (`i.ytimg.com`) when we have
+                             a yt_id from the resolver — covers the
+                             youtube-direct + youtube-iframe paths so the
+                             spinner never sits empty when a real song
+                             is playing.
+                          3. Gradient-disc placeholder (CSS-only — kicks
+                             in via the .tunes-fullplayer__art `::before`
+                             / `::after` vinyl effect). */}
+                    {(() => {
+                        const yt = t._ytId || t.yt_id;
+                        // Prefer maxres → mqdefault as a graceful fall;
+                        // maxresdefault returns 404 for some videos so
+                        // we set `onError` to step the URL down.
+                        const ytArt = yt
+                            ? `https://i.ytimg.com/vi/${yt}/maxresdefault.jpg`
+                            : null;
+                        const src = t.artwork || ytArt;
+                        if (!src) return null;
+                        return (
+                            <img
+                                src={src}
+                                alt={t.title || ''}
+                                onError={(e) => {
+                                    const img = e.currentTarget;
+                                    if (yt && img.src.includes('maxresdefault')) {
+                                        img.src = `https://i.ytimg.com/vi/${yt}/hqdefault.jpg`;
+                                    } else if (yt && img.src.includes('hqdefault')) {
+                                        img.src = `https://i.ytimg.com/vi/${yt}/mqdefault.jpg`;
+                                    } else {
+                                        img.style.display = 'none';
+                                    }
+                                }}
+                            />
+                        );
+                    })()}
                 </div>
                 <div className="tunes-fullplayer__meta">
                     <p className="tunes-fullplayer__eyebrow">

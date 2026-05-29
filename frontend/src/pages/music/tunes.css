@@ -2,9 +2,14 @@
    ============================================================
    Distinct identity from Vesper: deep-cosmic gradient with
    electric pink accent.  Self-scoped under .tunes-root so it
-   never bleeds into the Vesper movie/TV UI. */
+   never bleeds into the Vesper movie/TV UI.
+
+   v2.8.56 — Theme support.  `.tunes-root[data-theme="electric-blue"]`
+   switches the entire palette to "ON NOW Electric Blue" without
+   touching any other code.  Toggle persists in localStorage. */
 
 .tunes-root {
+    /* Pink theme (default) — keeps the "music = passion" identity */
     --tunes-bg-0: #0a0118;
     --tunes-bg-1: #160329;
     --tunes-bg-2: #2a0945;
@@ -19,17 +24,37 @@
     --tunes-text-dim:  rgba(255,255,255,0.65);
     --tunes-text-faint:rgba(255,255,255,0.35);
     --tunes-focus:     #ff2d7f;
+    /* Pre-computed rgb tuple so we can use rgba(var(--tunes-accent-rgb), x).
+       Each theme overrides this with its own accent rgb. */
+    --tunes-accent-rgb: 255, 45, 127;
     --tunes-mini-h:    96px;
+    --tunes-ease:      cubic-bezier(0.22, 1, 0.36, 1);
 
     min-height: 100vh;
     color: var(--tunes-text);
     background:
-        radial-gradient(1200px 800px at 80% -10%, rgba(255,45,127,0.15), transparent 60%),
+        radial-gradient(1200px 800px at 80% -10%, rgba(var(--tunes-accent-rgb),0.15), transparent 60%),
         radial-gradient(900px 600px at 10% 110%, rgba(6,182,212,0.10), transparent 55%),
         linear-gradient(180deg, var(--tunes-bg-0) 0%, var(--tunes-bg-1) 60%, var(--tunes-bg-2) 100%);
     background-attachment: fixed;
     font-family: -apple-system, "Segoe UI", "SF Pro Display", system-ui, sans-serif;
     letter-spacing: 0.01em;
+}
+
+/* v2.8.56 — Electric Blue theme.  "ON NOW" brand variant.
+   Same structure as pink; just shifts the hot colour to a
+   premium signal-blue and tints the cosmic backdrop to match. */
+.tunes-root[data-theme="electric-blue"] {
+    --tunes-bg-0: #02060f;
+    --tunes-bg-1: #051a32;
+    --tunes-bg-2: #082a55;
+    --tunes-accent:    #00b3ff;        /* electric blue */
+    --tunes-accent-2:  #66d4ff;
+    --tunes-accent-3:  #cfeeff;
+    --tunes-radio:     #06b6d4;        /* tonal sibling — same vibe */
+    --tunes-podcast:   #f97316;
+    --tunes-focus:     #00b3ff;
+    --tunes-accent-rgb: 0, 179, 255;
 }
 
 .tunes-root *,
@@ -74,7 +99,7 @@
     background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-radio));
     display: grid;
     place-items: center;
-    box-shadow: 0 6px 18px rgba(255,45,127,0.45);
+    box-shadow: 0 6px 18px rgba(var(--tunes-accent-rgb),0.45);
 }
 .tunes-nav__title {
     font-size: 20px;
@@ -110,21 +135,66 @@
 .tunes-nav__item:focus-visible,
 .tunes-nav__item[data-focused="true"] {
     outline: none;
-    background: linear-gradient(135deg, rgba(255,45,127,0.28), rgba(255,45,127,0.08));
+    background: linear-gradient(135deg, rgba(var(--tunes-accent-rgb),0.28), rgba(var(--tunes-accent-rgb),0.08));
     color: #fff;
     border-color: var(--tunes-accent);
     transform: translateX(4px);
-    box-shadow: 0 0 0 4px rgba(255,45,127,0.22), 0 10px 24px rgba(255,45,127,0.32);
+    box-shadow: 0 0 0 4px rgba(var(--tunes-accent-rgb),0.22), 0 10px 24px rgba(var(--tunes-accent-rgb),0.32);
 }
 .tunes-nav__item--active {
-    background: linear-gradient(135deg, rgba(255,45,127,0.22), rgba(255,45,127,0.06));
-    border-color: rgba(255,45,127,0.35);
-    box-shadow: 0 4px 18px rgba(255,45,127,0.18);
+    background: linear-gradient(135deg, rgba(var(--tunes-accent-rgb),0.22), rgba(var(--tunes-accent-rgb),0.06));
+    border-color: rgba(var(--tunes-accent-rgb),0.35);
+    box-shadow: 0 4px 18px rgba(var(--tunes-accent-rgb),0.18);
 }
 .tunes-nav__item svg {
     width: 26px;
     height: 26px;
     flex-shrink: 0;
+}
+
+/* v2.8.56 — Theme toggle pill at the bottom of the nav. */
+.tunes-nav__theme {
+    margin-top: auto;
+    padding-top: 14px;
+}
+.tunes-nav__theme-row {
+    display: flex;
+    gap: 6px;
+    background: var(--tunes-glass-bg);
+    border: 1px solid var(--tunes-glass-border);
+    border-radius: 14px;
+    padding: 4px;
+}
+.tunes-nav__theme-btn {
+    flex: 1;
+    padding: 9px 6px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--tunes-text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.22s var(--tunes-ease), color 0.22s var(--tunes-ease), transform 0.22s var(--tunes-ease);
+}
+.tunes-nav__theme-btn:hover {
+    color: var(--tunes-text);
+    background: rgba(255,255,255,0.04);
+}
+.tunes-nav__theme-btn[data-active="true"] {
+    color: #fff;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb),0.55));
+    box-shadow: 0 6px 14px rgba(var(--tunes-accent-rgb),0.35);
+}
+.tunes-nav__theme-btn:focus-visible,
+.tunes-nav__theme-btn[data-focused="true"] {
+    outline: none;
+    color: #fff;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb),0.4));
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.32), 0 8px 18px rgba(var(--tunes-accent-rgb),0.42);
 }
 .tunes-nav__section {
     margin-top: 24px;
@@ -177,7 +247,7 @@
 .tunes-search-input:focus {
     border-color: var(--tunes-accent);
     background: rgba(255,255,255,0.08);
-    box-shadow: 0 0 0 4px rgba(255,45,127,0.15);
+    box-shadow: 0 0 0 4px rgba(var(--tunes-accent-rgb),0.15);
 }
 .tunes-search-input::placeholder { color: var(--tunes-text-faint); }
 .tunes-search-icon {
@@ -208,12 +278,21 @@
 .tunes-shelf__rail {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(220px, 1fr);
-    gap: 22px;
+    /* v2.8.56 — Tighter tiles (180 px instead of 220 fluid) so we
+       show 5-6 cards per row on a 1080p TV instead of 3-4 oversized
+       ones.  Also stops the rightmost tile from stretching to fill
+       leftover space at the end of a short rail. */
+    grid-auto-columns: 180px;
+    gap: 18px;
     overflow-x: auto;
     overflow-y: hidden;
+    /* Native momentum scrolling on iOS / WebView + smooth scroll
+       when the focus engine calls scrollIntoView. */
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
     scroll-snap-type: x mandatory;
-    padding: 8px 4px 14px;
+    scroll-padding-inline: 60px;   /* keep focused card off the edge */
+    padding: 10px 4px 18px;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.2) transparent;
 }
@@ -227,17 +306,25 @@
 .tunes-card {
     scroll-snap-align: start;
     background: var(--tunes-glass-bg);
-    border-radius: 16px;
+    border-radius: 14px;
     overflow: hidden;
     cursor: pointer;
     border: 3px solid transparent;
-    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+    /* v2.8.56 — Snappier easing.  cubic-bezier(0.22, 1, 0.36, 1) is
+       the same "ease-out-quart" curve Apple uses for tvOS focus
+       transitions — pops fast, settles smooth. */
+    transition:
+        transform 0.22s var(--tunes-ease),
+        border-color 0.22s var(--tunes-ease),
+        box-shadow 0.22s var(--tunes-ease),
+        background 0.22s var(--tunes-ease);
     display: flex;
     flex-direction: column;
+    will-change: transform;
 }
 .tunes-card:hover {
     transform: translateY(-4px) scale(1.02);
-    border-color: rgba(255,45,127,0.4);
+    border-color: rgba(var(--tunes-accent-rgb),0.4);
     box-shadow: 0 18px 38px rgba(0,0,0,0.45);
 }
 .tunes-card:focus-visible,
@@ -246,7 +333,7 @@
     transform: translateY(-6px) scale(1.06);
     border-color: var(--tunes-accent);
     box-shadow:
-        0 0 0 4px rgba(255,45,127,0.28),
+        0 0 0 4px rgba(var(--tunes-accent-rgb),0.28),
         0 22px 48px rgba(0,0,0,0.55),
         0 0 0 1px rgba(255,255,255,0.18);
 }
@@ -267,7 +354,7 @@
     min-height: 70px;
 }
 .tunes-card__title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     margin: 0 0 3px;
     overflow: hidden;
@@ -275,7 +362,7 @@
     white-space: nowrap;
 }
 .tunes-card__subtitle {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--tunes-text-dim);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -303,14 +390,14 @@
 .tunes-track-row--playing {
     background: rgba(255,255,255,0.06);
 }
-.tunes-track-row--playing { border-color: rgba(255,45,127,0.55); }
+.tunes-track-row--playing { border-color: rgba(var(--tunes-accent-rgb),0.55); }
 .tunes-track-row:focus-visible,
 .tunes-track-row[data-focused="true"] {
     outline: none;
-    background: rgba(255,45,127,0.10);
+    background: rgba(var(--tunes-accent-rgb),0.10);
     border-color: var(--tunes-accent);
     transform: translateX(6px);
-    box-shadow: 0 0 0 3px rgba(255,45,127,0.22);
+    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.22);
 }
 .tunes-track-row__num {
     text-align: right;
@@ -421,24 +508,24 @@
 .tunes-iconbtn:focus-visible,
 .tunes-iconbtn[data-focused="true"] {
     outline: none;
-    background: rgba(255,45,127,0.18);
+    background: rgba(var(--tunes-accent-rgb),0.18);
     color: #fff;
     border-color: var(--tunes-accent);
     transform: scale(1.08);
-    box-shadow: 0 0 0 3px rgba(255,45,127,0.28);
+    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.28);
 }
 .tunes-iconbtn--play {
     width: 58px;
     height: 58px;
     background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
     color: #fff;
-    box-shadow: 0 6px 24px rgba(255,45,127,0.4);
+    box-shadow: 0 6px 24px rgba(var(--tunes-accent-rgb),0.4);
 }
 .tunes-iconbtn--play:hover,
 .tunes-iconbtn--play:focus-visible,
 .tunes-iconbtn--play[data-focused="true"] {
     transform: scale(1.1);
-    box-shadow: 0 10px 30px rgba(255,45,127,0.6), 0 0 0 4px rgba(255,45,127,0.35);
+    box-shadow: 0 10px 30px rgba(var(--tunes-accent-rgb),0.6), 0 0 0 4px rgba(var(--tunes-accent-rgb),0.35);
 }
 .tunes-mini__scrubber {
     display: flex;
@@ -484,8 +571,8 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 24px;
     background:
-        radial-gradient(700px 400px at 90% 0%, rgba(255,45,127,0.35), transparent 60%),
-        linear-gradient(135deg, rgba(106,33,222,0.25), rgba(255,45,127,0.15));
+        radial-gradient(700px 400px at 90% 0%, rgba(var(--tunes-accent-rgb),0.35), transparent 60%),
+        linear-gradient(135deg, rgba(106,33,222,0.25), rgba(var(--tunes-accent-rgb),0.15));
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 18px 60px rgba(0,0,0,0.35);
 }
@@ -522,13 +609,13 @@
     font-weight: 600;
     border: none;
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(255,45,127,0.35);
+    box-shadow: 0 8px 24px rgba(var(--tunes-accent-rgb),0.35);
     transition: transform 0.15s, box-shadow 0.15s;
 }
 .tunes-btn-primary:hover,
 .tunes-btn-primary:focus {
     transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(255,45,127,0.5);
+    box-shadow: 0 12px 28px rgba(var(--tunes-accent-rgb),0.5);
     outline: none;
 }
 
@@ -574,7 +661,7 @@
     display: grid;
     grid-template-rows: auto 1fr auto;
     background:
-        radial-gradient(1200px 800px at 50% 0%, rgba(255,45,127,0.35), transparent 60%),
+        radial-gradient(1200px 800px at 50% 0%, rgba(var(--tunes-accent-rgb),0.35), transparent 60%),
         linear-gradient(180deg, var(--tunes-bg-0), var(--tunes-bg-1) 60%, var(--tunes-bg-2));
     padding: 40px 60px;
     backdrop-filter: blur(40px);
@@ -599,13 +686,62 @@
     margin: 0 auto;
     border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 40px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
-    background: linear-gradient(135deg, #341054, #08010a);
+    position: relative;
+    box-shadow:
+        0 40px 80px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 0 80px rgba(var(--tunes-accent-rgb),0.25);
+    /* v2.8.56 — Gradient backdrop that picks up the active theme.
+       Acts as the placeholder pattern when no album art is loaded
+       (a much nicer fallback than the flat purple square). */
+    background:
+        radial-gradient(circle at 30% 30%, rgba(var(--tunes-accent-rgb),0.55), transparent 65%),
+        radial-gradient(circle at 70% 70%, rgba(var(--tunes-accent-rgb),0.20), transparent 70%),
+        linear-gradient(135deg, var(--tunes-bg-2), var(--tunes-bg-0));
 }
 .tunes-fullplayer__art img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: opacity 0.4s var(--tunes-ease);
+}
+/* v2.8.56 — Slowly rotating vinyl groove ring that sits underneath
+   any album art.  Makes the "no art" state feel alive (instead of
+   a static gradient square) and adds depth when art IS present. */
+.tunes-fullplayer__art::before {
+    content: "";
+    position: absolute;
+    inset: 8%;
+    border-radius: 50%;
+    background:
+        repeating-radial-gradient(
+            circle at center,
+            rgba(255,255,255,0.04) 0 1px,
+            transparent 1px 6px
+        );
+    pointer-events: none;
+    z-index: 0;
+    animation: tunes-vinyl-spin 28s linear infinite;
+    /* Reduce-motion users keep the look but lose the spin. */
+}
+.tunes-fullplayer__art::after {
+    content: "";
+    position: absolute;
+    inset: 45%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,0,0,0.5) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+}
+.tunes-fullplayer__art img {
+    position: relative;
+    z-index: 2;
+}
+@keyframes tunes-vinyl-spin {
+    to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .tunes-fullplayer__art::before { animation: none; }
 }
 .tunes-fullplayer__meta {
     display: flex;
@@ -705,18 +841,18 @@
 }
 .tunes-chip:hover,
 .tunes-chip--active {
-    background: rgba(255,45,127,0.18);
+    background: rgba(var(--tunes-accent-rgb),0.18);
     color: var(--tunes-text);
     border-color: var(--tunes-accent);
 }
 .tunes-chip:focus-visible,
 .tunes-chip[data-focused="true"] {
     outline: none;
-    background: rgba(255,45,127,0.28);
+    background: rgba(var(--tunes-accent-rgb),0.28);
     color: #fff;
     border-color: var(--tunes-accent);
     transform: scale(1.06);
-    box-shadow: 0 0 0 3px rgba(255,45,127,0.28);
+    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.28);
 }
 .tunes-chip--radio.tunes-chip--active {
     background: rgba(6,182,212,0.22);
@@ -758,7 +894,7 @@
 .tunes-genre-tile[data-focused="true"] {
     outline: none;
     transform: scale(1.06);
-    box-shadow: 0 20px 38px rgba(0,0,0,0.5), 0 0 0 4px rgba(255,45,127,0.32);
+    box-shadow: 0 20px 38px rgba(0,0,0,0.5), 0 0 0 4px rgba(var(--tunes-accent-rgb),0.32);
     border-color: var(--tunes-accent);
 }
 .tunes-genre-tile__overlay {
