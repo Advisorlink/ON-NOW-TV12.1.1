@@ -105,10 +105,21 @@ export async function resolveTrackStream(track) {
     const title  = track?.title || '';
     if (!artist || !title) return null;
 
+    const emit = (detail) => {
+        try {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('onnowtv-resolver-event', { detail }));
+            }
+        } catch { /* ignore */ }
+    };
+
     // 1) Native bridge first.
     if (hasNativeBridge()) {
+        const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         const native = await resolveViaNative(artist, title);
+        const ms = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
         if (native && native.ok && native.url) {
+            emit({ artist, title, source: 'newpipe', ms, ok: true });
             return {
                 stream_url: native.url,
                 source: 'newpipe',
@@ -119,12 +130,18 @@ export async function resolveTrackStream(track) {
                 yt_id: native.yt_id,
             };
         }
+        emit({ artist, title, source: 'newpipe', ms, ok: false, error: (native?.error) || 'no url' });
         // Fall through to backend if the bridge couldn't resolve.
+    } else {
+        emit({ artist, title, source: 'no-bridge', ms: 0, ok: false, error: 'native bridge not present' });
     }
 
     // 2) Backend (admin cookies → JioSaavn → Audius → preview).
+    const tb0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const backend = await resolveViaBackend(track.id, artist, title);
+    const tbMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tb0);
     if (backend && backend.stream_url) {
+        emit({ artist, title, source: backend.source || 'backend', ms: tbMs, ok: !!backend.is_full_track });
         return {
             stream_url: backend.stream_url,
             source: backend.source,
@@ -134,9 +151,11 @@ export async function resolveTrackStream(track) {
             duration: backend.duration,
         };
     }
+    emit({ artist, title, source: 'backend', ms: tbMs, ok: false, error: backend ? (backend.reason || 'no stream_url') : 'fetch failed' });
 
     // 3) Last-resort 30 s Deezer preview.
     if (track.preview_url) {
+        emit({ artist, title, source: 'preview', ms: 0, ok: false, error: 'using Deezer 30s' });
         return {
             stream_url: track.preview_url,
             source: 'preview',

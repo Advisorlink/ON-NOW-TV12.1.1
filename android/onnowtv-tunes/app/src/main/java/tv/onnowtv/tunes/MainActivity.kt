@@ -76,8 +76,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(web)
 
         // Boot directly into /music — never the Vesper profile picker.
+        // `?box=1` flags the React app that it's running inside the
+        // Tunes APK (auto-shows the resolver debug overlay so we
+        // can see the native bridge state without dev-tools).
         val base = getString(R.string.app_url).trim().trimEnd('/')
-        web.loadUrl("$base/music")
+        web.loadUrl("$base/music?box=1")
         webView = web
     }
 

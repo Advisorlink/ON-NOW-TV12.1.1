@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { Home, Search, Radio, Mic, Library, Music2, Maximize, Minimize } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
+import { ResolverDebug } from '../../components/music/ResolverDebug';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 
@@ -159,6 +160,7 @@ export default function MusicLayout() {
                 </main>
             </div>
             <MiniPlayer />
+            <ResolverDebug />
         </div>
     );
 }

@@ -89,7 +89,12 @@ dependencies {
     // IP so the bot-detection that blocks our datacenter VPS doesn't
     // apply.  Returns a direct googlevideo.com CDN URL the HTML5
     // <audio> element can stream.
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:0.24.6")
+    //
+    // Coordinates: JitPack publishes the whole-repo artifact at
+    // `com.github.TeamNewPipe:NewPipeExtractor:<gitTag>`.  Tag names
+    // are prefixed with `v` (JitPack is case-sensitive about both
+    // group and tag).  0.24.8 is the latest 0.24.x patch.
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.8")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 }

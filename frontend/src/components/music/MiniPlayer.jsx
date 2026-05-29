@@ -43,33 +43,33 @@ export function MiniPlayer() {
                     <div className="tunes-mini__text">
                         <p className="tunes-mini__title">
                             {t.title}
-                            {state.kind === 'track' && t._isFullTrack && (
-                                <span style={{
+                            {/* v2.8.50 — Diagnostic pill: tells us EXACTLY
+                                which resolver tier served the current
+                                track.  Helps debug "stuck on preview"
+                                without needing logs.
+                                  newpipe  → native NewPipeExtractor bridge  (full)
+                                  youtube  → backend yt-dlp + cookies        (full)
+                                  jiosaavn → JioSaavn fallback                (full)
+                                  audius   → Audius decentralized fallback   (full)
+                                  preview  → Deezer 30-second preview         (NOT full) */}
+                            {state.kind === 'track' && !t._resolving && t._streamSource && (
+                                <span data-testid="track-source-badge" style={{
                                     marginLeft: 10,
                                     padding: '3px 8px',
-                                    background: 'linear-gradient(135deg, #10b981, #34d399)',
-                                    color: '#fff',
+                                    background: t._isFullTrack
+                                        ? 'linear-gradient(135deg, #10b981, #34d399)'
+                                        : 'rgba(255,196,107,0.20)',
+                                    color: t._isFullTrack ? '#fff' : '#FFC46B',
                                     borderRadius: 999,
                                     fontSize: 10,
                                     fontWeight: 700,
-                                    letterSpacing: '0.05em',
+                                    letterSpacing: '0.06em',
                                     textTransform: 'uppercase',
                                     verticalAlign: 'middle',
-                                }}>Full track</span>
-                            )}
-                            {state.kind === 'track' && t._streamSource === 'preview' && !t._resolving && (
-                                <span style={{
-                                    marginLeft: 10,
-                                    padding: '3px 8px',
-                                    background: 'rgba(255,255,255,0.12)',
-                                    color: 'rgba(255,255,255,0.7)',
-                                    borderRadius: 999,
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                    verticalAlign: 'middle',
-                                }}>30s preview</span>
+                                    border: t._isFullTrack ? 'none' : '1px solid rgba(255,196,107,0.45)',
+                                }}>
+                                    {t._isFullTrack ? `Full · ${t._streamSource}` : `30 s · ${t._streamSource}`}
+                                </span>
                             )}
                             {t._resolving && (
                                 <span style={{
