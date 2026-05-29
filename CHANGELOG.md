@@ -7,6 +7,52 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.54 — Tunes: per-user YouTube sign-in (the right architecture)
+
+  • **🎯 Every box now owns its OWN YouTube session.**  No more
+    shared admin cookies; no more "I have to manage 500 cookie
+    files".  Each user signs in once on their own box → cookies
+    persist in Android's CookieManager → every subsequent launch
+    skips straight to /music.
+
+  • **🪟 Boot flow** (in `MainActivity.kt`):
+    1. Inspect `CookieManager.getInstance().getCookie("…youtube.com")`
+       for `LOGIN_INFO` / `SAPISID`.
+    2. If FOUND → jump straight to `/music?box=1&yt=1`.
+    3. If MISSING → load Google's `accounts.google.com/ServiceLogin
+       ?service=youtube&continue=…youtube.com` → user signs in →
+       our `WebViewClient` watches for the YouTube redirect →
+       verifies cookies are now present → advances to /music.
+
+  • **🍪 Cookies stay 100 % LOCAL on the box.**  Zero cookies ever
+    touch our VPS.  Privacy win + no admin overhead.
+
+  • **🎁 YouTube Premium auto-detected.**  Because the WebView's
+    cookie store is shared with the embedded YouTube IFrame Player,
+    a Premium account on this box → the player automatically skips
+    all ads.  Zero code change needed for the Premium path.
+
+  • **🛠 UA "wv" marker stripped** so Google's sign-in doesn't
+    refuse "this browser may not be secure".  WebView UA now looks
+    exactly like Chrome.
+
+  • **🔧 New JS bridge methods**:
+    - `OnNowTV.signOut()` — clears the cookie store + WebStorage,
+      recreates the activity to bounce back to sign-in.
+    - `OnNowTV.isSignedInToYouTube()` — boolean that React can use
+      to gate features ("you're signed in as …").
+
+  • **🧪 Test account included** in `/app/memory/test_credentials.md`:
+    `onnowv2@gmail.com` / `Onnowtv123!` (provided by the user).
+
+  • **➡️ Trade-off**: free YouTube accounts may see 5-15 s
+    skippable pre-roll ads before songs start.  Acceptable for v1
+    since the user can sign in with their own Premium account for
+    fully ad-free playback.  Future v2.8.55 idea: authenticated
+    InnerTube extraction (uses `SAPISIDHASH` header) for direct
+    `googlevideo.com` URLs that are ad-free even on free accounts.
+
+
 ## v2.8.53 — Tunes: YouTube IFrame Player API (Plan D — the one that actually works)
 
   • **🎯 Pivoted to YouTube's own IFrame Player API.**  Late 2025

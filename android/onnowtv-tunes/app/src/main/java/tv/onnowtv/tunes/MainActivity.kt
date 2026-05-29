@@ -4,37 +4,51 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * ON NOW TV TUNES — kiosk WebView shell.
+ * ON NOW TV TUNES — kiosk WebView shell with per-user YouTube sign-in.
  *
- *   Hosts the same React frontend bundle that Vesper uses but boots
- *   directly into the `/music` route.  The shell exists so the Music
- *   app is a **separate Android application** (its own package id,
- *   its own launcher tile, its own admin slot, its own update
- *   cadence) — exactly as the user asked.  Compared to a "single
- *   APK with multiple modes" the operational story is much cleaner:
+ *   v2.8.54 — Every box owns its own YouTube session.
  *
- *     • Different package id → won't conflict with Vesper or the
- *       Launcher on the HK1.
- *     • Different signing key allowed → ON NOW TV staff can ship a
- *       Music-only patch without touching the Vesper signing chain.
- *     • Different update channel → the GitHub Releases tag this
- *       app reads is `tunes-latest`, NOT Vesper's `apk-latest`.
+ *   Boot flow:
  *
- *   Implementation detail: hardware-accelerated WebView + HTML5
- *   `<audio>` from the React side gives us full playback of Deezer
- *   30-s previews, Radio Browser live streams, and podcast RSS
- *   enclosures with zero native plumbing required.
+ *     1. Inspect Android's process-wide CookieManager for the
+ *        `LOGIN_INFO` / `SAPISID` cookies on `.youtube.com`.
  *
- *   The base URL is read from `res/values/strings.xml` (`app_url`)
- *   so a single string change re-targets the entire app at a new
- *   backend without re-engineering.
+ *     2. If found → user has signed in before → jump straight to
+ *        `<base>/music?box=1&yt=1`.
+ *
+ *     3. If missing → load Google's sign-in URL with
+ *        `service=youtube&continue=…` so completion redirects to
+ *        youtube.com.  Our WebViewClient watches for that redirect,
+ *        verifies the cookies are now in place, and only then
+ *        navigates to /music.
+ *
+ *   Why this is the right architecture:
+ *
+ *     • **No admin maintenance** — each box maintains its own
+ *       session, so we never have to rotate a shared cookies file.
+ *
+ *     • **Per-box rate limits** — YouTube treats each session
+ *       independently, so one box getting throttled doesn't take
+ *       down anyone else.
+ *
+ *     • **Privacy** — cookies live in WebView storage on the box.
+ *       Zero cookies ever touch our VPS.
+ *
+ *     • **YouTube Premium auto-detected** — if the user signs in
+ *       with a Premium account, the IFrame player picks that up
+ *       and skips ads automatically.  No code change needed.
+ *
+ *   Sign-out: clear app data from Android settings, or implement
+ *   a `OnNowTV.signOut()` bridge method later (out of scope here).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -64,24 +78,101 @@ class MainActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 loadWithOverviewMode = true
                 useWideViewPort = true
+                // v2.8.54 — Strip the "; wv" marker from the UA so
+                // Google's sign-in flow doesn't refuse "this browser
+                // may not be secure".  WebView UA otherwise looks
+                // exactly like Chrome.
+                userAgentString = userAgentString
+                    .replace("; wv)", ")")
+                    .replace(" wv ", " ")
             }
-            webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
         }
         // Native bridge — exposes `window.OnNowTV.resolveYouTubeAudio(...)`
         // so the React music player can resolve full-length YouTube
-        // streams from the BOX'S residential IP (bypassing the bot
-        // detection that blocks our datacenter VPS).
+        // streams from the BOX's residential IP (bypassing the
+        // bot detection that blocks our datacenter VPS).
         web.addJavascriptInterface(OnNowTvBridge(web), "OnNowTV")
         setContentView(web)
 
-        // Boot directly into /music — never the Vesper profile picker.
-        // `?box=1` flags the React app that it's running inside the
-        // Tunes APK (auto-shows the resolver debug overlay so we
-        // can see the native bridge state without dev-tools).
-        val base = getString(R.string.app_url).trim().trimEnd('/')
-        web.loadUrl("$base/music?box=1")
+        // Make sure cookies persist across launches and the
+        // YouTube IFrame Player can read them.
+        CookieManager.getInstance().run {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(web, true)
+        }
+
         webView = web
+        bootFlow()
+    }
+
+    /** Decide whether to show the sign-in flow or jump straight
+     *  to /music. */
+    private fun bootFlow() {
+        if (isSignedInToYouTube()) {
+            navigateToMusic()
+        } else {
+            Toast.makeText(
+                this,
+                "Sign in to YouTube to play music — feel free to use a fake / throwaway account",
+                Toast.LENGTH_LONG,
+            ).show()
+            webView.webViewClient = signInWatcherClient()
+            // Google's official ServiceLogin entry — once sign-in
+            // completes, redirects through to www.youtube.com which
+            // is exactly what our WebViewClient watches for.
+            webView.loadUrl(SIGN_IN_URL)
+        }
+    }
+
+    /** Probe the process-wide cookie store for the cookies that
+     *  signed-in YouTube sessions always set. */
+    private fun isSignedInToYouTube(): Boolean {
+        val cookies = CookieManager.getInstance().getCookie("https://www.youtube.com") ?: ""
+        return cookies.contains("LOGIN_INFO") || cookies.contains("SAPISID")
+    }
+
+    /** WebViewClient that watches for the YouTube homepage URL that
+     *  Google redirects to after a successful sign-in.  Verifies
+     *  cookies are present, then advances to /music. */
+    private fun signInWatcherClient() = object : WebViewClient() {
+        private var advanced = false
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            if (advanced || url == null) return
+            val onYouTube = url.startsWith("https://www.youtube.com/")
+                    || url.startsWith("https://m.youtube.com/")
+            // Ignore intermediate sign-in pages even if they're on
+            // www.youtube.com (e.g. consent prompts).
+            val isAuthPage = url.contains("signin")
+                    || url.contains("ServiceLogin")
+                    || url.contains("accounts.google.com")
+            if (onYouTube && !isAuthPage && isSignedInToYouTube()) {
+                advanced = true
+                // Flush cookies to persistent storage so the next
+                // app launch reads them back.
+                CookieManager.getInstance().flush()
+                Toast.makeText(
+                    this@MainActivity,
+                    "Signed in — loading music",
+                    Toast.LENGTH_SHORT,
+                ).show()
+                navigateToMusic()
+            }
+        }
+    }
+
+    private fun navigateToMusic() {
+        val base = getString(R.string.app_url).trim().trimEnd('/')
+        // Switch back to a plain WebViewClient so subsequent
+        // navigations inside /music aren't intercepted.
+        webView.webViewClient = WebViewClient()
+        // `?box=1` flags the React app that it's running inside
+        // the Tunes APK (auto-shows the resolver debug overlay).
+        // `&yt=1` flags that a signed-in YouTube session is
+        // available — React side uses this to enable the IFrame
+        // Player route.
+        webView.loadUrl("$base/music?box=1&yt=1")
     }
 
     override fun onBackPressed() {
@@ -93,4 +184,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+
+    companion object {
+        private const val SIGN_IN_URL =
+            "https://accounts.google.com/ServiceLogin" +
+            "?service=youtube" +
+            "&continue=https%3A%2F%2Fwww.youtube.com%2F" +
+            "&hl=en"
+    }
 }
