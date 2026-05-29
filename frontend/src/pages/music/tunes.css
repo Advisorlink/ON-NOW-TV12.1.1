@@ -1,913 +1,1787 @@
-/* ON NOW TV TUNES — global theme
+/* ============================================================
+   ON NOW TV TUNES — Vesper-style music app
    ============================================================
-   Distinct identity from Vesper: deep-cosmic gradient with
-   electric pink accent.  Self-scoped under .tunes-root so it
-   never bleeds into the Vesper movie/TV UI.
+   This stylesheet uses Vesper's existing CSS variables
+   (`--vesper-bg-0`, `--vesper-blue`, `--vesper-text`, etc.)
+   so the focus ring + spatial navigation match Vesper exactly.
 
-   v2.8.56 — Theme support.  `.tunes-root[data-theme="electric-blue"]`
-   switches the entire palette to "ON NOW Electric Blue" without
-   touching any other code.  Toggle persists in localStorage. */
+   Layout:
+     .tunes-root        full-viewport container under MusicLayout
+     .tunes-shell       flex row containing the side nav + main
+     .tunes-nav         collapsible vertical rail (76 → 240 px)
+     .tunes-main        scrollable content viewport
+     .tunes-hero        large rotating hero billboard
+     .tunes-shelf       horizontal scroll-snap row of album tiles
+     .tunes-tile        square album cover with title/artist below
+     .tunes-mini        sticky bottom mini-player
+
+   Color tokens (inherited from Vesper):
+     --vesper-bg-0    #06080f   page background
+     --vesper-bg-1    #0a0e1a   raised surfaces
+     --vesper-bg-2    #111827   cards / inputs
+     --vesper-blue    #5dc8ff   electric-cyan accent
+     --vesper-text    #f5f7fa   primary text
+============================================================ */
 
 .tunes-root {
-    /* Pink theme (default) — keeps the "music = passion" identity */
-    --tunes-bg-0: #0a0118;
-    --tunes-bg-1: #160329;
-    --tunes-bg-2: #2a0945;
-    --tunes-accent:    #ff2d7f;      /* electric pink — music */
-    --tunes-accent-2:  #ff7eb3;
-    --tunes-accent-3:  #ffd6e0;
-    --tunes-radio:     #06b6d4;      /* cyan — radio */
-    --tunes-podcast:   #f97316;      /* warm orange — podcasts */
-    --tunes-glass-bg:  rgba(255,255,255,0.04);
-    --tunes-glass-border: rgba(255,255,255,0.08);
-    --tunes-text:      #ffffff;
-    --tunes-text-dim:  rgba(255,255,255,0.65);
-    --tunes-text-faint:rgba(255,255,255,0.35);
-    --tunes-focus:     #ff2d7f;
-    /* Pre-computed rgb tuple so we can use rgba(var(--tunes-accent-rgb), x).
-       Each theme overrides this with its own accent rgb. */
-    --tunes-accent-rgb: 255, 45, 127;
-    --tunes-mini-h:    96px;
-    --tunes-ease:      cubic-bezier(0.22, 1, 0.36, 1);
-
+    width: 100vw;
     min-height: 100vh;
-    color: var(--tunes-text);
-    background:
-        radial-gradient(1200px 800px at 80% -10%, rgba(var(--tunes-accent-rgb),0.15), transparent 60%),
-        radial-gradient(900px 600px at 10% 110%, rgba(6,182,212,0.10), transparent 55%),
-        linear-gradient(180deg, var(--tunes-bg-0) 0%, var(--tunes-bg-1) 60%, var(--tunes-bg-2) 100%);
-    background-attachment: fixed;
-    font-family: -apple-system, "Segoe UI", "SF Pro Display", system-ui, sans-serif;
-    letter-spacing: 0.01em;
-}
-
-/* v2.8.56 — Electric Blue theme.  "ON NOW" brand variant.
-   Same structure as pink; just shifts the hot colour to a
-   premium signal-blue and tints the cosmic backdrop to match. */
-.tunes-root[data-theme="electric-blue"] {
-    --tunes-bg-0: #02060f;
-    --tunes-bg-1: #051a32;
-    --tunes-bg-2: #082a55;
-    --tunes-accent:    #00b3ff;        /* electric blue */
-    --tunes-accent-2:  #66d4ff;
-    --tunes-accent-3:  #cfeeff;
-    --tunes-radio:     #06b6d4;        /* tonal sibling — same vibe */
-    --tunes-podcast:   #f97316;
-    --tunes-focus:     #00b3ff;
-    --tunes-accent-rgb: 0, 179, 255;
-}
-
-.tunes-root *,
-.tunes-root *::before,
-.tunes-root *::after {
-    box-sizing: border-box;
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    position: relative;
+    overflow-x: hidden;
 }
 
 .tunes-shell {
-    display: grid;
-    grid-template-columns: 280px 1fr;
+    display: flex;
+    width: 100%;
     min-height: 100vh;
-    padding-bottom: var(--tunes-mini-h);
+    /* Reserve space at bottom for the mini-player. */
+    padding-bottom: 96px;
 }
 
-/* ── Side Nav ─────────────────────────────────────────────── */
+/* ============================================================
+   Side navigation — Vesper-style collapsible rail
+============================================================ */
+
 .tunes-nav {
-    position: sticky;
+    position: fixed;
+    left: 0;
     top: 0;
-    height: 100vh;
-    padding: 40px 20px 28px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
-    border-right: 1px solid var(--tunes-glass-border);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    bottom: 0;
+    z-index: 40;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    z-index: 10;
+    padding: 22px 12px;
+    transition: width 280ms ease, background 280ms ease;
+    width: 76px;
+    background: transparent;
+    will-change: width;
 }
+
+.tunes-nav[data-expanded="true"] {
+    width: 248px;
+    background: linear-gradient(
+        90deg,
+        rgba(8, 11, 20, 0.98) 0%,
+        rgba(8, 11, 20, 0.95) 60%,
+        rgba(8, 11, 20, 0) 100%
+    );
+}
+
 .tunes-nav__brand {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 44px;
-    padding: 0 6px;
+    height: 48px;
+    margin: 4px 4px 24px;
+    user-select: none;
+    overflow: hidden;
 }
-.tunes-nav__logo {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-radio));
-    display: grid;
-    place-items: center;
-    box-shadow: 0 6px 18px rgba(var(--tunes-accent-rgb),0.45);
+
+.tunes-nav__brand-emblem {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 30px;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--vesper-blue-bright);
+    text-shadow:
+        0 0 12px rgba(var(--vesper-blue-rgb), 0.65),
+        0 0 28px rgba(var(--vesper-blue-rgb), 0.4);
+    flex-shrink: 0;
+    width: 52px;
+    text-align: center;
 }
-.tunes-nav__title {
-    font-size: 20px;
+
+.tunes-nav__brand-wordmark {
+    font-family: 'Geist', system-ui, sans-serif;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    color: var(--vesper-text);
+    transition: opacity 200ms ease 80ms;
+    white-space: nowrap;
+    margin-left: 4px;
 }
-.tunes-nav__subtitle {
-    font-size: 12px;
-    color: var(--tunes-text-faint);
-    letter-spacing: 0.18em;
+
+.tunes-nav__brand-wordmark span {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: var(--vesper-text-3);
     text-transform: uppercase;
+    margin-top: 4px;
 }
+
+.tunes-nav[data-expanded="false"] .tunes-nav__brand-wordmark {
+    opacity: 0;
+    pointer-events: none;
+    max-width: 0;
+}
+
+.tunes-nav__items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .tunes-nav__item {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 16px 18px;
-    border-radius: 14px;
-    color: var(--tunes-text-dim);
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: background 0.18s, color 0.18s, transform 0.18s, border-color 0.18s, box-shadow 0.18s;
-    font-size: 16px;
-    font-weight: 500;
+    height: 48px;
+    padding: 0 12px;
+    border-radius: 10px;
+    color: var(--vesper-text-2);
     text-decoration: none;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    position: relative;
+    transition: color 180ms ease, background 180ms ease;
 }
-.tunes-nav__item:hover,
-.tunes-nav__item--active {
-    background: rgba(255,255,255,0.06);
-    color: var(--tunes-text);
-    border-color: rgba(255,255,255,0.08);
-}
-.tunes-nav__item:focus-visible,
-.tunes-nav__item[data-focused="true"] {
-    outline: none;
-    background: linear-gradient(135deg, rgba(var(--tunes-accent-rgb),0.28), rgba(var(--tunes-accent-rgb),0.08));
-    color: #fff;
-    border-color: var(--tunes-accent);
-    transform: translateX(4px);
-    box-shadow: 0 0 0 4px rgba(var(--tunes-accent-rgb),0.22), 0 10px 24px rgba(var(--tunes-accent-rgb),0.32);
-}
-.tunes-nav__item--active {
-    background: linear-gradient(135deg, rgba(var(--tunes-accent-rgb),0.22), rgba(var(--tunes-accent-rgb),0.06));
-    border-color: rgba(var(--tunes-accent-rgb),0.35);
-    box-shadow: 0 4px 18px rgba(var(--tunes-accent-rgb),0.18);
-}
-.tunes-nav__item svg {
-    width: 26px;
-    height: 26px;
+
+.tunes-nav__item-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
 }
 
-/* v2.8.56 — Theme toggle pill at the bottom of the nav. */
-.tunes-nav__theme {
-    margin-top: auto;
-    padding-top: 14px;
+.tunes-nav__item-label {
+    flex: 1;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 220ms ease 80ms;
+    overflow: hidden;
 }
+
+.tunes-nav[data-expanded="true"] .tunes-nav__item-label {
+    opacity: 1;
+}
+
+.tunes-nav__item--active {
+    color: var(--vesper-text);
+}
+
+.tunes-nav__item--active .tunes-nav__item-icon {
+    color: var(--vesper-blue);
+}
+
+.tunes-nav__item--active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--vesper-blue);
+    box-shadow: 0 0 12px var(--vesper-blue-glow);
+}
+
+.tunes-nav__spacer { flex: 1; }
+
+/* Theme toggle pill at the bottom of the rail. */
+.tunes-nav__theme {
+    margin: 12px 4px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    opacity: 0;
+    max-height: 0;
+    transition: opacity 220ms ease 80ms, max-height 260ms ease;
+}
+
+.tunes-nav[data-expanded="true"] .tunes-nav__theme {
+    opacity: 1;
+    max-height: 90px;
+}
+
+.tunes-nav__theme-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vesper-text-3);
+    padding: 0 8px;
+}
+
 .tunes-nav__theme-row {
     display: flex;
     gap: 6px;
-    background: var(--tunes-glass-bg);
-    border: 1px solid var(--tunes-glass-border);
-    border-radius: 14px;
-    padding: 4px;
 }
+
 .tunes-nav__theme-btn {
     flex: 1;
-    padding: 9px 6px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: var(--tunes-text-dim);
-    font-size: 11px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text-2);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     cursor: pointer;
-    transition: background 0.22s var(--tunes-ease), color 0.22s var(--tunes-ease), transform 0.22s var(--tunes-ease);
+    transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
 }
-.tunes-nav__theme-btn:hover {
-    color: var(--tunes-text);
-    background: rgba(255,255,255,0.04);
-}
+
 .tunes-nav__theme-btn[data-active="true"] {
-    color: #fff;
-    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb),0.55));
-    box-shadow: 0 6px 14px rgba(var(--tunes-accent-rgb),0.35);
-}
-.tunes-nav__theme-btn:focus-visible,
-.tunes-nav__theme-btn[data-focused="true"] {
-    outline: none;
-    color: #fff;
-    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb),0.4));
-    transform: translateY(-2px);
-    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.32), 0 8px 18px rgba(var(--tunes-accent-rgb),0.42);
-}
-.tunes-nav__section {
-    margin-top: 24px;
-    margin-bottom: 8px;
-    padding: 0 14px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--tunes-text-faint);
+    background: rgba(var(--vesper-blue-rgb), 0.18);
+    border-color: rgba(var(--vesper-blue-rgb), 0.45);
+    color: var(--vesper-blue-bright);
 }
 
-/* ── Main content ─────────────────────────────────────────── */
+/* ============================================================
+   Main content area
+============================================================ */
+
 .tunes-main {
-    padding: 36px 60px 80px;
-    overflow-x: hidden;
-}
-.tunes-page-title {
-    font-size: 46px;
-    font-weight: 800;
-    margin: 0 0 6px;
-    letter-spacing: -0.01em;
-    background: linear-gradient(90deg, #fff 0%, var(--tunes-accent-3) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-.tunes-page-subtitle {
-    color: var(--tunes-text-dim);
-    margin: 0 0 32px;
-    font-size: 17px;
+    flex: 1;
+    margin-left: 76px;
+    min-height: 100vh;
+    width: calc(100% - 76px);
+    /* Per-page sections add their own horizontal padding via
+       `.tunes-side-pad` mixin (below). */
 }
 
-/* ── Search bar ───────────────────────────────────────────── */
-.tunes-search-wrap {
+.tunes-side-pad {
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+}
+
+/* ============================================================
+   HERO BILLBOARD — top of the music home page
+   ----------------------------------------------------------
+   Wide horizontal banner with:
+     - Background = blurred album cover stretched + ken-burns
+     - Left = eyebrow + huge title + meta + Play/More buttons
+     - Right = the album cover prominently (1:1) inside a
+       subtle neon ring backdrop
+============================================================ */
+
+.tunes-hero {
     position: relative;
-    margin-bottom: 24px;
-    max-width: 720px;
-}
-.tunes-search-input {
     width: 100%;
-    padding: 18px 24px 18px 56px;
-    background: var(--tunes-glass-bg);
-    border: 1px solid var(--tunes-glass-border);
-    border-radius: 16px;
-    color: var(--tunes-text);
-    font-size: 17px;
-    outline: none;
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    height: clamp(380px, 50vh, 540px);
+    overflow: hidden;
+    isolation: isolate;
 }
-.tunes-search-input:focus {
-    border-color: var(--tunes-accent);
-    background: rgba(255,255,255,0.08);
-    box-shadow: 0 0 0 4px rgba(var(--tunes-accent-rgb),0.15);
-}
-.tunes-search-input::placeholder { color: var(--tunes-text-faint); }
-.tunes-search-icon {
+
+.tunes-hero__slide {
     position: absolute;
-    left: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--tunes-text-faint);
+    inset: 0;
+    transition: opacity 900ms ease;
+    opacity: 0;
     pointer-events: none;
 }
 
-/* ── Shelves ──────────────────────────────────────────────── */
-.tunes-shelf {
-    margin-bottom: 36px;
+.tunes-hero__slide[data-active="true"] {
+    opacity: 1;
+    pointer-events: auto;
 }
-.tunes-shelf__head {
+
+.tunes-hero__bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transform: scale(1.05);
+    filter: blur(40px) saturate(1.15);
+    opacity: 0.55;
+}
+
+.tunes-hero__bg-ring {
+    /* Soft glowing radial accent on the right side, evoking
+       the neon-ring backdrop in the Now Playing design. */
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse 45% 60% at 78% 50%,
+        rgba(var(--vesper-blue-rgb), 0.20) 0%,
+        rgba(var(--vesper-blue-rgb), 0.08) 30%,
+        transparent 70%
+    );
+    pointer-events: none;
+}
+
+.tunes-hero__scrim-x {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(6, 8, 15, 0.94) 0%,
+        rgba(6, 8, 15, 0.60) 35%,
+        rgba(6, 8, 15, 0.05) 60%,
+        rgba(6, 8, 15, 0) 100%
+    );
+    pointer-events: none;
+}
+
+.tunes-hero__scrim-y {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(6, 8, 15, 0.55) 0%,
+        rgba(6, 8, 15, 0) 22%,
+        rgba(6, 8, 15, 0) 42%,
+        rgba(6, 8, 15, 0.55) 70%,
+        rgba(6, 8, 15, 0.95) 92%,
+        var(--vesper-bg-0) 100%
+    );
+    pointer-events: none;
+}
+
+.tunes-hero__content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    z-index: 2;
+}
+
+.tunes-hero__text {
+    max-width: 56vw;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-bottom: clamp(12px, 1.2vw, 22px);
+    padding-top: 24px;
+    animation: tunes-fade-up 700ms ease;
+}
+
+.tunes-hero__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(10px, 0.78vw, 13px);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    margin: 0 0 12px;
+}
+
+.tunes-hero__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(44px, 5vw, 78px);
+    letter-spacing: -0.035em;
+    line-height: 0.94;
+    margin: 0;
+    color: var(--vesper-text);
+}
+
+.tunes-hero__title em {
+    color: var(--vesper-blue);
+    font-style: normal;
+    font-weight: 800;
+    text-shadow: 0 0 28px var(--vesper-blue-glow);
+}
+
+.tunes-hero__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 0.9vw, 16px);
+}
+
+.tunes-hero__meta strong {
+    color: var(--vesper-blue);
+    font-weight: 500;
+}
+
+.tunes-hero__meta-dot {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.32);
+}
+
+.tunes-hero__synopsis {
+    margin-top: 16px;
+    max-width: 56ch;
+    font-size: clamp(14px, 1.05vw, 17px);
+    line-height: 1.55;
+    color: var(--vesper-text-2);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tunes-hero__buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.tunes-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: clamp(44px, 3.6vw, 52px);
+    padding: 0 clamp(18px, 1.4vw, 24px);
+    border-radius: 9999px;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(13px, 1vw, 16px);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.tunes-btn--primary {
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: #06080f;
+}
+
+.tunes-btn--ghost {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.tunes-btn--outline {
+    background: transparent;
+    color: var(--vesper-text-2);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.tunes-btn:hover { transform: scale(1.03); }
+
+.tunes-hero__art-wrap {
+    position: relative;
+    padding-right: clamp(40px, 4.2vw, 80px);
+    width: clamp(280px, 28vw, 460px);
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
+}
+
+.tunes-hero__art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 18px;
+    box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    position: relative;
+    z-index: 2;
+}
+
+/* Decorative neon ring behind the hero album art. */
+.tunes-hero__art-wrap::before {
+    content: "";
+    position: absolute;
+    inset: -12% -12% -12% -12%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(var(--vesper-blue-rgb), 0.45) 0%,
+        rgba(var(--vesper-blue-rgb), 0.18) 35%,
+        transparent 60%
+    );
+    filter: blur(8px);
+    z-index: 1;
+    pointer-events: none;
+    animation: tunes-pulse 6s ease-in-out infinite;
+}
+
+@keyframes tunes-pulse {
+    0%, 100% { opacity: 0.65; transform: scale(0.97); }
+    50%      { opacity: 1.00; transform: scale(1.03); }
+}
+
+@keyframes tunes-fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.tunes-hero__dots {
+    position: absolute;
+    bottom: 32px;
+    right: clamp(48px, 4.5vw, 88px);
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.tunes-hero__dot {
+    display: block;
+    width: 8px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.22);
+    transition: all 400ms ease;
+}
+
+.tunes-hero__dot[data-active="true"] {
+    width: 36px;
+    background: var(--vesper-blue);
+    box-shadow: 0 0 16px var(--vesper-blue-glow);
+}
+
+/* ============================================================
+   SHELVES — Vesper-style horizontal rails of album tiles
+============================================================ */
+
+.tunes-shelf {
+    position: relative;
+    width: 100%;
+    padding-top: clamp(14px, 1.4vw, 24px);
+    padding-bottom: clamp(14px, 1.4vw, 24px);
+}
+
+.tunes-shelf__header {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
 }
+
+.tunes-shelf__header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    min-width: 0;
+}
+
+.tunes-shelf__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(9px, 0.66vw, 12px);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    white-space: nowrap;
+}
+
 .tunes-shelf__title {
-    font-size: 22px;
+    font-family: 'Geist', system-ui, sans-serif;
     font-weight: 700;
+    font-size: clamp(22px, 2.2vw, 34px);
+    letter-spacing: -0.025em;
+    color: var(--vesper-text);
     margin: 0;
-    letter-spacing: -0.01em;
 }
+
+.tunes-shelf__see-all {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(9px, 0.62vw, 11px);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vesper-text-3);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
 .tunes-shelf__rail {
-    display: grid;
-    grid-auto-flow: column;
-    /* v2.8.56 — Tighter tiles (180 px instead of 220 fluid) so we
-       show 5-6 cards per row on a 1080p TV instead of 3-4 oversized
-       ones.  Also stops the rightmost tile from stretching to fill
-       leftover space at the end of a short rail. */
-    grid-auto-columns: 180px;
-    gap: 18px;
+    display: flex;
+    gap: clamp(14px, 1.25vw, 24px);
+    padding: clamp(14px, 1.4vw, 22px) clamp(40px, 4.2vw, 80px) clamp(14px, 1.4vw, 24px) clamp(92px, 6.5vw, 132px);
     overflow-x: auto;
     overflow-y: hidden;
-    /* Native momentum scrolling on iOS / WebView + smooth scroll
-       when the focus engine calls scrollIntoView. */
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: 60px;   /* keep focused card off the edge */
-    padding: 10px 4px 18px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.2) transparent;
-}
-.tunes-shelf__rail::-webkit-scrollbar { height: 8px; }
-.tunes-shelf__rail::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.2);
-    border-radius: 4px;
+    scroll-snap-type: x proximity;
+    overscroll-behavior: contain;
+    transform: translateZ(0);
+    will-change: scroll-position;
+    scrollbar-width: none;
 }
 
-/* ── Card ─────────────────────────────────────────────────── */
-.tunes-card {
-    scroll-snap-align: start;
-    background: var(--tunes-glass-bg);
-    border-radius: 14px;
-    overflow: hidden;
+.tunes-shelf__rail::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   TILES — square album cover + caption below
+============================================================ */
+
+.tunes-tile {
+    flex-shrink: 0;
+    width: clamp(160px, 13vw, 220px);
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
-    border: 3px solid transparent;
-    /* v2.8.56 — Snappier easing.  cubic-bezier(0.22, 1, 0.36, 1) is
-       the same "ease-out-quart" curve Apple uses for tvOS focus
-       transitions — pops fast, settles smooth. */
-    transition:
-        transform 0.22s var(--tunes-ease),
-        border-color 0.22s var(--tunes-ease),
-        box-shadow 0.22s var(--tunes-ease),
-        background 0.22s var(--tunes-ease);
+    padding: 0;
     display: flex;
     flex-direction: column;
+    gap: 12px;
+    scroll-snap-align: start;
+    scroll-margin-left: clamp(92px, 6.5vw, 132px);
+    text-decoration: none;
+    /* GPU compositing for smooth focus scale. */
+    transform: translateZ(0);
     will-change: transform;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tunes-card:hover {
-    transform: translateY(-4px) scale(1.02);
-    border-color: rgba(var(--tunes-accent-rgb),0.4);
-    box-shadow: 0 18px 38px rgba(0,0,0,0.45);
-}
-.tunes-card:focus-visible,
-.tunes-card[data-focused="true"] {
-    outline: none;
-    transform: translateY(-6px) scale(1.06);
-    border-color: var(--tunes-accent);
-    box-shadow:
-        0 0 0 4px rgba(var(--tunes-accent-rgb),0.28),
-        0 22px 48px rgba(0,0,0,0.55),
-        0 0 0 1px rgba(255,255,255,0.18);
-}
-.tunes-card__art {
+
+.tunes-tile__art-frame {
+    position: relative;
     width: 100%;
     aspect-ratio: 1 / 1;
-    object-fit: cover;
-    background: linear-gradient(135deg, #1f0b30, #0a0118);
-    display: block;
-}
-.tunes-card__art--round {
-    border-radius: 50%;
-    margin: 18px auto 6px;
-    width: calc(100% - 36px);
-}
-.tunes-card__body {
-    padding: 14px 16px 18px;
-    min-height: 70px;
-}
-.tunes-card__title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0 0 3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.tunes-card__subtitle {
-    font-size: 12px;
-    color: var(--tunes-text-dim);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* ── Track row ────────────────────────────────────────────── */
-.tunes-track-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.tunes-track-row {
-    display: grid;
-    grid-template-columns: 28px 64px 1fr auto;
-    gap: 16px;
-    align-items: center;
-    padding: 12px 16px;
     border-radius: 12px;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
-}
-.tunes-track-row:hover,
-.tunes-track-row--playing {
-    background: rgba(255,255,255,0.06);
-}
-.tunes-track-row--playing { border-color: rgba(var(--tunes-accent-rgb),0.55); }
-.tunes-track-row:focus-visible,
-.tunes-track-row[data-focused="true"] {
-    outline: none;
-    background: rgba(var(--tunes-accent-rgb),0.10);
-    border-color: var(--tunes-accent);
-    transform: translateX(6px);
-    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.22);
-}
-.tunes-track-row__num {
-    text-align: right;
-    color: var(--tunes-text-faint);
-    font-size: 15px;
-}
-.tunes-track-row__art {
-    width: 64px;
-    height: 64px;
-    object-fit: cover;
-    border-radius: 9px;
-}
-.tunes-track-row__title {
-    font-size: 17px;
-    font-weight: 600;
-    margin: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.tunes-track-row__artist {
-    font-size: 14px;
-    color: var(--tunes-text-dim);
-    margin: 3px 0 0;
-}
-.tunes-track-row__duration {
-    color: var(--tunes-text-dim);
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
+    background: var(--vesper-bg-2);
+    box-shadow:
+        0 10px 26px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: box-shadow 220ms ease;
 }
 
-/* ── Mini-player (sticky bottom bar) ──────────────────────── */
-.tunes-mini {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: var(--tunes-mini-h);
-    padding: 0 24px;
-    background: linear-gradient(180deg, rgba(20,3,40,0.78) 0%, rgba(8,1,20,0.95) 100%);
-    border-top: 1px solid var(--tunes-glass-border);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    display: grid;
-    grid-template-columns: minmax(260px, 1fr) auto minmax(220px, 1fr);
-    align-items: center;
-    z-index: 100;
-    gap: 24px;
-}
-.tunes-mini__now {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    overflow: hidden;
-}
-.tunes-mini__art {
-    width: 64px;
-    height: 64px;
-    border-radius: 10px;
+.tunes-tile__art {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    background: linear-gradient(135deg, #341054, #08010a);
-    flex-shrink: 0;
+    display: block;
+    transition: transform 600ms ease;
 }
-.tunes-mini__text { overflow: hidden; }
-.tunes-mini__title {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.tunes-mini__subtitle {
-    font-size: 12px;
-    color: var(--tunes-text-dim);
-    margin: 2px 0 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.tunes-mini__controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-direction: column;
-}
-.tunes-mini__buttons {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.tunes-iconbtn {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: transparent;
-    border: 2px solid transparent;
-    color: var(--tunes-text-dim);
-    cursor: pointer;
+
+.tunes-tile__art-fallback {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
-    transition: background 0.15s, color 0.15s, transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 56px;
+    color: rgba(var(--vesper-blue-rgb), 0.22);
+    background: linear-gradient(180deg, var(--vesper-bg-2) 0%, var(--vesper-bg-1) 100%);
 }
-.tunes-iconbtn:hover {
-    background: rgba(255,255,255,0.08);
-    color: var(--tunes-text);
-}
-.tunes-iconbtn:focus-visible,
-.tunes-iconbtn[data-focused="true"] {
-    outline: none;
-    background: rgba(var(--tunes-accent-rgb),0.18);
-    color: #fff;
-    border-color: var(--tunes-accent);
-    transform: scale(1.08);
-    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.28);
-}
-.tunes-iconbtn--play {
-    width: 58px;
-    height: 58px;
-    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
-    color: #fff;
-    box-shadow: 0 6px 24px rgba(var(--tunes-accent-rgb),0.4);
-}
-.tunes-iconbtn--play:hover,
-.tunes-iconbtn--play:focus-visible,
-.tunes-iconbtn--play[data-focused="true"] {
-    transform: scale(1.1);
-    box-shadow: 0 10px 30px rgba(var(--tunes-accent-rgb),0.6), 0 0 0 4px rgba(var(--tunes-accent-rgb),0.35);
-}
-.tunes-mini__scrubber {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    max-width: 520px;
-}
-.tunes-progress {
-    flex: 1;
-    height: 4px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 2px;
-    position: relative;
+
+.tunes-tile__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(13px, 1vw, 16px);
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+    color: var(--vesper-text);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
     overflow: hidden;
 }
-.tunes-progress__bar {
+
+.tunes-tile__subtitle {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: clamp(11px, 0.78vw, 13px);
+    color: var(--vesper-text-2);
+    margin: 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tunes-tile--artist .tunes-tile__art-frame {
+    border-radius: 50%;
+}
+
+.tunes-tile--artist .tunes-tile__title,
+.tunes-tile--artist .tunes-tile__subtitle {
+    text-align: center;
+}
+
+/* Generic "section" wrapper used on pages without a shelf rail. */
+.tunes-section {
+    padding: clamp(18px, 1.8vw, 28px) 0;
+}
+
+.tunes-section__head {
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+    margin-bottom: 14px;
+}
+
+.tunes-section__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(22px, 2.2vw, 34px);
+    letter-spacing: -0.025em;
+    color: var(--vesper-text);
+    margin: 0;
+}
+
+.tunes-section__subtitle {
+    margin-top: 6px;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 0.95vw, 16px);
+}
+
+/* ============================================================
+   MOOD GRID — large color-tinted tiles
+============================================================ */
+
+.tunes-mood-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+}
+
+.tunes-mood-tile {
+    position: relative;
+    border: none;
+    color: var(--vesper-text);
+    background: var(--bg, #2a82b8);
+    border-radius: 16px;
+    aspect-ratio: 16 / 10;
+    padding: 18px 20px;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Geist', system-ui, sans-serif;
+    overflow: hidden;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tunes-mood-tile:hover { transform: scale(1.02); }
+
+.tunes-mood-tile__title {
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    margin: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.tunes-mood-tile__subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.75);
+    position: relative;
+    z-index: 2;
+}
+
+.tunes-mood-tile__icon {
     position: absolute;
-    inset: 0 auto 0 0;
-    background: linear-gradient(90deg, var(--tunes-accent), var(--tunes-accent-2));
-    border-radius: 2px;
-    transition: width 0.18s linear;
+    right: -10px;
+    bottom: -14px;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    display: grid;
+    place-items: center;
+    color: rgba(255, 255, 255, 0.85);
+    z-index: 1;
 }
-.tunes-progress__time {
-    font-size: 11px;
-    color: var(--tunes-text-faint);
-    font-variant-numeric: tabular-nums;
-    min-width: 36px;
+
+/* ============================================================
+   GENRE TILES — flat colored squares with title overlay
+============================================================ */
+
+.tunes-genre-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
 }
-.tunes-mini__right {
+
+.tunes-genre-tile {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: 12px;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--vesper-bg-2);
+    text-decoration: none;
+    color: var(--vesper-text);
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
+    align-items: flex-end;
+    padding: 14px 16px;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+}
+
+.tunes-genre-tile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(6, 8, 15, 0.05) 0%,
+        rgba(6, 8, 15, 0.65) 70%,
+        rgba(6, 8, 15, 0.85) 100%
+    );
+}
+
+.tunes-genre-tile__label {
+    position: relative;
+    z-index: 2;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+}
+
+.tunes-genre-tile:hover { transform: scale(1.02); }
+
+/* ============================================================
+   ALBUM DETAIL PAGE — cover + meta + Play buttons + track list
+============================================================ */
+
+.tunes-album {
+    padding-top: 28px;
+}
+
+.tunes-album__backdrop {
+    position: absolute;
+    inset: 0;
+    height: 540px;
+    background-size: cover;
+    background-position: right center;
+    filter: blur(36px) saturate(1.1);
+    opacity: 0.35;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.tunes-album__head {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: clamp(260px, 22vw, 360px) 1fr;
+    gap: 36px;
+    align-items: end;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-bottom: 32px;
+}
+
+.tunes-album__cover {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(var(--vesper-blue-rgb), 0.18);
+}
+
+.tunes-album__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tunes-album__info {
+    display: flex;
+    flex-direction: column;
     gap: 12px;
 }
 
-/* ── Hero block ───────────────────────────────────────────── */
-.tunes-hero {
-    border-radius: 22px;
-    padding: 36px 40px;
-    margin-bottom: 36px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
-    background:
-        radial-gradient(700px 400px at 90% 0%, rgba(var(--tunes-accent-rgb),0.35), transparent 60%),
-        linear-gradient(135deg, rgba(106,33,222,0.25), rgba(var(--tunes-accent-rgb),0.15));
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 18px 60px rgba(0,0,0,0.35);
-}
-.tunes-hero__eyebrow {
-    font-size: 12px;
-    letter-spacing: 0.22em;
+.tunes-album__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.36em;
+    color: var(--vesper-blue);
     text-transform: uppercase;
-    color: var(--tunes-accent-3);
-    margin: 0 0 8px;
+    margin: 0;
 }
-.tunes-hero__title {
-    font-size: 42px;
+
+.tunes-album__title {
+    font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    margin: 0 0 14px;
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    font-size: clamp(44px, 4.5vw, 72px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    color: var(--vesper-text);
+    margin: 0;
+    text-transform: uppercase;
 }
-.tunes-hero__desc {
-    color: var(--tunes-text-dim);
-    font-size: 16px;
-    line-height: 1.5;
-    max-width: 680px;
-    margin: 0 0 22px;
+
+.tunes-album__artist {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 500;
+    font-size: clamp(18px, 1.4vw, 22px);
+    color: var(--vesper-blue);
+    margin: 0;
+    text-decoration: none;
 }
-.tunes-btn-primary {
-    display: inline-flex;
+
+.tunes-album__meta {
+    display: flex;
     align-items: center;
     gap: 10px;
-    padding: 14px 26px;
-    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
-    color: #fff;
-    border-radius: 999px;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 1vw, 15px);
+    flex-wrap: wrap;
+}
+
+.tunes-album__synopsis {
+    margin: 6px 0 0;
+    max-width: 58ch;
+    color: var(--vesper-text-2);
+    font-size: clamp(14px, 1vw, 16px);
+    line-height: 1.55;
+}
+
+.tunes-album__actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.tunes-track-list {
+    position: relative;
+    z-index: 1;
+    margin: 12px 0 80px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+    display: flex;
+    flex-direction: column;
+}
+
+.tunes-track-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--vesper-text-2);
+    font-family: 'Geist', system-ui, sans-serif;
     font-size: 15px;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.tunes-track-row + .tunes-track-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tunes-track-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tunes-track-row--playing {
+    background: rgba(var(--vesper-blue-rgb), 0.08);
+    border-color: rgba(var(--vesper-blue-rgb), 0.40);
+    color: var(--vesper-blue);
+}
+
+.tunes-track-row__num {
+    text-align: center;
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+}
+
+.tunes-track-row--playing .tunes-track-row__num {
+    color: var(--vesper-blue);
+}
+
+.tunes-track-row__title {
+    color: var(--vesper-text);
+    font-weight: 500;
+    font-size: 15px;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.tunes-track-row--playing .tunes-track-row__title {
+    color: var(--vesper-blue);
     font-weight: 600;
+}
+
+.tunes-track-row__pill {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text-3);
+}
+
+.tunes-track-row__time {
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    min-width: 44px;
+    text-align: right;
+}
+
+.tunes-track-row__add {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    color: var(--vesper-text-2);
+    background: transparent;
     border: none;
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(var(--tunes-accent-rgb),0.35);
-    transition: transform 0.15s, box-shadow 0.15s;
+    border-radius: 50%;
 }
-.tunes-btn-primary:hover,
-.tunes-btn-primary:focus {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(var(--tunes-accent-rgb),0.5);
+
+.tunes-track-row__add--added {
+    background: var(--vesper-blue);
+    color: #06080f;
+}
+
+/* ============================================================
+   MINI PLAYER — sticky bottom bar
+============================================================ */
+
+.tunes-mini {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 88px;
+    background: rgba(8, 11, 20, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+    align-items: center;
+    padding: 0 clamp(24px, 2vw, 40px) 0 clamp(24px, 2vw, 40px);
+    z-index: 50;
+    gap: 24px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.tunes-mini__left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    padding: 0;
+}
+
+.tunes-mini__art {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.tunes-mini__text { min-width: 0; }
+
+.tunes-mini__title {
+    margin: 0;
+    font-weight: 600;
+    color: var(--vesper-text);
+    font-size: 14px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tunes-mini__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-2);
+    font-size: 12px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-mini__like {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    transition: color 180ms ease, background 180ms ease;
+}
+
+.tunes-mini__like[data-liked="true"] {
+    color: var(--vesper-blue);
+}
+
+.tunes-mini__center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 360px;
+}
+
+.tunes-mini__buttons {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.tunes-iconbtn {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    transition: transform 200ms ease, color 200ms ease, background 200ms ease;
+}
+
+.tunes-iconbtn:hover {
+    color: var(--vesper-text);
+    background: rgba(255, 255, 255, 0.06);
+    transform: scale(1.06);
+}
+
+.tunes-iconbtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.tunes-iconbtn--play {
+    width: 52px;
+    height: 52px;
+    color: var(--vesper-bg-0);
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.45),
+        0 0 0 2px rgba(var(--vesper-blue-rgb), 0.45);
+}
+
+.tunes-iconbtn--play:hover {
+    color: var(--vesper-bg-0);
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.50),
+        0 0 0 3px rgba(var(--vesper-blue-rgb), 0.85);
+    transform: scale(1.06);
+}
+
+.tunes-mini__scrub {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 540px;
+}
+
+.tunes-mini__time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--vesper-text-3);
+    min-width: 38px;
+}
+
+.tunes-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 9999px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+}
+
+.tunes-progress__bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--vesper-blue-dim), var(--vesper-blue-bright));
+    border-radius: 9999px;
+    box-shadow: 0 0 12px var(--vesper-blue-glow);
+    transition: width 120ms linear;
+}
+
+.tunes-mini__right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.tunes-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--vesper-text-2);
+}
+
+.tunes-volume input[type="range"] {
+    width: 100px;
+    accent-color: var(--vesper-blue);
+}
+
+/* ============================================================
+   FULL-SCREEN NOW PLAYING — Vesper-style cinematic player
+============================================================ */
+
+.tunes-fullplayer {
+    position: fixed;
+    inset: 0;
+    z-index: 9990;
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
+    overflow: hidden;
+    font-family: 'Geist', system-ui, sans-serif;
+}
+
+.tunes-fullplayer__bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transform: scale(1.08);
+    filter: blur(48px) saturate(1.15);
+    opacity: 0.55;
+    z-index: 0;
+}
+
+.tunes-fullplayer__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(6, 8, 15, 0.45) 0%,
+        rgba(6, 8, 15, 0.20) 30%,
+        rgba(6, 8, 15, 0.50) 70%,
+        rgba(6, 8, 15, 0.92) 100%
+    );
+    z-index: 1;
+}
+
+.tunes-fullplayer__corner-left {
+    position: absolute;
+    top: 28px;
+    left: 32px;
+    z-index: 4;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.38em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+}
+
+.tunes-fullplayer__corner-right {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tunes-fullplayer__body {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr) minmax(280px, 420px);
+    gap: 48px;
+    align-items: center;
+    height: 100%;
+    padding: 80px clamp(40px, 4.5vw, 88px) 200px;
+}
+
+.tunes-fullplayer__art-col {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.tunes-fullplayer__art {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+        0 40px 80px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(var(--vesper-blue-rgb), 0.10);
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tunes-fullplayer__art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.tunes-fullplayer__art-ring {
+    /* Decorative neon ring around the album art. */
+    position: absolute;
+    inset: -10%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(var(--vesper-blue-rgb), 0.40) 0%,
+        rgba(var(--vesper-blue-rgb), 0.18) 35%,
+        transparent 60%
+    );
+    filter: blur(12px);
+    z-index: -1;
+    pointer-events: none;
+    animation: tunes-pulse 6s ease-in-out infinite;
+}
+
+.tunes-fullplayer__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: left;
+    align-self: end;
+}
+
+.tunes-fullplayer__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 5vw, 84px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    margin: 0;
+    color: var(--vesper-text);
+}
+
+.tunes-fullplayer__artist {
+    font-weight: 500;
+    font-size: clamp(20px, 1.6vw, 28px);
+    color: var(--vesper-blue);
+    margin: 0;
+}
+
+.tunes-fullplayer__album {
+    color: var(--vesper-text-2);
+    font-size: clamp(15px, 1.1vw, 18px);
+    margin: 0;
+}
+
+.tunes-fullplayer__chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.tunes-fullplayer__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--vesper-text);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.tunes-fullplayer__like {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    margin-top: 8px;
+    transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.tunes-fullplayer__like:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text);
+    transform: scale(1.06);
+}
+
+.tunes-fullplayer__like[data-liked="true"] {
+    color: var(--vesper-blue);
+}
+
+.tunes-fullplayer__queue {
+    position: relative;
+    background: rgba(8, 11, 20, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 22px 22px 18px;
+    max-height: 64vh;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+}
+
+.tunes-fullplayer__queue-section + .tunes-fullplayer__queue-section { margin-top: 22px; }
+
+.tunes-fullplayer__queue-title {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    margin: 0 0 14px;
+}
+
+.tunes-lyric-row {
+    margin: 0 0 12px;
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--vesper-text-3);
+    transition: color 320ms ease, transform 320ms ease;
+}
+
+.tunes-lyric-row[data-active="true"] {
+    color: var(--vesper-text);
+    font-weight: 600;
+    transform: translateX(2px);
+}
+
+.tunes-queue-row {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--vesper-text-2);
+    font-size: 13px;
+    transition: background 180ms ease;
+}
+
+.tunes-queue-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.tunes-queue-row img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.tunes-queue-row__title {
+    margin: 0;
+    color: var(--vesper-text);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-queue-row__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-3);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-queue-row__time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--vesper-text-3);
+}
+
+/* Bottom controls dock that overlays the full-screen player */
+.tunes-fullplayer__dock {
+    position: absolute;
+    left: clamp(40px, 4.5vw, 88px);
+    right: clamp(40px, 4.5vw, 88px);
+    bottom: clamp(32px, 4vh, 60px);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.tunes-fullplayer__scrub {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+}
+
+.tunes-fullplayer__scrub-bar {
+    flex: 1;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 9999px;
+    cursor: pointer;
+    position: relative;
+}
+
+.tunes-fullplayer__scrub-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--vesper-blue-dim), var(--vesper-blue-bright));
+    border-radius: 9999px;
+    box-shadow: 0 0 14px var(--vesper-blue-glow);
+    position: relative;
+}
+
+.tunes-fullplayer__scrub-fill::after {
+    content: "";
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--vesper-blue-bright);
+    box-shadow: 0 0 18px var(--vesper-blue-glow);
+}
+
+.tunes-fullplayer__transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn {
+    width: 48px;
+    height: 48px;
+    color: var(--vesper-text-2);
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn:hover {
+    color: var(--vesper-text);
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn--play {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: var(--vesper-bg-0);
+    box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.6),
+        0 0 0 3px rgba(var(--vesper-blue-rgb), 0.55);
+}
+
+.tunes-fullplayer__bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* ============================================================
+   PAGE HEADERS (used by Search / Radio / Library / Podcasts)
+============================================================ */
+
+.tunes-page-title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(36px, 4vw, 56px);
+    letter-spacing: -0.03em;
+    color: var(--vesper-text);
+    margin: 0;
+}
+
+.tunes-page-subtitle {
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 1vw, 16px);
+    margin: 6px 0 0;
+    font-family: 'Geist Mono', monospace;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+.tunes-page-head {
+    padding-top: 32px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
+    padding-bottom: 12px;
+}
+
+/* Search input */
+.tunes-search-wrap {
+    padding: 12px clamp(40px, 4.2vw, 80px) 12px clamp(92px, 6.5vw, 132px);
+}
+
+.tunes-search-input {
+    width: 100%;
+    height: 56px;
+    padding: 0 22px;
+    border-radius: 12px;
+    background: var(--vesper-bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 17px;
     outline: none;
 }
 
-/* ── Skeleton ─────────────────────────────────────────────── */
-.tunes-skel {
-    background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.10), rgba(255,255,255,0.04));
-    background-size: 200% 100%;
-    animation: tunes-skel 1.4s linear infinite;
-    border-radius: 10px;
+.tunes-search-input::placeholder { color: var(--vesper-text-3); }
+
+.tunes-search-input:focus {
+    border-color: rgba(var(--vesper-blue-rgb), 0.45);
+    box-shadow: 0 0 0 3px rgba(var(--vesper-blue-rgb), 0.18);
 }
-@keyframes tunes-skel {
+
+/* Empty / loading states */
+.tunes-empty {
+    padding: 60px clamp(92px, 6.5vw, 132px);
+    color: var(--vesper-text-2);
+    font-size: 16px;
+}
+
+.tunes-skel {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.10) 50%,
+        rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    border-radius: 12px;
+    animation: tunes-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes tunes-skel-shimmer {
     0%   { background-position: 100% 0; }
     100% { background-position: -100% 0; }
 }
 
-/* ── Radio / Podcast section tints ────────────────────────── */
-.tunes-section--radio .tunes-card:hover {
-    border-color: rgba(6,182,212,0.5);
-    box-shadow: 0 18px 38px rgba(0,0,0,0.45);
-}
-.tunes-section--radio .tunes-card:focus-visible,
-.tunes-section--radio .tunes-card[data-focused="true"] {
-    outline: none;
-    border-color: var(--tunes-radio);
-    box-shadow: 0 0 0 4px rgba(6,182,212,0.32), 0 22px 48px rgba(0,0,0,0.55);
-}
-.tunes-section--podcast .tunes-card:hover {
-    border-color: rgba(249,115,22,0.5);
-    box-shadow: 0 18px 38px rgba(0,0,0,0.45);
-}
-.tunes-section--podcast .tunes-card:focus-visible,
-.tunes-section--podcast .tunes-card[data-focused="true"] {
-    outline: none;
-    border-color: var(--tunes-podcast);
-    box-shadow: 0 0 0 4px rgba(249,115,22,0.32), 0 22px 48px rgba(0,0,0,0.55);
+/* ============================================================
+   FOCUS RING — inherits Vesper's outline-based ring from index.css
+   The base outline:3px solid var(--vesper-blue-bright) covers
+   every focusable surface.  Per-style tweaks below.
+============================================================ */
+
+.tunes-tile[data-focused="true"],
+.tunes-tile:focus-visible {
+    transform: scale(1.06) translateZ(0);
 }
 
-/* ── Full-screen player ───────────────────────────────────── */
-.tunes-fullplayer {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    background:
-        radial-gradient(1200px 800px at 50% 0%, rgba(var(--tunes-accent-rgb),0.35), transparent 60%),
-        linear-gradient(180deg, var(--tunes-bg-0), var(--tunes-bg-1) 60%, var(--tunes-bg-2));
-    padding: 40px 60px;
-    backdrop-filter: blur(40px);
-}
-.tunes-fullplayer__close {
-    justify-self: end;
-}
-.tunes-fullplayer__body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 60px;
-    align-items: center;
-    height: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    width: 100%;
-}
-.tunes-fullplayer__art {
-    aspect-ratio: 1 / 1;
-    max-width: 480px;
-    width: 100%;
-    margin: 0 auto;
-    border-radius: 20px;
-    overflow: hidden;
-    position: relative;
+.tunes-tile[data-focused="true"] .tunes-tile__art-frame,
+.tunes-tile:focus-visible .tunes-tile__art-frame {
     box-shadow:
-        0 40px 80px rgba(0,0,0,0.55),
-        0 0 0 1px rgba(255,255,255,0.06),
-        0 0 80px rgba(var(--tunes-accent-rgb),0.25);
-    /* v2.8.56 — Gradient backdrop that picks up the active theme.
-       Acts as the placeholder pattern when no album art is loaded
-       (a much nicer fallback than the flat purple square). */
-    background:
-        radial-gradient(circle at 30% 30%, rgba(var(--tunes-accent-rgb),0.55), transparent 65%),
-        radial-gradient(circle at 70% 70%, rgba(var(--tunes-accent-rgb),0.20), transparent 70%),
-        linear-gradient(135deg, var(--tunes-bg-2), var(--tunes-bg-0));
+        0 16px 38px rgba(0, 0, 0, 0.6),
+        0 0 0 3px var(--vesper-blue-bright),
+        0 0 28px rgba(var(--vesper-blue-rgb), 0.5);
 }
-.tunes-fullplayer__art img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: opacity 0.4s var(--tunes-ease);
+
+.tunes-nav__item[data-focused="true"],
+.tunes-nav__item:focus-visible {
+    color: var(--vesper-text);
+    background: rgba(var(--vesper-blue-rgb), 0.10);
 }
-/* v2.8.56 — Slowly rotating vinyl groove ring that sits underneath
-   any album art.  Makes the "no art" state feel alive (instead of
-   a static gradient square) and adds depth when art IS present. */
-.tunes-fullplayer__art::before {
-    content: "";
-    position: absolute;
-    inset: 8%;
-    border-radius: 50%;
-    background:
-        repeating-radial-gradient(
-            circle at center,
-            rgba(255,255,255,0.04) 0 1px,
-            transparent 1px 6px
-        );
-    pointer-events: none;
-    z-index: 0;
-    animation: tunes-vinyl-spin 28s linear infinite;
-    /* Reduce-motion users keep the look but lose the spin. */
-}
-.tunes-fullplayer__art::after {
-    content: "";
-    position: absolute;
-    inset: 45%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,0,0,0.5) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 1;
-}
-.tunes-fullplayer__art img {
-    position: relative;
-    z-index: 2;
-}
-@keyframes tunes-vinyl-spin {
-    to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-    .tunes-fullplayer__art::before { animation: none; }
-}
-.tunes-fullplayer__meta {
+
+/* ============================================================
+   Backward-compat aliases — older code referenced these names.
+   Map them so we don't break references during the transition.
+============================================================ */
+
+.tunes-card {
+    /* legacy class used by older Music components — alias to .tunes-tile */
+    flex-shrink: 0;
+    width: clamp(160px, 13vw, 220px);
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-}
-.tunes-fullplayer__eyebrow {
-    font-size: 12px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--tunes-accent-3);
-    margin: 0;
-}
-.tunes-fullplayer__title {
-    font-size: 48px;
-    font-weight: 800;
-    margin: 0;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-}
-.tunes-fullplayer__artist {
-    font-size: 20px;
-    color: var(--tunes-text-dim);
-    margin: 0;
-}
-.tunes-fullplayer__progress {
-    margin-top: 24px;
-    display: grid;
-    gap: 6px;
-}
-.tunes-fullplayer__progress-bar {
-    height: 6px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-}
-.tunes-fullplayer__progress-bar > div {
-    position: absolute;
-    inset: 0 auto 0 0;
-    background: linear-gradient(90deg, var(--tunes-accent), var(--tunes-accent-2));
-}
-.tunes-fullplayer__times {
-    display: flex;
-    justify-content: space-between;
-    color: var(--tunes-text-dim);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-}
-.tunes-fullplayer__controls {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-top: 26px;
-}
-.tunes-fullplayer .tunes-iconbtn--play {
-    width: 72px;
-    height: 72px;
-}
-.tunes-fullplayer__footer {
-    padding-top: 24px;
+    gap: 12px;
+    text-decoration: none;
 }
 
-/* ── Lists/grid ───────────────────────────────────────────── */
+.tunes-card__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.tunes-card__art--round { border-radius: 50%; }
+
+.tunes-card__body { padding: 0; }
+
+.tunes-card__title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--vesper-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tunes-card__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-2);
+    font-size: 12px;
+}
+
 .tunes-grid {
     display: grid;
-    /* v2.8.57 — Same density fix we did on the home shelves.
-       Was minmax(220px, 1fr) → 3-4 oversized tiles per row on a
-       1080p TV.  180 px → ~5-6 tiles per row, matching the home
-       shelf and Vesper's information density. */
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 18px;
-}
-.tunes-section {
-    margin-bottom: 40px;
-}
-.tunes-section__title {
-    font-size: 26px;
-    font-weight: 700;
-    margin: 0 0 22px;
+    padding-left: clamp(92px, 6.5vw, 132px);
+    padding-right: clamp(40px, 4.2vw, 80px);
 }
 
-/* ── Genre chips (radio) ──────────────────────────────────── */
-.tunes-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 26px;
-}
-.tunes-chip {
-    padding: 11px 22px;
-    background: var(--tunes-glass-bg);
-    border: 2px solid var(--tunes-glass-border);
-    border-radius: 999px;
-    color: var(--tunes-text-dim);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
-}
-.tunes-chip:hover,
-.tunes-chip--active {
-    background: rgba(var(--tunes-accent-rgb),0.18);
-    color: var(--tunes-text);
-    border-color: var(--tunes-accent);
-}
-.tunes-chip:focus-visible,
-.tunes-chip[data-focused="true"] {
-    outline: none;
-    background: rgba(var(--tunes-accent-rgb),0.28);
-    color: #fff;
-    border-color: var(--tunes-accent);
-    transform: scale(1.06);
-    box-shadow: 0 0 0 3px rgba(var(--tunes-accent-rgb),0.28);
-}
-.tunes-chip--radio.tunes-chip--active {
-    background: rgba(6,182,212,0.22);
-    border-color: var(--tunes-radio);
-}
-.tunes-section--radio .tunes-chip:focus-visible,
-.tunes-section--radio .tunes-chip[data-focused="true"] {
-    background: rgba(6,182,212,0.28);
-    border-color: var(--tunes-radio);
-    box-shadow: 0 0 0 3px rgba(6,182,212,0.28);
-}
-
-.tunes-empty {
-    padding: 60px 20px;
-    text-align: center;
-    color: var(--tunes-text-faint);
+/* Legacy aliases for old page styles that still reference the
+   pink theme — kept lean so they don't dominate the new look. */
+.tunes-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 22px;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: var(--vesper-bg-0);
+    border: none;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
     font-size: 15px;
+    cursor: pointer;
+    transition: transform 200ms ease;
 }
 
-/* ── Genre tile ───────────────────────────────────────────── */
-.tunes-genre-tile {
-    aspect-ratio: 16 / 9;
-    background-size: cover;
-    background-position: center;
-    background-color: #2a0945;
-    border-radius: 14px;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.15s, box-shadow 0.15s;
-    border: 2px solid transparent;
-}
-.tunes-genre-tile:hover {
-    transform: scale(1.03);
-    box-shadow: 0 16px 30px rgba(0,0,0,0.4);
-    border-color: var(--tunes-accent);
-}
-.tunes-genre-tile:focus-visible,
-.tunes-genre-tile[data-focused="true"] {
-    outline: none;
-    transform: scale(1.06);
-    box-shadow: 0 20px 38px rgba(0,0,0,0.5), 0 0 0 4px rgba(var(--tunes-accent-rgb),0.32);
-    border-color: var(--tunes-accent);
-}
-.tunes-genre-tile__overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: flex-end;
-    padding: 16px 18px;
-    font-size: 18px;
-    font-weight: 700;
-    background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.7) 100%);
-}
+.tunes-btn-primary:hover { transform: scale(1.03); }

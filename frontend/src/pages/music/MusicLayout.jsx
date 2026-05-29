@@ -1,6 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Search, Radio, Mic, Library, Music2, Maximize, Minimize, Mic2 } from 'lucide-react';
+// ON NOW TV TUNES — Vesper-style music app shell
+// =============================================================
+// Mirrors Vesper's SideNav UX exactly:
+//   - Collapsed 76 px rail, expands to 248 px on focus dwell
+//   - Glowing cyan "V2" emblem when collapsed
+//   - Smooth icon → label reveal when expanded
+import React, { useEffect, useRef, useState } from 'react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import {
+    Home as HomeIcon,
+    Search,
+    Compass,
+    Radio,
+    Library,
+    Mic2,
+    Mic,
+    User,
+    Settings as SettingsIcon,
+    Music2,
+} from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
 import { YouTubeIFrameHost } from '../../components/music/YouTubeIFrameHost';
@@ -8,153 +25,176 @@ import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 import './karaoke.css';
 
-/** Cross-browser Fullscreen API helpers. */
-function requestFs() {
-    const el = document.documentElement;
-    const r = el.requestFullscreen
-        || el.webkitRequestFullscreen
-        || el.mozRequestFullScreen
-        || el.msRequestFullscreen;
-    if (r) { try { return r.call(el); } catch { /* ignore */ } }
-    return null;
-}
-function exitFs() {
-    const d = document;
-    const e = d.exitFullscreen
-        || d.webkitExitFullscreen
-        || d.mozCancelFullScreen
-        || d.msExitFullscreen;
-    if (e && (d.fullscreenElement || d.webkitFullscreenElement)) {
-        try { return e.call(d); } catch { /* ignore */ }
-    }
-    return null;
-}
-function isFs() {
-    return !!(document.fullscreenElement
-        || document.webkitFullscreenElement
-        || document.mozFullScreenElement
-        || document.msFullscreenElement);
-}
+const NAV_ITEMS = [
+    { to: '/music',          label: 'Home',       icon: HomeIcon, end: true,  id: 'home' },
+    { to: '/music/search',   label: 'Search',     icon: Search,                 id: 'search' },
+    { to: '/music/karaoke',  label: 'Karaoke',    icon: Mic2,                   id: 'karaoke' },
+    { to: '/music/radio',    label: 'Radio',      icon: Radio,                  id: 'radio' },
+    { to: '/music/radio/au', label: 'Australia',  icon: Compass,                id: 'australia' },
+    { to: '/music/podcasts', label: 'Podcasts',   icon: Mic,                    id: 'podcasts' },
+    { to: '/music/library',  label: 'Library',    icon: Library,                id: 'library' },
+];
 
-/** v2.8.56 — Persisted theme: `pink` (default) | `electric-blue`.
- *  Lives in `localStorage`; the `<div className="tunes-root">` reads
- *  it and sets `data-theme=…` so all the CSS variable overrides in
- *  tunes.css kick in.
- */
 const THEME_STORAGE_KEY = 'onnowtv-tunes-theme';
 
 function readStoredTheme() {
-    if (typeof window === 'undefined') return 'pink';
+    if (typeof window === 'undefined') return 'electric-blue';
     try {
         const v = window.localStorage.getItem(THEME_STORAGE_KEY);
-        return v === 'electric-blue' ? 'electric-blue' : 'pink';
-    } catch { return 'pink'; }
+        return v === 'pink' ? 'pink' : 'electric-blue';
+    } catch { return 'electric-blue'; }
 }
 
-/** Vertical nav for the Tunes app — same flavor on mobile/TV. */
 function TunesNav({ theme, onThemeChange }) {
-    const [fs, setFs] = useState(false);
-    useEffect(() => {
-        const update = () => setFs(isFs());
-        document.addEventListener('fullscreenchange', update);
-        document.addEventListener('webkitfullscreenchange', update);
-        update();
-        return () => {
-            document.removeEventListener('fullscreenchange', update);
-            document.removeEventListener('webkitfullscreenchange', update);
-        };
-    }, []);
-    const items = [
-        { to: '/music',          label: 'Home',       icon: Home,    end: true },
-        { to: '/music/search',   label: 'Search',     icon: Search },
-        { to: '/music/karaoke',  label: 'V2 Karaoke', icon: Mic2 },
-        { to: '/music/radio',    label: 'Radio',      icon: Radio },
-        { to: '/music/radio/au', label: '🇦🇺 Australia', icon: Radio },
-        { to: '/music/podcasts', label: 'Podcasts',   icon: Mic },
-        { to: '/music/library',  label: 'Library',    icon: Library },
-    ];
+    const [expanded, setExpanded] = useState(false);
+    const dwellTimer = useRef(null);
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    const clearDwell = () => {
+        if (dwellTimer.current) {
+            clearTimeout(dwellTimer.current);
+            dwellTimer.current = null;
+        }
+    };
+
+    useEffect(() => () => clearDwell(), []);
+
+    const handleNavClick = (path) => {
+        clearDwell();
+        setExpanded(false);
+        if (document.activeElement?.blur) document.activeElement.blur();
+        navigate(path);
+    };
+
     return (
-        <nav className="tunes-nav" data-testid="side-nav" data-tunes-nav="true">
+        <nav
+            className="tunes-nav"
+            data-testid="side-nav"
+            data-tunes-nav="true"
+            data-expanded={expanded}
+            onFocus={(e) => {
+                if (!e.target.matches('[data-focusable="true"]')) return;
+                clearDwell();
+                dwellTimer.current = setTimeout(() => {
+                    setExpanded(true);
+                    dwellTimer.current = null;
+                }, 300);
+            }}
+            onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                    clearDwell();
+                    setExpanded(false);
+                }
+            }}
+            onMouseEnter={() => {
+                clearDwell();
+                dwellTimer.current = setTimeout(() => setExpanded(true), 220);
+            }}
+            onMouseLeave={() => {
+                clearDwell();
+                setExpanded(false);
+            }}
+        >
+            {/* Brand — glowing V2 emblem + wordmark on expand */}
             <div className="tunes-nav__brand">
-                <div className="tunes-nav__logo">
-                    <Music2 size={22} color="#fff" />
+                <div className="tunes-nav__brand-emblem" data-testid="tunes-nav-brand">
+                    V2
                 </div>
-                <div>
-                    <div className="tunes-nav__title">ON NOW</div>
-                    <div className="tunes-nav__subtitle">Tunes</div>
+                <div className="tunes-nav__brand-wordmark">
+                    ON&nbsp;NOW&nbsp;TV
+                    <span>Tunes</span>
                 </div>
             </div>
-            {items.map(({ to, label, icon: Icon, end }) => (
+
+            <div className="tunes-nav__items">
+                {NAV_ITEMS.map(({ to, label, icon: Icon, end, id }) => {
+                    const isActive = end
+                        ? location.pathname === to
+                        : location.pathname.startsWith(to);
+                    return (
+                        <NavLink
+                            key={to}
+                            to={to}
+                            end={end}
+                            onClick={(e) => { e.preventDefault(); handleNavClick(to); }}
+                            className={
+                                'tunes-nav__item' +
+                                (isActive ? ' tunes-nav__item--active' : '')
+                            }
+                            data-testid={`tunes-nav-${id}`}
+                            data-focusable="true"
+                            data-focus-style="nav"
+                            tabIndex={0}
+                        >
+                            <span className="tunes-nav__item-icon">
+                                <Icon size={22} strokeWidth={1.7} />
+                            </span>
+                            <span className="tunes-nav__item-label">{label}</span>
+                        </NavLink>
+                    );
+                })}
+            </div>
+
+            <div className="tunes-nav__spacer" />
+
+            {/* Profile / settings affordances at the bottom of the rail. */}
+            <div className="tunes-nav__items">
                 <NavLink
-                    key={to}
-                    to={to}
-                    end={end}
-                    className={({ isActive }) =>
-                        'tunes-nav__item' + (isActive ? ' tunes-nav__item--active' : '')
-                    }
-                    data-testid={`tunes-nav-${label.toLowerCase()}`}
+                    to="/music/library"
+                    className="tunes-nav__item"
+                    data-testid="tunes-nav-profile"
                     data-focusable="true"
                     data-focus-style="nav"
                     tabIndex={0}
                 >
-                    <Icon size={22} />
-                    <span>{label}</span>
+                    <span className="tunes-nav__item-icon">
+                        <User size={22} strokeWidth={1.7} />
+                    </span>
+                    <span className="tunes-nav__item-label">Profile</span>
                 </NavLink>
-            ))}
-            <div style={{ flex: 1 }} />
-            <button
-                type="button"
-                className="tunes-nav__item"
-                onClick={() => (fs ? exitFs() : requestFs())}
-                data-testid="tunes-nav-fullscreen"
-                data-focusable="true"
-                data-focus-style="nav"
-                tabIndex={0}
-                style={{
-                    background: 'transparent',
-                    border: '2px solid transparent',
-                    cursor: 'pointer',
-                    width: '100%',
-                    fontFamily: 'inherit',
-                }}
-                aria-label={fs ? 'Exit fullscreen' : 'Enter fullscreen'}
-                title={fs ? 'Exit fullscreen' : 'Enter fullscreen'}
-            >
-                {fs ? <Minimize size={22} /> : <Maximize size={22} />}
-                <span>{fs ? 'Exit fullscreen' : 'Full screen'}</span>
-            </button>
+                <NavLink
+                    to="/music/library"
+                    className="tunes-nav__item"
+                    data-testid="tunes-nav-settings"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                >
+                    <span className="tunes-nav__item-icon">
+                        <SettingsIcon size={22} strokeWidth={1.7} />
+                    </span>
+                    <span className="tunes-nav__item-label">Settings</span>
+                </NavLink>
+            </div>
 
-            {/* v2.8.56 — Theme toggle: ON NOW Pink ↔ Electric Blue.
-                Persisted to localStorage; takes effect instantly
-                across every Tunes screen because the CSS variables
-                cascade from `.tunes-root[data-theme=…]`. */}
+            {/* Theme picker — only visible when expanded. */}
             <div className="tunes-nav__theme" data-testid="tunes-theme-toggle">
+                <div className="tunes-nav__theme-label">Accent</div>
                 <div className="tunes-nav__theme-row">
-                    <button
-                        type="button"
-                        className="tunes-nav__theme-btn"
-                        data-active={theme === 'pink'}
-                        data-focusable="true"
-                        data-focus-style="nav"
-                        tabIndex={0}
-                        onClick={() => onThemeChange('pink')}
-                        data-testid="theme-btn-pink"
-                        title="Pink theme"
-                    >
-                        Pink
-                    </button>
                     <button
                         type="button"
                         className="tunes-nav__theme-btn"
                         data-active={theme === 'electric-blue'}
                         data-focusable="true"
-                        data-focus-style="nav"
+                        data-focus-style="pill"
                         tabIndex={0}
                         onClick={() => onThemeChange('electric-blue')}
                         data-testid="theme-btn-electric-blue"
-                        title="Electric Blue theme"
                     >
                         Electric Blue
+                    </button>
+                    <button
+                        type="button"
+                        className="tunes-nav__theme-btn"
+                        data-active={theme === 'pink'}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => onThemeChange('pink')}
+                        data-testid="theme-btn-pink"
+                    >
+                        Pink
                     </button>
                 </div>
             </div>
@@ -162,13 +202,9 @@ function TunesNav({ theme, onThemeChange }) {
     );
 }
 
-/** Wraps every Music route — provides nav + sticky mini-player. */
 export default function MusicLayout() {
-    // v2.8.44 — Wire D-pad / remote-control spatial navigation.
     useSpatialFocus();
 
-    // v2.8.56 — Persisted theme (pink | electric-blue).  Read once on
-    // mount; updates propagate via `data-theme=…` on `.tunes-root`.
     const [theme, setTheme] = useState(() => readStoredTheme());
     const changeTheme = (next) => {
         if (next !== 'pink' && next !== 'electric-blue') return;
@@ -176,30 +212,16 @@ export default function MusicLayout() {
         try { window.localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* ignore */ }
     };
 
-    // v2.8.46 — Defensive "scroll-follows-focus" inside the Music
-    // app.  The shared spatial-focus hook tries to scroll the
-    // document, but only when its math says the row is off-screen.
-    // For the music app's grid layouts (which don't use shelf-page
-    // snap), some focus changes don't trigger the hook's scroll —
-    // the user reported "arrow-down doesn't scroll the page".
-    // This effect listens for ANY focus change inside /music and
-    // calls scrollIntoView({block:'center'}) so the focused tile
-    // is always centered in the viewport.  Idempotent with the
-    // hook's own scroll — they coexist.
+    // Scroll-follows-focus for tile grids that aren't using a snap container.
     useEffect(() => {
         const onFocus = (e) => {
             const el = e.target;
             if (!(el instanceof HTMLElement)) return;
-            // Only scroll for our own focusable surfaces, not the
-            // entire document.
             if (!el.closest('.tunes-root')) return;
-            if (!el.matches('[data-focusable="true"], [data-focusable="true"] *')) return;
             const focusable = el.matches('[data-focusable="true"]')
                 ? el
                 : el.closest('[data-focusable="true"]');
             if (!focusable) return;
-            // Use rAF so we don't fight the hook's scrollBy in the
-            // same tick.
             requestAnimationFrame(() => {
                 try {
                     focusable.scrollIntoView({

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, Radio as RadioIcon, Mic } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
@@ -13,7 +13,9 @@ function fmtDur(secs) {
 }
 
 export default function MusicSearch() {
-    const [q, setQ] = useState('');
+    const [params] = useSearchParams();
+    const initialQ = params.get('q') || '';
+    const [q, setQ] = useState(initialQ);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const debounce = useRef(null);
