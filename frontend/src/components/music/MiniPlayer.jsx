@@ -35,11 +35,19 @@ export function MiniPlayer() {
                     tabIndex={0}
                     style={{ background: 'none', border: 'none', color: 'inherit', textAlign: 'left', padding: 0 }}
                 >
-                    {t.artwork ? (
-                        <img src={t.artwork} alt="" className="tunes-mini__art" />
-                    ) : (
-                        <div className="tunes-mini__art" />
-                    )}
+                    {/* v2.8.56 — Same artwork-fallback chain as the
+                        FullScreenPlayer: Deezer → YouTube thumbnail
+                        (`i.ytimg.com`) → empty placeholder. */}
+                    {(() => {
+                        const yt = t._ytId || t.yt_id;
+                        const ytArt = yt
+                            ? `https://i.ytimg.com/vi/${yt}/mqdefault.jpg`
+                            : null;
+                        const src = t.artwork || ytArt;
+                        return src
+                            ? <img src={src} alt="" className="tunes-mini__art" />
+                            : <div className="tunes-mini__art" />;
+                    })()}
                     <div className="tunes-mini__text">
                         <p className="tunes-mini__title">
                             {t.title}

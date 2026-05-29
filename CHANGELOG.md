@@ -7,6 +7,44 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.56 — Tunes: smooth-as-butter polish + Electric Blue theme
+
+  • **🎨 Theme toggle: PINK ↔ ELECTRIC BLUE.**  New pill at the
+    bottom of the Tunes sidebar lets the user switch between
+    "ON NOW Pink" (default — magenta accents) and "ON NOW Electric
+    Blue" (premium signal-blue accents).  Pure CSS variables —
+    every focus halo, every gradient, every shadow re-tints
+    instantly.  Choice persists in localStorage.
+
+  • **🎵 Album-art fallback chain.**  Full-screen player + mini
+    player now follow Deezer-artwork → YouTube thumbnail
+    (`i.ytimg.com/vi/{yt_id}/maxresdefault.jpg`) → graceful
+    step-down to `hqdefault` / `mqdefault` on 404 → vinyl-disc
+    CSS placeholder.  The art slot is NEVER an empty box when a
+    real song is playing.
+
+  • **💿 Spinning vinyl placeholder.**  The full-screen art slot
+    has subtle radial-groove rings + center hole + slow 28 s spin
+    when an image is loading or unavailable.  Respects
+    `prefers-reduced-motion`.
+
+  • **🧈 Smoother focus / scroll.**  Carousel rails got
+    `scroll-behavior: smooth`, `scroll-snap-type: x mandatory`,
+    `scroll-padding-inline: 60px`, momentum scrolling on iOS /
+    WebView.  Card focus transitions use the Apple "ease-out-
+    quart" curve (`cubic-bezier(0.22, 1, 0.36, 1)`) on a 220 ms
+    timeline — pops fast, settles smooth.
+
+  • **🪟 Tighter tile sizes.**  Was `minmax(220px, 1fr)` →
+    grew to fill the row and showed only 3-4 oversized cards.
+    Now a fixed `180px` so ~5-6 cards fit per 1080p row,
+    matching Vesper's information density.
+
+  • **🔣 De-hardcoded the pink.**  Every `rgba(255,45,127,…)` is
+    now `rgba(var(--tunes-accent-rgb), …)` — that's the one
+    change that makes the Electric Blue theme just work.
+
+
 ## v2.8.55 — Tunes: TRULY ad-free YouTube playback via authenticated TVHTML5
 
   • **🎯 The whole reason we added per-user sign-in.**  Now that

@@ -35,8 +35,23 @@ function isFs() {
         || document.msFullscreenElement);
 }
 
+/** v2.8.56 — Persisted theme: `pink` (default) | `electric-blue`.
+ *  Lives in `localStorage`; the `<div className="tunes-root">` reads
+ *  it and sets `data-theme=…` so all the CSS variable overrides in
+ *  tunes.css kick in.
+ */
+const THEME_STORAGE_KEY = 'onnowtv-tunes-theme';
+
+function readStoredTheme() {
+    if (typeof window === 'undefined') return 'pink';
+    try {
+        const v = window.localStorage.getItem(THEME_STORAGE_KEY);
+        return v === 'electric-blue' ? 'electric-blue' : 'pink';
+    } catch { return 'pink'; }
+}
+
 /** Vertical nav for the Tunes app — same flavor on mobile/TV. */
-function TunesNav() {
+function TunesNav({ theme, onThemeChange }) {
     const [fs, setFs] = useState(false);
     useEffect(() => {
         const update = () => setFs(isFs());
@@ -105,6 +120,41 @@ function TunesNav() {
                 {fs ? <Minimize size={22} /> : <Maximize size={22} />}
                 <span>{fs ? 'Exit fullscreen' : 'Full screen'}</span>
             </button>
+
+            {/* v2.8.56 — Theme toggle: ON NOW Pink ↔ Electric Blue.
+                Persisted to localStorage; takes effect instantly
+                across every Tunes screen because the CSS variables
+                cascade from `.tunes-root[data-theme=…]`. */}
+            <div className="tunes-nav__theme" data-testid="tunes-theme-toggle">
+                <div className="tunes-nav__theme-row">
+                    <button
+                        type="button"
+                        className="tunes-nav__theme-btn"
+                        data-active={theme === 'pink'}
+                        data-focusable="true"
+                        data-focus-style="nav"
+                        tabIndex={0}
+                        onClick={() => onThemeChange('pink')}
+                        data-testid="theme-btn-pink"
+                        title="Pink theme"
+                    >
+                        Pink
+                    </button>
+                    <button
+                        type="button"
+                        className="tunes-nav__theme-btn"
+                        data-active={theme === 'electric-blue'}
+                        data-focusable="true"
+                        data-focus-style="nav"
+                        tabIndex={0}
+                        onClick={() => onThemeChange('electric-blue')}
+                        data-testid="theme-btn-electric-blue"
+                        title="Electric Blue theme"
+                    >
+                        Electric Blue
+                    </button>
+                </div>
+            </div>
         </nav>
     );
 }
@@ -113,6 +163,15 @@ function TunesNav() {
 export default function MusicLayout() {
     // v2.8.44 — Wire D-pad / remote-control spatial navigation.
     useSpatialFocus();
+
+    // v2.8.56 — Persisted theme (pink | electric-blue).  Read once on
+    // mount; updates propagate via `data-theme=…` on `.tunes-root`.
+    const [theme, setTheme] = useState(() => readStoredTheme());
+    const changeTheme = (next) => {
+        if (next !== 'pink' && next !== 'electric-blue') return;
+        setTheme(next);
+        try { window.localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* ignore */ }
+    };
 
     // v2.8.46 — Defensive "scroll-follows-focus" inside the Music
     // app.  The shared spatial-focus hook tries to scroll the
@@ -153,9 +212,13 @@ export default function MusicLayout() {
     }, []);
 
     return (
-        <div className="tunes-root" data-testid="music-layout">
+        <div
+            className="tunes-root"
+            data-theme={theme}
+            data-testid="music-layout"
+        >
             <div className="tunes-shell">
-                <TunesNav />
+                <TunesNav theme={theme} onThemeChange={changeTheme} />
                 <main className="tunes-main">
                     <Outlet />
                 </main>
