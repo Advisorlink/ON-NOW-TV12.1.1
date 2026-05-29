@@ -55,29 +55,42 @@ export default function KaraokePage() {
 
     // Curated "always-good karaoke songs" — first thing the user
     // sees so the page isn't empty on first load.
+    // v2.8.62 — Skipped the redundant warm-up search ("queen bohemian
+    // rhapsody") that used to run BEFORE the parallel batch.  When the
+    // first call took a long time (or hung), the .then() chain never
+    // resolved and the "Warming up the stage…" placeholder lingered
+    // forever — exactly the bug the user reported.  Now we fire all
+    // eight seed searches in parallel from the get-go.
     useEffect(() => {
         let active = true;
-        musicAPI.search('queen bohemian rhapsody').then((r) => {
-            if (!active) return;
-            const seeds = [
-                'queen bohemian rhapsody',
-                'adele rolling in the deep',
-                'whitney houston i will always love you',
-                'bon jovi livin on a prayer',
-                'taylor swift shake it off',
-                'journey dont stop believin',
-                'ed sheeran perfect',
-                'celine dion my heart will go on',
-            ];
-            return Promise.all(
-                seeds.map((s) => musicAPI.search(s).then((sr) => (sr?.data?.tracks || sr?.tracks || [])[0]).catch(() => null))
-            );
-        }).then((seedResults) => {
+        const seeds = [
+            'queen bohemian rhapsody',
+            'adele rolling in the deep',
+            'whitney houston i will always love you',
+            'bon jovi livin on a prayer',
+            'taylor swift shake it off',
+            'journey dont stop believin',
+            'ed sheeran perfect',
+            'celine dion my heart will go on',
+        ];
+        Promise.all(
+            seeds.map((s) =>
+                musicAPI.search(s)
+                    .then((sr) => (sr?.data?.tracks || sr?.tracks || [])[0])
+                    .catch(() => null)
+            )
+        ).then((seedResults) => {
             if (!active) return;
             const filtered = (seedResults || []).filter(Boolean);
             setPicks(filtered);
-        }).catch(() => setPicks([]));
-        return () => { active = false; };
+        });
+        // Safety net: even if every individual promise hangs, mark
+        // picks as `[]` after 6 s so the user is never stuck on
+        // "Warming up the stage…" indefinitely.
+        const safety = setTimeout(() => {
+            if (active) setPicks((cur) => (cur === null ? [] : cur));
+        }, 6000);
+        return () => { active = false; clearTimeout(safety); };
     }, []);
 
     useEffect(() => {

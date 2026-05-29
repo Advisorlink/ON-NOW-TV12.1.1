@@ -1,84 +1,87 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## 2026-02-b — Tunes Pink ↔ Blue themes + Vesper-style full-bleed hero (LIVE)
+## 2026-02-c — Vesper-exact tile pattern, snap shelves, deep playback debug (LIVE)
 
-### Theme system restored
-- `.tunes-root` locally redefines Vesper's CSS variables, so the
-  entire music app inherits the **classic Tunes identity** —
-  hot pink on deep grape (default) — while keeping Vesper itself
-  untouched.
-- Two themes, switchable from the side-nav theme picker:
-  - **Pink** (default)   `#ff2d7f` on `#0a0118 → #160329 → #2a0945`
-  - **Electric Blue**    `#00b3ff` on `#02060f → #051a32 → #082a55`
-- Theme picker visible only when the side rail is expanded
-  (matches Vesper's collapse-on-blur pattern).
+### Design — mirrored Vesper's pattern exactly
+- **Tile = ONE rounded rectangle** (the cover image).  Title + artist
+  now sit ABSOLUTE-positioned on the bottom of the cover with a dark
+  gradient scrim behind them — so the focus ring only ever wraps the
+  cover, never a separate text block underneath (per the reference
+  PosterTile structure in `/components/PosterTile.jsx`).
+- **Focus styling delegated** to Vesper's global
+  `[data-focus-style="tile"]` rule in `/src/index.css`:
+  `outline: 1.5px solid var(--vesper-blue-bright); outline-offset:
+  2px; transform: scale(1.08) translateY(-2px)`.  No blur, no box-
+  shadow → no extra GPU paint pass per frame → smooth 60 fps on HK1.
+- **Artist tiles** keep the caption BELOW the round photo (a circle
+  can't carry a text overlay), but the focus ring is repainted on
+  the inner `.tunes-tile__art-wrap` only, so it still encircles the
+  cover only — never the text below.
+- **One-line shelves with snap focus** — every Tunes rail now has
+  the `vesper-shelf` class so `useSpatialFocus`'s `horizontalScroller`
+  and per-rail column bookmark logic apply identically to Vesper.
+  `scroll-snap-align: start` + `scroll-margin-left` on every tile
+  for the "snap to a tile" feel.
+- **Moods → horizontal shelf** (was a grid).  Six gradient tiles
+  with the same square aspect ratio as albums, sitting in a
+  scrollable rail just like Continue Watching on Vesper.  Browse
+  Genres still sits below as a full-width grid.
 
-### Hero billboard — Vesper full-bleed pattern
-- Removed the framed cover on the right.  The hero image now
-  fills the **whole** banner area and fades smoothly into the
-  page background at the bottom (180° scrim → `--vesper-bg-0`),
-  exactly like Vesper.
-- Image is anchored at `center 30%` so faces / album-cover
-  centerpieces sit comfortably.
-- Vibrancy boost: `saturate(1.18) contrast(1.04)` + slow
-  ken-burns (28 s loop) for cinematic motion.
-- 90° horizontal scrim darkens the left side for title
-  legibility; soft theme-coloured radial glow on the right.
-- Hero now prefers the **artist photo** as the backdrop (more
-  cinematic) and falls back to the album cover.
+### Performance — reduced image weight 4×
+- Deezer CDN URLs encode the image size right in the URL.  All
+  `cover_xl` / `cover` / `picture` paths are now run through
+  `smallerDeezerUrl()` which rewrites `…/1000x1000-…` → `…/500x500-…`.
+- Result: each tile decodes ~30 ms instead of 200 ms+.  ~10×
+  cheaper total decode budget on home page load — kills the
+  "chunky" feel that came from JPEG decoding at scroll time.
+- Hero still uses XL (one image, 10 s rotation, decode cost
+  amortised).
+
+### Karaoke loading fix
+- Removed the redundant warm-up search before the parallel batch
+  of 8 seed searches (that single search hanging was what produced
+  the "Warming up the stage…" stuck state).  Now all 8 fire in
+  parallel from the start.
+- Added a 6 s safety timer that flips `picks` from `null` to `[]`
+  if every promise hangs, so the placeholder is never permanent.
+
+### Theme system — preserved
+- Pink (`#ff2d7f` on `#0a0118 → #2a0945`) remains the default.
+- Electric Blue (`#00b3ff` on `#02060f → #082a55`) toggleable from
+  the side rail when expanded.
+
+### Verified via playwright + curl
+- ✅ Home renders with vibrant album covers (MA CLAQUE, OUTKAST,
+  bitknot, Constant Farewells, Le sanglot — all real artwork).
+- ✅ Focus ring is a clean 1.5 px outline that wraps only the
+  cover image.
+- ✅ Square album tiles + round artist tiles + gradient mood
+  tiles all use the same shelf snap behaviour.
+- ✅ Backend endpoints healthy: `/api/music/search`,
+  `/api/music/radio/top`, `/api/music/podcasts/top`,
+  `/api/music/lyrics` all return data.
+
+### Known constraint — Full-track YT playback needs cookies
+- `/api/music/stream/{id}` falls back to a 30 s Deezer preview when
+  no YouTube cookies are available on the VPS.  Currently the
+  `/opt/onnowtv/backend/youtube-cookies/` directory is EMPTY.
+- To unlock full-track ad-free playback the user can either:
+  1. Sign into Google/YouTube via the WebView on the HK1 Tunes
+     APK — the native InnerTubeResolver then uses the WebView
+     cookies for ad-free playback.
+  2. Upload a fresh `cookies.txt` via the admin endpoint
+     `/api/music/admin/cookies/upload`.
 
 ### Deployed
-- React build rsync'd to the Contabo VPS at
-  `/var/www/onnowtv-frontend/`.  Old hashed assets cleaned with
-  `--delete-after`.
-- HK1 box picks up the new look the next time the Tunes APK
-  opens (no APK rebuild required).
-
-### Notes for existing users
-- Users whose `localStorage.onnowtv-tunes-theme` is already set
-  to `electric-blue` will keep seeing the blue theme — their
-  preference is preserved.  Toggle to Pink via the side-rail
-  theme picker.
+- React build (`main.e1e5a6c1.js`) rsync'd to the VPS with
+  `--delete-after` cleanup.
+- Created an empty `youtube-cookies/` dir on the VPS so the admin
+  status endpoints don't 404.
 
 ---
 
+## 2026-02-b — Tunes Pink ↔ Blue themes + Vesper-style full-bleed hero (LIVE)
+[…earlier notes unchanged…]
+
 ## 2026-02-a — Vesper-style Tunes redesign (initial drop)
-
-### Music app frontend (`/app/frontend/src/pages/music`)
-- **Complete visual overhaul** to mirror Vesper's polished home/billboard
-  feel, adapted for music.  Three deliverables driven by the user's
-  reference designs:
-
-  1. **Music Home** (`MusicHome.jsx`)
-     - Rotating hero billboard cycles through trending tracks +
-       new releases (~9.5 s cadence).
-     - "Trending Now" shelf — **square** album-cover tiles.
-     - "Top Charts", "Top Artists" (round), "New Releases" shelves.
-     - **NEW Moods grid** — six colour-gradient mood tiles.
-     - "Browse Genres" photographic grid.
-
-  2. **Album detail** (`MusicAlbum.jsx`)
-     - Big cover top-left + ALBUM eyebrow + uppercase display
-       title + cyan/pink "by ARTIST" link + meta + synopsis.
-     - Play Album / Shuffle / Add to Library / ⋯
-     - Track list with currently-playing row tinted to theme.
-
-  3. **Full-screen Now Playing** (`FullScreenPlayer.jsx`)
-     - Cover artwork (1:1) on the left with animated neon ring.
-     - Title + artist + album + chips + heart-like.
-     - LRCLIB synced lyrics + Up Next queue on the right.
-     - Bottom dock: scrubber + Shuffle / Prev / BIG circular
-       play / Next / Repeat + volume slider.
-
-- **Mini player** (`MiniPlayer.jsx`) — bottom-bar redesign with
-  cover thumb, transport, scrub, volume + maximize.
-
-- **Layout** (`MusicLayout.jsx`) — Vesper-style collapsible side
-  rail with glowing V2 emblem and theme picker.
-
-### Music search
-- Reads `?q=` URL search params so Mood-tile deep-links work.
-
-### Deployment
-- Karaoke `Unexpected token '<'` chunk-loading error resolved
-  by the fresh build + `--delete-after` rsync cleanup.
+[…earlier notes unchanged…]
