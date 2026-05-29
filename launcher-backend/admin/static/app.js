@@ -272,6 +272,11 @@ function renderLayout(store) {
         const el = $('#layout_' + k);
         if (el) el.checked = !!layout[k];
     });
+    // v2.8.50 — Mirror the heading-image preview tile.
+    syncAppstoreImg(
+        '#layoutHeadingImg', '#layoutHeadingImgPreview', '#layoutHeadingImgClear',
+        layout.featured_heading_image_url,
+    );
     renderPreview();
 }
 
@@ -1267,6 +1272,15 @@ function setupAppstoreDropzone({ zoneSel, inputSel, browseSel, clearSel, endpoin
         clearSel:  '#v2aiHoldClear',
         endpoint:  '/api/admin/v2ai/hold-button',
         label:     'V2 AI hold button',
+    });
+    // v2.8.50 — Featured-panel HEADING image dropzone (Layout Editor).
+    setupAppstoreDropzone({
+        zoneSel:   '#layoutHeadingImgDrop',
+        inputSel:  '#layoutHeadingImgFile',
+        browseSel: '#layoutHeadingImgBrowse',
+        clearSel:  '#layoutHeadingImgClear',
+        endpoint:  '/api/admin/layout/heading-image',
+        label:     'Heading image',
     });
 })();
 

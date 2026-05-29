@@ -141,7 +141,25 @@
                         <input id="layout_featured_show_heading" type="checkbox">
                         <span>Show heading</span>
                     </label>
-                    <div class="span-2"><label>Heading image URL <small>(optional — brand logo / wordmark to show alongside or instead of the heading text)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
+
+                    <!-- v2.8.50 — Drag-and-drop upload for the heading
+                         image (sits next to the URL field — admin can
+                         use either).  Saved at /assets/layout/heading.png
+                         with a `ts=` cache-buster. -->
+                    <div class="span-2" style="display:flex; gap:14px; align-items:flex-start;">
+                        <div id="layoutHeadingImgPreview" class="appstore-hero-preview" style="aspect-ratio:4/1; max-width:200px; flex:0 0 auto;">
+                            <div class="appstore-hero-placeholder">No image.</div>
+                            <img id="layoutHeadingImg" alt="" hidden>
+                            <button id="layoutHeadingImgClear" type="button" class="appstore-hero-clear" hidden data-testid="heading-image-clear">Remove</button>
+                        </div>
+                        <div id="layoutHeadingImgDrop" class="appstore-hero-drop" style="flex:1;">
+                            <input type="file" id="layoutHeadingImgFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden data-testid="heading-image-file-input">
+                            <span><strong>Drop heading image</strong> · or <button id="layoutHeadingImgBrowse" type="button" class="apk-drop-link" data-testid="heading-image-browse">browse</button>.<br>
+                            Brand logo or wordmark for the home-screen heading.  Stored at up to <strong>2048 × 1024 px</strong> so it stays crisp at any TV resolution.  Use the placement + offsets below to position it.</span>
+                        </div>
+                    </div>
+
+                    <div class="span-2"><label>Heading image URL <small>(optional — pasted URL works too if you'd rather link to an external image instead of uploading)</small></label><input id="layout_featured_heading_image_url" type="text" placeholder="https://… or /assets/…"></div>
                     <div><label>Image height <small>(dp — only used when an image URL is set)</small></label><input id="layout_featured_heading_image_height_dp" type="number" min="20" max="280" step="2"></div>
                     <div><label>Image placement <small>(where it sits relative to the heading text)</small></label>
                         <select id="layout_featured_heading_image_placement" class="layout-select">
@@ -490,7 +508,7 @@
             <div id="v2aiBtnDrop" class="appstore-hero-drop">
                 <input type="file" id="v2aiBtnFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
                 <span><strong>Drop V2 AI button image</strong> · or <button id="v2aiBtnBrowse" type="button" class="apk-drop-link">browse</button>.<br>
-                Replaces the lightning-bolt icon on the V2 AI pill in the launcher's top bar.  Square <strong>96 × 96 px</strong> recommended — transparent PNG looks best.  Remove it to fall back to the default icon.</span>
+                Replaces the ENTIRE pill — image becomes the button.  Stored at up to <strong>2048 × 1024 px</strong> so it stays crisp at any pill width.  For a wordmark (e.g. "V2 AI"), upload at <strong>~4:1 aspect</strong> and set the pill <em>Width</em> to ~200 dp in the size section below for a perfect hero look.  Remove it to fall back to the default icon.</span>
             </div>
         </div>
 

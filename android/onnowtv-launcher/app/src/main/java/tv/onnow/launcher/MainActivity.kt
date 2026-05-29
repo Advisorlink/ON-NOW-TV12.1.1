@@ -869,6 +869,11 @@ class MainActivity : AppCompatActivity() {
                     is android.widget.ImageView -> {
                         child.imageTintList = null
                         child.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                        // v2.8.50 — Bilinear filtering for sharp scaling
+                        // at any pill size.  Default is true on most
+                        // platforms but make it explicit so the bigger
+                        // 2048×1024 source image always looks crisp.
+                        child.isFilterBitmap = true
                         val lp = child.layoutParams
                         lp.width  = android.view.ViewGroup.LayoutParams.MATCH_PARENT
                         lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT

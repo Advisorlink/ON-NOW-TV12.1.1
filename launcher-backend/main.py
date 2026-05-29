@@ -87,6 +87,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 (DATA_DIR / "appstore").mkdir(exist_ok=True)
 # v2.8.25 — V2 AI screen background image lives here.
 (DATA_DIR / "v2ai").mkdir(exist_ok=True)
+# v2.8.50 — Featured-panel heading image lives here (drag-drop
+# upload from the admin Layout Editor).  Filename "heading.png".
+(DATA_DIR / "layout").mkdir(exist_ok=True)
 
 STORE_FILE = DATA_DIR / "store.json"
 
@@ -556,6 +559,8 @@ app.mount("/assets/apk_icons",   StaticFiles(directory=str(DATA_DIR / "apk_icons
 app.mount("/assets/appstore",    StaticFiles(directory=str(DATA_DIR / "appstore")),    name="appstore")
 # v2.8.25 — V2 AI screen background image asset.
 app.mount("/assets/v2ai",        StaticFiles(directory=str(DATA_DIR / "v2ai")),        name="v2ai")
+# v2.8.50 — Featured-panel heading image (drag-and-drop upload).
+app.mount("/assets/layout",      StaticFiles(directory=str(DATA_DIR / "layout")),      name="layout")
 # v2.8.24 — QR code PNGs for admin-uploaded sharing videos.
 (DATA_DIR / "qr").mkdir(parents=True, exist_ok=True)
 app.mount("/assets/qr",          StaticFiles(directory=str(DATA_DIR / "qr")),          name="qr")
@@ -618,7 +623,13 @@ def _build_config(store: dict) -> LauncherConfig:
         ],
         generation=int(store.get("generation", 0)),
         server_time=nt,
-        layout=LayoutSettings(**store.get("layout", {})),
+        # v2.8.50 — Heading image is now drag-drop-uploaded to
+        # `/assets/layout/heading.png` (relative path stored in
+        # store.json).  Absolutise it before serving so the
+        # launcher can fetch from the correct host.
+        layout=(lambda L: L.model_copy(update={
+            "featured_heading_image_url": _abs(L.featured_heading_image_url),
+        }))(LayoutSettings(**store.get("layout", {}))),
         appstore=AppStoreMeta(
             hero_image_url=_abs(
                 (store.get("appstore") or {}).get("hero_image_url")
@@ -1866,6 +1877,57 @@ def set_layout(layout: LayoutSettings) -> dict:
     return {"ok": True, "generation": store["generation"], "layout": store["layout"]}
 
 
+@app.post("/api/admin/layout/heading-image",
+          dependencies=[Depends(require_admin)])
+async def upload_layout_heading_image(file: UploadFile = File(...)) -> dict:
+    """v2.8.50 — Drag-and-drop heading-image upload (was URL-only).
+
+    Saves at `data/layout/heading.png` and points
+    `layout.featured_heading_image_url` at it.  Image is preserved
+    at up to 2048×1024 px so it stays crisp at any TV resolution
+    and at any admin-chosen height (default 80 dp · max 280 dp).
+    """
+    from PIL import Image, ImageOps
+    import io
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    out_path = DATA_DIR / "layout" / "heading.png"
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGBA")
+        img = ImageOps.contain(img, (2048, 1024), Image.LANCZOS)
+        img.save(out_path, format="PNG", optimize=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"could not decode image: {exc}")
+    store = _load_store()
+    layout = store.setdefault("layout", {})
+    # `?ts=…` busts the CDN / WebView cache so the launcher
+    # picks up the new image on the next config poll.
+    layout["featured_heading_image_url"] = (
+        f"/assets/layout/heading.png?ts={now_ts()}"
+    )
+    _save_store(store)
+    return {
+        "ok": True,
+        "featured_heading_image_url": _abs(layout["featured_heading_image_url"]),
+    }
+
+
+@app.delete("/api/admin/layout/heading-image",
+            dependencies=[Depends(require_admin)])
+def clear_layout_heading_image() -> dict:
+    """v2.8.50 — Remove the uploaded heading image (drag-drop pair)."""
+    out_path = DATA_DIR / "layout" / "heading.png"
+    try:
+        out_path.unlink()
+    except FileNotFoundError:
+        pass
+    store = _load_store()
+    store.setdefault("layout", {})["featured_heading_image_url"] = None
+    _save_store(store)
+    return {"ok": True}
+
+
 @app.post("/api/admin/dock", dependencies=[Depends(require_admin)])
 def set_dock(dock_tiles: list[DockTile]) -> dict:
     """v0.5 — Variable tile count (1..12).  Was fixed at exactly 6."""
@@ -2647,6 +2709,11 @@ def clear_v2ai_background() -> dict:
 # to 96×96 for crisp rendering at every density.
 @app.post("/api/admin/v2ai/button", dependencies=[Depends(require_admin)])
 async def upload_v2ai_button(file: UploadFile = File(...)) -> dict:
+    """Admin uploads a custom image to use as the V2 AI top-bar pill.
+    The image becomes the ENTIRE pill (replaces background + icon +
+    text) so we need enough resolution to look sharp at the largest
+    pill size the admin might pick (button_width_dp up to 600).
+    """
     from PIL import Image, ImageOps
     import io
     raw = await file.read()
@@ -2655,7 +2722,14 @@ async def upload_v2ai_button(file: UploadFile = File(...)) -> dict:
     out_path = DATA_DIR / "v2ai" / "button.png"
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-        img = ImageOps.contain(img, (96, 96), Image.LANCZOS)
+        # v2.8.50 — Was capped at 96×96 (one-line `ImageOps.contain`)
+        # which made the pill look pixelated whenever the admin used
+        # a width >96 dp.  Bumped to 2048 × 1024 — preserves any
+        # mainstream-uploaded wordmark / logo at 2-3× the largest
+        # supported pill size.  Aspect ratio is preserved.  PNG-9
+        # compression keeps the file ~50-200 KiB for a typical
+        # transparent wordmark.
+        img = ImageOps.contain(img, (2048, 1024), Image.LANCZOS)
         img.save(out_path, format="PNG", optimize=True)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, f"could not decode image: {exc}")
