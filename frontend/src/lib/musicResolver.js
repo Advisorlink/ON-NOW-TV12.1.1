@@ -118,17 +118,35 @@ export async function resolveTrackStream(track) {
         const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         const native = await resolveViaNative(artist, title);
         const ms = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
-        if (native && native.ok && native.url) {
-            emit({ artist, title, source: 'newpipe', ms, ok: true });
-            return {
-                stream_url: native.url,
-                source: 'newpipe',
-                is_full_track: true,
-                title: native.title,
-                uploader: native.uploader,
-                duration: native.duration,
-                yt_id: native.yt_id,
-            };
+        if (native && native.ok) {
+            // v2.8.53 — Native bridge can return EITHER a direct
+            // stream URL (legacy NewPipe path) OR a YouTube videoId
+            // for the IFrame Player route.  Both count as a "full
+            // track" success — the engine branches on `source`.
+            if (native.source === 'youtube-iframe' && native.yt_id) {
+                emit({ artist, title, source: 'youtube-iframe', ms, ok: true });
+                return {
+                    stream_url: null,
+                    source: 'youtube-iframe',
+                    is_full_track: true,
+                    yt_id: native.yt_id,
+                    title: native.title,
+                    uploader: native.uploader,
+                    duration: native.duration,
+                };
+            }
+            if (native.url) {
+                emit({ artist, title, source: 'newpipe', ms, ok: true });
+                return {
+                    stream_url: native.url,
+                    source: 'newpipe',
+                    is_full_track: true,
+                    title: native.title,
+                    uploader: native.uploader,
+                    duration: native.duration,
+                    yt_id: native.yt_id,
+                };
+            }
         }
         emit({ artist, title, source: 'newpipe', ms, ok: false, error: (native?.error) || 'no url' });
         // Fall through to backend if the bridge couldn't resolve.
