@@ -32,4 +32,13 @@ export const musicAPI = {
         jget(`/podcasts/search?q=${encodeURIComponent(q)}&limit=${limit}`),
     podcastEpisodes: (feedUrl) =>
         jget(`/podcasts/episodes?feed_url=${encodeURIComponent(feedUrl)}`),
+
+    /** v2.8.60 — Synced lyrics for the V2 Karaoke screen.
+     *  Returns `{ synced: [{ t, text }], plain, instrumental }`. */
+    lyrics: ({ artist, title, album, duration } = {}) => {
+        const params = new URLSearchParams({ artist: artist || '', title: title || '' });
+        if (album)    params.set('album', album);
+        if (duration) params.set('duration', String(Math.round(duration)));
+        return jget(`/lyrics?${params.toString()}`);
+    },
 };

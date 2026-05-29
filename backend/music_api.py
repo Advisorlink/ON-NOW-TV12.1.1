@@ -532,6 +532,129 @@ async def radio_click(station_id: str):
 
 
 # ════════════════════════════════════════════════════════════════════
+#  Lyrics — LRCLIB (free, open, synced lyrics)
+# ════════════════════════════════════════════════════════════════════
+#
+# v2.8.60 — Powers the V2 Karaoke screen.  LRCLIB hosts the largest
+# free database of community-contributed synced lyrics (`syncedLyrics`
+# field, Netflix-style `[mm:ss.xx]Line` format).  Falls back to plain
+# lyrics when no synced version exists — the karaoke UI auto-detects
+# and shows a non-synced scrolling view instead.
+#
+# API: https://lrclib.net/docs
+
+def _parse_lrc(synced: str) -> List[Dict[str, Any]]:
+    """Parse `[mm:ss.xx]Line text\n…` into a sorted list of
+    `{ "t": <seconds>, "text": "…" }` entries."""
+    out: List[Dict[str, Any]] = []
+    pattern = re.compile(r"\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\](.*)")
+    for raw in (synced or "").splitlines():
+        m = pattern.match(raw.strip())
+        if not m:
+            continue
+        mm, ss, frac, text = m.group(1), m.group(2), m.group(3), m.group(4)
+        try:
+            seconds = int(mm) * 60 + int(ss)
+            if frac:
+                # Pad to 3 digits so "5" → 500 ms, not 5 ms.
+                f = int(frac.ljust(3, "0")[:3])
+                seconds += f / 1000.0
+        except ValueError:
+            continue
+        out.append({"t": round(seconds, 2), "text": text.strip()})
+    out.sort(key=lambda e: e["t"])
+    return out
+
+
+@music_api.get("/lyrics")
+async def music_lyrics(
+    artist: str = Query(..., min_length=1, max_length=200),
+    title: str  = Query(..., min_length=1, max_length=200),
+    album: Optional[str] = Query(None),
+    duration: Optional[int] = Query(None, description="Track length in seconds (helps disambiguate)"),
+):
+    """Returns synced + plain lyrics for an (artist, title) pair.
+
+    Response shape:
+        {
+            "synced": [ { "t": 0.42, "text": "Hello, it's me" }, ... ],
+            "plain":  "Hello, it's me\\nI was wondering...",
+            "instrumental": false,
+            "source": "lrclib"
+        }
+    `synced` is empty when LRCLIB doesn't have a synced copy; the
+    karaoke UI degrades gracefully.
+    """
+    norm = f"{artist.strip().lower()}|{title.strip().lower()}"
+    cache_key = f"music:lyrics:v1:{norm}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    # LRCLIB's `/api/get` endpoint matches against artist + track +
+    # optional album + duration.  Returns 404 when nothing's found.
+    params = {"artist_name": artist, "track_name": title}
+    if album:
+        params["album_name"] = album
+    if duration:
+        params["duration"] = int(duration)
+
+    record = None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://lrclib.net/api/get",
+                params=params,
+                headers={"User-Agent": "ON-NOW-TV-Tunes/1.0 (+https://onnowtv.duckdns.org)"},
+            )
+            if r.status_code == 200:
+                record = r.json()
+            elif r.status_code == 404:
+                # Fall back to the broader search endpoint — picks
+                # the highest-rated match for the artist/title pair
+                # without the duration constraint.
+                rs = await client.get(
+                    "https://lrclib.net/api/search",
+                    params={"artist_name": artist, "track_name": title},
+                    headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"},
+                )
+                if rs.status_code == 200:
+                    results = rs.json() or []
+                    if results:
+                        record = results[0]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("LRCLIB fetch failed for %s — %s: %s", artist, title, exc)
+
+    if not record:
+        result = {
+            "synced": [],
+            "plain": "",
+            "instrumental": False,
+            "source": "lrclib",
+            "error": "not_found",
+        }
+        # Cache the miss for 1 h so we don't hammer LRCLIB for tracks
+        # that consistently come up empty.
+        await cache.set(cache_key, result, ttl_seconds=3600)
+        return {"cached": False, "data": result}
+
+    synced_raw = record.get("syncedLyrics") or ""
+    plain_raw  = record.get("plainLyrics")  or ""
+    is_instrumental = bool(record.get("instrumental"))
+
+    result = {
+        "synced":       _parse_lrc(synced_raw),
+        "plain":        plain_raw,
+        "instrumental": is_instrumental,
+        "source":       "lrclib",
+        "track_id":     record.get("id"),
+    }
+    # 7 days — lyrics rarely change once contributed.
+    await cache.set(cache_key, result, ttl_seconds=7 * 24 * 3600)
+    return {"cached": False, "data": result}
+
+
+# ════════════════════════════════════════════════════════════════════
 #  Podcasts (iTunes Search + RSS)
 # ════════════════════════════════════════════════════════════════════
 def _shape_podcast(p: Dict[str, Any]) -> Dict[str, Any]:

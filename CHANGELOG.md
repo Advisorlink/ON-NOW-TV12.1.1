@@ -7,6 +7,63 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.60 — Tunes: V2 Karaoke + 🇦🇺 Australia radio
+
+  • **🎤 V2 KARAOKE — full immersive sing-along experience.**  New
+    nav item that takes any song → fullscreen karaoke stage with:
+    - **Synced lyrics** that highlight in time with the music
+      (LRCLIB-backed, 50 +line accuracy for mainstream songs)
+    - **Blurred album / YouTube-thumbnail backdrop** with a soft
+      vignette so text stays legible against any art
+    - **5-line lyrics ticker** — previous lines dim + shrink, current
+      line scales up + glows in the active theme colour, next
+      lines preview underneath
+    - **Animated mic icon** top-right that pulses with the beat
+      (CSS `@keyframes` — no JS timer)
+    - **Minimal dock** at the bottom: gradient play/pause, scrub
+      bar, exit button
+    - **Graceful fallbacks** for instrumental tracks ("Instrumental
+      — vibe out") and missing lyrics ("Lyrics unavailable")
+    - **Curated "Crowd-pleasers" landing**: Queen, Adele,
+      Whitney, Bon Jovi, Taylor Swift, Journey, Ed Sheeran,
+      Céline Dion — instant single-tap karaoke from a cold start.
+
+  • **🇦🇺 Australia radio section.**  New nav item that lands on
+    a curated Aussie page:
+    - **Hero banner**: sunset gradient (red → orange → ocean blue)
+      with the 🇦🇺 flag + station count
+    - **Top picks** (pinned): Triple J, Hot Tomato, Triple M Sydney,
+      Nova 96.9, ABC NewsRadio, 2GB Sydney — ordered consistently
+      regardless of Radio Browser's vote shuffling
+    - **All Australian stations** below — 200 + stations from
+      Radio Browser filtered by `country=AU`
+    - Pinned cards have a pink-tinted gradient + accent border
+      to set them apart from the generic list
+
+  • **🧱 New files**:
+    - `pages/music/Karaoke.jsx`         (~400 lines — landing + stage)
+    - `pages/music/AustraliaRadio.jsx`  (~150 lines)
+    - `pages/music/karaoke.css`         (~340 lines — full theme + animation)
+
+  • **🔧 Backend**: new `GET /api/music/lyrics?artist=…&title=…`
+    endpoint backed by LRCLIB.  Parses `[mm:ss.xx]Line` format
+    server-side, caches 7 days per (artist | title) pair.
+
+  • **🪜 Routing**:
+    - `/music/karaoke`              → landing
+    - `/music/karaoke/play/:trackId` → fullscreen stage (outside
+      MusicLayout so it covers the entire screen)
+    - `/music/radio/au`             → Australia radio
+
+  • **🧈 Smooth-as-butter touches**:
+    - Lyric transitions use `transform: scale()` + `opacity` (GPU)
+      not font-size (reflow)
+    - Background blur is one-shot CSS `filter: blur(36px)` on a
+      static image (no per-frame re-blur)
+    - Mic-icon beat-pulse is pure `@keyframes`
+    - `prefers-reduced-motion` honoured throughout
+
+
 ## v2.8.59 — Tunes: revert auto-sign-in + true Vesper-style D-pad navigation
 
   • **🔁 Reverted auto-sign-in.**  Google's anti-automation flagged

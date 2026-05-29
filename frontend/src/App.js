@@ -52,6 +52,9 @@ import RadioBrowse from '@/pages/music/RadioBrowse';
 import PodcastBrowse from '@/pages/music/PodcastBrowse';
 import PodcastDetail from '@/pages/music/PodcastDetail';
 import MusicLibrary from '@/pages/music/MusicLibrary';
+// v2.8.60 — V2 Karaoke + Australia radio
+import AustraliaRadio from '@/pages/music/AustraliaRadio';
+import KaraokePage, { KaraokeStage } from '@/pages/music/Karaoke';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
 import useKidsBackGuard from '@/hooks/useKidsBackGuard';
@@ -521,12 +524,19 @@ function App() {
                                     <Route index             element={<MusicHome />} />
                                     <Route path="search"     element={<MusicSearch />} />
                                     <Route path="radio"      element={<RadioBrowse />} />
+                                    <Route path="radio/au"   element={<AustraliaRadio />} />
                                     <Route path="podcasts"   element={<PodcastBrowse />} />
                                     <Route path="library"    element={<MusicLibrary />} />
+                                    <Route path="karaoke"    element={<KaraokePage />} />
                                     <Route path="album/:id"  element={<MusicAlbum />} />
                                     <Route path="artist/:id" element={<MusicArtist />} />
                                     <Route path="podcast/:feedUrl" element={<PodcastDetail />} />
                                 </Route>
+                                {/* v2.8.60 — Karaoke stage lives OUTSIDE
+                                    the MusicLayout shell so it can take
+                                    the full screen (no sidebar, no
+                                    mini-player). */}
+                                <Route path="/music/karaoke/play/:trackId" element={<KaraokeStage />} />
                             </Routes>
                             {/* Auto-update gate re-enabled in v2.6.22.
                                 Every device running v2.6.21+ will

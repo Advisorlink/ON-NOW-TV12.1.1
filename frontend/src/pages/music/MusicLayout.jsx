@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Search, Radio, Mic, Library, Music2, Maximize, Minimize } from 'lucide-react';
+import { Home, Search, Radio, Mic, Library, Music2, Maximize, Minimize, Mic2 } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
 import { YouTubeIFrameHost } from '../../components/music/YouTubeIFrameHost';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
+import './karaoke.css';
 
 /** Cross-browser Fullscreen API helpers. */
 function requestFs() {
@@ -64,11 +65,13 @@ function TunesNav({ theme, onThemeChange }) {
         };
     }, []);
     const items = [
-        { to: '/music',          label: 'Home',     icon: Home,    end: true },
-        { to: '/music/search',   label: 'Search',   icon: Search },
-        { to: '/music/radio',    label: 'Radio',    icon: Radio },
-        { to: '/music/podcasts', label: 'Podcasts', icon: Mic },
-        { to: '/music/library',  label: 'Library',  icon: Library },
+        { to: '/music',          label: 'Home',       icon: Home,    end: true },
+        { to: '/music/search',   label: 'Search',     icon: Search },
+        { to: '/music/karaoke',  label: 'V2 Karaoke', icon: Mic2 },
+        { to: '/music/radio',    label: 'Radio',      icon: Radio },
+        { to: '/music/radio/au', label: '🇦🇺 Australia', icon: Radio },
+        { to: '/music/podcasts', label: 'Podcasts',   icon: Mic },
+        { to: '/music/library',  label: 'Library',    icon: Library },
     ];
     return (
         <nav className="tunes-nav" data-testid="side-nav" data-tunes-nav="true">
