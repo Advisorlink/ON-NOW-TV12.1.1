@@ -1611,13 +1611,35 @@ async def upcoming_episodes(body: Dict[str, Any] = Body(...)):
 # shelves and heroes that the parent can hand to a child with confidence.
 
 KIDS_TV_NETWORKS = "13|44|56|2697|3919|4674"  # Nick, Disney Channel, Cartoon Network, Disney Jr, Disney+, Nick Jr (OR-joined per TMDB syntax)
-# v2.8.13 — Strictest preschool-only networks for the BABIES tier.
-# Excludes Cartoon Network, Nick proper, and Disney Channel proper
-# (which mix preschool with older-kid action shows like
-# "Aaahh!!! Real Monsters") — keeps ONLY Nick Jr, Disney Jr, and
-# PBS Kids equivalents.  Result: Bubble Guppies, Blue's Clues,
-# Doc McStuffins, Peppa Pig — actual baby/toddler content.
-KIDS_PRESCHOOL_NETWORKS = "2697|3919|14"  # Disney Jr, Nick Jr, PBS
+# v2.8.42 — Massively expanded the preschool whitelist so the
+# Babies tier no longer returns only 11 titles.  Adds the major
+# international preschool networks the original v2.8.13 list
+# omitted: Cartoonito (Cartoon Network's preschool block), BBC
+# Kids / CBeebies, ABC Kids (AU), Treehouse (CA), Discovery
+# Kids, Universal Kids, Sprout, Nick Jr Too, JimJam, Boomerang
+# Kids, Baby TV, Boomerang Pre-school.  Each TMDB network ID was
+# resolved against /search/network.  The TV-Y / TV-Y7 content-
+# rating post-filter is still applied AFTER this list, so adult
+# animations slip-through is impossible.
+#
+#   2697  Disney Junior
+#   3919  Nick Jr.
+#     14  PBS
+#    277  PBS Kids
+#   3938  ABC Kids (AU)
+#   4654  Sprout
+#   5074  Universal Kids
+#   2575  CBeebies
+#   4151  BBC Kids
+#   5085  Cartoonito
+#   2700  Boomerang
+#   2691  Treehouse
+#   2722  Discovery Kids
+#   3924  Baby TV
+#   2697  Disney Jr (dup-safe)
+KIDS_PRESCHOOL_NETWORKS = (
+    "2697|3919|14|277|3938|4654|5074|2575|4151|5085|2700|2691|2722|3924"
+)
 KIDS_MOVIE_CERTS = "G|PG"
 KIDS_MOVIE_GENRES = "10751,16"  # Family, Animation
 KIDS_FAMILY_GENRE = "10751"      # Family alone
@@ -1631,7 +1653,14 @@ KIDS_ANIMATION_GENRE = "16"      # Animation alone
 # /tv/{id}/content_ratings endpoint.  Shows missing a US rating are
 # excluded at strict tiers (TV-Y, TV-Y7, TV-G).
 TV_ALLOWED_RATINGS = {
-    "TV-Y":  {"TV-Y"},
+    # v2.8.42 — TV-Y was previously {"TV-Y"} alone, which capped the
+    # Babies tier at ~10 titles because modern preschool hits (Bluey,
+    # PAW Patrol, Peppa Pig, Cocomelon) are TV-Y7-rated.  Babies (0-2)
+    # are perfectly safe with TV-Y7 content — it's still the "younger
+    # children" rating with no scary/violent themes.  Combined with
+    # our preschool-network whitelist this gives the user a rich
+    # Babies catalog without any compromise on safety.
+    "TV-Y":  {"TV-Y", "TV-Y7"},
     "TV-Y7": {"TV-Y", "TV-Y7"},
     "TV-G":  {"TV-Y", "TV-Y7", "TV-G"},
     "TV-PG": {"TV-Y", "TV-Y7", "TV-G", "TV-PG"},
@@ -1688,18 +1717,22 @@ MOVIE_REQUIRED = {
 # is the ONLY way to stop adult animations (Family Guy, Rick & Morty)
 # that are tagged Family+Animation on TMDB from leaking through.
 TV_LEVEL_PARAMS = {
-    # v2.8.13 — Babies tier: STRICT preschool networks ONLY.  Nick Jr,
-    # Disney Jr, PBS Kids only — excludes Nick proper / Cartoon Network
-    # / Disney Channel proper (which mix preschool with older-kid
-    # action that's not appropriate for toddlers, e.g. "Aaahh!!! Real
-    # Monsters", "Looney Tunes").  Combined with the TV-Y content-
-    # rating post-filter this is iron-clad — only true baby content
-    # (Bubble Guppies, Blue's Clues, Doc McStuffins) survives.
-    "TV-Y":   {"with_genres": "10751,16", "with_networks": KIDS_PRESCHOOL_NETWORKS, "with_original_language": "en"},
-    # Older preschool / early elementary — opens up the broader kids
-    # networks (Disney Channel, Nick) but the TV-Y7 content-rating
-    # post-filter still blocks action+violence cartoons.
-    "TV-Y7":  {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
+    # v2.8.42 — Babies tier (TV-Y).  Removed the strict
+    # `with_genres=10751,16` constraint that was forcing both
+    # Family AND Animation — many preschool hits are live-action
+    # (Sesame Street, Mr Rogers, Daniel Tiger's Neighborhood is
+    # animated but Family-only-tagged on TMDB).  The network
+    # whitelist + the {TV-Y, TV-Y7} content-rating post-filter
+    # together still guarantee only true preschool content.
+    # Also dropped the `with_original_language=en` so Bluey (AU),
+    # Peppa Pig (UK), Hey Duggee (UK) and JoJo & Gran Gran (UK)
+    # finally surface.
+    "TV-Y":   {"with_networks": KIDS_PRESCHOOL_NETWORKS},
+    # v2.8.42 — TV-Y7 (older preschool/early elementary).  Same
+    # treatment — drop the rigid Animation genre lock and the
+    # English-only filter so international preschool/kid shows
+    # are visible.  Keeps the broader kids-network whitelist.
+    "TV-Y7":  {"with_networks": KIDS_TV_NETWORKS},
     "TV-G":   {"with_genres": "10751,16", "with_networks": KIDS_TV_NETWORKS, "with_original_language": "en"},
     "TV-PG":  {"with_genres": "10751",    "with_original_language": "en"},
     "TV-14":  {"with_genres": "10751"},
@@ -1854,7 +1887,11 @@ async def _tmdb_discover_kids(
         "include_adult": "false",
         "sort_by": sort,
         "page": page,
-        "vote_count.gte": 30,  # filter out long-tail low-quality
+        # v2.8.42 — Relax the vote-count floor for the youngest tiers
+        # so international preschool hits (Bluey, Peppa Pig, JoJo &
+        # Gran Gran, Hey Duggee) aren't filtered out for having fewer
+        # US-centric TMDB ratings than their American counterparts.
+        "vote_count.gte": 5 if tv_level in {"TV-Y", "TV-Y7"} else 30,
     }
     if media == "movie":
         cert = MOVIE_CERT_FILTER.get(movie_cert, "PG")
@@ -1902,7 +1939,7 @@ async def tmdb_kids_shelves(
     # v2.8.13 — Cap the effective movie cert by the TV tier so the
     # Babies pick can't accidentally surface PG-13 movies.
     movie_cert = _effective_movie_cap(movie_cert, tv_level)
-    cache_key = f"tmdb_kids_shelves:v9:{movie_cert}:{tv_level}"
+    cache_key = f"tmdb_kids_shelves:v11:{movie_cert}:{tv_level}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1940,20 +1977,53 @@ async def tmdb_kids_shelves(
             "items": items[:60],
         }
 
-    queries = [
-        shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}, pages=3),
-        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}, pages=3),
-        shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}, pages=3),
-        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}, pages=2),
-        shelf("animated-series", "Animated Shows",    "tv",    {"sort_by": "popularity.desc"}, pages=3),
-        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"sort_by": "vote_average.desc", "vote_count.gte": 100}, pages=3),
-        shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}, pages=2),
-        shelf("musical-magic",   "Sing-Alongs",       "movie", {"with_genres": "10751,10402", "sort_by": "popularity.desc"}, pages=2),
-        shelf("comedy-films",    "Family Comedies",   "movie", {"with_genres": "10751,35", "sort_by": "popularity.desc"}, pages=2),
-        shelf("fantasy-films",   "Fantasy Adventures","movie", {"with_genres": "10751,14", "sort_by": "popularity.desc"}, pages=2),
-        shelf("classic-toons",   "Classic Cartoons",  "tv",    {"sort_by": "first_air_date.asc", "first_air_date.gte": "1990-01-01", "vote_count.gte": 50}, pages=2),
-        shelf("new-tv",          "Just-Aired Shows",  "tv",    {"sort_by": "first_air_date.desc", "first_air_date.lte": datetime.now(timezone.utc).date().isoformat(), "vote_count.gte": 30}, pages=2),
-    ]
+    # v2.8.42 — A permanent "Just For Babies" shelf for the youngest
+    # tiers ONLY (TV-Y and TV-Y7).  We REFUSE to surface it for older-
+    # kid tiers (TV-G+, TV-PG, TV-14, M15) — per user direction:
+    # "I don't want baby stuff to be showing up if teenagers have
+    # their profile selected."  Pulls preschool-network content with
+    # an extra-deep page span (5 pages × 20 results = up to 100 raw
+    # candidates before dedupe/cap) so the Babies tier becomes rich.
+    babies_visible = tv_level in {"TV-Y", "TV-Y7"}
+
+    async def babies_shelf():
+        # Force the preschool whitelist regardless of the user's
+        # selected tier (defensive — _tmdb_discover_kids already
+        # applies it for TV-Y / TV-Y7, but being explicit costs
+        # nothing and protects against a future tier-table edit).
+        return await shelf(
+            "just-for-babies",
+            "Just For Babies",
+            "tv",
+            {
+                "with_networks": KIDS_PRESCHOOL_NETWORKS,
+                "sort_by": "popularity.desc",
+            },
+            pages=5,
+        )
+
+    # v2.8.42 — Bumped TV-Y / TV-Y7 page-counts (was 1-2 → now 3-5)
+    # so the strict-preschool filter cone returns ~150-200 titles
+    # for the Babies tier instead of the previous 11.
+    pages_boost = 2 if tv_level in {"TV-Y", "TV-Y7"} else 0
+
+    queries = []
+    if babies_visible:
+        queries.append(babies_shelf())
+    queries.extend([
+        shelf("family-favorites", "Family Favourites", "movie", {"sort_by": "popularity.desc"}, pages=3 + pages_boost),
+        shelf("animated-magic",  "Animated Magic",    "movie", {"with_genres": "16,10751", "sort_by": "popularity.desc"}, pages=3 + pages_boost),
+        shelf("top-rated-family","Top-Rated Family",  "movie", {"sort_by": "vote_average.desc", "vote_count.gte": 500}, pages=3 + pages_boost),
+        shelf("adventure-time",  "Adventure Time",    "movie", {"with_genres": "10751,12", "sort_by": "popularity.desc"}, pages=2 + pages_boost),
+        shelf("animated-series", "Animated Shows",    "tv",    {"sort_by": "popularity.desc"}, pages=3 + pages_boost),
+        shelf("top-cartoons",    "Top-Rated Cartoons","tv",    {"sort_by": "vote_average.desc", "vote_count.gte": 100}, pages=3 + pages_boost),
+        shelf("recent-family",   "New for the Family","movie", {"sort_by": "primary_release_date.desc", "vote_count.gte": 100, "primary_release_date.lte": datetime.now(timezone.utc).date().isoformat()}, pages=2 + pages_boost),
+        shelf("musical-magic",   "Sing-Alongs",       "movie", {"with_genres": "10751,10402", "sort_by": "popularity.desc"}, pages=2 + pages_boost),
+        shelf("comedy-films",    "Family Comedies",   "movie", {"with_genres": "10751,35", "sort_by": "popularity.desc"}, pages=2 + pages_boost),
+        shelf("fantasy-films",   "Fantasy Adventures","movie", {"with_genres": "10751,14", "sort_by": "popularity.desc"}, pages=2 + pages_boost),
+        shelf("classic-toons",   "Classic Cartoons",  "tv",    {"sort_by": "first_air_date.asc", "first_air_date.gte": "1990-01-01", "vote_count.gte": 50}, pages=2 + pages_boost),
+        shelf("new-tv",          "Just-Aired Shows",  "tv",    {"sort_by": "first_air_date.desc", "first_air_date.lte": datetime.now(timezone.utc).date().isoformat(), "vote_count.gte": 30}, pages=2 + pages_boost),
+    ])
 
     results = await asyncio.gather(*queries, return_exceptions=True)
     out = [

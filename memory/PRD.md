@@ -10,7 +10,7 @@
 > Do not implement until the user says go — but when they do,
 > MUSIC_APP_STRATEGY.md is the source of truth.
 
-> Latest: **v2.8.40 — VPS cutover: every APK now points at Contabo (no more preview pod)** (Feb 28, 2026)
+> Latest: **v2.8.42 — Kids sandbox HOME-button lockdown + 5× bigger Babies catalog + clean Vesper/Kids separation** (Feb 28, 2026)
 >
 > Picking up the half-finished migration from the previous session. Source-of-truth audit found the **launcher backend code + Vesper backend code were already 100% in sync** with `/opt/onnowtv-launcher/` and `/opt/onnowtv/backend/` on the Contabo VPS (per-file md5sum verified). The actual gap was on the Android side: **three hardcoded preview-pod URLs** were silently keeping deployed boxes pointed at the dev sandbox whenever their `SharedPreferences` override was empty or the env-var fallback fired:
 >

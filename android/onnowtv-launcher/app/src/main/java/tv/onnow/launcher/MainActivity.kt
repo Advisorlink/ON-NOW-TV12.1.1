@@ -129,6 +129,18 @@ class MainActivity : AppCompatActivity() {
         // launcher gains focus, so a freshly-connected VPN client
         // (or a disconnect) shows up the moment the user returns.
         if (::binding.isInitialized) refreshVpnDot()
+        // v2.8.42 — Kids-sandbox HOME-button lockdown.  Whenever the
+        // launcher resumes (typically because the user just hit HOME
+        // from inside Vesper's Kids profile) check the backend
+        // kids-lock flag.  If THIS device is locked we IMMEDIATELY
+        // re-launch Vesper with the Kids deep-link so the kid never
+        // sees the launcher.  Source-of-truth is the launcher
+        // backend's /api/launcher/kids-lock/{device_id} endpoint —
+        // Vesper sets it true when Kids+PIN activates, sets it false
+        // on PIN-out.  The bounce is best-effort: a network failure
+        // (offline box) silently no-ops — the in-Vesper PIN gate
+        // remains the canonical lock.
+        enforceKidsLockIfNeeded()
     }
 
     override fun onPause() {
@@ -136,6 +148,126 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(qrCycleTick)
         configPollJob?.cancel()
+    }
+
+    /* ───────────────────  Kids-sandbox HOME lockdown  ────────────── */
+
+    /**
+     * v2.8.42 — When the launcher resumes (typically because the
+     * user hit HOME from inside Vesper's Kids profile), check the
+     * backend kids-lock flag for THIS device.  If locked, immediately
+     * relaunch Vesper with the Kids deep-link — the kid never sees
+     * the launcher dock and can't escape the sandbox.
+     *
+     * Implementation notes:
+     *
+     *   • Network IO is on a background coroutine so the launcher's
+     *     paint isn't blocked.  Total cost on a fast connection is
+     *     ~150-300 ms; the user briefly sees the launcher in that
+     *     window but cannot interact with it.
+     *
+     *   • A "kids_locked_cached" SharedPreference mirrors the last
+     *     known server response, so if the network is down we still
+     *     honour the last-known lock state.  This file-level cache
+     *     also lets us short-circuit the launcher dock paint to a
+     *     plain black overlay BEFORE the HTTP call returns, making
+     *     the bounce feel instantaneous instead of "launcher
+     *     flashes for half a second then disappears".
+     *
+     *   • Cached lock entries older than 24 h are auto-discarded
+     *     (matches the backend's stale-entry policy) so a never-
+     *     reconnected box can recover from a stuck-locked state.
+     */
+    private fun enforceKidsLockIfNeeded() {
+        // 1. Cheap synchronous read of the last-known state from
+        //    SharedPreferences.  If locked, paint a black overlay
+        //    IMMEDIATELY so the kid doesn't see the launcher while
+        //    we relaunch Vesper.
+        val prefs = getSharedPreferences("kids_lock_cache", MODE_PRIVATE)
+        val cachedLocked = prefs.getBoolean("locked", false)
+        val cachedTs = prefs.getLong("ts", 0L)
+        val cacheAgeMs = System.currentTimeMillis() - cachedTs
+        val cacheFresh = cacheAgeMs in 0..(24L * 3600 * 1000)
+        if (cachedLocked && cacheFresh) {
+            showKidsLockOverlayAndBounce()
+        }
+        // 2. Always also poll the LIVE state — the cache might be
+        //    stale (PIN was just entered on another box, etc.).
+        //    Background coroutine; updates the cache + bounces if
+        //    the live answer flips to locked.
+        lifecycleScope.launch(Dispatchers.IO) {
+            val deviceId = tv.onnow.launcher.onboarding.OnboardingActivity
+                .deviceId(this@MainActivity)
+            val baseUrl = LauncherRepository.DEFAULT_BASE_URL.trimEnd('/')
+            val url = "$baseUrl/api/launcher/kids-lock/$deviceId"
+            val locked: Boolean = try {
+                val conn = (java.net.URL(url).openConnection()
+                    as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5_000
+                    readTimeout = 5_000
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val parsed = org.json.JSONObject(body)
+                parsed.optBoolean("locked", false)
+            } catch (_: Throwable) {
+                // Offline / backend down — fall back to cache.
+                cachedLocked && cacheFresh
+            }
+            // Persist the fresh state so the next onResume can
+            // short-circuit the overlay without waiting for HTTP.
+            prefs.edit()
+                .putBoolean("locked", locked)
+                .putLong("ts", System.currentTimeMillis())
+                .apply()
+            if (locked) withContext(Dispatchers.Main) {
+                showKidsLockOverlayAndBounce()
+            }
+        }
+    }
+
+    /**
+     * Show a full-screen black overlay + relaunch Vesper with the
+     * Kids deep-link.  Idempotent — safe to call multiple times
+     * during a single onResume (cache hit + live hit can both
+     * trigger).
+     */
+    private fun showKidsLockOverlayAndBounce() {
+        try {
+            // Black overlay: cheap full-screen view so the launcher
+            // dock isn't briefly visible while Vesper starts.
+            val overlay = View(this).apply {
+                setBackgroundColor(Color.BLACK)
+                layoutParams = android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                tag = "kids_lock_overlay"
+            }
+            if (::binding.isInitialized) {
+                val root = binding.root
+                if (root.findViewWithTag<View>("kids_lock_overlay") == null) {
+                    root.addView(overlay)
+                }
+            }
+            // Bounce back to Vesper with the Kids deep-link.  Same
+            // intent shape the Kids dock tile uses.
+            val vesperPkg = "tv.onnowtv.app"
+            val launchIntent = packageManager
+                .getLaunchIntentForPackage(vesperPkg)
+                ?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra("vesper_route", "/?profile=kids")
+                    data = Uri.parse("onnowtv://launch?profile=kids")
+                }
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("LauncherKidsLock", "bounce failed", t)
+        }
     }
 
     /* ──────────────────────────  Dock  ───────────────────────── */

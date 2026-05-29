@@ -50,6 +50,7 @@ except Exception:
 import aiofiles
 import jwt
 from fastapi import (
+    Body,
     Depends,
     FastAPI,
     File,
@@ -1056,6 +1057,48 @@ def v2ai_ping() -> dict:
         "ts":   now_ts(),
         "reason": None if have_key else "EMERGENT_LLM_KEY missing on the backend",
     }
+
+
+@app.post("/api/launcher/kids-lock")
+async def set_kids_lock(payload: dict = Body(...)) -> dict:
+    """Vesper calls this when the Kids profile is activated with a
+    PIN configured (locked=true) and when the PIN is successfully
+    entered to exit (locked=false).  Launcher polls the GET
+    counterpart every onResume; if locked it bounces the user back
+    to Vesper so the HOME button can't escape the Kids sandbox.
+
+    v2.8.42 — Initial release.  Lock state lives in `store.json`
+    under `kids_locks: {device_id: {locked: bool, ts: epoch_s}}`.
+    Stale entries (>24h) are treated as unlocked by the GET so a
+    crashed Vesper can't trap the launcher forever."""
+    device_id = (payload.get("device_id") or "").strip()
+    locked = bool(payload.get("locked"))
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+    s = _load_store()
+    locks = s.setdefault("kids_locks", {})
+    locks[device_id] = {
+        "locked": locked,
+        "ts": int(datetime.now(timezone.utc).timestamp()),
+    }
+    _save_store(s)
+    log.info("kids-lock: device=%s locked=%s", device_id, locked)
+    return {"ok": True, "device_id": device_id, "locked": locked}
+
+
+@app.get("/api/launcher/kids-lock/{device_id}")
+async def get_kids_lock(device_id: str) -> dict:
+    """Returns the current Kids-sandbox lock state for a device.
+    Stale entries (>24h old) auto-treated as unlocked so a crashed
+    Vesper can never permanently trap the launcher."""
+    s = _load_store()
+    entry = (s.get("kids_locks") or {}).get(device_id)
+    if not entry:
+        return {"locked": False, "ts": 0}
+    now = int(datetime.now(timezone.utc).timestamp())
+    age = now - int(entry.get("ts") or 0)
+    locked = bool(entry.get("locked")) and age < 24 * 3600
+    return {"locked": locked, "ts": entry.get("ts") or 0, "age_seconds": age}
 
 
 @app.post("/api/launcher/v2ai/process", dependencies=[Depends(_optional_admin_no_op)] if False else [])

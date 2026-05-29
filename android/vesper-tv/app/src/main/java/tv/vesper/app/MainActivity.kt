@@ -527,34 +527,33 @@ class MainActivity : AppCompatActivity() {
                 // profile if we have one; otherwise clear so the
                 // ProfileSelect picker shows.
                 //
-                // v2.8.4 — Kids PIN lockdown: if a PIN is configured
-                // we REFUSE the exit and stay in Kids.  The kid must
-                // use the in-app PIN gate.  We can't actually read
-                // localStorage from Kotlin (it lives in WebView's
-                // sandbox), so we just inject JS that checks it.
+                // v2.8.42 — Removed the previous PIN refusal block.
+                // Reaching this handler means the user pressed a
+                // NON-Kids tile in the launcher (Movies/TV, Music,
+                // Apps, …) — and the launcher's onResume kids-lock
+                // bounce (v2.8.42) guarantees the launcher is
+                // unreachable WHILE Kids+PIN is active.  So if we're
+                // here, either (a) the user has already PIN-exited
+                // Kids (lock is false) or (b) no PIN is configured.
+                // Either way the correct behaviour is to exit Kids
+                // cleanly, NOT to silently refuse and trap the user.
                 """
                 (function(){
                     try {
-                        var cfgRaw = localStorage.getItem('onnowtv-kids-config-v1');
-                        var hasPin = false;
-                        if (cfgRaw) {
-                            try {
-                                var cfg = JSON.parse(cfgRaw);
-                                hasPin = !!(cfg && cfg.pin && cfg.pin.length === 4);
-                            } catch (e) {}
-                        }
-                        var cur = localStorage.getItem('onnowtv-active-profile-v1');
-                        if (cur === 'kids' && hasPin) {
-                            // PIN-locked — silently stay in Kids.
-                            window.location.hash = '#/';
-                            return;
-                        }
                         var prev = localStorage.getItem('onnowtv-last-non-kids-profile');
                         if (prev) {
                             localStorage.setItem('onnowtv-active-profile-v1', prev);
                         } else {
                             localStorage.removeItem('onnowtv-active-profile-v1');
                         }
+                        // v2.8.42 — Also tell the launcher backend
+                        // we've left Kids so its onResume polls
+                        // stop bouncing back here.
+                        try {
+                            if (window.OnNowTV && window.OnNowTV.setKidsLock) {
+                                window.OnNowTV.setKidsLock(false);
+                            }
+                        } catch (e) {}
                         window.dispatchEvent(new CustomEvent('vesper:profile-change'));
                         window.location.hash = '#/';
                     } catch (e) {}

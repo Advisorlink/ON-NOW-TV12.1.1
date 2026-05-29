@@ -954,12 +954,60 @@ class WebAppInterface(private val activity: Activity) {
      * it never appears again.  Silent no-op on devices that don't
      * support pinning.
      */
+    /**
+     * v2.8.42 — Kids-sandbox lock-state bridge.  Called by the React
+     * frontend whenever Kids mode is activated WITH A PIN configured
+     * (locked=true) and when the PIN is successfully entered to exit
+     * (locked=false).
+     *
+     * The launcher polls the matching GET endpoint
+     * (/api/launcher/kids-lock/{device_id}) on every onResume — if
+     * locked it instantly bounces the user back to Vesper with the
+     * Kids deep-link, so the HOME button can NEVER let a kid escape
+     * the sandbox.
+     *
+     * Network failures are swallowed silently — the lockdown is a
+     * best-effort enhancement, not a security boundary.  The
+     * in-WebView PIN gate (`useKidsBackGuard` + `KidsExitPin`) is
+     * still the source of truth for the actual lock.
+     */
     @JavascriptInterface
-    fun enterKidsKioskMode() {
-        activity.runOnUiThread {
+    fun setKidsLock(locked: Boolean) {
+        Thread {
             try {
-                activity.startLockTask()
-            } catch (_: Throwable) { /* not supported — ignore */ }
-        }
+                val backendBase = activity.getSharedPreferences(
+                    "app_meta", android.content.Context.MODE_PRIVATE
+                ).getString("backend_base", "")
+                    ?.trim()
+                    ?.trimEnd('/')
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "https://onnowtv.duckdns.org"
+                // Talk to the LAUNCHER backend, not Vesper's backend —
+                // the kids-lock endpoint lives under /launcher/* on
+                // the VPS Nginx proxy.
+                val launcherBase = "$backendBase/launcher"
+                val deviceId = android.provider.Settings.Secure.getString(
+                    activity.contentResolver,
+                    android.provider.Settings.Secure.ANDROID_ID,
+                ) ?: "unknown"
+                val url = java.net.URL("$launcherBase/api/launcher/kids-lock")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.connectTimeout = 5_000
+                conn.readTimeout = 5_000
+                conn.setRequestProperty("Content-Type", "application/json")
+                val body = """{"device_id":"$deviceId","locked":$locked}"""
+                conn.outputStream.use { it.write(body.toByteArray()) }
+                val code = conn.responseCode
+                android.util.Log.i(
+                    "VesperKids",
+                    "setKidsLock locked=$locked deviceId=$deviceId → HTTP $code"
+                )
+                conn.disconnect()
+            } catch (t: Throwable) {
+                android.util.Log.w("VesperKids", "setKidsLock failed", t)
+            }
+        }.start()
     }
 }

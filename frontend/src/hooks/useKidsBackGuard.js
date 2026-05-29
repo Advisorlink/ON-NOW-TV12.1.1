@@ -37,10 +37,18 @@ export default function useKidsBackGuard() {
         const pinSet = !!(cfg.pin && cfg.pin.length === 4);
         if (!pinSet) {
             try { window.__vesperKidsLocked = ''; } catch { /* ignore */ }
+            // v2.8.42 — Also clear the backend kids-lock so the
+            // launcher won't bounce the user back to Vesper.
+            try { window.OnNowTV?.setKidsLock?.(false); } catch { /* ignore */ }
             return undefined;
         }
         // Expose lock-state to the native back handler.
         try { window.__vesperKidsLocked = '1'; } catch { /* ignore */ }
+        // v2.8.42 — Notify the LAUNCHER (via its backend) that this
+        // box is now in Kids+PIN sandbox mode.  Launcher's
+        // MainActivity.onResume() polls the matching GET and bounces
+        // the user straight back into Vesper if HOME is pressed.
+        try { window.OnNowTV?.setKidsLock?.(true); } catch { /* ignore */ }
 
         // Push a sentinel so the very next Back has somewhere to
         // land that we control.
@@ -78,6 +86,16 @@ export default function useKidsBackGuard() {
         return () => {
             window.removeEventListener('popstate', onPop);
             try { window.__vesperKidsLocked = ''; } catch { /* ignore */ }
+            // v2.8.42 — Cleanup: also clear the backend kids-lock so
+            // the launcher stops bouncing back to Vesper.  This
+            // runs when:
+            //   • The user successfully exits Kids via the PIN gate
+            //     (KidsExitPin clears localStorage → KidsHome
+            //     unmounts → this cleanup fires).
+            //   • The user reloads / closes Vesper while in Kids
+            //     (defence-in-depth — also covered by the 24-h
+            //     stale-lock auto-expiry in the backend).
+            try { window.OnNowTV?.setKidsLock?.(false); } catch { /* ignore */ }
         };
     }, [location.pathname, location.search, navigate]);
 }

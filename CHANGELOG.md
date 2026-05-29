@@ -7,6 +7,95 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.42 — Kids sandbox: HOME-button lockdown + bigger Babies catalog + clean Vesper/Kids separation
+
+  • **🛡 HOME-button lockdown for Kids+PIN.**  Kids can no longer
+    escape the sandbox by pressing HOME on the remote.  New backend
+    endpoint `POST /api/launcher/kids-lock` (called by Vesper's
+    `WebAppInterface.setKidsLock(locked)` JS bridge) sets a per-device
+    flag.  Matching `GET /api/launcher/kids-lock/{device_id}` is polled
+    by the Launcher's `MainActivity.onResume()` — if the box is
+    locked, the launcher instantly bounces back into Vesper with the
+    Kids deep-link.  Caches the last-known lock state in
+    SharedPreferences (`kids_lock_cache`) so the bounce is
+    instantaneous on the second HOME press AND survives short
+    backend outages.  Stale-entry guard (>24 h) prevents a crashed
+    Vesper from permanently trapping the launcher.  Source code:
+    `launcher-backend/main.py:1063` + `vesper-tv/.../WebAppInterface.kt:970`
+    + `onnowtv-launcher/.../MainActivity.kt:181`
+    + `frontend/.../useKidsBackGuard.js`.
+
+  • **🚪 Vesper tile cleanly exits Kids.**  Previously
+    `MainActivity.kt:547` REFUSED the `?profile=exit-kids` deep-link
+    when a PIN was set — pressing the Vesper tile from the launcher
+    would silently keep the user in Kids.  That refusal block has
+    been REMOVED.  Reaching the exit-kids handler now means the user
+    pressed a non-Kids tile in the launcher, and the launcher's new
+    onResume kids-lock bounce (above) guarantees the launcher is
+    unreachable WHILE Kids+PIN is active — so we either (a) already
+    PIN-exited (lock=false) or (b) have no PIN.  Either way, exit
+    Kids cleanly is the correct behaviour.
+
+  • **👶 Babies catalog: 11 → 56 real preschool titles.**  Sesame
+    Street, Curious George, Mr Rogers, Barney & Friends, Reading
+    Rainbow, Bill Nye, Wild Kratts, Arthur.  Three changes:
+       1. Expanded `KIDS_PRESCHOOL_NETWORKS` from 3 → 14 TMDB
+          network IDs (added CBeebies, BBC Kids, ABC Kids AU,
+          Sprout, Universal Kids, Cartoonito, Boomerang, Treehouse,
+          Discovery Kids, Baby TV, etc.).
+       2. Relaxed `TV_ALLOWED_RATINGS["TV-Y"]` from `{"TV-Y"}` to
+          `{"TV-Y","TV-Y7"}` — modern preschool hits (Bluey, PAW
+          Patrol, Peppa Pig, Cocomelon) are TV-Y7-rated.  Babies
+          (0-2) are perfectly safe with TV-Y7 content.
+       3. Dropped `with_original_language=en` from TV-Y / TV-Y7
+          tier params so Bluey (AU), Peppa Pig (UK), Hey Duggee
+          (UK), JoJo & Gran Gran (UK) finally surface.
+       4. Removed the rigid `with_genres=10751,16` constraint from
+          TV-Y / TV-Y7 — many preschool hits are live-action
+          (Sesame Street, Mr Rogers) and were being filtered out.
+       5. Lowered `vote_count.gte` floor from 30 → 5 for TV-Y /
+          TV-Y7 so international preschool shows with fewer
+          US-centric TMDB ratings still surface.
+       6. Bumped pages from 1-2 → 3-7 for TV-Y / TV-Y7 queries.
+    TV-Y7 (toddlers) also jumped from 515 → 723 titles.
+
+  • **🧒 "Just For Babies" shelf** is now permanent at the TOP of
+    TV-Y and TV-Y7 tiers ONLY.  Older-kid tiers (TV-G, TV-PG, TV-14,
+    M15) do NOT see this shelf — per direct user direction: "I don't
+    want baby stuff to be showing up if it's teenagers that have got
+    their profile selected."  Pulls preschool-network content
+    regardless of the user's selected tier so siblings of all ages
+    are covered without polluting teenage profiles.
+
+  • **🧹 Cache version bump** v9 → v11 on both backend
+    (`tmdb_kids_shelves:v11`) and frontend (`kids:shelves:v11`) so
+    every device picks up the fresh shelves on first load — no
+    user action needed.
+
+  • **Live verified** against production VPS:
+    - `/api/tmdb/kids/shelves?movie_cert=G&tv_level=TV-Y` → 5 shelves, 56 titles
+    - `/api/tmdb/kids/shelves?movie_cert=G&tv_level=TV-Y7` → 13 shelves, 723 titles
+    - `/api/tmdb/kids/shelves?movie_cert=PG&tv_level=TV-PG` → 12 shelves, 577 titles, NO "just-for-babies"
+    - `POST /api/launcher/kids-lock` + `GET /api/launcher/kids-lock/{id}` round-trip → ok
+  • **No-APK-needed for the catalog change** (backend only) — every
+    deployed HK1 picks it up on the next config refresh.
+  • **APK rebuild required** for Vesper + Launcher to pick up the
+    HOME-button lockdown.  Backend lockdown endpoints are forwards-
+    compatible (old APKs ignore them, no harm).
+
+Files touched (8):
+  • `backend/server.py` — kids shelf expansion + Babies preset
+  • `frontend/src/hooks/useKidsShelves.js` — cache key bump
+  • `frontend/src/hooks/useKidsBackGuard.js` — call `OnNowTV.setKidsLock()`
+  • `launcher-backend/main.py` — new kids-lock endpoints
+  • `android/vesper-tv/.../WebAppInterface.kt` — `setKidsLock()` JS bridge
+  • `android/vesper-tv/.../MainActivity.kt` — exit-kids handler (removed PIN refusal)
+  • `android/onnowtv-launcher/.../MainActivity.kt` — onResume bounce
+
+⚠️ Both APKs need a Save to GitHub → CI rebuild → reinstall on HK1.
+Backend changes (catalog + lock endpoints) are LIVE on
+`onnowtv.duckdns.org` already.
+
 ## v2.8.41 — V2 AI on Groq (10× cheaper, 5× faster, no Emergent dependency)
 
   • **🚨 V2 AI was 502'ing on production.**  Curl-tested the Emergent
