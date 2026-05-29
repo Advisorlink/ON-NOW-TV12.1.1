@@ -52,7 +52,7 @@ export default function PodcastDetail() {
                             onKeyDown={(e) => { if (e.key === 'Enter') { if (isCurrent) controls.toggle(); else controls.playEpisode(ep, podcast); } }}
                             data-testid={`tunes-podcast-episode-${i}`}
                         >
-                            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">
+                            <div className="tunes-track-row__num">
                                 {isCurrent && state.isPlaying ? <Pause size={14} /> : <Play size={14} />}
                             </div>
                             <div>

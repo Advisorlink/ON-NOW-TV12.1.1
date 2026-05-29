@@ -7,6 +7,89 @@ limit.
 
 Latest version is shown in `app/build.gradle.kts` (`versionName`).
 
+## v2.8.46 — Tunes: in-app "Full screen" button + scroll-follows-focus + Like / Add-to-Playlist / Library
+
+  • **🖥 "Full screen" button in the side-nav.**  Sits at the
+    bottom of the Tunes nav rail.  Click it → browser enters real
+    OS fullscreen (Fullscreen API with Safari/Firefox/Chromium
+    prefixes), URL bar / status bar gone, edge-to-edge preview.
+    Icon flips Maximize ↔ Minimize.  Focusable like every other
+    nav item, so the D-pad reaches it too.
+
+  • **🎯 Scroll-follows-focus.**  Added a `focusin` listener at
+    the MusicLayout level that calls `scrollIntoView({block:
+    'center', behavior: 'smooth'})` whenever any focusable Tunes
+    surface gains focus.  Coexists with the spatial-focus hook's
+    own pixel-pin scroll math (no fight) — guarantees the focused
+    tile is always centered, even on pages that don't use Vesper's
+    shelf-page snap container.
+
+  • **🐛 Bug fix: focus was landing on inner divs.**  An earlier
+    bulk-edit pass added `data-focusable="true"` to inner element
+    classes (`tunes-card__body`, `tunes-track-row__num`,
+    `tunes-card__art`, etc.).  This meant the spatial-focus hook
+    could land on a child div instead of the outer card/button —
+    explained why "down arrow doesn't seem to scroll".  Swept
+    every Music file (~16) and stripped `data-focusable`,
+    `data-focus-style`, `tabIndex={0}` from all inner divs.
+    Final state: exactly 42 outer focusables across all Music
+    pages, 0 false-positives.
+
+  • **❤️ "Add to library" everywhere.**  New `LikeButton` heart
+    component sits on every artist, album, track, radio station,
+    and podcast card.  Tap → instantly liked (filled pink heart).
+    Tap again → unliked.  Persists in `localStorage` under
+    `onnowtv-music-library-v1`.  Library page reflects changes
+    in real-time via `subscribeMusicLibrary` pub-sub.
+
+  • **➕ "Add to playlist" on every song.**  New
+    `AddToPlaylistButton` opens a dropdown listing all existing
+    playlists (with track counts) + a "+ New playlist" entry.
+    Creating a playlist + adding a song is one flow with auto-
+    confirm ("Added" pulse).  Persists in
+    `onnowtv-music-playlists-v1`.
+
+  • **🎵 Library page completely rewritten.**  Five Liked sections
+    (Artists, Albums, Songs, Radio, Podcasts) — only shown when
+    non-empty.  Playlists section above with expandable detail
+    view: tap a playlist to see its track list with per-track
+    remove buttons + "Play all" button + "Delete playlist".
+
+  • **🎤 Artists are now the FIRST search section** — matches
+    Spotify UX expectation per user direction *"when you search
+    an artist or a song, I want it to come up showing the
+    artists you can choose as well so we can add those to
+    playlists / library like Vesper does."*
+
+  • **Live verified on production preview:**
+    - "Full screen" nav button present + clickable.
+    - Search "billie eilish" → Artists section is FIRST with 6
+      cards each having a heart button.
+    - Heart click → Library page instantly shows
+      "Liked Artists → Billie Eilish".
+    - Tracks show heart + plus-icon (playlist) on every row.
+    - 42 focusable surfaces, 0 false-positives on inner divs.
+
+Files created (3):
+  • `frontend/src/lib/music-library.js` — localStorage CRUD + pub-sub
+  • `frontend/src/components/music/LikeButton.jsx`
+  • `frontend/src/components/music/AddToPlaylistButton.jsx`
+
+Files modified (8):
+  • `frontend/src/pages/music/MusicLayout.jsx` — fullscreen btn + scroll-follows-focus
+  • `frontend/src/pages/music/MusicSearch.jsx` — Artists first + like buttons everywhere
+  • `frontend/src/pages/music/MusicLibrary.jsx` — full rewrite with sections + playlists
+  • `frontend/src/pages/music/MusicHome.jsx` — strip bogus inner data-focusable
+  • `frontend/src/pages/music/MusicAlbum.jsx` — strip bogus inner data-focusable
+  • `frontend/src/pages/music/MusicArtist.jsx` — strip bogus inner data-focusable
+  • `frontend/src/pages/music/PodcastBrowse.jsx` — strip bogus inner data-focusable
+  • `frontend/src/pages/music/PodcastDetail.jsx` — strip bogus inner data-focusable
+  • `frontend/src/pages/music/RadioBrowse.jsx` — strip bogus inner data-focusable
+  • `frontend/src/components/music/MiniPlayer.jsx` — strip bogus inner data-focusable
+
+⚠️ Frontend-only.  No backend touched, no APK rebuild needed.
+WebView picks up the change on the next page load.
+
 ## v2.8.45 — Tunes: true OS-level fullscreen + big discoverable "Full screen" button
 
   • **🖥 Real OS-level fullscreen.**  When the Now Playing view

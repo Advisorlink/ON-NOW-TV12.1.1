@@ -79,8 +79,7 @@ export default function RadioBrowse() {
                                 tabIndex={0}
                                 style={{ textAlign: 'left', cursor: 'pointer', borderColor: isCurrent ? 'var(--tunes-radio)' : undefined }}
                             >
-                                <div
-                                    className="tunes-card__art"
+                                <div className="tunes-card__art"
                                     style={{
                                         background: s.favicon
                                             ? `center/contain no-repeat url(${s.favicon}), linear-gradient(135deg, #064a59, #0a0118)`
@@ -90,7 +89,7 @@ export default function RadioBrowse() {
                                 >
                                     {!s.favicon && <RadioIcon size={56} color="rgba(255,255,255,0.55)" />}
                                 </div>
-                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
+                                <div className="tunes-card__body">
                                     <p className="tunes-card__title">{s.name}</p>
                                     <p className="tunes-card__subtitle">
                                         {[s.country, s.bitrate ? `${s.bitrate}kbps` : ''].filter(Boolean).join(' · ')}

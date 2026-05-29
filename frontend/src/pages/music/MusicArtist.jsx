@@ -73,7 +73,7 @@ export default function MusicArtist() {
                                 onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, top); }}
                                 data-testid={`tunes-artist-track-${t.id}`}
                             >
-                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">{i + 1}</div>
+                                <div className="tunes-track-row__num">{i + 1}</div>
                                 <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />
                                 <div>
                                     <p className="tunes-track-row__title">{t.title}</p>
@@ -93,7 +93,7 @@ export default function MusicArtist() {
                         {data.albums.map((a) => (
                             <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
                                 <img src={a.cover || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-card__body">
+                                <div className="tunes-card__body">
                                     <p className="tunes-card__title">{a.title}</p>
                                     <p className="tunes-card__subtitle">{a.release_date?.slice(0, 4) || ''}</p>
                                 </div>

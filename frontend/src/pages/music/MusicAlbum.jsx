@@ -82,7 +82,7 @@ export default function MusicAlbum() {
                             onKeyDown={(e) => { if (e.key === 'Enter') { if (isCurrent) controls.toggle(); else controls.playTrack(t, tracks); } }}
                             data-testid={`tunes-album-track-${t.id}`}
                         >
-                            <div data-focusable="true" data-focus-style="tile" tabIndex={0} className="tunes-track-row__num">
+                            <div className="tunes-track-row__num">
                                 {isPlaying ? <Pause size={14} /> : (i + 1)}
                             </div>
                             <img src={t.album?.cover || data.cover} alt="" className="tunes-track-row__art" loading="lazy" />
