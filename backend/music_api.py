@@ -178,42 +178,95 @@ async def _deezer_get(path: str, params: Optional[Dict[str, Any]] = None) -> Dic
 @music_api.get("/home")
 async def music_home():
     """Returns the curated Music home shelves: hero + new-releases +
-    charts + featured playlists.  Cached 1 h."""
-    cached = await cache.get("music:home:v2")
+    charts + featured playlists.  Cached 1 h.
+
+    v2.8.63 — Source switched to **iTunes US Top Songs / Top Albums**
+    (Apple Music RSS feeds for the US store) instead of Deezer's
+    global chart, which was returning French content because Deezer
+    is FR-centric.  For each iTunes chart item we run a Deezer search
+    to get the playable preview_url + cover_xl + matching album/
+    artist IDs, so the user still gets the same shape they had before
+    but with **mainstream American** artists (Taylor Swift, Drake,
+    Sabrina Carpenter, Bruno Mars, Billie Eilish, etc.) instead of
+    Jul, Ninho, GIMS et al.
+    """
+    cached = await cache.get("music:home:v6")
     if cached:
         return {"cached": True, "data": cached}
 
-    async def fetch_charts():
+    async def _itunes_us(kind: str, limit: int = 25):
+        """kind: 'topsongs' | 'topalbums' | 'newmusic'."""
+        url = f"https://itunes.apple.com/us/rss/{kind}/limit={limit}/json"
         try:
-            d = await _deezer_get("/chart/0/tracks", {"limit": 25})
-            return [_shape_track(t) for t in d.get("data") or []]
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"})
+                r.raise_for_status()
+                entries = (r.json().get("feed") or {}).get("entry") or []
+                out = []
+                for e in entries:
+                    title = ((e.get("im:name") or {}).get("label") or "").strip()
+                    artist = ((e.get("im:artist") or {}).get("label") or "").strip()
+                    if not title or not artist:
+                        continue
+                    out.append({"title": title, "artist": artist})
+                return out
         except Exception as exc:
-            log.warning("charts fetch failed: %s", exc)
+            log.warning("itunes %s failed: %s", kind, exc)
             return []
+
+    async def _deezer_first_track(query: str):
+        try:
+            d = await _deezer_get("/search/track", {"q": query, "limit": 1})
+            data = d.get("data") or []
+            return _shape_track(data[0]) if data else None
+        except Exception:
+            return None
+
+    async def _deezer_first_album(query: str):
+        try:
+            d = await _deezer_get("/search/album", {"q": query, "limit": 1})
+            data = d.get("data") or []
+            return _shape_album(data[0]) if data else None
+        except Exception:
+            return None
+
+    async def _deezer_first_artist(name: str):
+        try:
+            d = await _deezer_get("/search/artist", {"q": name, "limit": 1})
+            data = d.get("data") or []
+            return _shape_artist(data[0]) if data else None
+        except Exception:
+            return None
+
+    async def fetch_charts():
+        items = await _itunes_us("topsongs", 25)
+        results = await asyncio.gather(
+            *[_deezer_first_track(f"{it['artist']} {it['title']}") for it in items[:25]]
+        )
+        return [t for t in results if t]
 
     async def fetch_new_releases():
-        try:
-            d = await _deezer_get("/editorial/0/releases", {"limit": 25})
-            return [_shape_album(a) for a in d.get("data") or []]
-        except Exception as exc:
-            log.warning("new releases fetch failed: %s", exc)
-            return []
+        items = await _itunes_us("topalbums", 25)
+        results = await asyncio.gather(
+            *[_deezer_first_album(f"{it['artist']} {it['title']}") for it in items[:25]]
+        )
+        return [a for a in results if a]
 
     async def fetch_top_artists():
-        try:
-            d = await _deezer_get("/chart/0/artists", {"limit": 20})
-            return [_shape_artist(a) for a in d.get("data") or []]
-        except Exception as exc:
-            log.warning("top artists fetch failed: %s", exc)
-            return []
-
-    async def fetch_top_albums():
-        try:
-            d = await _deezer_get("/chart/0/albums", {"limit": 20})
-            return [_shape_album(a) for a in d.get("data") or []]
-        except Exception as exc:
-            log.warning("top albums fetch failed: %s", exc)
-            return []
+        # Dedupe artists from US Top Songs.
+        items = await _itunes_us("topsongs", 50)
+        seen = []
+        seen_set = set()
+        for it in items:
+            a = it["artist"]
+            if a.lower() in seen_set:
+                continue
+            seen.append(a)
+            seen_set.add(a.lower())
+            if len(seen) >= 20:
+                break
+        results = await asyncio.gather(*[_deezer_first_artist(a) for a in seen])
+        return [a for a in results if a]
 
     async def fetch_genres():
         try:
@@ -222,7 +275,7 @@ async def music_home():
             for g in d.get("data") or []:
                 gid = g.get("id")
                 if gid in (None, 0):
-                    continue  # skip "All" genre
+                    continue
                 out.append({
                     "id": str(gid),
                     "name": g.get("name") or "Unknown",
@@ -233,21 +286,20 @@ async def music_home():
             log.warning("genres fetch failed: %s", exc)
             return []
 
-    charts, new_releases, top_artists, top_albums, genres = await asyncio.gather(
+    charts, new_releases, top_artists, genres = await asyncio.gather(
         fetch_charts(), fetch_new_releases(), fetch_top_artists(),
-        fetch_top_albums(), fetch_genres(),
+        fetch_genres(),
     )
 
     data = {
         "shelves": [
-            {"id": "top-tracks",  "title": "Top Charts",     "type": "tracks",  "items": charts},
-            {"id": "new-releases","title": "New Releases",   "type": "albums",  "items": new_releases},
-            {"id": "top-artists", "title": "Trending Artists","type": "artists", "items": top_artists},
-            {"id": "top-albums",  "title": "Top Albums",     "type": "albums",  "items": top_albums},
+            {"id": "top-tracks",  "title": "Top US Charts",       "type": "tracks",  "items": charts},
+            {"id": "new-releases","title": "New Releases (US)",   "type": "albums",  "items": new_releases},
+            {"id": "top-artists", "title": "Trending US Artists", "type": "artists", "items": top_artists},
         ],
         "genres": genres,
     }
-    await cache.set("music:home:v2", data, ttl_seconds=3600)
+    await cache.set("music:home:v6", data, ttl_seconds=3600)
     return {"cached": False, "data": data}
 
 
@@ -450,7 +502,18 @@ async def radio_top(country: Optional[str] = Query(None), limit: int = Query(50,
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(f"{server}{path}", params=params, headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"})
             r.raise_for_status()
-            stations = [_shape_radio(s) for s in r.json() if s.get("url_resolved") or s.get("url")]
+            # v2.8.63 — Filter to HTTPS-only streams.  Android WebView
+            # blocks mixed-content (HTTP audio on an HTTPS page) so any
+            # `http://…` stream would silently fail on the HK1 box —
+            # the user reports stations "don't work".  This filter
+            # guarantees every returned station is playable in the
+            # WebView without proxying.  Also prefers stations whose
+            # country code matches the requested country.
+            stations_raw = r.json()
+            def _is_https(s):
+                url = s.get("url_resolved") or s.get("url") or ""
+                return url.startswith("https://")
+            stations = [_shape_radio(s) for s in stations_raw if _is_https(s)]
     except Exception as exc:
         log.warning("radio top failed: %s", exc)
         stations = []
@@ -493,7 +556,9 @@ async def radio_by_tag(tag: str, limit: int = Query(50, le=200)):
                 headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"},
             )
             r.raise_for_status()
-            stations = [_shape_radio(s) for s in r.json() if s.get("url_resolved") or s.get("url")]
+            # HTTPS-only filter — same reason as /radio/top.
+            stations = [_shape_radio(s) for s in r.json()
+                        if (s.get("url_resolved") or s.get("url") or "").startswith("https://")]
     except Exception:
         stations = []
     await cache.set(cache_key, stations, ttl_seconds=3600)
