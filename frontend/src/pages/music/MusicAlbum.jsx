@@ -130,7 +130,7 @@ export default function MusicAlbum() {
                             onClick={() => tracks.length && controls.playTrack(tracks[0], tracks)}
                             data-testid="tunes-album-play"
                         >
-                            <Play size={18} fill="#06080f" />
+                            <Play size={18} fill="#0a0118" />
                             Play Album
                         </button>
                         <button

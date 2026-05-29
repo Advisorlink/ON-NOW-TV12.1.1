@@ -38,11 +38,11 @@ const NAV_ITEMS = [
 const THEME_STORAGE_KEY = 'onnowtv-tunes-theme';
 
 function readStoredTheme() {
-    if (typeof window === 'undefined') return 'electric-blue';
+    if (typeof window === 'undefined') return 'pink';
     try {
         const v = window.localStorage.getItem(THEME_STORAGE_KEY);
-        return v === 'pink' ? 'pink' : 'electric-blue';
-    } catch { return 'electric-blue'; }
+        return v === 'electric-blue' ? 'electric-blue' : 'pink';
+    } catch { return 'pink'; }
 }
 
 function TunesNav({ theme, onThemeChange }) {

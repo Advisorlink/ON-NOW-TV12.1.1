@@ -120,7 +120,7 @@ function MusicHero({ slides }) {
                                     onKeyDown={handleKey}
                                     data-testid={`tunes-hero-play-${slide.id}`}
                                 >
-                                    <Play size={18} fill="#06080f" />
+                                    <Play size={18} fill="#0a0118" />
                                     Play
                                 </button>
                                 <button
@@ -152,15 +152,6 @@ function MusicHero({ slides }) {
                                     Add to Library
                                 </button>
                             </div>
-                        </div>
-
-                        <div className="tunes-hero__art-wrap" aria-hidden="true">
-                            <img
-                                src={slide.coverImage}
-                                alt={slide.title}
-                                className="tunes-hero__art"
-                                loading="eager"
-                            />
                         </div>
                     </div>
                 </div>
@@ -347,16 +338,31 @@ function GenreTile({ genre }) {
 }
 
 /** Build the rotating hero slides from the home payload.
- *  Picks up to five albums or top tracks to feature. */
+ *  Picks up to five albums or top tracks to feature.  Prefers
+ *  the artist photo (more cinematic) as the full-bleed backdrop,
+ *  with the album cover as a fallback. */
 function buildHeroSlides(home) {
     if (!home) return [];
     const slides = [];
+
+    // Build an artist-id → picture lookup so we can pull the artist
+    // photo as a high-vibrance backdrop for albums/tracks.
+    const artistsById = {};
+    (home.shelves?.find((s) => s.id === 'top-artists')?.items || []).forEach((a) => {
+        artistsById[a.id] = a;
+    });
+    const bestArtistPic = (artist) => {
+        if (!artist) return '';
+        return artistPic(artist) || artistPic(artistsById[artist.id]) || '';
+    };
 
     // Top tracks (use the album they belong to as a "trending" feature).
     const topTracks = home.shelves?.find((s) => s.id === 'top-tracks')?.items || [];
     topTracks.slice(0, 2).forEach((t, i) => {
         const cover = albumCover(t.album);
-        if (!cover) return;
+        const aPic = bestArtistPic(t.artist);
+        const bg = aPic || cover;
+        if (!bg) return;
         slides.push({
             id: `track-${t.id}`,
             kind: 'track',
@@ -369,7 +375,7 @@ function buildHeroSlides(home) {
                 ? `From the album "${t.album.title}".  Streaming now on ON NOW TV Tunes.`
                 : 'A breakout single climbing the charts this week.',
             coverImage: cover,
-            bgImage: cover,
+            bgImage: bg,
         });
     });
 
@@ -377,7 +383,9 @@ function buildHeroSlides(home) {
     const newReleases = home.shelves?.find((s) => s.id === 'new-releases')?.items || [];
     newReleases.slice(0, 2).forEach((a) => {
         const cover = albumCover(a);
-        if (!cover) return;
+        const aPic = bestArtistPic(a.artist);
+        const bg = aPic || cover;
+        if (!bg) return;
         slides.push({
             id: `album-${a.id}`,
             kind: 'album',
@@ -392,7 +400,7 @@ function buildHeroSlides(home) {
                 ? `A sonic odyssey by ${a.artist?.name}.  "${a.title}" is out now.`
                 : '',
             coverImage: cover,
-            bgImage: cover,
+            bgImage: bg,
         });
     });
 
@@ -401,7 +409,9 @@ function buildHeroSlides(home) {
         const topAlbums = home.shelves?.find((s) => s.id === 'top-albums')?.items || [];
         topAlbums.slice(0, 5 - slides.length).forEach((a) => {
             const cover = albumCover(a);
-            if (!cover) return;
+            const aPic = bestArtistPic(a.artist);
+            const bg = aPic || cover;
+            if (!bg) return;
             slides.push({
                 id: `album-${a.id}`,
                 kind: 'album',
@@ -411,7 +421,7 @@ function buildHeroSlides(home) {
                 meta: ['Top chart', a.nb_tracks ? `${a.nb_tracks} songs` : null].filter(Boolean),
                 synopsis: `"${a.title}" by ${a.artist?.name} is trending now.`,
                 coverImage: cover,
-                bgImage: cover,
+                bgImage: bg,
             });
         });
     }
