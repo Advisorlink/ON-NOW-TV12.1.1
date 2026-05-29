@@ -651,6 +651,119 @@ async def podcast_episodes(feed_url: str = Query(...)):
 
 
 # ════════════════════════════════════════════════════════════════════
+#  YouTube full-track resolver (yt-dlp + signed-in cookies)
+# ════════════════════════════════════════════════════════════════════
+#
+# In 2026 YouTube blocks unauthenticated requests from datacenter
+# IPs with "Sign in to confirm you're not a bot."  The reliable
+# fix is to authenticate yt-dlp using cookies exported from a real
+# (throwaway) Google account that's signed into youtube.com.
+#
+# Cookies live at `YOUTUBE_COOKIES_DIR` (default
+# `/opt/onnowtv/backend/youtube-cookies/`).  Each file is a
+# Netscape-format `account-N.txt` from the "Get cookies.txt
+# LOCALLY" browser extension.  We round-robin across all files in
+# the directory so request load spreads across accounts (≤ one
+# account ban breaks the service).
+#
+# Bytes still stream DIRECT from YouTube's CDN to the client — the
+# VPS only resolves the URL.  No proxy, no bandwidth burden.
+
+YT_COOKIES_DIR = os.environ.get(
+    "YOUTUBE_COOKIES_DIR", "/opt/onnowtv/backend/youtube-cookies"
+)
+_yt_cookie_rr_idx = 0
+
+
+def _pick_cookie_file() -> Optional[str]:
+    """Pick the next cookie file (round-robin); None if none exist."""
+    global _yt_cookie_rr_idx
+    if not os.path.isdir(YT_COOKIES_DIR):
+        return None
+    files = sorted(
+        os.path.join(YT_COOKIES_DIR, f)
+        for f in os.listdir(YT_COOKIES_DIR)
+        if f.endswith(".txt") and not f.startswith(".")
+    )
+    if not files:
+        return None
+    chosen = files[_yt_cookie_rr_idx % len(files)]
+    _yt_cookie_rr_idx += 1
+    return chosen
+
+
+async def _youtube_resolve(artist: str, title: str) -> Optional[Dict[str, Any]]:
+    """Search YouTube via yt-dlp + cookies and return an audio URL."""
+    cookies = _pick_cookie_file()
+    if not cookies:
+        return None
+    try:
+        import yt_dlp  # lazy import
+    except ImportError:
+        return None
+
+    # "<artist> <title> audio" biases toward official-audio uploads
+    # (no music-video intros).
+    search = f"ytsearch1:{artist} {title} audio"
+
+    def resolve_blocking():
+        opts = {
+            "format": "bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio",
+            "noplaylist": True,
+            "quiet": True,
+            "skip_download": True,
+            "no_warnings": True,
+            "extract_flat": False,
+            "default_search": "ytsearch1",
+            "geo_bypass": True,
+            "socket_timeout": 12,
+            "cookiefile": cookies,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["tv", "web", "android"],
+                    "player_skip": ["webpage"],
+                },
+            },
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(search, download=False)
+            if not info:
+                return None
+            if info.get("_type") == "playlist":
+                entries = info.get("entries") or []
+                if not entries:
+                    return None
+                info = entries[0]
+            url = info.get("url")
+            if not url:
+                fmts = info.get("requested_formats") or info.get("formats") or []
+                audio_only = [
+                    f for f in fmts
+                    if f.get("acodec") and f.get("acodec") != "none"
+                    and (not f.get("vcodec") or f.get("vcodec") == "none")
+                ]
+                pool = audio_only or fmts
+                if pool:
+                    pool.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+                    url = pool[0].get("url")
+            return {
+                "url": url,
+                "duration": info.get("duration"),
+                "title": info.get("title"),
+                "uploader": info.get("uploader") or info.get("channel"),
+                "yt_id": info.get("id"),
+                "ext": info.get("ext"),
+            }
+
+    try:
+        return await asyncio.to_thread(resolve_blocking)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("yt-dlp resolve failed (cookies=%s): %s",
+                    os.path.basename(cookies), exc)
+        return None
+
+
+# ════════════════════════════════════════════════════════════════════
 #  JioSaavn full-track resolver
 # ════════════════════════════════════════════════════════════════════
 #
