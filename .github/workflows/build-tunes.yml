@@ -86,24 +86,48 @@ jobs:
             --no-daemon \
             --warning-mode summary
 
-      - name: Rename APKs
+      - name: Locate + rename APKs (debug always, release if present)
         shell: bash
         run: |
           set -euo pipefail
-          cd android/onnowtv-tunes/app/build/outputs/apk
-          cp debug/app-debug.apk ../../../../../onnowtv-tunes-debug.apk
-          if [ -f release/app-release.apk ]; then
-            cp release/app-release.apk ../../../../../onnowtv-tunes-release.apk
+          echo "=== all APKs produced ==="
+          find android/onnowtv-tunes/app/build/outputs/apk -name "*.apk" -type f -ls || true
+
+          DBG=$(find android/onnowtv-tunes/app/build/outputs/apk -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$DBG" ]; then
+            echo "::error::No debug APK produced"
+            exit 1
           fi
-          ls -la ../../../../../onnowtv-tunes-*.apk
+          cp "$DBG" "$GITHUB_WORKSPACE/onnowtv-tunes-debug.apk"
+          echo "DEBUG APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-tunes-debug.apk)"
+
+          REL=$(find android/onnowtv-tunes/app/build/outputs/apk -name "*-release.apk" -type f | head -n1)
+          if [ -z "$REL" ]; then
+            REL=$(find android/onnowtv-tunes/app/build/outputs/apk -name "*-release-unsigned.apk" -type f | head -n1)
+          fi
+          if [ -n "$REL" ]; then
+            cp "$REL" "$GITHUB_WORKSPACE/onnowtv-tunes-release.apk"
+            echo "RELEASE APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-tunes-release.apk)"
+          else
+            echo "No release APK produced — only debug will be published."
+          fi
 
       - name: Publish to GitHub Releases (tunes-latest)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tunes-latest
           name: "ON NOW TV Tunes ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          body: |
+            **ON NOW TV Tunes — standalone music app.**
+
+            Install:
+            1. Download `onnowtv-tunes-debug.apk` (or `-release.apk`) below.
+            2. Sideload onto your HK1 box via `adb install` or a file-explorer app.
+            3. Launch — the app loads the music UI directly in a WebView wrapper
+               with the native NewPipeExtractor bridge for full-length tracks.
           files: |
             onnowtv-tunes-debug.apk
             onnowtv-tunes-release.apk
+          fail_on_unmatched_files: false
           prerelease: true
           make_latest: 'false'
