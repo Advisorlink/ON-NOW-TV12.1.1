@@ -102,6 +102,34 @@ class OnNowTvBridge(private val webView: WebView) {
         // reset the singleton.  Future iteration: expose a clearCache().
     }
 
+    /** v2.8.54 — Sign out of YouTube on this box.  Clears the
+     *  process-wide cookie store and reloads the sign-in flow.
+     *  Called from React via `window.OnNowTV.signOut()`. */
+    @JavascriptInterface
+    fun signOut() {
+        webView.post {
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            android.webkit.CookieManager.getInstance().flush()
+            android.webkit.WebStorage.getInstance().deleteAllData()
+            // Restart the activity so the boot flow re-runs and sees
+            // the cleared cookies → kicks the user back to sign-in.
+            val ctx = webView.context
+            if (ctx is android.app.Activity) {
+                ctx.recreate()
+            }
+        }
+    }
+
+    /** v2.8.54 — Whether a signed-in YouTube session is available.
+     *  React side uses this to show "you're signed in as …" UI
+     *  and to enable the IFrame Player route. */
+    @JavascriptInterface
+    fun isSignedInToYouTube(): Boolean {
+        val cookies = android.webkit.CookieManager.getInstance()
+            .getCookie("https://www.youtube.com") ?: ""
+        return cookies.contains("LOGIN_INFO") || cookies.contains("SAPISID")
+    }
+
     private fun postCallback(callbackId: String, payload: JSONObject) {
         val js = "window.__onnowtvMusicCB && window.__onnowtvMusicCB(" +
             jsString(callbackId) + ", " + payload.toString() + ");"
