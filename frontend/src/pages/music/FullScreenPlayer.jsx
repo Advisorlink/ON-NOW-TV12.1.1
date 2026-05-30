@@ -161,13 +161,19 @@ export function FullScreenPlayer({ onClose }) {
             <div className="tunes-fullplayer__scrim" />
 
             <div className="tunes-fullplayer__corner-left">
-                <span style={{
-                    display: 'inline-block', marginRight: 14,
-                    color: 'var(--vesper-blue-bright)',
-                    fontWeight: 800, fontSize: 30, letterSpacing: '-0.04em',
-                    textShadow: '0 0 14px rgba(var(--vesper-blue-rgb),0.7)',
-                    verticalAlign: -4,
-                }}>V2</span>
+                <span
+                    style={{
+                        display: 'inline-block', marginRight: 12,
+                        fontWeight: 800, fontSize: 22,
+                        letterSpacing: '-0.04em',
+                        color: 'var(--vesper-blue)',
+                        textShadow: '0 0 14px rgba(var(--vesper-blue-rgb),0.55)',
+                        verticalAlign: -2,
+                    }}
+                    aria-hidden="true"
+                >
+                    ♪
+                </span>
                 Now Playing
             </div>
 

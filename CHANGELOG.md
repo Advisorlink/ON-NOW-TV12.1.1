@@ -1,5 +1,75 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.68 — Mobile music app is FULLY standalone (no Vesper menu, lyrics fixed, scroll fixed)
+
+> Diagnosis from user-supplied screenshots on phone:
+> 1. Vesper's mobile bottom nav (Home / Search / Live / Library /
+>    More) was bleeding into the standalone music app — should be a
+>    completely separate experience.
+> 2. The music app's OWN bottom-tab nav was completely hidden on
+>    phones (no nav at all when looking past the stray Vesper one).
+> 3. In the Full-Screen Player, lyrics were scrolling through the
+>    transparent transport-dock area at the bottom of the screen,
+>    visually clashing with the play button + progress bar.
+> 4. "V2" branding was still visible inside the music app
+>    (FullScreenPlayer top-left + side-rail emblem) which made it
+>    feel like a half-converted Vesper page.
+
+### Music app is now visually + structurally independent
+- **`/music` added to `MOBILE_NAV_HIDDEN_PREFIXES`** in `App.js`, so
+  Vesper's `<MobileBottomNav />` is no longer mounted on any music
+  route.  Phone users now see ONLY the music app's bottom tab bar
+  (Home / Search / Karaoke / Radio / Library), nothing from Vesper.
+- **New `VesperOnlyChrome` wrapper** in `App.js` gates `DevModeBadge`,
+  `NewEpisodeToast`, `AddToListModal`, `ReminderWatcher`,
+  `NotifyHitWatcher`, `FeatureNudge` — these are now hidden when the
+  user is in the music app.  Same treatment for `KidsExitPill`.
+- **Global `body[data-platform="mobile"] [data-testid="side-nav"]
+  { display: none }`** rule in `index.css` was hiding BOTH the
+  Vesper desktop SideNav AND the music app's nav (because both use
+  the same `data-testid` for spatial-focus targeting).  Added
+  `:not([data-tunes-nav])` exclusion so the music nav stays visible
+  on mobile.  `MusicLayout` sets `data-music-app="true"` on `<body>`
+  on mount, which also zeroes Vesper's `padding-bottom: 58px`
+  reservation that was creating ~58 px of dead space at the bottom
+  of every music page.
+- **Side-rail "V2" emblem → ♪ music-note glyph** so the standalone
+  music app feels like its OWN brand instead of a Vesper variant.
+  Font-size + letter-spacing tuned for the new glyph.
+- **FullScreenPlayer top-left "V2" → ♪ glyph** with the same
+  treatment.
+
+### Full-screen player: lyrics no longer leak into the transport dock
+- **Dock now has a solid gradient backdrop** on mobile —
+  `linear-gradient(transparent → rgba(10,1,24,0.98))` + 16 px
+  backdrop-blur, so any lyrics that scroll past the dock area are
+  visually clipped under the dark band instead of bleeding through
+  the play button + progress bar.
+- **Queue panel `max-height: 48vh` on mobile** (was `none`) so the
+  Lyrics section scrolls INTERNALLY instead of growing tall enough
+  to hit the dock.
+- **Body padding-bottom: 280 px on mobile** (was 220) reserves more
+  room for the dock so the last lyric row finishes well above the
+  controls.
+- **`env(safe-area-inset-bottom)` honoured** so iPhones with a home
+  indicator get the dock raised above the indicator.
+
+### Mobile scroll is smooth and continuous
+- `.tunes-root` on `≤ 768 px` adds `-webkit-overflow-scrolling: touch`
+  (still required on older Chromium WebViews on HK1-class boxes) and
+  `overscroll-behavior-y: contain` so the page doesn't trigger the
+  browser-chrome bounce that was making scrolls feel "stuck".
+- Removed the ~58 px Vesper body padding so the page actually scrolls
+  to the bottom of the content without dead space below the last
+  shelf.
+
+### CI / version
+- CHANGELOG version bumped to `## v2.8.68` so the next push will
+  trigger a fresh APK build and the in-app update gate prompts the
+  HK1 box to install.
+
+---
+
 ## v2.8.67 — Karaoke audio FINALLY plays (off-screen iframe + force-unmute retry)
 
 > Diagnosis from user feedback on v2.8.66: lyrics WERE syncing

@@ -768,8 +768,16 @@ body[data-platform="mobile"] {
 
 /* Hide the desktop SideNav whenever mobile mode is active.  The
    pages render the side-nav unconditionally on mount; we just
-   visually hide it (display:none) and reclaim its left inset. */
-body[data-platform="mobile"] [data-testid="side-nav"],
+   visually hide it (display:none) and reclaim its left inset.
+
+   v2.8.68 — `:not([data-tunes-nav])` exclusion so the ON NOW
+   Tunes navigation (which uses the same `data-testid="side-nav"`
+   hook for spatial focus on TV) is NOT hidden on mobile.  The
+   music app has its OWN mobile-aware nav (collapses to a bottom
+   tab bar at ≤ 768 px via .tunes-nav @media rules).  Without this
+   exclusion, the music app was nav-less on phones and only the
+   stray Vesper nav was visible. */
+body[data-platform="mobile"] [data-testid="side-nav"]:not([data-tunes-nav]),
 body[data-platform="mobile"] [data-testid="kids-side-nav"] {
     display: none !important;
 }
@@ -819,7 +827,7 @@ body[data-platform="mobile"] h4 {
 /* Tablet-aware override: tablets in landscape are wide enough to
    approximate the TV layout, so we keep the side-nav for them. */
 @media (min-width: 1024px) {
-    body[data-platform="mobile"] [data-testid="side-nav"],
+    body[data-platform="mobile"] [data-testid="side-nav"]:not([data-tunes-nav]),
     body[data-platform="mobile"] [data-testid="kids-side-nav"] {
         display: flex !important;
     }

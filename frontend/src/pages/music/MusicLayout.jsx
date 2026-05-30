@@ -95,10 +95,13 @@ function TunesNav({ theme, onThemeChange }) {
                 setExpanded(false);
             }}
         >
-            {/* Brand — glowing V2 emblem + wordmark on expand */}
+            {/* Brand — music-note emblem + ON NOW TV wordmark on expand.
+                v2.8.68 — Was "V2" (Vesper-style) — replaced with a
+                pink/blue ♪ emblem so the standalone music app looks
+                like its OWN product, not a Vesper variant. */}
             <div className="tunes-nav__brand">
                 <div className="tunes-nav__brand-emblem" data-testid="tunes-nav-brand">
-                    V2
+                    ♪
                 </div>
                 <div className="tunes-nav__brand-wordmark">
                     ON&nbsp;NOW&nbsp;TV
@@ -210,6 +213,17 @@ export default function MusicLayout() {
         setTheme(next);
         try { window.localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* ignore */ }
     };
+
+    // v2.8.68 — Tag <body> while the music app is mounted so the
+    // global Vesper mobile rules (padding-bottom: 58px reserved for
+    // Vesper's MobileBottomNav, hover styles, etc.) can be overridden
+    // for the standalone music app.  CSS targets via
+    // `body[data-music-app="true"]`.
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+        document.body.setAttribute('data-music-app', 'true');
+        return () => document.body.removeAttribute('data-music-app');
+    }, []);
 
     // No extra focusin scroll handler.  Vesper's useSpatialFocus()
     // already handles edge-comfort horizontal scroll inside rails
