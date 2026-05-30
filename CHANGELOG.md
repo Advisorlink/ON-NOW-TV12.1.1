@@ -1,5 +1,34 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.79 — Mobile music menu fix · whole-app scroll fix
+
+> User feedback: "All the menu buttons need to work for the phone
+> version — show the MUSIC menu, not the V2 menu, with all the same
+> stuff.  Also make scrolling up/down work everywhere — when you
+> get to the bottom on those other categories it lets you swipe up
+> and down on the image; use that throughout the whole app."
+
+### 1. Mobile bottom nav — show the MUSIC items, not Profile/Settings
+- **Root cause**: `tunes.css` used `.tunes-nav > .tunes-nav__items:nth-of-type(2)` to hide the Profile/Settings group on phones.  `:nth-of-type` counts among siblings of the same tag, so the selector actually matched the **2nd DIV in the nav** = the MAIN items group (Home, Search, Karaoke, Radio, Australia, Podcasts, Library).  Result: phone users only saw Profile + Settings at the bottom.
+- **Fix**: replaced with `.tunes-nav > .tunes-nav__spacer + .tunes-nav__items` which is semantic — it always matches the items div that sits AFTER the spacer (= Profile/Settings).  Now the main 7 music destinations show up correctly on phones.
+
+### 2. Scroll-trap fix on karaoke pages
+- The lobby (`/music/karaoke/party/friends`) and Up Next used fixed-height panels with `overflow-y: auto` so the D-pad focus engine could scroll members / queue / list independently on TV.  On a phone this trapped finger swipes inside the panels — users got stuck and never reached the action bar.
+- **Fix**: new `@media (max-width: 900px)` block in `karaoke-party.css` strips the heights + inner scroll off `.kk-lobby__qr-panel`, `.kk-lobby__joined`, `.kk-lobby__queue`, `.kk-upnext__list`.  The body scroll container (`.tunes-root`) now handles all vertical scrolling natively — same as the music home rails.  The header also stacks (title + code card on separate rows) and the QR shrinks to fit.
+
+### 3. Global mobile touch-action hygiene
+- Added explicit `touch-action: pan-y` on `.tunes-root`, `.tunes-main`, and its direct children so no JS focus handler can swallow vertical swipes.
+- Horizontal rails (`.tunes-shelf__rail`, `.kk-shelf`, `.tunes-fullplayer__queue-rail`) opt into `touch-action: pan-x pan-y` so users can still swipe horizontally through carousels AND vertically through the page.
+
+### Files
+- MOD `/app/frontend/src/pages/music/tunes.css` — `:nth-of-type` fix, touch-action rules
+- MOD `/app/frontend/src/pages/music/karaoke-party.css` — `@media (max-width: 900px)` scroll-trap removal
+
+### Tested
+- Mobile (390×844) screenshots: Music Home (with bottom nav showing all 7 items), Music Home scrolled (Trending/Top Artists/New Releases/Moods rails all reachable), Karaoke Home (4 tiles stack), Karaoke Lobby (Party code → QR → Joined → Up Next → action buttons all reachable via natural page scroll).
+
+
+
 ## v2.8.78 — Kids kiosk lockdown · Kids Settings page · Karaoke Silent Spotlight · Artist-page TV rewrite
 
 > User feedback batch:

@@ -2031,6 +2031,26 @@
         overscroll-behavior-y: contain;
     }
 
+    /* v2.8.79 — Touch-action defaults for the music app body.
+       Lets the browser handle pinch-zoom + 2-finger pan, but never
+       lets a child element accidentally swallow vertical swipes via
+       the spatial-focus engine (which only matters on TV).  We
+       explicitly opt OUT of `touch-action: none` for everything
+       inside .tunes-root, then the rail-style horizontal rows
+       re-enable pan-x via their own rule. */
+    .tunes-root,
+    .tunes-main,
+    .tunes-main > * {
+        touch-action: pan-y;
+    }
+    /* Horizontal rails still allow horizontal swipe + vertical
+       page scroll. */
+    .tunes-shelf__rail,
+    .kk-shelf,
+    .tunes-fullplayer__queue-rail {
+        touch-action: pan-x pan-y;
+    }
+
     /* Side rail → bottom tab bar */
     .tunes-nav {
         top: auto;
@@ -2059,8 +2079,14 @@
         display: none !important;
     }
 
-    /* Hide the second .tunes-nav__items group (Profile/Settings). */
-    .tunes-nav > .tunes-nav__items:nth-of-type(2) {
+    /* Hide the second .tunes-nav__items group (Profile/Settings).
+       v2.8.79 — Selector fix: the previous `:nth-of-type(2)` matched
+       the 2nd DIV in the nav (= the MAIN items group: Home, Search,
+       Karaoke, …), which made the entire mobile menu vanish for the
+       user.  The Profile/Settings group always lives after the
+       spacer div, so `tunes-nav__spacer + .tunes-nav__items` is a
+       safer, more semantic match. */
+    .tunes-nav > .tunes-nav__spacer + .tunes-nav__items {
         display: none !important;
     }
 
