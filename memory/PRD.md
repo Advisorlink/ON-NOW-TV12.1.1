@@ -1,5 +1,34 @@
 # ON NOW TV V2 — PRD
 
+> ## ⚠️ NEXT AGENT — READ `/app/memory/HANDOFF_CURRENT.md` FIRST
+>
+> The handoff doc captures everything learned across the v2.8.66 →
+> v2.8.73 fixes (audio playback chain, WebView origin gotchas,
+> CI deploy chain, mobile scroll fix, hero Play behaviour, user's
+> communication style).  It's 4× more focused than this file and
+> will save the next session several hours of context recovery.
+>
+> This PRD continues to hold the long-form product brief.  Use
+> `HANDOFF_CURRENT.md` for "what's the current state and what
+> should I touch next".
+
+> **🎤 v2.8.73 — Hero Play actually plays + v2.8.72 mobile scroll + WebViewAssetLoader (May 30, 2026).**
+> Latest shipped version.  See `/app/memory/HANDOFF_CURRENT.md`
+> for the full chain of v2.8.66 → v2.8.73 fixes.  Highlights:
+> - Hero "Play" button in `MusicHome.jsx` now ALWAYS plays music
+>   regardless of slide.kind (no more "Couldn't load album HTTP 404").
+> - Tunes APK now uses `WebViewAssetLoader` so the WebView sees an
+>   HTTPS origin (`https://appassets.androidplatform.net/`) instead
+>   of `file://` — which fixes the YouTube IFrame silent-audio bug.
+> - `.tunes-root` is now the canonical scroll container
+>   (`height: 100dvh; overflow-y: auto`) so mobile users can swipe
+>   past the hero.
+> - Karaoke rides the same playback pipeline as regular music
+>   (no separate route, no separate component).
+> - Vesper menu / brand chrome hidden inside `/music`.
+> - CI workflows bundle React into both APKs and rewrite absolute
+>   asset paths to relative.
+
 > **🎤 v2.8.66 — Karaoke audio + lyric fixes + CI version-heading repair (May 29, 2026).**
 > Three issues addressed in one cut:
 > 1. **Audio was silent on Karaoke playback.**  YouTube IFrame
