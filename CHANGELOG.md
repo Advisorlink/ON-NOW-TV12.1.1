@@ -1,5 +1,57 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.73 — Hero "Play" button ALWAYS plays (no more "Couldn't load album HTTP 404")
+
+> User's video diagnosis: tapping Play on the Ariana Grande hero
+> ("hate that i made you love me") produced **"Couldn't load album
+> — HTTP 404"** instead of starting playback.  Same on Ella Langley's
+> "Choosin' Texas".  The user reported radio works but music and
+> podcasts don't.
+
+### Root cause
+The hero Play button branched on `slide.kind`:
+- `slide.kind === 'track'` → `controls.playTrack(slide.track, ...)`  ✓
+- `slide.kind === 'album'` → `navigate('/music/album/${slide.id}')`  ✗
+
+The `'/music/album/' + slide.id` path was hitting `/api/music/album/{id}`
+which returns 404 for certain iTunes/Deezer-derived IDs.  And users
+who tap the hero Play expect MUSIC TO START — not to land on a static
+album-detail page that needs another click to actually play.
+
+### Fix
+**Hero Play now ALWAYS triggers playback** regardless of slide kind:
+- `kind === 'track'` → `controls.playTrack(slide.track, [slide.track])`
+  (same as before)
+- `kind === 'album'` → `await musicAPI.album(id)`, then
+  `controls.playTrack(album.tracks[0], album.tracks)` so audio
+  immediately starts with the album's first track.  Album-detail
+  navigation moved entirely to the dedicated **More Info** button
+  beside Play.
+- `kind === 'artist'` → `await musicAPI.artist(id)`, then play
+  the artist's top track.
+- All branches wrapped in `try { ... } catch {}` so the button
+  NEVER surfaces a 404 error toast.
+
+Verified end-to-end in the preview pod: tap hero Play →
+MiniPlayer renders at the bottom with the song title, artist
+and full transport controls.
+
+### Why radio kept working but music didn't
+- Radio streams play through HTML5 `<audio>` with a direct HTTPS
+  stream URL — no album-detail fetch involved.
+- Music heroes triggered an album-detail navigation that 404'd
+  before any audio resolution code even ran.
+
+### Combined with the prior fixes still in this build
+- v2.8.72 mobile scroll fix
+- v2.8.72 WebViewAssetLoader HTTPS-origin switch (for Tunes APK)
+- v2.8.71 absolute→relative path rewrite for the bundled HTML
+- v2.8.70 in-APK React bundling
+- v2.8.69 karaoke uses the same playback pipeline as regular music
+- v2.8.68 mobile-standalone music brand
+
+---
+
 ## v2.8.72 — Mobile scroll fixed + Tunes APK now uses HTTPS origin (audio actually works)
 
 > Two definite bugs found by tracing the user-reported "UI works
