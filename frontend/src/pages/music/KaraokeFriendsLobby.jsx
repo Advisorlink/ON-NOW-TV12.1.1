@@ -165,12 +165,12 @@ export default function KaraokeFriendsLobby() {
                     </p>
                 </div>
                 <div className="kk-lobby__code-card">
-                    <p className="kk-hero__eyebrow">PARTY CODE</p>
+                    <p className="kk-hero__eyebrow" style={{ margin: 0, fontSize: 10 }}>PARTY CODE</p>
                     <p className="kk-lobby__code" data-testid="karaoke-lobby-code">
                         {party.code}
                     </p>
                     <p className="kk-lobby__code-help">
-                        Share this code with your friends!
+                        Share with your friends
                     </p>
                 </div>
             </header>
@@ -181,27 +181,27 @@ export default function KaraokeFriendsLobby() {
                     className="kk-lobby__qr-panel"
                     data-testid="karaoke-lobby-qr"
                 >
-                    <p className="kk-lobby__qr-eyebrow">✦ SCAN TO JOIN ✦</p>
-                    <p className="kk-lobby__qr-help">
-                        Scan the QR code to <br /> join this karaoke party.
-                    </p>
+                    <p className="kk-lobby__qr-eyebrow">SCAN TO JOIN</p>
                     <div className="kk-lobby__qr-frame">
                         <QRCodeSVG
                             value={joinUrl}
-                            size={260}
+                            size={200}
                             level="M"
                             bgColor="#ffffff"
                             fgColor="#000000"
                             includeMargin
                         />
                     </div>
-                    <p className="kk-lobby__qr-url" title={joinUrl}>{joinUrl}</p>
+                    <p className="kk-lobby__qr-help">
+                        Scan with your phone camera<br />
+                        to join this karaoke party.
+                    </p>
                 </section>
 
                 {/* Column 2 — Joined list */}
                 <section className="kk-lobby__joined" data-testid="karaoke-lobby-joined">
                     <header>
-                        <span className="kk-lobby__dot" /> JOINED ({party.members.length})
+                        <span className="kk-lobby__dot" /> JOINED &middot; {party.members.length}
                     </header>
                     <ul>
                         {party.members.map((m) => (
@@ -217,7 +217,7 @@ export default function KaraokeFriendsLobby() {
                 {/* Column 3 — Queue */}
                 <section className="kk-lobby__queue" data-testid="karaoke-lobby-queue">
                     <header>
-                        <Music size={16} /> UP NEXT ({party.queue.length})
+                        <Music size={14} /> UP NEXT &middot; {party.queue.length}
                     </header>
                     {party.queue.length === 0 && (
                         <p className="kk-empty">
@@ -241,11 +241,10 @@ export default function KaraokeFriendsLobby() {
                                     <p className="kk-queue__artist">{q.artist}</p>
                                 </div>
                                 <div className="kk-queue__by">
-                                    <span>Added by</span>
                                     <Avatar
                                         member={party.members.find((m) => m.id === q.member_id)
                                                 || { name: q.member_name }}
-                                        size={28}
+                                        size={24}
                                     />
                                 </div>
                             </li>
