@@ -1366,3 +1366,58 @@
     border-color: rgba(120, 170, 255, 0.4);
 }
 
+
+/* =============================================================
+ * v2.8.79 — Mobile scroll fixes for the karaoke flow.
+ *
+ * On TV (D-pad) we use fixed-height panels with internal overflow:
+ * auto so the focus engine can scroll members / queue / up-next
+ * lists independently.  But on a PHONE this creates "scroll traps"
+ * — swiping up on the lobby's joined/queue/qr panels scrolls the
+ * INSIDE of the panel instead of the page itself, so users get
+ * stuck and never see content below.
+ *
+ * The fix: on `max-width: 900px` we drop the fixed heights, remove
+ * the inner `overflow-y: auto`, and let the page itself scroll
+ * naturally (the body scroll container is `.tunes-root`, which is
+ * already wired up for momentum touch-scrolling).
+ * ============================================================ */
+@media (max-width: 900px) {
+    .kk-lobby__qr-panel,
+    .kk-lobby__joined,
+    .kk-lobby__queue,
+    .kk-upnext__list {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Lobby head stacks (code badge below the title) */
+    .kk-lobby__head {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .kk-lobby__code-card {
+        text-align: left;
+        min-width: 0;
+    }
+
+    /* QR frame shrinks on phone — the user's mostly looking at the
+       SCREEN holding the QR, not scanning a QR from a phone… but if
+       they did try to scan, the smaller frame still has enough
+       resolution for any phone camera. */
+    .kk-lobby__qr-frame svg {
+        width: clamp(140px, 50vw, 200px) !important;
+    }
+
+    /* Challenge page head — stack the dice glow below the title so
+       it doesn't crowd a 390px viewport. */
+    .kk-challenge__head {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .kk-challenge__dice-glow {
+        display: none;     /* save vertical space on phones */
+    }
+}
+
