@@ -1,4 +1,4 @@
-/* ON NOW TV Tunes — Karaoke party CSS (v2.8.74).
+/* ON NOW TV Tunes — Karaoke party CSS (v2.8.76).
  * --------------------------------------------------------------------
  * Layered on top of `tunes.css`.  Mirrors the user-supplied design
  * pack (black background, electric-blue accents, purple/violet
@@ -142,146 +142,175 @@
     text-shadow: 0 2px 12px rgba(0,0,0,0.7);
 }
 
+/* v2.8.76 — Square dark-navy tile grid that mirrors the user-supplied
+   PNG mockup design.  No multi-colour borders, no stretched cards,
+   no purple blobs.  Just clean dark navy + starfield + neon blue
+   icon glow.  Tiles auto-cap at 1:1 aspect so they fit any screen. */
 .kk-tile-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 22px;
-    /* v2.8.75 — shorter bottom padding (was 160-220) so the 4
-       tiles fit comfortably on 1080p without scroll. */
-    padding: 16px clamp(40px, 4vw, 72px) 80px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    padding: 8px clamp(40px, 4vw, 72px) 56px;
+    justify-content: center;
+    /* Cap how wide the row gets so 4 tiles stay nicely sized
+       on huge screens.  4 × 380 + 3 × 24 = 1592 max. */
+    max-width: 1640px;
+    margin: 0 auto;
 }
-@media (max-width: 1100px) { .kk-tile-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) { .kk-tile-grid { grid-template-columns: 1fr; padding-bottom: 200px; } }
+.kk-tile-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 1240px;
+}
+@media (max-width: 1100px) {
+    .kk-tile-grid,
+    .kk-tile-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+    .kk-tile-grid,
+    .kk-tile-grid--3 { grid-template-columns: 1fr; padding-bottom: 180px; }
+}
 
-/* Each tile gets a UNIQUE accent gradient so the home doesn't read
-   as a wall of identical blue cards.  Colours rotate through the
-   palette — pink → blue → purple → coral — matching the party-vibe
-   the user asked for. */
+/* Each tile = SQUARE dark-navy card with subtle blue border.
+   Identical styling across all tiles (no per-tile colour rotation)
+   so the home reads as a coherent set — matching the user mockup. */
 .kk-tile {
     position: relative;
     display: block;
-    /* v2.8.75 — Use a fixed max-height instead of aspect-ratio so
-       the 4 tiles always fit inside the 1080p viewport below the
-       hero (1080 - 380 hero - 80 padding = ~620px tile budget). */
-    aspect-ratio: 9 / 11;
-    max-height: 580px;
-    background: linear-gradient(180deg, rgba(20, 8, 40, 0.85) 0%, rgba(10, 4, 30, 0.95) 100%);
-    backdrop-filter: blur(22px);
-    -webkit-backdrop-filter: blur(22px);
-    border: 1.5px solid var(--kk-tile-accent, var(--kk-blue));
-    border-radius: 28px;
+    aspect-ratio: 1 / 1;
+    /* Tile can never get absurdly large on 4K screens, and never
+       gets stretched into a long rectangle on 1080p. */
+    max-width: 380px;
+    width: 100%;
+    margin: 0 auto;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 32px;
     text-decoration: none;
     color: #fff;
     overflow: hidden;
     transition:
         transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-        box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1);
+        box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 320ms ease;
     animation: kk-fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
     cursor: pointer;
-    box-shadow: 0 0 0 1px var(--kk-tile-accent-soft, transparent) inset,
-                0 20px 60px rgba(0,0,0,0.45),
-                0 0 24px var(--kk-tile-glow, rgba(78,167,255,0.18));
+    box-shadow:
+        0 0 0 1px rgba(120, 170, 255, 0.05) inset,
+        0 18px 50px rgba(0, 0, 0, 0.55),
+        0 0 24px rgba(78, 167, 255, 0.10);
 }
 
-/* Glowing colour-blob in the top-right of every tile so they feel
-   ALIVE, not flat.  Sized big enough that the colour bleeds into
-   the white icon below. */
-.kk-tile::before {
-    content: '';
+/* Subtle starfield — small white dots scattered around.  Pure CSS,
+   no external asset.  Matches the speckled background in the mockup. */
+.kk-tile__stars {
     position: absolute;
-    top: -40%;
-    right: -30%;
-    width: 70%;
-    height: 70%;
-    background: radial-gradient(circle, var(--kk-tile-blob, rgba(78,167,255,0.65)) 0%, transparent 65%);
-    filter: blur(40px);
+    inset: 0;
     pointer-events: none;
     z-index: 0;
-    opacity: 0.85;
+    background-image:
+        radial-gradient(1.5px 1.5px at 18% 22%, rgba(180, 210, 255, 0.85), transparent 60%),
+        radial-gradient(1px 1px   at 78% 14%, rgba(180, 210, 255, 0.75), transparent 60%),
+        radial-gradient(1px 1px   at 86% 32%, rgba(180, 210, 255, 0.55), transparent 60%),
+        radial-gradient(1.5px 1.5px at 12% 64%, rgba(180, 210, 255, 0.7), transparent 60%),
+        radial-gradient(1px 1px   at 64% 8%,  rgba(200, 220, 255, 0.7), transparent 60%),
+        radial-gradient(1px 1px   at 32% 88%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 92% 78%, rgba(180, 210, 255, 0.6), transparent 60%),
+        radial-gradient(1.2px 1.2px at 56% 44%, rgba(200, 220, 255, 0.45), transparent 60%);
 }
 
-/* Diagonal accent line bottom-left for visual interest */
-.kk-tile::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 60%;
-    height: 4px;
-    background: linear-gradient(90deg, var(--kk-tile-accent, var(--kk-blue)), transparent);
-    z-index: 1;
-}
-
-/* Per-tile theme assignments (matched in JSX via inline style or
-   data-tile-id).  Order: Sing → pink, Party → blue, UpNext →
-   purple, Challenge → coral. */
-.kk-tile-grid > a:nth-child(1) {
-    --kk-tile-accent: var(--kk-pink);
-    --kk-tile-accent-soft: rgba(255,122,184,0.18);
-    --kk-tile-blob: rgba(255,122,184,0.55);
-    --kk-tile-glow: rgba(255,122,184,0.35);
-}
-.kk-tile-grid > a:nth-child(2) {
-    --kk-tile-accent: var(--kk-blue);
-    --kk-tile-accent-soft: rgba(78,167,255,0.18);
-    --kk-tile-blob: rgba(78,167,255,0.55);
-    --kk-tile-glow: rgba(78,167,255,0.35);
-}
-.kk-tile-grid > a:nth-child(3) {
-    --kk-tile-accent: var(--kk-purple);
-    --kk-tile-accent-soft: rgba(169,107,255,0.18);
-    --kk-tile-blob: rgba(169,107,255,0.55);
-    --kk-tile-glow: rgba(169,107,255,0.35);
-}
-.kk-tile-grid > a:nth-child(4) {
-    --kk-tile-accent: var(--kk-coral);
-    --kk-tile-accent-soft: rgba(255,139,90,0.18);
-    --kk-tile-blob: rgba(255,139,90,0.55);
-    --kk-tile-glow: rgba(255,139,90,0.35);
-}
-
-.kk-tile:hover, .kk-tile:focus, .kk-tile.is-focused {
+.kk-tile:hover,
+.kk-tile:focus,
+.kk-tile.is-focused {
+    border-color: rgba(120, 170, 255, 0.55);
     box-shadow:
-        0 0 0 2px var(--kk-tile-accent) inset,
-        0 24px 60px rgba(0,0,0,0.55),
-        0 0 60px var(--kk-tile-glow);
-    transform: translateY(-6px);
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.35);
+    transform: translateY(-4px);
     outline: none;
 }
+
+/* Override the global Music-theme tile focus outline (which uses
+   the Music app's pink `--vesper-blue-bright`) — Karaoke tiles
+   must stay neon-blue to match the mockup. */
+.kk-tile[data-focus-style='tile']:focus-visible,
+.kk-tile[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
+    transform: scale(1.04) translateY(-4px);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.45) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.45);
+}
+
 .kk-tile__inner {
     position: relative;
     z-index: 2;
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 32px 28px 28px;
+    padding: clamp(20px, 2.6%, 32px) clamp(18px, 2.4%, 28px) clamp(20px, 2.6%, 28px);
     align-items: center;
     text-align: center;
 }
+
+/* Icon area: takes ~42% of the tile vertically, centred. */
 .kk-tile__icon {
-    color: #fff;
-    margin-bottom: 28px;
-    filter: drop-shadow(0 0 18px var(--kk-tile-accent));
+    flex: 0 0 auto;
+    width: 100%;
+    height: 42%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: clamp(12px, 1.6%, 22px);
 }
-.kk-tile__eyebrow {
-    color: var(--kk-tile-accent);
-    font-size: 11px;
-    letter-spacing: 0.32em;
-    margin: 0 0 8px;
-    font-weight: 700;
-    text-shadow: 0 0 12px var(--kk-tile-glow);
+.kk-tile__icon img,
+.kk-tile__icon .kk-tile__svg {
+    width: clamp(96px, 44%, 160px);
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    color: #5eb5ff;
+    filter: drop-shadow(0 0 14px rgba(94, 181, 255, 0.65))
+            drop-shadow(0 0 28px rgba(94, 181, 255, 0.35));
 }
+/* PNG-based icons (sing-your-own, party-mode) — bigger so they
+   feel as substantial as the SVG icons next to them, and the
+   built-in glow doesn't need a CSS drop-shadow (PNGs already
+   have their own neon halo baked in). */
+.kk-tile__icon img {
+    width: clamp(120px, 58%, 200px);
+    filter: drop-shadow(0 0 16px rgba(94, 181, 255, 0.45));
+}
+
+.kk-tile__copy {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    min-height: 0;
+}
+
 .kk-tile__title {
-    font-size: 26px;
+    font-size: clamp(22px, 2vw, 30px);
     font-weight: 800;
-    margin: 0 0 14px;
+    margin: 0 0 clamp(8px, 1%, 14px);
     letter-spacing: -0.01em;
+    color: #fff;
+    line-height: 1.1;
 }
+
 .kk-tile__body {
-    font-size: 15px;
-    line-height: 1.5;
-    color: rgba(255,255,255,0.78);
+    font-size: clamp(13px, 1vw, 16px);
+    line-height: 1.45;
+    color: rgba(200, 215, 240, 0.78);
     margin: 0;
+    max-width: 88%;
 }
 
 @keyframes kk-fade-up {
@@ -422,16 +451,18 @@
 .kk-songcard__artist { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,0.6); }
 
 /* =============================================================
- * PARTY PICKER (3 tiles)
+ * PARTY PICKER (3 tiles) — uses .kk-tile-grid--3 from above
  * ============================================================ */
-.kk-party-picker { color: #fff; padding-bottom: 200px; }
-.kk-party-tiles {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 22px;
-    padding: 32px clamp(40px, 4vw, 72px) 60px;
+.kk-party-picker { color: #fff; padding-bottom: 100px; }
+
+/* Compact hero used on the Party Picker — shorter padding so the
+   3 square tiles fit comfortably on 1080p without scroll. */
+.kk-hero--compact {
+    padding: clamp(28px, 3.5vh, 48px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    min-height: 0;
 }
-@media (max-width: 900px) { .kk-party-tiles { grid-template-columns: 1fr; } }
+.kk-hero--compact .kk-hero__title { font-size: clamp(40px, 5vw, 64px); }
+.kk-hero--compact .kk-hero__sub { font-size: 16px; }
 
 /* =============================================================
  * FRIENDS SING ALONG LOBBY
