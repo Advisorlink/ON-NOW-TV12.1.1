@@ -30,32 +30,40 @@
     --kk-glow-pk:   rgba(255, 122, 184, 0.55);
 }
 
-/* Common stage backdrop used across multiple screens.  A vibrant
-   concert / spotlight photo with COLOR preserved (no full blackout
-   scrim — the user wants full-colour heroes that actually look
-   like party imagery). */
+/* v2.8.77 — Unified dark-navy + starfield aesthetic applied to ALL
+   karaoke pages (per user request: "I want every single page to look
+   like the design I gave you").  No more concert-photo heroes, no
+   more purple/pink glass panels — just consistent neon-blue line-art
+   on a deep navy starfield, square corners, every layout sized to
+   fit a 1920×1080 viewport without scrolling.
+
+   The .kk-hero__bg keeps the radial-glow shape but drops the
+   Unsplash photo so every page reads as the same coherent design
+   system as the home tiles. */
 .kk-hero__bg {
     position: absolute;
     inset: 0;
-    /* Layered: warm vignette + cool neon + the photo itself.  We
-       use `multiply` for the photo so highlights pop through while
-       shadows blend with the page background — gives the colour-
-       saturated, lit-stage look the user asked for instead of the
-       previous dark wash. */
     background:
-        radial-gradient(ellipse at 30% 20%, rgba(255, 122, 184, 0.55), transparent 55%),
-        radial-gradient(ellipse at 80% 10%, rgba(78, 167, 255, 0.55), transparent 50%),
-        radial-gradient(ellipse at 100% 100%, rgba(169, 107, 255, 0.5), transparent 60%),
-        radial-gradient(ellipse at 0% 100%, rgba(255, 139, 90, 0.4), transparent 60%),
-        url('https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=2400&q=85');
-    background-blend-mode: screen, screen, screen, screen, normal;
-    background-size: cover;
-    background-position: center;
+        radial-gradient(ellipse 80% 60% at 25% 0%, rgba(78, 167, 255, 0.22), transparent 65%),
+        radial-gradient(ellipse 70% 50% at 85% 0%, rgba(120, 90, 255, 0.16), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
     z-index: 0;
-    /* Subtle Ken-Burns drift (one-shot, not infinite, so the HK1
-       box doesn't burn cycles).  Just enough to feel alive on
-       page-load. */
-    animation: kk-hero-rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: kk-hero-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.kk-hero__bg::after {
+    /* Starfield speckle, same recipe as `.kk-tile__stars`.  Gives
+       depth without an external image asset. */
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(1.5px 1.5px at 12% 22%, rgba(180, 210, 255, 0.6), transparent 60%),
+        radial-gradient(1px 1px   at 32% 64%, rgba(180, 210, 255, 0.45), transparent 60%),
+        radial-gradient(1px 1px   at 58% 18%, rgba(200, 220, 255, 0.55), transparent 60%),
+        radial-gradient(1.2px 1.2px at 82% 44%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 92% 12%, rgba(200, 220, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 68% 78%, rgba(180, 210, 255, 0.45), transparent 60%),
+        radial-gradient(1.4px 1.4px at 18% 86%, rgba(180, 210, 255, 0.4), transparent 60%);
 }
 
 @keyframes kk-hero-rise {
@@ -66,12 +74,13 @@
 .kk-hero__scrim {
     position: absolute;
     inset: 0;
-    /* Lighter scrim so the photo COLOURS still come through.
-       Previous version was 0.7-0.95 which crushed the hero to
-       black. */
-    background:
-        linear-gradient(180deg, rgba(5, 2, 17, 0) 0%, rgba(5, 2, 17, 0.45) 75%, rgba(5, 2, 17, 0.92) 100%),
-        linear-gradient(90deg, rgba(5, 2, 17, 0.55) 0%, rgba(5, 2, 17, 0) 55%);
+    /* Soft fade-to-page at the bottom so the hero blends into the
+       tile grid / page content below.  Top stays clear so the
+       headline pops on the navy. */
+    background: linear-gradient(180deg,
+        rgba(6, 10, 28, 0) 0%,
+        rgba(6, 10, 28, 0.4) 80%,
+        rgba(6, 10, 28, 0.9) 100%);
     z-index: 1;
 }
 
@@ -112,34 +121,31 @@
 .kk-hero__title {
     font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    font-size: clamp(48px, 6.5vw, 88px);
+    /* v2.8.77 — Tighter cap so the hero never crowds the tile grid
+       on smaller screens.  Stays bold on 1080p, scales gracefully. */
+    font-size: clamp(40px, 5.4vw, 76px);
     line-height: 0.98;
-    margin: 0 0 16px;
-    letter-spacing: -0.04em;
-    /* Multi-color text glow so the headline POPS off the photo
-       backdrop.  Cycle pink → purple → blue rings. */
-    text-shadow:
-        0 0 18px rgba(255, 122, 184, 0.55),
-        0 0 38px rgba(169, 107, 255, 0.35),
-        0 4px 30px rgba(0,0,0,0.65);
+    margin: 0 0 14px;
+    letter-spacing: -0.03em;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(78, 167, 255, 0.35), 0 4px 24px rgba(0, 0, 0, 0.55);
 }
 .kk-hero__title em {
     font-style: normal;
-    background: linear-gradient(90deg, var(--kk-pink) 0%, var(--kk-blue) 60%, var(--kk-purple) 100%);
+    /* Pure neon-blue gradient — no more pink/purple cycle. */
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 50%, #a8d6ff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    text-shadow: none;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 22px rgba(255, 122, 184, 0.55));
+    filter: drop-shadow(0 0 22px rgba(94, 181, 255, 0.55));
 }
 .kk-hero__sub {
     max-width: 560px;
-    font-size: 18px;
+    font-size: clamp(15px, 1.1vw, 17px);
     line-height: 1.5;
-    color: rgba(255,255,255,0.85);
+    color: rgba(200, 215, 240, 0.78);
     margin: 0;
-    text-shadow: 0 2px 12px rgba(0,0,0,0.7);
 }
 
 /* v2.8.76 — Square dark-navy tile grid that mirrors the user-supplied
@@ -319,33 +325,41 @@
 }
 
 /* =============================================================
- * SING YOUR OWN
+ * SING YOUR OWN — dark navy + neon blue, 1080p-friendly padding
  * ============================================================ */
-.kk-sing { color: #fff; padding-bottom: 200px; }
+.kk-sing { color: #fff; padding-bottom: 80px; }
 
 .kk-sing__hero {
     position: relative;
     overflow: hidden;
-    padding: clamp(50px, 6vh, 90px) clamp(40px, 4vw, 72px) clamp(40px, 4vh, 60px);
-    min-height: 320px;
+    /* v2.8.77 — Tightened so the hero + search + 2 shelves fit on
+       a 1080p screen with room for the bottom transport bar. */
+    padding: clamp(28px, 3.5vh, 52px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    min-height: 0;
 }
 .kk-sing__hero-copy { position: relative; z-index: 3; }
 .kk-sing__title {
     font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    font-size: clamp(40px, 6vw, 72px);
+    font-size: clamp(36px, 4.6vw, 60px);
     line-height: 1;
-    margin: 0 0 16px;
-    letter-spacing: -0.04em;
+    margin: 0 0 12px;
+    letter-spacing: -0.03em;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(78, 167, 255, 0.25);
 }
 .kk-sing__title em {
     font-style: normal;
-    color: var(--kk-blue);
-    text-shadow: 0 0 24px var(--kk-glow);
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 18px rgba(94, 181, 255, 0.55));
 }
 .kk-sing__sub {
-    font-size: 17px;
-    color: rgba(255,255,255,0.74);
+    font-size: clamp(14px, 1vw, 16px);
+    color: rgba(200, 215, 240, 0.78);
     max-width: 540px;
     margin: 0;
     line-height: 1.55;
@@ -353,25 +367,26 @@
 
 .kk-search {
     position: relative;
-    margin: 28px clamp(40px, 4vw, 72px) 36px;
-    background: rgba(10, 14, 40, 0.55);
-    backdrop-filter: blur(20px);
-    border: 1.5px solid var(--kk-border);
+    margin: 8px clamp(40px, 4vw, 72px) 24px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
     border-radius: 18px;
     padding: 14px 18px 14px 52px;
-    box-shadow: 0 0 0 1px rgba(78,167,255,0.12) inset, 0 0 32px rgba(78,167,255,0.08);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 24px rgba(78, 167, 255, 0.08);
     transition: border-color 220ms, box-shadow 220ms;
 }
 .kk-search:focus-within {
-    border-color: var(--kk-blue);
-    box-shadow: 0 0 0 2px rgba(78,167,255,0.4) inset, 0 0 36px rgba(78,167,255,0.3);
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow: 0 0 0 2px rgba(120, 170, 255, 0.35) inset, 0 0 36px rgba(78, 167, 255, 0.35);
 }
 .kk-search__icon {
     position: absolute;
     left: 20px;
     top: 50%;
     transform: translateY(-50%);
-    color: rgba(255,255,255,0.55);
+    color: rgba(200, 215, 240, 0.6);
 }
 .kk-search input {
     width: 100%;
@@ -379,24 +394,26 @@
     border: 0;
     outline: 0;
     color: #fff;
-    font-size: 17px;
+    font-size: 16px;
     font-family: inherit;
 }
-.kk-search input::placeholder { color: rgba(255,255,255,0.45); }
+.kk-search input::placeholder { color: rgba(200, 215, 240, 0.45); }
 
-.kk-shelf { margin: 28px 0; padding: 0 clamp(40px, 4vw, 72px); }
-.kk-shelf__header { margin-bottom: 16px; }
+.kk-shelf { margin: 18px 0; padding: 0 clamp(40px, 4vw, 72px); }
+.kk-shelf__header { margin-bottom: 12px; }
 .kk-shelf__eyebrow {
-    color: var(--kk-blue-2);
-    font-size: 12px;
+    color: #7cc4ff;
+    font-size: 11px;
     letter-spacing: 0.28em;
-    margin: 0 0 6px;
-    font-weight: 600;
+    margin: 0 0 4px;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 .kk-shelf__title {
-    font-size: 26px;
+    font-size: clamp(20px, 1.6vw, 26px);
     font-weight: 700;
     margin: 0;
+    color: #fff;
 }
 
 .kk-shelf__rail {
@@ -465,146 +482,201 @@
 .kk-hero--compact .kk-hero__sub { font-size: 16px; }
 
 /* =============================================================
- * FRIENDS SING ALONG LOBBY
+ * FRIENDS SING ALONG LOBBY — v2.8.77 redesign
+ *
+ * Goals from the user feedback:
+ *   • Looks like the dark-navy + starfield mockup.
+ *   • EVERYTHING fits on 1920×1080 (no scrolling).
+ *   • Buttons aren't huge / stretched.
+ *
+ * Layout budget on 1080p:
+ *   • Header strip (eyebrow + title + subtitle | code badge) ~120px
+ *   • 3-column grid (QR | Members | Queue) ~620px
+ *   • Action bar (Mode · Leave · Start Singing) ~80px
+ *   • Vertical padding ~80px
+ *   • Total ~900px — fits comfortably under 1080.
  * ============================================================ */
 .kk-lobby {
     color: #fff;
-    /* v2.8.75 — Fit 1920×1080 cleanly: shorter top/bottom padding,
-       use viewport height as the layout budget, action bar in
-       normal flow (not absolute) so it never overlaps the queue
-       on shorter screens.  Also adds the colour-saturated stage
-       photo as the page background so the lobby doesn't look like
-       a plain black sheet. */
-    padding: 32px clamp(40px, 4vw, 72px) 100px;
+    padding: clamp(20px, 2.5vh, 36px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
     position: relative;
     min-height: 100%;
     background:
-        radial-gradient(ellipse at 100% 0%, rgba(78,167,255,0.18), transparent 50%),
-        radial-gradient(ellipse at 0% 100%, rgba(255,122,184,0.14), transparent 55%),
-        radial-gradient(ellipse at 50% 100%, rgba(169,107,255,0.10), transparent 55%);
+        radial-gradient(ellipse 90% 55% at 25% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        radial-gradient(ellipse 70% 50% at 90% 100%, rgba(120, 90, 255, 0.12), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
 }
+.kk-lobby::before {
+    /* page-level starfield, same recipe as the tiles */
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 0;
+    background-image:
+        radial-gradient(1.5px 1.5px at 8% 12%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 28% 44%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1px 1px   at 58% 22%, rgba(200, 220, 255, 0.45), transparent 60%),
+        radial-gradient(1.2px 1.2px at 82% 64%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1px 1px   at 92% 18%, rgba(200, 220, 255, 0.45), transparent 60%),
+        radial-gradient(1px 1px   at 14% 78%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1.4px 1.4px at 70% 88%, rgba(180, 210, 255, 0.35), transparent 60%);
+}
+.kk-lobby > * { position: relative; z-index: 1; }
 
 .kk-lobby__head {
     display: grid;
     grid-template-columns: 1fr auto;
-    align-items: start;
+    align-items: center;
     gap: 24px;
-    margin-bottom: 24px;
+    margin-bottom: clamp(16px, 2vh, 24px);
 }
 .kk-lobby__title {
     font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    font-size: clamp(40px, 5vw, 68px);
+    font-size: clamp(32px, 3.6vw, 50px);
     line-height: 1;
-    margin: 0 0 12px;
+    margin: 0 0 8px;
     letter-spacing: -0.03em;
+    color: #fff;
 }
 .kk-lobby__title em {
     font-style: normal;
-    color: var(--kk-blue);
-    text-shadow: 0 0 22px var(--kk-glow);
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 18px rgba(94, 181, 255, 0.55));
 }
-.kk-lobby__sub { color: rgba(255,255,255,0.7); font-size: 17px; margin: 0; }
+.kk-lobby__sub {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: clamp(13px, 0.95vw, 15px);
+    margin: 0;
+}
 
 .kk-lobby__code-card {
-    background: rgba(10, 14, 40, 0.55);
-    backdrop-filter: blur(20px);
-    border: 1.5px solid var(--kk-border);
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
     border-radius: 18px;
-    padding: 14px 24px 16px;
+    padding: 14px 22px 16px;
     text-align: right;
-    min-width: 280px;
+    min-width: 240px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4), 0 0 32px rgba(78, 167, 255, 0.10);
 }
 .kk-lobby__code {
     font-family: 'Geist Mono', 'Geist', system-ui;
-    font-size: 32px;
+    font-size: clamp(22px, 1.8vw, 28px);
     font-weight: 800;
-    color: var(--kk-blue);
+    color: #5eb5ff;
     margin: 0 0 4px;
-    letter-spacing: 0.02em;
-    text-shadow: 0 0 16px var(--kk-glow);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 16px rgba(78, 167, 255, 0.55);
 }
-.kk-lobby__code-help { margin: 0; color: rgba(255,255,255,0.6); font-size: 13px; }
+.kk-lobby__code-help { margin: 0; color: rgba(200, 215, 240, 0.55); font-size: 12px; }
 
+/* 3-col grid — all columns same height so they read as a set.
+   Widths tuned for 1920px: QR panel narrower, Members slightly
+   wider, Queue widest. */
 .kk-lobby__grid {
     display: grid;
-    grid-template-columns: 360px 1fr 1fr;
+    grid-template-columns: 320px 1fr 1.2fr;
     gap: 22px;
     align-items: stretch;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
+    .kk-lobby__grid { grid-template-columns: 300px 1fr 1fr; gap: 18px; }
+}
+@media (max-width: 980px) {
     .kk-lobby__grid { grid-template-columns: 1fr; }
 }
 
-.kk-lobby__qr-panel {
+/* Shared panel skin — matches the home tiles */
+.kk-lobby__qr-panel,
+.kk-lobby__joined,
+.kk-lobby__queue {
+    position: relative;
     background:
-        linear-gradient(180deg, rgba(255,122,184,0.08) 0%, rgba(10,14,40,0.6) 100%);
-    backdrop-filter: blur(20px);
-    border: 2px solid var(--kk-border-h);
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
     border-radius: 24px;
-    padding: 22px;
+    padding: 20px;
+    /* Layout budget: 1080 - 60 padding - 130 head - 80 actions ≈ 810px.
+       Cap a touch under that so on slightly shorter screens we still
+       fit with the bottom transport bar visible. */
+    height: clamp(440px, calc(100vh - 320px), 640px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+.kk-lobby__qr-panel {
     text-align: center;
-    box-shadow: 0 0 60px rgba(78,167,255,0.18);
-    height: 580px;
-    max-height: calc(100vh - 280px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
+    gap: 12px;
 }
 .kk-lobby__qr-eyebrow {
-    color: var(--kk-blue-2);
-    font-size: 12px;
-    letter-spacing: 0.3em;
-    margin: 0 0 10px;
-    font-weight: 600;
+    color: #7cc4ff;
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    margin: 0;
+    font-weight: 700;
+    text-transform: uppercase;
 }
-.kk-lobby__qr-help { color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 18px; line-height: 1.5; }
+.kk-lobby__qr-help {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: 14px;
+    margin: 0 0 14px;
+    line-height: 1.45;
+}
 .kk-lobby__qr-frame {
     background: #fff;
-    border-radius: 18px;
-    padding: 14px;
+    border-radius: 16px;
+    padding: 12px;
     display: inline-flex;
-    box-shadow: 0 0 0 2px var(--kk-blue), 0 0 36px rgba(78,167,255,0.45);
+    box-shadow: 0 0 0 2px #5eb5ff, 0 0 36px rgba(94, 181, 255, 0.4);
     margin: 0 auto;
 }
-.kk-lobby__qr-frame svg { display: block; }
+.kk-lobby__qr-frame svg { display: block; width: clamp(160px, 18vw, 220px); height: auto; }
 .kk-lobby__qr-url {
-    margin: 16px 0 0;
-    color: rgba(255,255,255,0.5);
-    font-size: 11px;
+    margin: 14px 0 0;
+    color: rgba(200, 215, 240, 0.42);
+    font-size: 10px;
     word-break: break-all;
     font-family: 'Geist Mono', monospace;
+    max-width: 100%;
 }
 
+/* Members + Queue list panels — scrollable internally */
 .kk-lobby__joined,
 .kk-lobby__queue {
-    background:
-        linear-gradient(180deg, rgba(78,167,255,0.04) 0%, rgba(10,14,40,0.55) 100%);
-    backdrop-filter: blur(20px);
-    border: 1.5px solid var(--kk-border);
-    border-radius: 24px;
-    padding: 20px;
-    /* Fit 1080p: 1080 - 32 head padding - ~150 head/title - ~80 actions
-       = ~720px max for the columns.  Use a fixed comfortable height
-       with internal scroll so the bottom never gets cut off. */
-    height: 580px;
-    max-height: calc(100vh - 280px);
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 170, 255, 0.35) transparent;
 }
+.kk-lobby__joined::-webkit-scrollbar,
+.kk-lobby__queue::-webkit-scrollbar { width: 6px; }
+.kk-lobby__joined::-webkit-scrollbar-thumb,
+.kk-lobby__queue::-webkit-scrollbar-thumb {
+    background: rgba(120, 170, 255, 0.3);
+    border-radius: 3px;
+}
+
 .kk-lobby__joined header,
 .kk-lobby__queue header {
-    color: var(--kk-blue-2);
-    font-size: 13px;
+    color: #7cc4ff;
+    font-size: 12px;
     letter-spacing: 0.28em;
-    font-weight: 600;
+    font-weight: 700;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.12);
+    margin-bottom: 12px;
+    text-transform: uppercase;
 }
 .kk-lobby__dot {
     width: 8px;
@@ -623,20 +695,20 @@
 .kk-lobby__joined li {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
 }
-.kk-member__name { flex: 1; font-size: 16px; }
+.kk-member__name { flex: 1; font-size: 15px; color: #fff; }
 .kk-host-pill {
-    background: rgba(78,167,255,0.18);
-    color: var(--kk-blue);
-    border: 1px solid var(--kk-blue);
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
+    background: rgba(78, 167, 255, 0.18);
+    color: #5eb5ff;
+    border: 1px solid #5eb5ff;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
 }
 
 .kk-lobby__queue ol {
@@ -646,40 +718,35 @@
 }
 .kk-lobby__queue li {
     display: grid;
-    grid-template-columns: 22px 48px 1fr auto;
-    gap: 12px;
+    grid-template-columns: 22px 44px 1fr auto;
+    gap: 10px;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
 }
 .kk-queue__num {
-    color: rgba(255,255,255,0.45);
-    font-size: 14px;
+    color: rgba(200, 215, 240, 0.4);
+    font-size: 13px;
     text-align: center;
     font-weight: 600;
 }
-.kk-queue__art { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+.kk-queue__art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
 .kk-queue__meta { min-width: 0; }
-.kk-queue__title { margin: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kk-queue__artist { margin: 2px 0 0; color: rgba(255,255,255,0.55); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kk-queue__by { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.5); font-size: 11px; }
-.kk-empty { color: rgba(255,255,255,0.45); font-style: italic; padding: 20px 4px; margin: 0; }
+.kk-queue__title { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
+.kk-queue__artist { margin: 2px 0 0; color: rgba(200, 215, 240, 0.55); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kk-queue__by { display: flex; align-items: center; gap: 5px; color: rgba(200, 215, 240, 0.45); font-size: 10px; }
+.kk-empty { color: rgba(200, 215, 240, 0.42); font-style: italic; padding: 16px 4px; margin: 0; font-size: 13px; }
 
 .kk-lobby__actions {
-    /* v2.8.75 — In normal flow (NOT absolute) so it never overlaps
-       the columns above on 1080p screens.  Right-aligned with a
-       little spacing from the columns. */
     display: flex;
-    gap: 14px;
+    gap: 12px;
     align-items: center;
     justify-content: flex-end;
-    margin-top: 24px;
+    margin-top: clamp(16px, 2vh, 22px);
 }
 .kk-lobby__start {
-    padding: 18px 32px;
-    font-size: 17px;
-    border-radius: 16px;
-    box-shadow: 0 0 0 2px var(--kk-blue) inset, 0 0 32px var(--kk-glow);
+    padding: 14px 28px;
+    font-size: 15px;
 }
 
 /* =============================================================
@@ -938,102 +1005,145 @@
 .kk-guest__remove { color: var(--kk-pink); font-size: 13px; }
 
 /* =============================================================
- * CHALLENGE PICKER
+ * CHALLENGE PICKER — v2.8.77 redesign (matches home tile style)
  * ============================================================ */
-.kk-challenge { color: #fff; padding: clamp(40px, 5vh, 80px) clamp(40px, 4vw, 72px) 200px; }
+.kk-challenge {
+    color: #fff;
+    padding: clamp(24px, 3vh, 44px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    position: relative;
+    min-height: 100%;
+    background:
+        radial-gradient(ellipse 80% 50% at 30% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(120, 90, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+}
 .kk-challenge__head {
     display: grid;
     grid-template-columns: 1fr auto;
-    align-items: start;
+    align-items: center;
     gap: 24px;
-    margin-bottom: 36px;
+    margin-bottom: clamp(20px, 2.5vh, 32px);
 }
-.kk-challenge__sub { color: rgba(255,255,255,0.7); font-size: 17px; margin: 8px 0 0; max-width: 520px; line-height: 1.5; }
+.kk-challenge__sub {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: clamp(14px, 1vw, 16px);
+    margin: 6px 0 0;
+    max-width: 520px;
+    line-height: 1.5;
+}
 .kk-challenge__dice-glow {
-    color: var(--kk-blue);
-    filter: drop-shadow(0 0 28px var(--kk-glow));
+    color: #5eb5ff;
+    filter: drop-shadow(0 0 22px rgba(94, 181, 255, 0.55));
     align-self: center;
 }
+.kk-challenge__dice-glow svg { width: clamp(80px, 8vw, 120px); height: auto; }
+
 .kk-challenge__primary {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 22px;
-    margin-bottom: 36px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    margin-bottom: clamp(20px, 2.5vh, 32px);
 }
-.kk-challenge__examples-eyebrow { margin: 0 0 16px; }
+.kk-challenge__examples-eyebrow { margin: 0 0 14px; color: #7cc4ff; letter-spacing: 0.28em; font-size: 12px; font-weight: 700; }
 .kk-challenge__examples {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
     .kk-challenge__primary { grid-template-columns: 1fr; }
     .kk-challenge__examples { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 540px) { .kk-challenge__examples { grid-template-columns: 1fr; } }
 
+/* Primary 3-up cards — match the home tile aesthetic */
 .kk-challenge-primary {
-    background: var(--kk-surface);
-    backdrop-filter: blur(22px);
-    border: 1.5px solid var(--kk-border);
-    border-radius: 22px;
-    padding: 30px 24px 26px;
+    position: relative;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 24px;
+    padding: clamp(20px, 2.4vh, 30px) 24px;
     text-align: center;
     color: #fff;
     cursor: pointer;
     transition: border-color 280ms, box-shadow 280ms, transform 280ms;
     font-family: inherit;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 24px rgba(78, 167, 255, 0.10);
 }
 .kk-challenge-primary:hover,
 .kk-challenge-primary:focus,
 .kk-challenge-primary.is-focused {
-    border-color: var(--kk-blue);
-    box-shadow: 0 0 0 2px var(--kk-blue) inset, 0 0 32px var(--kk-glow);
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.35);
     transform: translateY(-3px);
     outline: none;
 }
-.kk-challenge-primary__icon {
-    color: var(--kk-blue);
-    margin-bottom: 22px;
-    filter: drop-shadow(0 0 16px var(--kk-glow));
+.kk-challenge-primary[data-focus-style='tile']:focus-visible,
+.kk-challenge-primary[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
 }
-.kk-challenge-primary h2 { margin: 0 0 8px; font-size: 22px; font-weight: 700; }
-.kk-challenge-primary p { margin: 0; color: rgba(255,255,255,0.7); font-size: 14px; line-height: 1.5; }
+.kk-challenge-primary__icon {
+    color: #5eb5ff;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 0 14px rgba(94, 181, 255, 0.6));
+}
+.kk-challenge-primary h2 { margin: 0 0 6px; font-size: clamp(18px, 1.4vw, 22px); font-weight: 800; color: #fff; }
+.kk-challenge-primary p { margin: 0; color: rgba(200, 215, 240, 0.72); font-size: clamp(12px, 0.95vw, 14px); line-height: 1.45; }
 
+/* Smaller example cards — same skin */
 .kk-challenge-card {
-    background: var(--kk-surface);
-    border: 1.5px solid var(--kk-border);
-    border-radius: 18px;
-    padding: 22px 18px 18px;
+    position: relative;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 65%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 20px;
+    padding: 18px 16px 16px;
     text-align: center;
     color: #fff;
     cursor: pointer;
-    transition: border-color 280ms, box-shadow 280ms;
+    transition: border-color 280ms, box-shadow 280ms, transform 280ms;
     font-family: inherit;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 .kk-challenge-card:hover,
 .kk-challenge-card:focus,
 .kk-challenge-card.is-focused {
-    border-color: var(--kk-purple);
-    box-shadow: 0 0 0 1.5px var(--kk-purple) inset, 0 0 24px var(--kk-glow-p);
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 16px 40px rgba(0, 0, 0, 0.55),
+        0 0 36px rgba(78, 167, 255, 0.32);
+    transform: translateY(-3px);
     outline: none;
 }
+.kk-challenge-card[data-focus-style='tile']:focus-visible,
+.kk-challenge-card[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
+}
 .kk-challenge-card__icon {
-    color: var(--kk-purple);
-    margin-bottom: 12px;
-    filter: drop-shadow(0 0 14px var(--kk-glow-p));
+    color: #5eb5ff;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 12px rgba(94, 181, 255, 0.55));
     display: grid;
     place-items: center;
-    min-height: 56px;
+    min-height: 50px;
 }
-.kk-challenge-card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
-.kk-challenge-card p { margin: 0; color: rgba(255,255,255,0.65); font-size: 13px; line-height: 1.45; }
+.kk-challenge-card h3 { margin: 0 0 4px; font-size: clamp(14px, 1.1vw, 16px); font-weight: 800; color: #fff; }
+.kk-challenge-card p { margin: 0; color: rgba(200, 215, 240, 0.66); font-size: clamp(11px, 0.85vw, 13px); line-height: 1.4; }
 .kk-dashed {
-    border: 2px dashed var(--kk-purple);
-    color: var(--kk-purple);
+    border: 2px dashed #5eb5ff;
+    color: #5eb5ff;
     padding: 4px 10px;
     border-radius: 8px;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: 0.1em;
 }
 
@@ -1121,16 +1231,26 @@
 }
 
 /* =============================================================
- * UP NEXT page + empty states
+ * UP NEXT page + empty states — matches the home tile aesthetic
  * ============================================================ */
-.kk-upnext { color: #fff; padding: clamp(40px, 5vh, 80px) clamp(40px, 4vw, 72px) 200px; }
+.kk-upnext {
+    color: #fff;
+    padding: clamp(24px, 3vh, 44px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    position: relative;
+    min-height: 100%;
+    background:
+        radial-gradient(ellipse 80% 50% at 30% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+}
 .kk-upnext__now {
-    background: rgba(10,14,40,0.55);
-    border: 1.5px solid var(--kk-blue);
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.14), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.55);
     border-radius: 22px;
     padding: 22px;
-    margin: 24px 0 32px;
-    box-shadow: 0 0 32px var(--kk-glow);
+    margin: 18px 0 24px;
+    box-shadow: 0 0 36px rgba(78, 167, 255, 0.3);
 }
 .kk-now-entry {
     display: grid;
@@ -1140,40 +1260,109 @@
 }
 .kk-now-entry img { width: 100px; height: 100px; border-radius: 14px; object-fit: cover; }
 .kk-upnext__list {
-    background: rgba(10,14,40,0.55);
-    border: 1.5px solid var(--kk-border);
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.06), transparent 65%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
     border-radius: 22px;
     padding: 22px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    max-height: calc(100vh - 340px);
+    overflow-y: auto;
 }
 .kk-upnext__list header {
-    color: var(--kk-blue-2);
-    font-size: 13px;
+    color: #7cc4ff;
+    font-size: 12px;
     letter-spacing: 0.28em;
-    font-weight: 600;
+    font-weight: 700;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.12);
     margin-bottom: 12px;
+    text-transform: uppercase;
 }
 .kk-upnext__list ol { list-style: none; padding: 0; margin: 0; }
 .kk-upnext__list li {
     display: grid;
     grid-template-columns: 22px 56px 1fr;
     gap: 14px;
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
     align-items: center;
 }
 .kk-upnext__list img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; }
-.kk-upnext__list p { margin: 0; font-weight: 600; font-size: 15px; }
-.kk-upnext__list small { color: rgba(255,255,255,0.55); font-size: 12px; }
+.kk-upnext__list p { margin: 0; font-weight: 600; font-size: 14px; color: #fff; }
+.kk-upnext__list small { color: rgba(200, 215, 240, 0.55); font-size: 11px; }
 
 .kk-empty-state {
     color: #fff;
     text-align: center;
-    padding: 120px 24px;
+    padding: clamp(80px, 12vh, 140px) 24px;
 }
-.kk-empty-state h2 { font-size: 28px; margin: 0 0 12px; }
-.kk-empty-state p { color: rgba(255,255,255,0.7); margin: 0 0 28px; }
+.kk-empty-state h2 { font-size: clamp(22px, 2vw, 30px); margin: 0 0 12px; color: #fff; }
+.kk-empty-state p { color: rgba(200, 215, 240, 0.7); margin: 0 0 28px; font-size: clamp(14px, 1vw, 16px); }
+
+/* =============================================================
+ * v2.8.77 — Karaoke pill/button overrides
+ * The Music theme defines --vesper-blue-bright as pink; we need
+ * every interactive element inside the karaoke flow to use the
+ * neon-blue palette from the mockup.
+ * ============================================================ */
+.kk-lobby [data-focus-style='pill']:focus-visible,
+.kk-lobby [data-focus-style='pill'][data-focused='true'],
+.kk-challenge [data-focus-style='pill']:focus-visible,
+.kk-challenge [data-focus-style='pill'][data-focused='true'],
+.kk-sing [data-focus-style='pill']:focus-visible,
+.kk-sing [data-focus-style='pill'][data-focused='true'],
+.kk-upnext [data-focus-style='pill']:focus-visible,
+.kk-upnext [data-focus-style='pill'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    box-shadow: 0 0 0 1.5px #5eb5ff !important;
+}
+
+.kk-btn--primary {
+    background: rgba(78, 167, 255, 0.10);
+    color: #aed7ff;
+    border: 1.5px solid rgba(120, 170, 255, 0.55);
+    box-shadow: 0 0 0 1px rgba(120, 170, 255, 0.35) inset, 0 0 24px rgba(78, 167, 255, 0.3);
+}
+.kk-btn--primary:hover,
+.kk-btn--primary:focus,
+.kk-btn--primary.is-focused {
+    background: rgba(78, 167, 255, 0.18);
+    border-color: #5eb5ff;
+    box-shadow: 0 0 0 1.5px #5eb5ff inset, 0 0 36px rgba(78, 167, 255, 0.5);
+    transform: translateY(-1px);
+}
+.kk-btn--ghost {
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    border: 1.5px solid rgba(120, 170, 255, 0.22);
+}
+.kk-btn--ghost:hover,
+.kk-btn--ghost:focus,
+.kk-btn--ghost.is-focused {
+    background: rgba(120, 170, 255, 0.10);
+    border-color: rgba(120, 170, 255, 0.55);
+}
+
+/* Karaoke avatar — clean blue ring (overrides the earlier
+   purple/blue gradient initial-letter variant). */
+.kk-avatar {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid rgba(120, 170, 255, 0.45);
+    background: #0d1330;
+}
+.kk-avatar--initial {
+    background: linear-gradient(135deg, #2a4170 0%, #1a2f56 100%);
+    color: #aed7ff;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+    border-color: rgba(120, 170, 255, 0.4);
+}
+

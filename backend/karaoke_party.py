@@ -220,6 +220,11 @@ def join_party(code: str, body: JoinParty):
             None,
         )
         if existing:
+            # Allow the guest to update their avatar if they rejoin
+            # with a different photo selection.
+            if body.avatar and body.avatar != existing.avatar:
+                existing.avatar = body.avatar
+                party.touch()
             return {"member_id": existing.id, "party": party.to_dict()}
         member = Member(id=_new_id("m_"), name=name_clean, avatar=body.avatar)
         party.members[member.id] = member
