@@ -19,34 +19,59 @@
     --kk-blue:      #4ea7ff;
     --kk-blue-2:    #7cc4ff;
     --kk-purple:    #a96bff;
+    --kk-purple-2:  #d4b3ff;
     --kk-pink:      #ff7ab8;
+    --kk-pink-2:    #ffb6da;
+    --kk-coral:     #ff8b5a;
+    --kk-mint:      #5fffc6;
+    --kk-gold:      #ffd86b;
     --kk-glow:      rgba(78, 167, 255, 0.6);
     --kk-glow-p:    rgba(169, 107, 255, 0.55);
+    --kk-glow-pk:   rgba(255, 122, 184, 0.55);
 }
 
-/* Common stage backdrop used across multiple screens.  A single
-   high-contrast spotlight photo so cards layered on top read
-   correctly. */
+/* Common stage backdrop used across multiple screens.  A vibrant
+   concert / spotlight photo with COLOR preserved (no full blackout
+   scrim — the user wants full-colour heroes that actually look
+   like party imagery). */
 .kk-hero__bg {
     position: absolute;
     inset: 0;
+    /* Layered: warm vignette + cool neon + the photo itself.  We
+       use `multiply` for the photo so highlights pop through while
+       shadows blend with the page background — gives the colour-
+       saturated, lit-stage look the user asked for instead of the
+       previous dark wash. */
     background:
-        radial-gradient(ellipse at 80% 0%, rgba(78, 167, 255, 0.25), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(169, 107, 255, 0.20), transparent 65%),
-        linear-gradient(180deg, #0a041a 0%, #03010a 100%),
-        url('https://images.unsplash.com/photo-1551732998-9573f695fdbb?w=2000&q=80');
-    background-blend-mode: screen, screen, normal, multiply;
+        radial-gradient(ellipse at 30% 20%, rgba(255, 122, 184, 0.55), transparent 55%),
+        radial-gradient(ellipse at 80% 10%, rgba(78, 167, 255, 0.55), transparent 50%),
+        radial-gradient(ellipse at 100% 100%, rgba(169, 107, 255, 0.5), transparent 60%),
+        radial-gradient(ellipse at 0% 100%, rgba(255, 139, 90, 0.4), transparent 60%),
+        url('https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=2400&q=85');
+    background-blend-mode: screen, screen, screen, screen, normal;
     background-size: cover;
-    background-position: center right;
+    background-position: center;
     z-index: 0;
+    /* Subtle Ken-Burns drift (one-shot, not infinite, so the HK1
+       box doesn't burn cycles).  Just enough to feel alive on
+       page-load. */
+    animation: kk-hero-rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes kk-hero-rise {
+    from { opacity: 0; transform: scale(1.06); }
+    to   { opacity: 1; transform: scale(1); }
 }
 
 .kk-hero__scrim {
     position: absolute;
     inset: 0;
+    /* Lighter scrim so the photo COLOURS still come through.
+       Previous version was 0.7-0.95 which crushed the hero to
+       black. */
     background:
-        linear-gradient(180deg, rgba(5, 2, 17, 0) 0%, rgba(5, 2, 17, 0.7) 70%, rgba(5, 2, 17, 0.95) 100%),
-        linear-gradient(90deg, rgba(5, 2, 17, 0.85) 0%, rgba(5, 2, 17, 0) 60%);
+        linear-gradient(180deg, rgba(5, 2, 17, 0) 0%, rgba(5, 2, 17, 0.45) 75%, rgba(5, 2, 17, 0.92) 100%),
+        linear-gradient(90deg, rgba(5, 2, 17, 0.55) 0%, rgba(5, 2, 17, 0) 55%);
     z-index: 1;
 }
 
@@ -77,72 +102,155 @@
 .kk-hero {
     position: relative;
     overflow: hidden;
-    padding: clamp(60px, 8vh, 110px) clamp(40px, 4vw, 72px) clamp(40px, 5vh, 70px);
-    min-height: 360px;
+    /* v2.8.75 — Tighter padding so the home fits cleanly on 1080p
+       (was clamp(60-110) top / clamp(40-70) bottom → too tall when
+       combined with the 4 tile-cards below). */
+    padding: clamp(36px, 5vh, 60px) clamp(40px, 4vw, 72px) clamp(28px, 3.5vh, 50px);
+    min-height: 320px;
 }
 
 .kk-hero__title {
     font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    font-size: clamp(48px, 7vw, 96px);
+    font-size: clamp(48px, 6.5vw, 88px);
     line-height: 0.98;
-    margin: 0 0 18px;
+    margin: 0 0 16px;
     letter-spacing: -0.04em;
-    text-shadow: 0 4px 30px rgba(0,0,0,0.7);
+    /* Multi-color text glow so the headline POPS off the photo
+       backdrop.  Cycle pink → purple → blue rings. */
+    text-shadow:
+        0 0 18px rgba(255, 122, 184, 0.55),
+        0 0 38px rgba(169, 107, 255, 0.35),
+        0 4px 30px rgba(0,0,0,0.65);
 }
 .kk-hero__title em {
     font-style: normal;
-    color: var(--kk-blue);
-    text-shadow:
-        0 0 18px rgba(78, 167, 255, 0.85),
-        0 0 48px rgba(78, 167, 255, 0.45);
+    background: linear-gradient(90deg, var(--kk-pink) 0%, var(--kk-blue) 60%, var(--kk-purple) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 22px rgba(255, 122, 184, 0.55));
 }
 .kk-hero__sub {
     max-width: 560px;
-    font-size: 19px;
-    line-height: 1.55;
-    color: rgba(255,255,255,0.78);
+    font-size: 18px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.85);
     margin: 0;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.7);
 }
 
 .kk-tile-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 22px;
-    padding: 12px clamp(40px, 4vw, 72px) clamp(160px, 16vh, 220px);
+    /* v2.8.75 — shorter bottom padding (was 160-220) so the 4
+       tiles fit comfortably on 1080p without scroll. */
+    padding: 16px clamp(40px, 4vw, 72px) 80px;
 }
 @media (max-width: 1100px) { .kk-tile-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .kk-tile-grid { grid-template-columns: 1fr; padding-bottom: 200px; } }
 
+/* Each tile gets a UNIQUE accent gradient so the home doesn't read
+   as a wall of identical blue cards.  Colours rotate through the
+   palette — pink → blue → purple → coral — matching the party-vibe
+   the user asked for. */
 .kk-tile {
     position: relative;
     display: block;
-    aspect-ratio: 9 / 13;
-    background: var(--kk-surface);
+    /* v2.8.75 — Use a fixed max-height instead of aspect-ratio so
+       the 4 tiles always fit inside the 1080p viewport below the
+       hero (1080 - 380 hero - 80 padding = ~620px tile budget). */
+    aspect-ratio: 9 / 11;
+    max-height: 580px;
+    background: linear-gradient(180deg, rgba(20, 8, 40, 0.85) 0%, rgba(10, 4, 30, 0.95) 100%);
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
-    border: 1.5px solid var(--kk-border);
+    border: 1.5px solid var(--kk-tile-accent, var(--kk-blue));
     border-radius: 28px;
     text-decoration: none;
     color: #fff;
     overflow: hidden;
     transition:
-        border-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
         transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
         box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1);
     animation: kk-fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    animation-delay: var(--kk-delay, 0ms);
     cursor: pointer;
+    box-shadow: 0 0 0 1px var(--kk-tile-accent-soft, transparent) inset,
+                0 20px 60px rgba(0,0,0,0.45),
+                0 0 24px var(--kk-tile-glow, rgba(78,167,255,0.18));
 }
+
+/* Glowing colour-blob in the top-right of every tile so they feel
+   ALIVE, not flat.  Sized big enough that the colour bleeds into
+   the white icon below. */
+.kk-tile::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -30%;
+    width: 70%;
+    height: 70%;
+    background: radial-gradient(circle, var(--kk-tile-blob, rgba(78,167,255,0.65)) 0%, transparent 65%);
+    filter: blur(40px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.85;
+}
+
+/* Diagonal accent line bottom-left for visual interest */
+.kk-tile::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--kk-tile-accent, var(--kk-blue)), transparent);
+    z-index: 1;
+}
+
+/* Per-tile theme assignments (matched in JSX via inline style or
+   data-tile-id).  Order: Sing → pink, Party → blue, UpNext →
+   purple, Challenge → coral. */
+.kk-tile-grid > a:nth-child(1) {
+    --kk-tile-accent: var(--kk-pink);
+    --kk-tile-accent-soft: rgba(255,122,184,0.18);
+    --kk-tile-blob: rgba(255,122,184,0.55);
+    --kk-tile-glow: rgba(255,122,184,0.35);
+}
+.kk-tile-grid > a:nth-child(2) {
+    --kk-tile-accent: var(--kk-blue);
+    --kk-tile-accent-soft: rgba(78,167,255,0.18);
+    --kk-tile-blob: rgba(78,167,255,0.55);
+    --kk-tile-glow: rgba(78,167,255,0.35);
+}
+.kk-tile-grid > a:nth-child(3) {
+    --kk-tile-accent: var(--kk-purple);
+    --kk-tile-accent-soft: rgba(169,107,255,0.18);
+    --kk-tile-blob: rgba(169,107,255,0.55);
+    --kk-tile-glow: rgba(169,107,255,0.35);
+}
+.kk-tile-grid > a:nth-child(4) {
+    --kk-tile-accent: var(--kk-coral);
+    --kk-tile-accent-soft: rgba(255,139,90,0.18);
+    --kk-tile-blob: rgba(255,139,90,0.55);
+    --kk-tile-glow: rgba(255,139,90,0.35);
+}
+
 .kk-tile:hover, .kk-tile:focus, .kk-tile.is-focused {
-    border-color: var(--kk-blue);
     box-shadow:
-        0 0 0 1px rgba(78, 167, 255, 0.55) inset,
-        0 0 40px rgba(78, 167, 255, 0.45);
-    transform: translateY(-4px);
+        0 0 0 2px var(--kk-tile-accent) inset,
+        0 24px 60px rgba(0,0,0,0.55),
+        0 0 60px var(--kk-tile-glow);
+    transform: translateY(-6px);
     outline: none;
 }
 .kk-tile__inner {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -151,26 +259,28 @@
     text-align: center;
 }
 .kk-tile__icon {
-    color: var(--kk-blue);
+    color: #fff;
     margin-bottom: 28px;
-    filter: drop-shadow(0 0 14px rgba(78, 167, 255, 0.8));
+    filter: drop-shadow(0 0 18px var(--kk-tile-accent));
 }
 .kk-tile__eyebrow {
-    color: var(--kk-blue-2);
+    color: var(--kk-tile-accent);
     font-size: 11px;
     letter-spacing: 0.32em;
     margin: 0 0 8px;
-    font-weight: 600;
+    font-weight: 700;
+    text-shadow: 0 0 12px var(--kk-tile-glow);
 }
 .kk-tile__title {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 26px;
+    font-weight: 800;
     margin: 0 0 14px;
+    letter-spacing: -0.01em;
 }
 .kk-tile__body {
     font-size: 15px;
     line-height: 1.5;
-    color: rgba(255,255,255,0.72);
+    color: rgba(255,255,255,0.78);
     margin: 0;
 }
 
@@ -328,12 +438,19 @@
  * ============================================================ */
 .kk-lobby {
     color: #fff;
-    padding: clamp(40px, 5vh, 80px) clamp(40px, 4vw, 72px) 200px;
+    /* v2.8.75 — Fit 1920×1080 cleanly: shorter top/bottom padding,
+       use viewport height as the layout budget, action bar in
+       normal flow (not absolute) so it never overlaps the queue
+       on shorter screens.  Also adds the colour-saturated stage
+       photo as the page background so the lobby doesn't look like
+       a plain black sheet. */
+    padding: 32px clamp(40px, 4vw, 72px) 100px;
     position: relative;
     min-height: 100%;
     background:
         radial-gradient(ellipse at 100% 0%, rgba(78,167,255,0.18), transparent 50%),
-        radial-gradient(ellipse at 0% 100%, rgba(169,107,255,0.14), transparent 55%);
+        radial-gradient(ellipse at 0% 100%, rgba(255,122,184,0.14), transparent 55%),
+        radial-gradient(ellipse at 50% 100%, rgba(169,107,255,0.10), transparent 55%);
 }
 
 .kk-lobby__head {
@@ -341,7 +458,7 @@
     grid-template-columns: 1fr auto;
     align-items: start;
     gap: 24px;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 .kk-lobby__title {
     font-family: 'Geist', system-ui, sans-serif;
@@ -389,13 +506,21 @@
 }
 
 .kk-lobby__qr-panel {
-    background: rgba(10, 14, 40, 0.55);
+    background:
+        linear-gradient(180deg, rgba(255,122,184,0.08) 0%, rgba(10,14,40,0.6) 100%);
     backdrop-filter: blur(20px);
     border: 2px solid var(--kk-border-h);
     border-radius: 24px;
     padding: 22px;
     text-align: center;
-    box-shadow: 0 0 60px rgba(78,167,255,0.15);
+    box-shadow: 0 0 60px rgba(78,167,255,0.18);
+    height: 580px;
+    max-height: calc(100vh - 280px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
 }
 .kk-lobby__qr-eyebrow {
     color: var(--kk-blue-2);
@@ -424,14 +549,18 @@
 
 .kk-lobby__joined,
 .kk-lobby__queue {
-    background: rgba(10, 14, 40, 0.55);
+    background:
+        linear-gradient(180deg, rgba(78,167,255,0.04) 0%, rgba(10,14,40,0.55) 100%);
     backdrop-filter: blur(20px);
     border: 1.5px solid var(--kk-border);
     border-radius: 24px;
-    padding: 22px;
-    min-height: 460px;
+    padding: 20px;
+    /* Fit 1080p: 1080 - 32 head padding - ~150 head/title - ~80 actions
+       = ~720px max for the columns.  Use a fixed comfortable height
+       with internal scroll so the bottom never gets cut off. */
+    height: 580px;
+    max-height: calc(100vh - 280px);
     overflow-y: auto;
-    max-height: 70vh;
 }
 .kk-lobby__joined header,
 .kk-lobby__queue header {
@@ -506,12 +635,14 @@
 .kk-empty { color: rgba(255,255,255,0.45); font-style: italic; padding: 20px 4px; margin: 0; }
 
 .kk-lobby__actions {
-    position: absolute;
-    bottom: 110px;
-    right: clamp(40px, 4vw, 72px);
+    /* v2.8.75 — In normal flow (NOT absolute) so it never overlaps
+       the columns above on 1080p screens.  Right-aligned with a
+       little spacing from the columns. */
     display: flex;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
+    justify-content: flex-end;
+    margin-top: 24px;
 }
 .kk-lobby__start {
     padding: 18px 32px;
