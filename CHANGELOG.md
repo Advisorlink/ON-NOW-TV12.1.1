@@ -1,5 +1,47 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.66 — Karaoke audio unmute + pink-glow active lyric + brighter backdrop
+
+> Forces a new APK build so the box stops saying "you don't need to
+> re-install" and the user can pick up the karaoke audio + lyric
+> fixes from v2.8.65 in a fresh sideload.
+
+### Karaoke playback (the "no audio" bug)
+- **YouTube IFrame player no longer autoplay-muted.**  `autoplay: 0`
+  in playerVars + explicit `unMute()` → `setVolume(85)` → `playVideo()`
+  on the `onReady` callback (and re-armed on every `loadVideoById`).
+  Browser autoplay policies kept silencing the iframe even right
+  after a user click; the manual unmute sequence keeps the audio
+  bound to the original user gesture.
+
+### Karaoke lyric highlight (the "dull / white lyric" bug)
+- **Active lyric line now renders in bright pink with multi-layer
+  glow** regardless of the parent DOM tree.  The `.tunes-karaoke-stage`
+  element re-declares `--tunes-accent`, `--tunes-accent-2`,
+  `--tunes-accent-rgb` locally, so the colour resolves even though
+  the stage lives OUTSIDE the `.tunes-root` shell (it mounts at
+  `/music/karaoke/play/:trackId`, which sits outside `MusicLayout`).
+- `.is-active` uses `color: var(--tunes-accent-2) !important` +
+  `-webkit-text-fill-color: var(--tunes-accent-2) !important` to
+  override any inherited gradient `background-clip: text` rule
+  that was causing the line to render white.
+
+### Karaoke backdrop brightness
+- Blur 40 px → 12 px, saturation 1.45, brightness 1.05, opacity 1.0.
+  The artwork now reads like a music-video backdrop instead of a
+  dim purple wash.
+
+### CI / version bookkeeping
+- **Restored `## vX.Y.Z` heading format** at the top of CHANGELOG.md
+  so `.github/workflows/build-apk.yml` can derive `versionName` again.
+  Previous entries used date-style `## 2026-02-f` headings which the
+  workflow's `grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+'` regex
+  rejected, exiting with "Could not parse a version" and producing
+  no APK — that's why the in-app update gate kept reporting
+  "no update needed".
+
+---
+
 ## 2026-02-f — Cool Karaoke + cookie-free YouTube playback + mobile responsive (LIVE)
 
 ### 🎤 Karaoke — completely revamped UI + working playback

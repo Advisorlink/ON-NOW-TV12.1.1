@@ -1,5 +1,52 @@
 # ON NOW TV V2 — PRD
 
+> **🎤 v2.8.66 — Karaoke audio + lyric fixes + CI version-heading repair (May 29, 2026).**
+> Three issues addressed in one cut:
+> 1. **Audio was silent on Karaoke playback.**  YouTube IFrame
+>    `playerVars.autoplay` flipped from `1` → `0`; explicit
+>    `setVolume(85)` → `unMute()` → `playVideo()` sequence runs in
+>    `onReady` and is re-armed inside `_playYouTubeVideo` on every
+>    `loadVideoById`.  Browser autoplay policies were silencing the
+>    iframe even right after a user click; the manual unmute sequence
+>    keeps the audio bound to the original user gesture.
+>    File: `/app/frontend/src/hooks/useMusicPlayer.js` (lines 117-141,
+>    202-238).
+> 2. **Active lyric line rendered white / dull instead of pink.**  The
+>    `.tunes-karaoke-stage` element now declares `--tunes-accent`,
+>    `--tunes-accent-2` and `--tunes-accent-rgb` LOCALLY (lines
+>    171-201), so the colour resolves correctly even though the stage
+>    mounts OUTSIDE the `.tunes-root` shell (at
+>    `/music/karaoke/play/:trackId`, outside `MusicLayout`).
+>    `.is-active` uses `color: var(--tunes-accent-2) !important` +
+>    `-webkit-text-fill-color: var(--tunes-accent-2) !important` to
+>    override any inherited gradient `background-clip: text` that
+>    was hiding the colour.  Multi-layer text-shadow (white halo +
+>    pink glow rings) makes the line pop off the backdrop.
+>    File: `/app/frontend/src/pages/music/karaoke.css` (lines
+>    343-388).
+> 3. **CI APK build was silently failing** because the CHANGELOG no
+>    longer had a `## vX.Y.Z` heading at the top — only date-style
+>    `## 2026-02-f` headings.  `.github/workflows/build-apk.yml`
+>    parses `^## v[0-9]+\.[0-9]+\.[0-9]+` for `versionName`; without
+>    a match it exits with "Could not parse a version" and produces
+>    no APK.  That's why the in-app update gate kept telling the user
+>    "no update needed" — there was no newer APK on GitHub Releases.
+>    Restored `## v2.8.66` heading at the top of CHANGELOG.md so the
+>    next push triggers a successful build.
+>
+> **Verified.**  React build compiles cleanly (`yarn build` → 526 kB
+> gzipped main bundle, no errors).  Karaoke landing page renders with
+> the pink "Tonight, You're The Star" hero + pink mic glow + pink
+> FAN FAVES eyebrow on the preview pod — proves the CSS variables
+> resolve correctly inside `<KaraokePage>` / `<KaraokeStage>` despite
+> the stage living outside `<MusicLayout>`.
+>
+> **Next step for the user**: Save to GitHub → CI builds APK →
+> `apk-latest` release auto-updates → in-app update gate prompts the
+> box to install v2.8.66, which carries the audio + lyric fixes.
+>
+
+
 > **🎵 v2.8.44 — TUNES full-length tracks via YouTube cookies.**
 > The Music app's 30-second-preview problem is solved.  The resolver
 > chain now goes **YouTube (cookies) → JioSaavn → Audius → preview**,
