@@ -73,6 +73,26 @@ jobs:
           print('=== index.html cleaned ===')
           PY
 
+          # --- v2.8.71 — Rewrite absolute asset paths to relative
+          # so they resolve when the WebView loads from
+          # `file:///android_asset/web/index.html`.  See the matching
+          # block in `build-apk.yml` for the full explanation; same
+          # root cause, same fix.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/onnowtv-tunes/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          before = html.count('="/')
+          html = re.sub(
+              r'(\b(?:src|href|content)=)"/(?!/)([^"\s]*)"',
+              r'\1"./\2"',
+              html,
+          )
+          after = html.count('="/')
+          p.write_text(html, encoding='utf-8')
+          print(f'=== index.html absolute->relative paths: {before} → {after} ===')
+          PY
+
           FILES=$(find android/onnowtv-tunes/app/src/main/assets/web/ -type f | wc -l)
           echo "Total bundled files: $FILES"
           if [ "$FILES" -lt 5 ]; then

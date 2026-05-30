@@ -1,5 +1,55 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.71 — APK boots again (fix: absolute asset paths breaking file:// load)
+
+> User report: "Not loading past this screen at all on box or on
+> phone."  The video showed a small spinning circle on a dark
+> background — that's the `vesper-boot` placeholder inside
+> `index.html`, which stays on screen until React mounts the
+> `#root` element.  React was never mounting because the bundle
+> wasn't loading.
+
+### Root cause
+- `frontend/package.json` has `"homepage": "/"`.  CRA's build
+  emits `<script src="/static/js/main.xxx.js">` — absolute path
+  starting with `/`.
+- On the deployed VPS at `https://onnowtv.duckdns.org/music/whatever`,
+  `/static/js/main.xxx.js` correctly resolves to
+  `https://onnowtv.duckdns.org/static/js/main.xxx.js`.  ✓
+- Inside the APK, the WebView loads `file:///android_asset/web/index.html`.
+  Absolute `/static/js/...` then resolves to `file:///static/js/...`
+  — which doesn't exist (the bundled file is actually at
+  `file:///android_asset/web/static/js/...`).  ✗
+- Result: the JS bundle silently fails to load.  React never
+  mounts.  The `vesper-boot` placeholder spins forever.
+- This affected BOTH the Vesper APK (which has been bundling
+  React this way for months) AND the new Tunes APK (which only
+  started bundling React in v2.8.70).  The bug had been latent —
+  some earlier `homepage: "."` config must have masked it — but
+  v2.8.70 surfaced it on every device the user had.
+
+### Fix
+- New post-bundle Python step in `build-apk.yml` AND
+  `build-tunes.yml`: after copying the React build into the
+  APK's `assets/web/` folder, sed the `index.html` to rewrite
+  every absolute path (`="/x..."`) to a relative path (`="./x..."`).
+- Regex `(\b(?:src|href|content)=)"/(?!/)([^"\s]*)"` carefully
+  avoids touching protocol-relative URLs (`="//..."`) and
+  fully-qualified external URLs (`="https://..."`).
+- Verified with the actual built `index.html` (see commit notes).
+
+### What this fixes for the user
+- The next "Save to GitHub" will publish v2.8.71 APKs whose
+  bundled `index.html` has relative asset paths.  Both the Vesper
+  APK and the Tunes APK will boot correctly inside their
+  WebViews and load straight into the React UI.
+- All the v2.8.66 → v2.8.70 fixes (karaoke audio + lyric overlay,
+  no-Vesper-menu mobile, music brand identity, normal-music
+  playback through the same pipeline, in-APK React bundling)
+  finally become visible.
+
+---
+
 ## v2.8.70 — ON NOW Tunes APK now ships React INSIDE the APK (no more "nothing changed" syndrome)
 
 > **The user's frustration finally explained.**  Every "Save to
