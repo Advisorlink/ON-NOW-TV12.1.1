@@ -46,6 +46,17 @@ export function YouTubeIFrameHost() {
         return undefined;
     }, []);
 
+    // v2.8.67 — Position the iframe host OFF-SCREEN (top:-200, left:-200)
+    // with full opacity instead of opacity:0.  YouTube's IFrame Player
+    // and Chrome/Android-WebView's media-element heuristics treat
+    // `opacity: 0` / `visibility: hidden` / `display: none` iframes
+    // as "hidden", which silently suppresses AUDIO while still
+    // emitting `onStateChange(PLAYING)` and ticking `getCurrentTime()`
+    // — which is exactly the bug we were hitting on Karaoke (lyrics
+    // sync because time advances, but no sound).  Off-screen
+    // positioning keeps the iframe rendered and "visible" from the
+    // policy's perspective, so audio plays.  The iframe is still
+    // invisible to the user because it's behind the viewport edge.
     return (
         <div
             ref={hostRef}
@@ -53,11 +64,11 @@ export function YouTubeIFrameHost() {
             aria-hidden="true"
             style={{
                 position: 'fixed',
-                width: 1,
-                height: 1,
-                bottom: 0,
-                left: 0,
-                opacity: 0,
+                width: 4,
+                height: 4,
+                top: -200,
+                left: -200,
+                opacity: 1,
                 pointerEvents: 'none',
                 zIndex: -1,
             }}

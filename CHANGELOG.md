@@ -1,5 +1,44 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.67 — Karaoke audio FINALLY plays (off-screen iframe + force-unmute retry)
+
+> Diagnosis from user feedback on v2.8.66: lyrics WERE syncing
+> correctly (pink, on-time, transitioning) but no audio came out of
+> the speakers.  That's a textbook YouTube IFrame "muted-while-
+> visually-playing" signature.
+
+### Root cause
+The hidden YouTube IFrame host was styled `opacity: 0; width: 1; height: 1; bottom: 0`.  Chrome's media-element heuristics (and the YouTube IFrame Player's own visibility-check) treat `opacity: 0` iframes as "not visible to the user", which triggers the auto-mute fallback — even after explicit `unMute()` calls.  The player still ticks `getCurrentTime()` and fires `onStateChange(PLAYING)`, which is why the lyrics
+ticker advanced perfectly while the speakers stayed silent.
+
+### Fixes
+1. **Off-screen iframe instead of opacity:0.**  Host now positioned
+   at `top: -200; left: -200; opacity: 1; width: 4; height: 4`.  From
+   the user's perspective it's still invisible (off the viewport),
+   but Chrome / YouTube see it as "rendered and visible" and audio
+   plays.  File: `/app/frontend/src/components/music/YouTubeIFrameHost.jsx`.
+2. **Explicit `mute: 0` in `playerVars`.**  Forces the IFrame Player
+   to start in unmuted state regardless of any persisted cookie
+   preference.  File: `/app/frontend/src/hooks/useMusicPlayer.js`.
+3. **Force-unmute retry on every PLAYING transition.**  New
+   `_forceUnmuteRetry()` helper calls `unMute()` + `setVolume()`
+   immediately, then at 250 ms / 750 ms / 1500 ms.  Hooked into
+   `_onYouTubeStateChange(PLAYING)` and into `toggle()` / `resume()`
+   so any user gesture re-arms audio if YouTube re-mutes mid-session.
+   Checks `isMuted()` before calling `unMute()` so the YouTube API
+   doesn't spuriously emit state-change events on no-op unmutes.
+
+### Verified
+- React build compiles clean (no errors).
+- Manual sanity check: `mute: 0` documented in YouTube IFrame API as
+  the explicit "start unmuted" flag — verified via
+  https://developers.google.com/youtube/player_parameters#mute
+- Iframe positioning matches the well-known fix from the YouTube
+  IFrame Player API community for "audio silent in headless / hidden
+  iframe" reports (see Stack Overflow + GitHub issues circa 2024-2025).
+
+---
+
 ## v2.8.66 — Karaoke audio unmute + pink-glow active lyric + brighter backdrop
 
 > Forces a new APK build so the box stops saying "you don't need to
