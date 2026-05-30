@@ -151,7 +151,14 @@ export function FullScreenPlayer({ onClose }) {
             catch { /* ignore */ }
         };
         window.addEventListener('storage', reread);
-        return () => window.removeEventListener('storage', reread);
+        // v2.8.80 — Same-window event from the Sing Your Own chip
+        // so a freshly-toggled challenge applies to the very next
+        // song without a tab switch.
+        window.addEventListener('tunes:karaoke-challenge-change', reread);
+        return () => {
+            window.removeEventListener('storage', reread);
+            window.removeEventListener('tunes:karaoke-challenge-change', reread);
+        };
     }, []);
 
     const spotlightWindow = useMemo(() => {

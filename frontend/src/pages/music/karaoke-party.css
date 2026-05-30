@@ -399,6 +399,74 @@
 }
 .kk-search input::placeholder { color: rgba(200, 215, 240, 0.45); }
 
+/* v2.8.80 — Inline challenge chips on Sing Your Own.
+   Sits between the search bar and the first shelf.  Active chip
+   pulses pink (matches the Silent Spotlight banner in the player). */
+.kk-challenge-chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 4px clamp(40px, 4vw, 72px) 18px;
+    padding: 12px 16px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.06), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 14px;
+}
+.kk-challenge-chips__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #7cc4ff;
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    font-weight: 700;
+    margin-right: 4px;
+}
+.kk-challenge-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(120, 170, 255, 0.32);
+    background: rgba(120, 170, 255, 0.06);
+    color: #aed7ff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 220ms, background 220ms, color 220ms, box-shadow 220ms;
+    font-family: inherit;
+}
+.kk-challenge-chip:hover,
+.kk-challenge-chip:focus,
+.kk-challenge-chip.is-focused {
+    border-color: #5eb5ff;
+    background: rgba(78, 167, 255, 0.14);
+    color: #fff;
+    outline: none;
+}
+.kk-challenge-chip.is-active {
+    background: linear-gradient(135deg, rgba(255, 122, 184, 0.20), rgba(78, 167, 255, 0.18));
+    border-color: #ff7ab8;
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 122, 184, 0.4) inset, 0 0 24px rgba(255, 122, 184, 0.35);
+}
+.kk-challenge-chips__hint {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: 12px;
+    margin-left: 4px;
+}
+@media (max-width: 640px) {
+    .kk-challenge-chips__hint { display: none; }
+    .kk-challenge-chips { padding: 10px 12px; gap: 8px; }
+}
+
+
 .kk-shelf { margin: 18px 0; padding: 0 clamp(40px, 4vw, 72px); }
 .kk-shelf__header { margin-bottom: 12px; }
 .kk-shelf__eyebrow {
