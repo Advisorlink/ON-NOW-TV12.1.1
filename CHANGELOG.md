@@ -1,5 +1,70 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.72 — Mobile scroll fixed + Tunes APK now uses HTTPS origin (audio actually works)
+
+> Two definite bugs found by tracing the user-reported "UI works
+> but can't scroll, no music plays, no podcasts play":
+
+### Bug 1: `.tunes-root` had no viewport-constrained height
+- DevTools diagnostic on the live preview confirmed:
+  `html`, `body`, `#root`, `.App` all have `overflow: hidden`.
+  `.tunes-root` had `min-height: 100vh` (no max) so it grew to
+  3108 px to fit all the shelves.  Nothing on the page was a
+  proper scroll container, so `window.scrollY` was frozen at 0
+  and no native touch-swipe scrolling worked.  The user could
+  see the hero but never the "Trending Now" / "Top Charts" rows
+  below it.
+- **Fix**: `.tunes-root` now has `height: 100dvh; max-height: 100dvh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch`.  It's now
+  the canonical scroll container.  Verified end-to-end: scroll-
+  Top=800 works, and the page reveals "Top Charts", "Top Artists",
+  "New Releases" rows that were previously trapped below the hero.
+
+### Bug 2: Tunes APK was loading from `file:///` which suppresses audio
+- The Tunes APK in v2.8.70-71 loaded React from
+  `file:///android_asset/web/index.html`.  Multiple browser
+  features behave poorly when the parent origin is `file://`:
+  * YouTube IFrame Player's `postMessage` needs a non-null
+    parent origin to send onReady/onStateChange events — without
+    it the player can SEEM to play but audio is silently
+    suppressed (exact symptom the user reported).
+  * Cross-origin `<audio>` loads work technically but are
+    treated as "secure-degraded" in some WebView versions,
+    which intermittently blocks playback.
+  * `localStorage` / `sessionStorage` are disabled on `file://`
+    by older WebView versions.
+- **Fix**: Switched the Tunes APK to use
+  [`WebViewAssetLoader`](https://developer.android.com/reference/androidx/webkit/WebViewAssetLoader)
+  to serve the same bundled assets via a real HTTPS origin:
+  `https://appassets.androidplatform.net/assets/web/index.html`.
+  The WebView now thinks it's running on a normal HTTPS site,
+  so YouTube IFrame Player, cross-origin audio, postMessage,
+  localStorage and all the other web platform features behave
+  the way they're documented.
+
+### Supporting changes
+- `App.js`: `HashRouter` selection extended to also fire when the
+  hostname is `appassets.androidplatform.net` (the route hash
+  `#/music` is honoured regardless of the URL path).
+- `MainActivity.kt` (Tunes): adds the `androidx.webkit` imports,
+  builds an `AssetLoaderClient` that delegates every request
+  through `WebViewAssetLoader`, and `navigateToMusic()` now
+  points at the HTTPS URL.
+- The v2.8.71 absolute→relative path rewrite in `build-tunes.yml`
+  combines correctly with this — relative paths in the HTML
+  resolve back through the `/assets/` handler to the bundled
+  files under `assets/web/`.
+
+### What the user will see in v2.8.72
+- Page scrolls on the phone (vertical swipe reveals all shelves).
+- Tapping a song / podcast actually plays audio — no more silent
+  iframe.
+- Karaoke audio also works (it's now riding the same playback
+  pipeline as regular music since v2.8.69, so this same origin
+  fix unblocks it).
+
+---
+
 ## v2.8.71 — APK boots again (fix: absolute asset paths breaking file:// load)
 
 > User report: "Not loading past this screen at all on box or on

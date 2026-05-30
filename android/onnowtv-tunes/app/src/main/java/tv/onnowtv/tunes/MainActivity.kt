@@ -6,11 +6,14 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.webkit.WebViewAssetLoader
 
 /**
  * ON NOW TV TUNES — kiosk WebView shell with per-user YouTube sign-in.
@@ -162,23 +165,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateToMusic() {
-        // v2.8.70 — Load the React app from BUNDLED ASSETS instead
-        // of the live VPS URL.  The build-tunes.yml workflow runs
-        // `yarn build` and copies frontend/build/ into the Tunes
-        // assets folder before assembling the APK, so the entire
-        // SPA ships INSIDE the APK.  Every "Save to GitHub" → new
-        // APK now ALSO carries the latest JS/CSS, instead of the
-        // user having to also manually deploy the React bundle to
-        // the VPS (which they were never doing — that's why my
-        // earlier "no Vesper menu" / scroll fixes never appeared
-        // on the phone).
+        // v2.8.72 — Load the React app via WebViewAssetLoader so the
+        // WebView sees an HTTPS origin (`https://appassets.androidplatform.net/`)
+        // instead of `file:///`.  Same physical files (bundled in
+        // `assets/web/`), totally different origin behaviour:
         //
-        // `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` is
-        // already baked into the JS at build time, so API calls
-        // continue to hit the live backend.  Only the static
-        // shell loads from `file:///`.
-        webView.webViewClient = WebViewClient()
-        webView.loadUrl("file:///android_asset/web/index.html?box=1&yt=1#/music")
+        //   • YouTube IFrame Player's postMessage works (the iframe
+        //     needs a non-null parent origin to send onReady /
+        //     onStateChange / time-update events).  Without this,
+        //     the player can SEEM to play but audio is silently
+        //     suppressed — exactly the symptom the user saw after
+        //     v2.8.70 switched Tunes from a remote URL to file://.
+        //   • Cross-origin <audio> playback works without the file://
+        //     "secure-degraded" quirks some WebView versions apply.
+        //   • localStorage / sessionStorage work normally (some
+        //     WebView versions disable them on file://).
+        //   • The build workflow's absolute→relative path rewrite
+        //     (see v2.8.71) plus this `/assets/` handler combine so
+        //     every asset reference resolves correctly.  Relative
+        //     `./static/js/x.js` in index.html → `https://...net/
+        //     assets/web/static/js/x.js` → handler strips `/assets/`
+        //     → AssetsPathHandler looks up `assets/web/static/js/x.js`.
+        //
+        // `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` is still
+        // baked into the JS at build time so API calls continue to
+        // hit the live backend — only the static SPA shell loads
+        // from the on-device asset server.
+        webView.webViewClient = AssetLoaderClient(assetLoader)
+        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html?box=1&yt=1#/music")
+    }
+
+    /** v2.8.72 — WebViewClient that routes every request through
+     *  the asset loader so `https://appassets.androidplatform.net/...`
+     *  is served from the APK's bundled `assets/web/` folder. */
+    private class AssetLoaderClient(
+        private val loader: WebViewAssetLoader,
+    ) : WebViewClient() {
+        override fun shouldInterceptRequest(
+            view: WebView?,
+            request: WebResourceRequest,
+        ): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
+    }
+
+    private val assetLoader by lazy {
+        // Handler at `/assets/` maps the URL path AFTER the prefix
+        // directly into the APK's `assets/` directory.  Because we
+        // bundle the React build under `assets/web/`, the URL
+        // `/assets/web/static/js/x.js` correctly resolves to the
+        // file `app/src/main/assets/web/static/js/x.js`.
+        WebViewAssetLoader.Builder()
+            .setDomain("appassets.androidplatform.net")
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
     }
 
     override fun onBackPressed() {

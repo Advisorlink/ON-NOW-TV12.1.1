@@ -67,9 +67,24 @@
     color: var(--vesper-text);
     font-family: 'Geist', system-ui, sans-serif;
     width: 100vw;
-    min-height: 100vh;
+    /* v2.8.72 — FIX SCROLL.  `.tunes-root` now CONSTRAINS itself
+       to the viewport height and scrolls internally.  Before this,
+       `min-height: 100vh` let the root grow to fit its full content
+       (3108 px on the music home), and because `html`, `body`,
+       `#root` and `.App` all have `overflow: hidden`, nothing could
+       scroll at all on mobile — the user could see the hero but
+       could never reach the "Trending Now" or "Top Charts" shelves
+       below it.  Setting `height: 100dvh` + `overflow-y: auto`
+       makes the music app's root the canonical scroll container.
+       On TV, useSpatialFocus()'s `scrollIntoView(behavior: 'auto')`
+       still works correctly because it walks up to find a
+       scrollable ancestor — which is now `.tunes-root`. */
+    height: 100dvh;
+    max-height: 100dvh;
     position: relative;
     overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ELECTRIC BLUE theme — same structure, cyan/navy palette. */
