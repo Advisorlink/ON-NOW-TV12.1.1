@@ -33,6 +33,8 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from karaoke_guest_page import render_guest_join_page
+
 karaoke_party_router = APIRouter(prefix="/karaoke", tags=["karaoke-party"])
 
 # -- in-memory store ------------------------------------------------
@@ -105,7 +107,14 @@ def _backend_public_url() -> str:
 
 
 def _join_url(code: str) -> str:
-    return f"{_backend_public_url()}/karaoke/join/{code}"
+    # v2.8.75 — Point QR codes at the BACKEND's self-contained
+    # mobile guest page (`/api/karaoke/join/{code}`).  This is
+    # reachable on the live VPS regardless of whether the React
+    # frontend is deployed there, so the QR works the instant the
+    # host opens the lobby on the TV.  The static page only uses
+    # endpoints that are already in production: /api/karaoke/* and
+    # /api/music/search.
+    return f"{_backend_public_url()}/api/karaoke/join/{code}"
 
 
 def _gen_code() -> str:
@@ -333,3 +342,20 @@ def poll_party(code: str, since: float = 0.0):
         if time.time() >= deadline:
             return {"party": party.to_dict(), "unchanged": True}
         time.sleep(0.6)
+
+
+
+# -- Self-contained mobile guest join page --------------------------
+@karaoke_party_router.get("/join/{code}")
+def guest_join_page(code: str):
+    """v2.8.75 — Serve the standalone mobile guest join HTML page.
+    This is what the QR code points to.  Vanilla HTML + JS, no React
+    dependency, uses only the existing backend endpoints.  Works on
+    any phone browser the instant the host opens the lobby.
+
+    Note we don't check whether the party exists here — the page's
+    JS will hit /party/{code} on load and render a friendly
+    "couldn't load this party" screen if it 404s.  That way the
+    user gets the same look-and-feel for both the happy path and
+    the error case."""
+    return render_guest_join_page(code)

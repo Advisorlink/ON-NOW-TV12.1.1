@@ -1,5 +1,65 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.75 — Vibrant karaoke redesign + QR code actually works end-to-end
+
+> User feedback on v2.8.74: "thin lines and no images", "QR doesn't go
+> anywhere", "needs to fit on 1920×1080".  Three direct fixes in this
+> cut, plus a substantial visual upgrade.
+
+### Fix 1: QR code now works for real
+- **Root cause**: The QR pointed at the React route `/karaoke/join/{code}`
+  hosted on `onnowtv.duckdns.org`.  But the user's setup loads React
+  from inside the APK (WebViewAssetLoader) — the live VPS host serves
+  ONLY the backend.  So scanning the QR landed on a 404 every time.
+- **Fix**: Added a self-contained mobile guest join page served by
+  the BACKEND directly at `/api/karaoke/join/{code}`
+  (`backend/karaoke_guest_page.py`).  Vanilla HTML + JS, no React
+  dependency, hits the existing `/api/karaoke/*` and `/api/music/search`
+  endpoints which are already deployed.  The QR now generates this
+  URL, which is reachable the instant the host opens the lobby.
+- **Verified end-to-end**: spun up a party, "Jamie Lee" + "Taylor Kim"
+  joined via the API, each queued songs → the lobby's long-poll picked
+  it all up live and the UI updated WITHOUT the host doing anything.
+
+### Fix 2: Vibrant full-color hero (no more "boring thin lines")
+- Replaced the heavy black scrim with a layered colored gradient
+  (pink + blue + purple + orange highlights) blended over a vibrant
+  concert-crowd photo with neon spotlights.  The photo's COLORS now
+  come through.
+- "Tonight, You're / The Star" headline now uses a pink → blue →
+  purple gradient on "The Star" with a glow filter, plus multi-color
+  text shadow on the white half.
+- Each of the 4 home tiles has its OWN colour (SOLO = pink, GROUP =
+  blue, QUEUE = purple, GAMES = coral) — colored radial blob inside
+  each tile, matching glowing border, color-coded eyebrow.
+- Tile icons now drop-shadow with the tile's accent so they glow
+  through the card.
+
+### Fix 3: Fits 1920×1080 cleanly
+- Tightened `.kk-hero` padding (was clamp(60-110px) top → 36-60px).
+- `.kk-tile-grid` bottom padding 160-220px → 80px.
+- Tile aspect-ratio 9/13 → 9/11 + max-height 580px so all 4 fit in
+  the viewport below the hero.
+- Lobby columns capped at `min(580px, calc(100vh - 280px))` and
+  action bar moved into normal flow (no longer `position: absolute`
+  overlapping the columns).
+- Verified: home + lobby both render within the 1080p viewport
+  budget with no critical content cut off.
+
+### What the user can do now
+1. Open Karaoke → Party Mode → Friends Sing Along on the TV.
+2. The lobby creates a party with a fresh KARAOKE-XXXX code + QR.
+3. The user (or a friend) scans the QR with any phone camera.
+4. They land on a dark-themed mobile page with a mic glow,
+   "JOIN THE PARTY" eyebrow, the party code, and a name input.
+5. They type a name → tap "Join the Party" → see the song picker
+   with their personal queue and everyone-else queue.
+6. They search any song and tap to add → it appears in the TV
+   queue within ~1 s via long-polling.
+7. Host taps START SINGING → karaoke plays.
+
+---
+
 ## v2.8.74 — Full karaoke party experience (TV + companion mobile)
 
 > Built every screen from the user-supplied design pack: the 4-tile
