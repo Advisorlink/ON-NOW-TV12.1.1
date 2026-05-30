@@ -124,12 +124,41 @@ function MusicHero({ slides }) {
                                     data-focusable="true"
                                     data-focus-style="pill"
                                     tabIndex={0}
-                                    onClick={() => {
-                                        if (slide.kind === 'album') navigate(`/music/album/${slide.id}`);
-                                        else if (slide.kind === 'artist') navigate(`/music/artist/${slide.id}`);
-                                        else if (slide.kind === 'track' && slide.track) {
-                                            controls.playTrack(slide.track, [slide.track]);
-                                        }
+                                    onClick={async () => {
+                                        // v2.8.73 — Play ALWAYS plays.  Previous code
+                                        // navigated to /music/album/{id} for album-kind
+                                        // slides which hit the user's "Couldn't load
+                                        // album HTTP 404" error.  Users expect Play to
+                                        // make music start, period.  For album/artist
+                                        // slides we fetch the entry and play its first
+                                        // track — the explicit album-detail navigation
+                                        // is reachable via the "More Info" button.
+                                        try {
+                                            if (slide.kind === 'track' && slide.track) {
+                                                controls.playTrack(slide.track, [slide.track]);
+                                                return;
+                                            }
+                                            if (slide.kind === 'album') {
+                                                const rawId = String(slide.id).replace(/^album-/, '');
+                                                const r = await musicAPI.album(rawId);
+                                                const album = r?.data || r;
+                                                const tracks = album?.tracks || [];
+                                                if (tracks.length) {
+                                                    controls.playTrack(tracks[0], tracks);
+                                                    return;
+                                                }
+                                            }
+                                            if (slide.kind === 'artist') {
+                                                const rawId = String(slide.id).replace(/^artist-/, '');
+                                                const r = await musicAPI.artist(rawId);
+                                                const artist = r?.data || r;
+                                                const tops = artist?.top_tracks || artist?.tracks || [];
+                                                if (tops.length) {
+                                                    controls.playTrack(tops[0], tops);
+                                                    return;
+                                                }
+                                            }
+                                        } catch { /* swallow — Play button never errors out */ }
                                     }}
                                     onKeyDown={handleKey}
                                     data-testid={`tunes-hero-play-${slide.id}`}
