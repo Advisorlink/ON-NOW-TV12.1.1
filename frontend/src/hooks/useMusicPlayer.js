@@ -122,6 +122,13 @@ class PlayerEngine {
                         // do the work instead — it preserves the
                         // user-gesture sound permission.
                         autoplay: 0,
+                        // v2.8.67 — Explicitly request unmuted playback.
+                        // Without this YouTube defaults to whatever the
+                        // last-known mute-state was for the embed
+                        // (some browsers persist it via cookies), which
+                        // is exactly what was leaving Karaoke silent on
+                        // the HK1 box.
+                        mute: 0,
                         controls: 0,
                         disablekb: 1,
                         playsinline: 1,
@@ -163,6 +170,14 @@ class PlayerEngine {
         const { PLAYING, PAUSED, ENDED, BUFFERING } = window.YT.PlayerState;
         if (this.activeEngine !== 'youtube') return;
         if (e.data === PLAYING) {
+            // v2.8.67 — On every PLAYING transition, force-unmute and
+            // re-apply the user volume.  YouTube sometimes flips the
+            // player back to muted between BUFFERING → PLAYING (the
+            // "auto-mute when no user gesture detected" heuristic),
+            // and we need to undo that the moment playback starts.
+            // Belt-and-braces retry pattern: immediate + 250 ms +
+            // 750 ms in case the API queues the call.
+            this._forceUnmuteRetry();
             this.update({ isPlaying: true });
             this._startYouTubeTimeUpdates();
         } else if (e.data === PAUSED) {
@@ -174,6 +189,22 @@ class PlayerEngine {
         } else if (e.data === BUFFERING) {
             this._startYouTubeTimeUpdates();
         }
+    }
+
+    _forceUnmuteRetry() {
+        const tryUnmute = () => {
+            if (!this.yt || !this.ytReady) return;
+            try {
+                if (typeof this.yt.isMuted === 'function' && this.yt.isMuted()) {
+                    this.yt.unMute();
+                }
+                this.yt.setVolume(Math.round(this.state.volume * 100));
+            } catch { /* ignore */ }
+        };
+        tryUnmute();
+        setTimeout(tryUnmute, 250);
+        setTimeout(tryUnmute, 750);
+        setTimeout(tryUnmute, 1500);
     }
 
     _startYouTubeTimeUpdates() {
@@ -350,7 +381,7 @@ class PlayerEngine {
     }
     resume() {
         if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
-            try { this.yt.playVideo(); } catch { /* ignore */ }
+            try { this.yt.playVideo(); this._forceUnmuteRetry(); } catch { /* ignore */ }
             return;
         }
         this.audio?.play().catch(() => {});
@@ -359,7 +390,7 @@ class PlayerEngine {
         if (this.activeEngine === 'youtube' && this.yt && this.ytReady) {
             try {
                 if (this.state.isPlaying) this.yt.pauseVideo();
-                else this.yt.playVideo();
+                else { this.yt.playVideo(); this._forceUnmuteRetry(); }
             } catch { /* ignore */ }
             return;
         }
