@@ -94,6 +94,41 @@ jobs:
           print('=== index.html cleaned of Emergent / PostHog tracking ===')
           PY
 
+          # --- v2.8.71 — Rewrite ABSOLUTE asset paths (`/static/...`,
+          # `/brand/...`, `/favicon.ico` etc.) to RELATIVE paths
+          # (`./static/...`, `./brand/...`) so they resolve when the
+          # WebView loads `file:///android_asset/web/index.html`.
+          #
+          # CRA's `homepage: "/"` setting in `package.json` produces
+          # absolute paths so the React app deployed to the VPS at
+          # `https://onnowtv.duckdns.org/music/whatever` finds its
+          # static assets correctly.  But the same `/static/js/...`
+          # prefix resolves to `file:///static/js/...` inside the
+          # APK — which doesn't exist — and the entire React bundle
+          # silently fails to load.  The user sees the boot spinner
+          # forever.  Symptom: `index.html` opens, root never mounts.
+          # Fix: in-place rewrite the bundled HTML's asset paths to
+          # be relative.  Doesn't touch any other URLs (https://...
+          # external resources, query strings, etc.) — just `="/x..."`
+          # → `="./x..."`.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/vesper-tv/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          before = html.count('="/')
+          # Only rewrite roots that are clearly asset paths, never
+          # external URLs (which start with `="//"` or `="https://"`
+          # already, neither of which match the pattern below).
+          html = re.sub(
+              r'(\b(?:src|href|content)=)"/(?!/)([^"\s]*)"',
+              r'\1"./\2"',
+              html,
+          )
+          after = html.count('="/')
+          p.write_text(html, encoding='utf-8')
+          print(f'=== index.html absolute->relative paths: {before} → {after} ===')
+          PY
+
           # --- Wrap each main JS chunk in try/catch so any runtime
           # failure on the box becomes a readable error string in the
           # boot splash diagnostic panel — instead of a CORS-masked
