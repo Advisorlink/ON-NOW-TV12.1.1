@@ -1,5 +1,77 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.77 — Full Karaoke design unification + avatar capture flow
+
+> User feedback on v2.8.76: "that design is perfect, I want it matched
+> throughout the whole application… fix the entire scan QR page,
+> make it modern, fit on the TV (everything needs to fit perfectly
+> every single time)… on the QR scan page, I want take photo / upload
+> photo so guests can pick their avatar."
+
+### Every page now matches the home tile mockup
+- **Common backdrop**: replaced the unsplash concert-photo hero on
+  every karaoke page with the same dark-navy gradient + starfield
+  speckle + soft blue radial glows used on the tile grid.
+- **Common panel skin**: lobby QR / members / queue cards, challenge
+  primary cards, challenge example cards, up-next now-playing card,
+  and up-next list panel all share one panel recipe (dark navy
+  gradient + subtle blue inner glow + 1.5px soft-blue border + box-
+  shadow with 24-32px corner radius).
+- **Title gradient**: every page's emphasized title word now uses the
+  same neon-blue gradient (`#5eb5ff → #7cc4ff → #a8d6ff`) instead of
+  the old pink/purple cycle.
+
+### Lobby (`/music/karaoke/party/friends`) — fits on 1080p
+- Tightened header (party code badge top-right matches tile look).
+- Column heights clamped via `clamp(440px, calc(100vh - 320px), 640px)`
+  with internal scroll instead of fixed 580px — so the bottom action
+  bar (Mode · End · Start Singing) is always visible on a 1920×1080
+  viewport with no overflow.
+- QR panel now centers the QR + caption naturally and scales the QR
+  via `clamp(160px, 18vw, 220px)`.
+
+### Mobile guest page (`/api/karaoke/join/{code}`) — NEW avatar step
+- Phase 1: **Enter name** — same dark-navy + neon mic icon design
+  language as the TV home.  Big party code, "Next: choose an avatar"
+  CTA.
+- Phase 2: **Pick your photo** — new screen with a 140px avatar
+  preview circle, two side-by-side buttons:
+    - **Take Photo** → `<input type="file" capture="user">` (camera)
+    - **Upload Photo** → `<input type="file">` (library)
+  - Primary "Join the Party" CTA, ghost "Skip — use my initials"
+    fallback.
+  - Client-side resize via `<canvas>` to a centered 256×256 JPEG at
+    quality 0.82 → base64 data URL so the payload stays small.
+  - Avatar persists in `localStorage` so a returning guest sees their
+    photo pre-filled.
+- Phase 3 (song picker): now displays the guest's avatar next to
+  their name in the top bar AND inside the "joined pills" so they
+  can see who's in the party at a glance.
+
+### Backend
+- `karaoke_party.py`: existing-member-rejoin path now updates the
+  member's avatar if the guest selected a new photo this time.
+- Existing `Member.avatar` + `JoinParty.avatar` fields already
+  supported the data URL, so no schema change required.
+
+### Pill / button focus
+- Music app theme defines `--vesper-blue-bright: #ff7eb3` (pink) which
+  was bleeding through to focus rings on pill buttons inside
+  `.kk-lobby`, `.kk-challenge`, `.kk-sing`, `.kk-upnext`.  Each of
+  those scopes now force-overrides the pill focus to `#5eb5ff`.
+
+### Files touched
+- `/app/frontend/src/pages/music/karaoke-party.css` — full redesign
+  of hero / lobby / sing / challenge / upnext / button sections
+- `/app/frontend/src/pages/music/KaraokeFriendsLobby.jsx` — tighter
+  copy + smaller avatars in the queue rows
+- `/app/backend/karaoke_guest_page.py` — full rewrite with avatar
+  phase, canvas-based resize, avatar pills + topbar
+- `/app/backend/karaoke_party.py` — update existing member avatar
+  on rejoin
+
+
+
 ## v2.8.76 — Karaoke tile redesign (mockup-accurate, square, responsive)
 
 > User feedback on v2.8.75: "the buttons are huge, like they're really
