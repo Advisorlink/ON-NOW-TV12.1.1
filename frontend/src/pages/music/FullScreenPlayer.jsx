@@ -58,6 +58,14 @@ export function FullScreenPlayer({ onClose }) {
     const [lyrics, setLyrics] = useState(null);
     const [liked, setLiked] = useState(false);
     const rootRef = useRef(null);
+    // v2.8.69 — Karaoke mode flag.  Set by the Karaoke landing page
+    // via sessionStorage right before playback starts.  When true,
+    // the side-panel lyrics + queue are replaced with a centered,
+    // full-bleed karaoke-style lyric ticker overlaying the album art.
+    const [karaokeMode, setKaraokeMode] = useState(() => {
+        try { return sessionStorage.getItem('tunes-karaoke-mode') === '1'; }
+        catch { return false; }
+    });
 
     // Try to enter OS-level fullscreen on mount.
     useEffect(() => {
@@ -66,12 +74,30 @@ export function FullScreenPlayer({ onClose }) {
         const onChange = () => setIsFs(!!getFsEl());
         document.addEventListener('fullscreenchange', onChange);
         document.addEventListener('webkitfullscreenchange', onChange);
+        // v2.8.69 — sync karaokeMode if sessionStorage changes while
+        // the player is open (e.g. user switches tracks).
+        const reread = () => {
+            try { setKaraokeMode(sessionStorage.getItem('tunes-karaoke-mode') === '1'); }
+            catch { /* ignore */ }
+        };
+        window.addEventListener('storage', reread);
         return () => {
             document.removeEventListener('fullscreenchange', onChange);
             document.removeEventListener('webkitfullscreenchange', onChange);
+            window.removeEventListener('storage', reread);
             exitFs();
         };
     }, []);
+
+    // v2.8.69 — Wrap onClose so the karaoke-mode flag is cleared
+    // when the user dismisses the player.  Without this, every
+    // subsequent regular-music open would still render in karaoke
+    // mode until the user reloaded the page.
+    const handleClose = () => {
+        try { sessionStorage.removeItem('tunes-karaoke-mode'); } catch { /* ignore */ }
+        setKaraokeMode(false);
+        if (onClose) onClose();
+    };
 
     // Fetch synced lyrics from LRCLIB whenever the track changes.
     const t = state.current;
@@ -149,8 +175,9 @@ export function FullScreenPlayer({ onClose }) {
     return (
         <div
             ref={rootRef}
-            className="tunes-fullplayer"
+            className={'tunes-fullplayer' + (karaokeMode ? ' tunes-fullplayer--karaoke' : '')}
             data-testid="tunes-fullplayer"
+            data-karaoke={karaokeMode ? 'true' : 'false'}
         >
             {bgSrc && (
                 <div
@@ -174,7 +201,7 @@ export function FullScreenPlayer({ onClose }) {
                 >
                     ♪
                 </span>
-                Now Playing
+                {karaokeMode ? 'Karaoke' : 'Now Playing'}
             </div>
 
             <div className="tunes-fullplayer__corner-right">
@@ -197,7 +224,7 @@ export function FullScreenPlayer({ onClose }) {
                     data-focusable="true"
                     data-focus-style="pill"
                     tabIndex={0}
-                    onClick={onClose}
+                    onClick={handleClose}
                     aria-label="Close player"
                     data-testid="tunes-fullplayer-close"
                 >
@@ -206,6 +233,15 @@ export function FullScreenPlayer({ onClose }) {
             </div>
 
             <div className="tunes-fullplayer__body">
+                {karaokeMode && (
+                    <KaraokeLyricsOverlay
+                        synced={synced}
+                        activeIdx={activeLyricIdx}
+                        plain={lyrics?.plain}
+                        instrumental={lyrics?.instrumental}
+                        loading={!lyrics}
+                    />
+                )}
                 <div className="tunes-fullplayer__art-col">
                     <div className="tunes-fullplayer__art">
                         <div className="tunes-fullplayer__art-ring" />
@@ -272,6 +308,7 @@ export function FullScreenPlayer({ onClose }) {
                     </button>
                 </div>
 
+                {!karaokeMode && (
                 <aside className="tunes-fullplayer__queue" data-testid="tunes-fullplayer-side">
                     <section className="tunes-fullplayer__queue-section">
                         <h3 className="tunes-fullplayer__queue-title">Lyrics</h3>
@@ -329,6 +366,7 @@ export function FullScreenPlayer({ onClose }) {
                         </section>
                     )}
                 </aside>
+                )}
             </div>
 
             <div className="tunes-fullplayer__dock">
@@ -451,6 +489,78 @@ export function FullScreenPlayer({ onClose }) {
                     </div>
                     <BarChart3 size={18} color="var(--vesper-text-3)" />
                 </div>
+            </div>
+        </div>
+    );
+}
+
+
+/**
+ * v2.8.69 — Karaoke-mode lyrics overlay.  Rendered inside the
+ * FullScreenPlayer body when the karaoke-mode flag is set.  Pinned
+ * to the centre of the screen with a darkened scrim behind it so the
+ * synced lyric ticker is readable against any album art, and the
+ * blurred backdrop + art behind it are visible (not hidden) — that
+ * way the user still feels like they're inside the music app, just
+ * with the lyrics enlarged for sing-along.
+ */
+function KaraokeLyricsOverlay({ synced, activeIdx, plain, instrumental, loading }) {
+    const visible = React.useMemo(() => {
+        if (!synced || !synced.length) return [];
+        const start = Math.max(0, activeIdx - 2);
+        const end = Math.min(synced.length, activeIdx + 4);
+        return synced.slice(start, end).map((row, i) => ({
+            ...row,
+            offset: start + i - activeIdx,
+        }));
+    }, [synced, activeIdx]);
+
+    return (
+        <div
+            className="tunes-fullplayer__karaoke-overlay"
+            data-testid="karaoke-overlay"
+            aria-live="polite"
+        >
+            <div className="tunes-fullplayer__karaoke-scrim" />
+            <div className="tunes-fullplayer__karaoke-ticker">
+                {visible.length > 0 && visible.map((row) => (
+                    <p
+                        key={`${row.t}-${row.offset}`}
+                        className={
+                            'tunes-fullplayer__karaoke-line'
+                            + (row.offset === 0 ? ' is-active' : '')
+                            + (row.offset < 0 ? ' is-past' : '')
+                        }
+                        style={{
+                            opacity: row.offset === 0
+                                ? 1
+                                : Math.max(0.18, 0.65 - Math.abs(row.offset) * 0.18),
+                            transform: `scale(${row.offset === 0 ? 1 : 1 - Math.abs(row.offset) * 0.08})`,
+                        }}
+                    >
+                        {row.text || '♪'}
+                    </p>
+                ))}
+                {visible.length === 0 && plain && (
+                    <div className="tunes-fullplayer__karaoke-plain">
+                        {plain.split('\n').slice(0, 6).map((line, i) => (
+                            <p key={i}>{line || '\u00A0'}</p>
+                        ))}
+                    </div>
+                )}
+                {visible.length === 0 && !plain && instrumental && (
+                    <p className="tunes-fullplayer__karaoke-line is-active">
+                        ♪ Instrumental — vibe out ♪
+                    </p>
+                )}
+                {visible.length === 0 && !plain && !instrumental && loading && (
+                    <p className="tunes-fullplayer__karaoke-line">Loading lyrics…</p>
+                )}
+                {visible.length === 0 && !plain && !instrumental && !loading && (
+                    <p className="tunes-fullplayer__karaoke-line">
+                        Lyrics unavailable — just sing from the heart.
+                    </p>
+                )}
             </div>
         </div>
     );

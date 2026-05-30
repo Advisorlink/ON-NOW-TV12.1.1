@@ -1620,6 +1620,123 @@
     gap: 16px;
 }
 
+/* ─── v2.8.69 — Karaoke-mode lyrics overlay ─────────────────────
+   When the FullScreenPlayer is opened from the Karaoke landing
+   page, sessionStorage's `tunes-karaoke-mode=1` flag flips the
+   layout: the side queue panel is hidden, and this overlay
+   renders a centered synced-lyric ticker on top of the album art
+   + blurred backdrop.  Audio still plays via the same engine as
+   regular music — we're literally just swapping the lyrics UI.
+   The overlay sits at z-index 5 so it's above the artwork (z=2)
+   but below the transport dock (z=3 — keep transport tappable). */
+.tunes-fullplayer__karaoke-overlay {
+    position: absolute;
+    inset: 0;
+    /* z-index 2 keeps the overlay below the dock (z-index 3) so
+       the transport bar always draws on top, with pointer-events
+       disabled here so taps fall through to whatever is under
+       the lyrics (mostly the dock). */
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding: 80px clamp(20px, 5vw, 64px) 220px;
+}
+.tunes-fullplayer__karaoke-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at center,
+            rgba(10, 1, 24, 0.55) 0%,
+            rgba(10, 1, 24, 0.82) 60%,
+            rgba(10, 1, 24, 0.90) 100%);
+    pointer-events: none;
+}
+.tunes-fullplayer__karaoke-ticker {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    max-width: 980px;
+    width: 100%;
+    text-align: center;
+    pointer-events: none;
+}
+.tunes-fullplayer__karaoke-line {
+    font-size: clamp(22px, 4vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.18;
+    text-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.95),
+        0 4px 24px rgba(0, 0, 0, 0.65);
+    transition:
+        transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        color 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, opacity, color;
+}
+.tunes-fullplayer__karaoke-line.is-active {
+    color: var(--vesper-blue-bright) !important;
+    -webkit-text-fill-color: var(--vesper-blue-bright) !important;
+    text-shadow:
+        0 0 3px #ffffff,
+        0 0 6px rgba(255, 255, 255, 0.95),
+        0 0 22px rgba(var(--vesper-blue-rgb), 1.0),
+        0 0 48px rgba(var(--vesper-blue-rgb), 0.85),
+        0 0 92px rgba(var(--vesper-blue-rgb), 0.55),
+        0 6px 30px rgba(0, 0, 0, 0.85);
+    transform: scale(1.08);
+}
+.tunes-fullplayer__karaoke-line.is-past {
+    color: rgba(255, 255, 255, 0.38) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.38) !important;
+    transform: scale(0.97);
+}
+.tunes-fullplayer__karaoke-plain {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: clamp(18px, 2.4vw, 28px);
+    line-height: 1.55;
+    text-align: center;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+.tunes-fullplayer__karaoke-plain p { margin: 0 0 6px; }
+
+/* In karaoke mode, slide the artwork to the BACK (z-index 0) so
+   the centered ticker takes the spotlight, and dim the meta text
+   so the title doesn't fight the lyrics for attention. */
+.tunes-fullplayer--karaoke .tunes-fullplayer__art {
+    opacity: 0.55;
+    transform: scale(0.85);
+    transition: opacity 400ms ease, transform 400ms ease;
+}
+/* v2.8.69 — Hide the centre meta column entirely in karaoke mode
+   so the lyrics overlay isn't fighting the title text for the
+   middle of the screen.  The title + artist are still visible in
+   the MiniPlayer area at the bottom of the dock if the user needs
+   to confirm what's playing. */
+.tunes-fullplayer--karaoke .tunes-fullplayer__meta {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .tunes-fullplayer__karaoke-overlay {
+        padding: 60px 16px 260px;
+    }
+    .tunes-fullplayer__karaoke-line {
+        font-size: clamp(20px, 6.5vw, 36px);
+    }
+    .tunes-fullplayer--karaoke .tunes-fullplayer__art {
+        max-width: 200px;
+        opacity: 0.45;
+    }
+}
+
 .tunes-fullplayer__scrub {
     display: flex;
     align-items: center;
