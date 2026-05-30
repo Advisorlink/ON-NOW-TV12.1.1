@@ -32,6 +32,21 @@
     --vesper-text-2: rgba(255, 255, 255, 0.72);
     --vesper-text-3: rgba(255, 255, 255, 0.40);
 
+    /* Legacy `--tunes-*` aliases used by `karaoke.css`.  These
+       used to be the source of truth — now they're aliased to
+       the active Vesper-themed variables so the karaoke screens
+       inherit the same Pink / Electric Blue colour scheme. */
+    --tunes-bg-0:        var(--vesper-bg-0);
+    --tunes-bg-1:        var(--vesper-bg-1);
+    --tunes-bg-2:        var(--vesper-bg-2);
+    --tunes-accent:      var(--vesper-blue);
+    --tunes-accent-2:    var(--vesper-blue-bright);
+    --tunes-accent-3:    var(--vesper-blue-bright);
+    --tunes-accent-rgb:  var(--vesper-blue-rgb);
+    --tunes-text:        var(--vesper-text);
+    --tunes-text-dim:    var(--vesper-text-2);
+    --tunes-ease:        cubic-bezier(0.22, 1, 0.36, 1);
+
     /* SINGLE source of truth for the horizontal indent every
        content block uses.  Reducing this from clamp(92px,6.5vw,
        132px) → clamp(40px,4vw,72px) so the shelves and hero text
