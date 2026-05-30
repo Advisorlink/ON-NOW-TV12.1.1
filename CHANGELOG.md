@@ -1,5 +1,54 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.76 — Karaoke tile redesign (mockup-accurate, square, responsive)
+
+> User feedback on v2.8.75: "the buttons are huge, like they're really
+> long. I want it to look exactly like my design… use the images like
+> this."  User provided 2 PNG mockups (Sing Your Own / Party Mode) as
+> visual references — dark navy square cards with subtle starfield, a
+> single neon-blue glowing icon, bold white title, light-gray body.
+
+### Karaoke Home (`/music/karaoke`)
+- **Tiles are now square** (`aspect-ratio: 1 / 1`, max-width 380px) — no
+  more stretched-tall cards with empty bottom space.
+- **Unified dark-navy theme** with a soft blue border + subtle starfield
+  (replaced the 4-colour pink/blue/purple/coral border rotation that
+  didn't match the mockup).
+- **User's PNG mockup artwork** used directly for the Sing Your Own and
+  Party Mode tiles (cropped to icon-only with transparent background via
+  Pillow so the source navy doesn't show as a darker square).
+- **Custom inline-SVG neon icons** for Up Next and Random Challenge,
+  drawn in the same line-art style as the user's mockups with matching
+  `drop-shadow(0 0 14px #5eb5ff)` glow.
+- **Focus-ring override**: Music app theme defines
+  `--vesper-blue-bright: #ff7eb3` (pink) — Karaoke now explicitly
+  forces the focus outline to `#5eb5ff` so the tiles stay on-brand.
+
+### Party Picker (`/music/karaoke/party`)
+- Same square-tile design language with 3 tiles: Friends Sing Along,
+  Challenge Party, Random Party.
+- Compact hero variant (`.kk-hero--compact`) so the 3 tiles fit on
+  1080p without scroll.
+
+### Responsiveness
+- `clamp()` sizing on every dimension so the tiles, icon size, title
+  font, and body font all scale down on smaller screens.
+- 1100px breakpoint → 2-column grid; 640px → single column.
+- Verified at 1920×1080, 1280×720, and 768×1024 (tablet).
+
+### Files
+- `/app/frontend/src/pages/music/KaraokeHome.jsx` — rewritten
+- `/app/frontend/src/pages/music/KaraokePartyPicker.jsx` — rewritten
+- `/app/frontend/src/pages/music/karaoke-party.css` — `.kk-tile-grid`,
+  `.kk-tile`, `.kk-tile__icon`, `.kk-tile__stars`, `.kk-hero--compact`
+  sections rewritten
+- `/app/frontend/public/karaoke-icons/sing-your-own-icon.png` (new,
+  cropped + transparent)
+- `/app/frontend/public/karaoke-icons/party-mode-icon.png` (new,
+  cropped + transparent)
+
+
+
 ## v2.8.75 — Vibrant karaoke redesign + QR code actually works end-to-end
 
 > User feedback on v2.8.74: "thin lines and no images", "QR doesn't go
