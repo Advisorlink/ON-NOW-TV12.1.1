@@ -1,5 +1,57 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.69 — Karaoke now uses the EXACT SAME playback pipeline as regular music
+
+> User feedback that nailed it: "Make karaoke do the exact same
+> thing as the rest of the app, then just put the lyrics over the
+> top."  That's exactly what this version does.  The reason karaoke
+> kept breaking with subtle audio/lyrics-desync bugs across v2.8.62
+> → v2.8.67 was that it ran on a SEPARATE route + a separate
+> full-screen stage component OUTSIDE `<MusicLayout>` — every time
+> the user navigated to it, the layout tree re-mounted and the
+> iframe-init timing went fragile.  Regular music plays through the
+> MiniPlayer → FullScreenPlayer inside the layout shell, which has
+> been rock-solid for weeks.  Karaoke should NEVER have been a
+> different code path.
+
+### What changed
+- **Deleted the separate KaraokeStage UI.**  The previous 200+ line
+  full-screen component at `/music/karaoke/play/:trackId` is now a
+  thin 15-line redirect: fetch track → `controls.playTrack(track)`
+  → `navigate('/music/karaoke', { replace: true })` → bounce out.
+- **New `KaraokeLyricsOverlay`** rendered inside the existing
+  `FullScreenPlayer` when `sessionStorage['tunes-karaoke-mode']`
+  is set.  Centered synced-lyric ticker, big pink-glow active
+  line, dimmed album art behind it.  The Up Next / queue side
+  panel is hidden in karaoke mode.
+- **New flow when user taps a karaoke song tile:**
+  1. `controls.playTrack(track, [track])` — same call regular music
+     tiles make.  Resolves audio through the proven engine
+     (native bridge → backend → yt-iframe).
+  2. `sessionStorage.setItem('tunes-karaoke-mode', '1')`
+  3. `window.dispatchEvent('tunes:open-fullscreen')` — MiniPlayer
+     listens for this and opens the FullScreenPlayer modal.
+  No navigation, no route change, no layout re-mount.  The
+  PlayerEngine + YouTube iframe stay continuously alive across
+  the entire interaction, just like regular music.
+
+### Why this fixes the silent-audio bug
+- The bug WAS: route change → MusicLayout unmount → iframe re-init
+  with brittle timing → autoplay-mute heuristic wins.
+- The fix is: no route change.  Audio resolves the same way it
+  does for every other music tile in the app.  If you can play
+  any other track, karaoke will play.
+
+### Other niceties
+- The `KaraokeStage` route stub still resolves so old deep links
+  (`/music/karaoke/play/:trackId`) keep working — they just route
+  through the new flow.
+- Karaoke-mode flag auto-clears when the user closes the
+  FullScreenPlayer, so the next regular-music open shows the
+  normal lyrics/queue side panel.
+
+---
+
 ## v2.8.68 — Mobile music app is FULLY standalone (no Vesper menu, lyrics fixed, scroll fixed)
 
 > Diagnosis from user-supplied screenshots on phone:

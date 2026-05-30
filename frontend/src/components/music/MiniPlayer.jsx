@@ -39,6 +39,24 @@ export function MiniPlayer() {
         return subscribeMusicLibrary(update);
     }, [state.current?.id]);
 
+    // v2.8.69 — External "open the FullScreenPlayer" hook.  The
+    // Karaoke landing page dispatches this event after kicking off
+    // playback so the user lands directly in the now-playing UI
+    // (with karaoke-mode lyrics overlay) instead of a side-trip
+    // through a separate route.  Lets karaoke ride the EXACT same
+    // playback pipeline as regular music — same engine, same audio
+    // element, no special-case code paths.
+    useEffect(() => {
+        const open = () => setExpanded(true);
+        const close = () => setExpanded(false);
+        window.addEventListener('tunes:open-fullscreen', open);
+        window.addEventListener('tunes:close-fullscreen', close);
+        return () => {
+            window.removeEventListener('tunes:open-fullscreen', open);
+            window.removeEventListener('tunes:close-fullscreen', close);
+        };
+    }, []);
+
     if (!state.current) return null;
 
     const t = state.current;
