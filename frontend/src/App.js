@@ -54,7 +54,18 @@ import PodcastDetail from '@/pages/music/PodcastDetail';
 import MusicLibrary from '@/pages/music/MusicLibrary';
 // v2.8.60 — V2 Karaoke + Australia radio
 import AustraliaRadio from '@/pages/music/AustraliaRadio';
-import KaraokePage, { KaraokeStage } from '@/pages/music/Karaoke';
+// v2.8.74 — New karaoke flow (full party experience with QR/guest
+// joining + challenges + random singer mode).  Legacy `/music/karaoke/
+// play/:trackId` deep-link still resolves via KaraokeLegacyStage.
+import { KaraokeStage as KaraokeLegacyStage } from '@/pages/music/Karaoke';
+import KaraokeHome from '@/pages/music/KaraokeHome';
+import KaraokeSingYourOwn from '@/pages/music/KaraokeSingYourOwn';
+import KaraokePartyPicker from '@/pages/music/KaraokePartyPicker';
+import KaraokeFriendsLobby from '@/pages/music/KaraokeFriendsLobby';
+import KaraokeGuestJoin from '@/pages/music/KaraokeGuestJoin';
+import KaraokeChallenge from '@/pages/music/KaraokeChallenge';
+import KaraokeUpNext from '@/pages/music/KaraokeUpNext';
+import KaraokeStage from '@/pages/music/KaraokeStage';
 import { YouTubeIFrameHost } from '@/components/music/YouTubeIFrameHost';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
@@ -572,16 +583,34 @@ function App() {
                                     <Route path="radio/au"   element={<AustraliaRadio />} />
                                     <Route path="podcasts"   element={<PodcastBrowse />} />
                                     <Route path="library"    element={<MusicLibrary />} />
-                                    <Route path="karaoke"    element={<KaraokePage />} />
+                                    {/* v2.8.74 — New karaoke flow.  KaraokeHome
+                                        is the 4-tile entry; sub-routes below
+                                        cover every screen in the user's
+                                        supplied design pack. */}
+                                    <Route path="karaoke"                      element={<KaraokeHome />} />
+                                    <Route path="karaoke/sing"                 element={<KaraokeSingYourOwn />} />
+                                    <Route path="karaoke/party"                element={<KaraokePartyPicker />} />
+                                    <Route path="karaoke/party/friends"        element={<KaraokeFriendsLobby />} />
+                                    <Route path="karaoke/party/stage"          element={<KaraokeStage />} />
+                                    <Route path="karaoke/up-next"              element={<KaraokeUpNext />} />
+                                    <Route path="karaoke/challenge"            element={<KaraokeChallenge />} />
                                     <Route path="album/:id"  element={<MusicAlbum />} />
                                     <Route path="artist/:id" element={<MusicArtist />} />
                                     <Route path="podcast/:feedUrl" element={<PodcastDetail />} />
                                 </Route>
-                                {/* v2.8.60 — Karaoke stage lives OUTSIDE
-                                    the MusicLayout shell so it can take
-                                    the full screen (no sidebar, no
-                                    mini-player). */}
-                                <Route path="/music/karaoke/play/:trackId" element={<KaraokeStage />} />
+                                {/* v2.8.74 — Mobile guest join page (outside
+                                    music layout — no sidebar/queue chrome,
+                                    just the join + song-picker UI).  This
+                                    is what the QR code on the TV resolves
+                                    to: `https://onnowtv.duckdns.org/karaoke/
+                                    join/KARAOKE-1234`. */}
+                                <Route path="/karaoke/join/:code" element={<KaraokeGuestJoin />} />
+                                {/* v2.8.60 — Legacy karaoke deep link.  Still
+                                    resolves so external links from older
+                                    versions of the app keep working — the
+                                    component just bounces the user back to
+                                    /music/karaoke and triggers playback. */}
+                                <Route path="/music/karaoke/play/:trackId" element={<KaraokeLegacyStage />} />
                             </Routes>
                             {/* v2.8.64 — YouTube IFrame Player host
                                 lifted from MusicLayout to App level

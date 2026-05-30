@@ -23,6 +23,7 @@ import { ResolverDebug } from '../../components/music/ResolverDebug';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 import './karaoke.css';
+import './karaoke-party.css';
 
 const NAV_ITEMS = [
     { to: '/music',          label: 'Home',       icon: HomeIcon, end: true,  id: 'home' },

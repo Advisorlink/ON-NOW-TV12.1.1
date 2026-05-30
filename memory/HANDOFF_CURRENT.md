@@ -212,17 +212,42 @@ viewport height (not the full content height).
     re-add Vesper's MobileBottomNav to music routes.
   - `VesperOnlyChrome` — Vesper toasts/badges hidden on /music
   - Router selection for HashRouter vs BrowserRouter
+  - Karaoke party routes (v2.8.74) — see "Karaoke Party" section below.
 - `frontend/src/pages/music/MusicLayout.jsx`
   - Mounts the music app shell.  Sets `body[data-music-app="true"]`
     on mount so global CSS rules can scope.
+  - Imports `karaoke-party.css`.
 - `frontend/src/pages/music/MusicHome.jsx`
   - `buildHeroSlides()` builds the rotating hero.
   - Hero Play button onClick — see "Hero Play" section above.
 - `frontend/src/pages/music/FullScreenPlayer.jsx`
   - `KaraokeLyricsOverlay` rendered when sessionStorage flag set.
   - Sessionstorage flag cleared on close.
-- `frontend/src/pages/music/Karaoke.jsx`
-  - Landing page + legacy redirect stub.  Both call `startKaraokeFor`.
+
+### Karaoke Party (v2.8.74)
+- `frontend/src/pages/music/KaraokeHome.jsx` — 4-tile entry.
+- `frontend/src/pages/music/KaraokeSingYourOwn.jsx` — search + shelves.
+- `frontend/src/pages/music/KaraokePartyPicker.jsx` — 3 party modes.
+- `frontend/src/pages/music/KaraokeFriendsLobby.jsx` — QR + lobby.
+- `frontend/src/pages/music/KaraokeGuestJoin.jsx` — mobile guest page.
+- `frontend/src/pages/music/KaraokeChallenge.jsx` — Add a Challenge picker.
+- `frontend/src/pages/music/KaraokeUpNext.jsx` — queue read-only.
+- `frontend/src/pages/music/KaraokeStage.jsx` — stage HUD overlay.
+- `frontend/src/pages/music/Karaoke.jsx` — legacy redirect stub.
+- `frontend/src/pages/music/karaoke-party.css` — all karaoke party styles.
+- `frontend/src/lib/karaoke-party-api.js` — fetch wrapper + LS persistence.
+- `backend/karaoke_party.py` — party API (in-memory store, long-poll).
+
+### Karaoke Party — important design rules
+- Karaoke audio MUST keep using the `controls.playTrack` pipeline
+  (same as regular music).  Don't fall back to a standalone player.
+- Party state lives in backend memory only.  No MongoDB writes.
+- The QR code points at `${PUBLIC_FRONTEND_URL}/karaoke/join/{code}`
+  — the env var defaults to `https://onnowtv.duckdns.org` and can
+  be overridden via backend `.env`.
+- Guest join page mounts OUTSIDE MusicLayout — its own dark theme
+  with `karaoke-party.css` imported directly.
+
 - `frontend/src/pages/music/tunes.css`
   - `.tunes-root` is the canonical scroll container.
   - Mobile @media block at the bottom.

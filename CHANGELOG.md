@@ -1,5 +1,51 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.74 — Full karaoke party experience (TV + companion mobile)
+
+> Built every screen from the user-supplied design pack: the 4-tile
+> karaoke home, Sing Your Own flow, Party Mode picker, Friends Sing
+> Along lobby with real QR code, mobile guest join page, Add a
+> Challenge picker (with all four example challenges), Up Next page,
+> and a Karaoke Stage HUD overlay that rides on top of the existing
+> FullScreenPlayer.
+
+### Backend (`backend/karaoke_party.py`)
+- New `/api/karaoke/party` endpoints (create/get/join/song/mode/
+  advance/challenge/poll).
+- In-memory party store with 8-h TTL.  Long-poll endpoint at
+  `/poll?since=...` for live updates.
+
+### TV Frontend (mounted under MusicLayout)
+- `KaraokeHome` — "Tonight, You're The Star" hero + 4 tiles.
+- `KaraokeSingYourOwn` — search + Top Bangers + Popular Tonight shelves.
+- `KaraokePartyPicker` — 3 modes (Friends / Challenge / Random).
+- `KaraokeFriendsLobby` — QR code panel + Joined list + Up Next queue
+  with live polling.  START SINGING button enables when queue ≥ 1.
+- `KaraokeChallenge` — full design (BEFORE THE SONG STARTS eyebrow,
+  glowing dice, 3 main options + 4 example challenge tiles).
+- `KaraokeUpNext` — read-only queue + current entry.
+- `KaraokeStage` — HUD overlay (Now Singing avatar + Challenge Active
+  pill + Up Next card).  Wraps FullScreenPlayer for the player UX.
+
+### Mobile guest join (separate route `/karaoke/join/{code}`)
+- `KaraokeGuestJoin` — two phases:
+    1. Name entry with glowing mic + party code display.
+    2. Song picker with personal queue + everyone-else queue + live
+       updates via long-poll.
+
+### Plumbing
+- New routes wired in `App.js`.
+- `qrcode.react` added as a dependency for the QR rendering.
+- Karaoke party styles in new `karaoke-party.css`.
+
+### Verified end-to-end (preview pod)
+- Create party → guest joins → guest adds song → host sets random
+  challenge → advance queue → "Now singing: Bohemian Rhapsody" all
+  pass.  All TV screens render correctly with the design pack's
+  electric-blue / purple glow palette.
+
+---
+
 ## v2.8.73 — Hero "Play" button ALWAYS plays (no more "Couldn't load album HTTP 404")
 
 > User's video diagnosis: tapping Play on the Ariana Grande hero
