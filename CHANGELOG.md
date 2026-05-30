@@ -1,5 +1,86 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.78 — Kids kiosk lockdown · Kids Settings page · Karaoke Silent Spotlight · Artist-page TV rewrite
+
+> User feedback batch:
+>   1. "In Vesper Kids when you push HOME on the remote it goes back
+>      to the adult home — we have to stop the kids from being able
+>      to push HOME."  (CRITICAL)
+>   2. "Put a settings menu for the kids selection — ratings and all
+>      that, only accessible with the PIN."
+>   3. "Make the challenges work — silent spotlight: music + lyrics
+>      disappear briefly, then come back so the singer can see how
+>      far off they were."
+>   4. "When you click on an artist, the UI is blown up so big it
+>      doesn't make sense.  Make it easy to use on a TV."
+
+### 1. Kids kiosk lockdown (new `useKidsKioskGuard`)
+- `/app/frontend/src/hooks/useKidsKioskGuard.js` mounts globally in
+  `<App>`.  Three layers of defence:
+    1. **Route-watch**: any navigation to a non-`/kids/*` path while
+       kids+PIN is locked is force-redirected to `/kids/exit-pin`.
+    2. **Visibility-watch**: `visibilitychange` and window `focus`
+       events fire when the user returns from a HOME press (Vesper
+       backgrounded → foregrounded).  If they're outside the kids
+       sandbox we bounce them back to `/kids`.
+    3. **30 s heartbeat**: re-fires `window.OnNowTV.setKidsLock(true)`
+       so the native launcher's onResume bounce stays armed even if
+       the launcher backend lost the flag (e.g. restart).
+- `ALLOWED_AUX_ROUTES` includes `/title`, `/play`, `/resolve`,
+  `/search` so Kids can still navigate into title/player from
+  within their sandbox.
+
+### 2. Kids Settings page (PIN-gated, `/kids/settings`)
+- New page `KidsSettings.jsx` registered in App.js routes.
+- Phase 1 = 4-digit PIN gate (skipped if no PIN configured).
+- Phase 2 = settings cards:
+    - **Catalog**: contentTypes (Both / Movies / TV).
+    - **Movies**: max rating G / PG / M / PG-13.
+    - **TV**: max rating TV-Y / TV-Y7 / TV-G / TV-PG / TV-14.
+    - **Parent PIN**: shortcut to `/kids/setup` for PIN change.
+- Side-rail link added to `KidsSideNav.jsx` (between Search and Exit).
+- `useKidsKioskGuard` whitelists `/kids/settings`.
+
+### 3. Karaoke Silent Spotlight challenge
+- `KaraokeChallenge.jsx` now writes `tunes-karaoke-challenge` to
+  sessionStorage in addition to the party API.  If the user chose
+  "Random Challenge", we pick a concrete one from the pool so the
+  player has something to act on.
+- `FullScreenPlayer.jsx` reads the active challenge.  When it's
+  `silent-spotlight` and karaoke mode is on, we compute a stable
+  pseudo-random window between 40-65 % of the song duration (~7 s)
+  using the track id as a seed.  Inside that window:
+    - `controls.setVolume(0)` to mute the audio.
+    - The karaoke lyric overlay gets `is-spotlight` → CSS fades it
+      out for 600 ms.
+    - A `SILENT SPOTLIGHT` banner pulses centered above the art.
+  When the window ends, volume is restored from `state.volume` and
+  the lyrics fade back in.
+
+### 4. Music Artist page TV-friendly rewrite
+- Hero photo: 280 px square → `clamp(140px, 14vw, 200px)` circle.
+- Name: 60 px static → `clamp(28px, 3.6vw, 48px)`.
+- Track list is now a **2-column grid** with compact 44 px artwork
+  and a single-line ellipsis title + album line; clear focus ring,
+  far easier to D-pad through.
+- Discography uses `auto-fill, minmax(160px, 1fr)` tile cards with a
+  matching focus ring (mirrors the kk-tile aesthetic).
+- Page max-width capped to 1480 px so on a 1920 px TV nothing spans
+  the full screen.
+
+### Files
+- NEW `/app/frontend/src/hooks/useKidsKioskGuard.js`
+- NEW `/app/frontend/src/pages/KidsSettings.jsx`
+- MOD `/app/frontend/src/App.js` (import + route + hook mount)
+- MOD `/app/frontend/src/components/KidsSideNav.jsx` (Settings link)
+- MOD `/app/frontend/src/pages/music/KaraokeChallenge.jsx`
+- MOD `/app/frontend/src/pages/music/FullScreenPlayer.jsx`
+- MOD `/app/frontend/src/pages/music/MusicArtist.jsx` (full rewrite)
+- MOD `/app/frontend/src/pages/music/tunes.css` (artist + spotlight)
+- MOD `/app/frontend/src/index.css` (kids-settings styles)
+
+
+
 ## v2.8.77 — Full Karaoke design unification + avatar capture flow
 
 > User feedback on v2.8.76: "that design is perfect, I want it matched

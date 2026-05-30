@@ -1,3 +1,19 @@
+// v2.8.78 — Music Artist page TV-friendly rewrite.
+//
+// User feedback: "everything's blown up so big, it doesn't actually
+// make sense or it's not easy to use".  The previous layout used a
+// fixed 280px circular photo + 60px title + giant track rows which
+// dwarfed the focusable area on a TV.  This rewrite:
+//   • Hero uses clamp() across photo/title sizes so it scales 720p–4K.
+//   • Tighter track rows with a clear focus ring (the focus engine
+//     handles the outline; we just give it enough padding to read
+//     well from the couch).
+//   • Discography uses the same kk-tile-like square cards with
+//     subtle blue glow so the page feels coherent with the rest of
+//     the Tunes app.
+//   • Page max-width capped so on a 1920px TV the content never
+//     spans the full screen — easier to scan.
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
@@ -21,81 +37,95 @@ export default function MusicArtist() {
         musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [id]);
 
-    if (err) return <div className="tunes-empty">Couldn't load artist — {err}</div>;
+    if (err) return <div className="tunes-empty">Couldn&apos;t load artist — {err}</div>;
     if (!data) return <div className="tunes-empty">Loading…</div>;
 
     const top = data.top_tracks || [];
 
     return (
-        <div data-testid="music-artist">
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: '280px 1fr',
-                gap: 36,
-                alignItems: 'end',
-                marginBottom: 32,
-            }}>
+        <div data-testid="music-artist" className="tunes-artist-page">
+            <header className="tunes-artist-hero">
                 <img
                     src={data.picture || ''}
                     alt={data.name}
-                    style={{
-                        width: 280, height: 280, objectFit: 'cover',
-                        borderRadius: '50%',
-                        boxShadow: '0 30px 60px rgba(0,0,0,0.55)',
-                    }}
+                    className="tunes-artist-hero__photo"
+                    loading="lazy"
                 />
-                <div>
-                    <p style={{ fontSize: 12, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--tunes-accent-3)', margin: 0 }}>
-                        Artist {data.nb_fan ? `· ${data.nb_fan.toLocaleString()} fans` : ''}
+                <div className="tunes-artist-hero__copy">
+                    <p className="tunes-artist-hero__eyebrow">
+                        ARTIST{data.nb_fan ? ` · ${data.nb_fan.toLocaleString()} FANS` : ''}
                     </p>
-                    <h1 className="tunes-page-title" style={{ fontSize: 60, margin: '6px 0 18px' }}>{data.name}</h1>
+                    <h1 className="tunes-artist-hero__name">{data.name}</h1>
                     <button
-                        className="tunes-btn-primary"
+                        className="tunes-btn-primary tunes-artist-hero__play"
                         onClick={() => top.length && controls.playTrack(top[0], top)}
                         data-testid="tunes-artist-play"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
                     >
-                        <Play size={18} style={{ marginLeft: 2 }} />
+                        <Play size={16} style={{ marginLeft: 2 }} />
                         Play top tracks
                     </button>
                 </div>
-            </div>
+            </header>
 
             {top.length > 0 && (
-                <section className="tunes-section">
-                    <h2 className="tunes-section__title">Popular</h2>
-                    <div className="tunes-track-list">
+                <section className="tunes-artist-section">
+                    <h2 className="tunes-artist-section__title">Popular</h2>
+                    <div className="tunes-artist-tracklist">
                         {top.slice(0, 10).map((t, i) => (
-                            <div data-focusable="true" data-focus-style="tile"
+                            <button
+                                type="button"
                                 key={t.id}
-                                className="tunes-track-row"
+                                className="tunes-artist-trackrow"
+                                data-focusable="true"
+                                data-focus-style="tile"
                                 tabIndex={0}
                                 onClick={() => controls.playTrack(t, top)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, top); }}
                                 data-testid={`tunes-artist-track-${t.id}`}
                             >
-                                <div className="tunes-track-row__num">{i + 1}</div>
-                                <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />
-                                <div>
-                                    <p className="tunes-track-row__title">{t.title}</p>
-                                    <p className="tunes-track-row__artist">{t.album?.title || ''}</p>
-                                </div>
-                                <span className="tunes-track-row__duration">{fmtDur(t.duration)}</span>
-                            </div>
+                                <span className="tunes-artist-trackrow__num">{i + 1}</span>
+                                <img
+                                    src={t.album?.cover || ''}
+                                    alt=""
+                                    className="tunes-artist-trackrow__art"
+                                    loading="lazy"
+                                />
+                                <span className="tunes-artist-trackrow__meta">
+                                    <span className="tunes-artist-trackrow__title">{t.title}</span>
+                                    <span className="tunes-artist-trackrow__album">{t.album?.title || ''}</span>
+                                </span>
+                                <span className="tunes-artist-trackrow__duration">{fmtDur(t.duration)}</span>
+                            </button>
                         ))}
                     </div>
                 </section>
             )}
 
             {data.albums?.length > 0 && (
-                <section className="tunes-section">
-                    <h2 className="tunes-section__title">Discography</h2>
-                    <div className="tunes-grid">
+                <section className="tunes-artist-section">
+                    <h2 className="tunes-artist-section__title">Discography</h2>
+                    <div className="tunes-artist-albums">
                         {data.albums.map((a) => (
-                            <Link data-focusable="true" data-focus-style="tile" tabIndex={0} key={a.id} to={`/music/album/${a.id}`} className="tunes-card">
-                                <img src={a.cover || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                <div className="tunes-card__body">
-                                    <p className="tunes-card__title">{a.title}</p>
-                                    <p className="tunes-card__subtitle">{a.release_date?.slice(0, 4) || ''}</p>
+                            <Link
+                                data-focusable="true"
+                                data-focus-style="tile"
+                                tabIndex={0}
+                                key={a.id}
+                                to={`/music/album/${a.id}`}
+                                className="tunes-artist-albumcard"
+                            >
+                                <img
+                                    src={a.cover || ''}
+                                    alt=""
+                                    className="tunes-artist-albumcard__art"
+                                    loading="lazy"
+                                />
+                                <div className="tunes-artist-albumcard__body">
+                                    <p className="tunes-artist-albumcard__title">{a.title}</p>
+                                    <p className="tunes-artist-albumcard__year">{a.release_date?.slice(0, 4) || ''}</p>
                                 </div>
                             </Link>
                         ))}

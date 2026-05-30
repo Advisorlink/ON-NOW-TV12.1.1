@@ -5,6 +5,7 @@ import {
     Film,
     Tv,
     LogOut,
+    Settings as SettingsIcon,
     Sparkles,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -166,6 +167,33 @@ export default function KidsSideNav() {
                         </button>
                     );
                 })}
+
+                {/* Kids Settings — PIN-gated */}
+                <button
+                    data-testid="kids-settings-link"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={() => navigate('/kids/settings')}
+                    className="relative flex items-center gap-4 h-12 px-2 mt-2 rounded-2xl text-left"
+                    style={{ color: 'rgba(255,255,255,0.65)' }}
+                >
+                    <span
+                        className="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl"
+                        style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                        }}
+                    >
+                        <SettingsIcon size={18} strokeWidth={2} color="#fff" />
+                    </span>
+                    <span
+                        className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                        style={{ opacity: expanded ? 1 : 0 }}
+                    >
+                        Settings
+                    </span>
+                </button>
 
                 {/* Exit Kids — opens PIN gate */}
                 <button

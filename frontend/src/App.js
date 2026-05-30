@@ -17,6 +17,7 @@ import ProfileLoad from '@/pages/ProfileLoad';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import KidsSetup from '@/pages/KidsSetup';
+import KidsSettings from '@/pages/KidsSettings';
 import WatchTogether from '@/pages/WatchTogether';
 import LiveTV from '@/pages/LiveTV';
 import SportsGuide from '@/pages/SportsGuide';
@@ -79,6 +80,7 @@ function GlobalYouTubeHost() {
     return <YouTubeIFrameHost />;
 }
 import useKidsBackGuard from '@/hooks/useKidsBackGuard';
+import useKidsKioskGuard from '@/hooks/useKidsKioskGuard';
 import { runNotifyScanner } from '@/lib/notifyScanner';
 
 /* Live TV plumbing removed per user request — every bundle / EPG /
@@ -330,6 +332,7 @@ function RequireProfile({ children }) {
             '/search',
             '/resolve/',
             '/kids/exit-pin',
+            '/kids/settings',
             '/kids/setup',
         ];
         const ok = allowedKids.some((p) =>
@@ -381,6 +384,11 @@ function MobilePlatformRoot({ children }) {
     // and forces the PIN gate instead of letting the user pop
     // backwards into an adult catalogue.
     useKidsBackGuard();
+    // v2.8.78 — Kiosk-grade HOME-button guard.  When kids+PIN is
+    // active, intercept any route escape and any
+    // visibility/focus-resume event so the user can't get out of
+    // the sandbox by pressing HOME on the remote.
+    useKidsKioskGuard();
     /* Tag the document body so global CSS (in index.css) can branch
        on platform without every component having to know. */
     useEffect(() => {
@@ -556,6 +564,7 @@ function App() {
                                 <Route path="/profiles/load" element={<RequireProfile><ProfileLoad /></RequireProfile>} />
                                 <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
                                 <Route path="/kids/setup" element={<RequireProfile><KidsSetup /></RequireProfile>} />
+                                <Route path="/kids/settings" element={<RequireProfile><KidsSettings /></RequireProfile>} />
 
                                 <Route path="/" element={<RequireProfile><HomeRouter /></RequireProfile>} />
                                 <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />
