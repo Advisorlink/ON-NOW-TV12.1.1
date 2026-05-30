@@ -11,11 +11,38 @@
 // ticker) — see Karaoke.legacy.jsx for the underlying helper.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search as SearchIcon, Mic } from 'lucide-react';
+import { Search as SearchIcon, Mic, Sparkles, X as XIcon } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 const SOLO_KARAOKE_FLAG = 'tunes-karaoke-mode';
+const CHALLENGE_KEY     = 'tunes-karaoke-challenge';
+
+// v2.8.80 — Catalog of solo karaoke challenges that can be flipped
+// on/off from the Sing Your Own page (without bouncing through the
+// party-only Challenge picker).  Keep this list short so the chip
+// row doesn't overflow on mobile.
+const CHALLENGES = [
+    {
+        id: 'silent-spotlight',
+        label: 'Silent Spotlight',
+        hint: 'Music + lyrics drop out mid-song.',
+    },
+];
+
+function readChallenge() {
+    try { return sessionStorage.getItem(CHALLENGE_KEY) || ''; }
+    catch { return ''; }
+}
+function writeChallenge(value) {
+    try {
+        if (value) sessionStorage.setItem(CHALLENGE_KEY, value);
+        else sessionStorage.removeItem(CHALLENGE_KEY);
+    } catch { /* ignore quota */ }
+    // Fire a same-window event so any listening player picks it up.
+    try { window.dispatchEvent(new CustomEvent('tunes:karaoke-challenge-change')); }
+    catch { /* ignore */ }
+}
 
 function startKaraokeFor(controls, track) {
     if (!track) return;
@@ -70,9 +97,27 @@ export default function KaraokeSingYourOwn() {
     const [q, setQ] = useState('');
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [challenge, setChallenge] = useState(() => readChallenge());
     const { controls } = useMusicPlayer();
     const topBangers = useSeededTracks(TOP_BANGER_SEEDS);
     const popular   = useSeededTracks(POPULAR_SEEDS);
+
+    // Re-sync when other screens (Challenge picker) change the flag.
+    useEffect(() => {
+        const sync = () => setChallenge(readChallenge());
+        window.addEventListener('tunes:karaoke-challenge-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('tunes:karaoke-challenge-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+
+    const toggleChallenge = (id) => {
+        const next = challenge === id ? '' : id;
+        writeChallenge(next);
+        setChallenge(next);
+    };
 
     useEffect(() => {
         const t = q.trim();
@@ -119,6 +164,40 @@ export default function KaraokeSingYourOwn() {
                     data-focusable="true"
                     data-focus-style="pill"
                 />
+            </div>
+
+            {/* v2.8.80 — Inline challenge chips so users can flip on
+                Silent Spotlight (etc.) WITHOUT having to leave Sing
+                Your Own.  The FullScreenPlayer reads the active
+                challenge from sessionStorage on song-start. */}
+            <div className="kk-challenge-chips" data-testid="karaoke-challenge-chips">
+                <span className="kk-challenge-chips__eyebrow">
+                    <Sparkles size={13} strokeWidth={2} /> CHALLENGE
+                </span>
+                {CHALLENGES.map((c) => {
+                    const active = challenge === c.id;
+                    return (
+                        <button
+                            key={c.id}
+                            type="button"
+                            className={'kk-challenge-chip' + (active ? ' is-active' : '')}
+                            onClick={() => toggleChallenge(c.id)}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            data-testid={`karaoke-challenge-chip-${c.id}`}
+                            title={c.hint}
+                        >
+                            {c.label}
+                            {active && <XIcon size={13} strokeWidth={2.5} />}
+                        </button>
+                    );
+                })}
+                {challenge && (
+                    <span className="kk-challenge-chips__hint">
+                        {CHALLENGES.find((x) => x.id === challenge)?.hint}
+                    </span>
+                )}
             </div>
 
             {showSearch && (
