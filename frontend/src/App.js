@@ -242,7 +242,15 @@ if (typeof window !== 'undefined') {
 }
 
 const Router =
-    typeof window !== 'undefined' && window.location.protocol === 'file:'
+    typeof window !== 'undefined' && (
+        window.location.protocol === 'file:' ||
+        // v2.8.72 — Tunes APK loads via WebViewAssetLoader at
+        // `https://appassets.androidplatform.net/assets/web/index.html`.
+        // BrowserRouter would try to interpret `/assets/web/index.html`
+        // as the route which breaks navigation; HashRouter routes on
+        // `#/music` etc. correctly regardless of the URL path.
+        window.location.hostname === 'appassets.androidplatform.net'
+    )
         ? HashRouter
         : BrowserRouter;
 
