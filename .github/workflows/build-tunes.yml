@@ -5,12 +5,19 @@ on:
     branches: [ main ]
     paths:
       - 'android/onnowtv-tunes/**'
+      - 'frontend/**'
       - 'CHANGELOG.md'
       - '.github/workflows/build-tunes.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  # v2.8.70 — REACT_APP_BACKEND_URL baked into the bundled JS.  The
+  # APK now ships the React app offline (file:///android_asset/web/)
+  # and only the API calls (/api/...) reach out to the live VPS.
+  REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
 
 jobs:
   build:
@@ -20,6 +27,62 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Yarn deps
+        working-directory: frontend
+        run: yarn install --network-timeout 600000
+
+      - name: Build React app (production)
+        working-directory: frontend
+        env:
+          CI: 'false'
+          GENERATE_SOURCEMAP: 'false'
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: |
+          yarn build
+          ls -la build/
+
+      - name: Bundle React build into Tunes Android assets
+        run: |
+          set -euo pipefail
+          rm -rf android/onnowtv-tunes/app/src/main/assets/web
+          mkdir -p android/onnowtv-tunes/app/src/main/assets/web
+          cp -r frontend/build/. android/onnowtv-tunes/app/src/main/assets/web/
+
+          # Strip Emergent preview / PostHog telemetry from the
+          # bundled index.html — same as the Vesper build does.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/onnowtv-tunes/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          html = re.sub(
+              r'<script[^>]*assets\.emergent\.sh[^>]*></script>\s*',
+              '', html, flags=re.IGNORECASE)
+          html = re.sub(
+              r'<a\s+id="emergent-badge"[\s\S]*?</a>\s*',
+              '', html, flags=re.IGNORECASE)
+          html = re.sub(
+              r'<script>\s*!\(function\s*\([^)]*\)\s*\{[\s\S]*?posthog\.init\([\s\S]*?\}\);?\s*</script>\s*',
+              '', html, flags=re.IGNORECASE)
+          p.write_text(html, encoding='utf-8')
+          print('=== index.html cleaned ===')
+          PY
+
+          FILES=$(find android/onnowtv-tunes/app/src/main/assets/web/ -type f | wc -l)
+          echo "Total bundled files: $FILES"
+          if [ "$FILES" -lt 5 ]; then
+            echo "❌ Tunes assets folder has <5 files — React build likely failed!"
+            exit 1
+          fi
+          if [ ! -f android/onnowtv-tunes/app/src/main/assets/web/index.html ]; then
+            echo "❌ index.html missing from Tunes bundled assets!"
+            exit 1
+          fi
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
