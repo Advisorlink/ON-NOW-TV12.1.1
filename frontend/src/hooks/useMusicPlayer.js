@@ -115,7 +115,13 @@ class PlayerEngine {
                     height: '1',
                     width: '1',
                     playerVars: {
-                        autoplay: 1,
+                        // v2.8.65 — `autoplay: 1` triggers BROWSER
+                        // muted-autoplay policy ("trusted but quiet")
+                        // even right after a user click.  We let the
+                        // explicit `playVideo() + unMute()` on onReady
+                        // do the work instead — it preserves the
+                        // user-gesture sound permission.
+                        autoplay: 0,
                         controls: 0,
                         disablekb: 1,
                         playsinline: 1,
@@ -127,9 +133,10 @@ class PlayerEngine {
                             this.ytReady = true;
                             try {
                                 this.yt.setVolume(Math.round(this.state.volume * 100));
-                                // v2.8.64 — Force playback start on
-                                // ready (autoplay attribute alone is
-                                // unreliable across browsers).
+                                // v2.8.65 — explicitly unMute. YT
+                                // autoplay-muted policy on many
+                                // browsers/devices.
+                                this.yt.unMute();
                                 this.yt.playVideo();
                             } catch { /* ignore */ }
                             resolve(this.yt);
@@ -197,9 +204,6 @@ class PlayerEngine {
             try { this.audio.pause(); this.audio.src = ''; } catch { /* ignore */ }
         }
         this.activeEngine = 'youtube';
-        // Pass the videoId on first init so the iframe loads it
-        // immediately.  On subsequent calls, the player already
-        // exists and we use loadVideoById to swap tracks.
         const firstInit = !this.yt;
         const player = await this._ensureYouTubePlayer(firstInit ? videoId : null);
         if (!player) {
@@ -208,14 +212,25 @@ class PlayerEngine {
         }
         if (firstInit) {
             // Already loaded with the correct videoId in constructor.
-            try { player.setVolume(Math.round(this.state.volume * 100)); } catch { /* ignore */ }
+            try {
+                player.setVolume(Math.round(this.state.volume * 100));
+                // v2.8.65 — explicitly unMute.  YouTube auto-mutes
+                // autoplaying videos on mobile + some desktop policies
+                // even when the user clicked; we re-arm audio on every
+                // playback.
+                player.unMute();
+            } catch { /* ignore */ }
             return;
         }
         try {
             player.loadVideoById(videoId);
             player.setVolume(Math.round(this.state.volume * 100));
+            player.unMute();
             setTimeout(() => {
-                try { player.playVideo(); } catch { /* ignore */ }
+                try {
+                    player.playVideo();
+                    player.unMute();
+                } catch { /* ignore */ }
             }, 120);
         } catch (e) {
             console.warn('[music-player] loadVideoById failed', e);

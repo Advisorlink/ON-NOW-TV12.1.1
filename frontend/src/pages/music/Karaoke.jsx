@@ -348,8 +348,20 @@ export function KaraokeStage() {
         );
     }
 
+    // Read the stored theme so the karaoke stage matches the
+    // pink/blue scheme the user picked in the side rail.
+    const storedTheme = (() => {
+        try { return window.localStorage.getItem('onnowtv-tunes-theme'); }
+        catch { return null; }
+    })();
+    const theme = storedTheme === 'electric-blue' ? 'electric-blue' : 'pink';
+
     return (
-        <div className="tunes-karaoke-stage" data-testid="karaoke-stage">
+        <div
+            className="tunes-karaoke-stage"
+            data-testid="karaoke-stage"
+            data-theme={theme}
+        >
             {/* Backdrop — blurred album / video art with a vignette
                  so the lyrics text stays legible regardless of art. */}
             <div
