@@ -3514,6 +3514,13 @@ async def launcher_admin_proxy(full_path: str, request: Request):
 # under /api/music/* without polluting Vesper's home server.py file.
 from music_api import music_api as _music_api_router
 api.include_router(_music_api_router)
+
+# v2.8.74 — Karaoke Party (group karaoke with QR-code guest join,
+# song queue, random mode, challenges).  Routes are prefixed
+# `/api/karaoke/...` via the parent `api` router (which adds `/api`).
+from karaoke_party import karaoke_party_router
+api.include_router(karaoke_party_router)
+
 app.include_router(api)
 
 
