@@ -137,8 +137,11 @@
 .tunes-nav__brand-emblem {
     font-family: 'Geist', system-ui, sans-serif;
     font-weight: 800;
-    font-size: 30px;
-    letter-spacing: -0.04em;
+    /* v2.8.68 — ♪ glyph needs more vertical room than "V2" did.
+       Bumped from 30 → 36 px and removed the negative letter-spacing
+       that was clipping the right-hand stem of the note. */
+    font-size: 36px;
+    letter-spacing: 0;
     line-height: 1;
     color: var(--vesper-blue-bright);
     text-shadow:
@@ -1872,9 +1875,28 @@
 ============================================================ */
 
 @media (max-width: 768px) {
+    /* v2.8.68 — Override Vesper's global mobile rules WHEN the
+       standalone music app is mounted.  These rules would otherwise
+       (a) reserve 58 px at the bottom of <body> for Vesper's
+       MobileBottomNav (which we explicitly hide on /music routes),
+       and (b) the hover-disable used by Vesper might dull the
+       music-app touch interactions.  `data-music-app` is set by
+       MusicLayout on mount and removed on unmount. */
+    body[data-platform="mobile"][data-music-app="true"] {
+        padding-bottom: 0 !important;
+    }
+
     .tunes-root {
         --tunes-pad-x: 16px;
         --tunes-pad-right: 16px;
+        /* Enable native momentum scrolling on iOS / Android WebView.
+           Without this, swipe-up gestures inside the SPA sometimes
+           feel "stuck" because the browser falls back to clamped
+           scrolling.  -webkit-overflow-scrolling is a long-standing
+           hint that's still required on older Chromium WebViews
+           bundled with HK1-class boxes. */
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
     }
 
     /* Side rail → bottom tab bar */
@@ -2034,19 +2056,41 @@
     .tunes-fullplayer__body {
         grid-template-columns: 1fr;
         gap: 16px;
-        padding: 64px 16px 220px;
+        /* Extra-tall bottom padding (260 px) reserves room for the
+           sticky dock at the bottom so the last lyric / queue row
+           is NEVER hidden under the transport controls. */
+        padding: 64px 16px 280px;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     .tunes-fullplayer__art { max-width: 280px; margin: 0 auto; }
     .tunes-fullplayer__title { font-size: clamp(32px, 8vw, 48px); }
     .tunes-fullplayer__queue {
-        max-height: none;
+        /* Cap the queue panel so it scrolls internally on mobile.
+           Without a max-height the panel grew tall enough that its
+           lyrics flowed BEHIND the (transparent) dock, which is the
+           visual bug the user reported. */
+        max-height: 48vh;
         padding: 16px;
+        -webkit-overflow-scrolling: touch;
     }
     .tunes-fullplayer__dock {
-        left: 12px;
-        right: 12px;
-        bottom: 18px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+        /* Solid gradient backdrop + blur so the lyrics that scroll
+           past the dock are HIDDEN under it instead of bleeding
+           through the previously transparent dock area. */
+        background:
+            linear-gradient(
+                180deg,
+                rgba(10, 1, 24, 0.0) 0%,
+                rgba(10, 1, 24, 0.88) 30%,
+                rgba(10, 1, 24, 0.98) 100%
+            );
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
     }
     .tunes-fullplayer__transport { gap: 14px; }
     .tunes-fullplayer__transport .tunes-iconbtn--play {

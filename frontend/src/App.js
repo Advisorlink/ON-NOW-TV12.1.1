@@ -333,7 +333,14 @@ function HomeRouter() {
 }
 
 /* Routes where the mobile bottom-nav should be hidden — full-bleed
-   experiences (player, profile gates, watch party). */
+   experiences (player, profile gates, watch party).
+
+   v2.8.68 — `/music` added: the ON NOW Tunes app is a STANDALONE
+   product with its own bottom tab bar (Home / Search / Karaoke /
+   Radio / Library) rendered inside MusicLayout.  Vesper's
+   MobileBottomNav (Home/Search/Live/Library/More) must not bleed
+   into the music app — they're conceptually two different
+   experiences and the user is sideloading them as separate APKs. */
 const MOBILE_NAV_HIDDEN_PREFIXES = [
     '/play',
     '/profiles',
@@ -341,6 +348,7 @@ const MOBILE_NAV_HIDDEN_PREFIXES = [
     '/kids/setup',
     '/watch-together',
     '/resolve/',
+    '/music',
 ];
 
 function MobilePlatformRoot({ children }) {
@@ -390,9 +398,14 @@ function MobilePlatformRoot({ children }) {
        room on a phone screen) — but that ALSO hides the "Exit Kids"
        button.  Render a floating Exit pill in the top-right so the
        parent can still get out.  Only shown in kids mode, not on
-       the PIN gate itself (the gate IS the exit). */
+       the PIN gate itself (the gate IS the exit).
+
+       v2.8.68 — Also hidden on /music routes: the music app is a
+       standalone product without a Kids profile sandbox, so the
+       Exit pill from Vesper would be irrelevant + confusing. */
     const kidsActive = isMobile && isKidsActive() &&
-        !location.pathname.startsWith('/kids/exit-pin');
+        !location.pathname.startsWith('/kids/exit-pin') &&
+        !location.pathname.startsWith('/music');
 
     return (
         <>
@@ -487,6 +500,26 @@ function OnboardingGate() {
     return <Onboarding open={open} onClose={() => setOpen(false)} />;
 }
 
+function VesperOnlyChrome() {
+    // v2.8.68 — Vesper's app-wide chrome (toasts, modal pickers,
+    // dev badges, reminders, feature nudges) should NOT appear in
+    // the standalone ON NOW Tunes app.  The music app is a separate
+    // product with its own UX; bleeding Vesper toasts into it makes
+    // it feel like one half-broken app instead of two clean ones.
+    const location = useLocation();
+    if (location.pathname.startsWith('/music')) return null;
+    return (
+        <>
+            <DevModeBadge />
+            <NewEpisodeToast />
+            <AddToListModal />
+            <ReminderWatcher />
+            <NotifyHitWatcher />
+            <FeatureNudge />
+        </>
+    );
+}
+
 function App() {
     return (
         <div className="App">
@@ -495,12 +528,7 @@ function App() {
                     <Router>
                         <DeepLinkHandler />
                         <MobilePlatformRoot>
-                            <DevModeBadge />
-                            <NewEpisodeToast />
-                            <AddToListModal />
-                            <ReminderWatcher />
-                            <NotifyHitWatcher />
-                            <FeatureNudge />
+                            <VesperOnlyChrome />
                             <Routes>
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
