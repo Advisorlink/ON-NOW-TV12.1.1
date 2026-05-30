@@ -162,16 +162,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateToMusic() {
-        val base = getString(R.string.app_url).trim().trimEnd('/')
-        // Switch back to a plain WebViewClient so subsequent
-        // navigations inside /music aren't intercepted.
+        // v2.8.70 — Load the React app from BUNDLED ASSETS instead
+        // of the live VPS URL.  The build-tunes.yml workflow runs
+        // `yarn build` and copies frontend/build/ into the Tunes
+        // assets folder before assembling the APK, so the entire
+        // SPA ships INSIDE the APK.  Every "Save to GitHub" → new
+        // APK now ALSO carries the latest JS/CSS, instead of the
+        // user having to also manually deploy the React bundle to
+        // the VPS (which they were never doing — that's why my
+        // earlier "no Vesper menu" / scroll fixes never appeared
+        // on the phone).
+        //
+        // `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` is
+        // already baked into the JS at build time, so API calls
+        // continue to hit the live backend.  Only the static
+        // shell loads from `file:///`.
         webView.webViewClient = WebViewClient()
-        // `?box=1` flags the React app that it's running inside
-        // the Tunes APK (auto-shows the resolver debug overlay).
-        // `&yt=1` flags that a signed-in YouTube session is
-        // available — React side uses this to enable the IFrame
-        // Player route.
-        webView.loadUrl("$base/music?box=1&yt=1")
+        webView.loadUrl("file:///android_asset/web/index.html?box=1&yt=1#/music")
     }
 
     override fun onBackPressed() {

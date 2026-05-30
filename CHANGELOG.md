@@ -1,5 +1,60 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.70 — ON NOW Tunes APK now ships React INSIDE the APK (no more "nothing changed" syndrome)
+
+> **The user's frustration finally explained.**  Every "Save to
+> GitHub" since v2.8.43 was a no-op for the Tunes APK because:
+>
+> 1. The Tunes APK was a thin WebView shell that loaded
+>    `https://onnowtv.duckdns.org/music` from the live VPS.
+> 2. `.github/workflows/build-tunes.yml` only rebuilt the Kotlin
+>    shell (which barely ever changes).
+> 3. `.github/workflows/deploy-backend.yml` only deploys `backend/**`
+>    to the VPS.
+> 4. **There has never been a workflow that deploys the React
+>    frontend to the VPS.**
+>
+> So every fix I shipped (Vesper menu hidden, mobile scroll, lyric
+> overlap, karaoke rebuild) ended up in git, in the APK shell, on
+> the user's phone — but the actual React JS bundle the WebView
+> loaded was STILL the months-old code on the VPS.  Nothing
+> visibly changed because nothing functionally changed.
+
+### Fix
+- **`build-tunes.yml` now runs `yarn build` AND copies the React
+  build into the Tunes APK's `assets/web/` folder** before
+  assembling the APK — same approach the Vesper APK has been
+  using since v2.6.x.
+- **`build-tunes.yml` trigger paths extended to include `frontend/**`**
+  so any React change automatically kicks off a new Tunes APK build.
+- **`MainActivity.kt` `navigateToMusic()` now loads
+  `file:///android_asset/web/index.html?box=1&yt=1#/music`** — the
+  bundled React app — instead of the remote VPS URL.
+  `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` is baked into
+  the JS at build time, so API calls (`/api/...`) keep hitting the
+  live backend.  Only the static SPA shell loads from `file://`.
+- **Emergent telemetry strip step added** to the Tunes build,
+  matching what Vesper does, so the bundled `index.html` doesn't
+  carry the "Made with Emergent" badge or PostHog tracking.
+- **Sanity checks**: build fails fast if the bundled assets folder
+  has < 5 files or `index.html` is missing.
+
+### What this fixes for the user
+- Every "Save to GitHub" from now on rebuilds the Tunes APK with
+  the LATEST React code baked in.  Install the new APK, open the
+  app, see the new UI immediately.  No more "nothing changed".
+- The fixes from v2.8.66 / v2.8.67 / v2.8.68 / v2.8.69 (Vesper
+  menu hidden, scroll, lyrics overlap, separate music brand, new
+  karaoke pipeline) will ALL appear together in this build.
+
+### Bonus: works offline
+- The Tunes APK no longer requires the VPS to be reachable just
+  to render the UI.  Even on flaky networks, the music app opens
+  instantly from local assets.  Only audio playback + API calls
+  need the network.
+
+---
+
 ## v2.8.69 — Karaoke now uses the EXACT SAME playback pipeline as regular music
 
 > User feedback that nailed it: "Make karaoke do the exact same
