@@ -1,0 +1,364 @@
+/* ON NOW TV Tunes — Design Gallery (v2.8.76).
+ * 6 tile variants + 6 button variants on a single scrollable page
+ * so the user can pick which direction to take across the karaoke flow. */
+
+.dg-gallery {
+    color: #fff;
+    padding: 32px clamp(40px, 4vw, 72px) 120px;
+    font-family: 'Geist', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #1a0a3a 0%, #050211 60%);
+    min-height: 100%;
+}
+
+.dg-hero { margin-bottom: 40px; }
+.dg-eyebrow {
+    color: var(--kk-blue-2);
+    font-size: 12px;
+    letter-spacing: 0.32em;
+    font-weight: 700;
+    margin: 0 0 12px;
+}
+.dg-gallery h1 {
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 800;
+    margin: 0 0 12px;
+    letter-spacing: -0.03em;
+}
+.dg-sub { color: rgba(255,255,255,0.75); font-size: 17px; line-height: 1.5; max-width: 720px; margin: 0; }
+
+.dg-variant { margin-top: 56px; }
+.dg-variant__head { margin-bottom: 18px; }
+.dg-variant__head h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    color: var(--kk-blue-2);
+    letter-spacing: 0.01em;
+}
+.dg-variant__head p {
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    margin: 0;
+    max-width: 720px;
+}
+
+.dg-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+.dg-grid--challenges { grid-template-columns: repeat(4, 1fr); }
+
+.dg-tile {
+    position: relative;
+    aspect-ratio: 9 / 12;
+    border-radius: 24px;
+    overflow: hidden;
+    color: #fff;
+}
+.dg-tile__bg, .dg-tile__scrim { position: absolute; inset: 0; }
+.dg-tile__inner {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    padding: 24px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+.dg-tile__icon { margin-bottom: 18px; }
+.dg-tile__eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+.dg-tile__title { font-size: 22px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
+.dg-tile__body { font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.7); margin: 0; }
+
+/* Theme colour vars per tile (consistent across variants) */
+.dg-theme--pink   { --c: #ff7ab8; --c2: #ffb6da; --rgb: 255,122,184; }
+.dg-theme--blue   { --c: #4ea7ff; --c2: #7cc4ff; --rgb: 78,167,255; }
+.dg-theme--purple { --c: #a96bff; --c2: #d4b3ff; --rgb: 169,107,255; }
+.dg-theme--coral  { --c: #ff8b5a; --c2: #ffb494; --rgb: 255,139,90; }
+
+/* =========================================================
+ * VARIANT 1 — Glass Cards (frosted, thin glow border)
+ * ======================================================= */
+.dg-v1 {
+    background: linear-gradient(180deg, rgba(20,8,40,0.85), rgba(10,4,30,0.95));
+    backdrop-filter: blur(20px);
+    border: 1.5px solid var(--c);
+    box-shadow:
+        0 0 0 1px rgba(var(--rgb), 0.18) inset,
+        0 16px 50px rgba(0,0,0,0.45),
+        0 0 28px rgba(var(--rgb), 0.25);
+}
+.dg-v1 .dg-tile__bg {
+    background: radial-gradient(60% 50% at 50% 0%, rgba(var(--rgb), 0.55), transparent 70%);
+    filter: blur(30px);
+}
+.dg-v1 .dg-tile__icon { color: #fff; filter: drop-shadow(0 0 18px var(--c)); }
+.dg-v1 .dg-tile__eyebrow { color: var(--c); text-shadow: 0 0 12px rgba(var(--rgb), 0.5); }
+
+/* =========================================================
+ * VARIANT 2 — Vivid Poster (solid color block, white text)
+ * ======================================================= */
+.dg-v2 {
+    background: linear-gradient(135deg, var(--c) 0%, var(--c2) 100%);
+    color: #0a041a;
+    box-shadow: 0 16px 40px rgba(var(--rgb), 0.4);
+}
+.dg-v2 .dg-tile__icon { color: #0a041a; }
+.dg-v2 .dg-tile__eyebrow { color: rgba(10, 4, 26, 0.7); }
+.dg-v2 .dg-tile__title { color: #0a041a; }
+.dg-v2 .dg-tile__body { color: rgba(10, 4, 26, 0.7); }
+
+/* =========================================================
+ * VARIANT 3 — Photo Cards (real concert photos with scrim)
+ * ======================================================= */
+.dg-v3 {
+    border-radius: 24px;
+    background-size: cover;
+    background-position: center;
+}
+.dg-v3.dg-theme--pink   .dg-tile__bg { background: url('https://images.unsplash.com/photo-1493676304819-0d7a8d026dcf?w=1000&q=80') center/cover; }
+.dg-v3.dg-theme--blue   .dg-tile__bg { background: url('https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=1000&q=80') center/cover; }
+.dg-v3.dg-theme--purple .dg-tile__bg { background: url('https://images.unsplash.com/photo-1574006517888-22fe4a96b8eb?w=1000&q=80') center/cover; }
+.dg-v3.dg-theme--coral  .dg-tile__bg { background: url('https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=1000&q=80') center/cover; }
+.dg-v3 .dg-tile__scrim {
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 50%, rgba(5,2,17,0.92) 100%);
+}
+.dg-v3 .dg-tile__inner { justify-content: flex-end; }
+.dg-v3 .dg-tile__icon { color: var(--c); filter: drop-shadow(0 0 14px var(--c)); margin-bottom: auto; margin-top: 14px; }
+.dg-v3 .dg-tile__eyebrow { color: var(--c2); }
+
+/* =========================================================
+ * VARIANT 4 — Neon Arcade (thick neon outline, glow text)
+ * ======================================================= */
+.dg-v4 {
+    background: #0a041a;
+    border: 3px solid var(--c);
+    box-shadow:
+        0 0 0 1px var(--c) inset,
+        0 0 16px var(--c),
+        0 0 36px rgba(var(--rgb), 0.45),
+        inset 0 0 24px rgba(var(--rgb), 0.18);
+}
+.dg-v4 .dg-tile__icon {
+    color: var(--c);
+    filter: drop-shadow(0 0 12px var(--c)) drop-shadow(0 0 22px var(--c));
+}
+.dg-v4 .dg-tile__eyebrow {
+    color: var(--c);
+    text-shadow: 0 0 8px var(--c), 0 0 16px rgba(var(--rgb), 0.7);
+}
+.dg-v4 .dg-tile__title {
+    color: #fff;
+    text-shadow: 0 0 12px var(--c), 0 0 24px rgba(var(--rgb), 0.6);
+}
+
+/* =========================================================
+ * VARIANT 5 — Hand-Painted (brush textures, warm playful)
+ * ======================================================= */
+.dg-v5 {
+    background:
+        radial-gradient(circle at 20% 30%, rgba(var(--rgb), 0.55) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(var(--rgb), 0.4) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(var(--rgb), 0.25) 0%, transparent 60%),
+        #1a0a2a;
+    border-radius: 36px 14px 36px 14px;
+    border: 0;
+    box-shadow: 0 18px 40px rgba(var(--rgb), 0.3);
+}
+.dg-v5::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 30px 10px 30px 10px;
+    border: 2px dashed rgba(255,255,255,0.18);
+    pointer-events: none;
+}
+.dg-v5 .dg-tile__icon {
+    color: #fff;
+    background: var(--c);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 8px 24px rgba(var(--rgb), 0.5);
+}
+.dg-v5 .dg-tile__eyebrow { color: var(--c2); }
+
+/* =========================================================
+ * VARIANT 6 — 3D Pop (chunky tactile button)
+ * ======================================================= */
+.dg-v6 {
+    background: var(--c);
+    border-radius: 20px;
+    border: 0;
+    box-shadow:
+        0 6px 0 0 color-mix(in srgb, var(--c) 50%, #0a041a),
+        0 12px 0 0 color-mix(in srgb, var(--c) 30%, #0a041a),
+        0 18px 28px rgba(0,0,0,0.6);
+    color: #0a041a;
+    margin-bottom: 18px;
+}
+.dg-v6 .dg-tile__icon {
+    color: #fff;
+    background: rgba(10, 4, 26, 0.85);
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 4px 0 0 rgba(0,0,0,0.6);
+}
+.dg-v6 .dg-tile__eyebrow { color: rgba(10, 4, 26, 0.65); font-weight: 800; }
+.dg-v6 .dg-tile__title { color: #0a041a; }
+.dg-v6 .dg-tile__body { color: rgba(10, 4, 26, 0.65); }
+
+/* =========================================================
+ * BUTTON GALLERY
+ * ======================================================= */
+.dg-btn-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+}
+.dg-btn-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 22px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.dg-btn-cell__label {
+    color: var(--kk-blue-2);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+    margin: 0;
+}
+.dg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 16px 28px;
+    border-radius: 14px;
+    border: 0;
+    cursor: pointer;
+    transition: transform 180ms, box-shadow 220ms;
+}
+.dg-b1 {
+    background: var(--kk-blue);
+    color: #0a041a;
+    box-shadow: 0 10px 30px rgba(78,167,255,0.5);
+}
+.dg-b2 {
+    background: transparent;
+    color: var(--kk-blue-2);
+    border: 1.5px solid var(--kk-blue);
+    box-shadow: 0 0 0 1px var(--kk-blue) inset;
+}
+.dg-b3 {
+    background: linear-gradient(90deg, var(--kk-pink) 0%, var(--kk-blue) 60%, var(--kk-purple) 100%);
+    color: #0a041a;
+    box-shadow: 0 14px 30px rgba(78,167,255,0.5);
+}
+.dg-b4 {
+    background: transparent;
+    color: var(--kk-blue);
+    border: 2px solid var(--kk-blue);
+    box-shadow:
+        0 0 0 1px var(--kk-blue) inset,
+        0 0 12px var(--kk-blue),
+        0 0 32px rgba(78,167,255,0.55),
+        inset 0 0 12px rgba(78,167,255,0.2);
+    text-shadow: 0 0 8px var(--kk-blue);
+}
+.dg-b5 {
+    background: var(--kk-pink);
+    color: #0a041a;
+    border-radius: 14px;
+    box-shadow:
+        0 4px 0 0 #c44a8a,
+        0 8px 0 0 #7a2050,
+        0 14px 24px rgba(0,0,0,0.6);
+    font-weight: 800;
+}
+.dg-b6 {
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+    backdrop-filter: blur(22px);
+    border: 1.5px solid rgba(255,255,255,0.32);
+}
+
+/* =========================================================
+ * CHALLENGE CARD GALLERY
+ * ======================================================= */
+.dg-challenge-card {
+    padding: 24px 18px 22px;
+    text-align: center;
+    color: #fff;
+    border-radius: 18px;
+    font-family: inherit;
+}
+.dg-challenge-card__icon {
+    margin-bottom: 14px;
+    display: grid;
+    place-items: center;
+    min-height: 54px;
+}
+.dg-challenge-card h3 { font-size: 17px; font-weight: 700; margin: 0 0 8px; }
+.dg-challenge-card p  { font-size: 13px; color: rgba(255,255,255,0.7); margin: 0; line-height: 1.45; }
+.dg-dashed {
+    color: var(--kk-purple);
+    border: 2px dashed var(--kk-purple);
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+}
+/* Glass */
+.dg-cc-v1 {
+    background: rgba(10,14,40,0.55);
+    border: 1.5px solid var(--kk-purple);
+    box-shadow: 0 0 24px var(--kk-glow-p);
+}
+.dg-cc-v1 .dg-challenge-card__icon { color: var(--kk-purple); filter: drop-shadow(0 0 12px var(--kk-glow-p)); }
+/* Vivid */
+.dg-cc-v2 {
+    background: linear-gradient(135deg, var(--kk-purple), #6e3fff);
+    color: #fff;
+}
+.dg-cc-v2 .dg-challenge-card__icon { color: #fff; }
+.dg-cc-v2 h3 { color: #fff; }
+.dg-cc-v2 p  { color: rgba(255,255,255,0.85); }
+.dg-cc-v2 .dg-dashed { color: #fff; border-color: #fff; }
+/* Neon */
+.dg-cc-v3 {
+    background: #0a041a;
+    border: 2.5px solid var(--kk-purple);
+    box-shadow: 0 0 14px var(--kk-purple), inset 0 0 18px rgba(169,107,255,0.18);
+}
+.dg-cc-v3 .dg-challenge-card__icon { color: var(--kk-purple); filter: drop-shadow(0 0 10px var(--kk-purple)); }
+.dg-cc-v3 h3 { text-shadow: 0 0 10px var(--kk-purple); }
+/* 3D */
+.dg-cc-v4 {
+    background: var(--kk-purple);
+    color: #1a0540;
+    box-shadow: 0 4px 0 0 #6e3fff, 0 8px 0 0 #3e1380, 0 14px 22px rgba(0,0,0,0.6);
+    border: 0;
+}
+.dg-cc-v4 .dg-challenge-card__icon { color: #1a0540; }
+.dg-cc-v4 h3 { color: #1a0540; }
+.dg-cc-v4 p  { color: rgba(26, 5, 64, 0.7); }

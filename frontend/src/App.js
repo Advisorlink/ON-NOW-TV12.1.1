@@ -66,6 +66,7 @@ import KaraokeGuestJoin from '@/pages/music/KaraokeGuestJoin';
 import KaraokeChallenge from '@/pages/music/KaraokeChallenge';
 import KaraokeUpNext from '@/pages/music/KaraokeUpNext';
 import KaraokeStage from '@/pages/music/KaraokeStage';
+import KaraokeDesignGallery from '@/pages/music/KaraokeDesignGallery';
 import { YouTubeIFrameHost } from '@/components/music/YouTubeIFrameHost';
 import { LogOut } from 'lucide-react';
 import useIsMobile from '@/lib/useIsMobile';
@@ -594,6 +595,7 @@ function App() {
                                     <Route path="karaoke/party/stage"          element={<KaraokeStage />} />
                                     <Route path="karaoke/up-next"              element={<KaraokeUpNext />} />
                                     <Route path="karaoke/challenge"            element={<KaraokeChallenge />} />
+                                    <Route path="karaoke/designs"              element={<KaraokeDesignGallery />} />
                                     <Route path="album/:id"  element={<MusicAlbum />} />
                                     <Route path="artist/:id" element={<MusicArtist />} />
                                     <Route path="podcast/:feedUrl" element={<PodcastDetail />} />
