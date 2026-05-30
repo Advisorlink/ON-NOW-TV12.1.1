@@ -2439,3 +2439,258 @@
     .karaoke-search input { height: 48px; padding-left: 46px; }
     .karaoke-search__icon { left: calc(var(--tunes-pad-x) + 14px); }
 }
+
+/* =============================================================
+ * v2.8.78 — Music Artist page (TV-friendly)
+ *
+ * Compact, scannable, with focus-ring breathing room.  Sized so a
+ * 1920×1080 TV viewer sitting 2 m away can read titles + scan the
+ * track list with D-pad in one glance.
+ * ============================================================ */
+.tunes-artist-page {
+    color: #fff;
+    padding: clamp(20px, 2.5vh, 36px) clamp(40px, 4vw, 72px) 80px;
+    max-width: 1480px;
+    margin: 0 auto;
+}
+
+.tunes-artist-hero {
+    display: grid;
+    grid-template-columns: clamp(140px, 14vw, 200px) 1fr;
+    gap: clamp(20px, 2.5vw, 36px);
+    align-items: center;
+    margin-bottom: clamp(20px, 2.5vh, 36px);
+}
+.tunes-artist-hero__photo {
+    width: clamp(140px, 14vw, 200px);
+    height: clamp(140px, 14vw, 200px);
+    object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+}
+.tunes-artist-hero__eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--tunes-accent-3, #66d4ff);
+    margin: 0 0 6px;
+    font-weight: 700;
+}
+.tunes-artist-hero__name {
+    font-size: clamp(28px, 3.6vw, 48px);
+    font-weight: 800;
+    margin: 0 0 14px;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    color: #fff;
+}
+.tunes-artist-hero__play {
+    height: 44px;
+    padding: 0 20px;
+    font-size: 14px;
+}
+
+.tunes-artist-section { margin-top: clamp(20px, 2.5vh, 32px); }
+.tunes-artist-section__title {
+    font-size: clamp(18px, 1.6vw, 22px);
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+/* Track list — compact rows with consistent focus padding */
+.tunes-artist-tracklist {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+@media (max-width: 1100px) {
+    .tunes-artist-tracklist { grid-template-columns: 1fr; }
+}
+.tunes-artist-trackrow {
+    display: grid;
+    grid-template-columns: 28px 44px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 220ms, border-color 220ms;
+}
+.tunes-artist-trackrow:hover,
+.tunes-artist-trackrow:focus,
+.tunes-artist-trackrow.is-focused {
+    background: rgba(102, 212, 255, 0.10);
+    border-color: rgba(102, 212, 255, 0.55);
+    outline: none;
+}
+.tunes-artist-trackrow__num {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 13px;
+    text-align: center;
+    font-weight: 700;
+}
+.tunes-artist-trackrow__art {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+.tunes-artist-trackrow__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.tunes-artist-trackrow__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-artist-trackrow__album {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+.tunes-artist-trackrow__duration {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Discography grid — compact tiles */
+.tunes-artist-albums {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+
+/* =============================================================
+ * v2.8.78 — Silent Spotlight (karaoke challenge)
+ *
+ * While `inSpotlight` is true the player mutes audio AND we visually
+ * suppress the lyrics so the singer has to feel the rhythm on their
+ * own.  A small "SILENT SPOTLIGHT" banner pulses at the top so they
+ * know what's happening.  When the window ends the lyrics fade back
+ * in and the audio returns to its previous volume.
+ * ============================================================ */
+.tunes-fullplayer__karaoke-overlay.is-spotlight .tunes-fullplayer__karaoke-ticker,
+.tunes-fullplayer__karaoke-overlay.is-spotlight .tunes-fullplayer__karaoke-plain {
+    opacity: 0;
+    transform: scale(0.96);
+    pointer-events: none;
+    transition: opacity 600ms ease, transform 600ms ease;
+}
+.tunes-fullplayer__karaoke-overlay .tunes-fullplayer__karaoke-ticker,
+.tunes-fullplayer__karaoke-overlay .tunes-fullplayer__karaoke-plain {
+    transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.tunes-fullplayer__spotlight-banner {
+    position: absolute;
+    top: clamp(20px, 4vh, 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 28px;
+    border-radius: 18px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 122, 184, 0.30), transparent 70%),
+        linear-gradient(180deg, rgba(40, 10, 60, 0.92), rgba(15, 5, 30, 0.88));
+    border: 1.5px solid rgba(255, 122, 184, 0.55);
+    box-shadow:
+        0 0 0 1px rgba(255, 122, 184, 0.30) inset,
+        0 0 36px rgba(255, 122, 184, 0.45);
+    color: #fff;
+    text-align: center;
+    z-index: 30;
+    animation: tunes-spotlight-pulse 1.6s ease-in-out infinite;
+}
+.tunes-fullplayer__spotlight-eyebrow {
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    font-weight: 700;
+    color: #ff7ab8;
+    text-transform: uppercase;
+}
+.tunes-fullplayer__spotlight-title {
+    font-family: var(--vesper-font, 'Geist', system-ui, sans-serif);
+    font-size: clamp(22px, 2.2vw, 32px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(255, 122, 184, 0.55);
+}
+.tunes-fullplayer__spotlight-hint {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.78);
+    font-weight: 600;
+}
+
+@keyframes tunes-spotlight-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 0 1px rgba(255, 122, 184, 0.30) inset,
+            0 0 36px rgba(255, 122, 184, 0.45);
+    }
+    50% {
+        box-shadow:
+            0 0 0 1px rgba(255, 122, 184, 0.50) inset,
+            0 0 60px rgba(255, 122, 184, 0.70);
+    }
+}
+
+    gap: 16px;
+}
+.tunes-artist-albumcard {
+    display: block;
+    background: transparent;
+    border-radius: 14px;
+    color: #fff;
+    text-decoration: none;
+    padding: 8px;
+    transition: background 220ms, transform 220ms, box-shadow 220ms;
+}
+.tunes-artist-albumcard:hover,
+.tunes-artist-albumcard:focus,
+.tunes-artist-albumcard.is-focused {
+    background: rgba(102, 212, 255, 0.08);
+    box-shadow: 0 0 0 1.5px rgba(102, 212, 255, 0.55) inset, 0 0 24px rgba(102, 212, 255, 0.22);
+    transform: translateY(-2px);
+    outline: none;
+}
+.tunes-artist-albumcard__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 12px;
+}
+.tunes-artist-albumcard__body { padding: 8px 4px 0; }
+.tunes-artist-albumcard__title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-artist-albumcard__year {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+}
+

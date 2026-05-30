@@ -128,6 +128,63 @@ export function FullScreenPlayer({ onClose }) {
 
     const synced = lyrics?.synced || [];
     const position = state.position || 0;
+
+    // v2.8.78 — Silent Spotlight challenge.
+    //
+    // When the user has selected the "silent-spotlight" challenge for
+    // this party, the player mutes the audio AND hides the karaoke
+    // lyrics for ~7 seconds at a random point between 40-65% of the
+    // song.  Then the audio + lyrics snap back so the singer can hear
+    // how far off they were.
+    //
+    // We compute the window once per track (memoised via `t.id`) and
+    // toggle `inSpotlight` whenever the current `position` falls
+    // inside it.  Volume is restored from `state.volume` so any
+    // user-adjusted level is preserved.
+    const [challenge, setChallenge] = useState(() => {
+        try { return sessionStorage.getItem('tunes-karaoke-challenge') || ''; }
+        catch { return ''; }
+    });
+    useEffect(() => {
+        const reread = () => {
+            try { setChallenge(sessionStorage.getItem('tunes-karaoke-challenge') || ''); }
+            catch { /* ignore */ }
+        };
+        window.addEventListener('storage', reread);
+        return () => window.removeEventListener('storage', reread);
+    }, []);
+
+    const spotlightWindow = useMemo(() => {
+        if (!karaokeMode || challenge !== 'silent-spotlight') return null;
+        const dur = state.duration || t?.duration || 0;
+        if (dur < 25) return null; // too short for a fun spotlight
+        // Pseudo-random offset seeded by track id so reruns are stable.
+        const seed = ((t?.id ?? 0).toString()
+            .split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 25) / 100;
+        const startFrac = 0.40 + seed; // 0.40 - 0.65
+        return { start: dur * startFrac, end: Math.min(dur - 4, dur * startFrac + 7) };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [karaokeMode, challenge, t?.id, state.duration]);
+
+    const inSpotlight = !!spotlightWindow
+        && position >= spotlightWindow.start
+        && position < spotlightWindow.end;
+
+    // Apply the actual audio mute on edge transitions only — we
+    // don't want to spam setVolume on every tick.
+    const wasInSpotlight = useRef(false);
+    const savedVolumeRef = useRef(null);
+    useEffect(() => {
+        if (inSpotlight && !wasInSpotlight.current) {
+            savedVolumeRef.current = state.volume ?? 0.85;
+            controls.setVolume(0);
+            wasInSpotlight.current = true;
+        } else if (!inSpotlight && wasInSpotlight.current) {
+            controls.setVolume(savedVolumeRef.current ?? 0.85);
+            wasInSpotlight.current = false;
+        }
+    }, [inSpotlight, controls, state.volume]);
+
     const activeLyricIdx = useMemo(() => {
         if (!synced.length) return -1;
         let lo = 0, hi = synced.length - 1, best = -1;
@@ -240,7 +297,20 @@ export function FullScreenPlayer({ onClose }) {
                         plain={lyrics?.plain}
                         instrumental={lyrics?.instrumental}
                         loading={!lyrics}
+                        spotlight={inSpotlight}
                     />
+                )}
+                {karaokeMode && inSpotlight && (
+                    <div
+                        className="tunes-fullplayer__spotlight-banner"
+                        data-testid="karaoke-silent-spotlight"
+                    >
+                        <span className="tunes-fullplayer__spotlight-eyebrow">CHALLENGE</span>
+                        <span className="tunes-fullplayer__spotlight-title">SILENT SPOTLIGHT</span>
+                        <span className="tunes-fullplayer__spotlight-hint">
+                            Keep singing — the music is back in a sec.
+                        </span>
+                    </div>
                 )}
                 <div className="tunes-fullplayer__art-col">
                     <div className="tunes-fullplayer__art">
@@ -504,7 +574,7 @@ export function FullScreenPlayer({ onClose }) {
  * way the user still feels like they're inside the music app, just
  * with the lyrics enlarged for sing-along.
  */
-function KaraokeLyricsOverlay({ synced, activeIdx, plain, instrumental, loading }) {
+function KaraokeLyricsOverlay({ synced, activeIdx, plain, instrumental, loading, spotlight }) {
     const visible = React.useMemo(() => {
         if (!synced || !synced.length) return [];
         const start = Math.max(0, activeIdx - 2);
@@ -517,8 +587,12 @@ function KaraokeLyricsOverlay({ synced, activeIdx, plain, instrumental, loading 
 
     return (
         <div
-            className="tunes-fullplayer__karaoke-overlay"
+            className={
+                'tunes-fullplayer__karaoke-overlay'
+                + (spotlight ? ' is-spotlight' : '')
+            }
             data-testid="karaoke-overlay"
+            data-spotlight={spotlight ? 'true' : 'false'}
             aria-live="polite"
         >
             <div className="tunes-fullplayer__karaoke-scrim" />

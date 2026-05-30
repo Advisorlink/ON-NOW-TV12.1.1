@@ -40,6 +40,20 @@ export default function KaraokeChallenge() {
             try { await karaokeAPI.setChallenge(sess.code, challenge); }
             catch { /* swallow — the picker shouldn't error out */ }
         }
+        // v2.8.78 — Persist the active challenge to sessionStorage so
+        // the FullScreenPlayer can read it on the next song-start and
+        // actually drive an effect (e.g. silent-spotlight mutes the
+        // audio + hides the lyrics for ~8 s mid-song).  We also pick
+        // a concrete challenge here if the user chose "random" so the
+        // player has something specific to act on.
+        const RANDOM_POOL = ['silent-spotlight', 'blank-beat', 'sip-and-sing'];
+        const resolved = challenge === 'random'
+            ? RANDOM_POOL[Math.floor(Math.random() * RANDOM_POOL.length)]
+            : (challenge || '');
+        try {
+            if (resolved) sessionStorage.setItem('tunes-karaoke-challenge', resolved);
+            else sessionStorage.removeItem('tunes-karaoke-challenge');
+        } catch { /* ignore quota */ }
         if (returnTo === 'stage') navigate('/music/karaoke/party/stage');
         else navigate('/music/karaoke');
     };
