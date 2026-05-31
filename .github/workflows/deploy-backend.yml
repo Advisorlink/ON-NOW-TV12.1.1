@@ -143,10 +143,12 @@ jobs:
         run: |
           # Hit the production endpoint over the public DNS to confirm
           # the service is actually serving requests (not just running
-          # the systemd unit).  Retry a couple of times to absorb the
-          # uvicorn warm-up window.
-          for i in 1 2 3; do
-            status=$(curl -sk -o /dev/null -w "%{http_code}" https://onnowtv.duckdns.org/api/ || echo 000)
+          # the systemd unit).  Retry to absorb the uvicorn warm-up
+          # window — startup loads EPG cache + addon manifests (some
+          # of which are slow external HTTP calls) so the API can take
+          # 20-40 s on a cold start.
+          for i in $(seq 1 12); do
+            status=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 https://onnowtv.duckdns.org/api/ || echo 000)
             echo "Attempt $i: HTTP $status"
             if [ "$status" = "200" ]; then
               echo "✅ Public API healthy."
@@ -154,5 +156,5 @@ jobs:
             fi
             sleep 5
           done
-          echo "❌ Public API never returned 200 — investigate."
+          echo "❌ Public API never returned 200 after 60 s — investigate."
           exit 1
