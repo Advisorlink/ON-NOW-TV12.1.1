@@ -1,5 +1,38 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.84 — 10 microphone styles + picker
+
+> User feedback: "That mic looks disgusting. Can you give me ten different options of mics I can have? Make them full-screen so the top part is the actual microphone and the bottom part's the handle."
+
+The full-screen LIVE microphone is now selectable from 10 distinctive designs.  Each is a hand-tuned SVG (200×600 viewBox) that fills the whole phone screen — head on top, handle on bottom.
+
+### The 10 mics
+1. **Classic** — Black wire-mesh ball with matte tapered body (Shure SM58 style)
+2. **Gold** — Polished gold ball with vertical bars + brown leather-wrapped handle (Hollywood 1950s)
+3. **Neon** — Outline-only cyber mic with hot pink + cyan glow filters, glowing "SING" stamp
+4. **Crystal** — Faceted diamond head with rainbow-edge gradient, iridescent translucent handle
+5. **Vintage** — Rectangular RCA-style ribbon mic with chrome bars + art-deco proportions
+6. **Rockstar** — Black gloss head with red flame patterns wrapping the body + "ROCK" branding
+7. **Rose Gold** — Pink pearlescent ball with soft glow + rose-gold metallic handle + "ROSÉ" stamp
+8. **Holo** — Holographic wireframe sphere with energy rings + cyan/purple gradient + "// SING" stamp
+9. **Lava** — Glowing molten lava head with dark cracks + charred handle with fire streaks
+10. **Galaxy** — Deep purple cosmic ball with scattered stars + nebula ring + "COSMIC" stamp
+
+### Picker UI
+- New horizontal scroll strip on the pre-live screen above "CHOOSE YOUR MIC" label
+- Each option = 84×92 px card with a color swatch (representative gradient for that style) + label
+- Tap to select; selected state has pink-glow border
+- Choice persists in `localStorage['tunes-karaoke-mic-style']`
+- LIVE state renders the chosen mic full-screen, glow still driven by `--vol` AudioContext analyser
+
+### Implementation notes
+- Each mic is a self-contained SVG string with its own gradients in `<defs>`
+- Picker thumbnails use **CSS gradients on swatches** (not the actual SVGs) — early version had all 10 SVGs on screen at once which caused defs-ID collisions and broke the gradients.  Now only ONE full SVG renders at a time (in the LIVE container) so every gradient renders correctly.
+
+Files: `/app/backend/karaoke_guest_page.py` (1.4 K lines, ~600 new for the 10 SVGs + picker JS + styles).  Lint clean.
+
+
+
 ## v2.8.83 — Full-screen karaoke microphone on the singer's phone
 
 > User request: "When you click Turn on your mic, can it actually turn into a full-screen microphone-looking image so it looks like they're singing into a real microphone?"
