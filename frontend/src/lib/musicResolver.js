@@ -144,7 +144,17 @@ async function _doResolve(artist, title, karaokeFlag, trackId) {
     };
 
     // 1) Native bridge first.
-    if (hasNativeBridge()) {
+    //
+    // v2.8.86 — In karaoke mode we SKIP the native bridge.  The
+    // bridge runs an unbiased YouTube search via NewPipe /
+    // InnerTube and ranks results by popularity — which means the
+    // studio original ALWAYS wins, even when " karaoke" is in the
+    // query.  Real-world result: the user kept hearing Adele
+    // singing instead of an instrumental backing track.  Going
+    // straight to `/api/music/yt-search` (Tier 2.5 below) is far
+    // more reliable because that endpoint applies a karaoke-aware
+    // bias on the backend before picking the top result.
+    if (!karaokeFlag && hasNativeBridge()) {
         const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         const native = await resolveViaNative(artist, title);
         const ms = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
