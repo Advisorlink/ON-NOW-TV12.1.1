@@ -254,14 +254,18 @@ async function _doResolve(artist, title, karaokeFlag, trackId) {
     try {
         const base = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
         const tyt0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-        // v2.8.85 — When the caller wants a karaoke version, drop
-        // the " audio" suffix (it biases YouTube toward original
-        // studio recordings).  Karaoke uploads are typically VIDEOS
-        // with overlaid lyrics, not "audio-only" uploads.
+        // v2.8.87 — Karaoke mode passes `karaoke=true` so the backend
+        // re-ranks the top-12 search results to prefer known
+        // karaoke-only uploaders (Sing King, KaraFun, Musisi Karaoke,
+        // etc.).  Without this YouTube's default ranking surfaces the
+        // studio original even when " karaoke" is in the query.
         const q = karaokeFlag
             ? (artist + ' ' + title)
             : (artist + ' ' + title + ' audio');
-        const r = await fetch(`${base}/api/music/yt-search?q=${encodeURIComponent(q)}`);
+        const url = karaokeFlag
+            ? `${base}/api/music/yt-search?q=${encodeURIComponent(q)}&karaoke=true`
+            : `${base}/api/music/yt-search?q=${encodeURIComponent(q)}`;
+        const r = await fetch(url);
         const tytMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tyt0);
         if (r.ok) {
             const body = await r.json();

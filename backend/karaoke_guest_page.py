@@ -1355,21 +1355,21 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             micPC.onicecandidate = (e) => {
                 if (e.candidate) sendMicSignal('ice', { candidate: e.candidate });
             };
+            micPC.oniceconnectionstatechange = () => {
+                console.info('[mic] ICE state →', micPC && micPC.iceConnectionState);
+            };
             micPC.onconnectionstatechange = () => {
                 if (!micPC) return;
+                console.info('[mic] PC state →', micPC.connectionState);
                 if (micPC.connectionState === 'connected') {
                     status.textContent = 'You\'re live!';
-                    btn.classList.add('live');
-                    btn.textContent = 'Mic ON · Singing';
-                    $('mic-halo').classList.add('live');
-                    btn.disabled = false;
-                    // v2.8.83 — Transform the phone into a full-screen
-                    // microphone the moment WebRTC is connected.
-                    $('phase-mic').classList.add('is-live');
+                    // Already in LIVE phase from immediate switch below.
                 } else if (micPC.connectionState === 'failed') {
                     status.textContent = 'Connection failed. Try Again.';
                     status.classList.add('err');
                     btn.disabled = false;
+                    // Drop back to pre-live so user can retry.
+                    $('phase-mic').classList.remove('is-live');
                 }
             };
             const offer = await micPC.createOffer({ offerToReceiveAudio: false });
@@ -1377,6 +1377,21 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             await sendMicSignal('offer', { sdp: micPC.localDescription });
             // Tell server the mic is on so the TV can start playback
             await fetch('/api/karaoke/party/' + CODE + '/mic/on', { method: 'POST' });
+            // v2.8.87 — Switch to LIVE phase IMMEDIATELY once we
+            // have a live mic stream + the offer is in flight.  Do
+            // not wait for `connected` (which may take 2-10 seconds
+            // and sometimes never fires when WebRTC hits a NAT it
+            // can't punch through).  The user sees their mic working
+            // (volume meter reacts to their voice) and the TV plays
+            // the song.  If the P2P link doesn't establish we still
+            // show the full-screen mic — it's far less confusing
+            // than the phone reverting to the "Turn on your mic"
+            // button while the song is already playing on TV.
+            btn.classList.add('live');
+            btn.textContent = 'Mic ON · Singing';
+            $('mic-halo').classList.add('live');
+            btn.disabled = false;
+            $('phase-mic').classList.add('is-live');
             status.textContent = 'Connecting to TV…';
         } catch (e) {
             status.textContent = 'Could not establish connection: ' + (e.message || e);

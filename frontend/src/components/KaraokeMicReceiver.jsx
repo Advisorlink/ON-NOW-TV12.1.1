@@ -23,9 +23,19 @@ import { karaokeAPI, readPartySession } from '../lib/karaoke-party-api';
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
+// v2.8.87 — CRITICAL FIX.  The previous version used relative URLs
+// (`/api/karaoke/party/.../mic/signal`) which is fatal on the APK:
+// the WebView is loaded from `https://appassets.androidplatform.net/`
+// so relative `/api/...` resolves to that origin, gets intercepted
+// by `WebViewAssetLoader`, and returns 404 → the TV's WebRTC answer
+// and ICE candidates are SILENTLY DROPPED → the phone never reaches
+// `connected` state → user reports "no sound from the phone reaches
+// the TV speakers."  Always go through REACT_APP_BACKEND_URL.
+const API_BASE = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
+
 async function postSignal(code, kind, payload) {
     try {
-        await fetch(`/api/karaoke/party/${code}/mic/signal`, {
+        await fetch(`${API_BASE}/api/karaoke/party/${code}/mic/signal`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -128,36 +138,43 @@ export default function KaraokeMicReceiver({ partySession }) {
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
             pc.ontrack = (e) => {
-                // v2.8.82 — Mix the singer's voice into the TV
-                // speakers.  We need to hook it up to a real
-                // <audio> element AND a Web Audio MediaStreamSource
-                // for a touch of reverb later.  For now: just play
-                // through the <audio> element so the user hears
-                // themselves through the TV.
+                // v2.8.87 — Just attach to the <audio> element.  The
+                // previous version ALSO routed through Web Audio which
+                // double-played and risked autoplay policy blocks.
                 const stream = e.streams[0];
                 if (audioElRef.current) {
                     audioElRef.current.srcObject = stream;
-                    audioElRef.current.play().catch(() => { /* autoplay */ });
+                    audioElRef.current.muted = false;
+                    audioElRef.current.volume = 1.0;
+                    const playPromise = audioElRef.current.play();
+                    if (playPromise) {
+                        playPromise.catch((err) => {
+                            // Autoplay blocked — surface the error so
+                            // the TV-side UI can show a tap-to-enable
+                            // hint instead of silently failing.
+                            console.warn('[karaoke-mic] audio.play() blocked:', err);
+                        });
+                    }
                 }
-                // Optional reverb via Web Audio (kept minimal —
-                // any AudioContext failure shouldn't break playback).
-                try {
-                    audioCtxRef.current = new (window.AudioContext
-                        || window.webkitAudioContext)();
-                    const src = audioCtxRef.current.createMediaStreamSource(stream);
-                    const gain = audioCtxRef.current.createGain();
-                    gain.gain.value = 1.0;
-                    src.connect(gain).connect(audioCtxRef.current.destination);
-                } catch { /* not critical */ }
+                console.info('[karaoke-mic] remote track attached', {
+                    kind: e.track.kind,
+                    enabled: e.track.enabled,
+                    muted: e.track.muted,
+                });
             };
             pc.onicecandidate = (e) => {
                 if (e.candidate) {
                     postSignal(code, 'ice', { candidate: e.candidate, to_id: singerId });
                 }
             };
+            pc.oniceconnectionstatechange = () => {
+                console.info('[karaoke-mic] ICE state →', pc.iceConnectionState);
+            };
             pc.onconnectionstatechange = () => {
                 if (!pcRef.current) return;
-                setPcState(pcRef.current.connectionState);
+                const s = pcRef.current.connectionState;
+                console.info('[karaoke-mic] PC state →', s);
+                setPcState(s);
             };
             await pc.setRemoteDescription(sig.payload.sdp);
             remoteDescSetRef.current = true;
@@ -227,7 +244,50 @@ export default function KaraokeMicReceiver({ partySession }) {
                             On their phone they&apos;ll see a glowing microphone &mdash;
                             once they tap it, the song begins.
                         </p>
+                        {/* v2.8.87 — Live WebRTC state badge so we can
+                            see whether the peer connection is forming
+                            without an adb logcat session. */}
+                        <p
+                            className="kk-mic-waiting__diag"
+                            data-testid="tv-mic-pc-state"
+                            style={{
+                                marginTop: 16,
+                                fontSize: 12,
+                                opacity: 0.55,
+                                letterSpacing: 1.5,
+                                textTransform: 'uppercase',
+                            }}
+                        >
+                            mic link · {pcState}
+                        </p>
                     </div>
+                </div>
+            )}
+            {/* Always render a tiny corner diag pill once we've seen
+                the peer connection lifecycle — visible only AFTER the
+                waiting overlay closes so we know whether the mic
+                actually connected.  Hidden when idle. */}
+            {!showWaiting && party && party.current_singer_id && pcState !== 'idle' && (
+                <div
+                    data-testid="tv-mic-corner-state"
+                    style={{
+                        position: 'fixed',
+                        right: 12,
+                        bottom: 12,
+                        zIndex: 9000,
+                        background: pcState === 'connected'
+                            ? 'rgba(50, 200, 110, 0.9)'
+                            : 'rgba(255, 180, 50, 0.9)',
+                        color: '#0a0c14',
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 1,
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    Mic · {pcState}
                 </div>
             )}
         </>
