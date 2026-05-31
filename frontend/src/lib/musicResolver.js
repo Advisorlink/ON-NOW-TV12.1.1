@@ -99,11 +99,19 @@ export async function resolveViaBackend(trackId, artist, title) {
  * or null if nothing playable was found.
  *
  * @param {object} track   Deezer-shaped track ({ id, title, artist, preview_url, ... }).
+ * @param {object} [opts]
+ * @param {boolean} [opts.karaoke]
+ *   v2.8.81 — When true the resolver appends " karaoke instrumental"
+ *   to the search title so YouTube returns a karaoke / minus-one /
+ *   instrumental version of the song instead of the original with
+ *   vocals.  Used by the Karaoke flow so singers actually have
+ *   something to sing over.
  */
-export async function resolveTrackStream(track) {
+export async function resolveTrackStream(track, opts) {
     const artist = track?.artist?.name || '';
-    const title  = track?.title || '';
+    let title  = track?.title || '';
     if (!artist || !title) return null;
+    if (opts && opts.karaoke) title = `${title} karaoke instrumental`;
 
     const emit = (detail) => {
         try {

@@ -2720,3 +2720,60 @@
     color: rgba(255, 255, 255, 0.55);
 }
 
+
+/* =============================================================
+ * v2.8.81 — Vocals on/off button (karaoke mode)
+ *
+ * Sits next to the fullscreen + close buttons in the top-right of
+ * the player.  Default ('Vocals OFF' = instrumental, what karaoke
+ * should be) shows a neon-blue mic-off icon + pill.  When the user
+ * flips vocals back on, the pill warms to a pink-glow to signal
+ * "this isn't the singing-along setting anymore".
+ * ============================================================ */
+.tunes-fullplayer__vocals-btn {
+    width: auto !important;
+    padding: 0 14px 0 12px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    border: 1.5px solid rgba(120, 170, 255, 0.55) !important;
+    background: rgba(78, 167, 255, 0.10) !important;
+    color: #aed7ff !important;
+    box-shadow: 0 0 0 1px rgba(120, 170, 255, 0.25) inset, 0 0 18px rgba(78, 167, 255, 0.22);
+    transition: border-color 220ms, background 220ms, color 220ms, box-shadow 220ms;
+}
+.tunes-fullplayer__vocals-btn .tunes-fullplayer__vocals-label {
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+}
+.tunes-fullplayer__vocals-btn:hover,
+.tunes-fullplayer__vocals-btn:focus,
+.tunes-fullplayer__vocals-btn.is-focused {
+    border-color: #5eb5ff !important;
+    background: rgba(78, 167, 255, 0.20) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 2px #5eb5ff inset, 0 0 32px rgba(78, 167, 255, 0.55);
+    outline: none;
+}
+.tunes-fullplayer__vocals-btn.is-vocals-on {
+    border-color: #ff7ab8 !important;
+    background: rgba(255, 122, 184, 0.14) !important;
+    color: #ffd7ec !important;
+    box-shadow: 0 0 0 1px rgba(255, 122, 184, 0.35) inset, 0 0 22px rgba(255, 122, 184, 0.30);
+}
+.tunes-fullplayer__vocals-btn.is-vocals-on:hover,
+.tunes-fullplayer__vocals-btn.is-vocals-on:focus,
+.tunes-fullplayer__vocals-btn.is-vocals-on.is-focused {
+    border-color: #ff7ab8 !important;
+    background: rgba(255, 122, 184, 0.24) !important;
+    box-shadow: 0 0 0 2px #ff7ab8 inset, 0 0 32px rgba(255, 122, 184, 0.55);
+}
+@media (max-width: 640px) {
+    .tunes-fullplayer__vocals-label { display: none; }
+    .tunes-fullplayer__vocals-btn { padding: 0 10px; width: auto; }
+}
+
