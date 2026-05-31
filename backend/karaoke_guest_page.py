@@ -415,6 +415,86 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         }
         .mic-status.err { color:#ff7ab8; }
 
+        /* v2.8.84 — Mic style picker (horizontal scroll) */
+        .mic-picker {
+            margin: 26px 0 0;
+            width: 100%;
+            max-width: 380px;
+        }
+        .mic-picker__eyebrow {
+            color: rgba(255,255,255,0.55);
+            font-family: 'Geist Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.32em;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin: 0 0 12px;
+        }
+        .mic-picker__strip {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 4px 4px 16px;
+            scrollbar-width: none;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mic-picker__strip::-webkit-scrollbar { display: none; }
+        .mic-picker__option {
+            flex-shrink: 0;
+            scroll-snap-align: center;
+            width: 84px; height: 92px;
+            background: rgba(255,255,255,0.04);
+            border: 1.5px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 8px 6px;
+            cursor: pointer;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 8px;
+            transition: border-color 220ms, background 220ms, transform 200ms;
+            font-family: inherit;
+        }
+        .mic-picker__option:active { transform: scale(0.94); }
+        .mic-picker__option.is-active {
+            border-color: #ff7ab8;
+            background: rgba(255,122,184,0.14);
+            box-shadow: 0 0 0 1.5px rgba(255,122,184,0.5) inset, 0 0 24px rgba(255,122,184,0.35);
+        }
+        .mic-picker__swatch {
+            width: 56px; height: 56px; border-radius: 14px;
+            position: relative; overflow: hidden;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.45);
+        }
+        .mic-picker__swatch::after {
+            /* mic-shape silhouette overlay so each thumb still
+               reads as a microphone, not just a colour swatch */
+            content: '';
+            position: absolute; inset: 8px 18px;
+            background: rgba(0,0,0,0.45);
+            border-radius: 50% 50% 8px 8px / 60% 60% 8px 8px;
+        }
+        .mic-picker__label {
+            font-size: 9px;
+            font-weight: 700;
+            color: rgba(255,220,245,0.85);
+            text-align: center;
+            letter-spacing: 0.04em;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        /* Per-style swatch backgrounds */
+        .mic-picker__swatch[data-style="sm58"]    { background: linear-gradient(135deg, #1a1d24, #4a4f58); }
+        .mic-picker__swatch[data-style="gold"]    { background: linear-gradient(135deg, #b87328, #ffe49a, #b87328); }
+        .mic-picker__swatch[data-style="neon"]    { background: radial-gradient(circle at 30% 30%, #ff35a0, #00f0ff); }
+        .mic-picker__swatch[data-style="crystal"] { background: linear-gradient(135deg, #ff7ab8, #ffd43b, #5eb5ff, #a96bff); }
+        .mic-picker__swatch[data-style="ribbon"]  { background: linear-gradient(135deg, #6b6f78, #dadde2, #6b6f78); }
+        .mic-picker__swatch[data-style="flame"]   { background: linear-gradient(180deg, #ffe600, #ff8a00, #ff2400, #0a0a0a); }
+        .mic-picker__swatch[data-style="rose"]    { background: linear-gradient(135deg, #fff0e8, #f8b89c, #b87358); }
+        .mic-picker__swatch[data-style="holo"]    { background: linear-gradient(135deg, #8cfff0, #aa78ff); }
+        .mic-picker__swatch[data-style="lava"]    { background: radial-gradient(circle at 50% 30%, #fff9c4, #ff4500, #2a0a05); }
+        .mic-picker__swatch[data-style="galaxy"]  { background: radial-gradient(circle at 30% 30%, #ffe1f5, #a96bff, #1a0a45, #080418); }
+
         /* =============================================================
          * v2.8.83 — LIVE state: full-screen real-microphone artwork
          *
@@ -708,6 +788,15 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             Turn on your mic
         </button>
         <p id="mic-status" class="mic-status">Tap to start. Browser will ask for microphone permission.</p>
+
+        <!-- v2.8.84 — Mic style picker.  Horizontal scrollable strip
+             of 10 mini SVGs.  Tap to select; choice persists in
+             localStorage and becomes the full-screen mic in LIVE
+             state. -->
+        <div class="mic-picker">
+            <p class="mic-picker__eyebrow">CHOOSE YOUR MIC</p>
+            <div class="mic-picker__strip" id="mic-picker-strip"></div>
+        </div>
     </div>
 
     <!-- LIVE view: full-screen real-microphone artwork (v2.8.83) -->
@@ -719,95 +808,10 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         </div>
 
         <div class="mic-live__svg-wrap">
-            <!--
-                Karaoke microphone SVG.  Vertical, with a chrome grille
-                ball at the top, a thin neck, then a long matte-black
-                handle that the singer holds.  All inline so it scales
-                with viewport and inherits the volume-driven glow.
-            -->
-            <svg class="mic-live__svg" viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <defs>
-                    <!-- Chrome ball grille gradient -->
-                    <radialGradient id="grille-grad" cx="50%" cy="38%" r="60%">
-                        <stop offset="0%"  stop-color="#ffe9f3"/>
-                        <stop offset="35%" stop-color="#ff9ecf"/>
-                        <stop offset="78%" stop-color="#b94c8a"/>
-                        <stop offset="100%" stop-color="#3a0d24"/>
-                    </radialGradient>
-                    <!-- Matte black handle gradient -->
-                    <linearGradient id="handle-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%"   stop-color="#1a0a1f"/>
-                        <stop offset="35%"  stop-color="#3a1240"/>
-                        <stop offset="50%"  stop-color="#5a1d5d"/>
-                        <stop offset="65%"  stop-color="#3a1240"/>
-                        <stop offset="100%" stop-color="#1a0a1f"/>
-                    </linearGradient>
-                    <linearGradient id="neck-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%"   stop-color="#0a0a0f"/>
-                        <stop offset="50%"  stop-color="#2a2a35"/>
-                        <stop offset="100%" stop-color="#0a0a0f"/>
-                    </linearGradient>
-                    <radialGradient id="grille-glow" cx="50%" cy="40%" r="55%">
-                        <stop offset="0%" stop-color="rgba(255,180,220,0.95)"/>
-                        <stop offset="60%" stop-color="rgba(255,122,184,0.4)"/>
-                        <stop offset="100%" stop-color="rgba(255,122,184,0)"/>
-                    </radialGradient>
-                </defs>
-
-                <!-- ===== Grille (mic ball) ===== -->
-                <!-- Outer glow that pulses with volume -->
-                <circle class="mic-live__grille-glow"
-                        cx="100" cy="120" r="105"
-                        fill="url(#grille-glow)" />
-                <!-- Main grille sphere -->
-                <circle cx="100" cy="120" r="86"
-                        fill="url(#grille-grad)"
-                        stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
-                <!-- Specular highlight -->
-                <ellipse cx="78" cy="92" rx="28" ry="14"
-                         fill="rgba(255,255,255,0.55)" />
-                <!-- Grille mesh pattern: dots arranged in a sphere -->
-                <g fill="rgba(40,10,40,0.55)">
-                    <!-- 9 columns × 7 rows of small dots, alpha drops at edges -->
-                    <g opacity="0.55"><!-- left edge --><circle cx="36" cy="100" r="2.4"/><circle cx="36" cy="120" r="2.4"/><circle cx="36" cy="140" r="2.4"/></g>
-                    <g opacity="0.7">  <circle cx="50" cy="84"  r="2.6"/><circle cx="50" cy="104" r="2.6"/><circle cx="50" cy="124" r="2.6"/><circle cx="50" cy="144" r="2.6"/><circle cx="50" cy="164" r="2.6"/></g>
-                    <g opacity="0.85"> <circle cx="66" cy="74"  r="2.8"/><circle cx="66" cy="94"  r="2.8"/><circle cx="66" cy="114" r="2.8"/><circle cx="66" cy="134" r="2.8"/><circle cx="66" cy="154" r="2.8"/><circle cx="66" cy="174" r="2.8"/></g>
-                    <g opacity="0.95"> <circle cx="83" cy="68"  r="2.9"/><circle cx="83" cy="88"  r="2.9"/><circle cx="83" cy="108" r="2.9"/><circle cx="83" cy="128" r="2.9"/><circle cx="83" cy="148" r="2.9"/><circle cx="83" cy="168" r="2.9"/><circle cx="83" cy="184" r="2.9"/></g>
-                    <g>                <circle cx="100" cy="66" r="3"/>  <circle cx="100" cy="86" r="3"/>  <circle cx="100" cy="106" r="3"/>  <circle cx="100" cy="126" r="3"/>  <circle cx="100" cy="146" r="3"/>  <circle cx="100" cy="166" r="3"/>  <circle cx="100" cy="186" r="3"/></g>
-                    <g opacity="0.95"> <circle cx="117" cy="68" r="2.9"/><circle cx="117" cy="88" r="2.9"/><circle cx="117" cy="108" r="2.9"/><circle cx="117" cy="128" r="2.9"/><circle cx="117" cy="148" r="2.9"/><circle cx="117" cy="168" r="2.9"/><circle cx="117" cy="184" r="2.9"/></g>
-                    <g opacity="0.85"> <circle cx="134" cy="74" r="2.8"/><circle cx="134" cy="94" r="2.8"/><circle cx="134" cy="114" r="2.8"/><circle cx="134" cy="134" r="2.8"/><circle cx="134" cy="154" r="2.8"/><circle cx="134" cy="174" r="2.8"/></g>
-                    <g opacity="0.7">  <circle cx="150" cy="84"  r="2.6"/><circle cx="150" cy="104" r="2.6"/><circle cx="150" cy="124" r="2.6"/><circle cx="150" cy="144" r="2.6"/><circle cx="150" cy="164" r="2.6"/></g>
-                    <g opacity="0.55"> <circle cx="164" cy="100" r="2.4"/><circle cx="164" cy="120" r="2.4"/><circle cx="164" cy="140" r="2.4"/></g>
-                </g>
-
-                <!-- ===== Neck (connector between grille and handle) ===== -->
-                <rect x="74" y="200" width="52" height="18" rx="4"
-                      fill="url(#neck-grad)" />
-                <!-- Two small ring highlights on the neck -->
-                <rect x="74" y="204" width="52" height="2.5" fill="rgba(255,255,255,0.12)"/>
-                <rect x="74" y="213" width="52" height="2.5" fill="rgba(255,255,255,0.08)"/>
-
-                <!-- ===== Handle (long matte body) ===== -->
-                <rect x="68" y="218" width="64" height="350" rx="14"
-                      fill="url(#handle-grad)"
-                      stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/>
-                <!-- Vertical highlight stripe (subtle reflection) -->
-                <rect x="80" y="226" width="4" height="334" rx="2"
-                      fill="rgba(255,255,255,0.18)"/>
-                <rect x="116" y="226" width="2.5" height="334" rx="1.5"
-                      fill="rgba(255,255,255,0.06)"/>
-                <!-- Logo band -->
-                <rect x="70" y="260" width="60" height="22" rx="3"
-                      fill="rgba(0,0,0,0.45)"/>
-                <text x="100" y="276" text-anchor="middle"
-                      font-family="Geist Mono, monospace" font-size="11"
-                      fill="rgba(255,180,220,0.85)" letter-spacing="2"
-                      font-weight="700">ON NOW</text>
-                <!-- Bottom cap -->
-                <rect x="64" y="558" width="72" height="14" rx="4"
-                      fill="#0a0510"
-                      stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-            </svg>
+            <!-- v2.8.84 — Mic SVG injected by JS based on the user's
+                 chosen style (default: 'sm58').  10 designs available
+                 via the picker on the pre-live screen. -->
+            <div class="mic-live__svg" id="mic-live-svg"></div>
         </div>
 
         <div class="mic-live__foot">
@@ -1430,6 +1434,383 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         evaluate();
         window.addEventListener('tunes-party-update', evaluate);
     }
+
+
+    /* =============================================================
+     * v2.8.84 — 10 microphone designs + picker
+     *
+     * Each entry returns the FULL <svg> string for a 200×600 viewBox.
+     * Top of the viewBox = mic head; bottom = handle.  All designs
+     * tuned to look great at both thumbnail (76×96) and full-screen
+     * (≥360×~880) sizes.
+     * ============================================================ */
+    const MIC_STYLES = [
+        {
+            id: 'sm58', label: 'Classic',
+            // Iconic Shure-style ball with diagonal wire mesh + matte black grip
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="sm58-ball" cx="50%" cy="35%" r="58%">
+                        <stop offset="0%" stop-color="#9aa0a8"/>
+                        <stop offset="55%" stop-color="#3a3f47"/>
+                        <stop offset="100%" stop-color="#0c0e12"/>
+                    </radialGradient>
+                    <linearGradient id="sm58-body" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#0a0b0f"/>
+                        <stop offset="50%" stop-color="#272a33"/>
+                        <stop offset="100%" stop-color="#0a0b0f"/>
+                    </linearGradient>
+                </defs>
+                <ellipse cx="100" cy="125" rx="95" ry="92" fill="rgba(255,255,255,0.06)"/>
+                <circle cx="100" cy="125" r="85" fill="url(#sm58-ball)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+                <g stroke="rgba(0,0,0,0.45)" stroke-width="1" fill="none">
+                    <path d="M 25 125 Q 100 50 175 125"/><path d="M 25 125 Q 100 200 175 125"/>
+                    <path d="M 30 95 Q 100 145 170 95"/><path d="M 30 155 Q 100 105 170 155"/>
+                    <line x1="100" y1="40" x2="100" y2="210"/>
+                    <line x1="60" y1="55" x2="140" y2="195"/><line x1="140" y1="55" x2="60" y2="195"/>
+                </g>
+                <ellipse cx="80" cy="92" rx="20" ry="11" fill="rgba(255,255,255,0.45)"/>
+                <rect x="72" y="215" width="56" height="14" fill="#1e2129"/>
+                <rect x="65" y="229" width="70" height="345" rx="8" fill="url(#sm58-body)" stroke="rgba(255,255,255,0.12)"/>
+                <rect x="80" y="240" width="4" height="324" rx="2" fill="rgba(255,255,255,0.20)"/>
+                <rect x="65" y="568" width="70" height="14" rx="4" fill="#0a0b0f"/>
+            </svg>`,
+        },
+        {
+            id: 'gold', label: 'Gold',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="gold-ball" cx="48%" cy="32%" r="60%">
+                        <stop offset="0%" stop-color="#fff4c7"/>
+                        <stop offset="40%" stop-color="#f0c14b"/>
+                        <stop offset="80%" stop-color="#8a5a14"/>
+                        <stop offset="100%" stop-color="#3a2008"/>
+                    </radialGradient>
+                    <linearGradient id="gold-leather" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#3a1c0a"/>
+                        <stop offset="50%" stop-color="#7a3a14"/>
+                        <stop offset="100%" stop-color="#3a1c0a"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="88" fill="url(#gold-ball)" stroke="rgba(255,200,80,0.3)" stroke-width="2"/>
+                <g stroke="rgba(70,40,8,0.7)" stroke-width="3" fill="none">
+                    <line x1="40" y1="125" x2="160" y2="125"/>
+                    <line x1="65" y1="70" x2="65" y2="180"/>
+                    <line x1="85" y1="55" x2="85" y2="195"/>
+                    <line x1="100" y1="48" x2="100" y2="202"/>
+                    <line x1="115" y1="55" x2="115" y2="195"/>
+                    <line x1="135" y1="70" x2="135" y2="180"/>
+                </g>
+                <ellipse cx="80" cy="90" rx="22" ry="12" fill="rgba(255,255,255,0.55)"/>
+                <rect x="75" y="215" width="50" height="18" fill="#c89534"/>
+                <rect x="75" y="219" width="50" height="3" fill="rgba(255,255,255,0.35)"/>
+                <rect x="60" y="233" width="80" height="338" rx="12" fill="url(#gold-leather)"/>
+                <g stroke="rgba(255,200,120,0.18)" stroke-width="1" fill="none">
+                    <line x1="60" y1="280" x2="140" y2="280"/><line x1="60" y1="340" x2="140" y2="340"/>
+                    <line x1="60" y1="400" x2="140" y2="400"/><line x1="60" y1="460" x2="140" y2="460"/>
+                </g>
+                <rect x="60" y="565" width="80" height="14" rx="4" fill="#c89534"/>
+            </svg>`,
+        },
+        {
+            id: 'neon', label: 'Neon',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="neon-glow" cx="50%" cy="40%" r="55%">
+                        <stop offset="0%" stop-color="rgba(0,240,255,0.4)"/>
+                        <stop offset="100%" stop-color="rgba(0,240,255,0)"/>
+                    </radialGradient>
+                </defs>
+                <circle cx="100" cy="125" r="100" fill="url(#neon-glow)"/>
+                <circle cx="100" cy="125" r="80" fill="rgba(10,8,30,0.92)" stroke="#00f0ff" stroke-width="3" filter="drop-shadow(0 0 6px #00f0ff)"/>
+                <g fill="none" stroke="#ff35a0" stroke-width="2" filter="drop-shadow(0 0 4px #ff35a0)">
+                    <circle cx="100" cy="125" r="60"/>
+                    <line x1="40" y1="125" x2="160" y2="125"/><line x1="100" y1="65" x2="100" y2="185"/>
+                    <line x1="60" y1="85" x2="140" y2="165"/><line x1="140" y1="85" x2="60" y2="165"/>
+                </g>
+                <rect x="74" y="216" width="52" height="14" fill="#0a0820" stroke="#00f0ff" stroke-width="1.5"/>
+                <rect x="64" y="230" width="72" height="340" rx="10" fill="rgba(10,8,30,0.95)" stroke="#ff35a0" stroke-width="2.5" filter="drop-shadow(0 0 6px #ff35a0)"/>
+                <line x1="100" y1="240" x2="100" y2="560" stroke="#00f0ff" stroke-width="1.5" opacity="0.7"/>
+                <text x="100" y="380" text-anchor="middle" font-family="Geist Mono" font-size="14" fill="#00f0ff" letter-spacing="3" filter="drop-shadow(0 0 6px #00f0ff)">SING</text>
+                <rect x="64" y="568" width="72" height="12" rx="4" fill="#0a0820" stroke="#ff35a0" stroke-width="1.5"/>
+            </svg>`,
+        },
+        {
+            id: 'crystal', label: 'Crystal',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="crystal-glow" cx="50%" cy="50%" r="55%">
+                        <stop offset="0%" stop-color="rgba(255,255,255,0.95)"/>
+                        <stop offset="50%" stop-color="rgba(180,220,255,0.4)"/>
+                        <stop offset="100%" stop-color="rgba(220,180,255,0.05)"/>
+                    </radialGradient>
+                    <linearGradient id="crystal-rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#ff7ab8"/>
+                        <stop offset="33%" stop-color="#ffd43b"/>
+                        <stop offset="66%" stop-color="#5eb5ff"/>
+                        <stop offset="100%" stop-color="#a96bff"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="88" fill="url(#crystal-glow)" stroke="url(#crystal-rainbow)" stroke-width="2"/>
+                <g stroke="rgba(255,255,255,0.6)" stroke-width="1.2" fill="rgba(255,255,255,0.04)">
+                    <polygon points="100,50 140,90 100,130 60,90"/>
+                    <polygon points="100,130 140,90 170,125 130,165"/>
+                    <polygon points="100,130 60,90 30,125 70,165"/>
+                    <polygon points="100,130 70,165 100,200 130,165"/>
+                    <polygon points="70,165 100,200 70,200 50,180"/>
+                    <polygon points="130,165 100,200 130,200 150,180"/>
+                </g>
+                <ellipse cx="80" cy="80" rx="18" ry="8" fill="rgba(255,255,255,0.85)"/>
+                <ellipse cx="120" cy="105" rx="10" ry="5" fill="rgba(255,255,255,0.5)"/>
+                <rect x="76" y="216" width="48" height="14" fill="rgba(220,200,255,0.6)" stroke="rgba(255,255,255,0.5)"/>
+                <rect x="64" y="230" width="72" height="340" rx="12" fill="rgba(255,255,255,0.10)" stroke="url(#crystal-rainbow)" stroke-width="1.8"/>
+                <g stroke="rgba(255,255,255,0.35)" stroke-width="1" fill="none">
+                    <line x1="64" y1="300" x2="136" y2="300"/><line x1="64" y1="380" x2="136" y2="380"/>
+                    <line x1="64" y1="460" x2="136" y2="460"/>
+                    <line x1="80" y1="240" x2="80" y2="560"/><line x1="120" y1="240" x2="120" y2="560"/>
+                </g>
+                <rect x="64" y="568" width="72" height="12" rx="4" fill="rgba(220,200,255,0.4)" stroke="rgba(255,255,255,0.5)"/>
+            </svg>`,
+        },
+        {
+            id: 'ribbon', label: 'Vintage',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="rib-chrome" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#6b6f78"/>
+                        <stop offset="40%" stop-color="#dadde2"/>
+                        <stop offset="60%" stop-color="#dadde2"/>
+                        <stop offset="100%" stop-color="#6b6f78"/>
+                    </linearGradient>
+                    <linearGradient id="rib-mesh" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#3a3d44"/>
+                        <stop offset="50%" stop-color="#1a1d24"/>
+                        <stop offset="100%" stop-color="#3a3d44"/>
+                    </linearGradient>
+                </defs>
+                <rect x="50" y="40" width="100" height="200" rx="12" fill="url(#rib-chrome)" stroke="rgba(0,0,0,0.5)"/>
+                <rect x="60" y="52" width="80" height="176" rx="6" fill="url(#rib-mesh)"/>
+                <g stroke="rgba(220,225,232,0.4)" stroke-width="2" fill="none">
+                    <line x1="68" y1="60" x2="68" y2="220"/><line x1="80" y1="60" x2="80" y2="220"/>
+                    <line x1="92" y1="60" x2="92" y2="220"/><line x1="104" y1="60" x2="104" y2="220"/>
+                    <line x1="116" y1="60" x2="116" y2="220"/><line x1="128" y1="60" x2="128" y2="220"/>
+                </g>
+                <rect x="55" y="56" width="90" height="3" fill="rgba(255,255,255,0.7)"/>
+                <ellipse cx="100" cy="140" rx="22" ry="38" fill="rgba(0,0,0,0.4)"/>
+                <text x="100" y="146" text-anchor="middle" font-family="Geist Mono" font-size="9" font-weight="800" fill="rgba(255,220,180,0.6)" letter-spacing="2">RCA</text>
+                <rect x="80" y="240" width="40" height="20" fill="url(#rib-chrome)" stroke="rgba(0,0,0,0.4)"/>
+                <rect x="86" y="260" width="28" height="310" fill="url(#rib-chrome)" stroke="rgba(0,0,0,0.4)"/>
+                <rect x="92" y="266" width="3" height="298" fill="rgba(255,255,255,0.6)"/>
+                <rect x="78" y="568" width="44" height="14" rx="3" fill="#3a3d44"/>
+            </svg>`,
+        },
+        {
+            id: 'flame', label: 'Rockstar',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="flame-ball" cx="50%" cy="35%" r="60%">
+                        <stop offset="0%" stop-color="#3a3a3a"/>
+                        <stop offset="100%" stop-color="#0a0a0a"/>
+                    </radialGradient>
+                    <linearGradient id="flame-fire" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="#ff2400"/>
+                        <stop offset="50%" stop-color="#ff8a00"/>
+                        <stop offset="100%" stop-color="#ffe600"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="86" fill="url(#flame-ball)" stroke="#ff2400" stroke-width="2"/>
+                <g fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1">
+                    <circle cx="100" cy="125" r="68"/><circle cx="100" cy="125" r="50"/>
+                    <line x1="40" y1="125" x2="160" y2="125"/><line x1="100" y1="65" x2="100" y2="185"/>
+                </g>
+                <ellipse cx="80" cy="92" rx="18" ry="9" fill="rgba(255,255,255,0.35)"/>
+                <path d="M 100 30 Q 80 50 90 70 Q 70 60 85 90" fill="url(#flame-fire)"/>
+                <rect x="74" y="216" width="52" height="14" fill="#1a0a0a" stroke="#ff2400"/>
+                <rect x="64" y="230" width="72" height="340" rx="10" fill="#0a0a0a" stroke="#ff2400" stroke-width="1.5"/>
+                <path d="M 64 270 Q 80 290 70 320 Q 90 310 85 340 Q 75 360 90 380" fill="none" stroke="url(#flame-fire)" stroke-width="3"/>
+                <path d="M 136 320 Q 120 340 130 370 Q 110 360 115 390" fill="none" stroke="url(#flame-fire)" stroke-width="3"/>
+                <path d="M 64 420 Q 80 440 70 470" fill="none" stroke="url(#flame-fire)" stroke-width="3"/>
+                <text x="100" y="510" text-anchor="middle" font-family="Geist" font-weight="900" font-size="22" fill="#ff2400" filter="drop-shadow(0 0 4px #ff8a00)">ROCK</text>
+                <rect x="64" y="568" width="72" height="12" rx="4" fill="#1a0a0a" stroke="#ff2400"/>
+            </svg>`,
+        },
+        {
+            id: 'rose', label: 'Rose Gold',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="rose-ball" cx="48%" cy="32%" r="62%">
+                        <stop offset="0%" stop-color="#fff0e8"/>
+                        <stop offset="45%" stop-color="#f8b89c"/>
+                        <stop offset="85%" stop-color="#b87358"/>
+                        <stop offset="100%" stop-color="#5a3325"/>
+                    </radialGradient>
+                    <linearGradient id="rose-body" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#7a4438"/>
+                        <stop offset="50%" stop-color="#e0a48a"/>
+                        <stop offset="100%" stop-color="#7a4438"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="88" fill="url(#rose-ball)" stroke="rgba(255,180,150,0.6)" stroke-width="1.5"/>
+                <g fill="rgba(120,60,50,0.25)">
+                    ${(() => { let dots=''; for(let r=2;r<7;r++){ for(let c=2;c<7;c++){ dots+=`<circle cx="${40+c*16}" cy="${65+r*16}" r="2.2"/>`; } } return dots; })()}
+                </g>
+                <ellipse cx="78" cy="88" rx="22" ry="12" fill="rgba(255,255,255,0.65)"/>
+                <ellipse cx="120" cy="108" rx="8" ry="4" fill="rgba(255,255,255,0.45)"/>
+                <rect x="74" y="216" width="52" height="14" fill="#c2735c"/>
+                <rect x="74" y="220" width="52" height="2.5" fill="rgba(255,255,255,0.5)"/>
+                <rect x="62" y="230" width="76" height="340" rx="14" fill="url(#rose-body)" stroke="rgba(255,200,180,0.35)"/>
+                <rect x="78" y="240" width="3" height="324" rx="1.5" fill="rgba(255,255,255,0.55)"/>
+                <rect x="68" y="380" width="64" height="22" rx="3" fill="rgba(40,15,10,0.4)"/>
+                <text x="100" y="396" text-anchor="middle" font-family="Geist" font-size="11" fill="#ffe8d8" font-weight="700" letter-spacing="1.5">ROSÉ</text>
+                <rect x="62" y="565" width="76" height="14" rx="4" fill="#7a4438"/>
+            </svg>`,
+        },
+        {
+            id: 'holo', label: 'Holo',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="holo-glow" cx="50%" cy="40%" r="60%">
+                        <stop offset="0%" stop-color="rgba(140,255,240,0.55)"/>
+                        <stop offset="50%" stop-color="rgba(140,140,255,0.25)"/>
+                        <stop offset="100%" stop-color="rgba(140,140,255,0)"/>
+                    </radialGradient>
+                    <linearGradient id="holo-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(140,255,240,0.85)"/>
+                        <stop offset="100%" stop-color="rgba(170,120,255,0.55)"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="105" fill="url(#holo-glow)"/>
+                <circle cx="100" cy="125" r="78" fill="rgba(50,80,180,0.18)" stroke="url(#holo-grad)" stroke-width="2.5"/>
+                <g fill="none" stroke="rgba(140,255,240,0.55)" stroke-width="1.2">
+                    <ellipse cx="100" cy="125" rx="78" ry="20"/>
+                    <ellipse cx="100" cy="125" rx="78" ry="40"/>
+                    <ellipse cx="100" cy="125" rx="78" ry="60"/>
+                    <ellipse cx="100" cy="125" rx="20" ry="78"/>
+                    <ellipse cx="100" cy="125" rx="40" ry="78"/>
+                    <ellipse cx="100" cy="125" rx="60" ry="78"/>
+                </g>
+                <ellipse cx="100" cy="50" rx="78" ry="8" fill="rgba(140,255,240,0.25)"/>
+                <ellipse cx="100" cy="200" rx="78" ry="8" fill="rgba(170,120,255,0.2)"/>
+                <rect x="76" y="218" width="48" height="12" fill="rgba(140,255,240,0.18)" stroke="url(#holo-grad)" stroke-width="1.5"/>
+                <rect x="66" y="230" width="68" height="340" rx="12" fill="rgba(50,80,180,0.12)" stroke="url(#holo-grad)" stroke-width="2"/>
+                <g stroke="rgba(140,255,240,0.4)" stroke-width="0.8" fill="none">
+                    <line x1="66" y1="280" x2="134" y2="280"/><line x1="66" y1="330" x2="134" y2="330"/>
+                    <line x1="66" y1="380" x2="134" y2="380"/><line x1="66" y1="430" x2="134" y2="430"/>
+                    <line x1="66" y1="480" x2="134" y2="480"/>
+                </g>
+                <text x="100" y="410" text-anchor="middle" font-family="Geist Mono" font-size="10" fill="rgba(140,255,240,0.85)" letter-spacing="3">// SING</text>
+                <rect x="66" y="568" width="68" height="12" rx="4" fill="rgba(140,255,240,0.18)" stroke="url(#holo-grad)"/>
+            </svg>`,
+        },
+        {
+            id: 'lava', label: 'Lava',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="lava-ball" cx="50%" cy="40%" r="60%">
+                        <stop offset="0%" stop-color="#fff9c4"/>
+                        <stop offset="25%" stop-color="#ffc107"/>
+                        <stop offset="55%" stop-color="#ff4500"/>
+                        <stop offset="90%" stop-color="#8b0000"/>
+                        <stop offset="100%" stop-color="#2a0a05"/>
+                    </radialGradient>
+                </defs>
+                <circle cx="100" cy="125" r="100" fill="rgba(255,80,0,0.25)"/>
+                <circle cx="100" cy="125" r="86" fill="url(#lava-ball)" stroke="rgba(255,150,0,0.7)" stroke-width="2"/>
+                <g fill="rgba(20,5,2,0.7)">
+                    <ellipse cx="70" cy="100" rx="8" ry="14" transform="rotate(20 70 100)"/>
+                    <ellipse cx="130" cy="110" rx="6" ry="10"/>
+                    <ellipse cx="110" cy="170" rx="10" ry="6"/>
+                    <ellipse cx="65" cy="150" rx="7" ry="11" transform="rotate(-30 65 150)"/>
+                    <path d="M 90 95 Q 100 85 115 100 Q 105 120 90 110 Z"/>
+                </g>
+                <ellipse cx="80" cy="88" rx="18" ry="9" fill="rgba(255,255,180,0.7)"/>
+                <rect x="74" y="216" width="52" height="14" fill="#2a0a05" stroke="rgba(255,100,0,0.5)"/>
+                <rect x="64" y="230" width="72" height="340" rx="10" fill="#0a0303" stroke="rgba(150,40,0,0.7)" stroke-width="1.5"/>
+                <path d="M 70 240 Q 80 270 75 300 Q 85 330 78 360" fill="none" stroke="#ff4500" stroke-width="2" filter="drop-shadow(0 0 4px #ff8a00)"/>
+                <path d="M 130 250 Q 122 280 128 310 Q 118 340 125 370" fill="none" stroke="#ff4500" stroke-width="2" filter="drop-shadow(0 0 4px #ff8a00)"/>
+                <path d="M 65 400 Q 100 410 135 400 Q 100 420 65 410" fill="#ff8a00" filter="drop-shadow(0 0 4px #ff4500)"/>
+                <path d="M 75 470 Q 100 480 125 470 Q 100 490 75 480" fill="#ff4500" filter="drop-shadow(0 0 3px #ff8a00)"/>
+                <rect x="64" y="568" width="72" height="12" rx="4" fill="#2a0a05" stroke="rgba(255,100,0,0.5)"/>
+            </svg>`,
+        },
+        {
+            id: 'galaxy', label: 'Galaxy',
+            svg: `<svg viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="galaxy-ball" cx="40%" cy="35%" r="65%">
+                        <stop offset="0%" stop-color="#ffe1f5"/>
+                        <stop offset="20%" stop-color="#a96bff"/>
+                        <stop offset="60%" stop-color="#3a1a8a"/>
+                        <stop offset="100%" stop-color="#080418"/>
+                    </radialGradient>
+                    <linearGradient id="galaxy-body" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#1a0a45"/>
+                        <stop offset="100%" stop-color="#080418"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="100" cy="125" r="100" fill="rgba(169,107,255,0.15)"/>
+                <circle cx="100" cy="125" r="86" fill="url(#galaxy-ball)" stroke="rgba(255,200,255,0.4)"/>
+                <g fill="#fff">
+                    <circle cx="60" cy="90" r="1.2" opacity="0.95"/><circle cx="80" cy="105" r="0.8" opacity="0.7"/>
+                    <circle cx="135" cy="80" r="1.5" opacity="1"/><circle cx="120" cy="155" r="1" opacity="0.85"/>
+                    <circle cx="50" cy="135" r="0.9" opacity="0.6"/><circle cx="155" cy="135" r="1.1" opacity="0.8"/>
+                    <circle cx="90" cy="170" r="0.7" opacity="0.6"/><circle cx="145" cy="100" r="0.9" opacity="0.7"/>
+                    <circle cx="70" cy="180" r="1.1" opacity="0.85"/>
+                </g>
+                <ellipse cx="100" cy="125" rx="80" ry="22" fill="none" stroke="rgba(255,200,255,0.25)" stroke-width="1" transform="rotate(25 100 125)"/>
+                <ellipse cx="80" cy="80" rx="18" ry="10" fill="rgba(255,255,255,0.4)"/>
+                <rect x="74" y="216" width="52" height="14" fill="#1a0a45"/>
+                <rect x="64" y="230" width="72" height="340" rx="10" fill="url(#galaxy-body)" stroke="rgba(169,107,255,0.4)"/>
+                <g fill="#fff">
+                    <circle cx="80" cy="280" r="0.8"/><circle cx="120" cy="320" r="1"/><circle cx="75" cy="380" r="0.9"/>
+                    <circle cx="125" cy="430" r="0.7"/><circle cx="85" cy="480" r="1.1"/><circle cx="115" cy="520" r="0.8"/>
+                </g>
+                <text x="100" y="400" text-anchor="middle" font-family="Geist" font-size="11" font-weight="700" fill="rgba(255,200,255,0.85)" letter-spacing="2">COSMIC</text>
+                <rect x="64" y="568" width="72" height="12" rx="4" fill="#1a0a45"/>
+            </svg>`,
+        },
+    ];
+
+    const LS_MIC_STYLE = 'tunes-karaoke-mic-style';
+    function getMicStyle() {
+        try {
+            const v = localStorage.getItem(LS_MIC_STYLE);
+            if (v && MIC_STYLES.some((m) => m.id === v)) return v;
+        } catch (e) {}
+        return MIC_STYLES[0].id;
+    }
+    function setMicStyle(id) {
+        try { localStorage.setItem(LS_MIC_STYLE, id); } catch (e) {}
+        renderMicLive();
+    }
+    function renderMicLive() {
+        const id = getMicStyle();
+        const m = MIC_STYLES.find((x) => x.id === id) || MIC_STYLES[0];
+        const wrap = document.getElementById('mic-live-svg');
+        if (wrap) wrap.innerHTML = m.svg;
+    }
+    function renderMicPicker() {
+        const strip = document.getElementById('mic-picker-strip');
+        if (!strip) return;
+        const active = getMicStyle();
+        strip.innerHTML = MIC_STYLES.map((m) => `
+            <button type="button" class="mic-picker__option ${m.id === active ? 'is-active' : ''}" data-mic="${m.id}">
+                <span class="mic-picker__swatch" data-style="${m.id}"></span>
+                <span class="mic-picker__label">${m.label}</span>
+            </button>
+        `).join('');
+        strip.querySelectorAll('[data-mic]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setMicStyle(btn.getAttribute('data-mic'));
+                renderMicPicker();
+            });
+        });
+    }
+
+    // Initial render of picker + the LIVE mic SVG
+    renderMicPicker();
+    renderMicLive();
+
 
     // Hook into the existing polling loop to dispatch updates
     load();
