@@ -1,5 +1,30 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.81 — Silent Spotlight actually works · Karaoke instrumental + Vocals toggle
+
+### Bug fixes
+- **Silent Spotlight was silently never firing.**  Root cause: my v2.8.78 implementation called `controls.setVolume(0)` to mute, which actually wrote `state.volume = 0` to the persistent engine state.  My restore step then read that same `state.volume` (now 0) and "restored" it to 0 — so the audio never came back AND there was no way to know the spotlight had even kicked in.  Worse, the YouTube `_forceUnmuteRetry` loop kept fighting the mute on every state change.
+- **Fix**: new `engine.setMuted(bool)` method that calls `this.yt.mute()/unMute()` + `audio.muted = bool` WITHOUT touching `state.volume`.  Engine now also tracks a `state.muted` flag, and `_forceUnmuteRetry` bails out early when `state.muted` is true.  FullScreenPlayer's spotlight effect uses `setMuted` instead of `setVolume(0)`.
+- Also added an unmount-cleanup so the player can never be left muted if the user navigates away mid-spotlight.
+
+### New: Instrumental karaoke (sing-along) + Vocals toggle
+- `resolveTrackStream(track, { karaoke: true })` now appends `" karaoke instrumental"` to the YouTube search title so the resolver returns a karaoke / minus-one version of the song instead of the original with vocals.
+- `engine.playTrack` auto-detects `sessionStorage.tunes-karaoke-mode === '1'` (set by Sing Your Own / KaraokeStage) and defaults `karaoke: true` for every track played in karaoke mode.
+- New `engine.setKaraokeInstrumental(bool)` method re-resolves the current track with the flipped flag so the user can toggle vocals at any time.
+- New **Vocals OFF / Vocals ON** pill button in the FullScreenPlayer top-right corner (only visible in karaoke mode).  Default state = OFF (instrumental, what karaoke should be) shown in neon-blue; flipping ON warms it to pink to signal "this isn't the singing-along setting anymore".
+
+### Files
+- MOD `/app/frontend/src/hooks/useMusicPlayer.js` — `setMuted`, `setKaraokeInstrumental`, `playTrack` accepts `{ karaoke }`, `_forceUnmuteRetry` respects muted flag (also cleaned up a duplicate `engine` declaration left over from earlier edits)
+- MOD `/app/frontend/src/lib/musicResolver.js` — `resolveTrackStream` accepts `{ karaoke: bool }` and modifies the YouTube search query
+- MOD `/app/frontend/src/pages/music/FullScreenPlayer.jsx` — uses `setMuted` for spotlight; adds Vocals on/off button
+- MOD `/app/frontend/src/pages/music/tunes.css` — `.tunes-fullplayer__vocals-btn` styles
+
+### Tested
+- Lint passes on all modified JS files.
+- Screenshot confirmed Silent Spotlight chip applies on Sing Your Own page; UI ready for end-to-end TV verification.
+
+
+
 ## v2.8.79 — Mobile music menu fix · whole-app scroll fix
 
 > User feedback: "All the menu buttons need to work for the phone

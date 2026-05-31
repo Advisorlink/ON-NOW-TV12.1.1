@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Play, Pause, SkipBack, SkipForward, Shuffle, Repeat,
-    Volume2, X, Maximize, Minimize, Heart, BarChart3,
+    Volume2, X, Maximize, Minimize, Heart, BarChart3, Mic, MicOff,
 } from 'lucide-react';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 import { musicAPI } from '../../lib/music-api';
@@ -177,20 +177,26 @@ export function FullScreenPlayer({ onClose }) {
         && position >= spotlightWindow.start
         && position < spotlightWindow.end;
 
-    // Apply the actual audio mute on edge transitions only — we
-    // don't want to spam setVolume on every tick.
+    // v2.8.81 — Apply the actual audio mute on edge transitions only.
+    // We use `controls.setMuted(true)` (not setVolume(0)) so the
+    // user's persisted volume is preserved AND the engine's
+    // auto-unmute retry loop respects the muted flag.
     const wasInSpotlight = useRef(false);
-    const savedVolumeRef = useRef(null);
     useEffect(() => {
         if (inSpotlight && !wasInSpotlight.current) {
-            savedVolumeRef.current = state.volume ?? 0.85;
-            controls.setVolume(0);
+            controls.setMuted(true);
             wasInSpotlight.current = true;
         } else if (!inSpotlight && wasInSpotlight.current) {
-            controls.setVolume(savedVolumeRef.current ?? 0.85);
+            controls.setMuted(false);
             wasInSpotlight.current = false;
         }
-    }, [inSpotlight, controls, state.volume]);
+    }, [inSpotlight, controls]);
+    // On unmount, make sure we never leave the player muted.
+    useEffect(() => () => {
+        if (wasInSpotlight.current) {
+            try { controls.setMuted(false); } catch { /* ignore */ }
+        }
+    }, [controls]);
 
     const activeLyricIdx = useMemo(() => {
         if (!synced.length) return -1;
@@ -269,6 +275,29 @@ export function FullScreenPlayer({ onClose }) {
             </div>
 
             <div className="tunes-fullplayer__corner-right">
+                {karaokeMode && (
+                    <button
+                        type="button"
+                        className={
+                            'tunes-iconbtn tunes-fullplayer__vocals-btn'
+                            + (state.karaokeInstrumental ? '' : ' is-vocals-on')
+                        }
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => controls.setKaraokeInstrumental(!state.karaokeInstrumental)}
+                        aria-label={state.karaokeInstrumental ? 'Turn vocals ON' : 'Turn vocals OFF'}
+                        title={state.karaokeInstrumental
+                            ? 'Instrumental — click to bring vocals back'
+                            : 'Vocals on — click for the karaoke version'}
+                        data-testid="tunes-fullplayer-vocals"
+                    >
+                        {state.karaokeInstrumental ? <MicOff size={18} /> : <Mic size={18} />}
+                        <span className="tunes-fullplayer__vocals-label">
+                            {state.karaokeInstrumental ? 'Vocals OFF' : 'Vocals ON'}
+                        </span>
+                    </button>
+                )}
                 <button
                     type="button"
                     className="tunes-iconbtn"

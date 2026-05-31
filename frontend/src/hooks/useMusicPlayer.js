@@ -194,6 +194,11 @@ class PlayerEngine {
     _forceUnmuteRetry() {
         const tryUnmute = () => {
             if (!this.yt || !this.ytReady) return;
+            // v2.8.81 — Respect an explicit mute request (Silent
+            // Spotlight challenge).  Without this guard, the
+            // auto-unmute loop fights the spotlight mute and the
+            // audio never actually drops out.
+            if (this.state.muted) return;
             try {
                 if (typeof this.yt.isMuted === 'function' && this.yt.isMuted()) {
                     this.yt.unMute();
@@ -267,33 +272,33 @@ class PlayerEngine {
             console.warn('[music-player] loadVideoById failed', e);
         }
     }
-    playTrack(track, queue = null) {
+    playTrack(track, queue = null, opts = null) {
         if (!track) return;
         const newQueue = queue && queue.length ? queue : [track];
         const idx = newQueue.findIndex((t) => t.id === track.id);
         const finalIdx = idx >= 0 ? idx : 0;
+        // v2.8.81 — Karaoke instrumental: when the Karaoke flow
+        // sets sessionStorage `tunes-karaoke-mode`, default `karaoke`
+        // to true so the resolver fetches an instrumental version.
+        // The user can flip vocals back on via `setKaraokeInstrumental`.
+        let karaoke = opts && typeof opts.karaoke === 'boolean'
+            ? opts.karaoke
+            : null;
+        if (karaoke === null) {
+            try { karaoke = sessionStorage.getItem('tunes-karaoke-mode') === '1'; }
+            catch { karaoke = false; }
+        }
         this.update({
             kind: 'track',
-            current: { ...track, _resolving: true, _isFullTrack: false },
+            current: { ...track, _resolving: true, _isFullTrack: false, _karaoke: karaoke },
             queue: newQueue,
             queueIndex: finalIdx,
+            karaokeInstrumental: karaoke,
         });
-        // v2.8.47 — Try resolving the full-track URL via the backend.
-        // If a full track is found we swap to it; otherwise we play
-        // the 30-second Deezer preview as a graceful fallback.
-        this._loadTrackStream(track);
+        this._loadTrackStream(track, { karaoke });
     }
-    async _loadTrackStream(track) {
-        // v2.8.53 — Resolver chain:
-        //   1) Native bridge — returns either a direct stream_url
-        //      (legacy code paths) OR `source: 'youtube-iframe'`
-        //      with a yt_id, which routes through YouTube's IFrame
-        //      Player API (only consistently-working full-track
-        //      path in late 2025 / early 2026).
-        //   2) Backend `/api/music/stream/{id}` (admin cookies →
-        //      JioSaavn → Audius → preview).
-        //   3) Deezer 30-s preview as last resort.
-        const resolved = await resolveTrackStream(track);
+    async _loadTrackStream(track, opts) {
+        const resolved = await resolveTrackStream(track, opts);
 
         // Confirm the user hasn't navigated away
         if (!this.state.current || this.state.current.id !== track.id) return;
@@ -444,6 +449,39 @@ class PlayerEngine {
         }
         this.update({ volume: vv });
     }
+
+    // v2.8.81 — Independent mute control that does NOT touch
+    // state.volume.  Used by the Silent Spotlight karaoke challenge:
+    // we need to drop the audio for ~7 s and bring it back at the
+    // user's previously-set volume.  Using setVolume(0) overwrote
+    // the persistent volume so it could never be restored.
+    setMuted(muted) {
+        const m = !!muted;
+        if (this.audio) {
+            try { this.audio.muted = m; } catch { /* ignore */ }
+        }
+        if (this.yt && this.ytReady) {
+            try {
+                if (m) this.yt.mute();
+                else this.yt.unMute();
+            } catch { /* ignore */ }
+        }
+        // Track in state so the UI can reflect mute (e.g. spotlight
+        // banner) but DON'T touch volume.
+        this.update({ muted: m });
+    }
+
+    // v2.8.81 — Vocals toggle for karaoke mode.  Re-resolves the
+    // CURRENT track with the karaoke flag flipped and reloads it.
+    setKaraokeInstrumental(on) {
+        const t = this.state.current;
+        if (!t) return;
+        this.update({
+            karaokeInstrumental: !!on,
+            current: { ...t, _karaoke: !!on, _resolving: true },
+        });
+        this._loadTrackStream(t, { karaoke: !!on });
+    }
 }
 
 const engine = (typeof window !== 'undefined' && (window.__musicEngine || (window.__musicEngine = new PlayerEngine()))) || new PlayerEngine();
@@ -464,6 +502,8 @@ export function useMusicPlayer() {
             previous: engine.previous.bind(engine),
             seek: engine.seek.bind(engine),
             setVolume: engine.setVolume.bind(engine),
+            setMuted: engine.setMuted.bind(engine),
+            setKaraokeInstrumental: engine.setKaraokeInstrumental.bind(engine),
         },
     };
 }
