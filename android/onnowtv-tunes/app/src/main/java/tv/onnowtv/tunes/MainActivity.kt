@@ -89,7 +89,17 @@ class MainActivity : AppCompatActivity() {
                     .replace("; wv)", ")")
                     .replace(" wv ", " ")
             }
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                // v2.8.82 — Phone-as-microphone WebRTC support.
+                // The TV side of the karaoke flow opens a peer
+                // connection to receive the singer's mic audio.
+                // Android WebView blocks WebRTC media permissions by
+                // default; we grant them automatically because the
+                // bundled SPA is fully trusted (it's our own code).
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                    request?.grant(request.resources)
+                }
+            }
         }
         // Native bridge — exposes `window.OnNowTV.resolveYouTubeAudio(...)`
         // so the React music player can resolve full-length YouTube

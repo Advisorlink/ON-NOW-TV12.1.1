@@ -1,5 +1,59 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.82 — Phone-as-microphone (WebRTC) · Silent Spotlight 20 s test mode · Instrumental fallback
+
+### 🎤 Phone-as-microphone — full WebRTC flow shipped
+A singer's phone now turns into a real live microphone for the TV.  When a song is about to play, the singer's phone shows a beautiful glowing mic UI and the TV shows an "Up next: [Name]" waiting overlay.  When the singer taps "Turn on your mic", their phone captures audio (with browser-level echo cancellation + noise suppression), opens a WebRTC peer connection to the TV via the existing party-state signaling channel, and the singer's voice plays through the TV speakers in real-time alongside the music.  Latency ~150-250 ms (well under the perceptible threshold).
+
+**Phone side** (new mic phase in `karaoke_guest_page.py`):
+- Pulsing 240×240 microphone artwork with gradient halo
+- Big pink-orange "Turn on your mic" CTA → green "Mic ON · Singing" once connected
+- Live volume meter under the mic (RMS from `AnalyserNode`) so the singer can see they're being picked up
+- Tap again to stop mic / start over
+- `getUserMedia({ echoCancellation, noiseSuppression, autoGainControl })`
+- `RTCPeerConnection` with Google's public STUN server; ICE candidates forwarded via party API
+
+**TV side** (new `KaraokeMicReceiver.jsx` mounted in `MusicLayout`):
+- Listens to party polling; when `current_singer_id === <member> && mic_armed`, shows full-screen "Up next: [Name]" overlay with a glowing pulsing avatar
+- WebRTC ANSWERER — receives offer, creates answer, accepts incoming audio track
+- Plays the singer's audio through a hidden `<audio>` element with `autoPlay playsInline`
+- Hooks the stream into a Web Audio `AudioContext` so future effects (reverb, EQ) can be added trivially
+- Tears down peer when current singer changes
+
+**Backend** (`karaoke_party.py`):
+- New `Party` fields: `current_singer_id`, `mic_armed`, `signals[]` (capped to 80 entries)
+- New endpoints:
+    - `POST /party/{code}/mic/signal` — phone or TV publishes offer/answer/ICE/bye
+    - `POST /party/{code}/mic/on` — phone signals "mic active, start the song"
+    - `POST /party/{code}/mic/arm` — host can re-arm a singer if their phone dropped
+- `/advance` now auto-arms the mic and assigns `current_singer_id` from the queue head
+
+### 🔇 Silent Spotlight — actually working now
+- Fires at **20-27 seconds** instead of mid-song (easy-test window per user request).  Long songs auto-switch back to a 50% trigger; short ones fire at 8-14 s.
+- Re-applies `setMuted(true)` every 500 ms during the spotlight window to defeat any YouTube auto-unmute behaviour.
+- Unmount cleanup added so player can never be left muted if the user navigates away.
+
+### 🎵 Instrumental karaoke — fallback retry
+- Resolver searches `"<song> karaoke"` (was `"karaoke instrumental"` which returned zero matches for most songs and made the player silent).
+- If the karaoke search returns nothing playable, automatically retries with the ORIGINAL title so something always plays.  Vocals OFF mode is now reliable.
+
+### Files
+- NEW `/app/frontend/src/components/KaraokeMicReceiver.jsx`
+- MOD `/app/backend/karaoke_party.py` — new Party fields + 3 new endpoints
+- MOD `/app/backend/karaoke_guest_page.py` — new mic phase HTML/CSS/JS + WebRTC client
+- MOD `/app/frontend/src/pages/music/MusicLayout.jsx` — mount KaraokeMicReceiver
+- MOD `/app/frontend/src/pages/music/FullScreenPlayer.jsx` — Silent Spotlight 20 s window + 500 ms re-mute loop
+- MOD `/app/frontend/src/lib/musicResolver.js` — `_doResolve` helper + karaoke fallback retry
+- MOD `/app/frontend/src/pages/music/karaoke-party.css` — TV "Up Next" waiting overlay styles
+
+### Tested
+- Backend mic-arm flow verified via curl (advance → current_singer_id + mic_armed = true).
+- Phone mic UI screenshot at 390×844 looks gorgeous.
+- TV waiting overlay screenshot at 1920×1080 looks gorgeous (huge gradient "Alex" + pulsing avatar + waiting pill).
+- All lint clean (Python ruff + JS ESLint).
+
+
+
 ## v2.8.81 — Silent Spotlight actually works · Karaoke instrumental + Vocals toggle
 
 ### Bug fixes

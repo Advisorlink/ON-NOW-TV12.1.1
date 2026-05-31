@@ -302,6 +302,118 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         .pill .av img { width:100%; height:100%; object-fit:cover; }
         .pill.host { background:rgba(78,167,255,0.18); border-color:var(--blue); }
         .pill.you { background:rgba(78,167,255,0.16); border-color:var(--blue); font-weight:700; }
+
+        /* ===== MIC PHASE — phone-as-microphone ===== */
+        .mic-phase {
+            position:fixed; inset:0; z-index:60;
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(255,122,184,0.25), transparent 70%),
+                radial-gradient(ellipse at 50% 100%, rgba(78,167,255,0.20), transparent 70%),
+                linear-gradient(180deg, #1a0a2a 0%, #060418 100%);
+            display:none; flex-direction:column; align-items:center;
+            justify-content:center; padding:30px 24px;
+            text-align:center; color:#fff;
+        }
+        .mic-phase.show { display:flex; }
+        .mic-phase__eyebrow {
+            color:#ffcfe4; font-size:11px; letter-spacing:0.34em;
+            font-weight:800; text-transform:uppercase; margin:0 0 8px;
+        }
+        .mic-phase__title {
+            font-family:'Geist', system-ui; font-weight:800;
+            font-size:34px; letter-spacing:-0.025em; line-height:1;
+            margin:0 0 4px;
+            background: linear-gradient(90deg, #ff7ab8 0%, #ffb070 50%, #5eb5ff 100%);
+            -webkit-background-clip:text; background-clip:text;
+            -webkit-text-fill-color:transparent;
+            filter:drop-shadow(0 0 22px rgba(255,122,184,0.4));
+        }
+        .mic-phase__sub {
+            color:rgba(255,220,245,0.78); font-size:15px;
+            margin:8px 0 28px; line-height:1.5;
+        }
+
+        /* Big beautiful microphone artwork — fills most of the screen */
+        .mic-art {
+            width:240px; height:240px; margin:18px auto 28px;
+            position:relative;
+        }
+        .mic-art__halo {
+            position:absolute; inset:-40px;
+            border-radius:50%;
+            background: radial-gradient(circle, rgba(255,122,184,0.25), transparent 70%);
+            animation: micPulse 2s ease-in-out infinite;
+        }
+        .mic-art__halo.live { animation-duration: 0.6s; }
+        .mic-art__ring {
+            position:absolute; inset:0; border-radius:50%;
+            border:3px solid rgba(255,122,184,0.55);
+            box-shadow:
+                0 0 0 1px rgba(255,255,255,0.08) inset,
+                0 0 60px rgba(255,122,184,0.55),
+                0 0 120px rgba(78,167,255,0.35);
+            background:
+                radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.06), transparent 60%),
+                linear-gradient(180deg, #2a1240 0%, #14081f 100%);
+            display:grid; place-items:center;
+            overflow:hidden;
+        }
+        .mic-art__ring svg {
+            width:120px; height:120px;
+            color:#fff;
+            filter:drop-shadow(0 0 18px #ff7ab8) drop-shadow(0 0 36px rgba(94,181,255,0.45));
+        }
+        /* Live volume meter — fills the ring with a radial bar */
+        .mic-art__meter {
+            position:absolute; left:50%; bottom:-26px; transform:translateX(-50%);
+            width:74%; height:8px; border-radius:30px;
+            background:rgba(255,255,255,0.08);
+            overflow:hidden;
+        }
+        .mic-art__meter-bar {
+            height:100%; width:0%;
+            background: linear-gradient(90deg, #5eb5ff, #ff7ab8);
+            border-radius:30px;
+            transition:width 90ms linear;
+            box-shadow: 0 0 18px #ff7ab8;
+        }
+        @keyframes micPulse {
+            0%, 100% { transform:scale(1); opacity:0.7; }
+            50% { transform:scale(1.05); opacity:1; }
+        }
+
+        button.mic-cta {
+            width:100%; max-width:340px;
+            padding:18px; font-size:17px; font-weight:800;
+            border-radius:18px;
+            background: linear-gradient(135deg, #ff7ab8 0%, #ffb070 100%);
+            color:#1a0a2a; border:0;
+            box-shadow: 0 18px 40px rgba(255,122,184,0.5), 0 0 0 2px rgba(255,122,184,0.5);
+            display:flex; align-items:center; justify-content:center; gap:10px;
+            cursor:pointer; font-family:inherit;
+            letter-spacing:0.02em;
+            transition:transform 200ms;
+        }
+        button.mic-cta:active { transform:scale(0.97); }
+        button.mic-cta.live {
+            background: linear-gradient(135deg, #22d671 0%, #0e8a52 100%);
+            color:#04140b;
+            box-shadow: 0 18px 40px rgba(34,214,113,0.45), 0 0 0 2px rgba(34,214,113,0.5);
+        }
+        button.mic-cta.live::before {
+            content:''; width:10px; height:10px; border-radius:50%;
+            background:#fff; box-shadow:0 0 12px #fff;
+            animation: liveBlink 1.2s ease-in-out infinite;
+        }
+        @keyframes liveBlink {
+            0%, 100% { opacity:1; }
+            50% { opacity:0.3; }
+        }
+        .mic-status {
+            color:rgba(255,255,255,0.7); font-size:13px;
+            margin:18px 0 0; min-height:16px;
+        }
+        .mic-status.err { color:#ff7ab8; }
     </style>
 </head>
 <body>
@@ -409,6 +521,34 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     <div id="mine-shelf" class="shelf"></div>
     <div id="others-shelf" class="shelf"></div>
 </section>
+
+<!-- MIC PHASE — phone-as-microphone overlay (v2.8.82) -->
+<div id="phase-mic" class="mic-phase">
+    <p class="mic-phase__eyebrow" id="mic-up-next">YOU'RE UP NEXT</p>
+    <h1 class="mic-phase__title" id="mic-song-title">Get ready</h1>
+    <p class="mic-phase__sub" id="mic-song-sub">Hold your phone close to your face like a microphone.</p>
+
+    <div class="mic-art">
+        <div class="mic-art__halo" id="mic-halo"></div>
+        <div class="mic-art__ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <div class="mic-art__meter">
+                <div class="mic-art__meter-bar" id="mic-meter"></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="mic-cta" class="mic-cta" type="button">
+        Turn on your mic
+    </button>
+    <p id="mic-status" class="mic-status">Tap to start. Browser will ask for microphone permission.</p>
+</div>
+
 
 <!-- PHASE: ERROR -->
 <section id="phase-error" class="center" style="display:none; padding-top:60px;">
@@ -663,6 +803,8 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         renderMine();
         renderOthers();
         startPolling();
+        // v2.8.82 — Also wire up the phone-as-mic listener.
+        startMicWatcher();
     }
 
     async function startPolling() {
@@ -676,6 +818,12 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                     renderJoinedPills();
                     renderMine();
                     renderOthers();
+                    // v2.8.82 — Notify the mic watcher so it can
+                    // (a) show/hide the "Turn on your mic" overlay
+                    // when current_singer_id flips, and (b) feed any
+                    // inbound WebRTC signals (TV's answer + ICE) to
+                    // the live peer connection.
+                    window.dispatchEvent(new CustomEvent('tunes-party-update'));
                 }
             } catch (e) {
                 await new Promise((res) => setTimeout(res, 3000));
@@ -779,6 +927,210 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         } catch (e) { /* swallow */ }
     }
 
+    /* =============================================================
+     * v2.8.82 — Phone-as-microphone (WebRTC client)
+     *
+     * When the party's `current_singer_id` matches our member id
+     * AND `mic_armed` is true, we show the big "Turn on your mic"
+     * UI.  Tapping the CTA captures the phone mic with echo
+     * cancellation + noise suppression, opens an RTCPeerConnection
+     * to the TV via the party's signaling channel, and starts a
+     * live volume meter so the singer can see the mic is working.
+     *
+     * The TV side does the inverse (receives the offer, plays the
+     * remote stream through Web Audio).
+     * ============================================================ */
+    const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+    let micPC = null;
+    let micStream = null;
+    let micAudioCtx = null;
+    let micMeterRAF = 0;
+    let micProcessedSignalIds = new Set();
+    let micShown = false;
+
+    async function sendMicSignal(kind, payload) {
+        try {
+            await fetch('/api/karaoke/party/' + CODE + '/mic/signal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    from_id: memberId,
+                    to_id: 'tv',
+                    kind: kind,
+                    payload: payload || {},
+                }),
+            });
+        } catch (e) { /* swallow */ }
+    }
+
+    function showMicPhase() {
+        if (micShown) return;
+        micShown = true;
+        const upNext = party.current ? party.current : (party.queue[0] || null);
+        $('mic-song-title').textContent = upNext ? upNext.title : 'You\'re up!';
+        $('mic-song-sub').textContent = upNext
+            ? 'Tap the button below, hold your phone like a mic, and sing along.'
+            : 'Tap to turn on your phone microphone.';
+        $('phase-mic').classList.add('show');
+    }
+
+    function hideMicPhase() {
+        if (!micShown) return;
+        micShown = false;
+        $('phase-mic').classList.remove('show');
+        cleanupMic();
+    }
+
+    function cleanupMic() {
+        cancelAnimationFrame(micMeterRAF);
+        micMeterRAF = 0;
+        if (micPC) {
+            try { micPC.close(); } catch {}
+            micPC = null;
+        }
+        if (micStream) {
+            try { micStream.getTracks().forEach((t) => t.stop()); } catch {}
+            micStream = null;
+        }
+        if (micAudioCtx) {
+            try { micAudioCtx.close(); } catch {}
+            micAudioCtx = null;
+        }
+        $('mic-meter').style.width = '0%';
+    }
+
+    async function turnOnMic() {
+        const btn = $('mic-cta');
+        const status = $('mic-status');
+        btn.disabled = true;
+        status.textContent = 'Requesting microphone…';
+        status.classList.remove('err');
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1,
+                    sampleRate: 48000,
+                },
+                video: false,
+            });
+        } catch (e) {
+            status.textContent = 'Mic access denied. Allow the microphone and tap Try Again.';
+            status.classList.add('err');
+            btn.textContent = 'Try Again';
+            btn.disabled = false;
+            return;
+        }
+
+        // Live volume meter
+        try {
+            micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const src = micAudioCtx.createMediaStreamSource(micStream);
+            const analyser = micAudioCtx.createAnalyser();
+            analyser.fftSize = 1024;
+            src.connect(analyser);
+            const data = new Uint8Array(analyser.fftSize);
+            const tick = () => {
+                analyser.getByteTimeDomainData(data);
+                let sum = 0;
+                for (let i = 0; i < data.length; i++) {
+                    const v = (data[i] - 128) / 128;
+                    sum += v * v;
+                }
+                const rms = Math.sqrt(sum / data.length);
+                const pct = Math.min(100, Math.round(rms * 220));
+                $('mic-meter').style.width = pct + '%';
+                micMeterRAF = requestAnimationFrame(tick);
+            };
+            tick();
+        } catch (e) { /* meter optional */ }
+
+        // WebRTC peer connection — open offer to TV
+        try {
+            micPC = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+            micStream.getTracks().forEach((t) => micPC.addTrack(t, micStream));
+            micPC.onicecandidate = (e) => {
+                if (e.candidate) sendMicSignal('ice', { candidate: e.candidate });
+            };
+            micPC.onconnectionstatechange = () => {
+                if (!micPC) return;
+                if (micPC.connectionState === 'connected') {
+                    status.textContent = 'You\'re live!';
+                    btn.classList.add('live');
+                    btn.textContent = 'Mic ON · Singing';
+                    $('mic-halo').classList.add('live');
+                    btn.disabled = false;
+                } else if (micPC.connectionState === 'failed') {
+                    status.textContent = 'Connection failed. Try Again.';
+                    status.classList.add('err');
+                    btn.disabled = false;
+                }
+            };
+            const offer = await micPC.createOffer({ offerToReceiveAudio: false });
+            await micPC.setLocalDescription(offer);
+            await sendMicSignal('offer', { sdp: micPC.localDescription });
+            // Tell server the mic is on so the TV can start playback
+            await fetch('/api/karaoke/party/' + CODE + '/mic/on', { method: 'POST' });
+            status.textContent = 'Connecting to TV…';
+        } catch (e) {
+            status.textContent = 'Could not establish connection: ' + (e.message || e);
+            status.classList.add('err');
+            btn.disabled = false;
+        }
+    }
+
+    $('mic-cta').addEventListener('click', () => {
+        const btn = $('mic-cta');
+        if (btn.classList.contains('live')) {
+            // Tap again = stop mic
+            cleanupMic();
+            btn.classList.remove('live');
+            $('mic-halo').classList.remove('live');
+            btn.textContent = 'Turn on your mic';
+            $('mic-status').textContent = 'Mic off. Tap to turn back on.';
+            sendMicSignal('bye', {});
+            return;
+        }
+        turnOnMic();
+    });
+
+    async function handleMicSignals(signals) {
+        if (!micPC) return;
+        for (const sig of (signals || [])) {
+            if (sig.to_id !== memberId) continue;
+            if (micProcessedSignalIds.has(sig.id)) continue;
+            micProcessedSignalIds.add(sig.id);
+            try {
+                if (sig.kind === 'answer' && sig.payload?.sdp) {
+                    await micPC.setRemoteDescription(sig.payload.sdp);
+                } else if (sig.kind === 'ice' && sig.payload?.candidate) {
+                    await micPC.addIceCandidate(sig.payload.candidate);
+                }
+            } catch (e) {
+                console.warn('[mic] signal handler failed', sig.kind, e);
+            }
+        }
+    }
+
+    function startMicWatcher() {
+        // Re-evaluates after every party update (polling already wired)
+        const evaluate = async () => {
+            if (!party) return;
+            // Show / hide the mic phase based on whether we're the
+            // current singer AND the mic is armed.
+            const isMine = party.current_singer_id && party.current_singer_id === memberId;
+            if (isMine && party.mic_armed) showMicPhase();
+            else if (!isMine) hideMicPhase();
+            // Always process inbound signals targeted at us.
+            await handleMicSignals(party.signals);
+        };
+        evaluate();
+        window.addEventListener('tunes-party-update', evaluate);
+    }
+
+    // Hook into the existing polling loop to dispatch updates
     load();
 })();
 </script>

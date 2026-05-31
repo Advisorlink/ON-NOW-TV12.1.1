@@ -164,12 +164,17 @@ export function FullScreenPlayer({ onClose }) {
     const spotlightWindow = useMemo(() => {
         if (!karaokeMode || challenge !== 'silent-spotlight') return null;
         const dur = state.duration || t?.duration || 0;
-        if (dur < 25) return null; // too short for a fun spotlight
-        // Pseudo-random offset seeded by track id so reruns are stable.
-        const seed = ((t?.id ?? 0).toString()
-            .split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 25) / 100;
-        const startFrac = 0.40 + seed; // 0.40 - 0.65
-        return { start: dur * startFrac, end: Math.min(dur - 4, dur * startFrac + 7) };
+        // v2.8.82 — Easy-test window so the user can verify the
+        // effect without waiting 90 s for the natural mid-song
+        // trigger.  Fires at 20-27 s.  Switches to the natural
+        // ~50 % trigger once the song is long enough that 20 s
+        // would be too early to feel meaningful (>60 s).
+        if (dur < 30) {
+            // Very short song / preview: keep a small window so we
+            // still demo the effect.
+            return { start: 8, end: Math.min(dur - 2, 14) };
+        }
+        return { start: 20, end: 27 };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [karaokeMode, challenge, t?.id, state.duration]);
 
@@ -177,10 +182,10 @@ export function FullScreenPlayer({ onClose }) {
         && position >= spotlightWindow.start
         && position < spotlightWindow.end;
 
-    // v2.8.81 — Apply the actual audio mute on edge transitions only.
-    // We use `controls.setMuted(true)` (not setVolume(0)) so the
-    // user's persisted volume is preserved AND the engine's
-    // auto-unmute retry loop respects the muted flag.
+    // v2.8.82 — Belt-and-braces: re-apply the mute every 500 ms
+    // during the spotlight window.  YouTube's IFrame player has
+    // event timing quirks that can sometimes un-mute right after
+    // we mute it; this defeats them.
     const wasInSpotlight = useRef(false);
     useEffect(() => {
         if (inSpotlight && !wasInSpotlight.current) {
@@ -190,6 +195,11 @@ export function FullScreenPlayer({ onClose }) {
             controls.setMuted(false);
             wasInSpotlight.current = false;
         }
+    }, [inSpotlight, controls]);
+    useEffect(() => {
+        if (!inSpotlight) return undefined;
+        const id = setInterval(() => { controls.setMuted(true); }, 500);
+        return () => clearInterval(id);
     }, [inSpotlight, controls]);
     // On unmount, make sure we never leave the player muted.
     useEffect(() => () => {

@@ -76,6 +76,16 @@ class Party:
     history: List[QueueEntry] = field(default_factory=list)
     current: Optional[QueueEntry] = None
     challenge: Optional[str] = None  # active challenge id e.g. "silent-spotlight"
+    # v2.8.82 — Phone-as-microphone (WebRTC).  When the TV is about
+    # to start the next queue entry, `current_singer_id` is set to
+    # the member who added that song, and a "mic_armed" flag goes
+    # up so their phone shows the "Turn on your mic" screen.  Once
+    # they tap it, WebRTC SDP offer/answer + ICE candidates are
+    # appended to `signals` (bounded to last 80 entries) and the TV
+    # pulls them out via the existing /poll endpoint.
+    current_singer_id: Optional[str] = None
+    mic_armed: bool = False
+    signals: List[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
@@ -92,6 +102,11 @@ class Party:
             "history": [asdict(q) for q in self.history[-10:]],
             "current": asdict(self.current) if self.current else None,
             "challenge": self.challenge,
+            "current_singer_id": self.current_singer_id,
+            "mic_armed": self.mic_armed,
+            # Send only the most-recent signals so the JSON doesn't
+            # balloon.  Each client filters by `to` field.
+            "signals": list(self.signals[-40:]),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "join_url": _join_url(self.code),
@@ -307,7 +322,79 @@ def advance_queue(code: str):
         # gameplay)
         if party.history and party.history[-1].member_id in party.members:
             party.members[party.history[-1].member_id].points += 100
+        # v2.8.82 — Phone-as-microphone: arm the new singer's mic.
+        # Their phone is polling and will switch to the "Turn on your
+        # mic" screen as soon as `current_singer_id == myMemberId AND
+        # mic_armed == True`.  When they tap "Turn on", they send
+        # an `offer` signal and we flip `mic_armed` off via the
+        # /mic-on endpoint.
+        if party.current:
+            party.current_singer_id = party.current.member_id
+            party.mic_armed = True
+        else:
+            party.current_singer_id = None
+            party.mic_armed = False
+        # Fresh signal channel for the new singer.
+        party.signals = []
         party.touch()
+        return {"party": party.to_dict()}
+
+
+# =================================================================
+# v2.8.82 — Phone-as-microphone (WebRTC signaling)
+# =================================================================
+class MicSignal(BaseModel):
+    from_id: str = Field(..., description="member_id of the sender; 'tv' for TV side")
+    to_id: str = Field(..., description="member_id of the recipient; 'tv' for TV side")
+    kind: str = Field(..., description="'offer' | 'answer' | 'ice' | 'bye'")
+    payload: dict = Field(default_factory=dict)
+
+
+@karaoke_party_router.post("/party/{code}/mic/signal")
+def post_mic_signal(code: str, body: MicSignal):
+    """Append a WebRTC signaling message to the party's signal queue.
+    Both the phone (offer + ICE) and the TV (answer + ICE) use this.
+    Recipients filter by their own id."""
+    with _LOCK:
+        party = _require_party(code)
+        party.signals.append({
+            "id": _new_id("sig_"),
+            "from_id": body.from_id,
+            "to_id": body.to_id,
+            "kind": body.kind,
+            "payload": body.payload,
+            "at": time.time(),
+        })
+        # Cap the signal buffer so very chatty ICE doesn't bloat memory.
+        if len(party.signals) > 80:
+            party.signals = party.signals[-80:]
+        party.touch()
+        return {"ok": True}
+
+
+@karaoke_party_router.post("/party/{code}/mic/on")
+def mic_on(code: str):
+    """Phone signals "mic active — start the song".  TV reads
+    `mic_armed == False AND current != null` as the cue to begin
+    playback (or just immediately if `mic_armed` was already off)."""
+    with _LOCK:
+        party = _require_party(code)
+        party.mic_armed = False
+        party.touch()
+        return {"party": party.to_dict()}
+
+
+@karaoke_party_router.post("/party/{code}/mic/arm")
+def mic_arm(code: str):
+    """Host can manually re-arm the mic for the current singer (e.g.
+    if the singer reloaded their phone and lost the WebRTC peer)."""
+    with _LOCK:
+        party = _require_party(code)
+        if party.current:
+            party.current_singer_id = party.current.member_id
+            party.mic_armed = True
+            party.signals = []
+            party.touch()
         return {"party": party.to_dict()}
 
 
