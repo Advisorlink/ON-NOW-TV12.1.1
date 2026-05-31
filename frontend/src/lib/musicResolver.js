@@ -101,18 +101,40 @@ export async function resolveViaBackend(trackId, artist, title) {
  * @param {object} track   Deezer-shaped track ({ id, title, artist, preview_url, ... }).
  * @param {object} [opts]
  * @param {boolean} [opts.karaoke]
- *   v2.8.81 — When true the resolver appends " karaoke instrumental"
- *   to the search title so YouTube returns a karaoke / minus-one /
- *   instrumental version of the song instead of the original with
- *   vocals.  Used by the Karaoke flow so singers actually have
- *   something to sing over.
+ *   v2.8.81 — When true the resolver appends " karaoke" to the
+ *   search title so YouTube returns a karaoke / minus-one /
+ *   instrumental version.
+ * @param {boolean} [opts._noFallback]
+ *   Internal — used by the karaoke retry path to prevent infinite
+ *   recursion.
  */
 export async function resolveTrackStream(track, opts) {
     const artist = track?.artist?.name || '';
     let title  = track?.title || '';
     if (!artist || !title) return null;
-    if (opts && opts.karaoke) title = `${title} karaoke instrumental`;
 
+    const karaoke = !!(opts && opts.karaoke);
+    if (karaoke) {
+        // v2.8.82 — Use just " karaoke" (the most common label in
+        // YouTube karaoke uploads).  Previously was "karaoke
+        // instrumental" which returned zero matches for most songs
+        // → the resolver fell through to "unavailable" and the
+        // player went silent.
+        title = `${title} karaoke`;
+    }
+
+    const result = await _doResolve(artist, title);
+
+    // Karaoke fallback: if no karaoke version exists, retry with the
+    // ORIGINAL title so the user at least hears the song (better
+    // than silence).
+    if (karaoke && !result && !(opts && opts._noFallback)) {
+        return resolveTrackStream(track, { karaoke: false, _noFallback: true });
+    }
+    return result;
+}
+
+async function _doResolve(artist, title) {
     const emit = (detail) => {
         try {
             if (typeof window !== 'undefined') {
