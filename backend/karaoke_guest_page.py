@@ -414,6 +414,165 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             margin:18px 0 0; min-height:16px;
         }
         .mic-status.err { color:#ff7ab8; }
+
+        /* =============================================================
+         * v2.8.83 — LIVE state: full-screen real-microphone artwork
+         *
+         * Once the singer taps "Turn on your mic" AND the WebRTC peer
+         * connects, the small mic icon dissolves and the entire phone
+         * screen becomes a tall, photo-real karaoke microphone SVG
+         * the singer holds up to their face.  The mic glows brighter
+         * the louder they sing (CSS var `--vol` driven by the
+         * AudioContext analyser).
+         * ============================================================ */
+        .mic-phase.is-live {
+            padding: 0;
+            background:
+                radial-gradient(ellipse 70% 50% at 50% 30%,
+                    rgba(255, 122, 184, calc(0.18 + var(--vol, 0) * 0.6)),
+                    transparent 65%),
+                radial-gradient(ellipse 90% 60% at 50% 100%,
+                    rgba(78, 167, 255, 0.18),
+                    transparent 70%),
+                linear-gradient(180deg, #1a0a2a 0%, #060418 100%);
+        }
+        .mic-phase.is-live .mic-phase__pre,
+        .mic-phase.is-live .mic-art,
+        .mic-phase.is-live .mic-status,
+        .mic-phase.is-live button.mic-cta { display: none; }
+
+        .mic-live {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+        }
+        .mic-phase.is-live .mic-live { display: block; }
+
+        /* Floating song-title badge */
+        .mic-live__head {
+            position: absolute;
+            top: calc(20px + env(safe-area-inset-top));
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            z-index: 3;
+            width: 88%;
+            text-align: center;
+        }
+        .mic-live__live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(34, 214, 113, 0.18);
+            border: 1px solid #22d671;
+            color: #c8f8de;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.28em;
+            font-family: 'Geist Mono', monospace;
+            text-transform: uppercase;
+        }
+        .mic-live__live-pill::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22d671;
+            box-shadow: 0 0 12px #22d671;
+            animation: liveBlink 1.2s ease-in-out infinite;
+        }
+        .mic-live__song {
+            color: #fff;
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin: 0;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+        }
+        .mic-live__artist {
+            color: rgba(255, 220, 245, 0.7);
+            font-size: 12px;
+            margin: 0;
+        }
+
+        /* The SVG microphone fills the lower 70% of the screen,
+           centered horizontally, so the singer naturally holds the
+           phone vertically and the grille appears near their face. */
+        .mic-live__svg-wrap {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+        .mic-live__svg {
+            width: clamp(220px, 78vw, 360px);
+            height: auto;
+            max-height: 88dvh;
+            filter:
+                drop-shadow(0 0 calc(20px + var(--vol, 0) * 60px) rgba(255, 122, 184, calc(0.55 + var(--vol, 0) * 0.45)))
+                drop-shadow(0 0 calc(40px + var(--vol, 0) * 80px) rgba(78, 167, 255, calc(0.30 + var(--vol, 0) * 0.30)));
+            transition: filter 80ms linear;
+        }
+        /* Subtle pulse on the grille that runs faster when louder. */
+        .mic-live__grille-glow {
+            transform-origin: center;
+            animation: micGrilleGlow 1.4s ease-in-out infinite;
+            transform-box: fill-box;
+        }
+        @keyframes micGrilleGlow {
+            0%, 100% { opacity: 0.55; }
+            50%      { opacity: 1; }
+        }
+
+        /* Bottom controls: stop button + sub-hint */
+        .mic-live__foot {
+            position: absolute;
+            left: 0; right: 0;
+            bottom: calc(28px + env(safe-area-inset-bottom));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            padding: 0 24px;
+            z-index: 4;
+        }
+        .mic-live__stop {
+            width: 100%;
+            max-width: 320px;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 800;
+            border-radius: 14px;
+            border: 1.5px solid rgba(255, 255, 255, 0.22);
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            letter-spacing: 0.02em;
+        }
+        .mic-live__stop:active { transform: scale(0.97); }
+        .mic-live__hint {
+            color: rgba(255, 220, 245, 0.62);
+            font-size: 12px;
+            margin: 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -522,31 +681,143 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     <div id="others-shelf" class="shelf"></div>
 </section>
 
-<!-- MIC PHASE — phone-as-microphone overlay (v2.8.82) -->
+<!-- MIC PHASE — phone-as-microphone overlay (v2.8.83) -->
 <div id="phase-mic" class="mic-phase">
-    <p class="mic-phase__eyebrow" id="mic-up-next">YOU'RE UP NEXT</p>
-    <h1 class="mic-phase__title" id="mic-song-title">Get ready</h1>
-    <p class="mic-phase__sub" id="mic-song-sub">Hold your phone close to your face like a microphone.</p>
+    <!-- "Pre-live" intro view (before user taps Turn On) -->
+    <div class="mic-phase__pre">
+        <p class="mic-phase__eyebrow" id="mic-up-next">YOU'RE UP NEXT</p>
+        <h1 class="mic-phase__title" id="mic-song-title">Get ready</h1>
+        <p class="mic-phase__sub" id="mic-song-sub">Hold your phone close to your face like a microphone.</p>
 
-    <div class="mic-art">
-        <div class="mic-art__halo" id="mic-halo"></div>
-        <div class="mic-art__ring">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <div class="mic-art__meter">
-                <div class="mic-art__meter-bar" id="mic-meter"></div>
+        <div class="mic-art">
+            <div class="mic-art__halo" id="mic-halo"></div>
+            <div class="mic-art__ring">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+                <div class="mic-art__meter">
+                    <div class="mic-art__meter-bar" id="mic-meter"></div>
+                </div>
             </div>
         </div>
+
+        <button id="mic-cta" class="mic-cta" type="button">
+            Turn on your mic
+        </button>
+        <p id="mic-status" class="mic-status">Tap to start. Browser will ask for microphone permission.</p>
     </div>
 
-    <button id="mic-cta" class="mic-cta" type="button">
-        Turn on your mic
-    </button>
-    <p id="mic-status" class="mic-status">Tap to start. Browser will ask for microphone permission.</p>
+    <!-- LIVE view: full-screen real-microphone artwork (v2.8.83) -->
+    <div class="mic-live" id="mic-live">
+        <div class="mic-live__head">
+            <span class="mic-live__live-pill">LIVE</span>
+            <p class="mic-live__song" id="mic-live-song">Now Singing</p>
+            <p class="mic-live__artist" id="mic-live-artist"></p>
+        </div>
+
+        <div class="mic-live__svg-wrap">
+            <!--
+                Karaoke microphone SVG.  Vertical, with a chrome grille
+                ball at the top, a thin neck, then a long matte-black
+                handle that the singer holds.  All inline so it scales
+                with viewport and inherits the volume-driven glow.
+            -->
+            <svg class="mic-live__svg" viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                    <!-- Chrome ball grille gradient -->
+                    <radialGradient id="grille-grad" cx="50%" cy="38%" r="60%">
+                        <stop offset="0%"  stop-color="#ffe9f3"/>
+                        <stop offset="35%" stop-color="#ff9ecf"/>
+                        <stop offset="78%" stop-color="#b94c8a"/>
+                        <stop offset="100%" stop-color="#3a0d24"/>
+                    </radialGradient>
+                    <!-- Matte black handle gradient -->
+                    <linearGradient id="handle-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%"   stop-color="#1a0a1f"/>
+                        <stop offset="35%"  stop-color="#3a1240"/>
+                        <stop offset="50%"  stop-color="#5a1d5d"/>
+                        <stop offset="65%"  stop-color="#3a1240"/>
+                        <stop offset="100%" stop-color="#1a0a1f"/>
+                    </linearGradient>
+                    <linearGradient id="neck-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%"   stop-color="#0a0a0f"/>
+                        <stop offset="50%"  stop-color="#2a2a35"/>
+                        <stop offset="100%" stop-color="#0a0a0f"/>
+                    </linearGradient>
+                    <radialGradient id="grille-glow" cx="50%" cy="40%" r="55%">
+                        <stop offset="0%" stop-color="rgba(255,180,220,0.95)"/>
+                        <stop offset="60%" stop-color="rgba(255,122,184,0.4)"/>
+                        <stop offset="100%" stop-color="rgba(255,122,184,0)"/>
+                    </radialGradient>
+                </defs>
+
+                <!-- ===== Grille (mic ball) ===== -->
+                <!-- Outer glow that pulses with volume -->
+                <circle class="mic-live__grille-glow"
+                        cx="100" cy="120" r="105"
+                        fill="url(#grille-glow)" />
+                <!-- Main grille sphere -->
+                <circle cx="100" cy="120" r="86"
+                        fill="url(#grille-grad)"
+                        stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+                <!-- Specular highlight -->
+                <ellipse cx="78" cy="92" rx="28" ry="14"
+                         fill="rgba(255,255,255,0.55)" />
+                <!-- Grille mesh pattern: dots arranged in a sphere -->
+                <g fill="rgba(40,10,40,0.55)">
+                    <!-- 9 columns × 7 rows of small dots, alpha drops at edges -->
+                    <g opacity="0.55"><!-- left edge --><circle cx="36" cy="100" r="2.4"/><circle cx="36" cy="120" r="2.4"/><circle cx="36" cy="140" r="2.4"/></g>
+                    <g opacity="0.7">  <circle cx="50" cy="84"  r="2.6"/><circle cx="50" cy="104" r="2.6"/><circle cx="50" cy="124" r="2.6"/><circle cx="50" cy="144" r="2.6"/><circle cx="50" cy="164" r="2.6"/></g>
+                    <g opacity="0.85"> <circle cx="66" cy="74"  r="2.8"/><circle cx="66" cy="94"  r="2.8"/><circle cx="66" cy="114" r="2.8"/><circle cx="66" cy="134" r="2.8"/><circle cx="66" cy="154" r="2.8"/><circle cx="66" cy="174" r="2.8"/></g>
+                    <g opacity="0.95"> <circle cx="83" cy="68"  r="2.9"/><circle cx="83" cy="88"  r="2.9"/><circle cx="83" cy="108" r="2.9"/><circle cx="83" cy="128" r="2.9"/><circle cx="83" cy="148" r="2.9"/><circle cx="83" cy="168" r="2.9"/><circle cx="83" cy="184" r="2.9"/></g>
+                    <g>                <circle cx="100" cy="66" r="3"/>  <circle cx="100" cy="86" r="3"/>  <circle cx="100" cy="106" r="3"/>  <circle cx="100" cy="126" r="3"/>  <circle cx="100" cy="146" r="3"/>  <circle cx="100" cy="166" r="3"/>  <circle cx="100" cy="186" r="3"/></g>
+                    <g opacity="0.95"> <circle cx="117" cy="68" r="2.9"/><circle cx="117" cy="88" r="2.9"/><circle cx="117" cy="108" r="2.9"/><circle cx="117" cy="128" r="2.9"/><circle cx="117" cy="148" r="2.9"/><circle cx="117" cy="168" r="2.9"/><circle cx="117" cy="184" r="2.9"/></g>
+                    <g opacity="0.85"> <circle cx="134" cy="74" r="2.8"/><circle cx="134" cy="94" r="2.8"/><circle cx="134" cy="114" r="2.8"/><circle cx="134" cy="134" r="2.8"/><circle cx="134" cy="154" r="2.8"/><circle cx="134" cy="174" r="2.8"/></g>
+                    <g opacity="0.7">  <circle cx="150" cy="84"  r="2.6"/><circle cx="150" cy="104" r="2.6"/><circle cx="150" cy="124" r="2.6"/><circle cx="150" cy="144" r="2.6"/><circle cx="150" cy="164" r="2.6"/></g>
+                    <g opacity="0.55"> <circle cx="164" cy="100" r="2.4"/><circle cx="164" cy="120" r="2.4"/><circle cx="164" cy="140" r="2.4"/></g>
+                </g>
+
+                <!-- ===== Neck (connector between grille and handle) ===== -->
+                <rect x="74" y="200" width="52" height="18" rx="4"
+                      fill="url(#neck-grad)" />
+                <!-- Two small ring highlights on the neck -->
+                <rect x="74" y="204" width="52" height="2.5" fill="rgba(255,255,255,0.12)"/>
+                <rect x="74" y="213" width="52" height="2.5" fill="rgba(255,255,255,0.08)"/>
+
+                <!-- ===== Handle (long matte body) ===== -->
+                <rect x="68" y="218" width="64" height="350" rx="14"
+                      fill="url(#handle-grad)"
+                      stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/>
+                <!-- Vertical highlight stripe (subtle reflection) -->
+                <rect x="80" y="226" width="4" height="334" rx="2"
+                      fill="rgba(255,255,255,0.18)"/>
+                <rect x="116" y="226" width="2.5" height="334" rx="1.5"
+                      fill="rgba(255,255,255,0.06)"/>
+                <!-- Logo band -->
+                <rect x="70" y="260" width="60" height="22" rx="3"
+                      fill="rgba(0,0,0,0.45)"/>
+                <text x="100" y="276" text-anchor="middle"
+                      font-family="Geist Mono, monospace" font-size="11"
+                      fill="rgba(255,180,220,0.85)" letter-spacing="2"
+                      font-weight="700">ON NOW</text>
+                <!-- Bottom cap -->
+                <rect x="64" y="558" width="72" height="14" rx="4"
+                      fill="#0a0510"
+                      stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+            </svg>
+        </div>
+
+        <div class="mic-live__foot">
+            <button id="mic-stop-btn" class="mic-live__stop" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                Stop singing
+            </button>
+            <p class="mic-live__hint">Hold the phone close to your mouth like a real mic.</p>
+        </div>
+    </div>
 </div>
 
 
@@ -971,13 +1242,20 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         $('mic-song-sub').textContent = upNext
             ? 'Tap the button below, hold your phone like a mic, and sing along.'
             : 'Tap to turn on your phone microphone.';
+        // v2.8.83 — Also pre-populate the LIVE-state song/artist
+        // labels so the transition is seamless when the user taps.
+        $('mic-live-song').textContent = upNext ? upNext.title : 'Now Singing';
+        $('mic-live-artist').textContent = upNext ? (upNext.artist || '') : '';
+        $('phase-mic').classList.remove('is-live');
         $('phase-mic').classList.add('show');
+        $('phase-mic').style.setProperty('--vol', 0);
     }
 
     function hideMicPhase() {
         if (!micShown) return;
         micShown = false;
         $('phase-mic').classList.remove('show');
+        $('phase-mic').classList.remove('is-live');
         cleanupMic();
     }
 
@@ -1024,7 +1302,8 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             return;
         }
 
-        // Live volume meter
+        // Live volume meter (drives both the pre-live bar and the
+        // CSS --vol variable that pulses the LIVE-state glow).
         try {
             micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const src = micAudioCtx.createMediaStreamSource(micStream);
@@ -1032,6 +1311,7 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             analyser.fftSize = 1024;
             src.connect(analyser);
             const data = new Uint8Array(analyser.fftSize);
+            let smoothed = 0;
             const tick = () => {
                 analyser.getByteTimeDomainData(data);
                 let sum = 0;
@@ -1040,8 +1320,14 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                     sum += v * v;
                 }
                 const rms = Math.sqrt(sum / data.length);
-                const pct = Math.min(100, Math.round(rms * 220));
+                // Smooth so the glow doesn't flicker on every sample.
+                smoothed = smoothed * 0.6 + rms * 0.4;
+                const pct = Math.min(100, Math.round(smoothed * 220));
                 $('mic-meter').style.width = pct + '%';
+                // Map rms (~0..0.5 typical voice) to 0..1 for the
+                // SVG glow filter.  Clamp to avoid runaway.
+                const volNorm = Math.min(1, smoothed * 3.5);
+                $('phase-mic').style.setProperty('--vol', volNorm.toFixed(3));
                 micMeterRAF = requestAnimationFrame(tick);
             };
             tick();
@@ -1062,6 +1348,9 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                     btn.textContent = 'Mic ON · Singing';
                     $('mic-halo').classList.add('live');
                     btn.disabled = false;
+                    // v2.8.83 — Transform the phone into a full-screen
+                    // microphone the moment WebRTC is connected.
+                    $('phase-mic').classList.add('is-live');
                 } else if (micPC.connectionState === 'failed') {
                     status.textContent = 'Connection failed. Try Again.';
                     status.classList.add('err');
@@ -1085,16 +1374,28 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         const btn = $('mic-cta');
         if (btn.classList.contains('live')) {
             // Tap again = stop mic
-            cleanupMic();
-            btn.classList.remove('live');
-            $('mic-halo').classList.remove('live');
-            btn.textContent = 'Turn on your mic';
-            $('mic-status').textContent = 'Mic off. Tap to turn back on.';
-            sendMicSignal('bye', {});
+            stopMicNow();
             return;
         }
         turnOnMic();
     });
+
+    // v2.8.83 — Stop button inside the full-screen LIVE view.
+    $('mic-stop-btn').addEventListener('click', () => stopMicNow());
+
+    function stopMicNow() {
+        cleanupMic();
+        const btn = $('mic-cta');
+        btn.classList.remove('live');
+        btn.textContent = 'Turn on your mic';
+        btn.disabled = false;
+        $('mic-halo').classList.remove('live');
+        $('mic-status').textContent = 'Mic off. Tap to turn back on.';
+        $('mic-status').classList.remove('err');
+        $('phase-mic').classList.remove('is-live');
+        $('phase-mic').style.setProperty('--vol', 0);
+        sendMicSignal('bye', {});
+    }
 
     async function handleMicSignals(signals) {
         if (!micPC) return;

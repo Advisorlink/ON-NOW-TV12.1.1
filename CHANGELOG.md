@@ -1,5 +1,26 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.83 — Full-screen karaoke microphone on the singer's phone
+
+> User request: "When you click Turn on your mic, can it actually turn into a full-screen microphone-looking image so it looks like they're singing into a real microphone?"
+
+When the WebRTC peer connection completes, the phone screen transforms into a full-screen photo-real karaoke microphone artwork:
+
+- **Chrome-pink grille ball** with a dotted mesh pattern (9 columns × 7 rows, alpha drops at edges for a spherical look) and a specular highlight on the top-left
+- **Neck connector** with two ring highlights
+- **Matte purple handle** with vertical reflection stripes and an "ON NOW" logo band
+- **Bottom cap** with subtle stroke
+
+The mic glows pink+blue, and a CSS `--vol` variable driven by the AudioContext analyser scales the glow size and intensity in real-time: louder voice = brighter halo (up to ~140 px blur radius at peak).
+
+Floating UI:
+- "LIVE" pill at top with pulsing green dot + song title + artist
+- "Stop singing" button at bottom with safe-area-aware padding
+
+Files: `/app/backend/karaoke_guest_page.py` (added `.mic-phase.is-live`, `.mic-live`, full SVG markup, vol-driven JS analyser). Lint clean.
+
+
+
 ## v2.8.82 — Phone-as-microphone (WebRTC) · Silent Spotlight 20 s test mode · Instrumental fallback
 
 ### 🎤 Phone-as-microphone — full WebRTC flow shipped
