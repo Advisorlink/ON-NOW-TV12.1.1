@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
-import KaraokeMicReceiver from '../../components/KaraokeMicReceiver';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 import './karaoke.css';
@@ -249,7 +248,9 @@ export default function MusicLayout() {
             </div>
             <MiniPlayer />
             <ResolverDebug />
-            <KaraokeMicReceiver />
+            {/* v2.8.85 — KaraokeMicReceiver is now mounted ONLY on
+                KaraokeStage so we don't accidentally open multiple
+                peer connections.  See /pages/music/KaraokeStage.jsx. */}
             {/* YouTubeIFrameHost lifted to App.js — global mount. */}
         </div>
     );
