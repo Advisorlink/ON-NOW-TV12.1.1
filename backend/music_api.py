@@ -1529,7 +1529,7 @@ async def admin_cookies_upload(
 # ============================================================================
 
 @music_api.get("/yt-search")
-async def yt_search(q: str = Query(..., min_length=1)):
+async def yt_search(q: str = Query(..., min_length=1), karaoke: bool = False):
     """Returns `{ yt_id, title?, uploader? }` for the top search hit.
 
     Uses yt-dlp's `extract_flat=True` mode so we only need the video ID,
@@ -1538,8 +1538,14 @@ async def yt_search(q: str = Query(..., min_length=1)):
 
     The frontend plays the returned `yt_id` via the YouTube IFrame
     Player API in `MiniPlayer`/`KaraokeStage`.
+
+    v2.8.87 — Added `karaoke=true` flag that biases result selection
+    toward known karaoke-only channels (Sing King, KaraFun, Musisi
+    Karaoke, etc.).  YouTube's default ranking is "studio original
+    first" even when "karaoke" / "instrumental" is in the query, so
+    without this filter the user keeps hearing vocals.
     """
-    cache_key = f"yt-search:{q}"
+    cache_key = f"yt-search:{q}:karaoke={int(karaoke)}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -1549,31 +1555,79 @@ async def yt_search(q: str = Query(..., min_length=1)):
     except ImportError:
         return {"cached": False, "data": {"yt_id": None, "error": "yt-dlp not installed"}}
 
+    # Channels that ONLY upload instrumental karaoke versions.  When
+    # any of these names appear in the uploader / channel field, the
+    # entry is treated as a high-confidence karaoke hit.
+    KARAOKE_CHANNELS = (
+        "sing king", "karafun", "musisi karaoke", "stingray karaoke",
+        "zoom karaoke", "atomic karaoke", "atomic karoke", "ameritz",
+        "karaoke version", "karaoke mugen", "the karaoke channel",
+        "piano karaoke", "ekaraoke", "kfn karaoke",
+    )
+    # Title tokens that signal an instrumental track when paired with
+    # the song name.  Used as a softer secondary filter.
+    KARAOKE_TITLE_TOKENS = (
+        "karaoke", "instrumental", "minus one", "backing track",
+        "off vocal", "no vocals",
+    )
+
+    def _is_karaoke_hit(entry: dict) -> bool:
+        title = (entry.get("title") or "").lower()
+        uploader = (entry.get("uploader") or entry.get("channel") or "").lower()
+        if any(ch in uploader for ch in KARAOKE_CHANNELS):
+            return True
+        # Must mention an instrumental token AND not be the official
+        # video.  This catches "Hello (Karaoke Version)" by random
+        # uploaders while excluding "Hello (Live)" / "Hello (Lyrics)"
+        # which often still have vocals.
+        if any(tok in title for tok in KARAOKE_TITLE_TOKENS):
+            if "official" not in title and "live" not in title:
+                return True
+        return False
+
     def search_blocking():
         opts = {
             "quiet": True,
             "skip_download": True,
             "no_warnings": True,
             "extract_flat": True,
-            "default_search": "ytsearch1",
             "socket_timeout": 8,
             "geo_bypass": True,
         }
+        # Karaoke mode pulls the top 12 results then re-ranks; regular
+        # mode just grabs the top 1 (fast path).
+        search_term = f"ytsearch{12 if karaoke else 1}:{q}"
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(f"ytsearch1:{q}", download=False)
+                info = ydl.extract_info(search_term, download=False)
                 if not info:
                     return None
-                if info.get("_type") == "playlist":
-                    entries = info.get("entries") or []
-                    if not entries:
-                        return None
-                    info = entries[0]
+                entries = info.get("entries") or [info]
+                if not entries:
+                    return None
+                pick = entries[0]
+                if karaoke:
+                    # Prefer the first hit from a known karaoke channel;
+                    # otherwise the first hit with a karaoke-y title;
+                    # otherwise just the top-ranked result.
+                    channel_hit = next(
+                        (e for e in entries
+                         if any(ch in ((e.get("uploader") or e.get("channel") or "").lower())
+                                for ch in KARAOKE_CHANNELS)),
+                        None,
+                    )
+                    if channel_hit:
+                        pick = channel_hit
+                    else:
+                        soft_hit = next((e for e in entries if _is_karaoke_hit(e)), None)
+                        if soft_hit:
+                            pick = soft_hit
                 return {
-                    "yt_id": info.get("id"),
-                    "title": info.get("title"),
-                    "uploader": info.get("uploader") or info.get("channel"),
-                    "duration": info.get("duration"),
+                    "yt_id": pick.get("id"),
+                    "title": pick.get("title"),
+                    "uploader": pick.get("uploader") or pick.get("channel"),
+                    "duration": pick.get("duration"),
+                    "karaoke_confident": _is_karaoke_hit(pick) if karaoke else False,
                 }
         except Exception as exc:
             log.warning("yt-search failed for %s: %s", q, exc)
