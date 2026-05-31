@@ -46,6 +46,16 @@ export default function KaraokeMicReceiver({ partySession }) {
     const audioElRef = useRef(null);
     const processedRef = useRef(new Set());
     const currentSingerRef = useRef(null);
+    // v2.8.86 — Queue ICE candidates that arrive BEFORE the offer
+    // has been processed (very common race — the phone's
+    // onicecandidate fires while the offer HTTP POST is still
+    // in-flight, so candidates land in the signals[] array at the
+    // same time as the offer or even slightly before).  Without
+    // this queue we silently drop those early candidates and the
+    // peer connection never finds a working path → user reports
+    // "no sound from phone reaches TV".
+    const pendingIceRef = useRef([]);
+    const remoteDescSetRef = useRef(false);
 
     const code = partySession?.code || readPartySession()?.code;
 
@@ -105,6 +115,8 @@ export default function KaraokeMicReceiver({ partySession }) {
         if (audioElRef.current) {
             audioElRef.current.srcObject = null;
         }
+        pendingIceRef.current = [];
+        remoteDescSetRef.current = false;
         setPcState('idle');
     }
 
@@ -148,12 +160,28 @@ export default function KaraokeMicReceiver({ partySession }) {
                 setPcState(pcRef.current.connectionState);
             };
             await pc.setRemoteDescription(sig.payload.sdp);
+            remoteDescSetRef.current = true;
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            postSignal(code, 'answer', { sdp: pc.localDescription, to_id: singerId });
-        } else if (sig.kind === 'ice' && sig.payload?.candidate && pcRef.current) {
-            try { await pcRef.current.addIceCandidate(sig.payload.candidate); }
-            catch { /* race with offer — safe to drop */ }
+            await postSignal(code, 'answer', { sdp: pc.localDescription, to_id: singerId });
+            // Flush any ICE candidates that arrived BEFORE the offer
+            // was applied.  Now that the remote description is set,
+            // they can be added safely.
+            const queued = pendingIceRef.current;
+            pendingIceRef.current = [];
+            for (const cand of queued) {
+                try { await pc.addIceCandidate(cand); } catch { /* drop */ }
+            }
+        } else if (sig.kind === 'ice' && sig.payload?.candidate) {
+            // v2.8.86 — If the offer hasn't been applied yet, QUEUE
+            // the candidate instead of dropping it.  This was the
+            // root cause of the "WebRTC never connects" bug.
+            if (!pcRef.current || !remoteDescSetRef.current) {
+                pendingIceRef.current.push(sig.payload.candidate);
+            } else {
+                try { await pcRef.current.addIceCandidate(sig.payload.candidate); }
+                catch { /* drop */ }
+            }
         } else if (sig.kind === 'bye') {
             teardownPeer();
         }

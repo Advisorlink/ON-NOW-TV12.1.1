@@ -1222,6 +1222,15 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     let micMeterRAF = 0;
     let micProcessedSignalIds = new Set();
     let micShown = false;
+    // v2.8.86 — Queue inbound ICE candidates from the TV until
+    // our setRemoteDescription(answer) has applied.  Without this,
+    // any ICE candidate that arrives in the same poll-batch as
+    // (or earlier than) the answer is silently dropped, and the
+    // peer connection never finds a working candidate pair → the
+    // phone never reaches `connected` and the user never sees the
+    // full-screen LIVE mic.
+    let pendingMicIce = [];
+    let answerApplied = false;
 
     async function sendMicSignal(kind, payload) {
         try {
@@ -1278,6 +1287,8 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             try { micAudioCtx.close(); } catch {}
             micAudioCtx = null;
         }
+        pendingMicIce = [];
+        answerApplied = false;
         $('mic-meter').style.width = '0%';
     }
 
@@ -1410,8 +1421,21 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             try {
                 if (sig.kind === 'answer' && sig.payload?.sdp) {
                     await micPC.setRemoteDescription(sig.payload.sdp);
+                    answerApplied = true;
+                    // Flush any ICE candidates that arrived BEFORE
+                    // the answer.  Now safe to add.
+                    const queued = pendingMicIce;
+                    pendingMicIce = [];
+                    for (const c of queued) {
+                        try { await micPC.addIceCandidate(c); } catch {}
+                    }
                 } else if (sig.kind === 'ice' && sig.payload?.candidate) {
-                    await micPC.addIceCandidate(sig.payload.candidate);
+                    // v2.8.86 — Queue if answer hasn't applied yet.
+                    if (!answerApplied) {
+                        pendingMicIce.push(sig.payload.candidate);
+                    } else {
+                        await micPC.addIceCandidate(sig.payload.candidate);
+                    }
                 }
             } catch (e) {
                 console.warn('[mic] signal handler failed', sig.kind, e);
