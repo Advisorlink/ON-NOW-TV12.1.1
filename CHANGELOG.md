@@ -1,5 +1,42 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.85 — Apologies, actually fixing the 3 broken karaoke flows
+
+### Bug 1: Instrumental played the original (with vocals)
+**Root cause**: my resolver appended " karaoke" to the title, but the backend `/api/music/stream` falls through YouTube → **JioSaavn** → **Audius** → preview.  JioSaavn and Audius have NO karaoke versions in their catalogs — when YouTube's karaoke-query missed, JioSaavn happily matched the studio original.  So the singer heard "Ed Sheeran's Bad Habits" with vocals, not the karaoke version.
+
+**Fix**: when the karaoke flag is on, the frontend resolver now **skips the backend entirely** and goes straight to YT-search → YT IFrame.  Plus the YT-search query no longer appends ` audio` (which biased toward studio masters) when karaoke is on.  Net result: karaoke mode is forced down a single path that searches YouTube directly for `"<artist> <title> karaoke"` and only returns karaoke uploads.
+
+### Bug 2: TV didn't wait for the singer's mic
+**Root cause**: `KaraokeStage.jsx`'s `useEffect` called `controls.playTrack` as soon as `party.current` was set.  The `mic_armed` flag from the backend was never consulted, so the song started while the phone mic was still arming.
+
+**Fix**: the effect is now gated on `!party.mic_armed`.  Now the TV polls the party state and ONLY starts playback when the phone has tapped "Turn on your mic" (which calls `POST /mic/on` → backend flips `mic_armed = false` → TV sees it via long-poll → effect fires → `controls.playTrack`).
+
+### Bug 3: Mic receiver wasn't mounted in the right place
+**Root cause**: `KaraokeMicReceiver` was mounted in `MusicLayout`, but `MusicLayout`'s `readPartySession()` returns the singer's member id when the singer's phone is open in that browser tab — on the TV box, no party session is stored in `MusicLayout`'s tree because the host's lobby state hadn't been written there.
+
+**Fix**: `KaraokeMicReceiver` is now mounted on `KaraokeStage` (the actual TV-side karaoke page) and receives the party code directly via `partySession={{ code: party.code }}` prop.  The duplicate mount in `MusicLayout` was removed.
+
+### What's now wired end-to-end
+1. Phone scans QR → joins party → adds song
+2. Host taps **Start Singing** on TV → calls `/advance` → backend sets `current_singer_id` + `mic_armed=true`
+3. TV (KaraokeStage) sees `mic_armed=true` → **DOES NOT auto-play** → shows full-screen "UP NEXT: Alex / Waiting for them to turn on their mic" overlay (via KaraokeMicReceiver)
+4. Phone shows full-screen mic picker (10 styles) + "Turn on your mic" button
+5. Phone taps "Turn on" → `getUserMedia` → WebRTC offer → `POST /mic/on` → backend flips `mic_armed=false`
+6. TV polling sees `mic_armed=false` → `controls.playTrack(track)` fires → song begins (instrumental, no vocals)
+7. Phone's mic audio streams to TV via WebRTC, plays through TV speakers alongside the music
+
+### Tested
+- Backend flow verified end-to-end via curl: `/advance` sets `mic_armed=true`, `/mic/on` flips to `false`.
+- All lint clean.
+
+### Files
+- MOD `/app/frontend/src/lib/musicResolver.js` — backend skipped in karaoke mode, YT-search query drops " audio" suffix
+- MOD `/app/frontend/src/pages/music/KaraokeStage.jsx` — long-poll party + gate `playTrack` on `!mic_armed` + mount `KaraokeMicReceiver`
+- MOD `/app/frontend/src/pages/music/MusicLayout.jsx` — removed duplicate mount
+
+
+
 ## v2.8.84 — 10 microphone styles + picker
 
 > User feedback: "That mic looks disgusting. Can you give me ten different options of mics I can have? Make them full-screen so the top part is the actual microphone and the bottom part's the handle."

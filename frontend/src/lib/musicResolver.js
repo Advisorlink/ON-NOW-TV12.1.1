@@ -123,7 +123,7 @@ export async function resolveTrackStream(track, opts) {
         title = `${title} karaoke`;
     }
 
-    const result = await _doResolve(artist, title);
+    const result = await _doResolve(artist, title, karaoke, track.id);
 
     // Karaoke fallback: if no karaoke version exists, retry with the
     // ORIGINAL title so the user at least hears the song (better
@@ -134,7 +134,7 @@ export async function resolveTrackStream(track, opts) {
     return result;
 }
 
-async function _doResolve(artist, title) {
+async function _doResolve(artist, title, karaokeFlag, trackId) {
     const emit = (detail) => {
         try {
             if (typeof window !== 'undefined') {
@@ -202,8 +202,22 @@ async function _doResolve(artist, title) {
     }
 
     // 2) Backend (admin cookies → JioSaavn → Audius → preview).
+    //
+    // v2.8.85 — In karaoke mode we INTENTIONALLY skip this path.
+    // JioSaavn and Audius don't have karaoke / instrumental versions,
+    // so they'd happily return the studio original with vocals when
+    // the YouTube-cookies route fails — which is exactly what the
+    // user was hearing ("not playing the instrumental, just the
+    // ones with the actual singers singing").  In karaoke mode we
+    // go straight to the YT-search → YT IFrame path below, which
+    // honours the " karaoke version instrumental" query.
+    if (karaokeFlag) {
+        emit({ artist, title, source: 'backend', ms: 0, ok: false, error: 'skipped-in-karaoke-mode' });
+    }
     const tb0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    const backend = await resolveViaBackend(track.id, artist, title);
+    const backend = karaokeFlag
+        ? null
+        : await resolveViaBackend(trackId, artist, title);
     const tbMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tb0);
     if (backend && backend.stream_url && backend.is_full_track) {
         emit({ artist, title, source: backend.source || 'backend', ms: tbMs, ok: true });
@@ -230,7 +244,14 @@ async function _doResolve(artist, title) {
     try {
         const base = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
         const tyt0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-        const r = await fetch(`${base}/api/music/yt-search?q=${encodeURIComponent(artist + ' ' + title + ' audio')}`);
+        // v2.8.85 — When the caller wants a karaoke version, drop
+        // the " audio" suffix (it biases YouTube toward original
+        // studio recordings).  Karaoke uploads are typically VIDEOS
+        // with overlaid lyrics, not "audio-only" uploads.
+        const q = karaokeFlag
+            ? (artist + ' ' + title)
+            : (artist + ' ' + title + ' audio');
+        const r = await fetch(`${base}/api/music/yt-search?q=${encodeURIComponent(q)}`);
         const tytMs = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - tyt0);
         if (r.ok) {
             const body = await r.json();

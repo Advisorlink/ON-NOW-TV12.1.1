@@ -20,6 +20,7 @@ import {
     karaokeAPI, readPartySession, challengeMeta,
 } from '../../lib/karaoke-party-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import KaraokeMicReceiver from '../../components/KaraokeMicReceiver';
 
 const KARAOKE_FLAG_KEY = 'tunes-karaoke-mode';
 
@@ -28,6 +29,7 @@ export default function KaraokeStage() {
     const { state, controls } = useMusicPlayer();
     const [party, setParty] = useState(null);
     const lastTrackRef = useRef(null);
+    const pollRef = useRef(null);
 
     // Boot: load party state.
     useEffect(() => {
@@ -40,9 +42,40 @@ export default function KaraokeStage() {
         return () => { alive = false; };
     }, [navigate]);
 
-    // When the party.current changes, start playing it.
+    // v2.8.85 — Long-poll the party so we react when the singer's
+    // phone flips `mic_armed` from true → false (= "mic on, ready").
+    // Without this the TV never knew it was time to start playing.
+    useEffect(() => {
+        const sess = readPartySession();
+        if (!sess.code) return undefined;
+        let alive = true;
+        let since = 0;
+        (async () => {
+            while (alive) {
+                try {
+                    const r = await karaokeAPI.poll(sess.code, since);
+                    if (!alive) break;
+                    if (r.party && !r.unchanged) {
+                        since = r.party.updated_at;
+                        setParty(r.party);
+                    }
+                } catch {
+                    await new Promise((res) => setTimeout(res, 3000));
+                }
+            }
+        })();
+        pollRef.current = () => { alive = false; };
+        return () => { alive = false; };
+    }, []);
+
+    // v2.8.85 — Start playback ONLY when the mic is no longer armed
+    // (singer tapped "Turn on your mic" on their phone → backend
+    // flipped mic_armed=false via /mic/on).  Previously the TV
+    // auto-played the moment `party.current` was set, which meant
+    // the song started before the singer was ready.
     useEffect(() => {
         if (!party?.current) return;
+        if (party.mic_armed) return;  // wait for singer's mic
         if (lastTrackRef.current === party.current.id) return;
         lastTrackRef.current = party.current.id;
         try { sessionStorage.setItem(KARAOKE_FLAG_KEY, '1'); } catch { /* ignore */ }
@@ -59,7 +92,7 @@ export default function KaraokeStage() {
             try { window.dispatchEvent(new CustomEvent('tunes:open-fullscreen')); }
             catch { /* ignore */ }
         }, 50);
-    }, [party?.current?.id, controls]);
+    }, [party?.current?.id, party?.mic_armed, controls]);
 
     // When the song finishes, auto-advance the party queue.
     const wasPlayingRef = useRef(false);
@@ -118,6 +151,14 @@ export default function KaraokeStage() {
 
     return (
         <div className="kk-stage-hud" data-testid="karaoke-stage-hud">
+            {/* v2.8.85 — Mount the WebRTC mic receiver + "Up next:
+                Alex" waiting overlay here on the TV side.  Until the
+                singer taps "Turn on your mic" on their phone, the
+                overlay covers the screen and the song does NOT
+                start playing (KaraokeStage's playTrack effect is
+                gated on `!party.mic_armed`). */}
+            <KaraokeMicReceiver partySession={{ code: party.code }} />
+
             {nowSinging && (
                 <div className="kk-stage-hud__now" data-testid="karaoke-now-singing">
                     <Avatar member={nowSinging} size={56} />
