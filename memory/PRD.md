@@ -12,6 +12,27 @@
 > `HANDOFF_CURRENT.md` for "what's the current state and what
 > should I touch next".
 
+> **🎤 v2.8.86 — Karaoke WebRTC ICE race + APK instrumental override (Feb 1, 2026).**
+> User reported (after testing the v2.8.85 APK build):
+> 1. Both "vocals" and "instrumental" modes still played the studio vocal track.
+> 2. The phone's full-screen mic never appeared and no phone audio reached the TV
+>    (so WebRTC was never reaching `connected` state).
+> 3. Music covers missing in their installed APK (= stale bundle from before
+>    v2.8.85 — fix is to re-push to GitHub so CI rebuilds the APK).
+>
+> Root causes & fixes:
+> - **Native bridge override** (`musicResolver.js`): The APK's
+>   `window.OnNowTV.resolveYouTubeAudio` (NewPipe/InnerTube) was being called
+>   FIRST in karaoke mode and returning the studio original because it ranks
+>   results by popularity. Fix: skip the native bridge entirely when
+>   `karaokeFlag === true`, forcing the resolver to use `/api/music/yt-search`
+>   which has karaoke-aware result selection.
+> - **WebRTC ICE race** (`KaraokeMicReceiver.jsx` + `karaoke_guest_page.py`):
+>   Classic WebRTC bug — ICE candidates that arrive BEFORE
+>   `setRemoteDescription()` was called were being silently dropped by the
+>   `try/catch addIceCandidate(...) catch { drop }` pattern. Both sides now
+>   QUEUE early candidates and flush them after the SDP exchange completes.
+>
 > **🎤 v2.8.85 — Karaoke Party trifecta fixed & verified (Feb 1, 2026).**
 > Three blocker bugs from the previous session resolved and end-to-end tested:
 > 1. **Instrumental resolution**: `musicResolver.js` no longer appends " audio"
