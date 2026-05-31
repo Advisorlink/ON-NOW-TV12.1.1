@@ -12,6 +12,26 @@
 > `HANDOFF_CURRENT.md` for "what's the current state and what
 > should I touch next".
 
+> **🎤 v2.8.85 — Karaoke Party trifecta fixed & verified (Feb 1, 2026).**
+> Three blocker bugs from the previous session resolved and end-to-end tested:
+> 1. **Instrumental resolution**: `musicResolver.js` no longer appends " audio"
+>    to the YT search in karaoke mode (was biasing toward studio originals) and
+>    skips the JioSaavn/Audius backend route entirely in karaoke mode (those
+>    sources only have the vocal masters). Verified via
+>    `/api/music/yt-search?q=Adele%20Hello%20karaoke` returning
+>    "Hello - Adele (Karaoke Songs With Lyrics - Original Key)" from
+>    "Musisi Karaoke" instead of Adele's studio cut.
+> 2. **TV waits for mic**: `KaraokeStage.jsx` now gates `controls.playTrack`
+>    behind `!party.mic_armed`. Backend `/advance` sets `mic_armed=true`; the
+>    guest's `/mic/on` POST flips it back to false, which is what fires the TV
+>    playback effect. Verified via full curl flow.
+> 3. **WebRTC mic connection**: Guest page POSTs `offer` to `/mic/signal`, TV
+>    polls and receives it in the existing `/poll` payload, mounts
+>    `KaraokeMicReceiver` which creates an `RTCPeerConnection`, attaches the
+>    remote audio stream to a hidden `<audio>` element + Web Audio gain node.
+>    Signaling backend verified working end-to-end.
+
+
 > **🎤 v2.8.73 — Hero Play actually plays + v2.8.72 mobile scroll + WebViewAssetLoader (May 30, 2026).**
 > Latest shipped version.  See `/app/memory/HANDOFF_CURRENT.md`
 > for the full chain of v2.8.66 → v2.8.73 fixes.  Highlights:
