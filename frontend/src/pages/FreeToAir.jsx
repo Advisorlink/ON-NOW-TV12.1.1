@@ -33,9 +33,12 @@ import useBackHandler from '@/hooks/useBackHandler';
 import './fta.css';
 
 const API = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
-const PX_PER_MIN = 14;             // matches --fta-grid-px-per-min
-const ROW_H = 104;                 // matches --fta-row-h
-const CHANNEL_RAIL_W = 132;        // matches --fta-channel-rail-w
+/* v2.8.96 — denser grid per user feedback.  These MUST match the
+   CSS custom properties in fta.css (--fta-grid-px-per-min,
+   --fta-row-h, --fta-channel-rail-w). */
+const PX_PER_MIN = 9;              // matches --fta-grid-px-per-min
+const ROW_H = 64;                  // matches --fta-row-h
+const CHANNEL_RAIL_W = 104;        // matches --fta-channel-rail-w
 const FAV_KEY = 'fta-favourites-v1';
 const CITY_KEY = 'fta-city-v1';
 const HOURS_FORWARD = 24;
@@ -98,6 +101,12 @@ export default function FreeToAir() {
     const [now, setNow] = useState(Date.now());
     const [activeChannel, setActiveChannel] = useState(null);
     const [activeProgramme, setActiveProgramme] = useState(null);
+    /* v2.8.96 — armed = user has tapped Enter on a cell once, so the
+       preview pane should mount the HLS <video> with sound.  Until
+       then we show TMDB cover art for the focused programme so
+       scrolling through the EPG feels alive without 188 channel
+       streams blowing up in the background. */
+    const [previewArmed, setPreviewArmed] = useState(false);
     const [fullScreen, setFullScreen] = useState(false);
 
     /* clock — update once per 30 s */
@@ -105,6 +114,11 @@ export default function FreeToAir() {
         const t = setInterval(() => setNow(Date.now()), 30_000);
         return () => clearInterval(t);
     }, []);
+
+    /* TMDB cover art for the currently-focused programme.  Shared
+       between the sidebar preview pane and the fullscreen / native
+       ExoPlayer handoff. */
+    const programmeArt = useProgrammeArt(activeProgramme);
 
     /* Persist city + favourites */
     useEffect(() => { saveCity(city); }, [city]);
@@ -208,17 +222,27 @@ export default function FreeToAir() {
         ));
     }, []);
 
-    /* When a programme cell is opened (Enter on focused cell) */
+    /* When a programme cell is FOCUSED (D-pad navigation / mouse
+       hover) — update the sidebar info + cover art but DO NOT mount
+       the HLS stream.  Only an Enter/click arms the preview. */
+    const onProgrammeFocus = useCallback((channel, programme) => {
+        setActiveChannel((prev) => (prev?.id === channel.id ? prev : channel));
+        setActiveProgramme(programme);
+        setPreviewArmed(false);
+    }, []);
+
+    /* When a programme cell is OPENED (Enter on focused cell).
+         1st tap on a new channel → arm the preview (HLS with sound).
+         2nd tap on the same channel → go fullscreen. */
     const onProgrammeOpen = useCallback((channel, programme) => {
-        if (activeChannel?.id === channel.id) {
-            // Second tap → fullscreen
+        if (activeChannel?.id === channel.id && previewArmed) {
             setFullScreen(true);
         } else {
-            // First tap → preview in sidebar
             setActiveChannel(channel);
             setActiveProgramme(programme);
+            setPreviewArmed(true);
         }
-    }, [activeChannel]);
+    }, [activeChannel, previewArmed]);
 
     /* Auto-scroll the grid horizontally so NOW is roughly centred on
        first paint (10% from the left edge looks closest to the user's
@@ -260,10 +284,19 @@ export default function FreeToAir() {
                 <Sidebar
                     channel={activeChannel}
                     programme={activeProgramme}
+                    art={programmeArt}
+                    armed={previewArmed}
                     isFav={activeChannel ? favs.includes(activeChannel.id) : false}
                     onToggleFav={() => activeChannel && toggleFav(activeChannel.id)}
                     streamFor={(id) => fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())}
-                    onActivate={() => setFullScreen(true)}
+                    onActivate={() => {
+                        /* Sidebar click: 1st arms the preview, 2nd goes full-screen. */
+                        if (previewArmed) {
+                            setFullScreen(true);
+                        } else {
+                            setPreviewArmed(true);
+                        }
+                    }}
                     now={now}
                     upNext={activeChannel ? findUpNext(programmes[activeChannel.id] || [], now) : null}
                 />
@@ -292,6 +325,7 @@ export default function FreeToAir() {
                                 now={now}
                                 activeChannelId={activeChannel?.id}
                                 activeProgrammeKey={activeProgramme && `${activeProgramme.start}|${activeProgramme.stop}|${activeProgramme.title}`}
+                                onFocus={onProgrammeFocus}
                                 onOpen={onProgrammeOpen}
                                 onToggleFav={toggleFav}
                                 favs={favs}
@@ -304,6 +338,8 @@ export default function FreeToAir() {
             {fullScreen && activeChannel && (
                 <FullScreenPlayer
                     channel={activeChannel}
+                    programme={activeProgramme}
+                    artwork={programmeArt.backdrop || programmeArt.poster || ''}
                     city={city}
                     onExit={() => setFullScreen(false)}
                 />
@@ -315,6 +351,28 @@ export default function FreeToAir() {
 function findUpNext(list, now) {
     if (!Array.isArray(list)) return null;
     return list.find((p) => p.start > now) || null;
+}
+
+/* TMDB cover-art lookup for an EPG programme.  Cached 7 days on the
+   backend (/api/epg/art) — safe to call as often as focus changes. */
+function useProgrammeArt(programme) {
+    const [art, setArt] = useState({ backdrop: '', poster: '' });
+    useEffect(() => {
+        const title = (programme?.title || '').trim();
+        if (!title) { setArt({ backdrop: '', poster: '' }); return; }
+        let cancel = false;
+        const q = new URLSearchParams({ title });
+        if (programme?.start) {
+            const y = new Date(programme.start).getFullYear();
+            if (y > 1950 && y < 2100) q.set('year', String(y));
+        }
+        fetch(`${API}/api/epg/art?${q.toString()}`)
+            .then((r) => r.json())
+            .then((d) => { if (!cancel) setArt({ backdrop: d.backdrop || '', poster: d.poster || '' }); })
+            .catch(() => { if (!cancel) setArt({ backdrop: '', poster: '' }); });
+        return () => { cancel = true; };
+    }, [programme?.title, programme?.start]);
+    return art;
 }
 
 /* ====================================================================
@@ -393,7 +451,7 @@ function TopBar({ tab, onTab, categories, now, city, supportedCities, onCity, ci
 }
 
 /* ------------------------------- sidebar -------------------------- */
-function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate, now, upNext }) {
+function Sidebar({ channel, programme, art, armed, isFav, onToggleFav, streamFor, onActivate, now, upNext }) {
     if (!channel) {
         return (
             <aside className="fta-sidebar">
@@ -406,6 +464,7 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
         ? Math.min(100, Math.max(0, ((now - live.start) / (live.stop - live.start)) * 100))
         : 0;
     const remainingMin = Math.max(0, Math.round((live.stop - now) / 60000));
+    const artwork = (art && (art.backdrop || art.poster)) || channel.logo || '';
 
     return (
         <aside className="fta-sidebar">
@@ -416,8 +475,19 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
                 onClick={onActivate}
                 className="fta-preview"
             >
-                <ChannelPreview channelId={channel.id} streamFor={streamFor} poster={channel.logo} />
+                <ChannelPreview
+                    channelId={channel.id}
+                    streamFor={streamFor}
+                    armed={armed}
+                    artwork={artwork}
+                    fallback={channel.logo}
+                />
                 <span className="fta-live-pill">● LIVE</span>
+                {!armed && (
+                    <span className="fta-preview-hint" data-testid="fta-preview-hint">
+                        Press OK to play
+                    </span>
+                )}
                 <div className="fta-preview-overlay">
                     <div className="fta-preview-overlay__title">{live.title || channel.name}</div>
                     <div className="fta-preview-overlay__meta">
@@ -477,48 +547,113 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
     );
 }
 
-/* --------------------------- preview HLS -------------------------- */
-function ChannelPreview({ channelId, streamFor, poster }) {
+/* --------------------------- preview HLS --------------------------
+   v2.8.96 — only mount the HLS <video> when `armed === true` (i.e.
+   the user has pressed OK on a cell or on the preview tile).  Until
+   then we render TMDB programme artwork so scrolling through the
+   guide doesn't fan out 188 background streams.
+
+   Audio:  default is UNMUTED — the user explicitly asked for
+   "preview with sound".  Some browsers (Chrome on Android WebView
+   with `mediaPlaybackRequiresUserGesture=false` it's fine, but
+   desktop Chrome rejects unmuted autoplay) will reject the play()
+   promise; we then fall back to muted playback and listen for the
+   first 'click' / 'keydown' to unmute. */
+function ChannelPreview({ channelId, streamFor, armed, artwork, fallback }) {
     const videoRef = useRef(null);
     const [streamUrl, setStreamUrl] = useState(null);
+    const [streamReady, setStreamReady] = useState(false);
 
+    /* Reset stream state every time the channel changes or we
+       disarm (e.g. switching to a new programme without re-clicking). */
     useEffect(() => {
+        setStreamReady(false);
+        if (!armed || !channelId) {
+            setStreamUrl(null);
+            return;
+        }
         let cancel = false;
-        if (!channelId) return;
-        setStreamUrl(null);
         (async () => {
             try {
                 const j = await streamFor(channelId);
                 if (!cancel && j.url) setStreamUrl(j.url);
-            } catch { /* preview falls back to poster */ }
+            } catch { /* preview falls back to artwork */ }
         })();
         return () => { cancel = true; };
-    }, [channelId, streamFor]);
+    }, [armed, channelId, streamFor]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (!video || !streamUrl) return;
         let hls = null;
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Safari (and Android Chrome via MediaPlayer)
             video.src = streamUrl;
         } else if (Hls.isSupported()) {
             hls = new Hls({ enableWorker: true, lowLatencyMode: false });
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
         }
-        video.muted = true;          // preview is silent — fullscreen unmutes
-        const playPromise = video.play();
-        if (playPromise) playPromise.catch(() => { /* autoplay can be blocked */ });
+
+        video.muted = false;
+        let unmuteOnInteract = null;
+        const tryPlay = video.play();
+        if (tryPlay && tryPlay.catch) {
+            tryPlay.catch(() => {
+                /* Autoplay-with-sound blocked.  Retry muted so the
+                   user at least sees motion, and arm a one-shot
+                   listener to unmute on first interaction. */
+                try {
+                    video.muted = true;
+                    video.play().catch(() => { /* */ });
+                } catch { /* */ }
+                unmuteOnInteract = () => {
+                    try { video.muted = false; } catch { /* */ }
+                    window.removeEventListener('keydown', unmuteOnInteract, true);
+                    window.removeEventListener('click', unmuteOnInteract, true);
+                };
+                window.addEventListener('keydown', unmuteOnInteract, true);
+                window.addEventListener('click', unmuteOnInteract, true);
+            });
+        }
+        const onPlay = () => setStreamReady(true);
+        video.addEventListener('playing', onPlay);
+
         return () => {
+            video.removeEventListener('playing', onPlay);
+            if (unmuteOnInteract) {
+                window.removeEventListener('keydown', unmuteOnInteract, true);
+                window.removeEventListener('click', unmuteOnInteract, true);
+            }
             if (hls) { try { hls.destroy(); } catch { /* */ } }
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* */ }
+            setStreamReady(false);
         };
     }, [streamUrl]);
 
-    return streamUrl
-        ? <video ref={videoRef} playsInline autoPlay muted poster={poster} />
-        : <img src={poster || ''} alt="" />;
+    /* Render order:
+        - Cover-art image always sits underneath as an instant
+          backdrop (no flash to black on every focus change).
+        - <video> is mounted only when armed; while it's still
+          buffering it stays transparent so the artwork shows
+          through.  Once 'playing' fires (streamReady=true) we
+          fade the video on top. */
+    const poster = artwork || fallback || '';
+    return (
+        <>
+            {poster
+                ? <img className="fta-preview-art" src={poster} alt="" />
+                : <div className="fta-preview-art fta-preview-art--empty" />}
+            {armed && (
+                <video
+                    ref={videoRef}
+                    className={`fta-preview-video ${streamReady ? 'is-ready' : ''}`}
+                    playsInline
+                    autoPlay
+                    poster={poster}
+                />
+            )}
+        </>
+    );
 }
 
 /* ---------------------------- grid header ------------------------- */
@@ -567,14 +702,14 @@ function GridHeader({ gridStartMs, gridEndMs, gridRowsRef }) {
 const GridRows = React.forwardRef(function GridRows(
     {
         channels, programmes, gridStartMs, gridWidthPx, now,
-        activeChannelId, activeProgrammeKey, onOpen, onToggleFav, favs,
+        activeChannelId, activeProgrammeKey, onFocus, onOpen, onToggleFav, favs,
     },
     ref,
 ) {
     const nowOffsetPx = ((now - gridStartMs) / 60000) * PX_PER_MIN;
 
     return (
-        <div className="fta-grid-rows" ref={ref} data-testid="fta-grid-rows">
+        <div className="fta-grid-rows" ref={ref} data-testid="fta-grid-rows" data-no-h-rail="true">
             <div style={{ position: 'relative', width: gridWidthPx + CHANNEL_RAIL_W }}>
                 {/* NOW line */}
                 <div
@@ -603,6 +738,7 @@ const GridRows = React.forwardRef(function GridRows(
                             activeProgrammeKey={
                                 activeChannelId === ch.id ? activeProgrammeKey : null
                             }
+                            onFocus={(p) => onFocus(ch, p)}
                             onOpen={(p) => onOpen(ch, p)}
                             now={now}
                         />
@@ -614,7 +750,7 @@ const GridRows = React.forwardRef(function GridRows(
 });
 
 /* --------------------------- one row ------------------------------ */
-function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeKey, now }) {
+function ChannelRow({ channel, programmes, gridStartMs, onFocus, onOpen, activeProgrammeKey, now }) {
     const upNextProg = programmes.find((p) => p.start > now);
     const upNextKey = upNextProg
         ? `${upNextProg.start}|${upNextProg.stop}|${upNextProg.title}`
@@ -636,7 +772,7 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
                 {programmes.length === 0 && (
                     <div className="fta-cell fta-cell--empty" style={{
                         position: 'absolute',
-                        left: 6, right: 6, top: 8,
+                        left: 4, right: 4, top: 5,
                     }}>
                         <div className="fta-cell__title">No programme info</div>
                     </div>
@@ -645,7 +781,7 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
                     const startOffsetMin = Math.max(0, (p.start - gridStartMs) / 60000);
                     const endOffsetMin = Math.max(0, (p.stop - gridStartMs) / 60000);
                     const left = startOffsetMin * PX_PER_MIN;
-                    const width = Math.max(80, (endOffsetMin - startOffsetMin) * PX_PER_MIN - 4);
+                    const width = Math.max(56, (endOffsetMin - startOffsetMin) * PX_PER_MIN - 3);
                     const isLive = p.start <= now && p.stop > now;
                     const key = `${p.start}|${p.stop}|${p.title}`;
                     const isFocused = activeProgrammeKey === key;
@@ -665,10 +801,12 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
                             className={`fta-cell ${isFocused ? 'is-focused' : ''} ${isLive ? 'is-live' : ''}`}
                             style={{
                                 position: 'absolute',
-                                left: left + 2,
+                                left: left + 1,
                                 width,
-                                top: 8,
+                                top: 5,
                             }}
+                            onFocus={() => onFocus(p)}
+                            onMouseEnter={() => onFocus(p)}
                             onClick={() => onOpen(p)}
                         >
                             <div className="fta-cell__title">{p.title || '—'}</div>
@@ -702,10 +840,16 @@ function extractSubtitle(p) {
     return p.category || '';
 }
 
-/* ----------------------- full-screen player ----------------------- */
-function FullScreenPlayer({ channel, city, onExit }) {
+/* ----------------------- full-screen player -----------------------
+   v2.8.96 — when running inside the FTA Android APK, hand off the
+   HLS URL to native ExoPlayer (media3) via the OnNowFTA bridge for
+   faster start-up + native play/pause/seek controls.  In the
+   browser (or any WebView without the bridge), fall back to the
+   in-page <video> + hls.js implementation. */
+function FullScreenPlayer({ channel, programme, city, artwork, onExit }) {
     const videoRef = useRef(null);
     const [url, setUrl] = useState(null);
+    const [bridgedToNative, setBridgedToNative] = useState(false);
 
     useEffect(() => {
         let cancel = false;
@@ -716,7 +860,31 @@ function FullScreenPlayer({ channel, city, onExit }) {
         return () => { cancel = true; };
     }, [channel.id, city]);
 
+    /* Native ExoPlayer handoff */
     useEffect(() => {
+        if (!url) return;
+        const bridge = window.OnNowFTA;
+        if (bridge && typeof bridge.openExoPlayer === 'function') {
+            try {
+                bridge.openExoPlayer(
+                    url,
+                    programme?.title || channel.name || '',
+                    channel.name || '',
+                    artwork || '',
+                );
+                setBridgedToNative(true);
+                /* The native player consumes the URL and shows itself
+                   on top — we exit the React fullscreen overlay so the
+                   underlying EPG stays mounted for when the user
+                   presses BACK. */
+                onExit();
+                return;
+            } catch { /* fall through to HTML5 */ }
+        }
+    }, [url, programme, channel, artwork, onExit]);
+
+    useEffect(() => {
+        if (bridgedToNative) return;
         const video = videoRef.current;
         if (!video || !url) return;
         let hls = null;
@@ -728,9 +896,17 @@ function FullScreenPlayer({ channel, city, onExit }) {
             hls.attachMedia(video);
         }
         video.muted = false;
-        video.play().catch(() => { /* autoplay */ });
+        video.play().catch(() => {
+            /* autoplay-with-sound blocked — retry muted, unmute on first key */
+            try { video.muted = true; video.play().catch(() => { /* */ }); } catch { /* */ }
+            const unmute = () => {
+                try { video.muted = false; } catch { /* */ }
+                window.removeEventListener('keydown', unmute, true);
+            };
+            window.addEventListener('keydown', unmute, true);
+        });
         return () => { if (hls) { try { hls.destroy(); } catch { /* */ } } };
-    }, [url]);
+    }, [url, bridgedToNative]);
 
     /* BACK / Escape exits */
     useEffect(() => {
@@ -745,8 +921,11 @@ function FullScreenPlayer({ channel, city, onExit }) {
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onExit]);
 
+    if (bridgedToNative) return null;
+
     return (
         <div className="fta-fullscreen" data-testid="fta-fullscreen">
+            {artwork && <img className="fta-fullscreen-art" src={artwork} alt="" />}
             <video ref={videoRef} playsInline autoPlay controls={false} />
             <div className="fta-fullscreen-hint">Press BACK to return</div>
         </div>

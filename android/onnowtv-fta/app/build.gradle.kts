@@ -73,4 +73,13 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("com.google.android.material:material:1.12.0")
+
+    // v2.8.96 — native ExoPlayer (media3) so the FTA full-screen
+    // player matches the Vesper build: instant HLS start-up, native
+    // play/pause/seek overlay, hardware-accelerated decoding.  The
+    // WebView calls `OnNowFTA.openExoPlayer(url, title, ...)` which
+    // launches ExoPlayerActivity below.
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
 }
