@@ -13,6 +13,15 @@
 > should I touch next".
 
 
+> **🟢 v2.8.98 — FTA nav + topbar cleanup + native splash screen (Jun 2, 2026).**
+> User feedback after v2.8.97 ship: up/down was still "jumping to whatever tile it wants" instead of always landing on the live cell; categories were still cluttering the top bar; needed a real branded splash for the standalone APK.
+>   - **Up/Down → always the LIVE cell of the next row.**  Rewrote the tile-stepping handler so vertical arrows pick `cells[0]` of the target row (the leftmost = currently-airing programme), no horizontal-position memory.  The user's exact ask: "up, down always lands on the live TV now section".  Right/Left walk DOM siblings; Left at idx=0 still opens the side menu.  Confirmed live: start on a future cell at left=271 → ↓ lands at left=1 in next row, repeatedly.
+>   - **Smooth EPG slide on Left/Right.**  `focusAndScroll` now `scrollTo({ left, behavior: 'smooth' })` the grid container so the focused cell stays anchored just after the channel rail — the user's "it'll move the whole EPG" mental model.  Going back left pulls the EPG back to the live-now column.
+>   - **Topbar nuked categories.**  `TopBar` now renders only "Free-to-Air" + "Favourites" (mapped to `tab==='live'` and `tab==='favourites'`).  All category filtering (Kids/Sport/News/Drama/Movies/Reality/Music/More) lives exclusively in the side menu the user explicitly named as Vesper-style.
+>   - **Native FTA splash screen.**  Added a deep crimson → orange → amber gradient drawable (`splash_gradient.xml`), wired it in as the launcher Activity's `windowBackground` via the new `Theme.OnNowFta.Splash` so the brand appears the instant the launcher hands control over (no white flash, no Java required).  Inflated `activity_main.xml` stacks an `fta_splash` overlay (eyebrow "ON NOW", "V2" pill, big "FREE TO AIR" wordmark, "ON-AIR LIVE TV · 188 CHANNELS" chip, 3 animated dots) on top of the WebView; `WebViewClient.onPageFinished` fades it out across 450ms.  A 4-second safety timer also dismisses the splash if the page never finishes (offline path).
+
+
+
 > **🟢 v2.8.97 — FTA EPG rebuilt for the HK1 box (Jun 2, 2026).**
 > User's full feedback batch (video + mockup photo): "chunky" focus movement, EPG cells cut off / cells in the past, no cover art when preview not playing, preview restarts on category change, no smooth shrink from fullscreen.  Rebuilt the layout + focus + state model:
 >   - **Live shows pushed against the far left + past filtered.**
