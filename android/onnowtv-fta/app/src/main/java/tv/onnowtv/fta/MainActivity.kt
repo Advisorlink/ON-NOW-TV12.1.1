@@ -3,6 +3,8 @@ package tv.onnowtv.fta
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
@@ -10,24 +12,40 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 
 /**
  * ON NOW V2 — Free-to-Air kiosk WebView shell.
  *
- * The whole app (EPG grid, HLS preview, full-screen player, category
- * tabs, favourites, city selector) is the React SPA at
- * `${app_url}/fta`.  This Activity is a deliberately thin WebView
- * wrapper.
+ * Loads the React SPA at `${app_url}/fta`.  The actual EPG, HLS
+ * preview, full-screen player, category side menu, favourites and
+ * city selector all live in the React tree.  This Activity is a
+ * deliberately thin WebView wrapper plus a branded splash that
+ * sits on top of the page until React reports it's done loading.
  *
- * v2.8.96 — adds the `OnNowFTA` JS bridge so the React full-screen
- * player can hand the HLS URL off to native ExoPlayer (faster
- * start-up + native play/pause/seek overlay — the user's "use the
- * same player as Vesper" ask).
+ * Splash strategy:
+ *     1. `Theme.OnNowFta.Splash` sets the windowBackground to the
+ *        red→orange gradient so the user sees the FTA brand the
+ *        instant the launcher hands control over.  No white flash.
+ *     2. onCreate inflates activity_main.xml — a FrameLayout that
+ *        stacks the WebView and the `fta_splash` overlay (also a
+ *        gradient + ON NOW V2 FREE TO AIR wordmark).
+ *     3. WebViewClient.onPageFinished fades the overlay out across
+ *        450 ms once the React app has hydrated.  A safety timer
+ *        also dismisses the splash after 4 s in case the page
+ *        finishes silently (mWebView is offline, etc.).
+ *
+ * Bridge:  exposes `window.OnNowFTA.openExoPlayer(...)` so the
+ * React full-screen player can hand the HLS URL off to native
+ * ExoPlayer (see ExoPlayerActivity).
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private var splashView: View? = null
+    private var splashDismissed = false
+    private val splashSafetyHandler = Handler(Looper.getMainLooper())
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,37 +62,69 @@ class MainActivity : AppCompatActivity() {
             View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
-        webView = WebView(this).apply {
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
-                mediaPlaybackRequiresUserGesture = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                cacheMode = WebSettings.LOAD_DEFAULT
-                useWideViewPort = true
-                loadWithOverviewMode = true
-            }
-            webViewClient = WebViewClient()
-            webChromeClient = WebChromeClient()
-            // Use a desktop UA so YouTube / HLS.js paths behave like
-            // they do on a laptop browser.  hls.js relies on MSE which
-            // some mobile UAs trigger HLS-native handoff for — the
-            // desktop UA keeps us on the same code path we tested.
-            settings.userAgentString = settings.userAgentString
-                ?.replace(Regex("Mobile;? ?"), "")
-                ?: settings.userAgentString
+        setContentView(R.layout.activity_main)
 
-            // Expose `window.OnNowFTA` to the React SPA.  Methods are
-            // declared on FtaBridge below and routed back to MainActivity
-            // via the surrounding closure.
-            addJavascriptInterface(FtaBridge(this@MainActivity), "OnNowFTA")
+        webView = findViewById(R.id.fta_webview)
+        splashView = findViewById(R.id.fta_splash)
+
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            cacheMode = WebSettings.LOAD_DEFAULT
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            // Desktop UA so HLS.js / MSE behaves as on a laptop browser.
+            userAgentString = userAgentString
+                ?.replace(Regex("Mobile;? ?"), "")
+                ?: userAgentString
         }
-        setContentView(webView)
+
+        webView.webChromeClient = WebChromeClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Give React a beat to hydrate, then fade out the splash.
+                Handler(Looper.getMainLooper()).postDelayed({ dismissSplash() }, 350)
+            }
+        }
+
+        // Bridge for native ExoPlayer handoff.
+        webView.addJavascriptInterface(FtaBridge(this), "OnNowFTA")
 
         val appUrl = getString(R.string.app_url).trim().trimEnd('/')
-        // Land directly on the FTA route — no redirect dance.
         webView.loadUrl("$appUrl/fta")
+
+        // Safety net: if onPageFinished never fires (offline / slow
+        // network), drop the splash anyway after 4 s.
+        splashSafetyHandler.postDelayed({ dismissSplash() }, 4000)
+    }
+
+    /**
+     * Animate the splash overlay out.  Idempotent — the safety
+     * timer and `onPageFinished` race to call it; only the first
+     * caller does any work.
+     */
+    private fun dismissSplash() {
+        val sv = splashView ?: return
+        if (splashDismissed) return
+        splashDismissed = true
+        splashSafetyHandler.removeCallbacksAndMessages(null)
+
+        sv.animate()
+            .alpha(0f)
+            .setDuration(450)
+            .withEndAction {
+                (sv.parent as? FrameLayout)?.removeView(sv)
+                splashView = null
+                // After the splash leaves, swap the window
+                // background back to plain black so we don't see
+                // gradient bleed if the WebView ever clears.
+                window.setBackgroundDrawableResource(R.color.fta_bg)
+            }
+            .start()
     }
 
     /**
@@ -99,10 +149,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // The React app has its own back-handling (Escape/BACK exits
-        // full-screen player → returns to grid).  Only fall back to
-        // exiting the Activity if there's nowhere to go in WebView
-        // history.
+        // The React app handles its own BACK chain (close side menu,
+        // exit full-screen, etc.).  Only fall back to popping the
+        // WebView history when the page has somewhere to go.
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
@@ -113,10 +162,10 @@ class MainActivity : AppCompatActivity() {
 }
 
 /**
- * JS-facing bridge object.  Every method MUST be annotated with
- * `@JavascriptInterface` or the WebView won't expose it to the SPA.
- * Methods run on a Binder thread — hop back to the UI thread
- * before touching the Activity.
+ * JS-facing bridge object exposed as `window.OnNowFTA` to the React
+ * SPA.  Every method MUST be annotated with `@JavascriptInterface`
+ * or the WebView won't expose it.  Methods run on a Binder thread —
+ * hop back to the UI thread before touching the Activity.
  */
 class FtaBridge(private val activity: MainActivity) {
 
@@ -133,8 +182,7 @@ class FtaBridge(private val activity: MainActivity) {
         }
     }
 
-    /** Lets the React layer feature-detect the bridge without
-     *  poking around for the method directly. */
+    /** Feature-detect hook for the React layer. */
     @JavascriptInterface
     fun isNativePlayerAvailable(): Boolean = true
 }

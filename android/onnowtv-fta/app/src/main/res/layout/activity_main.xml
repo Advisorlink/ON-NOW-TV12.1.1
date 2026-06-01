@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 — Free-to-Air main activity layout.
+
+    A simple FrameLayout that stacks (back-to-front):
+        1. WebView — covers everything, loads the React /fta route
+        2. Splash overlay (inflated from fta_splash.xml) — covers the
+           WebView until React fires `onPageFinished`, then fades out
+
+    No XML data-binding, no ConstraintLayout overhead — the splash
+    is just laid on top with the same MATCH_PARENT bounds.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fta_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/fta_bg">
+
+    <WebView
+        android:id="@+id/fta_webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/fta_bg" />
+
+    <include
+        android:id="@+id/fta_splash"
+        layout="@layout/fta_splash" />
+</FrameLayout>

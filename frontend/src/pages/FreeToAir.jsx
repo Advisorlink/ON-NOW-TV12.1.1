@@ -311,11 +311,18 @@ export default function FreeToAir() {
         return () => window.removeEventListener('keydown', onKey, true);
     }, [fullScreen]);
 
-    /* v2.8.97 — tile-stepping D-pad nav.  The user explicitly asked
-       for RecyclerView-style movement: Up/Down should land on the
-       cell directly above/below in the next row, Left/Right walks
-       the row's DOM-sibling cells one at a time.  Pressing LEFT on
-       the leftmost cell of a row opens the category side menu.
+    /* v2.8.98 — D-pad model the user explicitly asked for:
+         Up/Down  → always land on the LIVE-NOW cell (leftmost) of
+                    the next/previous channel row, regardless of
+                    where you were horizontally.  Also smoothly
+                    scrolls the grid back to the channel-rail edge
+                    so the whole EPG slides back to NOW.
+         Right    → next future cell in the same row, and the grid
+                    scrolls horizontally so the focused cell sits
+                    just after the channel rail (no manual scroll).
+         Left     → previous cell in the same row.  When already on
+                    the leftmost (live) cell, LEFT opens the Vesper
+                    style category side menu.
        Bound on `window` with capture=true so we win against the
        generic geometric `useSpatialFocus` handler. */
     useEffect(() => {
@@ -327,7 +334,12 @@ export default function FreeToAir() {
 
             const row = ae.closest('.fta-row');
             if (!row) return;
+            const scroller = row.closest('.fta-grid-rows');
 
+            /* Smoothly bring a cell into view by scrolling the grid
+               horizontally so the cell sits just after the channel
+               rail.  Vertical scroll uses scrollIntoView with
+               block:nearest so rows you walk into stay on screen. */
             const focusAndScroll = (next) => {
                 if (!next) return;
                 e.preventDefault();
@@ -336,8 +348,17 @@ export default function FreeToAir() {
                     e.stopImmediatePropagation();
                 }
                 try {
-                    next.focus({ preventScroll: false });
-                    next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+                    next.focus({ preventScroll: true });
+                    if (scroller) {
+                        const cellLeft = parseFloat(next.style.left || '0');
+                        // Target scrollLeft = cellLeft (rail is sticky at left:0
+                        // inside the row, so cell offset already starts after it).
+                        scroller.scrollTo({
+                            left: Math.max(0, cellLeft - 4),
+                            behavior: 'smooth',
+                        });
+                    }
+                    next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
                 } catch { /* */ }
             };
 
@@ -348,7 +369,7 @@ export default function FreeToAir() {
                     focusAndScroll(cells[idx + 1]);
                 } else {
                     if (idx <= 0) {
-                        // At leftmost cell → open the category side menu.
+                        // Already on the live-now cell → open the side menu.
                         e.preventDefault();
                         e.stopPropagation();
                         if (typeof e.stopImmediatePropagation === 'function') {
@@ -362,25 +383,16 @@ export default function FreeToAir() {
                 return;
             }
 
-            // Up / Down — find the cell in the adjacent row whose
-            // horizontal range straddles the current cell's left edge.
+            // Up / Down — always pick the LIVE-NOW cell (the FIRST
+            // cell in the target row).  This was the user's
+            // explicit ask: "up, down always lands on the live TV
+            // now section".  No horizontal-position memory.
             const targetRow = e.key === 'ArrowDown'
                 ? row.nextElementSibling
                 : row.previousElementSibling;
             if (!targetRow || !targetRow.classList || !targetRow.classList.contains('fta-row')) return;
-
-            const curLeft = parseFloat(ae.style.left || '0');
-            const curWidth = parseFloat(ae.style.width || '0');
-            const curEdge = curLeft + Math.min(40, curWidth / 4); // bias toward the cell's start
             const cells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
-            let best = null;
-            for (const cell of cells) {
-                const l = parseFloat(cell.style.left || '0');
-                const w = parseFloat(cell.style.width || '0');
-                if (l <= curEdge && curEdge < l + w) { best = cell; break; }
-            }
-            if (!best && cells.length) best = cells[0];
-            focusAndScroll(best);
+            focusAndScroll(cells[0]);
         };
         // Capture phase + window-level so we run before useSpatialFocus.
         window.addEventListener('keydown', onKey, true);
@@ -577,12 +589,24 @@ function useProgrammeArt(programme) {
 ==================================================================== */
 
 function TopBar({ tab, onTab, categories, now, city, supportedCities, onCity, cityMenuOpen, onToggleCity }) {
-    /* All category tabs in the order the backend returned them, with
-       Favourites appended at the end. */
-    const tabs = useMemo(() => {
-        const cats = (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
-        return [...cats, { id: 'favourites', label: 'Favourites', count: null }];
+    /* v2.8.98 — per user feedback the top bar is now MUCH cleaner:
+       just the brand wordmark on the left, two top-level views
+       (Free-to-Air vs Favourites), and the city / clock on the
+       right.  All category filtering (Kids, Sport, News, Drama …)
+       lives in the slide-in side menu where the D-pad LEFT
+       gesture exposes it. */
+    const liveCount = useMemo(() => {
+        const live = (categories || []).find((c) => c.id === 'live');
+        return live?.count ?? null;
     }, [categories]);
+    const favCount = useMemo(() => {
+        const f = (categories || []).find((c) => c.id === 'favourites');
+        return f?.count ?? null;
+    }, [categories]);
+    const tabs = useMemo(() => ([
+        { id: 'live', label: 'Free-to-Air', count: liveCount },
+        { id: 'favourites', label: 'Favourites', count: favCount },
+    ]), [liveCount, favCount]);
 
     return (
         <div className="fta-topbar">
@@ -595,23 +619,29 @@ function TopBar({ tab, onTab, categories, now, city, supportedCities, onCity, ci
                     </span>
                 </div>
                 <div className="fta-tabs" role="tablist">
-                    {tabs.map((t) => (
-                        <button
-                            key={t.id}
-                            data-testid={`fta-tab-${t.id}`}
-                            data-focusable="true"
-                            tabIndex={0}
-                            role="tab"
-                            aria-selected={tab === t.id}
-                            onClick={() => onTab(t.id)}
-                            className={`fta-tab ${tab === t.id ? 'is-active' : ''}`}
-                        >
-                            <span>{t.label}</span>
-                            {t.count != null && t.count > 0 && (
-                                <span className="fta-tab__count">{t.count}</span>
-                            )}
-                        </button>
-                    ))}
+                    {tabs.map((t) => {
+                        // Treat any non-favourites category tab as "Free-to-Air".
+                        const isActive = t.id === 'favourites'
+                            ? tab === 'favourites'
+                            : tab !== 'favourites';
+                        return (
+                            <button
+                                key={t.id}
+                                data-testid={`fta-tab-${t.id}`}
+                                data-focusable="true"
+                                tabIndex={0}
+                                role="tab"
+                                aria-selected={isActive}
+                                onClick={() => onTab(t.id)}
+                                className={`fta-tab ${isActive ? 'is-active' : ''}`}
+                            >
+                                <span>{t.label}</span>
+                                {t.count != null && t.count > 0 && (
+                                    <span className="fta-tab__count">{t.count}</span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
             <div className="fta-topbar-right">

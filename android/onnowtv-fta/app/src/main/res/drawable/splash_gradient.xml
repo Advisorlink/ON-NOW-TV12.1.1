@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 — Free-to-Air splash background.
+
+    A diagonal gradient from a deep crimson (top-left, the existing
+    FTA brand red #ff2535) through a saturated orange (#ff8a1f) to
+    a warm amber (#ffb04d) at the bottom-right.  Adds a subtle
+    radial vignette over the top to focus the eye on the centred
+    logo.  Doubles as the `android:windowBackground` so the splash
+    is visible the instant the launcher hands control to us — no
+    white flash, no waiting on Java.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="315"
+                android:startColor="#FF2535"
+                android:centerColor="#FF6A1F"
+                android:endColor="#FFAA4A" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="800"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#00000000"
+                android:endColor="#33000000" />
+        </shape>
+    </item>
+</layer-list>
