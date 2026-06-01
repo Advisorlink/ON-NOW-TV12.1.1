@@ -21,9 +21,13 @@
     --fta-pill-bg: rgba(255, 255, 255, 0.08);
     --fta-border: rgba(255, 255, 255, 0.10);
     --fta-row-sep: rgba(255, 255, 255, 0.07);
-    --fta-row-h: 110px;
-    --fta-grid-px-per-min: 14px;
-    --fta-channel-rail-w: 200px;
+    /* v2.8.96 — denser EPG per user feedback (the right pane was
+       eating ~80% of the screen and cells were huge).  Halved row
+       height, reduced cells-per-hour width by ~40%, slimmer logo
+       rail.  JS constants in FreeToAir.jsx mirror these. */
+    --fta-row-h: 64px;
+    --fta-grid-px-per-min: 9px;
+    --fta-channel-rail-w: 104px;
 
     position: fixed;
     inset: 0;
@@ -257,11 +261,62 @@
 }
 
 .fta-preview video,
-.fta-preview img {
+.fta-preview img,
+.fta-preview-art,
+.fta-preview-video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+/* v2.8.96 — preview pane layering:
+     <img class="fta-preview-art"> is the constant TMDB backdrop
+     so scrolling between programmes never flashes black.
+     <video class="fta-preview-video"> is mounted on top only when
+     the user arms the preview (Enter on a cell).  It fades in once
+     it actually starts playing ('playing' event flips .is-ready). */
+.fta-preview-art {
+    position: absolute;
+    inset: 0;
+    background: #0a1120;
+    /* slight darken so the overlay text stays readable */
+    filter: brightness(0.86);
+}
+
+.fta-preview-art--empty {
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(93, 200, 255, 0.10) 0%, transparent 60%),
+        #0a1120;
+}
+
+.fta-preview-video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 220ms ease;
+    background: #000;
+}
+
+.fta-preview-video.is-ready {
+    opacity: 1;
+}
+
+.fta-preview-hint {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #fff;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .fta-live-pill {
@@ -466,7 +521,7 @@
 .fta-grid-header {
     display: flex;
     align-items: flex-end;
-    height: 56px;
+    height: 38px;
     border-bottom: 1px solid var(--fta-border);
     padding-left: var(--fta-channel-rail-w);
     box-sizing: border-box;
@@ -477,9 +532,9 @@
 
 .fta-grid-header__today {
     position: absolute;
-    left: 24px;
-    bottom: 14px;
-    font-size: 12px;
+    left: 18px;
+    bottom: 9px;
+    font-size: 10px;
     color: var(--fta-fg-dim);
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -490,7 +545,7 @@
     display: flex;
     height: 100%;
     align-items: flex-end;
-    padding-bottom: 10px;
+    padding-bottom: 6px;
     position: relative;
     will-change: transform;
 }
@@ -498,14 +553,14 @@
 .fta-grid-time {
     flex-shrink: 0;
     text-align: left;
-    font-size: 12px;
+    font-size: 10.5px;
     font-weight: 600;
     color: var(--fta-fg-dim);
     font-variant-numeric: tabular-nums;
     border-left: 1px solid var(--fta-border);
-    padding-left: 8px;
-    padding-top: 8px;
-    height: 38px;
+    padding-left: 6px;
+    padding-top: 4px;
+    height: 26px;
     box-sizing: border-box;
     display: flex;
     align-items: flex-start;
@@ -541,7 +596,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 16px;
+    padding: 0 8px;
     box-sizing: border-box;
     background: var(--fta-bg);
     position: sticky;
@@ -552,30 +607,30 @@
 
 .fta-row__rail-inner {
     width: 100%;
-    height: 64%;
+    height: 70%;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .fta-row__rail img {
-    max-width: 80%;
+    max-width: 78%;
     max-height: 100%;
     object-fit: contain;
-    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.5));
 }
 
 .fta-row__rail-lcn {
     position: absolute;
-    bottom: 8px;
-    right: 10px;
-    font-size: 10px;
+    bottom: 4px;
+    right: 6px;
+    font-size: 9px;
     font-weight: 800;
     color: var(--fta-fg-dimmer);
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     font-variant-numeric: tabular-nums;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 1px 5px;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 1px 4px;
     border-radius: 3px;
 }
 
@@ -588,18 +643,18 @@
 }
 
 .fta-cell {
-    height: calc(var(--fta-row-h) - 18px);
+    height: calc(var(--fta-row-h) - 10px);
     background: var(--fta-bg-card);
-    border-radius: 14px;
-    padding: 14px 18px;
+    border-radius: 8px;
+    padding: 6px 10px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 5px;
+    gap: 2px;
     box-sizing: border-box;
     overflow: hidden;
     cursor: pointer;
-    border: 1.5px solid transparent;
+    border: 1px solid transparent;
     color: var(--fta-fg);
     text-align: left;
     margin: 0;
@@ -624,17 +679,17 @@
 }
 
 .fta-cell__title {
-    font-size: 15px;
+    font-size: 12.5px;
     font-weight: 700;
     letter-spacing: -0.005em;
-    line-height: 1.25;
+    line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .fta-cell__subtitle {
-    font-size: 12px;
+    font-size: 10.5px;
     color: var(--fta-fg-dim);
     line-height: 1.2;
     white-space: nowrap;
@@ -643,11 +698,11 @@
 }
 
 .fta-cell__meta {
-    font-size: 11.5px;
+    font-size: 10px;
     color: var(--fta-fg-dim);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     white-space: nowrap;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
@@ -656,22 +711,22 @@
 .fta-cell__live-pill {
     background: var(--fta-accent);
     color: #fff;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8px;
     font-weight: 900;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
 }
 
 .fta-cell__next-pill {
     background: var(--fta-blue);
     color: #04101b;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8px;
     font-weight: 900;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
 }
 
@@ -730,6 +785,21 @@
     height: 100%;
     object-fit: contain;
     background: #000;
+    position: relative;
+    z-index: 2;
+}
+
+/* TMDB backdrop displayed under the <video> while it's still
+   negotiating the HLS handshake — eliminates the black flash on
+   fullscreen entry. */
+.fta-fullscreen-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.55);
+    z-index: 1;
 }
 
 .fta-fullscreen-hint {

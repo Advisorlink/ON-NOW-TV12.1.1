@@ -33,5 +33,15 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- v2.8.96 — native ExoPlayer surface launched from the
+             OnNowFTA JS bridge.  Not exported because it's only
+             ever started from this same process. -->
+        <activity
+            android:name=".ExoPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowFta.NoActionBar" />
     </application>
 </manifest>

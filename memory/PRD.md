@@ -13,6 +13,23 @@
 > should I touch next".
 
 
+> **🟢 v2.8.96 — FTA EPG density + cover art + D-pad nav + native ExoPlayer handoff (Jun 1, 2026).**
+> User feedback on the live `/fta` build (screen recording):
+>   1. Right-side EPG was eating ~80% of the screen at huge font sizes ("look how big this is").
+>   2. Preview pane showed a black square when no live stream was loaded — wanted programme cover art instead.
+>   3. Preview should start playing **with sound** on first click, not muted.
+>   4. D-pad nav broke after a couple of presses ("doesn't go down on the EPG / ends up going to favorites").
+>   5. "Use the same ExoPlayer that we use in the Vesper build" — native player for faster start-up + native play/pause overlay.
+>
+> Fixes (all shipped to https://onnowtv.duckdns.org/fta via the new deploy-frontend.yml workflow):
+>   - **Density** (`fta.css` + `FreeToAir.jsx`): `--fta-row-h` 110→64, `--fta-grid-px-per-min` 14→9, `--fta-channel-rail-w` 200→104, cell title 15→12.5px, cell padding 14/18→6/10, grid header 56→38, min cell width 80→56px, JS constants synced. Headless verification: 717 cells render in the visible viewport vs ~200 before.
+>   - **Cover art** (`useProgrammeArt` hook + `Sidebar` / `FullScreenPlayer`): every focused cell fires `GET /api/epg/art?title=...&year=...` which returns the TMDB backdrop + poster (cached 7d backend-side).  The art layer sits under the `<video>` so scrolling never flashes black.  Verified: focusing "TBA" on Seven loaded `image.tmdb.org/t/p/w500/fCYDjvsc4JoNd9Jnl9ZlDHZtYdq.jpg`.
+>   - **Armed preview** (`previewArmed` state): the HLS `<video>` is only mounted after the user presses Enter on a cell (or clicks the preview tile).  A "PRESS OK TO PLAY" badge in the preview corner tells the user how to arm it.  Audio defaults to **unmuted**; if autoplay rejects we fall back to muted + a one-shot keydown listener that flips muted off the moment the user hits any key.
+>   - **D-pad fix** (`useSpatialFocus.js`): added a `data-no-h-rail="true"` opt-out on the FTA grid container.  Previously the geometric scorer's `if (curRail && curRail.contains(el)) continue` line excluded all cells inside the horizontally-scrolling grid from up/down candidates, so pressing Down on a cell silently failed and falls through to wrap-edge behaviour that landed on the top-bar Favourites tab.  With the opt-out, `horizontalScroller` returns null for FTA cells and the geometric scorer finds the cell directly below in the next row.
+>   - **Native ExoPlayer handoff** (`android/onnowtv-fta/`): new `ExoPlayerActivity.kt` (media3 1.4.1, HLS, native PlayerView with built-in play/pause/seek/timebar overlay, BACK exits) and `FtaBridge` JS interface exposing `window.OnNowFTA.openExoPlayer(url, title, subtitle, posterUrl)`.  React `FullScreenPlayer` feature-detects the bridge: inside the APK it hands the m3u8 to native ExoPlayer and dismisses the React fullscreen overlay; outside the APK it falls back to hls.js + `<video>`.  Mirrors the Vesper player pattern.  Gradle deps + manifest registration added — CI will pick it up on next `build-fta.yml` run.
+
+
+
 > **🟢 v2.8.95 — `/fta` blank-screen on HK1 box fixed + frontend auto-deploy (Jun 1, 2026).**
 > User video showed the "Free To Air" tile launching to a blank gray screen on
 > their HK1 box (launcher splash → grey + cursor, nothing else).  Root cause

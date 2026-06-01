@@ -400,6 +400,19 @@ export default function useSpatialFocus() {
             if (el.__sfHRail !== undefined) return el.__sfHRail;
             let p = el.parentElement;
             while (p && p !== document.body) {
+                /* v2.8.96 — opt-out: containers marked with
+                   data-no-h-rail="true" (e.g. the FTA EPG grid) are
+                   horizontally scrollable BUT we want up/down nav to
+                   freely move between rows inside them.  Treating
+                   them as a rail makes the geometric scorer exclude
+                   siblings on other rows, which is why pressing
+                   Down on an EPG cell was dropping focus into the
+                   topbar.  Skipping this branch keeps left/right
+                   nav working via the regular geometric path. */
+                if (p.getAttribute && p.getAttribute('data-no-h-rail') === 'true') {
+                    p = p.parentElement;
+                    continue;
+                }
                 const cs = getComputedStyle(p);
                 const ox = cs.overflowX;
                 if (

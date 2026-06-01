@@ -1,9 +1,11 @@
 package tv.onnowtv.fta
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -16,9 +18,12 @@ import androidx.appcompat.app.AppCompatActivity
  * The whole app (EPG grid, HLS preview, full-screen player, category
  * tabs, favourites, city selector) is the React SPA at
  * `${app_url}/fta`.  This Activity is a deliberately thin WebView
- * wrapper: no auth, no NewPipe, no native bridge.  We just configure
- * the WebView for hardware-accelerated HLS playback and load the
- * page.
+ * wrapper.
+ *
+ * v2.8.96 — adds the `OnNowFTA` JS bridge so the React full-screen
+ * player can hand the HLS URL off to native ExoPlayer (faster
+ * start-up + native play/pause/seek overlay — the user's "use the
+ * same player as Vesper" ask).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -59,12 +64,38 @@ class MainActivity : AppCompatActivity() {
             settings.userAgentString = settings.userAgentString
                 ?.replace(Regex("Mobile;? ?"), "")
                 ?: settings.userAgentString
+
+            // Expose `window.OnNowFTA` to the React SPA.  Methods are
+            // declared on FtaBridge below and routed back to MainActivity
+            // via the surrounding closure.
+            addJavascriptInterface(FtaBridge(this@MainActivity), "OnNowFTA")
         }
         setContentView(webView)
 
         val appUrl = getString(R.string.app_url).trim().trimEnd('/')
         // Land directly on the FTA route — no redirect dance.
         webView.loadUrl("$appUrl/fta")
+    }
+
+    /**
+     * Launch native ExoPlayer with the given HLS stream.  Called
+     * from the React `FullScreenPlayer` component when running
+     * inside this APK (`window.OnNowFTA.openExoPlayer(...)`).
+     */
+    fun launchExoPlayer(
+        url: String,
+        title: String?,
+        subtitle: String?,
+        posterUrl: String?,
+    ) {
+        if (url.isBlank()) return
+        val intent = Intent(this, ExoPlayerActivity::class.java).apply {
+            putExtra(ExoPlayerActivity.EXTRA_URL, url)
+            putExtra(ExoPlayerActivity.EXTRA_TITLE, title.orEmpty())
+            putExtra(ExoPlayerActivity.EXTRA_SUBTITLE, subtitle.orEmpty())
+            putExtra(ExoPlayerActivity.EXTRA_POSTER_URL, posterUrl.orEmpty())
+        }
+        startActivity(intent)
     }
 
     override fun onBackPressed() {
@@ -79,4 +110,31 @@ class MainActivity : AppCompatActivity() {
             super.onBackPressed()
         }
     }
+}
+
+/**
+ * JS-facing bridge object.  Every method MUST be annotated with
+ * `@JavascriptInterface` or the WebView won't expose it to the SPA.
+ * Methods run on a Binder thread — hop back to the UI thread
+ * before touching the Activity.
+ */
+class FtaBridge(private val activity: MainActivity) {
+
+    @JavascriptInterface
+    fun openExoPlayer(
+        url: String?,
+        title: String?,
+        subtitle: String?,
+        posterUrl: String?,
+    ) {
+        val u = url ?: return
+        activity.runOnUiThread {
+            activity.launchExoPlayer(u, title, subtitle, posterUrl)
+        }
+    }
+
+    /** Lets the React layer feature-detect the bridge without
+     *  poking around for the method directly. */
+    @JavascriptInterface
+    fun isNativePlayerAvailable(): Boolean = true
 }
