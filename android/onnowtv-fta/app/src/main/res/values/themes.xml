@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OnNowFta" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/fta_bg</item>
+        <item name="android:statusBarColor">@color/fta_bg</item>
+        <item name="android:navigationBarColor">@color/fta_bg</item>
+        <item name="colorPrimary">@color/fta_accent</item>
+        <item name="colorPrimaryDark">@color/fta_bg_dark</item>
+        <item name="colorAccent">@color/fta_accent</item>
+    </style>
+    <style name="Theme.OnNowFta.NoActionBar" parent="Theme.OnNowFta">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>
