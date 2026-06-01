@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ON NOW Free-to-Air</string>
+    <!--
+        🛠  EDIT ME 🛠
+        The FTA APK boots straight into `${app_url}/fta` — a separate
+        route inside the same React bundle Vesper uses.  Point this at
+        your production backend.
+    -->
+    <string name="app_url" translatable="false">
+        https://onnowtv.duckdns.org/
+    </string>
+</resources>

@@ -1,0 +1,143 @@
+name: Build ON NOW V2 Free-to-Air APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/onnowtv-fta/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/build-fta.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & sign FTA APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Derive versionCode + versionName
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # versionCode = 1 + commit count touching android/onnowtv-fta/
+          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-fta/ || echo 0) ))
+          # versionName = first ## v2.8.x heading in CHANGELOG.md, else 1.0.0
+          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
+          [ -z "$VN" ] && VN="1.0.0"
+          echo "VC=$VC" >> $GITHUB_OUTPUT
+          echo "VN=$VN" >> $GITHUB_OUTPUT
+          echo "versionCode=$VC versionName=$VN"
+
+      - name: Set up keystore (reuse launcher's, same dev signing chain)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          ANDROID_KS_DIR="${RUNNER_TEMP}/ks"
+          mkdir -p "$ANDROID_KS_DIR"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
+            echo "RELEASE_STORE_FILE=$ANDROID_KS_DIR/release.jks"      >> $GITHUB_ENV
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"           >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"                        >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"                  >> $GITHUB_ENV
+          else
+            echo "No release keystore — debug APK will still build."
+          fi
+
+      - name: Bootstrap gradle wrapper (no wrapper jar in repo)
+        working-directory: android/onnowtv-fta
+        run: |
+          set -euo pipefail
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.7 || true
+          fi
+          chmod +x ./gradlew || true
+
+      - name: Build debug + release APKs
+        working-directory: android/onnowtv-fta
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VC }}
+          VERSION_NAME: ${{ steps.version.outputs.VN }}
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleRelease \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=$VERSION_NAME \
+            --no-daemon \
+            --warning-mode summary
+
+      - name: Locate + rename APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== all APKs produced ==="
+          find android/onnowtv-fta/app/build/outputs/apk -name "*.apk" -type f -ls || true
+
+          DBG=$(find android/onnowtv-fta/app/build/outputs/apk -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$DBG" ]; then
+            echo "::error::No debug APK produced"
+            exit 1
+          fi
+          cp "$DBG" "$GITHUB_WORKSPACE/onnowtv-fta-debug.apk"
+          echo "DEBUG APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-fta-debug.apk)"
+
+          REL=$(find android/onnowtv-fta/app/build/outputs/apk -name "*-release.apk" -type f | head -n1)
+          if [ -z "$REL" ]; then
+            REL=$(find android/onnowtv-fta/app/build/outputs/apk -name "*-release-unsigned.apk" -type f | head -n1)
+          fi
+          if [ -n "$REL" ]; then
+            cp "$REL" "$GITHUB_WORKSPACE/onnowtv-fta-release.apk"
+            echo "RELEASE APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-fta-release.apk)"
+          else
+            echo "No release APK produced — only debug will be published."
+          fi
+
+      - name: Publish to GitHub Releases (fta-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: fta-latest
+          name: "ON NOW V2 Free-to-Air ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          body: |
+            **ON NOW V2 Free-to-Air — standalone live-TV guide.**
+
+            What's inside:
+              • Full EPG for 188 AU channels (21 linear + 167 FAST).
+              • Category tabs: Live TV · Kids · Sport · News · Drama · Movies · Reality · Music.
+              • City selector (Brisbane / Sydney / Melbourne / Adelaide / Perth / Hobart / Darwin / Canberra).
+              • Click a channel → preview in the sidebar.  Click again → full-screen HLS playback.
+              • Long-press OK on a channel cell → add to Favourites.
+
+            Install:
+            1. Download `onnowtv-fta-release.apk` (or `-debug.apk`) below.
+            2. Sideload onto your HK1 box via `adb install` or a file-explorer app.
+            3. Launch — the app loads the live EPG over HTTPS from `onnowtv.duckdns.org`.
+
+            Network: the APK does not bundle the React build — it loads it
+            live from the production VPS so updating the UI is just a backend
+            push, no APK rebuild required.
+          files: |
+            onnowtv-fta-debug.apk
+            onnowtv-fta-release.apk
+          fail_on_unmatched_files: false
+          prerelease: true
+          make_latest: 'false'
