@@ -177,8 +177,29 @@ function CWTile({
     onResume,
 }) {
     const pressTimer = useRef(null);
+    const pressStartAt = useRef(0);
+    /* v2.8.89 — Long-press OK on Android TV remotes.
+     *
+     * The previous implementation called startPress() on every
+     * keydown that wasn't `e.repeat=true`.  Problem: many Android
+     * TV firmwares (notably the HK1 box's remote) **don't set
+     * `e.repeat` on auto-repeated keydowns**.  So every auto-repeat
+     * (~30 Hz) re-armed a fresh 700 ms timer — meaning while the
+     * user held the OK button the timer was perpetually reset and
+     * the confirm UI never appeared.
+     *
+     * The new flow uses a `pressStartAt` baseline.  We only arm the
+     * timer once per physical press (`pressStartAt === 0`).  Every
+     * subsequent auto-repeated keydown is ignored.  Short press
+     * (released before the 700 ms threshold) falls through to
+     * onResume(); long press fires onConfirm() and onKeyUp suppresses
+     * the resume call.
+     */
     const startPress = useCallback(() => {
-        if (pressTimer.current) clearTimeout(pressTimer.current);
+        // Already armed by an earlier keydown — ignore TV-remote
+        // auto-repeats so the timer isn't reset on every tick.
+        if (pressStartAt.current) return;
+        pressStartAt.current = Date.now();
         pressTimer.current = setTimeout(() => {
             pressTimer.current = null;
             onConfirm();
@@ -189,6 +210,7 @@ function CWTile({
             clearTimeout(pressTimer.current);
             pressTimer.current = null;
         }
+        pressStartAt.current = 0;
     }, []);
     useEffect(() => () => cancelPress(), [cancelPress]);
 
@@ -205,23 +227,41 @@ function CWTile({
             ? formatRemaining(entry.durationMs - entry.positionMs)
             : null;
 
-    const handleClick = () => {
+    const handleClick = (e) => {
         if (confirmRemove) return; // confirm dialog is showing
+        // Some Android TV WebViews convert a long-press OK into a
+        // synthetic click event AFTER the timer has already fired.
+        // Suppress the click if we just fired onConfirm().
+        if (e && e.detail === 0 && pressStartAt.current === 0
+            && !pressTimer.current) {
+            // Synthetic click from a key event we already handled.
+            // We rely on keyup to drive resume.
+            return;
+        }
         onResume();
     };
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
-            if (!e.repeat) startPress();
+            // Always swallow — we own the press lifecycle for this
+            // tile so the parent <div>'s default Enter→click doesn't
+            // fire onResume() in parallel.
+            e.preventDefault();
+            startPress();
         }
     };
     const handleKeyUp = (e) => {
         if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
-            const wasShortPress = !!pressTimer.current;
+            e.preventDefault();
+            const startedAt = pressStartAt.current;
+            const heldMs = startedAt ? Date.now() - startedAt : 0;
+            // Timer is still pending iff we haven't crossed the
+            // 700 ms threshold yet.
+            const wasShortPress = !!pressTimer.current && heldMs < 700;
             cancelPress();
             if (wasShortPress && !confirmRemove) {
-                e.preventDefault();
                 onResume();
             }
+            // Long press already fired onConfirm() from the timeout.
         }
     };
 
