@@ -308,8 +308,13 @@ function TopBar({ tab, onTab, now, city, supportedCities, onCity, cityMenuOpen, 
     return (
         <div className="fta-topbar">
             <div className="fta-brand">
-                <span className="fta-brand-v2">V2</span>
-                <span className="fta-brand-text">Free-to-Air</span>
+                <div className="fta-brand-mark" data-testid="fta-brand-mark">
+                    <span className="fta-brand-mark__top">On Now</span>
+                    <span className="fta-brand-mark__bottom">
+                        <span className="fta-brand-v2">V2</span>
+                        <span className="fta-brand-text">Free&nbsp;to&nbsp;Air</span>
+                    </span>
+                </div>
                 <div className="fta-tabs">
                     <button
                         data-testid="fta-tab-all"
