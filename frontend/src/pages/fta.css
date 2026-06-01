@@ -1,26 +1,37 @@
-/* ON NOW V2 — Free-to-Air EPG grid.  All styling is scoped under the
-   .fta-root container so it can't bleed into the rest of Vesper. */
+/* ON NOW V2 — Free-to-Air EPG.  v2.8.91 polish:
+   - 1920×1080-first layout (sidebar 420 px, preview maximised)
+   - Stronger row separators + zebra stripe
+   - Programme cells carry title + subtitle + time, NEXT pill on the
+     next-airing slot
+   - City selector in the topbar
+*/
 
 .fta-root {
     --fta-bg: #03060f;
-    --fta-bg-card: #0c1322;
-    --fta-bg-focused: #142036;
+    --fta-bg-card: #0d1525;
+    --fta-bg-card-alt: #0a1120;            /* zebra band */
+    --fta-bg-focused: #18253f;
+    --fta-bg-live: #1a2438;
     --fta-fg: #fff;
-    --fta-fg-dim: rgba(255, 255, 255, 0.62);
-    --fta-fg-dimmer: rgba(255, 255, 255, 0.36);
+    --fta-fg-dim: rgba(255, 255, 255, 0.68);
+    --fta-fg-dimmer: rgba(255, 255, 255, 0.42);
     --fta-accent: #ff2535;
     --fta-accent-glow: rgba(255, 37, 53, 0.45);
+    --fta-blue: #5DC8FF;
     --fta-pill-bg: rgba(255, 255, 255, 0.08);
     --fta-border: rgba(255, 255, 255, 0.10);
-    --fta-row-h: 96px;
-    --fta-grid-px-per-min: 12px;   /* 12 px = 1 min → 30 min slot = 360 px */
-    --fta-channel-rail-w: 110px;
+    --fta-row-sep: rgba(255, 255, 255, 0.07);
+    --fta-row-h: 104px;
+    --fta-grid-px-per-min: 14px;       /* 14 px = 1 min → 30 min = 420 px */
+    --fta-channel-rail-w: 132px;
 
     position: fixed;
     inset: 0;
-    background: var(--fta-bg);
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(20, 30, 60, 0.65) 0%, transparent 60%),
+        var(--fta-bg);
     color: var(--fta-fg);
-    font-family: var(--theme-font, 'Inter', sans-serif);
+    font-family: var(--theme-font, 'Inter', system-ui, sans-serif);
     overflow: hidden;
     z-index: 50;
 }
@@ -30,63 +41,96 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 36px;
+    padding: 18px 44px;
     border-bottom: 1px solid var(--fta-border);
-    height: 78px;
+    height: 82px;
     box-sizing: border-box;
 }
 
 .fta-brand {
     display: inline-flex;
-    align-items: baseline;
-    gap: 10px;
-    font-size: 22px;
+    align-items: center;
+    gap: 14px;
+    font-size: 24px;
     font-weight: 800;
     letter-spacing: -0.02em;
 }
 
 .fta-brand-v2 {
-    color: var(--fta-accent);
-    font-weight: 900;
     background: var(--fta-accent);
     color: #fff;
-    padding: 2px 8px;
+    padding: 3px 9px;
     border-radius: 6px;
     line-height: 1;
+    font-weight: 900;
+    box-shadow: 0 6px 18px var(--fta-accent-glow);
+}
+
+.fta-brand-text {
+    background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .fta-tabs {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-left: 20px;
+    margin-left: 28px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+    border: 1px solid var(--fta-border);
 }
 
 .fta-tab {
-    padding: 8px 18px;
+    padding: 8px 22px;
     border-radius: 999px;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     color: var(--fta-fg-dim);
     background: transparent;
     border: 0;
     cursor: pointer;
-    transition: background 200ms, color 200ms, transform 200ms;
+    transition: background 200ms, color 200ms;
 }
 
 .fta-tab.is-active {
-    background: var(--fta-pill-bg);
-    color: var(--fta-fg);
+    background: #fff;
+    color: #000;
 }
 
 .fta-tab:focus-visible {
-    outline: 2px solid var(--fta-fg);
+    outline: 2px solid var(--fta-blue);
     outline-offset: 2px;
 }
 
-.fta-clock {
-    font-size: 18px;
+.fta-topbar-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.fta-city {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--fta-pill-bg);
+    border: 1px solid var(--fta-border);
+    border-radius: 999px;
+    color: var(--fta-fg);
+    font-size: 13px;
     font-weight: 600;
+    cursor: pointer;
+}
+.fta-city:focus-visible { outline: 2px solid var(--fta-blue); outline-offset: 2px; }
+
+.fta-clock {
+    font-size: 19px;
+    font-weight: 700;
     color: var(--fta-fg);
     font-variant-numeric: tabular-nums;
 }
@@ -94,29 +138,44 @@
 /* Body split ------------------------------------------------------- */
 .fta-body {
     display: flex;
-    height: calc(100vh - 78px);
+    height: calc(100vh - 82px);
     width: 100vw;
 }
 
+/* Sidebar (left preview + info) ----------------------------------- */
 .fta-sidebar {
-    width: 360px;
+    width: 420px;
     flex-shrink: 0;
-    padding: 22px;
+    padding: 24px 24px 24px 28px;
     box-sizing: border-box;
     border-right: 1px solid var(--fta-border);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 22px;
     overflow: hidden;
 }
 
 .fta-preview {
     position: relative;
     aspect-ratio: 16 / 9;
-    border-radius: 16px;
+    border-radius: 18px;
     overflow: hidden;
     background: #000;
-    box-shadow: 0 22px 50px -20px rgba(0, 0, 0, 0.8);
+    box-shadow:
+        0 24px 60px -22px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 200ms, box-shadow 200ms;
+}
+
+.fta-preview:focus-visible {
+    outline: none;
+    transform: translateY(-2px);
+    box-shadow:
+        0 30px 70px -22px rgba(0, 0, 0, 0.95),
+        0 0 0 2px var(--fta-blue);
 }
 
 .fta-preview video,
@@ -129,42 +188,46 @@
 
 .fta-live-pill {
     position: absolute;
-    top: 12px;
-    left: 12px;
+    top: 14px;
+    left: 14px;
     background: var(--fta-accent);
     color: #fff;
-    padding: 3px 10px;
+    padding: 4px 12px;
     font-size: 11px;
     font-weight: 800;
-    letter-spacing: 0.18em;
-    border-radius: 4px;
-    box-shadow: 0 0 14px var(--fta-accent-glow);
+    letter-spacing: 0.20em;
+    border-radius: 6px;
+    box-shadow: 0 4px 18px var(--fta-accent-glow);
+    text-transform: uppercase;
 }
 
 .fta-preview-overlay {
     position: absolute;
     inset: auto 0 0 0;
-    padding: 14px 16px;
-    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.85) 100%);
+    padding: 18px 18px 14px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
     color: #fff;
+    text-align: left;
 }
 
 .fta-preview-overlay__title {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
 }
 
 .fta-preview-overlay__meta {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--fta-fg-dim);
-    margin-top: 4px;
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
 }
 
 .fta-progress {
     height: 3px;
     background: rgba(255, 255, 255, 0.15);
-    margin-top: 6px;
+    margin-top: 8px;
     border-radius: 999px;
     overflow: hidden;
 }
@@ -172,13 +235,14 @@
 .fta-progress__bar {
     height: 100%;
     background: var(--fta-accent);
-    transition: width 300ms ease;
+    box-shadow: 0 0 8px var(--fta-accent-glow);
+    transition: width 400ms ease;
 }
 
 .fta-info {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 .fta-info-row {
@@ -188,31 +252,29 @@
 }
 
 .fta-info-logo {
-    width: 56px;
-    height: 56px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     flex-shrink: 0;
+    border: 1px solid var(--fta-border);
 }
 
 .fta-info-logo img {
-    width: 100%;
-    height: 100%;
+    width: 80%;
+    height: 80%;
     object-fit: contain;
 }
 
-.fta-info-name {
-    flex: 1;
-    min-width: 0;
-}
+.fta-info-name { flex: 1; min-width: 0; }
 
 .fta-info-name__num {
-    font-size: 24px;
-    font-weight: 800;
+    font-size: 26px;
+    font-weight: 900;
     letter-spacing: -0.02em;
     line-height: 1;
 }
@@ -220,12 +282,12 @@
 .fta-info-name__lbl {
     font-size: 12px;
     color: var(--fta-fg-dim);
-    margin-top: 2px;
+    margin-top: 3px;
 }
 
 .fta-fav-btn {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 999px;
     background: var(--fta-pill-bg);
     border: 1px solid var(--fta-border);
@@ -240,20 +302,25 @@
 
 .fta-fav-btn.is-fav {
     color: var(--fta-accent);
-    background: rgba(255, 37, 53, 0.16);
-    border-color: rgba(255, 37, 53, 0.36);
+    background: rgba(255, 37, 53, 0.18);
+    border-color: rgba(255, 37, 53, 0.4);
 }
 
 .fta-fav-btn:focus-visible {
-    outline: 2px solid var(--fta-fg);
+    outline: 2px solid var(--fta-blue);
     outline-offset: 3px;
+    transform: scale(1.08);
 }
 
 .fta-synopsis {
-    font-size: 13px;
-    line-height: 1.55;
+    font-size: 13.5px;
+    line-height: 1.6;
     color: var(--fta-fg-dim);
-    margin-top: 0;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .fta-chips {
@@ -264,11 +331,11 @@
 
 .fta-chip {
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+    font-weight: 800;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 5px 9px;
+    border-radius: 5px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.10);
     color: var(--fta-fg-dim);
@@ -277,7 +344,36 @@
 .fta-chip--pg {
     color: #ffb800;
     border-color: rgba(255, 184, 0, 0.45);
-    background: rgba(255, 184, 0, 0.10);
+    background: rgba(255, 184, 0, 0.12);
+}
+
+/* Up Next row ----------------------------------------------------- */
+.fta-upnext {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--fta-border);
+}
+
+.fta-upnext__label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--fta-blue);
+    margin-bottom: 8px;
+}
+
+.fta-upnext__title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.fta-upnext__meta {
+    font-size: 11px;
+    color: var(--fta-fg-dim);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Grid ------------------------------------------------------------- */
@@ -292,30 +388,31 @@
 .fta-grid-header {
     display: flex;
     align-items: flex-end;
-    height: 52px;
+    height: 56px;
     border-bottom: 1px solid var(--fta-border);
     padding-left: var(--fta-channel-rail-w);
     box-sizing: border-box;
     position: relative;
     flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(15, 25, 45, 0.6) 0%, transparent 100%);
 }
 
 .fta-grid-header__today {
     position: absolute;
-    left: 18px;
-    bottom: 12px;
+    left: 24px;
+    bottom: 14px;
     font-size: 12px;
     color: var(--fta-fg-dim);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
-    font-weight: 700;
+    font-weight: 800;
 }
 
 .fta-grid-times {
     display: flex;
     height: 100%;
     align-items: flex-end;
-    padding-bottom: 8px;
+    padding-bottom: 10px;
     position: relative;
     will-change: transform;
 }
@@ -324,8 +421,16 @@
     flex-shrink: 0;
     text-align: left;
     font-size: 12px;
+    font-weight: 600;
     color: var(--fta-fg-dim);
     font-variant-numeric: tabular-nums;
+    border-left: 1px solid var(--fta-border);
+    padding-left: 8px;
+    padding-top: 8px;
+    height: 38px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
 }
 
 .fta-grid-rows {
@@ -335,15 +440,21 @@
     will-change: transform;
 }
 
-/* Hide scrollbars but keep scrolling — looks cleaner on TV. */
 .fta-grid-rows::-webkit-scrollbar { display: none; }
 .fta-grid-rows { scrollbar-width: none; }
 
+/* Channel row ------------------------------------------------------ */
 .fta-row {
     display: flex;
     height: var(--fta-row-h);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+    /* Stronger separators per user feedback */
+    border-bottom: 1px solid var(--fta-row-sep);
     position: relative;
+}
+
+/* Zebra striping makes each row clearly distinct */
+.fta-row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.012);
 }
 
 .fta-row__rail {
@@ -352,7 +463,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 12px;
+    padding: 0 16px;
     box-sizing: border-box;
     background: var(--fta-bg);
     position: sticky;
@@ -361,40 +472,65 @@
     border-right: 1px solid var(--fta-border);
 }
 
+.fta-row__rail-inner {
+    width: 100%;
+    height: 60%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .fta-row__rail img {
     max-width: 100%;
-    max-height: 64%;
+    max-height: 100%;
     object-fit: contain;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+}
+
+.fta-row__rail-lcn {
+    position: absolute;
+    bottom: 8px;
+    right: 10px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--fta-fg-dimmer);
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 5px;
+    border-radius: 3px;
 }
 
 .fta-row__cells {
-    display: flex;
-    align-items: center;
+    display: block;
     flex: 1;
     min-width: 0;
     position: relative;
     height: 100%;
-    padding: 0 0;
 }
 
 .fta-cell {
-    height: calc(var(--fta-row-h) - 18px);
-    margin: 0 4px;
+    height: calc(var(--fta-row-h) - 16px);
     background: var(--fta-bg-card);
-    border-radius: 8px;
-    padding: 12px 14px;
+    border-radius: 10px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
+    gap: 5px;
     box-sizing: border-box;
     overflow: hidden;
     cursor: pointer;
     border: 1.5px solid transparent;
-    flex-shrink: 0;
     color: var(--fta-fg);
-    transition: background 160ms, border 160ms, transform 160ms;
+    text-align: left;
+    margin: 0;
+    transition: background 160ms, border-color 160ms, transform 160ms;
+}
+
+.fta-cell.is-live {
+    background: linear-gradient(135deg, var(--fta-bg-live) 0%, var(--fta-bg-card) 100%);
+    border-color: rgba(255, 37, 53, 0.28);
 }
 
 .fta-cell:hover { background: var(--fta-bg-focused); }
@@ -403,42 +539,73 @@
     background: var(--fta-bg-focused);
     border-color: #fff;
     outline: none;
-    transform: scale(1.005);
-    box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.85);
+    box-shadow:
+        0 14px 32px -8px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.10);
+    z-index: 2;
 }
 
 .fta-cell__title {
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.005em;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fta-cell__subtitle {
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .fta-cell__meta {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--fta-fg-dim);
     display: flex;
     align-items: center;
     gap: 8px;
     white-space: nowrap;
     overflow: hidden;
+    font-variant-numeric: tabular-nums;
 }
 
 .fta-cell__live-pill {
     background: var(--fta-accent);
     color: #fff;
-    padding: 1px 5px;
-    border-radius: 3px;
+    padding: 2px 7px;
+    border-radius: 4px;
     font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.14em;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.fta-cell__next-pill {
+    background: var(--fta-blue);
+    color: #04101b;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
 }
 
 .fta-cell--empty {
-    background: rgba(255, 255, 255, 0.018);
+    background: rgba(255, 255, 255, 0.015);
     cursor: default;
+    border: 1px dashed rgba(255, 255, 255, 0.07);
+}
+
+.fta-cell--empty .fta-cell__title {
+    color: var(--fta-fg-dimmer);
+    font-weight: 600;
 }
 
 /* NOW line --------------------------------------------------------- */
@@ -450,21 +617,21 @@
     background: var(--fta-accent);
     pointer-events: none;
     z-index: 3;
-    box-shadow: 0 0 12px var(--fta-accent-glow);
+    box-shadow: 0 0 14px var(--fta-accent-glow);
 }
 
 .fta-now-label {
     position: absolute;
-    top: 8px;
+    top: 10px;
     transform: translateX(-50%);
     background: var(--fta-accent);
     color: #fff;
     font-size: 11px;
-    font-weight: 800;
-    padding: 3px 9px;
+    font-weight: 900;
+    padding: 4px 10px;
     border-radius: 6px;
     letter-spacing: 0.06em;
-    box-shadow: 0 4px 14px var(--fta-accent-glow);
+    box-shadow: 0 4px 16px var(--fta-accent-glow);
     z-index: 5;
     white-space: nowrap;
 }
@@ -489,18 +656,58 @@
 
 .fta-fullscreen-hint {
     position: absolute;
-    top: 22px;
-    left: 22px;
-    background: rgba(0, 0, 0, 0.55);
-    color: rgba(255, 255, 255, 0.78);
+    top: 24px;
+    left: 24px;
+    background: rgba(0, 0, 0, 0.62);
+    color: rgba(255, 255, 255, 0.84);
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    font-weight: 700;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    padding: 8px 14px;
-    border-radius: 6px;
-    backdrop-filter: blur(8px);
+    padding: 9px 16px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
     pointer-events: none;
+}
+
+/* City menu ------------------------------------------------------- */
+.fta-city-menu {
+    position: absolute;
+    top: 82px;
+    right: 80px;
+    background: #0c1525;
+    border: 1px solid var(--fta-border);
+    border-radius: 12px;
+    padding: 8px;
+    z-index: 90;
+    min-width: 180px;
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.85);
+}
+
+.fta-city-menu__item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    background: transparent;
+    border: 0;
+    color: var(--fta-fg);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.fta-city-menu__item:hover,
+.fta-city-menu__item:focus-visible {
+    background: var(--fta-bg-focused);
+    outline: none;
+}
+
+.fta-city-menu__item.is-active {
+    background: rgba(93, 200, 255, 0.12);
+    color: var(--fta-blue);
 }
 
 /* Loading state --------------------------------------------------- */
@@ -513,14 +720,14 @@
     justify-content: center;
     gap: 14px;
     color: var(--fta-fg-dim);
-    font-size: 14px;
-    letter-spacing: 0.16em;
+    font-size: 13px;
+    letter-spacing: 0.20em;
     text-transform: uppercase;
     font-weight: 700;
 }
 
 .fta-loading__sweep {
-    width: 240px;
+    width: 260px;
     height: 2px;
     background: linear-gradient(90deg, transparent 0%, var(--fta-accent) 50%, transparent 100%);
     background-size: 200% 100%;
@@ -530,5 +737,5 @@
 
 @keyframes fta-loading-sweep {
     0%, 100% { background-position: 100% 0; }
-    50% { background-position: 0% 0; }
+    50%      { background-position: 0% 0; }
 }
