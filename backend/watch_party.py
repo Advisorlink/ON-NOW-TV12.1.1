@@ -55,6 +55,10 @@ class Member:
     id: str
     name: str
     avatar: str
+    # v2.8.89 — Resolved DiceBear PNG src so remote members can render
+    # a custom avatar that doesn't exist in their own local
+    # `loadCustomAvatars()` store.
+    avatar_src: str = ""
     is_host: bool = False
     socket: Optional[WebSocket] = None
     ready: bool = False
@@ -117,6 +121,7 @@ class Party:
                     "id": m.id,
                     "name": m.name,
                     "avatar": m.avatar,
+                    "avatar_src": m.avatar_src,
                     "is_host": m.is_host,
                     "ready": m.ready,
                 }
@@ -330,6 +335,7 @@ async def party_ws(websocket: WebSocket, code: str) -> None:
                         ),
                         name=msg.get("name", "Guest"),
                         avatar=msg.get("avatar", "a1"),
+                        avatar_src=str(msg.get("avatar_src") or "")[:512],
                         is_host=is_host,
                         socket=websocket,
                     )

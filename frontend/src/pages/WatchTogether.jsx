@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
-import { AvatarCircle } from '@/lib/avatars';
+import { AvatarCircle, getAvatar } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import SideNav from '@/components/SideNav';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -77,11 +77,30 @@ export default function WatchTogether() {
         let navigated = false;
         ws.onopen = () => {
             partyBreadcrumb('lobby:ws-open', { code, role });
+            // v2.8.89 — Resolve the user's avatar to a fully-qualified
+            // src URL (DiceBear PNG) and broadcast it alongside the
+            // avatarId.  Receivers' AvatarCircle uses `srcOverride` to
+            // render the actual chosen avatar instead of falling back
+            // to `a1` when the avatarId is a per-device custom one
+            // (e.g. `custom-9ab3f1`).
+            const resolved = getAvatar(profile.avatarId) || {};
+            const avatarSrc = resolved.src || '';
+            try {
+                sessionStorage.setItem(
+                    'vesper-party-self-avatar-id',
+                    profile.avatarId || 'a1'
+                );
+                sessionStorage.setItem(
+                    'vesper-party-self-avatar-src',
+                    avatarSrc
+                );
+            } catch { /* private mode */ }
             ws.send(JSON.stringify({
                 type: 'hello',
                 role,
                 name: profile.name || 'Guest',
                 avatar: profile.avatarId || 'a1',
+                avatar_src: avatarSrc,
             }));
         };
         ws.onmessage = (e) => {
@@ -573,7 +592,7 @@ function Room({ code, state, myMemberId, onPickMovie, onStart, onBack }) {
                             gap: 10,
                         }}
                     >
-                        <AvatarCircle avatarId={m.avatar} size={36} />
+                        <AvatarCircle avatarId={m.avatar} srcOverride={m.avatar_src} size={36} />
                         <div style={{ fontSize: 14 }}>
                             <strong style={{ color: 'var(--vesper-text)' }}>{m.name}</strong>
                             {m.is_host && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: 'var(--vesper-blue-bright)' }}>HOST</span>}
