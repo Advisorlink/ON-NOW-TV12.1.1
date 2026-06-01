@@ -1,0 +1,137 @@
+name: Deploy Frontend to Contabo VPS
+
+# Builds the React SPA with the production REACT_APP_BACKEND_URL,
+# strips Emergent preview chrome from index.html, then rsyncs the
+# resulting build/ folder to /var/www/onnowtv-frontend/ on the VPS.
+#
+# Mirrors deploy-backend.yml exactly (same secrets, same VPS, same
+# host).  Required secret: VPS_SSH_PASSWORD.
+#
+# Why this exists: deploy-backend.yml only syncs backend/, so any
+# change in frontend/ used to require a manual SSH+rsync.  That's
+# how the /fta route shipped to the codebase weeks before it
+# actually appeared on production (the live React bundle didn't
+# have the route compiled in, so the FTA APK + launcher tile both
+# rendered blank).  This workflow closes that gap.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build React → rsync → VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Yarn deps
+        working-directory: frontend
+        run: yarn install --network-timeout 600000
+
+      - name: Build React app (production)
+        working-directory: frontend
+        env:
+          CI: 'false'
+          GENERATE_SOURCEMAP: 'false'
+          DISABLE_ESLINT_PLUGIN: 'true'
+          # Bake the production backend URL into the bundle so the
+          # SPA always talks to the live VPS — never the preview pod.
+          REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
+        run: |
+          yarn build
+          ls -la build/
+
+      - name: Strip Emergent preview chrome from index.html
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('frontend/build/index.html')
+          html = p.read_text(encoding='utf-8')
+          html = re.sub(r'<script[^>]*assets\.emergent\.sh[^>]*></script>\s*',
+                        '', html, flags=re.IGNORECASE)
+          html = re.sub(r'<a\s+id="emergent-badge"[\s\S]*?</a>\s*',
+                        '', html, flags=re.IGNORECASE)
+          html = re.sub(r'<script>\s*!\(function\s*\([^)]*\)\s*\{[\s\S]*?posthog\.init\([\s\S]*?\}\);?\s*</script>\s*',
+                        '', html, flags=re.IGNORECASE)
+          p.write_text(html, encoding='utf-8')
+          print('index.html cleaned')
+          PY
+
+      - name: Install rsync + sshpass
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rsync sshpass
+
+      - name: Resolve deploy targets
+        id: targets
+        run: |
+          VPS_HOST="${VPS_HOST_OVERRIDE:-62.84.181.66}"
+          VPS_USER="${VPS_USER_OVERRIDE:-root}"
+          VPS_PATH="${VPS_FRONTEND_PATH_OVERRIDE:-/var/www/onnowtv-frontend}"
+          echo "host=$VPS_HOST" >> "$GITHUB_OUTPUT"
+          echo "user=$VPS_USER" >> "$GITHUB_OUTPUT"
+          echo "path=$VPS_PATH" >> "$GITHUB_OUTPUT"
+          echo "Deploying to $VPS_USER@$VPS_HOST:$VPS_PATH"
+        env:
+          VPS_HOST_OVERRIDE: ${{ vars.VPS_HOST }}
+          VPS_USER_OVERRIDE: ${{ vars.VPS_USER }}
+          VPS_FRONTEND_PATH_OVERRIDE: ${{ vars.VPS_FRONTEND_PATH }}
+
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ steps.targets.outputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Rsync build/ to VPS
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.targets.outputs.path }}
+        run: |
+          if [ -z "$SSHPASS" ]; then
+            echo "::error::VPS_SSH_PASSWORD secret is not set. Add it under Settings → Secrets → Actions."
+            exit 1
+          fi
+          # --delete so removed files don't linger as ghost static assets.
+          sshpass -e rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
+            frontend/build/ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
+
+      - name: Public HTTPS smoke test (root + /fta)
+        run: |
+          # Hit two routes to confirm the SPA loads AND React Router
+          # handles the /fta path (it's served via the SPA fallback).
+          for path in / /fta; do
+            ok=0
+            for i in $(seq 1 6); do
+              status=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "https://onnowtv.duckdns.org${path}" || echo 000)
+              echo "GET ${path} attempt $i: HTTP $status"
+              if [ "$status" = "200" ]; then ok=1; break; fi
+              sleep 4
+            done
+            if [ "$ok" != "1" ]; then
+              echo "::error::Public frontend never returned 200 for ${path}"
+              exit 1
+            fi
+          done
+          echo "Frontend healthy on / and /fta"
