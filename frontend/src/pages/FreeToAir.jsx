@@ -41,8 +41,13 @@ const ROW_H = 64;                  // matches --fta-row-h
 const CHANNEL_RAIL_W = 104;        // matches --fta-channel-rail-w
 const FAV_KEY = 'fta-favourites-v1';
 const CITY_KEY = 'fta-city-v1';
-const HOURS_FORWARD = 24;
-const HOURS_BACKWARD = 0.5;
+/* v2.8.97 — per user feedback: only show currently-airing + future
+   programmes (no scrolling backwards into already-finished shows),
+   and clamp the visible left edge of any in-progress live show to
+   the start of the grid so the title is always readable.  Grid
+   window now starts AT NOW (snapped to the previous 15-min mark to
+   keep the time labels round). */
+const HOURS_FORWARD = 12;
 
 /* ---------- favourites + city storage ----------------------------- */
 function loadFavs() {
@@ -74,10 +79,10 @@ function fmtClock(ms) {
     return fmtTime(ms);
 }
 
-function snapTo30(ms) {
+function snapTo15(ms) {
     const d = new Date(ms);
     d.setSeconds(0, 0);
-    d.setMinutes(d.getMinutes() < 30 ? 0 : 30);
+    d.setMinutes(Math.floor(d.getMinutes() / 15) * 15);
     return d.getTime();
 }
 
@@ -101,13 +106,18 @@ export default function FreeToAir() {
     const [now, setNow] = useState(Date.now());
     const [activeChannel, setActiveChannel] = useState(null);
     const [activeProgramme, setActiveProgramme] = useState(null);
-    /* v2.8.96 — armed = user has tapped Enter on a cell once, so the
-       preview pane should mount the HLS <video> with sound.  Until
-       then we show TMDB cover art for the focused programme so
-       scrolling through the EPG feels alive without 188 channel
-       streams blowing up in the background. */
-    const [previewArmed, setPreviewArmed] = useState(false);
+    /* v2.8.97 — the channel whose HLS stream is currently mounted
+       in the preview pane.  Set ONLY when the user clicks a cell
+       (Enter on the remote).  Separate from `activeChannel` so
+       scrolling around / switching categories does not interrupt
+       playback — per user feedback the preview "should continuously
+       play until their is another channel clicked". */
+    const [playingChannel, setPlayingChannel] = useState(null);
     const [fullScreen, setFullScreen] = useState(false);
+    /* v2.8.97 — Vesper-style slide-in left side menu for category
+       switching.  Pressing LEFT while on the leftmost cell of any
+       row opens it; RIGHT or BACK closes it. */
+    const [sideMenuOpen, setSideMenuOpen] = useState(false);
 
     /* clock — update once per 30 s */
     useEffect(() => {
@@ -175,9 +185,13 @@ export default function FreeToAir() {
         );
     }, [tab, channels, favs]);
 
-    /* Origin point for the grid x axis — 30 min before now, rounded down */
+    /* Origin point for the grid x axis — snap NOW down to the
+       previous 15-min mark.  Programmes currently airing get
+       clamped to left=0 (see ChannelRow) so they're always
+       readable; programmes that already finished are filtered out
+       entirely. */
     const gridStartMs = useMemo(() => {
-        return snapTo30(now - HOURS_BACKWARD * 3600 * 1000);
+        return snapTo15(now);
     }, [now]);
 
     const gridEndMs = useMemo(() => {
@@ -222,27 +236,156 @@ export default function FreeToAir() {
         ));
     }, []);
 
+    /* v2.8.97 — memo the stream-fetch closure so it doesn't get a new
+       identity on every render.  ChannelPreview watches it in a
+       dependency array; without this, every keypress would trigger
+       a re-fetch + re-mount of the HLS source, defeating the
+       "preview keeps playing while you scroll" promise. */
+    const streamFor = useCallback((id) => (
+        fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())
+    ), [city]);
+
     /* When a programme cell is FOCUSED (D-pad navigation / mouse
-       hover) — update the sidebar info + cover art but DO NOT mount
-       the HLS stream.  Only an Enter/click arms the preview. */
+       hover) — update the sidebar info + cover art but DO NOT
+       interrupt the currently-playing preview.  The video element
+       belongs to `playingChannel`, not `activeChannel`. */
     const onProgrammeFocus = useCallback((channel, programme) => {
         setActiveChannel((prev) => (prev?.id === channel.id ? prev : channel));
         setActiveProgramme(programme);
-        setPreviewArmed(false);
     }, []);
 
     /* When a programme cell is OPENED (Enter on focused cell).
-         1st tap on a new channel → arm the preview (HLS with sound).
+         1st tap on a new channel → load its HLS stream into the
+                                    preview (with sound).
          2nd tap on the same channel → go fullscreen. */
     const onProgrammeOpen = useCallback((channel, programme) => {
-        if (activeChannel?.id === channel.id && previewArmed) {
+        if (playingChannel?.id === channel.id) {
             setFullScreen(true);
         } else {
             setActiveChannel(channel);
             setActiveProgramme(programme);
-            setPreviewArmed(true);
+            setPlayingChannel(channel);
         }
-    }, [activeChannel, previewArmed]);
+    }, [playingChannel]);
+
+    /* v2.8.97 — when fullscreen is requested AND the OnNowFTA native
+       bridge is available (i.e. running inside the FTA Android APK),
+       hand the stream off to native ExoPlayer.  In the browser
+       fallback path we instead expand the in-place preview tile to
+       cover the viewport via CSS — the SAME <video> element stays
+       mounted so there is zero HLS reconnect on enter / exit. */
+    useEffect(() => {
+        if (!fullScreen || !playingChannel) return;
+        const bridge = window.OnNowFTA;
+        if (bridge && typeof bridge.openExoPlayer === 'function') {
+            (async () => {
+                try {
+                    const j = await streamFor(playingChannel.id);
+                    if (j && j.url) {
+                        bridge.openExoPlayer(
+                            j.url,
+                            activeProgramme?.title || playingChannel.name || '',
+                            playingChannel.name || '',
+                            programmeArt.backdrop || programmeArt.poster || '',
+                        );
+                    }
+                } catch { /* ignore — CSS fullscreen fallback already in effect */ }
+                setFullScreen(false);
+            })();
+        }
+    }, [fullScreen, playingChannel, activeProgramme, programmeArt, streamFor]);
+
+    /* BACK / Escape in fullscreen returns to the EPG without
+       interrupting playback — the persistent <video> stays mounted. */
+    useEffect(() => {
+        if (!fullScreen) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                setFullScreen(false);
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [fullScreen]);
+
+    /* v2.8.97 — tile-stepping D-pad nav.  The user explicitly asked
+       for RecyclerView-style movement: Up/Down should land on the
+       cell directly above/below in the next row, Left/Right walks
+       the row's DOM-sibling cells one at a time.  Pressing LEFT on
+       the leftmost cell of a row opens the category side menu.
+       Bound on `window` with capture=true so we win against the
+       generic geometric `useSpatialFocus` handler. */
+    useEffect(() => {
+        const onKey = (e) => {
+            const ae = document.activeElement;
+            if (!ae || !ae.classList || !ae.classList.contains('fta-cell')) return;
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' &&
+                e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+
+            const row = ae.closest('.fta-row');
+            if (!row) return;
+
+            const focusAndScroll = (next) => {
+                if (!next) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') {
+                    e.stopImmediatePropagation();
+                }
+                try {
+                    next.focus({ preventScroll: false });
+                    next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+                } catch { /* */ }
+            };
+
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                const cells = Array.from(row.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+                const idx = cells.indexOf(ae);
+                if (e.key === 'ArrowRight') {
+                    focusAndScroll(cells[idx + 1]);
+                } else {
+                    if (idx <= 0) {
+                        // At leftmost cell → open the category side menu.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (typeof e.stopImmediatePropagation === 'function') {
+                            e.stopImmediatePropagation();
+                        }
+                        setSideMenuOpen(true);
+                    } else {
+                        focusAndScroll(cells[idx - 1]);
+                    }
+                }
+                return;
+            }
+
+            // Up / Down — find the cell in the adjacent row whose
+            // horizontal range straddles the current cell's left edge.
+            const targetRow = e.key === 'ArrowDown'
+                ? row.nextElementSibling
+                : row.previousElementSibling;
+            if (!targetRow || !targetRow.classList || !targetRow.classList.contains('fta-row')) return;
+
+            const curLeft = parseFloat(ae.style.left || '0');
+            const curWidth = parseFloat(ae.style.width || '0');
+            const curEdge = curLeft + Math.min(40, curWidth / 4); // bias toward the cell's start
+            const cells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+            let best = null;
+            for (const cell of cells) {
+                const l = parseFloat(cell.style.left || '0');
+                const w = parseFloat(cell.style.width || '0');
+                if (l <= curEdge && curEdge < l + w) { best = cell; break; }
+            }
+            if (!best && cells.length) best = cells[0];
+            focusAndScroll(best);
+        };
+        // Capture phase + window-level so we run before useSpatialFocus.
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, []);
 
     /* Auto-scroll the grid horizontally so NOW is roughly centred on
        first paint (10% from the left edge looks closest to the user's
@@ -267,7 +410,7 @@ export default function FreeToAir() {
     }
 
     return (
-        <div className="fta-root" data-testid="fta-root">
+        <div className={`fta-root ${fullScreen ? 'is-fullscreen' : ''}`} data-testid="fta-root">
             <TopBar
                 tab={tab}
                 onTab={setTab}
@@ -282,19 +425,19 @@ export default function FreeToAir() {
 
             <div className="fta-body">
                 <Sidebar
-                    channel={activeChannel}
-                    programme={activeProgramme}
+                    focusedChannel={activeChannel}
+                    focusedProgramme={activeProgramme}
+                    playingChannel={playingChannel}
                     art={programmeArt}
-                    armed={previewArmed}
                     isFav={activeChannel ? favs.includes(activeChannel.id) : false}
                     onToggleFav={() => activeChannel && toggleFav(activeChannel.id)}
-                    streamFor={(id) => fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())}
+                    streamFor={streamFor}
                     onActivate={() => {
                         /* Sidebar click: 1st arms the preview, 2nd goes full-screen. */
-                        if (previewArmed) {
+                        if (playingChannel) {
                             setFullScreen(true);
-                        } else {
-                            setPreviewArmed(true);
+                        } else if (activeChannel) {
+                            setPlayingChannel(activeChannel);
                         }
                     }}
                     now={now}
@@ -335,15 +478,69 @@ export default function FreeToAir() {
                 </div>
             </div>
 
-            {fullScreen && activeChannel && (
-                <FullScreenPlayer
-                    channel={activeChannel}
-                    programme={activeProgramme}
-                    artwork={programmeArt.backdrop || programmeArt.poster || ''}
-                    city={city}
-                    onExit={() => setFullScreen(false)}
+            {/* v2.8.97 — fullscreen no longer renders a duplicate <video>.
+                Instead the .fta-root.is-fullscreen CSS expands the
+                existing preview pane (and its mounted <video>) to
+                cover the viewport.  Native ExoPlayer handoff is
+                handled by the side effect above. */}
+
+            {sideMenuOpen && (
+                <SideMenu
+                    categories={categories}
+                    currentTab={tab}
+                    onPick={(id) => { setTab(id); setSideMenuOpen(false); }}
+                    onClose={() => setSideMenuOpen(false)}
                 />
             )}
+        </div>
+    );
+}
+
+/* ----------------------- side menu -------------------------------- */
+function SideMenu({ categories, currentTab, onPick, onClose }) {
+    const items = useMemo(() => {
+        const cats = (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
+        return [...cats, { id: 'favourites', label: 'Favourites', count: null }];
+    }, [categories]);
+
+    /* Focus the current tab on mount + handle RIGHT/BACK to close. */
+    const firstRef = useRef(null);
+    useEffect(() => {
+        const t = setTimeout(() => firstRef.current?.focus(), 30);
+        const onKey = (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => { clearTimeout(t); window.removeEventListener('keydown', onKey, true); };
+    }, [onClose]);
+
+    return (
+        <div className="fta-side-menu" data-testid="fta-side-menu">
+            <div className="fta-side-menu__title">Categories</div>
+            <div className="fta-side-menu__list" role="menu">
+                {items.map((it, i) => (
+                    <button
+                        key={it.id}
+                        ref={it.id === currentTab ? firstRef : null}
+                        data-testid={`fta-side-${it.id}`}
+                        data-focusable="true"
+                        tabIndex={0}
+                        role="menuitem"
+                        onClick={() => onPick(it.id)}
+                        className={`fta-side-menu__item ${currentTab === it.id ? 'is-active' : ''}`}
+                    >
+                        <span>{it.label}</span>
+                        {it.count != null && it.count > 0 && (
+                            <span className="fta-side-menu__count">{it.count}</span>
+                        )}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }
@@ -450,8 +647,18 @@ function TopBar({ tab, onTab, categories, now, city, supportedCities, onCity, ci
     );
 }
 
-/* ------------------------------- sidebar -------------------------- */
-function Sidebar({ channel, programme, art, armed, isFav, onToggleFav, streamFor, onActivate, now, upNext }) {
+/* ------------------------------- sidebar --------------------------
+   v2.8.97 — separates the "focused" channel/programme (what the
+   sidebar info card describes) from the "playing" channel (what
+   the HLS video element is bound to).  This is what makes the
+   preview keep playing while you scroll around the EPG and switch
+   categories — the video stays mounted with the same source until
+   the user clicks another cell. */
+function Sidebar({ focusedChannel, focusedProgramme, playingChannel, art, isFav, onToggleFav, streamFor, onActivate, now, upNext }) {
+    /* The info card and cover art use the FOCUSED channel/programme. */
+    const channel = focusedChannel;
+    const programme = focusedProgramme;
+
     if (!channel) {
         return (
             <aside className="fta-sidebar">
@@ -465,6 +672,7 @@ function Sidebar({ channel, programme, art, armed, isFav, onToggleFav, streamFor
         : 0;
     const remainingMin = Math.max(0, Math.round((live.stop - now) / 60000));
     const artwork = (art && (art.backdrop || art.poster)) || channel.logo || '';
+    const isPlaying = !!playingChannel;
 
     return (
         <aside className="fta-sidebar">
@@ -476,14 +684,16 @@ function Sidebar({ channel, programme, art, armed, isFav, onToggleFav, streamFor
                 className="fta-preview"
             >
                 <ChannelPreview
-                    channelId={channel.id}
+                    /* Bound to the PLAYING channel (or null until first click)
+                       so scrolling the EPG never restarts the stream. */
+                    channelId={playingChannel?.id || null}
                     streamFor={streamFor}
-                    armed={armed}
+                    armed={isPlaying}
                     artwork={artwork}
                     fallback={channel.logo}
                 />
                 <span className="fta-live-pill">● LIVE</span>
-                {!armed && (
+                {!isPlaying && (
                     <span className="fta-preview-hint" data-testid="fta-preview-hint">
                         Press OK to play
                     </span>
@@ -724,8 +934,11 @@ const GridRows = React.forwardRef(function GridRows(
                 </div>
 
                 {channels.map((ch) => {
+                    /* v2.8.97 — only show currently-airing + future
+                       programmes.  No scrolling backwards into the
+                       past per user feedback. */
                     const list = (programmes[ch.id] || []).filter(
-                        (p) => p.stop > gridStartMs && p.start < gridStartMs + gridWidthPx / PX_PER_MIN * 60000
+                        (p) => p.stop > now && p.start < gridStartMs + gridWidthPx / PX_PER_MIN * 60000
                     );
                     return (
                         <ChannelRow
@@ -778,10 +991,15 @@ function ChannelRow({ channel, programmes, gridStartMs, onFocus, onOpen, activeP
                     </div>
                 )}
                 {programmes.map((p) => {
-                    const startOffsetMin = Math.max(0, (p.start - gridStartMs) / 60000);
-                    const endOffsetMin = Math.max(0, (p.stop - gridStartMs) / 60000);
-                    const left = startOffsetMin * PX_PER_MIN;
-                    const width = Math.max(56, (endOffsetMin - startOffsetMin) * PX_PER_MIN - 3);
+                    const startOffsetMin = (p.start - gridStartMs) / 60000;
+                    const endOffsetMin = (p.stop - gridStartMs) / 60000;
+                    /* v2.8.97 — clamp the live programme's left edge
+                       to the visible window so its title is always
+                       readable (the user explicitly asked for "all
+                       live shows pushed up against the far left"). */
+                    const visibleStartMin = Math.max(0, startOffsetMin);
+                    const left = visibleStartMin * PX_PER_MIN;
+                    const width = Math.max(56, (endOffsetMin - visibleStartMin) * PX_PER_MIN - 3);
                     const isLive = p.start <= now && p.stop > now;
                     const key = `${p.start}|${p.stop}|${p.title}`;
                     const isFocused = activeProgrammeKey === key;

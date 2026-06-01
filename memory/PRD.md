@@ -13,6 +13,17 @@
 > should I touch next".
 
 
+> **🟢 v2.8.97 — FTA EPG rebuilt for the HK1 box (Jun 2, 2026).**
+> User's full feedback batch (video + mockup photo): "chunky" focus movement, EPG cells cut off / cells in the past, no cover art when preview not playing, preview restarts on category change, no smooth shrink from fullscreen.  Rebuilt the layout + focus + state model:
+>   - **Live shows pushed against the far left + past filtered.**
+>     `gridStartMs = snapTo15(now)`, cells whose stop time is in the past are filtered out.  Every in-progress cell renders with `left = max(0, ...)` so the title is always readable (clamped to the visible left edge instead of bleeding off-screen).  Verified live: first cell of every channel sits at left=1px with the actual programme title fully visible.
+>   - **Tile-stepping D-pad nav.**  Custom window-level keydown listener with capture=true that intercepts ArrowKeys BEFORE the geometric `useSpatialFocus` runs.  Up/Down find the cell in the adjacent row whose horizontal range straddles the current cell's start edge; Left/Right walk DOM-sibling cells in the same row.  At the leftmost cell, LEFT opens the side menu instead of falling out of the EPG.  Confirmed: ↓↓→ chain steps cleanly seven→7two→7mate→next-cell-in-7mate.
+>   - **Vesper-style left side menu.**  Slide-in panel listing every category (Live TV, Kids, Sport, News, Drama, Movies, Reality, Music, More, Favourites) with counts; opens on LEFT-at-leftmost-cell; closes on RIGHT/Escape/Backspace.  Animated translate-X 200 ms.
+>   - **Continuous preview across scrolling + category switches.**  Separated `playingChannel` (HLS source) from `activeChannel`/`activeProgramme` (sidebar info + cover-art lookup).  Focus changes only move `active*`; only an Enter/click changes `playingChannel`.  Memoised `streamFor` with `useCallback([city])` so the dependency in `ChannelPreview`'s `useEffect` never gets a new identity — the HLS source stops getting torn down on every keypress.  Switching tabs no longer touches `playingChannel`, so the video keeps playing across category changes.
+>   - **Fullscreen ↔ preview without reconnect.**  Removed the separate `FullScreenPlayer` component.  Now `.fta-root.is-fullscreen` CSS expands the existing `.fta-preview` tile to `position: fixed; inset: 0` with a 240 ms ease.  The `<video>` element inside stays mounted across the toggle, so the HLS connection is never torn down — entering fullscreen is just a CSS resize, exiting is the same in reverse.  Verified: same blob URL before, during, and after fullscreen.  Native ExoPlayer handoff (`window.OnNowFTA.openExoPlayer`) is now fired by a side effect when fullscreen+bridge are both available — same UX outside the APK, native player + native overlay inside.
+
+
+
 > **🟢 v2.8.96 — FTA EPG density + cover art + D-pad nav + native ExoPlayer handoff (Jun 1, 2026).**
 > User feedback on the live `/fta` build (screen recording):
 >   1. Right-side EPG was eating ~80% of the screen at huge font sizes ("look how big this is").
