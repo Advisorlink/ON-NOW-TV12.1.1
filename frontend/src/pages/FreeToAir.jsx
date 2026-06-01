@@ -470,6 +470,7 @@ export default function FreeToAir() {
                                 gridStartMs={gridStartMs}
                                 gridEndMs={gridEndMs}
                                 gridRowsRef={gridRowsRef}
+                                now={now}
                             />
                             <GridRows
                                 ref={gridRowsRef}
@@ -897,7 +898,7 @@ function ChannelPreview({ channelId, streamFor, armed, artwork, fallback }) {
 }
 
 /* ---------------------------- grid header ------------------------- */
-function GridHeader({ gridStartMs, gridEndMs, gridRowsRef }) {
+function GridHeader({ gridStartMs, gridEndMs, gridRowsRef, now }) {
     /* Times row mirrors the horizontal scroll position of GridRows.  We
        keep the times floating with translateX so we don't have to
        re-render on every scroll tick. */
@@ -919,6 +920,7 @@ function GridHeader({ gridStartMs, gridEndMs, gridRowsRef }) {
     for (let t = gridStartMs; t < gridEndMs; t += 30 * 60 * 1000) {
         slots.push(t);
     }
+    const nowOffsetPx = ((now - gridStartMs) / 60000) * PX_PER_MIN;
 
     return (
         <div className="fta-grid-header">
@@ -933,6 +935,16 @@ function GridHeader({ gridStartMs, gridEndMs, gridRowsRef }) {
                         {fmtTime(t)}
                     </div>
                 ))}
+                {/* v2.8.99 — NOW pill lives in the time strip now so
+                    it never overlaps the live cell title in the rows
+                    below.  Same translate-X parent as the time slots
+                    so it tracks the horizontal scroll automatically. */}
+                <div
+                    className="fta-grid-header__now-pill"
+                    style={{ left: nowOffsetPx }}
+                >
+                    {fmtTime(now)}
+                </div>
             </div>
         </div>
     );
@@ -951,17 +963,13 @@ const GridRows = React.forwardRef(function GridRows(
     return (
         <div className="fta-grid-rows" ref={ref} data-testid="fta-grid-rows" data-no-h-rail="true">
             <div style={{ position: 'relative', width: gridWidthPx + CHANNEL_RAIL_W }}>
-                {/* NOW line */}
+                {/* Vertical NOW line — the pill label is rendered in
+                    the header strip (GridHeader) so it never overlaps
+                    a live cell title. */}
                 <div
                     className="fta-now-line"
                     style={{ left: CHANNEL_RAIL_W + nowOffsetPx }}
                 />
-                <div
-                    className="fta-now-label"
-                    style={{ left: CHANNEL_RAIL_W + nowOffsetPx }}
-                >
-                    {fmtTime(now)}
-                </div>
 
                 {channels.map((ch) => {
                     /* v2.8.97 — only show currently-airing + future
@@ -998,14 +1006,24 @@ function ChannelRow({ channel, programmes, gridStartMs, onFocus, onOpen, activeP
     const upNextKey = upNextProg
         ? `${upNextProg.start}|${upNextProg.stop}|${upNextProg.title}`
         : null;
+    /* v2.8.99 — some MJH channel rows ship with logo URLs that no
+       longer resolve (typo, dead repo branch, …).  Track per-row
+       whether the <img> failed and swap to a styled text fallback
+       so the user sees the channel name + LCN, not the raw `alt`. */
+    const [logoFailed, setLogoFailed] = useState(false);
 
     return (
         <div className="fta-row" data-channel-id={channel.id}>
             <div className="fta-row__rail">
                 <div className="fta-row__rail-inner">
-                    {channel.logo
-                        ? <img src={channel.logo} alt={channel.name} loading="lazy" />
-                        : <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>{channel.name}</span>}
+                    {channel.logo && !logoFailed
+                        ? <img
+                            src={channel.logo}
+                            alt={channel.name}
+                            loading="lazy"
+                            onError={() => setLogoFailed(true)}
+                          />
+                        : <span className="fta-row__rail-fallback">{channel.name}</span>}
                 </div>
                 {channel.lcn && (
                     <span className="fta-row__rail-lcn">{channel.lcn}</span>
