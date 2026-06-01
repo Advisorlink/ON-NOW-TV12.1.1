@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, X } from 'lucide-react';
+import { Play, X, Trash2 } from 'lucide-react';
 import * as cw from '@/lib/continueWatching';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
@@ -41,6 +41,15 @@ export default function ContinueWatchingShelf() {
     }, []);
 
     if (!entries.length) return null;
+
+    const removeAll = () => {
+        // Confirm visually via a small inline state — we don't pop a
+        // modal here because the long-press flow handles individual
+        // confirms; for the bulk action a single tap == clear all.
+        entries.forEach((e) => cw.remove(e.id));
+        setEntries([]);
+        setConfirmId(null);
+    };
 
     const resume = async (e) => {
         // Direct play — re-use the previously selected stream so the
@@ -150,6 +159,10 @@ export default function ContinueWatchingShelf() {
                         onResume={() => resume(e)}
                     />
                 ))}
+                {/* v2.8.88 — Delete-all card at the very end of the
+                    Continue Watching row.  Same height/aspect as the
+                    tiles so the rail stays visually balanced. */}
+                <DeleteAllCard onConfirm={removeAll} />
             </div>
         </section>
     );
@@ -429,4 +442,93 @@ function formatRemaining(ms) {
     const m = Math.floor((total % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
+}
+
+function DeleteAllCard({ onConfirm }) {
+    const [armed, setArmed] = useState(false);
+    const timerRef = useRef(null);
+    useEffect(() => () => timerRef.current && clearTimeout(timerRef.current), []);
+
+    // Two-tap confirm: first OK arms, second OK clears.  Tap away
+    // (focus leaves the card) cancels.
+    const handleClick = () => {
+        if (armed) {
+            onConfirm();
+            setArmed(false);
+        } else {
+            setArmed(true);
+            timerRef.current = setTimeout(() => setArmed(false), 4000);
+        }
+    };
+
+    return (
+        <button
+            data-testid="continue-delete-all"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={handleClick}
+            onBlur={() => setArmed(false)}
+            className="group relative shrink-0 overflow-hidden text-left"
+            style={{
+                width: 'clamp(280px, 22vw, 380px)',
+                aspectRatio: '16 / 9',
+                borderRadius: 18,
+                background: armed
+                    ? 'linear-gradient(135deg, rgba(255,80,80,0.32) 0%, rgba(120,20,20,0.65) 100%)'
+                    : 'linear-gradient(135deg, rgba(28,38,58,0.85) 0%, rgba(11,19,34,0.95) 100%)',
+                border: armed
+                    ? '1.5px solid rgba(255,120,120,0.85)'
+                    : '1.5px dashed rgba(255,255,255,0.18)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                color: armed ? '#fff' : 'rgba(255,255,255,0.78)',
+                cursor: 'pointer',
+                transition: 'background 200ms ease, border 200ms ease',
+            }}
+        >
+            <span
+                style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 999,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: armed
+                        ? 'rgba(255,255,255,0.18)'
+                        : 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                }}
+            >
+                <Trash2 size={22} strokeWidth={1.8} />
+            </span>
+            <span
+                className="vesper-mono"
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                }}
+            >
+                {armed ? 'Tap again to clear' : 'Clear all'}
+            </span>
+            <span
+                style={{
+                    fontSize: 11,
+                    opacity: 0.65,
+                    textAlign: 'center',
+                    padding: '0 16px',
+                }}
+            >
+                {armed
+                    ? 'This removes every Continue Watching entry.'
+                    : 'Wipe the whole Continue Watching row.'}
+            </span>
+        </button>
+    );
 }

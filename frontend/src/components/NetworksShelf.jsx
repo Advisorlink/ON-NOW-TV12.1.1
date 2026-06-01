@@ -46,8 +46,14 @@ export default function NetworksShelf() {
             data-testid="networks-shelf"
             className="relative w-full vesper-shelf-section"
             style={{
-                paddingTop: 'clamp(28px, 3vw, 56px)',
-                paddingBottom: 0,
+                // v2.8.88 — Per user: lift the "Browse by Network"
+                // section up and add a touch of room beneath the
+                // tile row.  Top padding reduced; bottom padding
+                // added so the row beneath has breathing space but
+                // is NOT pushed lower.  Other shelves untouched.
+                paddingTop: 'clamp(12px, 1.4vw, 28px)',
+                paddingBottom: 'clamp(18px, 1.8vw, 32px)',
+                marginTop: 'clamp(-6px, -0.4vw, -14px)',
             }}
         >
             <header

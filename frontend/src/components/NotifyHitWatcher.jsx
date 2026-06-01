@@ -98,8 +98,25 @@ export default function NotifyHitWatcher() {
 function NotifyHitToast({ entry, onDismiss }) {
     const navigate = useNavigate();
     const watchRef = useRef(null);
+    const containerRef = useRef(null);
 
     useEffect(() => { watchRef.current?.focus(); }, []);
+
+    /* v2.8.88 — Focus trap: once the toast is up, the D-pad must
+     * stay inside it.  Any Tab / Arrow key that would move focus to
+     * an element OUTSIDE the toast snaps back to a button inside. */
+    useEffect(() => {
+        const onFocus = (e) => {
+            const c = containerRef.current;
+            if (!c) return;
+            if (c.contains(e.target)) return;
+            // Focus escaped — pull it back to Watch Now.
+            e.stopPropagation();
+            (watchRef.current || c.querySelector('button'))?.focus();
+        };
+        document.addEventListener('focusin', onFocus, true);
+        return () => document.removeEventListener('focusin', onFocus, true);
+    }, []);
 
     /* Escape / Backspace dismisses */
     useEffect(() => {
@@ -154,6 +171,7 @@ function NotifyHitToast({ entry, onDismiss }) {
 
     return (
         <div
+            ref={containerRef}
             role="alertdialog"
             data-testid="notify-hit-toast"
             aria-label="Title now streaming"
