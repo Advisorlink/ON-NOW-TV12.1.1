@@ -21,9 +21,9 @@
     --fta-pill-bg: rgba(255, 255, 255, 0.08);
     --fta-border: rgba(255, 255, 255, 0.10);
     --fta-row-sep: rgba(255, 255, 255, 0.07);
-    --fta-row-h: 104px;
-    --fta-grid-px-per-min: 14px;       /* 14 px = 1 min → 30 min = 420 px */
-    --fta-channel-rail-w: 132px;
+    --fta-row-h: 110px;
+    --fta-grid-px-per-min: 14px;
+    --fta-channel-rail-w: 200px;
 
     position: fixed;
     inset: 0;
@@ -50,24 +50,77 @@
 .fta-brand {
     display: inline-flex;
     align-items: center;
-    gap: 14px;
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    gap: 18px;
 }
 
-.fta-brand-v2 {
+/* "ON NOW" stacked over "V2 FREE TO AIR" — a real wordmark, not a
+   bare label.  Inspired by network identity treatments: bold sans
+   in white with a red badge for V2, all sized to read clearly at
+   1080p TV viewing distance. */
+.fta-brand-mark {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 16px 8px 14px;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.01) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 4px 22px -8px rgba(255, 37, 53, 0.30);
+}
+
+.fta-brand-mark::before {
+    /* Left accent bar — same red as the LIVE pill, ties the wordmark
+       to the EPG's NOW line for visual consistency. */
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--fta-accent);
+    box-shadow: 0 0 12px var(--fta-accent-glow);
+}
+
+.fta-brand-mark__top {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1;
+}
+
+.fta-brand-mark__bottom {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+
+.fta-brand-mark__bottom .fta-brand-v2 {
     background: var(--fta-accent);
     color: #fff;
-    padding: 3px 9px;
-    border-radius: 6px;
-    line-height: 1;
+    padding: 2px 7px 3px;
+    border-radius: 5px;
+    font-size: 14px;
     font-weight: 900;
-    box-shadow: 0 6px 18px var(--fta-accent-glow);
+    letter-spacing: 0;
+    box-shadow: 0 4px 12px var(--fta-accent-glow);
 }
 
-.fta-brand-text {
-    background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+.fta-brand-mark__bottom .fta-brand-text {
+    background: linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0.72) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -144,14 +197,14 @@
 
 /* Sidebar (left preview + info) ----------------------------------- */
 .fta-sidebar {
-    width: 420px;
+    width: 540px;
     flex-shrink: 0;
-    padding: 24px 24px 24px 28px;
+    padding: 28px 28px 28px 36px;
     box-sizing: border-box;
     border-right: 1px solid var(--fta-border);
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 24px;
     overflow: hidden;
 }
 
@@ -474,14 +527,14 @@
 
 .fta-row__rail-inner {
     width: 100%;
-    height: 60%;
+    height: 64%;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .fta-row__rail img {
-    max-width: 100%;
+    max-width: 80%;
     max-height: 100%;
     object-fit: contain;
     filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
@@ -510,10 +563,10 @@
 }
 
 .fta-cell {
-    height: calc(var(--fta-row-h) - 16px);
+    height: calc(var(--fta-row-h) - 18px);
     background: var(--fta-bg-card);
-    border-radius: 10px;
-    padding: 12px 16px;
+    border-radius: 14px;
+    padding: 14px 18px;
     display: flex;
     flex-direction: column;
     justify-content: center;
