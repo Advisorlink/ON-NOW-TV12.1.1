@@ -85,7 +85,8 @@ export default function FreeToAir() {
     useSpatialFocus();
     useBackHandler('/');
 
-    const [tab, setTab] = useState('all');           // 'all' | 'favourites'
+    const [tab, setTab] = useState('live');          // category id
+    const [categories, setCategories] = useState([]);
     const [city, setCity] = useState(loadCity);
     const [cityMenuOpen, setCityMenuOpen] = useState(false);
     const [supportedCities, setSupportedCities] = useState(['Brisbane']);
@@ -109,13 +110,19 @@ export default function FreeToAir() {
     useEffect(() => { saveCity(city); }, [city]);
     useEffect(() => { saveFavs(favs); }, [favs]);
 
-    /* Fetch supported cities once */
+    /* Fetch supported cities + categories once */
     useEffect(() => {
         fetch(`${API}/api/fta/cities`)
             .then((r) => r.json())
             .then((d) => setSupportedCities(d.cities || ['Brisbane']))
-            .catch(() => { /* leave default */ });
+            .catch(() => { /* */ });
     }, []);
+    useEffect(() => {
+        fetch(`${API}/api/fta/categories?city=${encodeURIComponent(city)}`)
+            .then((r) => r.json())
+            .then((d) => setCategories(d.categories || []))
+            .catch(() => { /* */ });
+    }, [city]);
 
     /* Fetch channels + EPG every time the city changes */
     useEffect(() => {
@@ -143,13 +150,15 @@ export default function FreeToAir() {
         return () => { cancel = true; };
     }, [city]);
 
-    /* Visible channel set based on the active tab */
+    /* Visible channel set based on the active category tab. */
     const visibleChannels = useMemo(() => {
         if (tab === 'favourites') {
             const favSet = new Set(favs);
             return channels.filter((c) => favSet.has(c.id));
         }
-        return channels;
+        return channels.filter((c) =>
+            Array.isArray(c.categories) && c.categories.includes(tab)
+        );
     }, [tab, channels, favs]);
 
     /* Origin point for the grid x axis — 30 min before now, rounded down */
@@ -177,9 +186,16 @@ export default function FreeToAir() {
         return out;
     }, [programmes, now]);
 
-    /* Whenever the active channel changes we update the active
-       programme to that channel's currently-airing show.  The user
-       can then arrow-right through the grid to inspect future shows. */
+    /* When the user switches tabs, pin focus to that tab's first
+       channel so the EPG re-centres immediately. */
+    useEffect(() => {
+        if (!visibleChannels.length) return;
+        if (!activeChannel || !visibleChannels.some((c) => c.id === activeChannel.id)) {
+            setActiveChannel(visibleChannels[0]);
+        }
+    }, [tab, visibleChannels]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    /* Update the active programme to the focused channel's live show. */
     useEffect(() => {
         if (!activeChannel) return;
         const live = liveByChannel[activeChannel.id];
@@ -231,6 +247,7 @@ export default function FreeToAir() {
             <TopBar
                 tab={tab}
                 onTab={setTab}
+                categories={categories}
                 now={now}
                 city={city}
                 supportedCities={supportedCities}
@@ -304,7 +321,14 @@ function findUpNext(list, now) {
    Sub-components
 ==================================================================== */
 
-function TopBar({ tab, onTab, now, city, supportedCities, onCity, cityMenuOpen, onToggleCity }) {
+function TopBar({ tab, onTab, categories, now, city, supportedCities, onCity, cityMenuOpen, onToggleCity }) {
+    /* All category tabs in the order the backend returned them, with
+       Favourites appended at the end. */
+    const tabs = useMemo(() => {
+        const cats = (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
+        return [...cats, { id: 'favourites', label: 'Favourites', count: null }];
+    }, [categories]);
+
     return (
         <div className="fta-topbar">
             <div className="fta-brand">
@@ -315,25 +339,24 @@ function TopBar({ tab, onTab, now, city, supportedCities, onCity, cityMenuOpen, 
                         <span className="fta-brand-text">Free&nbsp;to&nbsp;Air</span>
                     </span>
                 </div>
-                <div className="fta-tabs">
-                    <button
-                        data-testid="fta-tab-all"
-                        data-focusable="true"
-                        tabIndex={0}
-                        onClick={() => onTab('all')}
-                        className={`fta-tab ${tab === 'all' ? 'is-active' : ''}`}
-                    >
-                        Free-to-Air
-                    </button>
-                    <button
-                        data-testid="fta-tab-fav"
-                        data-focusable="true"
-                        tabIndex={0}
-                        onClick={() => onTab('favourites')}
-                        className={`fta-tab ${tab === 'favourites' ? 'is-active' : ''}`}
-                    >
-                        Favourites
-                    </button>
+                <div className="fta-tabs" role="tablist">
+                    {tabs.map((t) => (
+                        <button
+                            key={t.id}
+                            data-testid={`fta-tab-${t.id}`}
+                            data-focusable="true"
+                            tabIndex={0}
+                            role="tab"
+                            aria-selected={tab === t.id}
+                            onClick={() => onTab(t.id)}
+                            className={`fta-tab ${tab === t.id ? 'is-active' : ''}`}
+                        >
+                            <span>{t.label}</span>
+                            {t.count != null && t.count > 0 && (
+                                <span className="fta-tab__count">{t.count}</span>
+                            )}
+                        </button>
+                    ))}
                 </div>
             </div>
             <div className="fta-topbar-right">

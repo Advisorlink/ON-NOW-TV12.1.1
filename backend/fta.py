@@ -76,6 +76,69 @@ DEFAULT_FTA_IDS = [
     "mjh-sbs-sbst", "mjh-sbs-5nsw", "mjh-sbs-sbs-radio-4",
 ]
 
+# v2.8.93 — Category model.  Each channel is auto-classified into one
+# or more category tabs based on simple `id` / `name` / `network`
+# pattern matching against the keyword lists below.  The "Live TV"
+# tab is the curated 21-channel linear FTA list; every other tab
+# pulls from the full 188-channel mjh feed.
+CATEGORY_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
+    "kids": {
+        "id":    ["nick", "abc-kids", "abc-me", "nicktoons", "boomerang", "cartoon"],
+        "name":  ["nickel", "nick jr", "nicktoon", "kids", "cartoon", "abc me",
+                  "abc entertains", "abc family"],
+    },
+    "sport": {
+        "id":    ["sport", "afl", "racing", "kayo", "7afl", "seven-sport"],
+        "name":  ["sport", "afl", "racing", "rugby", "cricket", "tennis",
+                  "football", "nrl", "stan sport"],
+    },
+    "news": {
+        "id":    ["news", "abc-news", "sky-news", "al-jazeera", "bbc-news",
+                  "bloomberg", "cna", "dw", "weather"],
+        "name":  ["news", "al jazeera", "bbc news", "bloomberg", "cna",
+                  "dw english", "weather", "abc news", "sky news"],
+    },
+    "drama": {
+        "id":    ["drama", "10bold", "crime", "csi", "home-and-away", "demanddrama",
+                  "westerns", "western"],
+        "name":  ["drama", "crime", "csi", "western", "home and away",
+                  "true crime", "mystery", "paranormal"],
+    },
+    "movies": {
+        "id":    ["world-movies", "movies", "world_movies", "filmrise"],
+        "name":  ["world movies", "movies", "filmrise"],
+    },
+    "reality": {
+        "id":    ["mtv", "top-model", "bondi-vet", "ridiculousness",
+                  "jersey-shore", "geordie-shore", "reality", "10peach"],
+        "name":  ["mtv", "top model", "bondi vet", "reality", "ridiculousness",
+                  "jersey shore", "geordie shore", "comedy"],
+    },
+    "music": {
+        "id":    ["radio", "music", "mtv-music"],
+        "name":  ["radio", "music", "mtv music"],
+    },
+}
+
+
+def _categories_for(channel_id: str, name: str, network: str) -> List[str]:
+    """Auto-classify a channel into 0+ category tabs.
+
+    Linear FTA (Live TV) is handled separately by the curated id
+    list.  Everything else is bucketed by keyword.  Channels with no
+    matching category fall back to "more".
+    """
+    lid = (channel_id or "").lower()
+    lname = (name or "").lower()
+    out: List[str] = []
+    for cat, kw in CATEGORY_KEYWORDS.items():
+        if any(t in lid for t in kw["id"]):
+            out.append(cat)
+            continue
+        if any(t in lname for t in kw["name"]):
+            out.append(cat)
+    return out or ["more"]
+
 # v2.8.91 — Unified channel-logo map (`tv-logo/tv-logos` GitHub repo,
 # the de-facto standard set used by Tivimate / Kodi PVR / Linux IPTV
 # launchers).  Every PNG is transparent-bg, consistently sized, crisp
@@ -199,52 +262,63 @@ async def _http_get(url: str, *, timeout: float = 15.0) -> httpx.Response:
 
 # ---------------------------------------------------------------- channels
 async def _load_channels(city: str = DEFAULT_CITY) -> List[Dict[str, Any]]:
-    """Stremio addon catalog → trimmed to our default FTA set for `city`.
+    """Load the full 188-channel mjh feed for `city`.
 
-    Returns `[{id, name, logo, lcn}, ...]`.
+    v2.8.93 — Switched from the Stremio addon catalog (~22 ids) to
+    `i.mjh.nz/au/{city}/tv.json` which exposes EVERY linear + FAST
+    channel (Nick, MTV, Sky News, BBC, 10 Drama, etc.) with the
+    playable HLS URL baked in as `mjh_master`.
+
+    Returns `[{id, name, logo, lcn, network, categories, isLinear,
+    mjh_master}, ...]` ordered linear-first then by network/name.
     """
     now = time.time()
     bucket = _channel_cache.setdefault(city, {"ts": 0.0, "data": None})
     if bucket["data"] and now - bucket["ts"] < _CHANNEL_TTL_S:
         return bucket["data"]
 
-    r = await _http_get(_catalog_url(city))
-    catalog = (r.json() or {}).get("metas") or []
-    by_mjh: Dict[str, Dict[str, Any]] = {}
-    for m in catalog:
-        mid = m.get("id") or ""
-        parts = mid.split("|")
-        if len(parts) < 4:
-            continue
-        mjh = parts[2]
-        by_mjh[mjh] = {
-            "id": mjh,
-            "stremio_id": mid,
-            "name": m.get("name") or mjh,
-            # v2.8.91 — Always prefer the unified `tv-logos` PNG.
-            "logo": _logo_for_id(mjh) or m.get("poster") or m.get("logo") or "",
-            "lcn": None,
-        }
+    tv_url = f"https://i.mjh.nz/au/{city}/tv.json"
+    try:
+        r = await _http_get(tv_url, timeout=15.0)
+        raw = r.json() or {}
+    except Exception as exc:  # noqa: BLE001
+        log.exception("tv.json fetch failed for %s", city)
+        raise HTTPException(502, f"TV_JSON_FETCH_FAILED: {exc}") from exc
 
+    # Merge in EPG channel metadata for LCNs (the only thing tv.json
+    # doesn't include).
     epg = await _load_epg(city=city, force_channel_only=True)
-    for ch in epg.get("channels", []):
-        cid = ch.get("id")
-        if cid in by_mjh:
-            by_mjh[cid]["name"] = ch.get("name") or by_mjh[cid]["name"]
-            if ch.get("lcn"):
-                by_mjh[cid]["lcn"] = ch["lcn"]
-            # NOTE: we do NOT overwrite the logo here — `_logo_for_id`
-            # has already set a clean unified logo when one exists.
-            # Falling back to the EPG's auto-extracted PNG only happens
-            # when there's no unified logo available.
-            if not by_mjh[cid]["logo"] and ch.get("icon"):
-                by_mjh[cid]["logo"] = ch["icon"]
+    lcn_by_id = {ch["id"]: ch.get("lcn") for ch in epg.get("channels", [])}
 
+    linear_set = set(_ids_for_city(city))
     out: List[Dict[str, Any]] = []
-    for mjh in _ids_for_city(city):
-        if mjh in by_mjh:
-            out.append(by_mjh[mjh])
+    for cid, meta in raw.items():
+        name = meta.get("name") or cid
+        network = meta.get("network") or "Other"
+        is_linear = cid in linear_set
+        cats = ["live"] if is_linear else _categories_for(cid, name, network)
+        out.append({
+            "id": cid,
+            "name": name,
+            "network": network,
+            "logo": _logo_for_id(cid) or meta.get("logo") or "",
+            "lcn": lcn_by_id.get(cid),
+            "categories": cats,
+            "isLinear": is_linear,
+            "mjh_master": meta.get("mjh_master", ""),
+            "headers": meta.get("headers", ""),
+        })
 
+    # Sort: linear ids in their curated order first, then everything
+    # else alphabetically within each network.
+    linear_order = {cid: i for i, cid in enumerate(_ids_for_city(city))}
+
+    def _sort_key(c):
+        if c["isLinear"]:
+            return (0, linear_order.get(c["id"], 999), "")
+        return (1, c["network"], c["name"])
+
+    out.sort(key=_sort_key)
     bucket["data"] = out
     bucket["ts"] = now
     return out
@@ -366,8 +440,13 @@ async def _load_epg(*, city: str = DEFAULT_CITY, force_channel_only: bool = Fals
 
 # ---------------------------------------------------------------- streams
 async def _resolve_stream(channel_id: str, city: str = DEFAULT_CITY) -> Optional[str]:
-    """Call the city-specific Stremio addon's stream endpoint and
-    return the first playable URL.  Cached per (city, channel) for 5 min.
+    """Look up the playable HLS URL for `channel_id`.
+
+    v2.8.93 — Switched from Stremio addon resolution to the direct
+    `mjh_master` URL baked into the `tv.json` payload.  This is the
+    same `https://i.mjh.nz/.r/{id}.m3u8` redirect that the official
+    Matt Huntley clients use, so we get every linear AND FAST
+    channel without per-stream HTTP roundtrips.  Cache for 5 min.
     """
     now = time.time()
     cache_key = f"{city}:{channel_id}"
@@ -375,22 +454,16 @@ async def _resolve_stream(channel_id: str, city: str = DEFAULT_CITY) -> Optional
     if hit and now - hit["ts"] < _STREAM_TTL_S:
         return hit["url"]
 
-    base = SUPPORTED_CITIES.get(city, SUPPORTED_CITIES[DEFAULT_CITY])
-    stremio_id = f"au|{city}|{channel_id}|tv"
-    encoded = stremio_id.replace("|", "%7C")
-    url = f"{base}/stream/tv/{encoded}.json"
-    try:
-        r = await _http_get(url, timeout=8.0)
-        streams = (r.json() or {}).get("streams") or []
-        if not streams:
-            return None
-        first = streams[0].get("url")
-        if first:
-            _stream_cache[cache_key] = {"ts": now, "url": first}
-        return first
-    except Exception as exc:  # noqa: BLE001
-        log.warning("stream resolve failed for %s/%s: %s", city, channel_id, exc)
+    channels = await _load_channels(city)
+    match = next((c for c in channels if c["id"] == channel_id), None)
+    if not match:
         return None
+    url = match.get("mjh_master") or ""
+    if not url:
+        # Final fallback — try the public redirect convention.
+        url = f"https://i.mjh.nz/.r/{channel_id.replace('mjh-', '')}.m3u8"
+    _stream_cache[cache_key] = {"ts": now, "url": url}
+    return url
 
 
 def _normalize_city(name: Optional[str]) -> str:
@@ -408,6 +481,49 @@ async def fta_cities() -> Dict[str, Any]:
         "cities": list(SUPPORTED_CITIES.keys()),
         "default": DEFAULT_CITY,
     }
+
+
+@router.get("/categories")
+async def fta_categories(
+    city: str = Query(DEFAULT_CITY, description="AU capital city"),
+) -> Dict[str, Any]:
+    """Category counts so the topbar can show "Live · 21 · Kids · 8".
+
+    Order matches the visual order in the TV app's top bar:
+        live → kids → sport → news → drama → movies → reality → music → more.
+    """
+    city = _normalize_city(city)
+    try:
+        channels = await _load_channels(city=city)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"UPSTREAM_FAIL: {exc}") from exc
+    order = ["live", "kids", "sport", "news", "drama", "movies", "reality", "music", "more"]
+    counts: Dict[str, int] = {k: 0 for k in order}
+    for ch in channels:
+        for cat in ch.get("categories", []):
+            if cat in counts:
+                counts[cat] += 1
+    return {
+        "city": city,
+        "categories": [
+            {"id": k, "label": _cat_label(k), "count": counts[k]}
+            for k in order if counts[k] > 0
+        ],
+    }
+
+
+def _cat_label(cat_id: str) -> str:
+    return {
+        "live": "Live TV",
+        "kids": "Kids",
+        "sport": "Sport",
+        "news": "News",
+        "drama": "Drama",
+        "movies": "Movies",
+        "reality": "Reality",
+        "music": "Music",
+        "more": "More",
+    }.get(cat_id, cat_id.title())
 
 
 @router.get("/channels")

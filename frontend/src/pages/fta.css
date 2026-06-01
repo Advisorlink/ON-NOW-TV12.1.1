@@ -138,16 +138,20 @@
 }
 
 .fta-tab {
-    padding: 8px 22px;
+    padding: 8px 16px;
     border-radius: 999px;
     font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     color: var(--fta-fg-dim);
     background: transparent;
     border: 0;
     cursor: pointer;
     transition: background 200ms, color 200ms;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
 }
 
 .fta-tab.is-active {
@@ -158,6 +162,27 @@
 .fta-tab:focus-visible {
     outline: 2px solid var(--fta-blue);
     outline-offset: 2px;
+}
+
+.fta-tab__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--fta-fg-dim);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-tab.is-active .fta-tab__count {
+    background: rgba(0, 0, 0, 0.10);
+    color: rgba(0, 0, 0, 0.65);
 }
 
 .fta-topbar-right {
