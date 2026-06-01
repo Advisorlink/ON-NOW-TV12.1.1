@@ -13,6 +13,14 @@
 > should I touch next".
 
 
+> **🟢 v2.8.99 — FTA NOW pill no longer overlaps cell title + Network 10 logos restored (Jun 2, 2026).**
+> User feedback after v2.8.98: "when I scroll back to the live now column it's cut off again, it needs to be fully viewable like when the app starts" + "I have not got a lot of the channel logos".
+>   - **NOW pill moved to the time-strip header.**  Was sitting at `top: 10` inside `.fta-grid-rows`, which painted the red "4:17pm" badge directly on top of the first row's live cell — chopping off the title (visible as "g Kids" instead of "Young Kids" in the user's video).  Re-rendered the pill as `.fta-grid-header__now-pill` inside the same `.fta-grid-times` flex container that holds the half-hour labels, so it shares the same translate-X scroll handler and tracks the grid horizontally without ever entering row space.  CSS `bottom: 4; position: absolute` keeps it inside the 38 px header.  Verified live: `pill_bottom=115 < rows_top=120` (i.e. pill ends before rows start) and `pill_overlaps_title: false` after the right→left scroll dance.
+>   - **Network 10 family logos restored.**  The `tv-logo/tv-logos` upstream repo renamed Network 10 from `10-au.png` / `10-bold-au.png` / `10-peach-au.png` (all now 404) to the `network-10-*` prefix (`network-10-au.png`, `network-10-drama-au.png`, `network-10-comedy-au.png` — all 200).  Patched `CHANNEL_LOGOS` in `fta.py`, scp'd to VPS, restarted `onnowtv-backend` systemd unit.  Verified: 21/21 visible channels now render a real `<img>`, zero text fallbacks.
+>   - **Defensive fallback added on the frontend.**  `ChannelRow` now tracks an `onError` flag per logo image — when an image fails to load (typo / dead repo branch / network 404), the rail swaps in a styled `.fta-row__rail-fallback` chip showing the channel name in uppercase on a subtle cyan gradient.  Prevents the ugly raw-alt-text rendering ("10", "ABC") if MJH ever ships another dead logo URL.
+
+
+
 > **🟢 v2.8.98 — FTA nav + topbar cleanup + native splash screen (Jun 2, 2026).**
 > User feedback after v2.8.97 ship: up/down was still "jumping to whatever tile it wants" instead of always landing on the live cell; categories were still cluttering the top bar; needed a real branded splash for the standalone APK.
 >   - **Up/Down → always the LIVE cell of the next row.**  Rewrote the tile-stepping handler so vertical arrows pick `cells[0]` of the target row (the leftmost = currently-airing programme), no horizontal-position memory.  The user's exact ask: "up, down always lands on the live TV now section".  Right/Left walk DOM siblings; Left at idx=0 still opens the side menu.  Confirmed live: start on a future cell at left=271 → ↓ lands at left=1 in next row, repeatedly.

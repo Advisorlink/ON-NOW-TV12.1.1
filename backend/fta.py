@@ -157,9 +157,13 @@ CHANNEL_LOGOS: Dict[str, str] = {
     "mjh-go-qld":         f"{_TV_LOGO_BASE}/nine-go-au.png",
     "mjh-life-qld":       f"{_TV_LOGO_BASE}/nine-life-au.png",
     "mjh-rush-qld":       f"{_TV_LOGO_BASE}/nine-rush-au.png",
-    "mjh-10-qld":         f"{_TV_LOGO_BASE}/10-au.png",
-    "mjh-10peach-qld":    f"{_TV_LOGO_BASE}/10-peach-au.png",
-    "mjh-10bold-qld":     f"{_TV_LOGO_BASE}/10-bold-au.png",
+    # v2.8.99 — tv-logo/tv-logos repo renamed the Network 10 family
+    # to the `network-10-*` prefix (the old `10-*-au.png` filenames
+    # 404).  Map "10" to the main channel, "10 Comedy" (= 10 Peach)
+    # to the comedy mark, "10 Drama" (= 10 Bold) to the drama mark.
+    "mjh-10-qld":         f"{_TV_LOGO_BASE}/network-10-au.png",
+    "mjh-10peach-qld":    f"{_TV_LOGO_BASE}/network-10-comedy-au.png",
+    "mjh-10bold-qld":     f"{_TV_LOGO_BASE}/network-10-drama-au.png",
     "mjh-abc-qld":        f"{_TV_LOGO_BASE}/abc-au.png",
     "mjh-abc-tv-plus":    f"{_TV_LOGO_BASE}/abc-family-au.png",
     "mjh-abc-me":         f"{_TV_LOGO_BASE}/abc-entertains-au.png",
