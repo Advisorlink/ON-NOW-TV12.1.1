@@ -1,12 +1,16 @@
 name: Build ON NOW V2 Free-to-Air APK
 
 on:
+  # v2.8.99 — broaden the trigger to match build-apk.yml / build-tunes.yml
+  # so an FTA APK is published on every push to main, not just when
+  # files under `android/onnowtv-fta/` change.  The user reported that
+  # "the other two are doing it but there's no APK for the free to air
+  # one" — root cause was this overly-narrow path filter.  The APK
+  # doesn't bundle the React build (it loads from the VPS), so the
+  # rebuild is cheap (~2 min) and keeps the version code aligned with
+  # the rest of the suite.
   push:
-    branches: [ main ]
-    paths:
-      - 'android/onnowtv-fta/**'
-      - 'CHANGELOG.md'
-      - '.github/workflows/build-fta.yml'
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
