@@ -27,29 +27,34 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Heart } from 'lucide-react';
+import { Heart, ChevronDown } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import './fta.css';
 
 const API = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
-const PX_PER_MIN = 12;             // matches --fta-grid-px-per-min
-const ROW_H = 96;                  // matches --fta-row-h
-const CHANNEL_RAIL_W = 110;        // matches --fta-channel-rail-w
+const PX_PER_MIN = 14;             // matches --fta-grid-px-per-min
+const ROW_H = 104;                 // matches --fta-row-h
+const CHANNEL_RAIL_W = 132;        // matches --fta-channel-rail-w
 const FAV_KEY = 'fta-favourites-v1';
+const CITY_KEY = 'fta-city-v1';
 const HOURS_FORWARD = 24;
-const HOURS_BACKWARD = 0.5;        // include current programme even if it started 30 min ago
+const HOURS_BACKWARD = 0.5;
 
-/* ---------- favourites store -------------------------------------- */
+/* ---------- favourites + city storage ----------------------------- */
 function loadFavs() {
-    try {
-        const raw = localStorage.getItem(FAV_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }
+    catch { return []; }
 }
-
 function saveFavs(ids) {
-    try { localStorage.setItem(FAV_KEY, JSON.stringify(ids)); } catch { /* ignore */ }
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(ids)); } catch { /* */ }
+}
+function loadCity() {
+    try { return localStorage.getItem(CITY_KEY) || 'Brisbane'; }
+    catch { return 'Brisbane'; }
+}
+function saveCity(c) {
+    try { localStorage.setItem(CITY_KEY, c); } catch { /* */ }
 }
 
 /* ---------- time helpers ------------------------------------------ */
@@ -81,6 +86,9 @@ export default function FreeToAir() {
     useBackHandler('/');
 
     const [tab, setTab] = useState('all');           // 'all' | 'favourites'
+    const [city, setCity] = useState(loadCity);
+    const [cityMenuOpen, setCityMenuOpen] = useState(false);
+    const [supportedCities, setSupportedCities] = useState(['Brisbane']);
     const [channels, setChannels] = useState([]);
     const [programmes, setProgrammes] = useState({});
     const [loading, setLoading] = useState(true);
@@ -91,21 +99,34 @@ export default function FreeToAir() {
     const [activeProgramme, setActiveProgramme] = useState(null);
     const [fullScreen, setFullScreen] = useState(false);
 
-    /* clock — update once per minute so the NOW line + clock stay accurate */
+    /* clock — update once per 30 s */
     useEffect(() => {
         const t = setInterval(() => setNow(Date.now()), 30_000);
         return () => clearInterval(t);
     }, []);
 
-    /* Fetch channels + EPG on mount */
+    /* Persist city + favourites */
+    useEffect(() => { saveCity(city); }, [city]);
+    useEffect(() => { saveFavs(favs); }, [favs]);
+
+    /* Fetch supported cities once */
+    useEffect(() => {
+        fetch(`${API}/api/fta/cities`)
+            .then((r) => r.json())
+            .then((d) => setSupportedCities(d.cities || ['Brisbane']))
+            .catch(() => { /* leave default */ });
+    }, []);
+
+    /* Fetch channels + EPG every time the city changes */
     useEffect(() => {
         let cancel = false;
         (async () => {
             try {
                 setLoading(true);
+                setError(null);
                 const [chRes, epgRes] = await Promise.all([
-                    fetch(`${API}/api/fta/channels`).then((r) => r.json()),
-                    fetch(`${API}/api/fta/epg`).then((r) => r.json()),
+                    fetch(`${API}/api/fta/channels?city=${encodeURIComponent(city)}`).then((r) => r.json()),
+                    fetch(`${API}/api/fta/epg?city=${encodeURIComponent(city)}`).then((r) => r.json()),
                 ]);
                 if (cancel) return;
                 setChannels(chRes.channels || []);
@@ -120,10 +141,7 @@ export default function FreeToAir() {
             }
         })();
         return () => { cancel = true; };
-    }, []);
-
-    /* Persist favourites */
-    useEffect(() => { saveFavs(favs); }, [favs]);
+    }, [city]);
 
     /* Visible channel set based on the active tab */
     const visibleChannels = useMemo(() => {
@@ -210,7 +228,16 @@ export default function FreeToAir() {
 
     return (
         <div className="fta-root" data-testid="fta-root">
-            <TopBar tab={tab} onTab={setTab} now={now} />
+            <TopBar
+                tab={tab}
+                onTab={setTab}
+                now={now}
+                city={city}
+                supportedCities={supportedCities}
+                onCity={(c) => { setCity(c); setCityMenuOpen(false); }}
+                cityMenuOpen={cityMenuOpen}
+                onToggleCity={() => setCityMenuOpen((v) => !v)}
+            />
 
             <div className="fta-body">
                 <Sidebar
@@ -218,15 +245,16 @@ export default function FreeToAir() {
                     programme={activeProgramme}
                     isFav={activeChannel ? favs.includes(activeChannel.id) : false}
                     onToggleFav={() => activeChannel && toggleFav(activeChannel.id)}
-                    streamFor={(id) => fetch(`${API}/api/fta/streams/${id}`).then((r) => r.json())}
+                    streamFor={(id) => fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())}
                     onActivate={() => setFullScreen(true)}
                     now={now}
+                    upNext={activeChannel ? findUpNext(programmes[activeChannel.id] || [], now) : null}
                 />
 
                 <div className="fta-grid-wrap">
                     {loading && (
                         <div className="fta-loading">
-                            Loading guide
+                            Loading {city} guide
                             <div className="fta-loading__sweep" />
                         </div>
                     )}
@@ -259,6 +287,7 @@ export default function FreeToAir() {
             {fullScreen && activeChannel && (
                 <FullScreenPlayer
                     channel={activeChannel}
+                    city={city}
                     onExit={() => setFullScreen(false)}
                 />
             )}
@@ -266,16 +295,21 @@ export default function FreeToAir() {
     );
 }
 
+function findUpNext(list, now) {
+    if (!Array.isArray(list)) return null;
+    return list.find((p) => p.start > now) || null;
+}
+
 /* ====================================================================
    Sub-components
 ==================================================================== */
 
-function TopBar({ tab, onTab, now }) {
+function TopBar({ tab, onTab, now, city, supportedCities, onCity, cityMenuOpen, onToggleCity }) {
     return (
         <div className="fta-topbar">
             <div className="fta-brand">
                 <span className="fta-brand-v2">V2</span>
-                <span>Free-to-Air</span>
+                <span className="fta-brand-text">Free-to-Air</span>
                 <div className="fta-tabs">
                     <button
                         data-testid="fta-tab-all"
@@ -297,19 +331,45 @@ function TopBar({ tab, onTab, now }) {
                     </button>
                 </div>
             </div>
-            <div className="fta-clock" data-testid="fta-clock">{fmtClock(now)}</div>
+            <div className="fta-topbar-right">
+                <button
+                    data-testid="fta-city-toggle"
+                    data-focusable="true"
+                    tabIndex={0}
+                    className="fta-city"
+                    onClick={onToggleCity}
+                >
+                    {city}
+                    <ChevronDown size={14} strokeWidth={2.5} />
+                </button>
+                <div className="fta-clock" data-testid="fta-clock">{fmtClock(now)}</div>
+            </div>
+            {cityMenuOpen && (
+                <div className="fta-city-menu" role="menu">
+                    {supportedCities.map((c) => (
+                        <button
+                            key={c}
+                            data-testid={`fta-city-${c}`}
+                            data-focusable="true"
+                            tabIndex={0}
+                            onClick={() => onCity(c)}
+                            className={`fta-city-menu__item ${c === city ? 'is-active' : ''}`}
+                        >
+                            {c}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
 
 /* ------------------------------- sidebar -------------------------- */
-function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate, now }) {
+function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate, now, upNext }) {
     if (!channel) {
         return (
             <aside className="fta-sidebar">
-                <div className="fta-preview">
-                    <div className="fta-loading">Select a channel</div>
-                </div>
+                <div className="fta-preview"><div className="fta-loading">Select a channel</div></div>
             </aside>
         );
     }
@@ -327,10 +387,9 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
                 tabIndex={0}
                 onClick={onActivate}
                 className="fta-preview"
-                style={{ border: 0, padding: 0 }}
             >
                 <ChannelPreview channelId={channel.id} streamFor={streamFor} poster={channel.logo} />
-                <span className="fta-live-pill">LIVE</span>
+                <span className="fta-live-pill">● LIVE</span>
                 <div className="fta-preview-overlay">
                     <div className="fta-preview-overlay__title">{live.title || channel.name}</div>
                     <div className="fta-preview-overlay__meta">
@@ -350,9 +409,7 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
                     </div>
                     <div className="fta-info-name">
                         <div className="fta-info-name__num">{channel.lcn || channel.name}</div>
-                        <div className="fta-info-name__lbl">
-                            {channel.lcn ? channel.name : ''}
-                        </div>
+                        <div className="fta-info-name__lbl">{channel.lcn ? channel.name : ''}</div>
                     </div>
                     <button
                         data-testid="fta-sidebar-fav"
@@ -362,7 +419,7 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
                         onClick={onToggleFav}
                         className={`fta-fav-btn ${isFav ? 'is-fav' : ''}`}
                     >
-                        <Heart size={18} fill={isFav ? '#ff2535' : 'transparent'} />
+                        <Heart size={20} fill={isFav ? '#ff2535' : 'transparent'} />
                     </button>
                 </div>
 
@@ -377,6 +434,17 @@ function Sidebar({ channel, programme, isFav, onToggleFav, streamFor, onActivate
                     <span className="fta-chip">CC</span>
                 </div>
             </div>
+
+            {upNext && (
+                <div className="fta-upnext" data-testid="fta-upnext">
+                    <div className="fta-upnext__label">Coming up next</div>
+                    <div className="fta-upnext__title">{upNext.title}</div>
+                    <div className="fta-upnext__meta">
+                        {fmtTime(upNext.start)} – {fmtTime(upNext.stop)}
+                        {upNext.category && <>  ·  {upNext.category}</>}
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }
@@ -519,18 +587,28 @@ const GridRows = React.forwardRef(function GridRows(
 
 /* --------------------------- one row ------------------------------ */
 function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeKey, now }) {
+    const upNextProg = programmes.find((p) => p.start > now);
+    const upNextKey = upNextProg
+        ? `${upNextProg.start}|${upNextProg.stop}|${upNextProg.title}`
+        : null;
+
     return (
         <div className="fta-row" data-channel-id={channel.id}>
             <div className="fta-row__rail">
-                {channel.logo
-                    ? <img src={channel.logo} alt={channel.name} loading="lazy" />
-                    : <span>{channel.name}</span>}
+                <div className="fta-row__rail-inner">
+                    {channel.logo
+                        ? <img src={channel.logo} alt={channel.name} loading="lazy" />
+                        : <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>{channel.name}</span>}
+                </div>
+                {channel.lcn && (
+                    <span className="fta-row__rail-lcn">{channel.lcn}</span>
+                )}
             </div>
-            <div className="fta-row__cells" style={{ width: '100%' }}>
+            <div className="fta-row__cells">
                 {programmes.length === 0 && (
                     <div className="fta-cell fta-cell--empty" style={{
                         position: 'absolute',
-                        left: 8, right: 8, height: ROW_H - 18,
+                        left: 6, right: 6, top: 8,
                     }}>
                         <div className="fta-cell__title">No programme info</div>
                     </div>
@@ -539,10 +617,16 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
                     const startOffsetMin = Math.max(0, (p.start - gridStartMs) / 60000);
                     const endOffsetMin = Math.max(0, (p.stop - gridStartMs) / 60000);
                     const left = startOffsetMin * PX_PER_MIN;
-                    const width = Math.max(60, (endOffsetMin - startOffsetMin) * PX_PER_MIN);
+                    const width = Math.max(80, (endOffsetMin - startOffsetMin) * PX_PER_MIN - 4);
                     const isLive = p.start <= now && p.stop > now;
                     const key = `${p.start}|${p.stop}|${p.title}`;
                     const isFocused = activeProgrammeKey === key;
+                    const isNext = !isLive && upNextKey === key;
+                    /* Episode/subtitle: prefer the second line of desc
+                       if it looks like an episode/season pattern, else
+                       leave blank — many channels embed S02E07 in desc
+                       which we surface as a small subtitle. */
+                    const subtitle = extractSubtitle(p);
                     return (
                         <button
                             key={key}
@@ -550,17 +634,23 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
                             data-focusable="true"
                             data-focus-style="cell"
                             tabIndex={0}
-                            className={`fta-cell ${isFocused ? 'is-focused' : ''}`}
+                            className={`fta-cell ${isFocused ? 'is-focused' : ''} ${isLive ? 'is-live' : ''}`}
                             style={{
                                 position: 'absolute',
-                                left, width, top: 9,
+                                left: left + 2,
+                                width,
+                                top: 8,
                             }}
                             onClick={() => onOpen(p)}
                         >
                             <div className="fta-cell__title">{p.title || '—'}</div>
+                            {subtitle && (
+                                <div className="fta-cell__subtitle">{subtitle}</div>
+                            )}
                             <div className="fta-cell__meta">
                                 {fmtTime(p.start)} – {fmtTime(p.stop)}
-                                {isLive && <span className="fta-cell__live-pill">LIVE</span>}
+                                {isLive && <span className="fta-cell__live-pill">● Live</span>}
+                                {isNext && <span className="fta-cell__next-pill">Next</span>}
                             </div>
                         </button>
                     );
@@ -570,19 +660,33 @@ function ChannelRow({ channel, programmes, gridStartMs, onOpen, activeProgrammeK
     );
 }
 
+/* Heuristic episode/subtitle extractor.  Returns empty string when no
+   useful subtitle is found so the cell stays single-line for short slots. */
+function extractSubtitle(p) {
+    const blob = (p.desc || '').trim();
+    if (!blob) return p.category || '';
+    // S01E02 / S1 Ep 2 / Series 1 Episode 4 pattern
+    const ep = blob.match(/(S\d+\s*E\d+|Series\s*\d+\s*Ep(?:isode)?\s*\d+|Ep\s*\d+)/i);
+    if (ep) return ep[0];
+    // Otherwise show the first short fragment of the description
+    const firstSentence = blob.split(/[.!?]/)[0] || '';
+    if (firstSentence.length < 70) return firstSentence;
+    return p.category || '';
+}
+
 /* ----------------------- full-screen player ----------------------- */
-function FullScreenPlayer({ channel, onExit }) {
+function FullScreenPlayer({ channel, city, onExit }) {
     const videoRef = useRef(null);
     const [url, setUrl] = useState(null);
 
     useEffect(() => {
         let cancel = false;
         (async () => {
-            const j = await fetch(`${API}/api/fta/streams/${channel.id}`).then((r) => r.json());
+            const j = await fetch(`${API}/api/fta/streams/${channel.id}?city=${encodeURIComponent(city || 'Brisbane')}`).then((r) => r.json());
             if (!cancel && j.url) setUrl(j.url);
         })();
         return () => { cancel = true; };
-    }, [channel.id]);
+    }, [channel.id, city]);
 
     useEffect(() => {
         const video = videoRef.current;

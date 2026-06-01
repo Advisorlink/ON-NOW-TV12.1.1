@@ -37,14 +37,29 @@ log = logging.getLogger("fta")
 router = APIRouter(prefix="/api/fta", tags=["fta"])
 
 # ---------------------------------------------------------------- config
-STREMIO_BASE = "https://kangaroostreams.hayd.uk/Brisbane"
-CATALOG_URL = f"{STREMIO_BASE}/catalog/tv/iptv-channels-Brisbane.json"
-EPG_URL = "https://i.mjh.nz/au/Brisbane/epg.xml.gz"
+# v2.8.91 — Per-city support.  The Stremio addon ships a sibling
+# endpoint for each AU capital city under the same host; channels +
+# EPG share the same `mjh-*` ids but the streams differ by region.
+SUPPORTED_CITIES: Dict[str, str] = {
+    "Brisbane":  "https://kangaroostreams.hayd.uk/Brisbane",
+    "Sydney":    "https://kangaroostreams.hayd.uk/Sydney",
+    "Melbourne": "https://kangaroostreams.hayd.uk/Melbourne",
+    "Adelaide":  "https://kangaroostreams.hayd.uk/Adelaide",
+    "Perth":     "https://kangaroostreams.hayd.uk/Perth",
+    "Hobart":    "https://kangaroostreams.hayd.uk/Hobart",
+    "Darwin":    "https://kangaroostreams.hayd.uk/Darwin",
+    "Canberra":  "https://kangaroostreams.hayd.uk/Canberra",
+}
+DEFAULT_CITY = "Brisbane"
 
-# Channels we explicitly want on the Free-to-Air grid (Brisbane FTA
-# only — strips the regional Seven mirrors and non-AU bonus channels
-# the Stremio addon ships).  Order = LCN order so the grid renders
-# 7 / 9 / 10 / ABC / SBS top-to-bottom like a real EPG.
+def _catalog_url(city: str) -> str:
+    base = SUPPORTED_CITIES.get(city, SUPPORTED_CITIES[DEFAULT_CITY])
+    return f"{base}/catalog/tv/iptv-channels-{city}.json"
+
+def _epg_url(city: str) -> str:
+    return f"https://i.mjh.nz/au/{city}/epg.xml.gz"
+
+# Channel ordering reference (Brisbane).  Translated per-city below.
 DEFAULT_FTA_IDS = [
     # Seven network
     "mjh-seven-bri", "mjh-7two-bri", "mjh-7mate-bri", "mjh-7flix-bri",
@@ -61,16 +76,92 @@ DEFAULT_FTA_IDS = [
     "mjh-sbs-sbst", "mjh-sbs-5nsw", "mjh-sbs-sbs-radio-4",
 ]
 
+# v2.8.91 — Unified channel-logo map (`tv-logo/tv-logos` GitHub repo,
+# the de-facto standard set used by Tivimate / Kodi PVR / Linux IPTV
+# launchers).  Every PNG is transparent-bg, consistently sized, crisp
+# — fixes the mismatched-logo grab-bag from the Stremio addon.
+_TV_LOGO_BASE = (
+    "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/australia"
+)
+CHANNEL_LOGOS: Dict[str, str] = {
+    "mjh-seven-bri":      f"{_TV_LOGO_BASE}/seven-au.png",
+    "mjh-7two-bri":       f"{_TV_LOGO_BASE}/7two-au.png",
+    "mjh-7mate-bri":      f"{_TV_LOGO_BASE}/7mate-au.png",
+    "mjh-7flix-bri":      f"{_TV_LOGO_BASE}/7flix-au.png",
+    "mjh-7bravo-fast":    f"{_TV_LOGO_BASE}/7bravo-au.png",
+    "mjh-channel-9-qld":  f"{_TV_LOGO_BASE}/nine-au.png",
+    "mjh-gem-qld":        f"{_TV_LOGO_BASE}/nine-gem-au.png",
+    "mjh-go-qld":         f"{_TV_LOGO_BASE}/nine-go-au.png",
+    "mjh-life-qld":       f"{_TV_LOGO_BASE}/nine-life-au.png",
+    "mjh-rush-qld":       f"{_TV_LOGO_BASE}/nine-rush-au.png",
+    "mjh-10-qld":         f"{_TV_LOGO_BASE}/10-au.png",
+    "mjh-10peach-qld":    f"{_TV_LOGO_BASE}/10-peach-au.png",
+    "mjh-10bold-qld":     f"{_TV_LOGO_BASE}/10-bold-au.png",
+    "mjh-abc-qld":        f"{_TV_LOGO_BASE}/abc-au.png",
+    "mjh-abc-tv-plus":    f"{_TV_LOGO_BASE}/abc-family-au.png",
+    "mjh-abc-me":         f"{_TV_LOGO_BASE}/abc-entertains-au.png",
+    "mjh-abc-kids":       f"{_TV_LOGO_BASE}/abc-kids-au.png",
+    "mjh-abc-news":       f"{_TV_LOGO_BASE}/abc-news-au.png",
+    "mjh-sbs-sbst":       f"{_TV_LOGO_BASE}/sbs-au.png",
+    "mjh-sbs-5nsw":       f"{_TV_LOGO_BASE}/nitv-au.png",
+    "mjh-sbs-sbs-radio-4": f"{_TV_LOGO_BASE}/sbs-au.png",
+}
+
+
+def _city_to_state_suffix(city: str) -> str:
+    return {
+        "Brisbane": "qld", "Sydney": "nsw", "Melbourne": "vic",
+        "Adelaide": "sa", "Perth": "wa", "Hobart": "tas",
+        "Darwin": "nt", "Canberra": "act",
+    }.get(city, "qld")
+
+
+def _city_to_seven_code(city: str) -> str:
+    return {
+        "Brisbane": "bri", "Sydney": "syd", "Melbourne": "mel",
+        "Adelaide": "ade", "Perth": "per", "Hobart": "hob",
+        "Darwin": "drw", "Canberra": "cbr",
+    }.get(city, "bri")
+
+
+def _ids_for_city(city: str) -> List[str]:
+    if city == "Brisbane":
+        return list(DEFAULT_FTA_IDS)
+    seven = _city_to_seven_code(city)
+    suf = _city_to_state_suffix(city)
+    return [
+        f"mjh-seven-{seven}", f"mjh-7two-{seven}", f"mjh-7mate-{seven}",
+        f"mjh-7flix-{seven}", "mjh-7bravo-fast",
+        f"mjh-channel-9-{suf}", f"mjh-go-{suf}", f"mjh-gem-{suf}",
+        f"mjh-life-{suf}", f"mjh-rush-{suf}",
+        f"mjh-10-{suf}", f"mjh-10peach-{suf}", f"mjh-10bold-{suf}",
+        f"mjh-abc-{suf}",
+        "mjh-abc-tv-plus", "mjh-abc-me", "mjh-abc-kids", "mjh-abc-news",
+        "mjh-sbs-sbst", "mjh-sbs-5nsw", "mjh-sbs-sbs-radio-4",
+    ]
+
+
+def _logo_for_id(channel_id: str) -> Optional[str]:
+    """Return the unified `tv-logos` URL, suffix-tolerant."""
+    if channel_id in CHANNEL_LOGOS:
+        return CHANNEL_LOGOS[channel_id]
+    parts = channel_id.rsplit("-", 1)
+    if len(parts) == 2:
+        for stand_in in ("qld", "bri", "fast"):
+            probe = f"{parts[0]}-{stand_in}"
+            if probe in CHANNEL_LOGOS:
+                return CHANNEL_LOGOS[probe]
+    return None
+
 # ---------------------------------------------------------------- caches
-_channel_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
-_epg_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
-# Separate cache for the channel-metadata-only slice of the EPG so we
-# don't pollute the full EPG cache when `_load_channels()` runs first.
-_epg_meta_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
-_stream_cache: Dict[str, Dict[str, Any]] = {}
-_CHANNEL_TTL_S = 3600          # 1 h
-_EPG_TTL_S = 1800              # 30 min
-_STREAM_TTL_S = 300            # 5 min
+# v2.8.91 — Keyed by city to support per-city EPG + channel sets.
+_channel_cache: Dict[str, Dict[str, Any]] = {}
+_epg_cache: Dict[str, Dict[str, Any]] = {}
+_epg_meta_cache: Dict[str, Dict[str, Any]] = {}
+_stream_cache: Dict[str, Dict[str, Any]] = {}      # key = "{city}:{channel_id}"
+_CHANNEL_TTL_S = 3600
+_EPG_TTL_S = 1800
+_STREAM_TTL_S = 300
 
 
 # ---------------------------------------------------------------- helpers
@@ -107,20 +198,17 @@ async def _http_get(url: str, *, timeout: float = 15.0) -> httpx.Response:
 
 
 # ---------------------------------------------------------------- channels
-async def _load_channels() -> List[Dict[str, Any]]:
-    """Stremio addon catalog → trimmed to our default FTA set.
+async def _load_channels(city: str = DEFAULT_CITY) -> List[Dict[str, Any]]:
+    """Stremio addon catalog → trimmed to our default FTA set for `city`.
 
-    Returns one dict per channel: `{id, name, logo, lcn}`.  The
-    addon's `id` looks like `au|Brisbane|mjh-seven-bri|tv` — we pull
-    the third segment (the `mjh-*` id) and use it directly.  LCN /
-    proper display names are merged in from the EPG channel list so
-    Seven shows as "Seven" with LCN 71 instead of the addon's name.
+    Returns `[{id, name, logo, lcn}, ...]`.
     """
     now = time.time()
-    if _channel_cache["data"] and now - _channel_cache["ts"] < _CHANNEL_TTL_S:
-        return _channel_cache["data"]
+    bucket = _channel_cache.setdefault(city, {"ts": 0.0, "data": None})
+    if bucket["data"] and now - bucket["ts"] < _CHANNEL_TTL_S:
+        return bucket["data"]
 
-    r = await _http_get(CATALOG_URL)
+    r = await _http_get(_catalog_url(city))
     catalog = (r.json() or {}).get("metas") or []
     by_mjh: Dict[str, Dict[str, Any]] = {}
     for m in catalog:
@@ -133,37 +221,37 @@ async def _load_channels() -> List[Dict[str, Any]]:
             "id": mjh,
             "stremio_id": mid,
             "name": m.get("name") or mjh,
-            "logo": m.get("poster") or m.get("logo") or "",
+            # v2.8.91 — Always prefer the unified `tv-logos` PNG.
+            "logo": _logo_for_id(mjh) or m.get("poster") or m.get("logo") or "",
             "lcn": None,
         }
 
-    # Merge in EPG channel metadata for display names + LCN
-    epg = await _load_epg(force_channel_only=True)
+    epg = await _load_epg(city=city, force_channel_only=True)
     for ch in epg.get("channels", []):
         cid = ch.get("id")
         if cid in by_mjh:
             by_mjh[cid]["name"] = ch.get("name") or by_mjh[cid]["name"]
             if ch.get("lcn"):
                 by_mjh[cid]["lcn"] = ch["lcn"]
-            if ch.get("icon"):
-                # Prefer the EPG's logo (the auto-extracted PNG is
-                # usually crisper than the Stremio addon's GitHub
-                # tile).
+            # NOTE: we do NOT overwrite the logo here — `_logo_for_id`
+            # has already set a clean unified logo when one exists.
+            # Falling back to the EPG's auto-extracted PNG only happens
+            # when there's no unified logo available.
+            if not by_mjh[cid]["logo"] and ch.get("icon"):
                 by_mjh[cid]["logo"] = ch["icon"]
 
-    # Filter to our default FTA set and preserve that order
     out: List[Dict[str, Any]] = []
-    for mjh in DEFAULT_FTA_IDS:
+    for mjh in _ids_for_city(city):
         if mjh in by_mjh:
             out.append(by_mjh[mjh])
 
-    _channel_cache["data"] = out
-    _channel_cache["ts"] = now
+    bucket["data"] = out
+    bucket["ts"] = now
     return out
 
 
 # ---------------------------------------------------------------- epg
-async def _load_epg(*, force_channel_only: bool = False) -> Dict[str, Any]:
+async def _load_epg(*, city: str = DEFAULT_CITY, force_channel_only: bool = False) -> Dict[str, Any]:
     """Download + parse the Brisbane XMLTV feed.
 
     Returns:
@@ -184,16 +272,14 @@ async def _load_epg(*, force_channel_only: bool = False) -> Dict[str, Any]:
     so the JSON payload sent to the WebView stays compact (~150 KB).
     """
     now = time.time()
-    # v2.8.90 — pick the appropriate cache.  channels_only payloads
-    # are MUCH smaller (no programmes) and MUST NOT be stored in the
-    # main `_epg_cache` because subsequent full-EPG callers would
-    # then see an empty `programmes` map.  Two separate buckets.
-    target_cache = _epg_meta_cache if force_channel_only else _epg_cache
+    # v2.8.91 — Per-city, per-mode cache buckets.
+    target_dict = _epg_meta_cache if force_channel_only else _epg_cache
+    target_cache = target_dict.setdefault(city, {"ts": 0.0, "data": None})
     cached = target_cache.get("data")
     if cached and now - target_cache["ts"] < _EPG_TTL_S:
         return cached
 
-    r = await _http_get(EPG_URL, timeout=25.0)
+    r = await _http_get(_epg_url(city), timeout=25.0)
     raw = r.content
     if r.headers.get("content-encoding", "").lower() == "gzip" or raw[:2] == b"\x1f\x8b":
         try:
@@ -279,19 +365,20 @@ async def _load_epg(*, force_channel_only: bool = False) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------- streams
-async def _resolve_stream(channel_id: str) -> Optional[str]:
-    """Call the Stremio addon's stream endpoint and return the first
-    playable URL.  Cached per channel for 5 min.
+async def _resolve_stream(channel_id: str, city: str = DEFAULT_CITY) -> Optional[str]:
+    """Call the city-specific Stremio addon's stream endpoint and
+    return the first playable URL.  Cached per (city, channel) for 5 min.
     """
     now = time.time()
-    hit = _stream_cache.get(channel_id)
+    cache_key = f"{city}:{channel_id}"
+    hit = _stream_cache.get(cache_key)
     if hit and now - hit["ts"] < _STREAM_TTL_S:
         return hit["url"]
 
-    stremio_id = f"au|Brisbane|{channel_id}|tv"
-    # Stremio's URL spec percent-encodes the `|` characters.
+    base = SUPPORTED_CITIES.get(city, SUPPORTED_CITIES[DEFAULT_CITY])
+    stremio_id = f"au|{city}|{channel_id}|tv"
     encoded = stremio_id.replace("|", "%7C")
-    url = f"{STREMIO_BASE}/stream/tv/{encoded}.json"
+    url = f"{base}/stream/tv/{encoded}.json"
     try:
         r = await _http_get(url, timeout=8.0)
         streams = (r.json() or {}).get("streams") or []
@@ -299,53 +386,75 @@ async def _resolve_stream(channel_id: str) -> Optional[str]:
             return None
         first = streams[0].get("url")
         if first:
-            _stream_cache[channel_id] = {"ts": now, "url": first}
+            _stream_cache[cache_key] = {"ts": now, "url": first}
         return first
     except Exception as exc:  # noqa: BLE001
-        log.warning("stream resolve failed for %s: %s", channel_id, exc)
+        log.warning("stream resolve failed for %s/%s: %s", city, channel_id, exc)
         return None
 
 
+def _normalize_city(name: Optional[str]) -> str:
+    if not name:
+        return DEFAULT_CITY
+    cap = name.strip().capitalize()
+    return cap if cap in SUPPORTED_CITIES else DEFAULT_CITY
+
+
 # ---------------------------------------------------------------- routes
+@router.get("/cities")
+async def fta_cities() -> Dict[str, Any]:
+    """List of supported AU capital cities for the city selector."""
+    return {
+        "cities": list(SUPPORTED_CITIES.keys()),
+        "default": DEFAULT_CITY,
+    }
+
+
 @router.get("/channels")
-async def fta_channels() -> Dict[str, Any]:
+async def fta_channels(
+    city: str = Query(DEFAULT_CITY, description="AU capital city"),
+) -> Dict[str, Any]:
     """Channel list for the EPG grid (left rail of logos)."""
+    city = _normalize_city(city)
     try:
-        channels = await _load_channels()
+        channels = await _load_channels(city=city)
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"UPSTREAM_FAIL: {exc}") from exc
-    return {"channels": channels, "count": len(channels)}
+    return {"city": city, "channels": channels, "count": len(channels)}
 
 
 @router.get("/streams/{channel_id}")
-async def fta_stream(channel_id: str) -> Dict[str, Any]:
+async def fta_stream(
+    channel_id: str,
+    city: str = Query(DEFAULT_CITY, description="AU capital city"),
+) -> Dict[str, Any]:
     """Resolve one channel's HLS URL."""
-    url = await _resolve_stream(channel_id)
+    city = _normalize_city(city)
+    url = await _resolve_stream(channel_id, city=city)
     if not url:
         raise HTTPException(404, "STREAM_NOT_FOUND")
-    return {"channel_id": channel_id, "url": url}
+    return {"channel_id": channel_id, "city": city, "url": url}
 
 
 @router.get("/epg")
 async def fta_epg(
-    channels_only: bool = Query(False, description="Return channel metadata only (no programmes)."),
+    channels_only: bool = Query(False),
+    city: str = Query(DEFAULT_CITY, description="AU capital city"),
 ) -> Dict[str, Any]:
     """Next ~24 h of programmes, keyed by channel id."""
+    city = _normalize_city(city)
     try:
-        data = await _load_epg(force_channel_only=channels_only)
+        data = await _load_epg(city=city, force_channel_only=channels_only)
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"EPG_UPSTREAM_FAIL: {exc}") from exc
-    return data
+    return {**data, "city": city}
 
 
 @router.get("/health")
 async def fta_health() -> Dict[str, Any]:
-    """Light health probe — fast even on a cold cache."""
     return {
         "ok": True,
-        "channels_cached": bool(_channel_cache.get("data")),
-        "epg_cached": bool(_epg_cache.get("data")),
-        "epg_age_s": (
-            int(time.time() - _epg_cache["ts"]) if _epg_cache.get("ts") else None
-        ),
+        "supported_cities": list(SUPPORTED_CITIES.keys()),
+        "channels_cached_cities": list(_channel_cache.keys()),
+        "epg_cached_cities": list(_epg_cache.keys()),
     }
