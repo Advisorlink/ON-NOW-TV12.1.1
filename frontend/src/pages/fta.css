@@ -4,7 +4,90 @@
    - Programme cells carry title + subtitle + time, NEXT pill on the
      next-airing slot
    - City selector in the topbar
+   v2.8.97 — Vesper-style slide-in left side menu for categories.
 */
+
+.fta-side-menu {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 320px;
+    background:
+        linear-gradient(180deg, rgba(15, 25, 50, 0.96) 0%, rgba(6, 10, 22, 0.96) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid rgba(93, 200, 255, 0.18);
+    z-index: 60;
+    padding: 28px 16px 16px;
+    box-sizing: border-box;
+    box-shadow: 18px 0 60px rgba(0, 0, 0, 0.5);
+    animation: fta-side-menu-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes fta-side-menu-in {
+    from { transform: translateX(-100%); opacity: 0; }
+    to   { transform: translateX(0);     opacity: 1; }
+}
+
+.fta-side-menu__title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
+}
+
+.fta-side-menu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fta-side-menu__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    text-align: left;
+    transition: background 160ms, color 160ms, transform 160ms;
+}
+
+.fta-side-menu__item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.fta-side-menu__item:focus {
+    outline: none;
+    background: linear-gradient(135deg, rgba(93, 200, 255, 0.18) 0%, rgba(93, 200, 255, 0.04) 100%);
+    box-shadow: inset 3px 0 0 0 var(--fta-blue, #5DC8FF);
+    transform: translateX(2px);
+}
+
+.fta-side-menu__item.is-active {
+    color: var(--fta-blue, #5DC8FF);
+    background: rgba(93, 200, 255, 0.08);
+}
+
+.fta-side-menu__count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+}
 
 .fta-root {
     --fta-bg: #03060f;
@@ -249,7 +332,19 @@
     border: 0;
     padding: 0;
     cursor: pointer;
-    transition: transform 200ms, box-shadow 200ms;
+    /* v2.8.97 — animate ALL geometry changes so the preview pane
+       smoothly zooms to fullscreen when the user activates it and
+       smoothly shrinks back when they press BACK.  Because the
+       <video> element inside is NEVER unmounted (same React tree,
+       same DOM node), the HLS connection stays alive — there is no
+       buffer flush, no re-handshake, no audio glitch on entry/exit. */
+    transition:
+        transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        box-shadow 240ms,
+        position 0s,
+        inset 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        border-radius 240ms,
+        aspect-ratio 240ms;
 }
 
 .fta-preview:focus-visible {
@@ -258,6 +353,75 @@
     box-shadow:
         0 30px 70px -22px rgba(0, 0, 0, 0.95),
         0 0 0 2px var(--fta-blue);
+}
+
+/* When the user presses OK on an armed preview, .fta-root gets
+   .is-fullscreen and the preview tile takes over the screen.
+   Same <video>, same hls.js session — just a CSS resize. */
+.fta-root.is-fullscreen .fta-preview {
+    position: fixed;
+    inset: 0;
+    aspect-ratio: auto;
+    border-radius: 0;
+    z-index: 9000;
+    transform: none;
+    box-shadow: none;
+}
+
+.fta-root.is-fullscreen .fta-preview-art {
+    /* In fullscreen we don't want the artwork to dim the live
+       video, but if the stream is still negotiating we keep it as
+       a subtle backdrop. */
+    filter: brightness(0.4);
+}
+
+.fta-root.is-fullscreen .fta-preview-video {
+    object-fit: contain;
+    background: #000;
+}
+
+.fta-root.is-fullscreen .fta-preview-overlay {
+    /* Hide the small overlay text in fullscreen — the user wants
+       a clean cinema view. */
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fta-root.is-fullscreen .fta-preview-hint {
+    display: none;
+}
+
+.fta-root.is-fullscreen .fta-live-pill {
+    top: 24px;
+    left: 24px;
+    transform: scale(1.2);
+    transform-origin: top left;
+}
+
+.fta-root.is-fullscreen::after {
+    /* "Press BACK to return" hint, only in fullscreen. */
+    content: "Press BACK to return";
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 16px;
+    border-radius: 999px;
+    z-index: 9001;
+    pointer-events: none;
+    animation: fta-fade-in 320ms ease-out 1000ms backwards;
+}
+
+@keyframes fta-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 .fta-preview video,
