@@ -1,0 +1,534 @@
+/* ON NOW V2 — Free-to-Air EPG grid.  All styling is scoped under the
+   .fta-root container so it can't bleed into the rest of Vesper. */
+
+.fta-root {
+    --fta-bg: #03060f;
+    --fta-bg-card: #0c1322;
+    --fta-bg-focused: #142036;
+    --fta-fg: #fff;
+    --fta-fg-dim: rgba(255, 255, 255, 0.62);
+    --fta-fg-dimmer: rgba(255, 255, 255, 0.36);
+    --fta-accent: #ff2535;
+    --fta-accent-glow: rgba(255, 37, 53, 0.45);
+    --fta-pill-bg: rgba(255, 255, 255, 0.08);
+    --fta-border: rgba(255, 255, 255, 0.10);
+    --fta-row-h: 96px;
+    --fta-grid-px-per-min: 12px;   /* 12 px = 1 min → 30 min slot = 360 px */
+    --fta-channel-rail-w: 110px;
+
+    position: fixed;
+    inset: 0;
+    background: var(--fta-bg);
+    color: var(--fta-fg);
+    font-family: var(--theme-font, 'Inter', sans-serif);
+    overflow: hidden;
+    z-index: 50;
+}
+
+/* Top bar ---------------------------------------------------------- */
+.fta-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 36px;
+    border-bottom: 1px solid var(--fta-border);
+    height: 78px;
+    box-sizing: border-box;
+}
+
+.fta-brand {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.fta-brand-v2 {
+    color: var(--fta-accent);
+    font-weight: 900;
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 6px;
+    line-height: 1;
+}
+
+.fta-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 20px;
+}
+
+.fta-tab {
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fta-fg-dim);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: background 200ms, color 200ms, transform 200ms;
+}
+
+.fta-tab.is-active {
+    background: var(--fta-pill-bg);
+    color: var(--fta-fg);
+}
+
+.fta-tab:focus-visible {
+    outline: 2px solid var(--fta-fg);
+    outline-offset: 2px;
+}
+
+.fta-clock {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--fta-fg);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Body split ------------------------------------------------------- */
+.fta-body {
+    display: flex;
+    height: calc(100vh - 78px);
+    width: 100vw;
+}
+
+.fta-sidebar {
+    width: 360px;
+    flex-shrink: 0;
+    padding: 22px;
+    box-sizing: border-box;
+    border-right: 1px solid var(--fta-border);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+}
+
+.fta-preview {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 22px 50px -20px rgba(0, 0, 0, 0.8);
+}
+
+.fta-preview video,
+.fta-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.fta-live-pill {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    border-radius: 4px;
+    box-shadow: 0 0 14px var(--fta-accent-glow);
+}
+
+.fta-preview-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.85) 100%);
+    color: #fff;
+}
+
+.fta-preview-overlay__title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.fta-preview-overlay__meta {
+    font-size: 11px;
+    color: var(--fta-fg-dim);
+    margin-top: 4px;
+}
+
+.fta-progress {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    margin-top: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.fta-progress__bar {
+    height: 100%;
+    background: var(--fta-accent);
+    transition: width 300ms ease;
+}
+
+.fta-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.fta-info-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.fta-info-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.fta-info-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.fta-info-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.fta-info-name__num {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.fta-info-name__lbl {
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    margin-top: 2px;
+}
+
+.fta-fav-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--fta-pill-bg);
+    border: 1px solid var(--fta-border);
+    color: var(--fta-fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 200ms, color 200ms, transform 200ms;
+}
+
+.fta-fav-btn.is-fav {
+    color: var(--fta-accent);
+    background: rgba(255, 37, 53, 0.16);
+    border-color: rgba(255, 37, 53, 0.36);
+}
+
+.fta-fav-btn:focus-visible {
+    outline: 2px solid var(--fta-fg);
+    outline-offset: 3px;
+}
+
+.fta-synopsis {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--fta-fg-dim);
+    margin-top: 0;
+}
+
+.fta-chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.fta-chip {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--fta-fg-dim);
+}
+
+.fta-chip--pg {
+    color: #ffb800;
+    border-color: rgba(255, 184, 0, 0.45);
+    background: rgba(255, 184, 0, 0.10);
+}
+
+/* Grid ------------------------------------------------------------- */
+.fta-grid-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.fta-grid-header {
+    display: flex;
+    align-items: flex-end;
+    height: 52px;
+    border-bottom: 1px solid var(--fta-border);
+    padding-left: var(--fta-channel-rail-w);
+    box-sizing: border-box;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.fta-grid-header__today {
+    position: absolute;
+    left: 18px;
+    bottom: 12px;
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.fta-grid-times {
+    display: flex;
+    height: 100%;
+    align-items: flex-end;
+    padding-bottom: 8px;
+    position: relative;
+    will-change: transform;
+}
+
+.fta-grid-time {
+    flex-shrink: 0;
+    text-align: left;
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-grid-rows {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    will-change: transform;
+}
+
+/* Hide scrollbars but keep scrolling — looks cleaner on TV. */
+.fta-grid-rows::-webkit-scrollbar { display: none; }
+.fta-grid-rows { scrollbar-width: none; }
+
+.fta-row {
+    display: flex;
+    height: var(--fta-row-h);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+    position: relative;
+}
+
+.fta-row__rail {
+    width: var(--fta-channel-rail-w);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    box-sizing: border-box;
+    background: var(--fta-bg);
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    border-right: 1px solid var(--fta-border);
+}
+
+.fta-row__rail img {
+    max-width: 100%;
+    max-height: 64%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+}
+
+.fta-row__cells {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    height: 100%;
+    padding: 0 0;
+}
+
+.fta-cell {
+    height: calc(var(--fta-row-h) - 18px);
+    margin: 0 4px;
+    background: var(--fta-bg-card);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    flex-shrink: 0;
+    color: var(--fta-fg);
+    transition: background 160ms, border 160ms, transform 160ms;
+}
+
+.fta-cell:hover { background: var(--fta-bg-focused); }
+.fta-cell:focus,
+.fta-cell.is-focused {
+    background: var(--fta-bg-focused);
+    border-color: #fff;
+    outline: none;
+    transform: scale(1.005);
+    box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.85);
+}
+
+.fta-cell__title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fta-cell__meta {
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.fta-cell__live-pill {
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+}
+
+.fta-cell--empty {
+    background: rgba(255, 255, 255, 0.018);
+    cursor: default;
+}
+
+/* NOW line --------------------------------------------------------- */
+.fta-now-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--fta-accent);
+    pointer-events: none;
+    z-index: 3;
+    box-shadow: 0 0 12px var(--fta-accent-glow);
+}
+
+.fta-now-label {
+    position: absolute;
+    top: 8px;
+    transform: translateX(-50%);
+    background: var(--fta-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    box-shadow: 0 4px 14px var(--fta-accent-glow);
+    z-index: 5;
+    white-space: nowrap;
+}
+
+/* Full-screen player ---------------------------------------------- */
+.fta-fullscreen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 99;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fta-fullscreen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.fta-fullscreen-hint {
+    position: absolute;
+    top: 22px;
+    left: 22px;
+    background: rgba(0, 0, 0, 0.55);
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+}
+
+/* Loading state --------------------------------------------------- */
+.fta-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--fta-fg-dim);
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.fta-loading__sweep {
+    width: 240px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--fta-accent) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: fta-loading-sweep 1.5s ease-in-out infinite;
+    border-radius: 999px;
+}
+
+@keyframes fta-loading-sweep {
+    0%, 100% { background-position: 100% 0; }
+    50% { background-position: 0% 0; }
+}

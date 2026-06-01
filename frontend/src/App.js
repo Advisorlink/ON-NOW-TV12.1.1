@@ -19,6 +19,8 @@ import KidsExitPin from '@/pages/KidsExitPin';
 import KidsSetup from '@/pages/KidsSetup';
 import KidsSettings from '@/pages/KidsSettings';
 import WatchTogether from '@/pages/WatchTogether';
+// v2.8.90 — ON NOW V2 Free-to-Air EPG page (Brisbane AU FTA).
+import FreeToAir from '@/pages/FreeToAir';
 import LiveTV from '@/pages/LiveTV';
 import SportsGuide from '@/pages/SportsGuide';
 import DevModeBadge from '@/components/DevModeBadge';
@@ -573,6 +575,10 @@ function App() {
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
                                 <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
+                                {/* v2.8.90 — Free-to-Air EPG (will move to a
+                                    standalone APK; for now lives at /fta inside
+                                    the existing Vesper React app). */}
+                                <Route path="/fta" element={<FreeToAir />} />
                                 <Route path="/settings" element={<RequireProfile><Settings /></RequireProfile>} />
                                 <Route path="/title/:type/:id" element={<RequireProfile><Detail /></RequireProfile>} />
                                 <Route path="/title/:id" element={<RequireProfile><Detail /></RequireProfile>} />

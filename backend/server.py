@@ -4145,6 +4145,10 @@ app.include_router(watch_party_router)
 from stt import router as stt_router  # noqa: E402
 app.include_router(stt_router)
 
+# v2.8.90 — ON NOW V2 Free-to-Air router (Brisbane AU FTA + EPG).
+from fta import router as fta_router  # noqa: E402
+app.include_router(fta_router)
+
 from sportsdb import router as sportsdb_router  # noqa: E402
 app.include_router(sportsdb_router)
 
