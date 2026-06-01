@@ -1,74 +1,31 @@
 /**
- * <BootSplash/> — full-screen "ON NOW TV 2 is starting" splash.
+ * <BootSplash/> — full-screen "ON NOW V2" welcome splash.
  *
- * v2.8.0 — REGRESSION FIX.  The splash was blocking the user for
- * the FULL 6-second hard-cap on every cold boot because:
- *   1) `instantBundle.js`'s META_KEY was bumped to
- *      `'onnowtv-instant-bundle-meta-v2'` but this component was
- *      still reading the old `'onnowtv-instant-bundle-meta'` key,
- *      so it could never see a cached bundle on remount.
- *   2) Nothing in the codebase ever calls `bootInstantBundle()`,
- *      so the `vesper:bundle-ready` event never fires either.
- *
- * Net effect: every cold launch ate a 6 s artificial delay before
- * the user saw Home.  Fix: match the new key AND clamp the hard
- * cap to 1.5 s so a broken signal NEVER costs the user real time.
- *
- * Closes itself by listening for two signals:
- *   1. `vesper:bundle-ready` window event fired by `App.js` after
- *      `bootInstantBundle()` resolves.
- *   2. Hard cap timer (default 1.5 s).
+ * v2.8.88 — Redesigned per user request:
+ *   • Big "ON NOW" + accent "V2" wordmark with subtle glow.
+ *   • "Welcome to ON NOW V2" tagline beneath.
+ *   • Cinematic radial backdrop, no centered indeterminate spinner
+ *     that "dragged down" (per user feedback the old progress bar
+ *     looked weird).  Replaced with a low-key animated underline
+ *     so there's still motion but no centered loader.
+ *   • Shows on EVERY app open for ~2.2 s then fades out.  Capped
+ *     at 2200ms hard so a broken signal never costs real time.
  */
 import React, { useEffect, useState } from 'react';
-import { Tv2 } from 'lucide-react';
 
-export default function BootSplash({ minDurationMs = 600, hardCapMs = 1500 }) {
+export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
     const [open, setOpen] = useState(true);
-    const [bundleReady, setBundleReady] = useState(false);
-    const [minElapsed, setMinElapsed] = useState(false);
+    const [leaving, setLeaving] = useState(false);
 
     useEffect(() => {
-        const onReady = () => setBundleReady(true);
-        window.addEventListener('vesper:bundle-ready', onReady);
-
-        const minT = setTimeout(() => setMinElapsed(true), minDurationMs);
-        const hardT = setTimeout(() => setOpen(false), hardCapMs);
-
-        /* If the bundle was already applied before this mount
-         * (e.g. fast localStorage hit), the event has fired
-         * already.  Check the meta flag once at mount.  All
-         * branches are wrapped in try/catch so a corrupted blob
-         * can NEVER prevent the splash from eventually closing.
-         *
-         * v2.8.0 — key is `onnowtv-instant-bundle-meta-v2` (used
-         * to be without the `-v2` suffix; see file header). */
-        try {
-            const raw = localStorage.getItem('onnowtv-instant-bundle-meta-v2');
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            if (
-                parsed &&
-                typeof parsed === 'object' &&
-                !Array.isArray(parsed) &&
-                parsed.generated_at
-            ) {
-                setBundleReady(true);
-            }
-        } catch {
-            /* ignore — boot splash will close on the min-elapsed
-             * timer regardless. */
-        }
-
+        // Always show for the min duration on every open, then fade.
+        const fadeT = setTimeout(() => setLeaving(true), minDurationMs);
+        const closeT = setTimeout(() => setOpen(false), hardCapMs);
         return () => {
-            window.removeEventListener('vesper:bundle-ready', onReady);
-            clearTimeout(minT);
-            clearTimeout(hardT);
+            clearTimeout(fadeT);
+            clearTimeout(closeT);
         };
     }, [minDurationMs, hardCapMs]);
-
-    useEffect(() => {
-        if (bundleReady && minElapsed) setOpen(false);
-    }, [bundleReady, minElapsed]);
 
     if (!open) return null;
 
@@ -79,87 +36,97 @@ export default function BootSplash({ minDurationMs = 600, hardCapMs = 1500 }) {
             style={{
                 zIndex: 95,
                 background:
-                    'radial-gradient(ellipse at 50% 30%, #0c1a36 0%, #06080F 60%, #03050C 100%)',
+                    'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)',
                 color: '#fff',
-                gap: 22,
+                gap: 18,
+                opacity: leaving ? 0 : 1,
+                transition: 'opacity 380ms ease-out',
             }}
         >
-            {/* Brand mark */}
+            {/* Cinematic ambient scan lines for a TV-channel feel */}
             <div
+                aria-hidden="true"
                 style={{
-                    width: 96,
-                    height: 96,
-                    borderRadius: 28,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    position: 'absolute',
+                    inset: 0,
                     background:
-                        'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)',
-                    border: '1.5px solid rgba(93,200,255,0.45)',
-                    boxShadow:
-                        '0 0 0 1px rgba(255,255,255,0.04), 0 24px 60px rgba(93,200,255,0.25)',
-                    animation: 'vesper-boot-pulse 1.6s ease-in-out infinite',
+                        'repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px)',
+                    pointerEvents: 'none',
                 }}
-            >
-                <Tv2 size={42} strokeWidth={1.8} color="var(--vesper-blue-bright)" />
-            </div>
+            />
 
+            {/* Brand wordmark */}
             <div
+                className="vesper-splash-mark"
                 style={{
                     fontFamily: 'inherit',
-                    fontSize: 24,
-                    fontWeight: 700,
-                    letterSpacing: '-0.02em',
-                    textShadow: '0 2px 24px rgba(93,200,255,0.4)',
+                    fontSize: 'clamp(56px, 9vw, 132px)',
+                    fontWeight: 800,
+                    letterSpacing: '-0.045em',
+                    lineHeight: 1,
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 'clamp(12px, 1vw, 22px)',
+                    textShadow: '0 8px 60px rgba(93,200,255,0.28)',
+                    animation:
+                        'vesper-splash-rise 700ms cubic-bezier(.16,1,.3,1) both',
                 }}
             >
-                ON&nbsp;NOW&nbsp;TV&nbsp;
-                <span style={{ color: 'var(--vesper-blue-bright)' }}>2</span>
+                <span>ON&nbsp;NOW</span>
+                <span
+                    style={{
+                        color: 'var(--vesper-blue-bright, #5DC8FF)',
+                        textShadow:
+                            '0 0 24px rgba(93,200,255,0.55), 0 0 60px rgba(93,200,255,0.25)',
+                    }}
+                >
+                    V2
+                </span>
             </div>
 
+            {/* Animated underline — a clean horizontal sweep, no
+                centred dragging loader. */}
+            <div
+                style={{
+                    width: 'clamp(180px, 18vw, 320px)',
+                    height: 2,
+                    background:
+                        'linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
+                    animation: 'vesper-splash-sweep 1.6s ease-in-out infinite',
+                    borderRadius: 999,
+                    boxShadow: '0 0 12px rgba(93,200,255,0.45)',
+                }}
+            />
+
+            {/* Tagline */}
             <div
                 className="vesper-mono"
                 style={{
-                    fontSize: 11,
-                    letterSpacing: '0.28em',
+                    fontSize: 'clamp(11px, 0.9vw, 14px)',
+                    letterSpacing: '0.36em',
                     textTransform: 'uppercase',
-                    color: 'rgba(255,255,255,0.55)',
+                    color: 'rgba(255,255,255,0.65)',
+                    animation:
+                        'vesper-splash-fade 900ms 250ms ease-out both',
                 }}
             >
-                Loading guide&hellip;
-            </div>
-
-            {/* Indeterminate progress bar */}
-            <div
-                style={{
-                    marginTop: 12,
-                    width: 240,
-                    height: 3,
-                    borderRadius: 999,
-                    background: 'rgba(255,255,255,0.06)',
-                    overflow: 'hidden',
-                }}
-            >
-                <div
-                    style={{
-                        width: '40%',
-                        height: '100%',
-                        borderRadius: 999,
-                        background:
-                            'linear-gradient(90deg, transparent 0%, var(--vesper-blue-bright) 50%, transparent 100%)',
-                        animation: 'vesper-boot-slide 1.4s linear infinite',
-                    }}
-                />
+                Welcome to ON&nbsp;NOW&nbsp;V2
             </div>
 
             <style>{`
-                @keyframes vesper-boot-pulse {
-                    0%, 100% { transform: scale(1); }
-                    50%      { transform: scale(1.05); }
+                @keyframes vesper-splash-rise {
+                    from { opacity: 0; transform: translateY(18px); letter-spacing: -0.02em; }
+                    to   { opacity: 1; transform: translateY(0);    letter-spacing: -0.045em; }
                 }
-                @keyframes vesper-boot-slide {
-                    0%   { transform: translateX(-100%); }
-                    100% { transform: translateX(350%); }
+                @keyframes vesper-splash-fade {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                @keyframes vesper-splash-sweep {
+                    0%   { background-position:  100% 0; opacity: 0.85; }
+                    50%  { background-position:    0% 0; opacity: 1; }
+                    100% { background-position: -100% 0; opacity: 0.85; }
                 }
             `}</style>
         </div>

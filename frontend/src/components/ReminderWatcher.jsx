@@ -165,6 +165,7 @@ function ReminderToast({ reminder, channel, provider, onDismiss }) {
 
     return (
         <div
+            ref={containerRef}
             role="alertdialog"
             aria-label="Programme starting soon"
             style={{

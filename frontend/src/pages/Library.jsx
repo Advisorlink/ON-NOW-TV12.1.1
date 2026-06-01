@@ -167,10 +167,15 @@ export default function Library() {
             >
                 {tv.length === 0 ? (
                     <TvEmptyState />
-                ) : tv.length > 6 ? (
-                    <CollapsibleGrid expanded={tvExpanded}>
-                        <FavouriteGrid items={tv} type="series" />
-                    </CollapsibleGrid>
+                ) : tv.length > 14 ? (
+                    <CollapsibleGrid
+                        expanded={tvExpanded}
+                        onToggle={() => setTvExpanded((v) => !v)}
+                        items={tv}
+                        renderGrid={(slice) => (
+                            <FavouriteGrid items={slice} type="series" />
+                        )}
+                    />
                 ) : (
                     <FavouriteGrid items={tv} type="series" />
                 )}
@@ -185,10 +190,13 @@ export default function Library() {
                     expanded={actorsExpanded}
                     onToggle={() => setActorsExpanded((v) => !v)}
                 >
-                    {actors.length > 8 ? (
-                        <CollapsibleGrid expanded={actorsExpanded}>
-                            <ActorGrid items={actors} />
-                        </CollapsibleGrid>
+                    {actors.length > 14 ? (
+                        <CollapsibleGrid
+                            expanded={actorsExpanded}
+                            onToggle={() => setActorsExpanded((v) => !v)}
+                            items={actors}
+                            renderGrid={(slice) => <ActorGrid items={slice} />}
+                        />
                     ) : (
                         <ActorGrid items={actors} />
                     )}
@@ -434,41 +442,85 @@ function Section({
 }
 
 /* CollapsibleGrid — wraps the grid in a maxHeight container that
- * shows ~2 rows worth of tiles by default, with a fade-out gradient
- * at the bottom to hint there's more.  Click the three-dot button
- * in the section header to expand to the full height.
+ * shows ~2 rows worth of tiles by default, followed by an easy-to-
+ * see "Show more" pill that mirrors the row's tile aspect.
  *
- * Implementation note: we use maxHeight + overflow:hidden rather
- * than slicing the array so the grid keeps its natural layout
- * (column count stays consistent) and React doesn't churn the
- * children on toggle. */
-function CollapsibleGrid({ expanded, children }) {
+ * v2.8.88 — User asked for:
+ *   1. Pressing D-pad DOWN from a TV Shows tile to skip the masked
+ *      tiles and land on Actors (the next Section).  The previous
+ *      implementation rendered ALL tiles even when collapsed, just
+ *      mask-faded them — so focus iterated through them.  We now
+ *      slice the children so off-screen tiles aren't focusable,
+ *      and re-render everything when the user explicitly expands.
+ *   2. A more discoverable "Show more" affordance — a labeled pill
+ *      tile at the end of the row instead of a tiny "..." icon.
+ *   3. The header's expand button still works for parity (some
+ *      users will go to the header by reflex).
+ */
+function CollapsibleGrid({ expanded, onToggle, items, renderGrid, collapsedLimit = 14 }) {
+    const overflow = !expanded && items.length > collapsedLimit;
+    const slice = overflow ? items.slice(0, collapsedLimit) : items;
+    const hiddenCount = overflow ? items.length - collapsedLimit : 0;
+    const showPill = items.length > collapsedLimit;
+
     return (
-        <div
-            className={expanded ? '' : 'vesper-collapsible-grid'}
-            style={{
-                position: 'relative',
-                maxHeight: expanded ? 'none' : 'clamp(340px, 28vw, 480px)',
-                /* v2.7.85 — TV fix: switched from `overflow: hidden` to
-                   CSS mask-image so focused-tile scale(1.08)+
-                   translateY(-2px) is NOT clipped at the bottom row.
-                   The mask fades out the bottom 80px the same way
-                   the old gradient overlay did, but the tile can
-                   physically extend past the bounding box without
-                   the browser snipping its corners. */
-                WebkitMaskImage: expanded
-                    ? 'none'
-                    : 'linear-gradient(180deg, #000 0, #000 calc(100% - 80px), rgba(0,0,0,0.22) calc(100% - 30px), rgba(0,0,0,0) 100%)',
-                maskImage: expanded
-                    ? 'none'
-                    : 'linear-gradient(180deg, #000 0, #000 calc(100% - 80px), rgba(0,0,0,0.22) calc(100% - 30px), rgba(0,0,0,0) 100%)',
-                /* Reserve room inside so the focused tile in the
-                   bottom-visible row has space to grow. */
-                paddingBottom: expanded ? 0 : 16,
-                transition: 'max-height 360ms cubic-bezier(.16,1,.3,1)',
-            }}
-        >
-            {children}
+        <div style={{ position: 'relative' }}>
+            {/* Wrap the visible slice so spatial focus only sees
+                what's actually painted.  No mask — physically slice
+                instead of fading, so pressing DOWN on the bottom-
+                visible row goes straight to the next <Section>. */}
+            <div style={{ paddingBottom: overflow ? 6 : 0 }}>
+                {renderGrid(slice)}
+            </div>
+            {showPill && (
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'flex-start',
+                        padding: '14px 14px 4px',
+                    }}
+                >
+                    <button
+                        data-testid={expanded
+                            ? 'section-show-less'
+                            : 'section-show-more'}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onToggle}
+                        className="vesper-mono"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            height: 44,
+                            padding: '0 22px',
+                            borderRadius: 999,
+                            background: 'linear-gradient(135deg, rgba(93,200,255,0.20) 0%, rgba(93,200,255,0.08) 100%)',
+                            border: '1px solid rgba(93,200,255,0.45)',
+                            color: 'var(--vesper-text)',
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            textTransform: 'uppercase',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 18px rgba(93,200,255,0.08)',
+                        }}
+                    >
+                        {expanded ? (
+                            <>
+                                <ChevronUp size={14} strokeWidth={2.2} />
+                                Show less
+                            </>
+                        ) : (
+                            <>
+                                <ChevronDown size={14} strokeWidth={2.2} />
+                                Show {hiddenCount > 0 ? `${hiddenCount} more` : 'more'}
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -478,6 +530,8 @@ function CollapsibleGrid({ expanded, children }) {
  * NotifyHitWatcher placement) listing every notify-list item with
  * remove + open actions.  Escape / Backspace closes the popover. */
 function NotifyPopover({ items, onClose, onOpen, onRemove }) {
+    const containerRef = React.useRef(null);
+
     /* Esc / Back closes us before propagating to the page-level
      * back handler so we don't kick the user out to Home as well. */
     React.useEffect(() => {
@@ -491,6 +545,35 @@ function NotifyPopover({ items, onClose, onOpen, onRemove }) {
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onClose]);
+
+    /* v2.8.88 — Focus management:
+     *   1. When the popover mounts, focus jumps to the TOP item
+     *      (first reminder row).  User explicitly asked: "When you
+     *      click on the Reminders section, the focus needs to go to
+     *      the top tile".
+     *   2. Focus stays trapped inside the popover.  Any external
+     *      focusin event snaps focus back to the first focusable
+     *      child so the D-pad can't escape behind the modal. */
+    React.useEffect(() => {
+        const t = setTimeout(() => {
+            const c = containerRef.current;
+            if (!c) return;
+            const first = c.querySelector('[data-focusable="true"], button');
+            try { first?.focus(); } catch { /* ignore */ }
+        }, 60);
+        return () => clearTimeout(t);
+    }, []);
+    React.useEffect(() => {
+        const onFocus = (e) => {
+            const c = containerRef.current;
+            if (!c || c.contains(e.target)) return;
+            e.stopPropagation();
+            const first = c.querySelector('[data-focusable="true"], button');
+            try { first?.focus(); } catch { /* ignore */ }
+        };
+        document.addEventListener('focusin', onFocus, true);
+        return () => document.removeEventListener('focusin', onFocus, true);
+    }, []);
 
     return (
         <div
@@ -508,6 +591,7 @@ function NotifyPopover({ items, onClose, onOpen, onRemove }) {
             onClick={onClose}
         >
             <div
+                ref={containerRef}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     position: 'absolute',
@@ -1028,16 +1112,13 @@ function FavouriteGrid({ items, type }) {
         <div
             className="grid"
             style={{
-                /* v2.7.85 — Tile size + gap tuned for 1920×1080 TV.
-                   Was minmax(120px, 1fr) gap 12 — tiles felt tight and
-                   focused-tile scale(1.08) was bumping neighbours.
-                   Bumped tile floor 120→140 and gap 12→18 so the
-                   1.08× expansion has room without overlapping. */
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                /* v2.8.88 — Per user: TV Shows + Movies should be
+                   EXACTLY 7 across (was auto-fill which yielded 6
+                   at the box's content width).  Padding and gap
+                   preserved so the 1.08× focused scale still has
+                   breathing room. */
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                 gap: 18,
-                /* Inset breathing room so corner tiles (top-left,
-                   top-right, bottom-left, bottom-right) can scale
-                   without being clipped by parent overflow. */
                 padding: '12px 14px',
             }}
         >
@@ -1148,10 +1229,9 @@ function ActorGrid({ items }) {
         <div
             className="grid"
             style={{
-                /* v2.7.85 — Match FavouriteGrid: 140 floor, 18 gap,
-                   12 / 14 inset padding so the focused 1.08× scale
-                   has space to render without clipping. */
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                /* v2.8.88 — Per user: Actors should be 7 across
+                   matching the TV Shows / Movies grids. */
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                 gap: 18,
                 padding: '12px 14px',
             }}

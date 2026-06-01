@@ -72,7 +72,15 @@ export default function SideNav() {
 
     const handleNavClick = (path) => {
         clearDwell();
-        const samePath = location.pathname === path;
+        // v2.8.88 — Compare full URL (pathname + search), not just
+        // pathname.  Movies (`/?filter=movie`), TV Shows
+        // (`/?filter=series`) and Home (`/`) all share pathname `/`,
+        // so the old equality check made the in-app Home menu item
+        // a no-op when the user was already in Movies or TV Shows.
+        // Now Home properly takes them back to the For You feed.
+        const currentFull = location.pathname + (location.search || '');
+        const samePath = currentFull === path
+            || (location.pathname === path && !location.search);
         if (samePath) {
             /* Same-page click — don't collapse, just let focus
              * settle.  Avoids the flicker the user sees when they

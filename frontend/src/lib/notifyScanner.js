@@ -22,6 +22,46 @@ import { pushNotifyHit } from '@/components/NotifyHitWatcher';
 const API = process.env.REACT_APP_BACKEND_URL;
 let alreadyRan = false;
 
+/**
+ * Decide whether a stream result counts as a "real HD release" of
+ * the title the user was waiting on.  Per user request (v2.8.88):
+ *
+ *   1. At least 3 streams come back from the addon.
+ *   2. At least 3 of those streams are tagged 1080p (or higher).
+ *   3. The stream titles/filenames mention the movie/show name —
+ *      guards against the addon returning a trailer, a placeholder,
+ *      or an unrelated file when the title isn't actually out yet.
+ */
+function isHdRelease(streams, expectedName) {
+    if (!Array.isArray(streams) || streams.length < 3) return false;
+
+    const HD_PATTERN = /(?:^|[\s\-_.\[(])(1080p|2160p|4k|uhd|hdr)(?:[\s\-_.\])$]|$)/i;
+    const needle = String(expectedName || '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/\b(19|20)\d{2}\b/g, '')
+        .replace(/[^a-z0-9 ]+/gi, ' ')
+        .trim()
+        .toLowerCase();
+    const needleTokens = needle.split(/\s+/).filter((w) => w.length >= 3);
+
+    const hdMatches = streams.filter((s) => {
+        const blob = [
+            s?.title, s?.name, s?.description,
+            s?.behaviorHints?.filename, s?.behaviorHints?.bingeGroup,
+        ].filter(Boolean).join(' ');
+        if (!HD_PATTERN.test(blob)) return false;
+        if (!needleTokens.length) return true;
+        const blobLower = blob.toLowerCase();
+        // Need at least 60% of the title tokens to appear in the
+        // stream blob — rules out trailers, demos, and unrelated
+        // files when nothing actually matches.
+        const hits = needleTokens.filter((t) => blobLower.includes(t));
+        return hits.length / needleTokens.length >= 0.6;
+    });
+
+    return hdMatches.length >= 3;
+}
+
 export async function runNotifyScanner() {
     if (alreadyRan) return;
     alreadyRan = true;
@@ -52,7 +92,15 @@ export async function runNotifyScanner() {
                 const url = `${API}/api/streams/${entry.type || 'movie'}/${entry.id}`;
                 const res = await axios.get(url, { timeout: 12_000 });
                 const hits = Array.isArray(res?.data?.streams) ? res.data.streams : [];
-                if (hits.length > 0 && !entry.notifiedAt) {
+                // v2.8.88 — Validate HD release before alerting the
+                // user.  Old logic fired the "now in HD" toast for
+                // any non-empty result (including 2 weak/non-matching
+                // streams); user reported false positives so we now
+                // require 3+ 1080p+ streams whose titles match the
+                // expected name.
+                const expectedName = entry?.meta?.name || '';
+                const isHd = isHdRelease(hits, expectedName);
+                if (isHd && !entry.notifiedAt) {
                     // Push to the global watcher queue with all the
                     // metadata it needs to render the toast.
                     pushNotifyHit({

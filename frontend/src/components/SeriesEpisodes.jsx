@@ -457,7 +457,18 @@ export default function SeriesEpisodes({
                     flexWrap: 'nowrap',
                     scrollPaddingLeft: 16,
                     scrollPaddingRight: 16,
-                    paddingBottom: 4,
+                    /* v2.8.88 — Top + bottom padding so the focused
+                       pill's 1.08× scale has breathing room.  Before
+                       this fix overflowY:hidden was cropping the
+                       top + bottom edges of the focused season pill
+                       (user reported "seasons are a little bit
+                       cropped at the top and cropped at the bottom"). */
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    /* Compensate for the new padding so neighbouring
+                       rails don't shift on this page. */
+                    marginTop: -10,
+                    marginBottom: 14,
                 }}
             >
                 {leadingPill}

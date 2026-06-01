@@ -79,6 +79,16 @@ export default function Home() {
         // the Cinemeta-style conventions; we match by suffix so
         // any swappable addon that ships those catalogues still
         // surfaces them.
+        //
+        // v2.8.88 — Dev Unlock (Settings → Unlock testing) bypasses
+        // the "essential 4" filter so the user can see every
+        // installed add-on's catalogues (IPTV, anime, channels, etc.)
+        // as additional rows beneath the trailer/picks section.
+        // Turning the toggle OFF reverts to the locked 4-row layout.
+        let devUnlock = false;
+        try { devUnlock = localStorage.getItem('onnowtv-dev-unlock') === '1'; }
+        catch { /* ignore */ }
+
         const wanted = [
             { suffix: '-movie-year',  eyebrow: 'MOVIES',   title: 'New movies' },
             { suffix: '-series-year', eyebrow: 'SERIES',   title: 'New series' },
@@ -86,6 +96,7 @@ export default function Home() {
             { suffix: '-series-top',  eyebrow: 'SERIES',   title: 'Popular series' },
         ];
         const out = [];
+        const claimedIds = new Set();
         for (const w of wanted) {
             const match = all.find((s) => s.id && s.id.endsWith(w.suffix));
             if (match) {
@@ -94,6 +105,17 @@ export default function Home() {
                     title: w.title,
                     eyebrow: w.eyebrow,
                 });
+                claimedIds.add(match.id);
+            }
+        }
+        if (devUnlock) {
+            // Append every other live shelf the addons returned —
+            // these are the user's installed catalogues (IPTV,
+            // anime, channels, etc.) the locked layout normally
+            // hides.  Skip ones we've already shown above.
+            for (const s of all) {
+                if (claimedIds.has(s.id)) continue;
+                out.push(s);
             }
         }
         return out;
