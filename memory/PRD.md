@@ -12,6 +12,33 @@
 > `HANDOFF_CURRENT.md` for "what's the current state and what
 > should I touch next".
 
+
+> **🟢 v2.8.95 — `/fta` blank-screen on HK1 box fixed + frontend auto-deploy (Jun 1, 2026).**
+> User video showed the "Free To Air" tile launching to a blank gray screen on
+> their HK1 box (launcher splash → grey + cursor, nothing else).  Root cause
+> was NOT the FTA Android wrapper or the launcher tile — it was that the React
+> bundle on the production VPS (`/var/www/onnowtv-frontend/`) was the old
+> build (`main.b542f3ed.js`) that pre-dated the `/fta` route addition in
+> `App.js:581`.  React Router logged `No routes matched location "/fta"` and
+> rendered an empty `#root` (241 bytes), so the WebView showed near-black.
+>
+> Why this slipped: `deploy-backend.yml` triggers on `backend/**` only and
+> never rebuilds/rsyncs the frontend.  The user has been manually SSH-syncing
+> after every frontend change.  Fixed in two steps:
+>   1. Built `/app/frontend` with `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org`,
+>      stripped Emergent preview chrome, rsynced `build/` to
+>      `/var/www/onnowtv-frontend/` on the Contabo VPS.  New bundle
+>      `main.4a21fa56.js` live.  Headless-browser verification shows the
+>      EPG renders correctly: 188 channels, all categories populated, Live
+>      preview pane (Seven · Happy's Place) visible.
+>   2. Added `.github/workflows/deploy-frontend.yml` — mirrors
+>      `deploy-backend.yml` exactly (same `VPS_SSH_PASSWORD` secret, same
+>      host).  Triggers on any `frontend/**` change: `yarn build` →
+>      strip Emergent badge → rsync to `/var/www/onnowtv-frontend/` →
+>      curl smoke test on `/` and `/fta`.  No more manual SSH for frontend
+>      ships.
+
+
 > **🎤 v2.8.86 — Karaoke WebRTC ICE race + APK instrumental override (Feb 1, 2026).**
 > User reported (after testing the v2.8.85 APK build):
 > 1. Both "vocals" and "instrumental" modes still played the studio vocal track.
