@@ -39,10 +39,50 @@ async def transcribe_audio(
 ) -> str:
     """Provider-agnostic transcription.  Returns plain transcript text.
 
-    Currently uses OpenAI Whisper via the Emergent LLM key.  Replace
-    the body of this function to switch provider — the route + the
-    frontend contract stay identical.
+    v2.8.89 — Prefer **Groq's `whisper-large-v3-turbo`** when
+    `GROQ_API_KEY` is set in the env.  Groq's transcription endpoint
+    runs ~10× faster than OpenAI Whisper and costs roughly an order
+    of magnitude less per minute, so the Watch Together voice
+    reaction feels effectively instant on the HK1.  Falls back to
+    OpenAI Whisper via the Emergent Universal LLM key when Groq isn't
+    configured (keeps local-dev and the demo deploy working).
+
+    The Groq path mirrors `/app/launcher-backend/main.py`'s STT setup
+    so both apps share the same model.
     """
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:  # noqa: BLE001
+            log.exception("openai sdk import failed (groq path)")
+            raise HTTPException(500, "STT_BACKEND_UNAVAILABLE") from exc
+        client = AsyncOpenAI(
+            api_key=groq_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+        buf = io.BytesIO(audio_bytes)
+        buf.name = filename
+        try:
+            resp = await client.audio.transcriptions.create(
+                file=buf,
+                model="whisper-large-v3-turbo",
+                response_format="json",
+                language=language or "en",
+                temperature=0.0,
+                prompt=(
+                    "Casual conversation between friends watching a movie "
+                    "together. They send short comments, reactions, and "
+                    "jokes to each other in English."
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.exception("groq whisper transcription failed")
+            raise HTTPException(502, f"STT_PROVIDER_ERROR_GROQ: {exc}") from exc
+        text = getattr(resp, "text", None) or ""
+        return text.strip()
+
+    # ----- OpenAI Whisper fallback (Emergent Universal LLM key) -----
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(500, "STT_KEY_MISSING")
@@ -57,8 +97,6 @@ async def transcribe_audio(
 
     stt = OpenAISpeechToText(api_key=api_key)
     buf = io.BytesIO(audio_bytes)
-    # The SDK reads `.name` to send the correct multipart filename
-    # (which is how Whisper detects the audio format).
     buf.name = filename
     try:
         resp = await stt.transcribe(
@@ -67,12 +105,6 @@ async def transcribe_audio(
             response_format="json",
             language=language or "en",
             temperature=0.0,
-            # v2.7.70 — Prompt biases the model toward casual,
-            # conversational English (which is what Watch Together
-            # voice messages overwhelmingly are).  Without a prompt
-            # Whisper sometimes invents "thanks for watching" /
-            # "subtitles by …" boilerplate on short / quiet clips
-            # because its training data was largely YouTube.
             prompt=(
                 "Casual conversation between friends watching a movie "
                 "together. They send short comments, reactions, and "

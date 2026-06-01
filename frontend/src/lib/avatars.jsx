@@ -450,10 +450,19 @@ export function getAvatar(id) {
  * Reusable circular avatar.  Two render paths:
  *   - Emoji avatars: emoji glyph on a radial gradient (offline-safe).
  *   - DiceBear avatars: full-bleed PNG character portrait.
+ *
+ * v2.8.89 — Optional `srcOverride` lets remote viewers render a
+ * custom DiceBear avatar even when the avatar isn't in their local
+ * `loadCustomAvatars()` store.  Watch Together broadcasts the
+ * sender's full `avatar_src` along with the `avatarId`, so the
+ * dock can pass it here directly.  Without this, custom avatars
+ * fell back to the default `a1` (lion) because the receiver's
+ * `getAvatar(id)` lookup returned `AVATARS[0]`.
  */
-export function AvatarCircle({ avatarId, size = 96, ring = false }) {
+export function AvatarCircle({ avatarId, srcOverride, size = 96, ring = false }) {
     const a = getAvatar(avatarId);
-    const isImage = !!a.src;
+    const effectiveSrc = srcOverride || a.src;
+    const isImage = !!effectiveSrc;
     const fontSize = Math.round(size * 0.55);
 
     const baseStyle = {
@@ -481,7 +490,7 @@ export function AvatarCircle({ avatarId, size = 96, ring = false }) {
                 }}
             >
                 <img
-                    src={a.src}
+                    src={effectiveSrc}
                     alt=""
                     loading="lazy"
                     decoding="async"

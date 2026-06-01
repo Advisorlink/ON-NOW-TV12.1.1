@@ -375,7 +375,7 @@ const AvatarTile = React.forwardRef(function AvatarTile(
                 userSelect: 'none',
             }}
         >
-            <AvatarCircle avatarId={member.avatar} size={52} ring={isFocused} />
+            <AvatarCircle avatarId={member.avatar} srcOverride={member.avatar_src} size={52} ring={isFocused} />
             {isSelf && (
                 <div
                     style={{
