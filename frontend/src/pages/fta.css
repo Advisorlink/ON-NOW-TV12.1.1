@@ -312,130 +312,135 @@
 }
 
 .fta-root:has(.fta-rail.is-focused) .fta-body {
-    padding-left: 160px;
+    padding-left: 240px;
 }
 
-/* Left icon rail --------------------------------------------------- */
+/* Left icon rail ----------------------------------------------------
+   v2.8.104 — mirrors Vesper / Tunes SideNav.  Width comes from
+   inline style (76 px collapsed → 240 px expanded).  Same brand
+   wordmark with the glowing V2 emblem and the same icon container
+   dimensions. */
 .fta-rail {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 76px;
-    background:
-        linear-gradient(180deg, rgba(15, 25, 50, 0.92) 0%, rgba(6, 10, 22, 0.92) 100%);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 22px 0 28px;
     z-index: 70;
-    transition: width 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-
-.fta-rail.is-focused {
-    width: 160px;
-}
-
-.fta-rail__brand {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding-bottom: 30px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    width: 100%;
-    margin-bottom: 22px;
+    padding: 28px 0;
+    transition: width 300ms cubic-bezier(0.2, 0.7, 0.2, 1), background 300ms;
 }
 
-.fta-rail__brand-eyebrow {
-    font-size: 8.5px;
-    font-weight: 900;
-    letter-spacing: 0.28em;
-    color: rgba(255, 255, 255, 0.55);
-    text-transform: uppercase;
+.fta-rail__brandmark {
+    display: flex;
+    align-items: baseline;
+    padding: 0 12px;
+    margin-bottom: 40px;
+    user-select: none;
+    overflow: hidden;
+}
+
+.fta-rail__brand-prefix {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1;
+    letter-spacing: -0.025em;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    flex: 0 1 auto;
 }
 
 .fta-rail__brand-v2 {
-    font-size: 13px;
-    font-weight: 900;
-    color: var(--fta-accent);
-    letter-spacing: 0.06em;
-    background: rgba(255, 37, 53, 0.12);
-    border: 1px solid rgba(255, 37, 53, 0.35);
-    padding: 2px 8px;
-    border-radius: 6px;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 32px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    /* Same blue glow as Vesper but with a hint of red so users
+       know they're on the Free-to-Air rail not the Vesper rail. */
+    color: #5DC8FF;
+    text-shadow:
+        0 0 12px rgba(93, 200, 255, 0.65),
+        0 0 28px rgba(93, 200, 255, 0.4),
+        0 0 6px rgba(255, 37, 53, 0.25);
+    flex-shrink: 0;
 }
 
 .fta-rail__items {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    width: 100%;
-    padding: 0 8px;
-    box-sizing: border-box;
+    gap: 4px;
+    padding: 0 12px;
 }
 
 .fta-rail__btn {
     background: transparent;
-    border: 1px solid transparent;
+    border: none;
     color: rgba(255, 255, 255, 0.62);
     display: flex;
     align-items: center;
-    gap: 14px;
-    border-radius: 12px;
-    padding: 12px 14px;
+    gap: 16px;
+    border-radius: 8px;
+    padding: 0 8px;
+    height: 44px;
     cursor: pointer;
-    transition:
-        background 160ms,
-        color 160ms,
-        border-color 160ms,
-        transform 160ms;
-    width: 100%;
+    text-align: left;
+    transition: color 160ms;
+    position: relative;
     overflow: hidden;
-    box-sizing: border-box;
 }
 
 .fta-rail__btn:hover {
-    background: rgba(255, 255, 255, 0.05);
     color: #fff;
 }
 
-.fta-rail__btn:focus,
-.fta-rail__btn.is-focused {
+.fta-rail__btn.is-focused,
+.fta-rail__btn:focus {
     outline: none;
     color: #fff;
-    background: rgba(93, 200, 255, 0.12);
-    border-color: rgba(93, 200, 255, 0.4);
-    transform: translateX(2px);
+    /* Same blue-bright focus treatment as Vesper's nav-style focus. */
 }
 
-.fta-rail__btn.is-on {
-    color: var(--fta-accent);
-}
-
-.fta-rail__btn.is-on svg {
-    fill: var(--fta-accent);
-}
-
-.fta-rail__btn-label {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    opacity: 0;
-    transform: translateX(-4px);
-    transition:
-        opacity 160ms,
-        transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+.fta-rail__btn.is-focused::before,
+.fta-rail__btn:focus::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    border: 2px solid #5DC8FF;
+    box-shadow: 0 0 0 1px rgba(93, 200, 255, 0.25);
     pointer-events: none;
 }
 
-.fta-rail.is-focused .fta-rail__btn-label {
-    opacity: 1;
-    transform: translateX(0);
+.fta-rail__btn.is-on {
+    color: #5DC8FF;
+}
+
+.fta-rail__btn.is-on svg {
+    color: #5DC8FF;
+}
+
+.fta-rail__btn-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.fta-rail__btn-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 300ms;
+    pointer-events: none;
 }
 
 /* Floating clock strip in the top-right corner -------------------- */

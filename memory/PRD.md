@@ -13,6 +13,15 @@
 > should I touch next".
 
 
+> **🟢 v2.8.104 — FTA rail visually mirrors Vesper / Tunes SideNav (Jun 2, 2026).**
+> User feedback after v2.8.103: "I need the actual icons, like we have in Vesper and like we have in the Tune store. I want the icons there until I push across to the left so it all looks the same."
+>
+> Rewrote `IconRail` to be visually identical to `SideNav.jsx` (the Vesper/Tunes shared rail).  Same 76px collapsed → 240px expanded transition (was 76 → 160).  Same Playfair Display serif brand wordmark with the glowing blue V2 emblem and the white "ON NOW T" prefix that fades in only when expanded.  Same icon container (`36 × 36` square holding a `20px` lucide icon with `strokeWidth: 1.7`, active state at `2.2`).  Same blue focus highlight (`#5DC8FF` 2px border + 1px outer glow).  Same 300ms label fade.  No more custom mini-pill V2 chip — uses the same brand glow as Vesper so the suite looks like one app.
+>
+> Verified live: collapsed = just the V2 emblem + 3 stacked icons (Categories / Favourites / Refresh); expanded = "ON NOW T V2" wordmark up top + same icons with labels next to them; 21 channel rows fully readable with all the live cells flush-left.
+
+
+
 > **🟢 v2.8.103 — FTA Vesper-style icon rail + long-press favourite + focusable empty cells (Jun 2, 2026).**
 > User asked for a full UX rebuild: Vesper-style left icon rail, no top bar, long-press LEFT to favourite, empty cells must be navigable, no love-heart in the sidebar.
 >   - **Permanent left icon rail (`IconRail`).**  Always-visible 76 px wide vertical strip with 3 stacked icons (Categories · Favourites · Refresh) at the top, "ON NOW V2" wordmark above.  Expands to 160 px when focused (smooth 220 ms width transition), revealing the labels.  Categories opens the slide-in submenu (now positioned `left: 76px` so the rail icons stay visible behind it); Favourites toggles the `tab` state between `live` and `favourites`; Refresh bumps a `refreshKey` state that's in the EPG fetch effect's dependency array, forcing a re-fetch.  Includes its own Up/Down/Right/Enter/Escape handler.
