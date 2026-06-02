@@ -138,23 +138,58 @@ export default function KaraokeMicReceiver({ partySession }) {
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
             pc.ontrack = (e) => {
-                // v2.8.87 — Just attach to the <audio> element.  The
-                // previous version ALSO routed through Web Audio which
-                // double-played and risked autoplay policy blocks.
+                // v2.8.109 — LOW-LATENCY playback path for karaoke.
+                //
+                // The default HTMLAudioElement path runs the remote
+                // stream through a jitter buffer of 50-200 ms before
+                // it ever reaches the speaker, which the user
+                // experiences as a noticeable echo between speaking
+                // into the phone and hearing it on the TV.
+                //
+                // Web Audio's `MediaStreamAudioSourceNode` skips that
+                // jitter buffer and delivers frames as they arrive.
+                // We open an AudioContext with `latencyHint:
+                // 'interactive'` to ask the browser for the smallest
+                // output buffer it'll give us, then pipe:
+                //
+                //   stream → MediaStreamAudioSourceNode → destination
+                //
+                // The <audio> element stays in the DOM (with the
+                // stream attached but MUTED) purely to "pump" the
+                // MediaStream — Chromium/Android WebView won't
+                // deliver track frames otherwise.
                 const stream = e.streams[0];
                 if (audioElRef.current) {
                     audioElRef.current.srcObject = stream;
-                    audioElRef.current.muted = false;
-                    audioElRef.current.volume = 1.0;
+                    audioElRef.current.muted = true;   // pump only
+                    audioElRef.current.volume = 0;
                     const playPromise = audioElRef.current.play();
                     if (playPromise) {
-                        playPromise.catch((err) => {
-                            // Autoplay blocked — surface the error so
-                            // the TV-side UI can show a tap-to-enable
-                            // hint instead of silently failing.
-                            console.warn('[karaoke-mic] audio.play() blocked:', err);
-                        });
+                        playPromise.catch(() => { /* muted autoplay always allowed */ });
                     }
+                }
+                try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    const ctx = new Ctx({ latencyHint: 'interactive', sampleRate: 48000 });
+                    audioCtxRef.current = ctx;
+                    const src = ctx.createMediaStreamSource(stream);
+                    src.connect(ctx.destination);
+                    if (ctx.state === 'suspended') {
+                        ctx.resume().catch(() => { /* ignore */ });
+                    }
+                    console.info('[karaoke-mic] low-latency path active', {
+                        baseLatency: ctx.baseLatency,
+                        outputLatency: ctx.outputLatency,
+                        sampleRate: ctx.sampleRate,
+                    });
+                } catch (err) {
+                    // Fallback: unmute the audio element so the user
+                    // still hears the singer (high-latency path).
+                    if (audioElRef.current) {
+                        audioElRef.current.muted = false;
+                        audioElRef.current.volume = 1.0;
+                    }
+                    console.warn('[karaoke-mic] WebAudio path failed, falling back to <audio>:', err);
                 }
                 console.info('[karaoke-mic] remote track attached', {
                     kind: e.track.kind,
@@ -178,6 +213,14 @@ export default function KaraokeMicReceiver({ partySession }) {
             };
             await pc.setRemoteDescription(sig.payload.sdp);
             remoteDescSetRef.current = true;
+            // v2.8.109 — Tell the WebRTC jitter buffer to keep
+            // playout delay minimal.  Chromium honours this; other
+            // engines ignore it (no harm).
+            try {
+                pc.getReceivers().forEach((r) => {
+                    if ('playoutDelayHint' in r) r.playoutDelayHint = 0;
+                });
+            } catch { /* ignore */ }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await postSignal(code, 'answer', { sdp: pc.localDescription, to_id: singerId });

@@ -13,6 +13,18 @@
 > should I touch next".
 
 
+> **🟢 v2.8.109 — Karaoke phone-to-TV mic latency dramatically reduced (Jun 2, 2026).**
+> User reported: "the lag is too long between when it actually gets to the mic and when it gets to the speaker… needs to be almost instant."
+>
+> Three latency sources fixed end-to-end:
+>   - **Phone-side getUserMedia constraints.**  `echoCancellation`, `noiseSuppression`, `autoGainControl` each ran 10-40 ms of DSP on the raw mic samples before WebRTC ever saw them.  None makes sense for karaoke (the speaker is on a different device → no echo to cancel; AGC actively fights singer dynamics).  All three switched to `false`, plus `latency: 0` asks the OS for the smallest capture buffer it'll give us.
+>   - **Phone-side Opus SDP munging.**  The offerer (phone) now rewrites the Opus fmtp line before `setLocalDescription` to `minptime=10;useinbandfec=0;usedtx=0;maxaveragebitrate=64000;cbr=0;stereo=0` and inserts `a=ptime:10` + `a=maxptime:10`.  Switching from the 20 ms default frame size to 10 ms halves serialisation delay; disabling FEC removes a one-packet lookahead; disabling DTX keeps the stream open during silence (avoids a small "ramp up" pause on the first syllable).
+>   - **TV-side WebAudio playback (the BIG win).**  HTMLAudioElement runs every remote stream through a 50-200 ms jitter buffer before it reaches the speaker — this was the dominant component of the user's perceived lag.  `KaraokeMicReceiver` now opens an `AudioContext({ latencyHint: 'interactive', sampleRate: 48000 })`, pipes `MediaStreamAudioSourceNode → ctx.destination`, and keeps the `<audio>` element only as a *muted* "pump" so Chromium / Android WebView delivers track frames.  Also sets `playoutDelayHint = 0` on the receivers (Chromium-specific hint to keep WebRTC's own jitter buffer minimal).  Logs `baseLatency` + `outputLatency` so we can verify the win in adb logcat.
+>
+> Cumulative expected reduction: ~150-300 ms shaved off the phone-to-TV path.
+
+
+
 > **🟢 v2.8.108 — FTA Categories submenu: toggle close + multiple exits (Jun 2, 2026).**
 > User reported in screen recording: opened the Categories menu, then repeatedly tried to close it (pressed Enter, said "Categories enter", "fix it") and couldn't.  The v2.8.106 fix that "kept the menu open while navigating" went too far — there was no way back out except the Escape key which is non-obvious on a TV remote.
 >

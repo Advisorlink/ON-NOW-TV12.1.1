@@ -1299,13 +1299,23 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         status.textContent = 'Requesting microphone…';
         status.classList.remove('err');
         try {
+            // v2.8.109 — LOW-LATENCY karaoke profile.  AEC / noise
+            // suppression / AGC each add 10-40 ms of DSP delay and
+            // make sense only for two-way voice calls.  For karaoke
+            // the speaker is on a SEPARATE device (the TV), so
+            // there's no echo to cancel anyway — and AGC actively
+            // fights the singer's dynamics.  Turn them all OFF.
+            // `latency: 0` asks the OS for the smallest capture
+            // buffer it can give us.
             micStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
                     channelCount: 1,
                     sampleRate: 48000,
+                    sampleSize: 16,
+                    latency: 0,
                 },
                 video: false,
             });
@@ -1373,6 +1383,44 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                 }
             };
             const offer = await micPC.createOffer({ offerToReceiveAudio: false });
+            // v2.8.109 — Munge Opus parameters in the offer SDP for
+            // low-latency karaoke:
+            //   • minptime=10 / ptime=10 → 10 ms frames instead of
+            //     the 20 ms default (halves the per-packet
+            //     serialisation delay).
+            //   • useinbandfec=0 → no forward-error-correction; FEC
+            //     adds a one-packet lookahead.
+            //   • usedtx=0 → no discontinuous transmission so the
+            //     stream stays open during silence (avoids a small
+            //     "ramp up" delay on the first syllable).
+            //   • maxaveragebitrate=64000 → keeps the encoder in a
+            //     low-complexity / low-latency mode.
+            if (offer && offer.sdp) {
+                let sdp = offer.sdp;
+                // Find the opus payload type from the rtpmap line and
+                // overwrite its fmtp line (or insert one).
+                const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/);
+                if (m) {
+                    const pt = m[1];
+                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=10;useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=64000';
+                    const fmtpRe = new RegExp('a=fmtp:' + pt + ' [^\\r\\n]*');
+                    if (fmtpRe.test(sdp)) {
+                        sdp = sdp.replace(fmtpRe, fmtpLine);
+                    } else {
+                        // Insert right after the rtpmap line.
+                        sdp = sdp.replace(
+                            new RegExp('(a=rtpmap:' + pt + ' opus\\/48000\\/2[^\\r\\n]*)'),
+                            '$1\r\n' + fmtpLine
+                        );
+                    }
+                    // Force 10 ms ptime alongside the audio m= section.
+                    sdp = sdp.replace(
+                        /(a=rtpmap:\d+ opus\/48000\/2[^\r\n]*)/,
+                        '$1\r\na=ptime:10\r\na=maxptime:10'
+                    );
+                }
+                offer.sdp = sdp;
+            }
             await micPC.setLocalDescription(offer);
             await sendMicSignal('offer', { sdp: micPC.localDescription });
             // Tell server the mic is on so the TV can start playback
