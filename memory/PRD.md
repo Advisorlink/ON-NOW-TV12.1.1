@@ -13,6 +13,17 @@
 > should I touch next".
 
 
+> **🟢 v2.8.112 — V2 Live TV APK build fix: opt in to media3 UnstableApi (Jun 2, 2026).**
+> First APK build on GitHub failed at `:app:compileDebugKotlin`.  Root cause traced locally by installing kotlinc 1.9.22 + the actual gradle dep classpath, then inspecting `androidx.media3.common.util.UnstableApi` with `javap` — confirmed it's annotated `@androidx.annotation.RequiresOptIn(level = ERROR)`.
+>
+> media3's `DefaultLoadControl`, `ExoPlayer.Builder`, `PlayerView`, `MediaItem.fromUri` (and more) all touch `UnstableApi` at compile time.  The Kotlin Gradle plugin recognises `androidx.annotation.RequiresOptIn` since 1.7 and refuses to compile callers without an explicit opt-in — `@OptIn(UnstableApi::class)` on the class doesn't satisfy it because `UnstableApi` is a Java annotation that doesn't extend `kotlin.RequiresOptIn`.
+>
+> Fix: add `freeCompilerArgs += "-opt-in=androidx.media3.common.util.UnstableApi"` to `kotlinOptions` in `app/build.gradle.kts`.  Removed the now-redundant `@OptIn`/`@UnstableApi` annotations + the now-unused `UnstableApi` import from `PlayerActivity.kt`.  Also added explicit type parameters to every `findViewById<…>` call defensively (avoids any rare Kotlin type-inference brittleness).
+>
+> Verified locally: kotlinc compiles all 8 source files clean (only AAPT-generated `R` references unresolved, which is expected outside Gradle).
+
+
+
 > **🟢 v2.8.111 — V2 Live TV native Android app scaffolded with RecyclerView EPG (Jun 2, 2026).**
 > Brand-new fifth app in the suite: `/app/android/onnowtv-livetv/`.  User requirement was non-negotiable: the EPG MUST use Android's RecyclerView focus engine, not any JS spatial-navigation library.
 >

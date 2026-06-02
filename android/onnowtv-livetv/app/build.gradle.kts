@@ -57,7 +57,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions {
+        jvmTarget = "17"
+        // media3's UnstableApi is annotated with
+        // androidx.annotation.RequiresOptIn(level = ERROR).  The Kotlin
+        // Gradle plugin recognises that and refuses to compile any code
+        // that touches media3 builders/players unless we opt in here.
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.media3.common.util.UnstableApi",
+        )
+    }
     buildFeatures { viewBinding = true; buildConfig = true }
     packaging {
         resources.excludes += setOf(

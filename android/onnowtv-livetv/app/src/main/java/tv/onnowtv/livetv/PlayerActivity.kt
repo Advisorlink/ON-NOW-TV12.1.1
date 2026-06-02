@@ -7,7 +7,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -16,8 +15,12 @@ import androidx.media3.ui.PlayerView
  * Full-screen ExoPlayer for a single live channel.  Receives the
  * pre-built Xtream stream URL via Intent extras.  Optimised for
  * INSTANT start-up: small buffer thresholds, HLS-aware media source.
+ *
+ * media3's `DefaultLoadControl`, `ExoPlayer.Builder`, and `PlayerView`
+ * are all marked `@UnstableApi`.  The opt-in is wired in via the
+ * module-level `freeCompilerArgs += "-opt-in=androidx.media3.common.util.UnstableApi"`
+ * in `app/build.gradle.kts` so we don't need per-file annotations.
  */
-@UnstableApi
 class PlayerActivity : AppCompatActivity() {
 
     companion object {
@@ -33,8 +36,8 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
-        playerView = findViewById(R.id.player_view)
-        status = findViewById(R.id.player_status)
+        playerView = findViewById<PlayerView>(R.id.player_view)
+        status = findViewById<TextView>(R.id.player_status)
 
         val url = intent.getStringExtra(EXTRA_URL) ?: run {
             finish(); return

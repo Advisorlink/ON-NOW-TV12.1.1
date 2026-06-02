@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
         // post-splash window doesn't keep the splash drawable.
         setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)
 
-        val status: TextView = findViewById(R.id.loading_status)
+        val status: TextView = findViewById<TextView>(R.id.loading_status)
 
         lifecycleScope.launch {
             try {

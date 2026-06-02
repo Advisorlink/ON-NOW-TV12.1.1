@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    MainActivity splash + bundle-fetch screen.  Big centred "V2 Live
+    TV" wordmark on dark navy.  Once the instant-bundle finishes
+    loading, we hand off to EpgActivity.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_gradient">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/brand_v2"
+            android:textColor="@color/livetv_accent"
+            android:textSize="140sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.04"
+            android:includeFontPadding="false"
+            android:shadowColor="#80FF2535"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="32" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="22dp"
+            android:text="@string/brand_suffix"
+            android:textColor="@color/livetv_fg"
+            android:textSize="84sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.01"
+            android:includeFontPadding="false"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="6"
+            android:shadowRadius="18" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/loading_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="58dp"
+        android:text="@string/loading_guide"
+        android:textColor="@color/livetv_fg_dim"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.16" />
+</FrameLayout>
