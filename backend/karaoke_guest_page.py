@@ -1299,23 +1299,21 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         status.textContent = 'Requesting microphone…';
         status.classList.remove('err');
         try {
-            // v2.8.109 — LOW-LATENCY karaoke profile.  AEC / noise
-            // suppression / AGC each add 10-40 ms of DSP delay and
-            // make sense only for two-way voice calls.  For karaoke
-            // the speaker is on a SEPARATE device (the TV), so
-            // there's no echo to cancel anyway — and AGC actively
-            // fights the singer's dynamics.  Turn them all OFF.
-            // `latency: 0` asks the OS for the smallest capture
-            // buffer it can give us.
+            // v2.8.110 — Conservative constraints.  v2.8.109 disabled
+            // AEC/NS/AGC and set `latency: 0` to chase low latency,
+            // but on some Android Chrome builds that constraint set
+            // is rejected entirely → mic capture silently fails (no
+            // volume meter, no audio on TV).  Reverted to the
+            // browser defaults; the lower-latency wins now come
+            // purely from the SDP rewrite + TV-side
+            // playoutDelayHint = 0 (both safe).
             micStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
                     channelCount: 1,
                     sampleRate: 48000,
-                    sampleSize: 16,
-                    latency: 0,
                 },
                 video: false,
             });
