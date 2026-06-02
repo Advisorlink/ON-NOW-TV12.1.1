@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ON NOW V2 Live TV</string>
+    <string name="loading_guide">Loading guide…</string>
+    <string name="no_programme">No programme info</string>
+    <string name="live_pill">LIVE</string>
+    <string name="up_next">UP NEXT</string>
+    <string name="today">Today</string>
+    <string name="brand_v2">V2</string>
+    <string name="brand_suffix">Live TV</string>
+</resources>
