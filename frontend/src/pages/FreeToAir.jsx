@@ -426,29 +426,50 @@ export default function FreeToAir() {
                 return;
             }
 
-            // Up / Down — find the cell in the adjacent row whose
-            // horizontal range straddles the current cell's left
-            // edge.  Stays in the same "time column" as the user
-            // walks down the channel list.
+            // Up / Down — find the cell in the adjacent row.
+            // Selection rules:
+            //   1. If the source cell is the LIVE cell (idx 0 of its
+            //      row, the leftmost programme that's currently
+            //      airing), the target is the LIVE cell of the
+            //      adjacent row.  Live cells can be very narrow
+            //      (e.g. a programme ending in 2 minutes is only
+            //      ~18px wide), so the geometric probe used to fall
+            //      OUTSIDE them and land on the next future cell,
+            //      yanking focus into the future column.  The user
+            //      reported exactly this: "when scrolling down, as
+            //      soon as it gets to a certain section, it skips
+            //      all the way across to the next thing".
+            //   2. Otherwise (source is a future cell) use the
+            //      geometric matcher — keep the user in the same
+            //      time column.
             const targetRow = e.key === 'ArrowDown'
                 ? row.nextElementSibling
                 : row.previousElementSibling;
             if (!targetRow || !targetRow.classList || !targetRow.classList.contains('fta-row')) return;
+            const targetCells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+            if (!targetCells.length) return;
+
+            const sourceCells = Array.from(row.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+            const sourceIsLive = sourceCells.indexOf(ae) === 0;
+            if (sourceIsLive) {
+                focusAndScroll(targetCells[0]);
+                return;
+            }
 
             const curLeft = parseFloat(ae.style.left || '0');
             const curWidth = parseFloat(ae.style.width || '0');
-            // Bias toward the cell's start edge so the match is
-            // visually obvious — "the one starting around the same
-            // time" rather than "the one that ends overlapping".
             const probe = curLeft + Math.min(40, curWidth / 4);
-            const cells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
             let best = null;
-            for (const cell of cells) {
+            for (const cell of targetCells) {
                 const l = parseFloat(cell.style.left || '0');
                 const w = parseFloat(cell.style.width || '0');
                 if (l <= probe && probe < l + w) { best = cell; break; }
             }
-            if (!best && cells.length) best = cells[0];
+            if (!best) {
+                // No overlapping cell in target row — pick the live cell
+                // so the user lands somewhere obviously useful.
+                best = targetCells[0];
+            }
             focusAndScroll(best);
         };
         // Capture phase + window-level so we run before useSpatialFocus.

@@ -13,6 +13,15 @@
 > should I touch next".
 
 
+> **🟢 v2.8.102 — FTA Down-from-live no longer skips into future column (Jun 2, 2026).**
+> User reported: "when scrolling down, as soon as it gets to a certain section, it skips all the way across to the next thing, and then when you go to push down it's sitting way away from the Live Now".
+>
+> Root cause: the v2.8.101 geometric probe (`curLeft + min(40, curWidth/4)`) used to find the matching cell in the target row.  For a live cell at left=1 the probe was 41.  If a channel's currently-airing programme ended in only a few minutes (e.g. 2 min remaining = 18 px wide), the live cell spanned left=1 to left=19 — the probe at 41 fell OUTSIDE it and matched the NEXT DOM cell (the future programme at left=20+).  Once focus shifted to a future cell, every subsequent Down preserved that horizontal column → user landed "way away from Live Now".
+>
+> Fix: source-aware target selection in the Up/Down handler.  If the source cell is `idx === 0` in its row (i.e. the leftmost = the LIVE programme), force the destination to be `cells[0]` of the target row — the geometric matcher is skipped entirely.  Only future-cell sources fall through to geometric matching, where the horizontal-column-memory model is still desired.  Verified: 15 consecutive Down presses from the autofocused Seven live cell landed 15× on `idx 0` of each next row (7Two → 7mate → 7flix → 7Bravo → Nine → Go → Gem → Life → Rush → 10 → 10 Comedy → 10 Drama → ABC TV → ABC TV Plus → ABC Entertains), with `scrollLeft = 0` for the entire walk.
+
+
+
 > **🟢 v2.8.101 — FTA D-pad model corrected + instant scroll + autofocus on category switch (Jun 2, 2026).**
 > User feedback after v2.8.100:
 >   - "When you push up or down it needs to be smoother if I push and hold my finger down it needs to go down one by one snapping to each tile instantly for fluent speed and not skipping down the page."
