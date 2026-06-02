@@ -56,7 +56,8 @@ class ChannelPillAdapter(
         private val nameV: TextView = itemView.findViewById<TextView>(R.id.ch_name)
         private val nowV: TextView = itemView.findViewById<TextView>(R.id.ch_now_title)
         private val progress: View = itemView.findViewById<View>(R.id.ch_progress)
-        private val progressContainer: FrameLayout = progress.parent as FrameLayout
+
+        private fun progressContainer(): FrameLayout? = progress.parent as? FrameLayout
 
         fun bind(channel: Channel) {
             if (!channel.logoUrl.isNullOrBlank()) {
@@ -71,15 +72,16 @@ class ChannelPillAdapter(
             if (now != null) {
                 nowV.text = now.title
                 val pct = computeProgress(now)
-                progressContainer.post {
+                val container = progressContainer()
+                container?.post {
                     val lp = progress.layoutParams
-                    val full = progressContainer.width
+                    val full = container.width
                     lp.width = (full * pct).toInt().coerceIn(0, full)
                     progress.layoutParams = lp
                 }
             } else {
                 nowV.text = "Loading guide…"
-                progressContainer.post {
+                progressContainer()?.post {
                     val lp = progress.layoutParams
                     lp.width = 0
                     progress.layoutParams = lp
