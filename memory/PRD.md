@@ -13,6 +13,25 @@
 > should I touch next".
 
 
+> **🟢 v2.8.116 — V2 Live TV: root crash diagnosed from on-screen stack trace, fixed (Jun 2, 2026).**
+> Diagnostic screen worked perfectly — user sent a photo of the crash output.  Full root cause:
+>
+> ```
+> Caused by: java.lang.IllegalArgumentException: A needs to be followed by a multiple of 7 floats. However, 5 float(s) are found. Failure occurred at position 11 of path: M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 …
+>   at android.util.PathParser.nCreatePathDataFromString(Native Method)
+>   at android.graphics.drawable.VectorDrawable$VFullPath.updateStateFromTypedArray(VectorDrawable.java:2016)
+>   …
+>   at tv.onnowtv.livetv.EpgActivity.onCreate(EpgActivity.kt:93)
+> ```
+>
+> `ic_refresh.xml` (the refresh button in the hero icon cluster) was copied straight from Material's compact SVG pathData — `A7.958 7.958 0 0012 4`.  Browsers' SVG parsers tolerate the missing space between the arc flags (`0 0`) and the end coordinate (`12`), but Android's `PathParser` is strict — it tokenises on whitespace + commas only, so `0012` parses as ONE number (12.0), leaving the arc with 5 floats instead of the required 7.
+>
+> Fix: rewrote `ic_refresh.xml` using only M/V/L/H/c segments (no arcs).  Audited all other vectors — `ic_star`, `ic_exit`, `ic_launcher_foreground` use only line + cubic-bezier commands, so they're unaffected.
+>
+> The CrashActivity safety net is staying in — it turned a "keeps stopping" Android dialog into a fixable bug in under 2 minutes.
+
+
+
 > **🟢 v2.8.115 — V2 Live TV: crash-on-boot fixed + diagnostic screen (Jun 2, 2026).**
 > User reported v2.8.114 (the Vesper redesign) crashes immediately on launch: "OnNow V2 Live keeps stopping".  Without adb logcat from the TV box, this was a guessing game — so I shipped two changes simultaneously.
 >
