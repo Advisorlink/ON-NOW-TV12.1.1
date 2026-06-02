@@ -10,9 +10,13 @@ import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
+import tv.onnowtv.livetv.data.XtreamRepository
 
 /**
  * Outer vertical RecyclerView adapter: one row per channel.  Each
@@ -31,6 +35,7 @@ class EpgRowAdapter(
     private val context: Context,
     private val pxPerMin: Int,
     private val scrollSync: ScrollSync,
+    private val backgroundScope: CoroutineScope,
     private val onChannelFocused: (Channel) -> Unit,
     private val onProgrammeFocused: (Channel, Programme) -> Unit,
     private val onProgrammeActivated: (Channel, Programme) -> Unit,
@@ -39,6 +44,8 @@ class EpgRowAdapter(
 
     private val channels = mutableListOf<Channel>()
     private val epg = mutableMapOf<String, List<Programme>>()
+    /** Channels for which we've already issued a lazy EPG fetch. */
+    private val lazyFetched = mutableSetOf<String>()
 
     init { setHasStableIds(true) }
 
@@ -120,15 +127,17 @@ class EpgRowAdapter(
             // Programmes for this channel — when the EPG is empty
             // (e.g. the backend hasn't finished its first refresh yet),
             // inject a 6-hour placeholder cell so the row still has
-            // something focusable and the user can press OK on it to
-            // tune in to the channel.
+            // something focusable, AND lazy-fetch the real EPG in the
+            // background.  The fetched data is cached in `epg`, and
+            // when the row is rebound (scroll back) it'll show real
+            // programmes.
             val rawList = epg[channel.epgChannelId] ?: emptyList()
             val list = if (rawList.isEmpty()) {
                 val nowMs = System.currentTimeMillis()
                 listOf(
                     Programme(
                         title = channel.name,
-                        description = "No programme info available — press OK to tune in.",
+                        description = "Loading guide…",
                         startMs = nowMs - 30L * 60_000L,
                         stopMs = nowMs + 6L * 60L * 60_000L,
                     )
@@ -137,6 +146,26 @@ class EpgRowAdapter(
                 rawList
             }
             programmeAdapter.submit(list)
+
+            // Kick off lazy EPG fetch if we haven't already.
+            val sid = channel.epgChannelId
+            if (rawList.isEmpty() && !sid.isNullOrBlank() && sid !in lazyFetched) {
+                lazyFetched.add(sid)
+                backgroundScope.launch(Dispatchers.IO) {
+                    val fetched = XtreamRepository.fetchEpgForChannel(sid)
+                    if (fetched.isNotEmpty()) {
+                        epg[sid] = fetched
+                        // Hop back to the main thread to refresh just
+                        // this row if it's still bound to the same
+                        // channel.
+                        itemView.post {
+                            if (currentChannel?.epgChannelId == sid) {
+                                programmeAdapter.submit(fetched)
+                            }
+                        }
+                    }
+                }
+            }
 
             // Wire up scroll sync (detach first to avoid duplicates on
             // re-bind after recycle).

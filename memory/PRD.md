@@ -13,6 +13,21 @@
 > should I touch next".
 
 
+> **🟢 v2.8.113 — V2 Live TV: smart default category + LEFT-to-open drawer + lazy per-channel EPG (Jun 2, 2026).**
+> User feedback after sideloading the first APK: (a) default category was Arabic — picked by raw max-channel-count heuristic; (b) LEFT arrow on a channel didn't open the categories drawer (had to use the MENU button); (c) no EPG showing despite the backend reporting 14 091 channels.
+>
+> Root cause of (c) — TWO bugs:
+>   1. **Client mapping bug.**  My XtreamRepository parser fell back to `epg_channel_id` first, then `stream_id`.  But the backend's `_state["epg"]` is keyed exclusively by `stream_id` (see `instant_bundle.py` — `by_stream_id` is canonical).  So channels with a real XMLTV id like `"BBCOne.uk"` missed every lookup.  Fixed: always use `stream_id` as the EPG key.
+>   2. **Backend pre-warm too slow to ship.**  The bulk EPG refresh fetches XMLTV (~150 MB) then pre-warms `get_short_epg` for the ~75 % of channels XMLTV doesn't cover — 14 k API calls at concurrency 25 = ~20–40 min on the production VPS, after which the cached gzipped bundle gets one rebuild.  Until that completes, every client sees an empty `epg: {}`.
+>
+> Fixes:
+>   - **New endpoint `/api/xtream/epg/{stream_id}`** — on-demand single-channel EPG.  Checks the in-memory cache first, then falls through to the provider's `get_short_epg`, returns `{programmes: [...], source: "cache" | "live"}`.  Opportunistically writes back into `_state["epg"]` so subsequent calls (and the next bundle rebuild) hit cache.  Verified: BBC One (`/api/xtream/epg/2195908`) returns 24 programmes (`"Robson Green's Weekend Escapes"`, `"Escape to the Country"`, etc.).
+>   - **Kotlin client lazy-loads per-row EPG.**  `EpgRowAdapter.bind()` now: (a) renders a "Loading guide…" placeholder cell if the bundle EPG is empty for that channel, (b) kicks off a background coroutine via `lifecycleScope` that hits `/api/xtream/epg/{streamId}`, (c) when the response lands, pushes real programmes into the row in-place (only if the row is still bound to the same channel — handles scroll/rebind races).  Added `lifecycle-runtime-ktx:2.7.0` to deps for `lifecycleScope`.
+>   - **Smart default category.**  Replaced the "max-channel-count" heuristic (which selected Arabic — largest category by sheer count) with an EPG-coverage-ratio heuristic: pick the category whose channels have the highest proportion of programme data.  Skip `"#####"` separator entries and any category with fewer than 5 channels.  Fall back to "All channels" when no candidate clears 20 % EPG coverage.
+>   - **LEFT arrow opens categories drawer.**  `onKeyDown` now intercepts `KEYCODE_DPAD_LEFT` when focus is on the channel rail item OR the leftmost programme cell with row scroll at 0.  Walks the parent chain to verify the focused View is the first child of a horizontal `R.id.programmes` RecyclerView.  MENU key and clicking the "ALL" chip still work as alternative entry points.
+
+
+
 > **🟢 v2.8.112 — V2 Live TV APK build fix: opt in to media3 UnstableApi (Jun 2, 2026).**
 > First APK build on GitHub failed at `:app:compileDebugKotlin`.  Root cause traced locally by installing kotlinc 1.9.22 + the actual gradle dep classpath, then inspecting `androidx.media3.common.util.UnstableApi` with `javap` — confirmed it's annotated `@androidx.annotation.RequiresOptIn(level = ERROR)`.
 >
