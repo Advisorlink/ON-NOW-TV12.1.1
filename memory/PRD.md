@@ -13,6 +13,26 @@
 > should I touch next".
 
 
+> **🟢 v2.8.114 — V2 Live TV redesigned to Vesper layout (Jun 2, 2026).**
+> User feedback after testing v2.8.113: "the new RecyclerView focus engine is working way better than the old Vesper React app, but I prefer the old Vesper design".  Surgical pivot — keep the proven native focus engine, swap out the entire layout for the old Vesper Live TV pattern.
+>
+> Recovered the v2.3 React design from git commit `53e23d6:frontend/src/pages/LiveTV.jsx` (2,315 lines, the design before it was disabled/stubbed in May 2026) and translated to native Kotlin + RecyclerView.
+>
+> **New layout:**
+>   - **Hero (top, 240 dp):** TMDB-style backdrop (currently uses channel logo as fallback), left-to-right gradient overlay for legibility, bottom fade into body.  Content stack: `LIVE TV · CH 5` cyan monospace eyebrow → big channel name (`#fff` 36 sp `-0.025em`) → NOW programme info (cyan eyebrow + title) → 2-line synopsis (`#9DA5B5`) → cyan progress bar → `UP NEXT · time · title` dim monospace footer.
+>   - **Top-right icon cluster:** monospace clock + 40dp circular icon buttons (Favourite ★, Refresh ⟳, Sign-out ↪) with focused-state cyan border.
+>   - **Body (3 columns):** Categories pills (220 dp left) → Channel pill cards (360 dp middle, each with logo + `CH 5` cyan monospace + name + NOW title + cyan progress bar) → Guide list (right, fills remainder) grouped by `TODAY · 02 Jun` / `TOMORROW · 03 Jun` cyan monospace headers.
+>
+> **Palette change:** swapped the dark `#06080F` for the canonical Vesper `#0A0F1A` navy.  Accent is now cyan `#5DC8FF` (was red).  Red is reserved for the global brand wordmark.
+>
+> **Files rewritten:** `EpgActivity.kt` (~330 lines, three-list orchestrator), `CategoryAdapter.kt` (renamed to `CategoryPillAdapter`), new `ChannelPillAdapter.kt` + `GuideRowAdapter.kt`, new `activity_epg.xml`, new pill / card / guide drawables.  Deleted: `EpgRowAdapter.kt`, `ProgrammeAdapter.kt`, `NowLineOverlay.kt`, `ScrollSync.kt`, the time-strip layout, the old EPG grid drawables (`programme_bg`, `now_line`, `live_pill`, etc.).
+>
+> **Navigation:** the Android FocusFinder routes ↑/↓ within each column and ←/→ between columns natively — no custom keydown intercepts.  Live-filter behaviour: focusing a category in the left column instantly refilters the middle channel list (no Enter required).  Focusing a channel in the middle column updates the hero AND loads the guide in the right column (lazy-fetch via `/api/xtream/epg/{stream_id}` if not in the cache).  OK on a channel launches `PlayerActivity`.
+>
+> **Compile verified locally:** 0 Kotlin errors with the full Gradle classpath.
+
+
+
 > **🟢 v2.8.113 — V2 Live TV: smart default category + LEFT-to-open drawer + lazy per-channel EPG (Jun 2, 2026).**
 > User feedback after sideloading the first APK: (a) default category was Arabic — picked by raw max-channel-count heuristic; (b) LEFT arrow on a channel didn't open the categories drawer (had to use the MENU button); (c) no EPG showing despite the backend reporting 14 091 channels.
 >

@@ -9,14 +9,14 @@ import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.Category
 
 /**
- * Vertical RecyclerView adapter for the categories overlay drawer.
- * One item per category.  Activated category gets passed back to the
- * EPG so it can refilter the channels.
+ * LEFT column: vertical list of category pills.  Lightweight — just
+ * a name per row.  Focus + click are handled inline; the parent
+ * activity is told via `onPick` to swap the channel list.
  */
-class CategoryAdapter(
+class CategoryPillAdapter(
     private val onPick: (Category) -> Unit,
     private val onFocus: (Category) -> Unit,
-) : RecyclerView.Adapter<CategoryAdapter.VH>() {
+) : RecyclerView.Adapter<CategoryPillAdapter.VH>() {
 
     private val items = mutableListOf<Category>()
     private var selectedId: String? = null
@@ -30,12 +30,18 @@ class CategoryAdapter(
         notifyDataSetChanged()
     }
 
+    fun setSelected(id: String?) {
+        if (id == selectedId) return
+        selectedId = id
+        notifyDataSetChanged()
+    }
+
     override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_category, parent, false)
-        return VH(v)
+            .inflate(R.layout.item_category_pill, parent, false)
+        return VH(v as TextView)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -44,13 +50,9 @@ class CategoryAdapter(
 
     override fun getItemCount(): Int = items.size
 
-    inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val nameV: TextView = itemView.findViewById<TextView>(R.id.category_name)
-        private val countV: TextView = itemView.findViewById<TextView>(R.id.category_count)
-
+    inner class VH(itemView: TextView) : RecyclerView.ViewHolder(itemView) {
         fun bind(c: Category) {
-            nameV.text = c.name
-            countV.text = if (c.channelCount > 0) "${c.channelCount}" else ""
+            (itemView as TextView).text = c.name
             itemView.isSelected = (c.id == selectedId)
             itemView.setOnClickListener { onPick(c) }
             itemView.setOnFocusChangeListener { _, hasFocus ->

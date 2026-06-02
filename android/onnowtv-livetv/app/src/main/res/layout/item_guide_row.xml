@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Guide row (right column).  Either a programme entry (time + title)
+    or a day header (TODAY / TOMORROW).  Visibility flips per type
+    inside the adapter.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/guide_day_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="14dp"
+        android:paddingBottom="8dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_accent"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.24"
+        android:visibility="gone"
+        android:text="" />
+
+    <LinearLayout
+        android:id="@+id/guide_row_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/guide_row_bg"
+        android:focusable="true"
+        android:clickable="true"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/guide_time"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/guide_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:textColor="@color/livetv_fg"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="" />
+
+        <ImageView
+            android:id="@+id/guide_reminder_icon"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:contentDescription="@null" />
+    </LinearLayout>
+</LinearLayout>
