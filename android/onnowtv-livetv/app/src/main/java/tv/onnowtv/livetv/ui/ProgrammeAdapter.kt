@@ -54,8 +54,8 @@ class ProgrammeAdapter(
     override fun getItemCount(): Int = programmes.size
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val title: TextView = itemView.findViewById(R.id.programme_title)
-        private val time: TextView = itemView.findViewById(R.id.programme_time)
+        private val title: TextView = itemView.findViewById<TextView>(R.id.programme_title)
+        private val time: TextView = itemView.findViewById<TextView>(R.id.programme_time)
 
         fun bind(p: Programme) {
             title.text = p.title

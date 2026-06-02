@@ -70,11 +70,11 @@ class EpgRowAdapter(
     override fun getItemCount(): Int = channels.size
 
     inner class RowVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val railItem: FrameLayout = itemView.findViewById(R.id.channel_rail_item)
-        private val logo: ImageView = itemView.findViewById(R.id.channel_logo)
-        private val lcn: TextView = itemView.findViewById(R.id.channel_lcn)
-        private val nameFallback: TextView = itemView.findViewById(R.id.channel_name_fallback)
-        private val programmes: RecyclerView = itemView.findViewById(R.id.programmes)
+        private val railItem: FrameLayout = itemView.findViewById<FrameLayout>(R.id.channel_rail_item)
+        private val logo: ImageView = itemView.findViewById<ImageView>(R.id.channel_logo)
+        private val lcn: TextView = itemView.findViewById<TextView>(R.id.channel_lcn)
+        private val nameFallback: TextView = itemView.findViewById<TextView>(R.id.channel_name_fallback)
+        private val programmes: RecyclerView = itemView.findViewById<RecyclerView>(R.id.programmes)
         private var currentChannel: Channel? = null
 
         private val programmeAdapter = ProgrammeAdapter(

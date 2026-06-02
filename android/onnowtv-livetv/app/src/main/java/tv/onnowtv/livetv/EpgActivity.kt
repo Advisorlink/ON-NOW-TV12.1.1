@@ -99,19 +99,19 @@ class EpgActivity : AppCompatActivity() {
         gridStartMs = snapTo15(now())
 
         // Wire views
-        rowsRv = findViewById(R.id.programme_rows)
-        timeStrip = findViewById(R.id.time_strip)
-        timeStripScroll = findViewById(R.id.time_strip_scroll)
-        nowLine = findViewById(R.id.now_line)
-        clock = findViewById(R.id.clock)
-        categoryLabel = findViewById(R.id.category_label)
-        previewArt = findViewById(R.id.preview_art)
-        infoLogo = findViewById(R.id.info_logo)
-        infoLcn = findViewById(R.id.info_lcn)
-        infoName = findViewById(R.id.info_name)
-        infoTitle = findViewById(R.id.info_title)
-        infoTime = findViewById(R.id.info_time)
-        infoSynopsis = findViewById(R.id.info_synopsis)
+        rowsRv = findViewById<RecyclerView>(R.id.programme_rows)
+        timeStrip = findViewById<LinearLayout>(R.id.time_strip)
+        timeStripScroll = findViewById<View>(R.id.time_strip_scroll)
+        nowLine = findViewById<NowLineOverlay>(R.id.now_line)
+        clock = findViewById<TextView>(R.id.clock)
+        categoryLabel = findViewById<TextView>(R.id.category_label)
+        previewArt = findViewById<ImageView>(R.id.preview_art)
+        infoLogo = findViewById<ImageView>(R.id.info_logo)
+        infoLcn = findViewById<TextView>(R.id.info_lcn)
+        infoName = findViewById<TextView>(R.id.info_name)
+        infoTitle = findViewById<TextView>(R.id.info_title)
+        infoTime = findViewById<TextView>(R.id.info_time)
+        infoSynopsis = findViewById<TextView>(R.id.info_synopsis)
 
         buildTimeStrip()
         timeStripScroll.bindHorizontalScrollView(scrollSync)
@@ -234,7 +234,7 @@ class EpgActivity : AppCompatActivity() {
             firstCell.requestFocus()
         } else {
             firstRow.itemView
-                .findViewById<View>(R.id.channel_rail_item)
+                .findViewById<android.widget.FrameLayout>(R.id.channel_rail_item)
                 ?.requestFocus()
         }
     }

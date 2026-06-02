@@ -39,10 +39,10 @@ class NowLineOverlay @JvmOverloads constructor(
     /** Top padding so we don't draw over the time strip when overlaid. */
     private var topPadding: Float = 0f
 
-    fun setNowOffsetPx(x: Float, top: Float = 0f) {
-        if (x == nowX && top == topPadding) return
+    fun setNowOffsetPx(x: Float, topPadding: Float = 0f) {
+        if (x == nowX && topPadding == this.topPadding) return
         nowX = x
-        topPadding = top
+        this.topPadding = topPadding
         invalidate()
     }
 

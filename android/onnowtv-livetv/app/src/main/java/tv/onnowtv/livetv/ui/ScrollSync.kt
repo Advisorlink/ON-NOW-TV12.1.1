@@ -70,8 +70,9 @@ fun bindHorizontalRecyclerView(rv: RecyclerView, sync: ScrollSync) {
 }
 
 fun unbindHorizontalRecyclerView(rv: RecyclerView, sync: ScrollSync) {
+    val raw = rv.getTag(R.id.tag_scroll_sync_listener) ?: return
     @Suppress("UNCHECKED_CAST")
-    val l = rv.getTag(R.id.tag_scroll_sync_listener) as? Function1<Int, Unit> ?: return
+    val l: (Int) -> Unit = raw as ((Int) -> Unit)
     sync.removeListener(l)
     rv.setTag(R.id.tag_scroll_sync_listener, null)
 }
