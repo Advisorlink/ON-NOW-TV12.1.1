@@ -620,13 +620,12 @@ export default function FreeToAir() {
                 />
 
                 <div className="fta-grid-wrap">
-                    {loading && (
-                        <div className="fta-loading">
-                            Loading {city} guide
-                            <div className="fta-loading__sweep" />
-                        </div>
-                    )}
-
+                    {/* v2.8.107 — no in-app loading overlay per user
+                        feedback ("I don't want two splash screens").
+                        The native Android splash holds until the
+                        page is ready (≤4 s); after it dismisses we
+                        just render the EPG (empty until fetch
+                        completes — typically <300 ms). */}
                     {!loading && (
                         <>
                             <GridHeader

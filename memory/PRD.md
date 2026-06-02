@@ -13,6 +13,15 @@
 > should I touch next".
 
 
+> **🟢 v2.8.107 — FTA splash redesigned to "V2 Free-to-Air" wordmark + web loading overlay removed (Jun 2, 2026).**
+> User feedback: (a) splash should use the same V2 Free-to-Air wordmark as the in-app rail but BIG and centred, same size as the previous "LIVE" wordmark; (b) "I don't want two splash screens though, because at the moment it's still loading the splash screen from the web" — remove the React `fta-loading` overlay that briefly appears between the native splash and the populated EPG.
+>
+> Fixes:
+>   - **Native splash rewritten.**  `fta_splash.xml` now renders a single horizontal LinearLayout with `V2` (140sp red `#FF2535`, sans-serif-black, red glow shadow) next to `Free-to-Air` (84sp white sans-serif-medium, subtle drop shadow), centred via `layout_gravity="center"`.  Dropped the eyebrow "ON NOW V2" pill, the 180dp red TV-mark image, the "LIVE" wordmark, the "LIVE FREE-TO-AIR TV · 188 CHANNELS" outline chip, AND the three loading dots — they were redundant noise.  Background is still `@drawable/splash_gradient` (red→orange) so the splash retains identity.
+>   - **React loading overlay removed.**  Deleted the `<div className="fta-loading">Loading {city} guide …</div>` overlay from `FreeToAir.jsx`.  The Android native splash already holds for ≤4 s (`splashSafetyHandler.postDelayed({ dismissSplash() }, 4000)`) and dismisses 350 ms after `onPageFinished` — by then the channels + EPG fetch (typically <300 ms) has resolved, so the EPG just fades in directly.  No more visible "Loading Brisbane guide" sweep between the two screens.
+
+
+
 > **🟢 v2.8.106 — FTA wordmark logo + Categories submenu no longer closes on arrows (Jun 2, 2026).**
 > User feedback: (a) the in-app logo should match the provided mockup — pure type "V2 Free-to-Air" (red V2 + white Free-to-Air), no TV icon; (b) the Categories submenu instantly closes when clicked / when pressing LEFT.
 >
