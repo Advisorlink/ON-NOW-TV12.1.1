@@ -248,8 +248,9 @@ export default function FreeToAir() {
     /* v2.8.100 — auto-focus the first channel cell on app open so
        D-pad nav starts on the live programme of the first channel
        (the user explicitly asked: "when the app opens the focus
-       needs to be on the first channel").  Runs only on the FIRST
-       paint after the EPG renders — not on every channel change. */
+       needs to be on the first channel").  Runs on the FIRST paint
+       after the EPG renders AND every time the user switches
+       category (`tab` change resets `hasAutoFocused` below). */
     const [hasAutoFocused, setHasAutoFocused] = useState(false);
     useEffect(() => {
         if (loading || hasAutoFocused || !visibleChannels.length) return;
@@ -261,11 +262,23 @@ export default function FreeToAir() {
                     setHasAutoFocused(true);
                     const scroller = document.querySelector('.fta-grid-rows');
                     if (scroller) scroller.scrollLeft = 0;
+                    // Also scroll back to the very top so the first
+                    // channel is the one in focus visually.
+                    if (scroller) scroller.scrollTop = 0;
                 } catch { /* */ }
             }
         }, 250);
         return () => clearTimeout(t);
     }, [loading, visibleChannels.length, hasAutoFocused]);
+
+    /* v2.8.101 — when the user switches category (Live TV → Kids,
+       Favourites → Live TV, etc.) the visible channel list changes
+       completely.  Reset the autofocus guard so the next effect
+       run lands focus on the new first channel and snaps the grid
+       back to the live column. */
+    useEffect(() => {
+        setHasAutoFocused(false);
+    }, [tab]);
 
     /* When a programme cell is FOCUSED (D-pad navigation / mouse
        hover) — update the sidebar info + cover art but DO NOT
@@ -333,18 +346,27 @@ export default function FreeToAir() {
         return () => window.removeEventListener('keydown', onKey, true);
     }, [fullScreen]);
 
-    /* v2.8.98 — D-pad model the user explicitly asked for:
-         Up/Down  → always land on the LIVE-NOW cell (leftmost) of
-                    the next/previous channel row, regardless of
-                    where you were horizontally.  Also smoothly
-                    scrolls the grid back to the channel-rail edge
-                    so the whole EPG slides back to NOW.
-         Right    → next future cell in the same row, and the grid
-                    scrolls horizontally so the focused cell sits
-                    just after the channel rail (no manual scroll).
+    /* v2.8.101 — D-pad nav rewritten per the user's latest feedback:
+         Up/Down  → move to the row above/below at the SAME time
+                    column (cell whose horizontal range straddles
+                    the current cell's left edge).  No more
+                    snapping-to-live-cell — they reported it was
+                    "skipping ahead to what's next".  When you
+                    walk down from a future cell, you stay in the
+                    future column.
+         Right    → next cell to the right in the same row, grid
+                    scrolls horizontally to follow.
          Left     → previous cell in the same row.  When already on
-                    the leftmost (live) cell, LEFT opens the Vesper
-                    style category side menu.
+                    the leftmost (live) cell, LEFT opens the side
+                    menu.  Walking left across many cells naturally
+                    pulls scrollLeft back to 0 (the live column),
+                    fixing the user's "live cells get cut off when
+                    you come back from the future" complaint —
+                    every left-arrow brings the grid back one cell
+                    width until you're flush against the rail.
+         Holding-key  → all scrolls use behavior:'auto' (instant)
+                    instead of 'smooth' so 30Hz key auto-repeat
+                    doesn't queue overlapping animations.
        Bound on `window` with capture=true so we win against the
        generic geometric `useSpatialFocus` handler. */
     useEffect(() => {
@@ -358,14 +380,8 @@ export default function FreeToAir() {
             if (!row) return;
             const scroller = row.closest('.fta-grid-rows');
 
-            /* Smoothly bring a cell into view by scrolling the grid
-               horizontally so the cell sits just after the channel
-               rail.  Vertical scroll uses scrollIntoView with
-               block:nearest so rows you walk into stay on screen.
-               v2.8.100: when the next cell is the FIRST in its row
-               (i.e. the live-now cell), force scrollLeft to 0 even
-               if its style.left is non-zero — guarantees the whole
-               grid realigns to the live column as the user expects. */
+            /* Move focus + sync the grid scroll position so the
+               focused cell sits just past the channel rail. */
             const focusAndScroll = (next) => {
                 if (!next) return;
                 e.preventDefault();
@@ -380,9 +396,12 @@ export default function FreeToAir() {
                             ?.querySelector('.fta-cell:not(.fta-cell--empty)');
                         const cellLeft = parseFloat(next.style.left || '0');
                         const target = isFirstInRow ? 0 : Math.max(0, cellLeft - 4);
-                        scroller.scrollTo({ left: target, behavior: 'smooth' });
+                        // Instant scroll — `behavior: smooth` queues
+                        // overlapping animations under D-pad
+                        // auto-repeat and feels chunky.
+                        scroller.scrollTo({ left: target, behavior: 'auto' });
                     }
-                    next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+                    next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
                 } catch { /* */ }
             };
 
@@ -407,16 +426,30 @@ export default function FreeToAir() {
                 return;
             }
 
-            // Up / Down — always pick the LIVE-NOW cell (the FIRST
-            // cell in the target row).  This was the user's
-            // explicit ask: "up, down always lands on the live TV
-            // now section".  No horizontal-position memory.
+            // Up / Down — find the cell in the adjacent row whose
+            // horizontal range straddles the current cell's left
+            // edge.  Stays in the same "time column" as the user
+            // walks down the channel list.
             const targetRow = e.key === 'ArrowDown'
                 ? row.nextElementSibling
                 : row.previousElementSibling;
             if (!targetRow || !targetRow.classList || !targetRow.classList.contains('fta-row')) return;
+
+            const curLeft = parseFloat(ae.style.left || '0');
+            const curWidth = parseFloat(ae.style.width || '0');
+            // Bias toward the cell's start edge so the match is
+            // visually obvious — "the one starting around the same
+            // time" rather than "the one that ends overlapping".
+            const probe = curLeft + Math.min(40, curWidth / 4);
             const cells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
-            focusAndScroll(cells[0]);
+            let best = null;
+            for (const cell of cells) {
+                const l = parseFloat(cell.style.left || '0');
+                const w = parseFloat(cell.style.width || '0');
+                if (l <= probe && probe < l + w) { best = cell; break; }
+            }
+            if (!best && cells.length) best = cells[0];
+            focusAndScroll(best);
         };
         // Capture phase + window-level so we run before useSpatialFocus.
         window.addEventListener('keydown', onKey, true);
