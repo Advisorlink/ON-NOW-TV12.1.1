@@ -13,6 +13,16 @@
 > should I touch next".
 
 
+> **🟢 v2.8.108 — FTA Categories submenu: toggle close + multiple exits (Jun 2, 2026).**
+> User reported in screen recording: opened the Categories menu, then repeatedly tried to close it (pressed Enter, said "Categories enter", "fix it") and couldn't.  The v2.8.106 fix that "kept the menu open while navigating" went too far — there was no way back out except the Escape key which is non-obvious on a TV remote.
+>
+> Fixes:
+>   - **Categories button is now a toggle.**  `onPickCategories` flipped from `setSideMenuOpen(true)` to `setSideMenuOpen((v) => !v)` so pressing Enter on the rail Categories icon (or clicking it) opens AND closes the submenu.  The rail's Categories icon now also gets the `is-on` active-state highlight while the submenu is open (mirroring how Favourites highlights when the favourites view is active) so the user has a visual cue.
+>   - **Removed duplicate Enter handler in IconRail's keydown.**  `useSpatialFocus` already dispatches `.click()` on keyup, which routes through each rail button's `onClick`.  Handling Enter both in IconRail's window-level keydown AND through onClick caused a double-fire that would have opened-then-closed the submenu on every Enter press once toggle behaviour was enabled.  IconRail's keydown now handles only Up/Down/Right/Escape/Backspace.
+>   - **Restored LEFT-to-close inside the submenu.**  v2.8.106 had `swallow LEFT/RIGHT` to fix the previous bug, but it left users stuck inside the menu.  LEFT now closes the submenu and returns focus to the Categories rail button (so a quick Enter immediately re-opens it).  RIGHT / Escape / Backspace also close, returning to the EPG.  Picking an item still closes via `onPick`.  UP / DOWN walk the items (handled by useSpatialFocus).  Verified: 6/6 interaction paths now work — click-toggle, LEFT-close, re-open from rail, DOWN inside menu, Enter-picks-and-closes.
+
+
+
 > **🟢 v2.8.107 — FTA splash redesigned to "V2 Free-to-Air" wordmark + web loading overlay removed (Jun 2, 2026).**
 > User feedback: (a) splash should use the same V2 Free-to-Air wordmark as the in-app rail but BIG and centred, same size as the previous "LIVE" wordmark; (b) "I don't want two splash screens though, because at the moment it's still loading the splash screen from the web" — remove the React `fta-loading` overlay that briefly appears between the native splash and the populated EPG.
 >
