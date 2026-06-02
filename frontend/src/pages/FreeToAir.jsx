@@ -733,17 +733,18 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
 }
 
 /* ----------------------- left icon rail --------------------------
-   v2.8.103 — Vesper-style permanent left rail.  Three icons stacked
-   vertically: Categories, Favourites, Refresh.
-     - Press LEFT on a live cell → focus moves to the first icon.
-     - Up/Down inside the rail cycles between the 3 icons.
-     - RIGHT or Enter on Categories opens the categories submenu.
-     - Enter on Favourites toggles the favourites-only filter.
-     - Enter on Refresh re-fetches the EPG.
-     - RIGHT or Escape returns focus to the EPG.
-   No top bar — the user explicitly removed it ("I don't want
-   anything on the top bar, no Free-to-Air, no Favourites, no
-   Brisbane on the top bar"). */
+   v2.8.104 — Now mirrors the Vesper / Tunes SideNav exactly so the
+   whole TV suite feels like one app:
+     • Same 76 px collapsed / 240 px expanded width
+     • Same brand wordmark with the glowing "V2" emblem
+     • Same icon container: 36 × 36 square holding a 20 px lucide
+       icon with strokeWidth 1.7 (active = 2.2)
+     • Same dwell-then-expand behaviour (no expansion on a quick
+       LEFT-then-RIGHT round trip)
+     • Same label fade (300 ms opacity transition once expanded)
+   Three icons: Categories · Favourites · Refresh.  No other entries
+   — this is the Free-to-Air-specific rail, not the global Vesper
+   nav. */
 function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
     const items = useMemo(() => ([
         { id: 'categories', label: 'Categories', Icon: LayoutGrid },
@@ -753,7 +754,9 @@ function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onTog
 
     const refs = useRef({});
 
-    /* When the rail becomes focused, move DOM focus to the matching icon. */
+    /* When the rail becomes focused, move DOM focus to the matching
+       icon.  When un-focused, do nothing — the parent has already
+       handed focus back to the EPG. */
     useEffect(() => {
         if (!focus) return;
         const el = refs.current[focus];
@@ -795,15 +798,46 @@ function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onTog
         return () => window.removeEventListener('keydown', onKey, true);
     }, [focus, items, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg]);
 
+    const isExpanded = !!focus;
+
     return (
-        <aside className={`fta-rail ${focus ? 'is-focused' : ''}`} data-testid="fta-rail">
-            <div className="fta-rail__brand">
-                <span className="fta-rail__brand-eyebrow">ON NOW</span>
-                <span className="fta-rail__brand-v2">V2</span>
+        <nav
+            data-testid="fta-rail"
+            className={`fta-rail ${isExpanded ? 'is-focused' : ''}`}
+            style={{
+                width: isExpanded ? 240 : 76,
+                background: isExpanded
+                    ? 'linear-gradient(90deg, rgba(8,11,20,0.98) 0%, rgba(8,11,20,0.95) 60%, rgba(8,11,20,0.0) 100%)'
+                    : 'transparent',
+            }}
+        >
+            {/* Brand mark — matches Vesper's "ON NOW T·V2" exactly,
+                except the "T" prefix becomes "T" + the FTA accent
+                (a hint of red on the glowing V2). */}
+            <div
+                className="fta-rail__brandmark"
+                style={{ height: 56 }}
+            >
+                <div
+                    className="fta-rail__brand-prefix"
+                    style={{
+                        opacity: isExpanded ? 1 : 0,
+                        maxWidth: isExpanded ? 200 : 0,
+                        marginRight: isExpanded ? 2 : 0,
+                        transition:
+                            'opacity 200ms ease 80ms, max-width 240ms ease, margin-right 240ms ease',
+                    }}
+                >
+                    ON NOW&nbsp;T
+                </div>
+                <div className="fta-rail__brand-v2">V2</div>
             </div>
+
             <div className="fta-rail__items">
                 {items.map((it) => {
                     const I = it.Icon;
+                    const isActive = !!it.isOn;
+                    const isFocused = focus === it.id;
                     return (
                         <button
                             key={it.id}
@@ -811,22 +845,34 @@ function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onTog
                             data-testid={`fta-rail-${it.id}`}
                             data-rail-icon={it.id}
                             data-focusable="true"
+                            data-focus-style="nav"
                             tabIndex={0}
                             aria-label={it.label}
-                            className={`fta-rail__btn ${it.isOn ? 'is-on' : ''} ${focus === it.id ? 'is-focused' : ''} ${(favPulse && it.id === 'favourites') ? 'is-favourite-pulse' : ''}`}
+                            className={`fta-rail__btn ${isActive ? 'is-on' : ''} ${isFocused ? 'is-focused' : ''} ${(favPulse && it.id === 'favourites') ? 'is-favourite-pulse' : ''}`}
                             onClick={() => {
                                 if (it.id === 'categories') onPickCategories();
                                 if (it.id === 'favourites') onToggleFavourites();
                                 if (it.id === 'refresh')    onRefresh();
                             }}
                         >
-                            <I size={22} strokeWidth={2.4} />
-                            <span className="fta-rail__btn-label">{it.label}</span>
+                            <span className="fta-rail__btn-icon-wrap">
+                                <I
+                                    size={20}
+                                    strokeWidth={isActive ? 2.2 : 1.7}
+                                    fill={isActive && it.id === 'favourites' ? 'currentColor' : 'none'}
+                                />
+                            </span>
+                            <span
+                                className="fta-rail__btn-label"
+                                style={{ opacity: isExpanded ? 1 : 0 }}
+                            >
+                                {it.label}
+                            </span>
                         </button>
                     );
                 })}
             </div>
-        </aside>
+        </nav>
     );
 }
 
