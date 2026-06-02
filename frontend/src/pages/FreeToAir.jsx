@@ -245,6 +245,28 @@ export default function FreeToAir() {
         fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())
     ), [city]);
 
+    /* v2.8.100 — auto-focus the first channel cell on app open so
+       D-pad nav starts on the live programme of the first channel
+       (the user explicitly asked: "when the app opens the focus
+       needs to be on the first channel").  Runs only on the FIRST
+       paint after the EPG renders — not on every channel change. */
+    const [hasAutoFocused, setHasAutoFocused] = useState(false);
+    useEffect(() => {
+        if (loading || hasAutoFocused || !visibleChannels.length) return;
+        const t = setTimeout(() => {
+            const firstCell = document.querySelector('.fta-row .fta-cell:not(.fta-cell--empty)');
+            if (firstCell) {
+                try {
+                    firstCell.focus({ preventScroll: true });
+                    setHasAutoFocused(true);
+                    const scroller = document.querySelector('.fta-grid-rows');
+                    if (scroller) scroller.scrollLeft = 0;
+                } catch { /* */ }
+            }
+        }, 250);
+        return () => clearTimeout(t);
+    }, [loading, visibleChannels.length, hasAutoFocused]);
+
     /* When a programme cell is FOCUSED (D-pad navigation / mouse
        hover) — update the sidebar info + cover art but DO NOT
        interrupt the currently-playing preview.  The video element
@@ -339,7 +361,11 @@ export default function FreeToAir() {
             /* Smoothly bring a cell into view by scrolling the grid
                horizontally so the cell sits just after the channel
                rail.  Vertical scroll uses scrollIntoView with
-               block:nearest so rows you walk into stay on screen. */
+               block:nearest so rows you walk into stay on screen.
+               v2.8.100: when the next cell is the FIRST in its row
+               (i.e. the live-now cell), force scrollLeft to 0 even
+               if its style.left is non-zero — guarantees the whole
+               grid realigns to the live column as the user expects. */
             const focusAndScroll = (next) => {
                 if (!next) return;
                 e.preventDefault();
@@ -350,13 +376,11 @@ export default function FreeToAir() {
                 try {
                     next.focus({ preventScroll: true });
                     if (scroller) {
+                        const isFirstInRow = next === next.closest('.fta-row')
+                            ?.querySelector('.fta-cell:not(.fta-cell--empty)');
                         const cellLeft = parseFloat(next.style.left || '0');
-                        // Target scrollLeft = cellLeft (rail is sticky at left:0
-                        // inside the row, so cell offset already starts after it).
-                        scroller.scrollTo({
-                            left: Math.max(0, cellLeft - 4),
-                            behavior: 'smooth',
-                        });
+                        const target = isFirstInRow ? 0 : Math.max(0, cellLeft - 4);
+                        scroller.scrollTo({ left: target, behavior: 'smooth' });
                     }
                     next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
                 } catch { /* */ }
@@ -830,7 +854,21 @@ function ChannelPreview({ channelId, streamFor, armed, artwork, fallback }) {
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = streamUrl;
         } else if (Hls.isSupported()) {
-            hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+            /* v2.8.100 — more aggressive buffering targets so the
+               first frame appears sooner.  startLevel:-1 picks the
+               smallest variant first (faster handshake), then ABR
+               steps up once the buffer is healthy.  Reduces the
+               "first click does nothing" perception the user
+               reported. */
+            hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+                startLevel: -1,
+                maxBufferLength: 6,
+                maxMaxBufferLength: 30,
+                manifestLoadingTimeOut: 8000,
+                fragLoadingTimeOut: 12000,
+            });
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
         }
@@ -877,7 +915,12 @@ function ChannelPreview({ channelId, streamFor, armed, artwork, fallback }) {
         - <video> is mounted only when armed; while it's still
           buffering it stays transparent so the artwork shows
           through.  Once 'playing' fires (streamReady=true) we
-          fade the video on top. */
+          fade the video on top.
+        - v2.8.100: when armed && !streamReady, show a centred
+          spinner so the user knows "loading…" — the previous
+          version showed only cover art during the HLS handshake,
+          which made the first click feel unresponsive on slower
+          channels (user clicked again thinking nothing happened). */
     const poster = artwork || fallback || '';
     return (
         <>
@@ -892,6 +935,12 @@ function ChannelPreview({ channelId, streamFor, armed, artwork, fallback }) {
                     autoPlay
                     poster={poster}
                 />
+            )}
+            {armed && !streamReady && (
+                <div className="fta-preview-loading" data-testid="fta-preview-loading">
+                    <div className="fta-preview-loading__spinner" />
+                    <div className="fta-preview-loading__label">Tuning in…</div>
+                </div>
             )}
         </>
     );
