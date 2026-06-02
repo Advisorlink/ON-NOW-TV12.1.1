@@ -1,35 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    ON NOW V2 — Free-to-Air splash background.
+    ON NOW V2 — Free-to-Air splash background (v2.8.110).
 
-    A diagonal gradient from a deep crimson (top-left, the existing
-    FTA brand red #ff2535) through a saturated orange (#ff8a1f) to
-    a warm amber (#ffb04d) at the bottom-right.  Adds a subtle
-    radial vignette over the top to focus the eye on the centred
-    logo.  Doubles as the `android:windowBackground` so the splash
+    Matches the OnNow V2 / Vesper splash palette per user request:
+    a deep navy base (#06080F — the `vesper_bg` colour) with a
+    subtle radial blue glow (#5DC8FF at low alpha) drawn from the
+    centre so the red "V2 Free-to-Air" wordmark reads cleanly on
+    top.  Doubles as the `android:windowBackground` so the splash
     is visible the instant the launcher hands control to us — no
-    white flash, no waiting on Java.
+    white flash.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <gradient
-                android:type="linear"
-                android:angle="315"
-                android:startColor="#FF2535"
-                android:centerColor="#FF6A1F"
-                android:endColor="#FFAA4A" />
+            <solid android:color="#FF06080F" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <gradient
                 android:type="radial"
-                android:gradientRadius="800"
+                android:gradientRadius="900"
                 android:centerX="0.5"
                 android:centerY="0.5"
-                android:startColor="#00000000"
-                android:endColor="#33000000" />
+                android:startColor="#335DC8FF"
+                android:centerColor="#1A5DC8FF"
+                android:endColor="#0006080F" />
         </shape>
     </item>
 </layer-list>
