@@ -580,8 +580,9 @@ export default function FreeToAir() {
                 forceExpanded={sideMenuOpen}
                 tab={tab}
                 favPulse={!!favPulse}
+                sideMenuOpen={sideMenuOpen}
                 onChangeFocus={setRailFocus}
-                onPickCategories={() => setSideMenuOpen(true)}
+                onPickCategories={() => setSideMenuOpen((v) => !v)}
                 onToggleFavourites={() => setTab((t) => t === 'favourites' ? 'live' : 'favourites')}
                 onRefresh={() => setRefreshKey((k) => k + 1)}
                 onReturnToEpg={() => {
@@ -690,32 +691,32 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
         return (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
     }, [categories]);
 
-    /* Focus the current tab on mount + handle BACK only.
-       v2.8.106 — per user feedback the submenu must STAY OPEN while
-       navigating with the D-pad.  We used to close on LEFT (return
-       to rail) and RIGHT (back to EPG), but that made the menu feel
-       like it was instantly disappearing every time the user
-       pressed an arrow.  Now ONLY Escape / Backspace dismiss it —
-       UP / DOWN walk the list (handled by useSpatialFocus), LEFT /
-       RIGHT do nothing inside the menu, and picking an item
-       implicitly closes via onPick. */
+    /* Focus the current tab on mount + handle close gestures.
+       v2.8.108 — user feedback (video Jun 2): "I can't close the
+       menu".  Re-enable both closing paths:
+         • LEFT  → close + return focus to the Categories rail
+                   button (so a quick Enter immediately re-opens it).
+                   The previous "swallow LEFT" behaviour left the
+                   user stuck inside the menu with no obvious way
+                   out.
+         • Escape / Backspace / RIGHT → close + return to the EPG.
+       UP / DOWN are NOT handled here — useSpatialFocus walks the
+       items automatically.  Picking an item still closes via
+       onPick. */
     const firstRef = useRef(null);
     useEffect(() => {
         const t = setTimeout(() => firstRef.current?.focus(), 30);
         const onKey = (e) => {
-            if (e.key === 'Escape' || e.key === 'Backspace') {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                onClose('rail');
+            } else if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'ArrowRight') {
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
                 onClose('epg');
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                /* Swallow horizontal arrows so they don't bubble into
-                   the global spatial-focus engine and yank focus out
-                   of the submenu (which is what the user reported as
-                   "the menu instantly closes when I push left"). */
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
             }
         };
         window.addEventListener('keydown', onKey, true);
@@ -761,12 +762,12 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
    Three icons: Categories · Favourites · Refresh.  No other entries
    — this is the Free-to-Air-specific rail, not the global Vesper
    nav. */
-function IconRail({ focus, forceExpanded, tab, favPulse, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
+function IconRail({ focus, forceExpanded, tab, favPulse, sideMenuOpen, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
     const items = useMemo(() => ([
-        { id: 'categories', label: 'Categories', Icon: LayoutGrid },
+        { id: 'categories', label: 'Categories', Icon: LayoutGrid, isOn: !!sideMenuOpen },
         { id: 'favourites', label: 'Favourites', Icon: Star, isOn: tab === 'favourites' },
         { id: 'refresh',    label: 'Refresh',    Icon: RotateCw },
-    ]), [tab]);
+    ]), [tab, sideMenuOpen]);
 
     const refs = useRef({});
 
@@ -779,7 +780,11 @@ function IconRail({ focus, forceExpanded, tab, favPulse, onChangeFocus, onPickCa
         if (el) try { el.focus({ preventScroll: true }); } catch { /* */ }
     }, [focus]);
 
-    /* Up/Down/Right/Enter/Escape handling for rail-focused state. */
+    /* Up/Down/Right/Escape handling for rail-focused state.
+       v2.8.108 — Enter is intentionally NOT handled here: useSpatialFocus
+       already dispatches `.click()` on keyup which routes through each
+       button's onClick.  Handling it both places caused a double-fire
+       that opened-then-closed the Categories submenu instantly. */
     useEffect(() => {
         if (!focus) return;
         const onKey = (e) => {
@@ -801,18 +806,11 @@ function IconRail({ focus, forceExpanded, tab, favPulse, onChangeFocus, onPickCa
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
                 onReturnToEpg();
-            } else if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                if (onRail === 'categories') onPickCategories();
-                if (onRail === 'favourites') onToggleFavourites();
-                if (onRail === 'refresh')    onRefresh();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [focus, items, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg]);
+    }, [focus, items, onChangeFocus, onReturnToEpg]);
 
     const isExpanded = !!focus || !!forceExpanded;
 
