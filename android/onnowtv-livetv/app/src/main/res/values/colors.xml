@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="livetv_bg">#06080F</color>
-    <color name="livetv_bg_alt">#0A0E1A</color>
-    <color name="livetv_bg_card">#0D1525</color>
-    <color name="livetv_bg_focused">#18253F</color>
-    <color name="livetv_bg_live">#1A2438</color>
-    <color name="livetv_accent">#FF2535</color>
+    <color name="livetv_bg">#0A0F1A</color>
+    <color name="livetv_bg_alt">#0E1422</color>
+    <color name="livetv_bg_card">#141C2A</color>
+    <color name="livetv_bg_focused">#1A2438</color>
+    <color name="livetv_bg_live">#18253F</color>
+    <color name="livetv_accent">#5DC8FF</color>
+    <color name="livetv_accent_red">#FF2535</color>
+    <color name="livetv_accent_fav">#FFC850</color>
     <color name="livetv_blue">#5DC8FF</color>
-    <color name="livetv_fg">#F5F7FA</color>
-    <color name="livetv_fg_dim">#B0B8C8</color>
-    <color name="livetv_fg_dimmer">#6E7888</color>
-    <color name="livetv_now_line">#FF2535</color>
+    <color name="livetv_fg">#FFFFFF</color>
+    <color name="livetv_fg_bright">#E6EAF2</color>
+    <color name="livetv_fg_dim">#9DA5B5</color>
+    <color name="livetv_fg_dimmer">#7D8493</color>
+    <color name="livetv_now_line">#5DC8FF</color>
     <color name="livetv_row_separator">#11FFFFFF</color>
+    <color name="livetv_card_border">#1AFFFFFF</color>
 </resources>
