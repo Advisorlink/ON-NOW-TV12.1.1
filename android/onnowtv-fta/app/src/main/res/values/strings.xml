@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ON NOW Free-to-Air</string>
+    <string name="app_name">ON NOW V2 Live TV</string>
     <!--
         🛠  EDIT ME 🛠
         The FTA APK boots straight into `${app_url}/fta` — a separate

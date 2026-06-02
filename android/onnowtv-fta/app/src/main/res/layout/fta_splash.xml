@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    ON NOW V2 — Free-to-Air splash overlay.
+    ON NOW V2 — Live TV splash overlay.
 
-    Sits on top of the WebView (FrameLayout in code), then fades out
-    once the React `/fta` page fires `onPageFinished` (with a small
-    minimum dwell so the user actually sees the brand).
-
-    Layout strategy:
-        Stack a 64dp "ON NOW" eyebrow, a big bold "FREE TO AIR"
-        wordmark, and a small "V2" pill — all centred — over the
-        red-to-orange gradient.  Mirrors the in-app brand mark in
-        the top-left of the EPG so the transition feels seamless.
+    Red gradient background, a centred red TV icon mark, and a big
+    "LIVE" wordmark underneath.  Per user feedback: "the splash
+    screen needs to be a red TV and it needs to say live underneath
+    it".
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -19,14 +14,6 @@
     android:layout_height="match_parent"
     android:background="@drawable/splash_gradient">
 
-    <!-- Subtle radial bloom in the centre to lift the logo -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#1AFFFFFF"
-        android:layout_gravity="center"
-        android:alpha="0.0" />
-
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -34,60 +21,67 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- "ON NOW" eyebrow -->
-        <TextView
+        <!-- "ON NOW V2" eyebrow -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="ON NOW"
-            android:textColor="#FFFFFFFF"
-            android:textSize="22sp"
-            android:letterSpacing="0.34"
-            android:textStyle="bold"
-            android:fontFamily="sans-serif-black"
-            android:shadowColor="#80000000"
-            android:shadowDx="0"
-            android:shadowDy="2"
-            android:shadowRadius="8" />
-
-        <!-- V2 pill -->
-        <FrameLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:padding="2dp">
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="ON NOW"
+                android:textColor="#FFFFFFFF"
+                android:textSize="18sp"
+                android:letterSpacing="0.34"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:shadowColor="#80000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="8" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
                 android:background="@drawable/splash_pill_dark"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
                 android:text="V2"
                 android:textColor="#FFFFFFFF"
-                android:textSize="16sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-black"
                 android:letterSpacing="0.12" />
-        </FrameLayout>
+        </LinearLayout>
 
-        <!-- Main wordmark -->
+        <!-- The big red TV mark -->
+        <ImageView
+            android:layout_width="180dp"
+            android:layout_height="180dp"
+            android:src="@drawable/splash_tv_mark"
+            android:contentDescription="Live TV"
+            android:elevation="12dp" />
+
+        <!-- "LIVE" wordmark -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="FREE TO AIR"
+            android:layout_marginTop="22dp"
+            android:text="LIVE"
             android:textColor="#FFFFFFFF"
-            android:textSize="56sp"
+            android:textSize="72sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-black"
-            android:letterSpacing="0.06"
+            android:letterSpacing="0.18"
             android:shadowColor="#66000000"
             android:shadowDx="0"
             android:shadowDy="6"
             android:shadowRadius="18" />
 
-        <!-- City chip placeholder for future "loading Brisbane guide" hint -->
         <TextView
             android:id="@+id/fta_splash_subtitle"
             android:layout_width="wrap_content"
@@ -98,7 +92,7 @@
             android:paddingEnd="18dp"
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
-            android:text="ON-AIR LIVE TV  •  188 CHANNELS"
+            android:text="LIVE FREE-TO-AIR TV  •  188 CHANNELS"
             android:textColor="#FFFFFFFF"
             android:textSize="11sp"
             android:letterSpacing="0.22"
@@ -106,7 +100,7 @@
             android:fontFamily="sans-serif-medium" />
     </LinearLayout>
 
-    <!-- Loading dot row anchored to the bottom -->
+    <!-- Loading dots -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
