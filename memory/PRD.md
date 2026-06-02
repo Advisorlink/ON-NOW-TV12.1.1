@@ -13,6 +13,21 @@
 > should I touch next".
 
 
+> **🟢 v2.8.101 — FTA D-pad model corrected + instant scroll + autofocus on category switch (Jun 2, 2026).**
+> User feedback after v2.8.100:
+>   - "When you push up or down it needs to be smoother if I push and hold my finger down it needs to go down one by one snapping to each tile instantly for fluent speed and not skipping down the page."
+>   - "The scroll needs to just go to the next line up or down irrelevant if its a live channel or not... it shouldnt skip to ahead to the Whats next it should just go down rhe line."
+>   - "When going to a new caragorie it needs to put focus back on the top channel and make sure all lined up properly with the live shows fully visible."
+>   - "URGENT: WHEN YOU COME BACK AFTER SCROLLING FORWARD THE LIVE TV CHANNELS NEED TO BE BE ON FULL DISPLAY NOT CUT OFF."
+>
+> Fixes:
+>   - **Reverted v2.8.98 "snap to live cell" behaviour.**  The user changed their mind: pressing Down on a future cell should stay in the SAME time column (the horizontal-position-memory model from v2.8.96), not snap back to the live cell of the next row.  Up/Down handler now uses the geometric "find cell whose horizontal range straddles `curLeft + min(40, curWidth/4)`" matcher.  Verified live: from a future cell at left=406 ("Seven News With Alex Cullen"), pressing Down lands at left=406 ("Escape To The Country" on 7Two) — same column, different row.
+>   - **Instant scroll** (`behavior: 'auto'`).  Was `'smooth'` which animates over 200-400ms — under D-pad key auto-repeat (30Hz once held), animations queue and the EPG feels chunky / skips rows.  Now every focus change moves the grid instantly so 8 quick Down presses land 8 rows below with no perceived latency.  Same change applied to both `scrollTo` and `scrollIntoView`.
+>   - **Realign on return to live.**  Already shipped in v2.8.100 (force `scrollLeft = 0` when destination cell is the first in its row).  Verified again in this test: walking back-left from a future cell eventually reaches the live cell with scrollLeft=0, live cell fully visible past the rail.
+>   - **Category switch resets focus.**  New `useEffect([tab])` resets `hasAutoFocused = false`, which lets the existing autofocus effect re-run on the new visible-channels list.  Switching to Kids / Sport / News / etc. now lands focus on the live cell of that category's first channel + snaps the grid to scrollLeft=0.
+
+
+
 > **🟢 v2.8.100 — FTA autofocus + realign + loading indicator (Jun 2, 2026).**
 > User feedback after v2.8.99: (a) "when app opens the focus needs to be on the first channel", (b) "when push to the right and then come back to where the live is it needs to realign itself so you can see all the live channels again not cut off", (c) "when you click the channel on some channels it doesn't play in the preview but then when you click it again it opens full screen and plays".
 >   - **Autofocus first cell on open.**  New effect that fires once after `loading` flips false, calls `firstCell.focus({ preventScroll: true })`, and snaps `scroller.scrollLeft = 0`.  Verified live: Seven · "The Morning Show" cell is the active element from frame 0, no manual click required.  Gated by `hasAutoFocused` so we never yank focus away after the first paint.
