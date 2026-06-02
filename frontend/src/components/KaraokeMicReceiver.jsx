@@ -138,58 +138,28 @@ export default function KaraokeMicReceiver({ partySession }) {
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
             pc.ontrack = (e) => {
-                // v2.8.109 — LOW-LATENCY playback path for karaoke.
-                //
-                // The default HTMLAudioElement path runs the remote
-                // stream through a jitter buffer of 50-200 ms before
-                // it ever reaches the speaker, which the user
-                // experiences as a noticeable echo between speaking
-                // into the phone and hearing it on the TV.
-                //
-                // Web Audio's `MediaStreamAudioSourceNode` skips that
-                // jitter buffer and delivers frames as they arrive.
-                // We open an AudioContext with `latencyHint:
-                // 'interactive'` to ask the browser for the smallest
-                // output buffer it'll give us, then pipe:
-                //
-                //   stream → MediaStreamAudioSourceNode → destination
-                //
-                // The <audio> element stays in the DOM (with the
-                // stream attached but MUTED) purely to "pump" the
-                // MediaStream — Chromium/Android WebView won't
-                // deliver track frames otherwise.
+                // v2.8.110 — Reverted to the simple <audio> element
+                // playback path.  v2.8.109 tried routing through
+                // Web Audio for lower latency, but on some Android
+                // WebView builds the AudioContext was being created
+                // outside a user-gesture window → silently
+                // suspended → no sound came out of the TV speakers
+                // even though the WebRTC connection reported as
+                // "connected".  The playoutDelayHint = 0 set below
+                // already cuts the WebRTC-side jitter buffer to
+                // its minimum, which is the safe portion of the
+                // latency win.
                 const stream = e.streams[0];
                 if (audioElRef.current) {
                     audioElRef.current.srcObject = stream;
-                    audioElRef.current.muted = true;   // pump only
-                    audioElRef.current.volume = 0;
+                    audioElRef.current.muted = false;
+                    audioElRef.current.volume = 1.0;
                     const playPromise = audioElRef.current.play();
                     if (playPromise) {
-                        playPromise.catch(() => { /* muted autoplay always allowed */ });
+                        playPromise.catch((err) => {
+                            console.warn('[karaoke-mic] audio.play() blocked:', err);
+                        });
                     }
-                }
-                try {
-                    const Ctx = window.AudioContext || window.webkitAudioContext;
-                    const ctx = new Ctx({ latencyHint: 'interactive', sampleRate: 48000 });
-                    audioCtxRef.current = ctx;
-                    const src = ctx.createMediaStreamSource(stream);
-                    src.connect(ctx.destination);
-                    if (ctx.state === 'suspended') {
-                        ctx.resume().catch(() => { /* ignore */ });
-                    }
-                    console.info('[karaoke-mic] low-latency path active', {
-                        baseLatency: ctx.baseLatency,
-                        outputLatency: ctx.outputLatency,
-                        sampleRate: ctx.sampleRate,
-                    });
-                } catch (err) {
-                    // Fallback: unmute the audio element so the user
-                    // still hears the singer (high-latency path).
-                    if (audioElRef.current) {
-                        audioElRef.current.muted = false;
-                        audioElRef.current.volume = 1.0;
-                    }
-                    console.warn('[karaoke-mic] WebAudio path failed, falling back to <audio>:', err);
                 }
                 console.info('[karaoke-mic] remote track attached', {
                     kind: e.track.kind,
