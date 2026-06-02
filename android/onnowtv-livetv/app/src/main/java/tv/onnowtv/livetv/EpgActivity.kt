@@ -4,8 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -13,9 +15,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
+import tv.onnowtv.livetv.data.Category
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
 import tv.onnowtv.livetv.data.XtreamBundle
+import tv.onnowtv.livetv.ui.CategoryAdapter
 import tv.onnowtv.livetv.ui.EpgRowAdapter
 import tv.onnowtv.livetv.ui.NowLineOverlay
 import tv.onnowtv.livetv.ui.ScrollSync
@@ -82,6 +86,13 @@ class EpgActivity : AppCompatActivity() {
     private val clockHandler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mma", Locale.UK)
 
+    // Categories overlay
+    private lateinit var categoriesOverlay: FrameLayout
+    private lateinit var categoriesList: RecyclerView
+    private lateinit var categoryAdapter: CategoryAdapter
+    private var currentCategoryId: String? = null
+    private var allCategoriesWithCounts: List<Category> = emptyList()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_epg)
@@ -137,11 +148,47 @@ class EpgActivity : AppCompatActivity() {
         rowsRv.setHasFixedSize(true)
         rowsRv.itemAnimator = null
 
-        // Surface the first 200 channels initially (enough to render);
-        // larger guides can show category filtering later.
-        val visibleChannels = bundle.channels.take(500)
-        rowAdapter.submit(visibleChannels, bundle.epg)
-        categoryLabel.text = "ALL  ·  ${visibleChannels.size}"
+        // Build category metadata with real channel counts (the
+        // server-side counts can be stale).  Add a virtual "ALL"
+        // option at the top so the user can browse everything.
+        val countsByCat: Map<String, Int> = bundle.channels
+            .groupingBy { it.categoryId ?: "" }
+            .eachCount()
+        val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
+        allCategoriesWithCounts = listOf(virtualAll) + bundle.categories.map {
+            it.copy(channelCount = countsByCat[it.id] ?: 0)
+        }.filter { it.channelCount > 0 }
+
+        // Pick a sensible default category — first one with the most
+        // channels (skips noise like "##### HEADER #####" rows).
+        currentCategoryId = allCategoriesWithCounts
+            .drop(1) // skip "All channels"
+            .maxByOrNull { it.channelCount }
+            ?.id
+            ?: "__all__"
+
+        // Wire categories overlay
+        categoriesOverlay = findViewById<FrameLayout>(R.id.categories_overlay)
+        categoriesList = findViewById<RecyclerView>(R.id.categories_list)
+        categoryAdapter = CategoryAdapter(
+            onPick = { c ->
+                currentCategoryId = c.id
+                applyCategory()
+                hideCategoriesOverlay()
+            },
+            onFocus = { /* no-op for now */ },
+        )
+        categoriesList.layoutManager = LinearLayoutManager(this)
+        categoriesList.adapter = categoryAdapter
+        categoriesList.itemAnimator = null
+
+        applyCategory()
+
+        // The CATEGORY chip in the top-right doubles as a focusable
+        // tap target — click / OK on it opens the categories drawer.
+        // This means the user can find the drawer without knowing
+        // the MENU key shortcut.
+        categoryLabel.setOnClickListener { showCategoriesOverlay() }
 
         // Once the rows are laid out, focus the first programme cell
         // of the first row.
@@ -155,6 +202,71 @@ class EpgActivity : AppCompatActivity() {
 
         // Tick the clock + NOW line position every 30s.
         startClock()
+    }
+
+    /**
+     * Filters channels by `currentCategoryId`, pushes them into the
+     * row adapter, and updates the category label.
+     */
+    private fun applyCategory() {
+        val sel = currentCategoryId
+        val channels = if (sel == null || sel == "__all__") {
+            bundle.channels
+        } else {
+            bundle.channels.filter { it.categoryId == sel }
+        }
+        // Cap at 500 for now — even with category filtering some sets
+        // are 800+ channels and rendering that many simultaneously is
+        // pointless.  Real implementation would page in as the user
+        // scrolls.
+        val visible = channels.take(500)
+        rowAdapter.submit(visible, bundle.epg)
+        val label = allCategoriesWithCounts.firstOrNull { it.id == sel }?.name ?: "ALL"
+        categoryLabel.text = "$label  ·  ${visible.size}"
+        categoryAdapter.submit(allCategoriesWithCounts, sel)
+    }
+
+    private fun showCategoriesOverlay() {
+        categoriesOverlay.visibility = View.VISIBLE
+        // Focus the currently-selected category, otherwise the first.
+        categoriesList.post {
+            val idx = allCategoriesWithCounts.indexOfFirst { it.id == currentCategoryId }.coerceAtLeast(0)
+            val vh = categoriesList.findViewHolderForAdapterPosition(idx)
+            if (vh != null) {
+                vh.itemView.requestFocus()
+            } else {
+                categoriesList.scrollToPosition(idx)
+                categoriesList.postDelayed({
+                    categoriesList.findViewHolderForAdapterPosition(idx)
+                        ?.itemView?.requestFocus()
+                }, 80)
+            }
+        }
+    }
+
+    private fun hideCategoriesOverlay() {
+        categoriesOverlay.visibility = View.GONE
+        rowsRv.post { focusFirstCell() }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // MENU key always toggles the categories drawer.
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            if (categoriesOverlay.visibility == View.VISIBLE) {
+                hideCategoriesOverlay()
+            } else {
+                showCategoriesOverlay()
+            }
+            return true
+        }
+        // BACK key: close drawer if open, otherwise quit.
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (categoriesOverlay.visibility == View.VISIBLE) {
+                hideCategoriesOverlay()
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {

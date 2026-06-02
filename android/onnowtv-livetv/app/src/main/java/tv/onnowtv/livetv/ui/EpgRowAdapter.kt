@@ -117,8 +117,25 @@ class EpgRowAdapter(
             }
             railItem.setOnClickListener { onChannelActivated(channel) }
 
-            // Programmes for this channel
-            val list = epg[channel.epgChannelId] ?: emptyList()
+            // Programmes for this channel — when the EPG is empty
+            // (e.g. the backend hasn't finished its first refresh yet),
+            // inject a 6-hour placeholder cell so the row still has
+            // something focusable and the user can press OK on it to
+            // tune in to the channel.
+            val rawList = epg[channel.epgChannelId] ?: emptyList()
+            val list = if (rawList.isEmpty()) {
+                val nowMs = System.currentTimeMillis()
+                listOf(
+                    Programme(
+                        title = channel.name,
+                        description = "No programme info available — press OK to tune in.",
+                        startMs = nowMs - 30L * 60_000L,
+                        stopMs = nowMs + 6L * 60L * 60_000L,
+                    )
+                )
+            } else {
+                rawList
+            }
             programmeAdapter.submit(list)
 
             // Wire up scroll sync (detach first to avoid duplicates on
