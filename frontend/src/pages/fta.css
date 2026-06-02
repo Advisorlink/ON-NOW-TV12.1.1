@@ -347,56 +347,64 @@
 .fta-rail__brandmark {
     display: flex;
     align-items: center;
-    padding: 0 16px;
-    margin-bottom: 40px;
+    justify-content: flex-start;
+    padding: 0 18px;
+    margin-bottom: 36px;
     user-select: none;
     overflow: hidden;
+    position: relative;
 }
 
-.fta-rail__brand-icon {
-    /* v2.8.105 — red TV mark, matching the new splash screen. */
+/* Collapsed-state mark: bold red "V2" badge centred in the 76 px rail. */
+.fta-rail__brand-collapsed {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    color: #fff;
-    background: linear-gradient(135deg, #FF2535 0%, #FF6A1F 100%);
-    box-shadow:
-        0 8px 22px -8px rgba(255, 53, 37, 0.65),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-    flex-shrink: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: #FF2535;
+    text-shadow: 0 0 10px rgba(255, 37, 53, 0.35);
+}
+
+.fta-rail__brand-icon {
+    /* Legacy — kept for any remaining reference but no longer
+       rendered (wordmark replaces it). */
+    display: none;
 }
 
 .fta-rail__brand-text {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
     overflow: hidden;
     white-space: nowrap;
 }
 
 .fta-rail__brand-v2 {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 24px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 26px;
     line-height: 1;
-    font-weight: 800;
+    font-weight: 900;
     letter-spacing: -0.04em;
-    color: #FF6A1F;
+    color: #FF2535;
     text-shadow:
-        0 0 12px rgba(255, 53, 37, 0.55),
-        0 0 24px rgba(255, 53, 37, 0.3);
+        0 0 12px rgba(255, 37, 53, 0.45),
+        0 0 24px rgba(255, 37, 53, 0.22);
 }
 
 .fta-rail__brand-suffix {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    font-size: 12px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 18px;
     line-height: 1;
-    font-weight: 800;
-    letter-spacing: 0.22em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: #fff;
-    margin-top: 6px;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .fta-rail__items {

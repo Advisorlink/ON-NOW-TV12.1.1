@@ -27,7 +27,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { LayoutGrid, Star, RotateCw, ChevronDown, Tv } from 'lucide-react';
+import { LayoutGrid, Star, RotateCw, ChevronDown } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import './fta.css';
@@ -691,19 +691,32 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
         return (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
     }, [categories]);
 
-    /* Focus the current tab on mount + handle LEFT/RIGHT/BACK. */
+    /* Focus the current tab on mount + handle BACK only.
+       v2.8.106 — per user feedback the submenu must STAY OPEN while
+       navigating with the D-pad.  We used to close on LEFT (return
+       to rail) and RIGHT (back to EPG), but that made the menu feel
+       like it was instantly disappearing every time the user
+       pressed an arrow.  Now ONLY Escape / Backspace dismiss it —
+       UP / DOWN walk the list (handled by useSpatialFocus), LEFT /
+       RIGHT do nothing inside the menu, and picking an item
+       implicitly closes via onPick. */
     const firstRef = useRef(null);
     useEffect(() => {
         const t = setTimeout(() => firstRef.current?.focus(), 30);
         const onKey = (e) => {
-            /* LEFT inside the categories submenu returns to the
-               icon rail; RIGHT, Escape, or Backspace dismisses the
-               submenu entirely (back to EPG). */
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Escape' || e.key === 'Backspace') {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                onClose(e.key === 'ArrowLeft' ? 'rail' : 'epg');
+                onClose('epg');
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                /* Swallow horizontal arrows so they don't bubble into
+                   the global spatial-focus engine and yank focus out
+                   of the submenu (which is what the user reported as
+                   "the menu instantly closes when I push left"). */
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
             }
         };
         window.addEventListener('keydown', onKey, true);
@@ -815,28 +828,29 @@ function IconRail({ focus, forceExpanded, tab, favPulse, onChangeFocus, onPickCa
                     : 'transparent',
             }}
         >
-            {/* v2.8.105 — brand mark redesigned per user feedback.
-                Collapsed: small red TV-tower icon centred.
-                Expanded: red TV icon + "V2 Live TV" wordmark next
-                          to it.  Matches the new splash screen
-                          (red TV mark + "LIVE" eyebrow). */}
+            {/* v2.8.106 — brand wordmark redesigned per user mockup:
+                pure type — red "V2" + white "Free-to-Air".  No TV
+                icon (the mockup is a wordmark-only logo). */}
             <div className="fta-rail__brandmark" style={{ height: 56 }}>
-                <span className="fta-rail__brand-icon">
-                    <Tv size={26} strokeWidth={2.2} />
-                </span>
                 <div
                     className="fta-rail__brand-text"
                     style={{
                         opacity: isExpanded ? 1 : 0,
                         maxWidth: isExpanded ? 220 : 0,
-                        marginLeft: isExpanded ? 10 : 0,
+                        marginLeft: 0,
                         transition:
-                            'opacity 220ms ease 80ms, max-width 240ms ease, margin-left 240ms ease',
+                            'opacity 220ms ease 80ms, max-width 240ms ease',
                     }}
                 >
                     <span className="fta-rail__brand-v2">V2</span>
-                    <span className="fta-rail__brand-suffix">Live&nbsp;TV</span>
+                    <span className="fta-rail__brand-suffix">Free-to-Air</span>
                 </div>
+                {/* Collapsed-state mark: just a bold red "V2" so the
+                    rail still has identity when the icons are
+                    centred. */}
+                {!isExpanded && (
+                    <span className="fta-rail__brand-collapsed">V2</span>
+                )}
             </div>
 
             <div className="fta-rail__items">
