@@ -13,6 +13,16 @@
 > should I touch next".
 
 
+> **🟢 v2.8.105 — FTA rebranded to "Live TV" + categories submenu fix (Jun 2, 2026).**
+> User feedback: (a) clicking Categories button made the rail look like it closed (it was actually hidden behind the submenu); (b) splash screen wordmark should be a red TV icon with "LIVE" underneath; (c) in-app brand should say "V2 Live TV".
+>
+> Fixes:
+>   - **Submenu sits right of the expanded rail.**  `.fta-side-menu` moved from `left: 76px` → `left: 240px` so it no longer covers the rail icons.  Added `forceExpanded` prop to `IconRail` — when the categories submenu is open the rail stays at 240 px regardless of D-pad focus.  Body content `:has(.fta-side-menu)` shifts `padding-left: 540px` so the EPG slides right and nothing is obscured.  Verified: opening Categories shows the rail (Categories highlighted, Favourites + Refresh icons) + the submenu list (Live TV 21 · Kids 5 · Sport 8 · News 12 · Drama 8 · Movies 3 · Reality 8 · Music 3 · More 121) + the EPG, all visible simultaneously.
+>   - **Rail wordmark "V2 Live TV" with red TV icon.**  Replaced the Vesper-style "ON NOW T V2" mark with a 44 × 44 rounded-square red-orange gradient tile containing the lucide `Tv` glyph + an orange Playfair-glow "V2" stacked over an uppercase "LIVE TV" suffix.  Focus highlight + active-state colour also flipped from blue to red-orange `#FF6A1F` so the rail visually owns the "Live TV" identity.
+>   - **Splash screen redesigned.**  New `splash_tv_mark.xml` vector — white shield with red TV screen, white play triangle inside, antennae on top, stand at the bottom — drops into `fta_splash.xml` over the existing red→orange gradient backdrop.  Layout now stacks: small "ON NOW V2" eyebrow chip → 180 dp red TV icon → 72 sp "LIVE" wordmark → "LIVE FREE-TO-AIR TV · 188 CHANNELS" outline chip.  App name (Android launcher label) bumped from "ON NOW Free-to-Air" to "ON NOW V2 Live TV".
+
+
+
 > **🟢 v2.8.104 — FTA rail visually mirrors Vesper / Tunes SideNav (Jun 2, 2026).**
 > User feedback after v2.8.103: "I need the actual icons, like we have in Vesper and like we have in the Tune store. I want the icons there until I push across to the left so it all looks the same."
 >

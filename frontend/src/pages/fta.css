@@ -9,9 +9,11 @@
 
 .fta-side-menu {
     position: fixed;
-    /* v2.8.103 — sit just to the right of the icon rail (76px) so
-       the rail icons remain visible behind it. */
-    left: 76px;
+    /* v2.8.105 — sit just to the right of the EXPANDED icon rail
+       (240 px) so the rail icons remain fully visible and clicking
+       Categories doesn't appear to close the rail (it was being
+       covered by the submenu). */
+    left: 240px;
     top: 0;
     bottom: 0;
     width: 300px;
@@ -311,8 +313,18 @@
     transition: padding-left 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.fta-root:has(.fta-rail.is-focused) .fta-body {
+/* When the rail is focused OR the categories submenu is open, the
+   rail visibly expands and the body shifts right so nothing is
+   covered. */
+.fta-root:has(.fta-rail.is-focused) .fta-body,
+.fta-root:has(.fta-side-menu) .fta-body {
     padding-left: 240px;
+}
+
+/* Submenu open → push the EPG further right so neither the rail
+   nor the submenu overlap content. */
+.fta-root:has(.fta-side-menu) .fta-body {
+    padding-left: 540px;
 }
 
 /* Left icon rail ----------------------------------------------------
@@ -334,39 +346,57 @@
 
 .fta-rail__brandmark {
     display: flex;
-    align-items: baseline;
-    padding: 0 12px;
+    align-items: center;
+    padding: 0 16px;
     margin-bottom: 40px;
     user-select: none;
     overflow: hidden;
 }
 
-.fta-rail__brand-prefix {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-weight: 700;
-    font-size: 22px;
-    line-height: 1;
-    letter-spacing: -0.025em;
+.fta-rail__brand-icon {
+    /* v2.8.105 — red TV mark, matching the new splash screen. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     color: #fff;
-    white-space: nowrap;
+    background: linear-gradient(135deg, #FF2535 0%, #FF6A1F 100%);
+    box-shadow:
+        0 8px 22px -8px rgba(255, 53, 37, 0.65),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+}
+
+.fta-rail__brand-text {
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    flex: 0 1 auto;
+    white-space: nowrap;
 }
 
 .fta-rail__brand-v2 {
     font-family: 'Playfair Display', Georgia, serif;
-    font-size: 32px;
+    font-size: 24px;
     line-height: 1;
     font-weight: 800;
     letter-spacing: -0.04em;
-    /* Same blue glow as Vesper but with a hint of red so users
-       know they're on the Free-to-Air rail not the Vesper rail. */
-    color: #5DC8FF;
+    color: #FF6A1F;
     text-shadow:
-        0 0 12px rgba(93, 200, 255, 0.65),
-        0 0 28px rgba(93, 200, 255, 0.4),
-        0 0 6px rgba(255, 37, 53, 0.25);
-    flex-shrink: 0;
+        0 0 12px rgba(255, 53, 37, 0.55),
+        0 0 24px rgba(255, 53, 37, 0.3);
+}
+
+.fta-rail__brand-suffix {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    color: #fff;
+    margin-top: 6px;
+    text-transform: uppercase;
 }
 
 .fta-rail__items {
@@ -410,17 +440,18 @@
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    border: 2px solid #5DC8FF;
-    box-shadow: 0 0 0 1px rgba(93, 200, 255, 0.25);
+    /* v2.8.105 — red focus glow to match the new Live TV brand. */
+    border: 2px solid #FF6A1F;
+    box-shadow: 0 0 0 1px rgba(255, 106, 31, 0.25);
     pointer-events: none;
 }
 
 .fta-rail__btn.is-on {
-    color: #5DC8FF;
+    color: #FF6A1F;
 }
 
 .fta-rail__btn.is-on svg {
-    color: #5DC8FF;
+    color: #FF6A1F;
 }
 
 .fta-rail__btn-icon-wrap {

@@ -27,7 +27,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { LayoutGrid, Star, RotateCw, ChevronDown } from 'lucide-react';
+import { LayoutGrid, Star, RotateCw, ChevronDown, Tv } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import './fta.css';
@@ -574,6 +574,10 @@ export default function FreeToAir() {
         <div className={`fta-root ${fullScreen ? 'is-fullscreen' : ''}`} data-testid="fta-root">
             <IconRail
                 focus={railFocus}
+                /* v2.8.105 — also keep the rail expanded while the
+                   categories submenu is open so the icons don't
+                   collapse out from under the user's finger. */
+                forceExpanded={sideMenuOpen}
                 tab={tab}
                 favPulse={!!favPulse}
                 onChangeFocus={setRailFocus}
@@ -745,7 +749,7 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
    Three icons: Categories · Favourites · Refresh.  No other entries
    — this is the Free-to-Air-specific rail, not the global Vesper
    nav. */
-function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
+function IconRail({ focus, forceExpanded, tab, favPulse, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
     const items = useMemo(() => ([
         { id: 'categories', label: 'Categories', Icon: LayoutGrid },
         { id: 'favourites', label: 'Favourites', Icon: Star, isOn: tab === 'favourites' },
@@ -798,7 +802,7 @@ function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onTog
         return () => window.removeEventListener('keydown', onKey, true);
     }, [focus, items, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg]);
 
-    const isExpanded = !!focus;
+    const isExpanded = !!focus || !!forceExpanded;
 
     return (
         <nav
@@ -811,26 +815,28 @@ function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onTog
                     : 'transparent',
             }}
         >
-            {/* Brand mark — matches Vesper's "ON NOW T·V2" exactly,
-                except the "T" prefix becomes "T" + the FTA accent
-                (a hint of red on the glowing V2). */}
-            <div
-                className="fta-rail__brandmark"
-                style={{ height: 56 }}
-            >
+            {/* v2.8.105 — brand mark redesigned per user feedback.
+                Collapsed: small red TV-tower icon centred.
+                Expanded: red TV icon + "V2 Live TV" wordmark next
+                          to it.  Matches the new splash screen
+                          (red TV mark + "LIVE" eyebrow). */}
+            <div className="fta-rail__brandmark" style={{ height: 56 }}>
+                <span className="fta-rail__brand-icon">
+                    <Tv size={26} strokeWidth={2.2} />
+                </span>
                 <div
-                    className="fta-rail__brand-prefix"
+                    className="fta-rail__brand-text"
                     style={{
                         opacity: isExpanded ? 1 : 0,
-                        maxWidth: isExpanded ? 200 : 0,
-                        marginRight: isExpanded ? 2 : 0,
+                        maxWidth: isExpanded ? 220 : 0,
+                        marginLeft: isExpanded ? 10 : 0,
                         transition:
-                            'opacity 200ms ease 80ms, max-width 240ms ease, margin-right 240ms ease',
+                            'opacity 220ms ease 80ms, max-width 240ms ease, margin-left 240ms ease',
                     }}
                 >
-                    ON NOW&nbsp;T
+                    <span className="fta-rail__brand-v2">V2</span>
+                    <span className="fta-rail__brand-suffix">Live&nbsp;TV</span>
                 </div>
-                <div className="fta-rail__brand-v2">V2</div>
             </div>
 
             <div className="fta-rail__items">
