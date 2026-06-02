@@ -739,6 +739,107 @@ async def instant_bundle_meta() -> Dict[str, Any]:
     }
 
 
+@router.get("/epg/{stream_id}")
+async def epg_for_channel(stream_id: str) -> Dict[str, Any]:
+    """On-demand EPG lookup for a single channel.
+
+    The bulk `/instant-bundle` endpoint is best-effort — when the
+    scheduler hasn't finished its 2-hour refresh yet, EPG buckets
+    will be empty.  This endpoint lets clients lazy-load EPG for
+    the channels they actually need, by going straight to the
+    provider's `get_short_epg` API for the given `stream_id`.
+
+    Returns:
+        {
+          "stream_id": "12345",
+          "programmes": [
+            {"title": "...", "description": "...",
+             "start": 1780400000, "stop": 1780403600},
+            ...
+          ],
+        }
+    """
+    # First try the in-memory cache (populated by the bulk refresh).
+    cached = _state.get("epg", {}).get(str(stream_id))
+    if cached:
+        return {
+            "stream_id": str(stream_id),
+            "programmes": [
+                {
+                    "title": it.get("title", ""),
+                    "description": it.get("desc", ""),
+                    "start": it.get("startTimestamp", 0),
+                    "stop":  it.get("stopTimestamp",  0),
+                }
+                for it in cached
+            ],
+            "source": "cache",
+        }
+
+    p = _provider_from_env()
+    if not p:
+        raise HTTPException(503, "Managed Xtream provider not configured.")
+
+    url = f"{_base_url(p)}/player_api.php"
+    params = {
+        "username":  p["username"],
+        "password":  p["password"],
+        "action":    "get_short_epg",
+        "stream_id": str(stream_id),
+        "limit":     "24",
+    }
+    try:
+        resp = await _http().get(url, params=params, timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        raise HTTPException(502, f"Provider EPG fetch failed: {e!s}") from e
+
+    items_raw = data.get("epg_listings") if isinstance(data, dict) else None
+    if not items_raw:
+        return {"stream_id": str(stream_id), "programmes": [], "source": "live"}
+
+    progs: List[Dict[str, Any]] = []
+    for it in items_raw:
+        try:
+            start_ts = int(it.get("start_timestamp") or 0)
+            stop_ts  = int(it.get("stop_timestamp")  or 0)
+        except (TypeError, ValueError):
+            continue
+        title_b64 = (it.get("title") or "").strip()
+        desc_b64  = (it.get("description") or "").strip()
+        try:
+            title = base64.b64decode(title_b64).decode("utf-8", "replace") if title_b64 else ""
+        except Exception:
+            title = title_b64
+        try:
+            desc = base64.b64decode(desc_b64).decode("utf-8", "replace") if desc_b64 else ""
+        except Exception:
+            desc = desc_b64
+        progs.append({
+            "title": title,
+            "description": desc,
+            "start": start_ts,
+            "stop":  stop_ts,
+        })
+    progs.sort(key=lambda x: x["start"])
+
+    # Opportunistically cache for subsequent requests.
+    if progs:
+        _state.setdefault("epg", {})[str(stream_id)] = [
+            {
+                "title": pr["title"],
+                "desc":  pr["description"],
+                "category": "",
+                "startTimestamp": pr["start"],
+                "stopTimestamp":  pr["stop"],
+            }
+            for pr in progs
+        ]
+
+    return {"stream_id": str(stream_id), "programmes": progs, "source": "live"}
+
+
 @router.post("/instant-bundle/refresh")
 async def admin_refresh(
     token: str = Query(..., description="Admin token (matches XTREAM_ADMIN_TOKEN env)"),

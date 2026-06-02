@@ -27,6 +27,7 @@ object XtreamRepository {
     const val BACKEND_BASE = "https://onnowtv.duckdns.org"
 
     private const val ENDPOINT = "/api/xtream/instant-bundle"
+    private const val PER_CHANNEL_EPG = "/api/xtream/epg/"
 
     suspend fun fetchBundle(backendBase: String = BACKEND_BASE): XtreamBundle =
         withContext(Dispatchers.IO) {
@@ -96,8 +97,12 @@ object XtreamRepository {
                         logoUrl = c.optString("logo").takeIf { it.isNotBlank() },
                         categoryId = c.optString("category_id").takeIf { it.isNotBlank() },
                         streamUrl = c.optString("stream_url"),
-                        epgChannelId = c.optString("epg_channel_id").takeIf { it.isNotBlank() }
-                            ?: c.optString("stream_id"),
+                        // Backend keys EPG by stream_id (see
+                        // /app/backend/instant_bundle.py — `by_stream_id`
+                        // is the canonical map). We MUST use stream_id
+                        // here, not epg_channel_id, otherwise channels
+                        // with a real XMLTV id like "BBCOne.uk" miss.
+                        epgChannelId = c.optString("stream_id"),
                     )
                 )
             }
@@ -134,5 +139,48 @@ object XtreamRepository {
             epg = epg,
             generatedAt = obj.optLong("generated_at", 0L),
         )
+    }
+
+    /**
+     * Lazy-load EPG for a single channel.  Used by the EPG grid to
+     * populate rows on demand when the bundle EPG was empty (i.e.
+     * the backend hasn't finished its bulk refresh yet).
+     */
+    suspend fun fetchEpgForChannel(
+        streamId: String,
+        backendBase: String = BACKEND_BASE,
+    ): List<Programme> = withContext(Dispatchers.IO) {
+        val url = URL(backendBase.trimEnd('/') + PER_CHANNEL_EPG + streamId)
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 6_000
+            readTimeout = 12_000
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = conn.responseCode
+            if (code !in 200..299) return@withContext emptyList<Programme>()
+            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val obj = JSONObject(text)
+            val arr = obj.optJSONArray("programmes") ?: return@withContext emptyList<Programme>()
+            val out = mutableListOf<Programme>()
+            for (i in 0 until arr.length()) {
+                val p = arr.getJSONObject(i)
+                out.add(
+                    Programme(
+                        title = p.optString("title").ifBlank { "—" },
+                        description = p.optString("description").takeIf { it.isNotBlank() },
+                        startMs = p.optLong("start", 0L) * 1000L,
+                        stopMs = p.optLong("stop", 0L) * 1000L,
+                    )
+                )
+            }
+            out
+        } catch (t: Throwable) {
+            Log.w(TAG, "fetchEpgForChannel($streamId) failed: ${t.message}")
+            emptyList()
+        } finally {
+            conn.disconnect()
+        }
     }
 }

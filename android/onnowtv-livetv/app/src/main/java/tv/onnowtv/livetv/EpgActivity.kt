@@ -12,6 +12,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
@@ -131,6 +132,7 @@ class EpgActivity : AppCompatActivity() {
             context = this,
             pxPerMin = pxPerMin,
             scrollSync = scrollSync,
+            backgroundScope = lifecycleScope,
             onChannelFocused = { ch ->
                 updateInfoCard(ch, null)
                 updateNowLine()
@@ -159,13 +161,35 @@ class EpgActivity : AppCompatActivity() {
             it.copy(channelCount = countsByCat[it.id] ?: 0)
         }.filter { it.channelCount > 0 }
 
-        // Pick a sensible default category — first one with the most
-        // channels (skips noise like "##### HEADER #####" rows).
-        currentCategoryId = allCategoriesWithCounts
-            .drop(1) // skip "All channels"
-            .maxByOrNull { it.channelCount }
-            ?.id
-            ?: "__all__"
+        // Pick the BEST default category — heuristic:
+        //   1. Skip "header" / "##### …" separator entries (some
+        //      Xtream providers list these as fake categories).
+        //   2. Pick the category whose channels have the highest
+        //      EPG-coverage ratio (so the user lands on a list with
+        //      real programme data, not blank cells).
+        //   3. Fall back to "All channels" if no good candidate.
+        val epgCoverageByCat: Map<String, Double> = bundle.categories
+            .associate { cat ->
+                val cs = bundle.channels.filter { it.categoryId == cat.id }
+                val ratio = if (cs.isEmpty()) 0.0
+                else cs.count { ch ->
+                    val eid = ch.epgChannelId
+                    !eid.isNullOrBlank() && (bundle.epg[eid]?.isNotEmpty() == true)
+                }.toDouble() / cs.size
+                cat.id to ratio
+            }
+        val bestCat = bundle.categories
+            .filter { !it.name.contains("#####") && (countsByCat[it.id] ?: 0) >= 5 }
+            .maxByOrNull { (epgCoverageByCat[it.id] ?: 0.0) * 100 + (countsByCat[it.id] ?: 0).coerceAtMost(200) / 1000.0 }
+
+        // If the bundle has ANY EPG data at all, pin to the best
+        // category; otherwise show "All channels" so the user can at
+        // least see the full list.
+        currentCategoryId = if (bundle.epg.isNotEmpty() && bestCat != null && (epgCoverageByCat[bestCat.id] ?: 0.0) > 0.2) {
+            bestCat.id
+        } else {
+            "__all__"
+        }
 
         // Wire categories overlay
         categoriesOverlay = findViewById<FrameLayout>(R.id.categories_overlay)
@@ -264,6 +288,38 @@ class EpgActivity : AppCompatActivity() {
             if (categoriesOverlay.visibility == View.VISIBLE) {
                 hideCategoriesOverlay()
                 return true
+            }
+        }
+        // LEFT on the leftmost element opens the categories drawer
+        // — a far more discoverable gesture than hunting for the
+        // MENU button.  Triggers when:
+        //   • Focus is on a channel rail item (the 104dp left rail),
+        //     i.e. the first column of any row.  OR
+        //   • Focus is on the very first programme cell of a row and
+        //     the row's horizontal scroll is at the start.
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT &&
+            categoriesOverlay.visibility != View.VISIBLE) {
+            val focused = currentFocus
+            if (focused != null && focused.id == R.id.channel_rail_item) {
+                showCategoriesOverlay()
+                return true
+            }
+            // Check the "leftmost cell + row scrolled to 0" case.
+            if (focused != null && scrollSync.scrollX <= 1) {
+                // Walk up the parent chain looking for a horizontal RV
+                // whose first child is the focused view.
+                var p: View? = focused.parent as? View
+                while (p != null && p !is RecyclerView) {
+                    p = p.parent as? View
+                }
+                val rv = p as? RecyclerView
+                if (rv != null && rv.id == R.id.programmes) {
+                    val firstChild = rv.getChildAt(0)
+                    if (firstChild === focused) {
+                        showCategoriesOverlay()
+                        return true
+                    }
+                }
             }
         }
         return super.onKeyDown(keyCode, event)
