@@ -27,7 +27,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Heart, ChevronDown } from 'lucide-react';
+import { LayoutGrid, Star, RotateCw, ChevronDown } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import './fta.css';
@@ -114,10 +114,22 @@ export default function FreeToAir() {
        play until their is another channel clicked". */
     const [playingChannel, setPlayingChannel] = useState(null);
     const [fullScreen, setFullScreen] = useState(false);
-    /* v2.8.97 — Vesper-style slide-in left side menu for category
-       switching.  Pressing LEFT while on the leftmost cell of any
-       row opens it; RIGHT or BACK closes it. */
+    /* v2.8.103 — Vesper-style permanent left icon rail.  Three
+       icons: Categories (opens a slide-in submenu), Favourites
+       (toggles favourites-only view), Refresh (re-fetches the EPG).
+       `sideMenuOpen` = the Categories submenu (not the rail itself);
+       the rail is always rendered. */
     const [sideMenuOpen, setSideMenuOpen] = useState(false);
+    const [railFocus, setRailFocus] = useState(null); // 'categories'|'favourites'|'refresh'|null
+    const [favPulse, setFavPulse] = useState(null);   // channel id flashing after long-press
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    /* v2.8.103 — long-press LEFT on a live cell toggles favourite.
+       Tracked via a ref because the keydown handler is closure-
+       captured.  `leftHoldFiredRef` is consulted by the keydown
+       handler so a long-press doesn't ALSO open the icon rail. */
+    const leftHoldTimerRef = useRef(null);
+    const leftHoldFiredRef = useRef(false);
 
     /* clock — update once per 30 s */
     useEffect(() => {
@@ -172,7 +184,7 @@ export default function FreeToAir() {
             }
         })();
         return () => { cancel = true; };
-    }, [city]);
+    }, [city, refreshKey]);
 
     /* Visible channel set based on the active category tab. */
     const visibleChannels = useMemo(() => {
@@ -245,6 +257,62 @@ export default function FreeToAir() {
         fetch(`${API}/api/fta/streams/${id}?city=${encodeURIComponent(city)}`).then((r) => r.json())
     ), [city]);
 
+    /* v2.8.103 — LEFT-on-live-cell gesture splitter.  keydown starts
+       a 550ms timer.  If the user keeps holding past 550ms, fire
+       the favourite toggle (long-press); otherwise on keyup we
+       open the icon rail (tap).  Exactly one of those two paths
+       runs per LEFT gesture — tap and hold are mutually exclusive. */
+    useEffect(() => {
+        const onDown = (e) => {
+            if (e.key !== 'ArrowLeft' || e.repeat) return;
+            const ae = document.activeElement;
+            if (!ae || !ae.classList || !ae.classList.contains('fta-cell')) return;
+            const row = ae.closest('.fta-row');
+            if (!row) return;
+            const cells = Array.from(row.querySelectorAll('.fta-cell'));
+            if (cells.indexOf(ae) !== 0) return; // only on the leftmost (live) cell
+            const chId = row.getAttribute('data-channel-id');
+            if (!chId) return;
+            leftHoldFiredRef.current = false;
+            if (leftHoldTimerRef.current) clearTimeout(leftHoldTimerRef.current);
+            leftHoldTimerRef.current = setTimeout(() => {
+                leftHoldFiredRef.current = true;
+                toggleFav(chId);
+                setFavPulse(chId);
+                setRailFocus('favourites'); // visually confirm the action on the rail
+                setTimeout(() => setFavPulse(null), 900);
+            }, 550);
+        };
+        const onUp = (e) => {
+            if (e.key !== 'ArrowLeft') return;
+            if (leftHoldTimerRef.current) {
+                clearTimeout(leftHoldTimerRef.current);
+                leftHoldTimerRef.current = null;
+            }
+            // Tap (released before long-press timer fired) → open rail.
+            if (!leftHoldFiredRef.current) {
+                // Only valid if the user was on the live cell when
+                // they pressed.  Re-check the current focus owner
+                // and that the rail isn't already showing.
+                const ae = document.activeElement;
+                if (ae && ae.classList && ae.classList.contains('fta-cell')) {
+                    const row = ae.closest('.fta-row');
+                    const cells = row ? Array.from(row.querySelectorAll('.fta-cell')) : [];
+                    if (cells.indexOf(ae) === 0) {
+                        setRailFocus((prev) => prev || 'categories');
+                    }
+                }
+            }
+        };
+        window.addEventListener('keydown', onDown, true);
+        window.addEventListener('keyup', onUp, true);
+        return () => {
+            window.removeEventListener('keydown', onDown, true);
+            window.removeEventListener('keyup', onUp, true);
+            if (leftHoldTimerRef.current) clearTimeout(leftHoldTimerRef.current);
+        };
+    }, [toggleFav]);
+
     /* v2.8.100 — auto-focus the first channel cell on app open so
        D-pad nav starts on the live programme of the first channel
        (the user explicitly asked: "when the app opens the focus
@@ -255,7 +323,7 @@ export default function FreeToAir() {
     useEffect(() => {
         if (loading || hasAutoFocused || !visibleChannels.length) return;
         const t = setTimeout(() => {
-            const firstCell = document.querySelector('.fta-row .fta-cell:not(.fta-cell--empty)');
+            const firstCell = document.querySelector('.fta-row .fta-cell');
             if (firstCell) {
                 try {
                     firstCell.focus({ preventScroll: true });
@@ -393,7 +461,7 @@ export default function FreeToAir() {
                     next.focus({ preventScroll: true });
                     if (scroller) {
                         const isFirstInRow = next === next.closest('.fta-row')
-                            ?.querySelector('.fta-cell:not(.fta-cell--empty)');
+                            ?.querySelector('.fta-cell');
                         const cellLeft = parseFloat(next.style.left || '0');
                         const target = isFirstInRow ? 0 : Math.max(0, cellLeft - 4);
                         // Instant scroll — `behavior: smooth` queues
@@ -406,19 +474,22 @@ export default function FreeToAir() {
             };
 
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                const cells = Array.from(row.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+                const cells = Array.from(row.querySelectorAll('.fta-cell'));
                 const idx = cells.indexOf(ae);
                 if (e.key === 'ArrowRight') {
                     focusAndScroll(cells[idx + 1]);
                 } else {
                     if (idx <= 0) {
-                        // Already on the live-now cell → open the side menu.
+                        // v2.8.103 — defer the rail-open decision to
+                        // keyup: a tap (released < 550 ms) opens the
+                        // rail, a hold (still pressed at 550 ms)
+                        // toggles favourite.  See the dedicated
+                        // long-press effect below.
                         e.preventDefault();
                         e.stopPropagation();
                         if (typeof e.stopImmediatePropagation === 'function') {
                             e.stopImmediatePropagation();
                         }
-                        setSideMenuOpen(true);
                     } else {
                         focusAndScroll(cells[idx - 1]);
                     }
@@ -446,10 +517,10 @@ export default function FreeToAir() {
                 ? row.nextElementSibling
                 : row.previousElementSibling;
             if (!targetRow || !targetRow.classList || !targetRow.classList.contains('fta-row')) return;
-            const targetCells = Array.from(targetRow.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+            const targetCells = Array.from(targetRow.querySelectorAll('.fta-cell'));
             if (!targetCells.length) return;
 
-            const sourceCells = Array.from(row.querySelectorAll('.fta-cell:not(.fta-cell--empty)'));
+            const sourceCells = Array.from(row.querySelectorAll('.fta-cell'));
             const sourceIsLive = sourceCells.indexOf(ae) === 0;
             if (sourceIsLive) {
                 focusAndScroll(targetCells[0]);
@@ -501,17 +572,27 @@ export default function FreeToAir() {
 
     return (
         <div className={`fta-root ${fullScreen ? 'is-fullscreen' : ''}`} data-testid="fta-root">
-            <TopBar
+            <IconRail
+                focus={railFocus}
                 tab={tab}
-                onTab={setTab}
-                categories={categories}
-                now={now}
-                city={city}
-                supportedCities={supportedCities}
-                onCity={(c) => { setCity(c); setCityMenuOpen(false); }}
-                cityMenuOpen={cityMenuOpen}
-                onToggleCity={() => setCityMenuOpen((v) => !v)}
+                favPulse={!!favPulse}
+                onChangeFocus={setRailFocus}
+                onPickCategories={() => setSideMenuOpen(true)}
+                onToggleFavourites={() => setTab((t) => t === 'favourites' ? 'live' : 'favourites')}
+                onRefresh={() => setRefreshKey((k) => k + 1)}
+                onReturnToEpg={() => {
+                    setRailFocus(null);
+                    setTimeout(() => {
+                        const first = document.querySelector('.fta-row .fta-cell');
+                        if (first) try { first.focus({ preventScroll: true }); } catch { /* */ }
+                    }, 20);
+                }}
             />
+
+            <div className="fta-clock-strip" data-testid="fta-clock-strip">
+                <span className="fta-clock-strip__city" data-testid="fta-clock-strip-city">{city}</span>
+                <span className="fta-clock-strip__time" data-testid="fta-clock-strip-time">{fmtTime(now)}</span>
+            </div>
 
             <div className="fta-body">
                 <Sidebar
@@ -579,8 +660,19 @@ export default function FreeToAir() {
                 <SideMenu
                     categories={categories}
                     currentTab={tab}
-                    onPick={(id) => { setTab(id); setSideMenuOpen(false); }}
-                    onClose={() => setSideMenuOpen(false)}
+                    onPick={(id) => { setTab(id); setSideMenuOpen(false); setRailFocus(null); }}
+                    onClose={(target) => {
+                        setSideMenuOpen(false);
+                        if (target === 'rail') {
+                            setRailFocus('categories');
+                        } else {
+                            setRailFocus(null);
+                            setTimeout(() => {
+                                const first = document.querySelector('.fta-row .fta-cell');
+                                if (first) try { first.focus({ preventScroll: true }); } catch { /* */ }
+                            }, 20);
+                        }
+                    }}
                 />
             )}
         </div>
@@ -590,20 +682,24 @@ export default function FreeToAir() {
 /* ----------------------- side menu -------------------------------- */
 function SideMenu({ categories, currentTab, onPick, onClose }) {
     const items = useMemo(() => {
-        const cats = (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
-        return [...cats, { id: 'favourites', label: 'Favourites', count: null }];
+        /* v2.8.103 — Favourites is now its own rail icon, not a
+           category here.  Categories list only. */
+        return (categories || []).map((c) => ({ id: c.id, label: c.label, count: c.count }));
     }, [categories]);
 
-    /* Focus the current tab on mount + handle RIGHT/BACK to close. */
+    /* Focus the current tab on mount + handle LEFT/RIGHT/BACK. */
     const firstRef = useRef(null);
     useEffect(() => {
         const t = setTimeout(() => firstRef.current?.focus(), 30);
         const onKey = (e) => {
-            if (e.key === 'ArrowRight' || e.key === 'Escape' || e.key === 'Backspace') {
+            /* LEFT inside the categories submenu returns to the
+               icon rail; RIGHT, Escape, or Backspace dismisses the
+               submenu entirely (back to EPG). */
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Escape' || e.key === 'Backspace') {
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                onClose();
+                onClose(e.key === 'ArrowLeft' ? 'rail' : 'epg');
             }
         };
         window.addEventListener('keydown', onKey, true);
@@ -614,7 +710,7 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
         <div className="fta-side-menu" data-testid="fta-side-menu">
             <div className="fta-side-menu__title">Categories</div>
             <div className="fta-side-menu__list" role="menu">
-                {items.map((it, i) => (
+                {items.map((it) => (
                     <button
                         key={it.id}
                         ref={it.id === currentTab ? firstRef : null}
@@ -633,6 +729,104 @@ function SideMenu({ categories, currentTab, onPick, onClose }) {
                 ))}
             </div>
         </div>
+    );
+}
+
+/* ----------------------- left icon rail --------------------------
+   v2.8.103 — Vesper-style permanent left rail.  Three icons stacked
+   vertically: Categories, Favourites, Refresh.
+     - Press LEFT on a live cell → focus moves to the first icon.
+     - Up/Down inside the rail cycles between the 3 icons.
+     - RIGHT or Enter on Categories opens the categories submenu.
+     - Enter on Favourites toggles the favourites-only filter.
+     - Enter on Refresh re-fetches the EPG.
+     - RIGHT or Escape returns focus to the EPG.
+   No top bar — the user explicitly removed it ("I don't want
+   anything on the top bar, no Free-to-Air, no Favourites, no
+   Brisbane on the top bar"). */
+function IconRail({ focus, tab, favPulse, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg }) {
+    const items = useMemo(() => ([
+        { id: 'categories', label: 'Categories', Icon: LayoutGrid },
+        { id: 'favourites', label: 'Favourites', Icon: Star, isOn: tab === 'favourites' },
+        { id: 'refresh',    label: 'Refresh',    Icon: RotateCw },
+    ]), [tab]);
+
+    const refs = useRef({});
+
+    /* When the rail becomes focused, move DOM focus to the matching icon. */
+    useEffect(() => {
+        if (!focus) return;
+        const el = refs.current[focus];
+        if (el) try { el.focus({ preventScroll: true }); } catch { /* */ }
+    }, [focus]);
+
+    /* Up/Down/Right/Enter/Escape handling for rail-focused state. */
+    useEffect(() => {
+        if (!focus) return;
+        const onKey = (e) => {
+            const ae = document.activeElement;
+            const onRail = ae && ae.getAttribute('data-rail-icon');
+            if (!onRail) return;
+            const idx = items.findIndex((it) => it.id === onRail);
+            if (idx < 0) return;
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                const next = e.key === 'ArrowDown' ? Math.min(items.length - 1, idx + 1)
+                                                   : Math.max(0, idx - 1);
+                onChangeFocus(items[next].id);
+            } else if (e.key === 'ArrowRight' || e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                onReturnToEpg();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                if (onRail === 'categories') onPickCategories();
+                if (onRail === 'favourites') onToggleFavourites();
+                if (onRail === 'refresh')    onRefresh();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [focus, items, onChangeFocus, onPickCategories, onToggleFavourites, onRefresh, onReturnToEpg]);
+
+    return (
+        <aside className={`fta-rail ${focus ? 'is-focused' : ''}`} data-testid="fta-rail">
+            <div className="fta-rail__brand">
+                <span className="fta-rail__brand-eyebrow">ON NOW</span>
+                <span className="fta-rail__brand-v2">V2</span>
+            </div>
+            <div className="fta-rail__items">
+                {items.map((it) => {
+                    const I = it.Icon;
+                    return (
+                        <button
+                            key={it.id}
+                            ref={(el) => { refs.current[it.id] = el; }}
+                            data-testid={`fta-rail-${it.id}`}
+                            data-rail-icon={it.id}
+                            data-focusable="true"
+                            tabIndex={0}
+                            aria-label={it.label}
+                            className={`fta-rail__btn ${it.isOn ? 'is-on' : ''} ${focus === it.id ? 'is-focused' : ''} ${(favPulse && it.id === 'favourites') ? 'is-favourite-pulse' : ''}`}
+                            onClick={() => {
+                                if (it.id === 'categories') onPickCategories();
+                                if (it.id === 'favourites') onToggleFavourites();
+                                if (it.id === 'refresh')    onRefresh();
+                            }}
+                        >
+                            <I size={22} strokeWidth={2.4} />
+                            <span className="fta-rail__btn-label">{it.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        </aside>
     );
 }
 
@@ -828,16 +1022,10 @@ function Sidebar({ focusedChannel, focusedProgramme, playingChannel, art, isFav,
                         <div className="fta-info-name__num">{channel.lcn || channel.name}</div>
                         <div className="fta-info-name__lbl">{channel.lcn ? channel.name : ''}</div>
                     </div>
-                    <button
-                        data-testid="fta-sidebar-fav"
-                        data-focusable="true"
-                        tabIndex={0}
-                        aria-label={isFav ? 'Remove from favourites' : 'Add to favourites'}
-                        onClick={onToggleFav}
-                        className={`fta-fav-btn ${isFav ? 'is-fav' : ''}`}
-                    >
-                        <Heart size={20} fill={isFav ? '#ff2535' : 'transparent'} />
-                    </button>
+                    {/* v2.8.103 — heart button removed per user feedback
+                        ("I don't need there to be a love heart there either").
+                        Favouriting is now done by long-pressing LEFT on a
+                        live cell (handled in the FreeToAir keydown effect). */}
                 </div>
 
                 <p className="fta-synopsis" data-testid="fta-sidebar-synopsis">
@@ -1134,12 +1322,33 @@ function ChannelRow({ channel, programmes, gridStartMs, onFocus, onOpen, activeP
             </div>
             <div className="fta-row__cells">
                 {programmes.length === 0 && (
-                    <div className="fta-cell fta-cell--empty" style={{
-                        position: 'absolute',
-                        left: 4, right: 4, top: 5,
-                    }}>
+                    <button
+                        data-testid={`fta-cell-${channel.id}-empty`}
+                        data-focusable="true"
+                        data-focus-style="cell"
+                        tabIndex={0}
+                        className="fta-cell fta-cell--empty"
+                        style={{
+                            position: 'absolute',
+                            left: 4,
+                            width: 300,
+                            top: 5,
+                        }}
+                        onFocus={() => onFocus({
+                            title: 'No programme info',
+                            start: now,
+                            stop: now + 30 * 60 * 1000,
+                            desc: 'Live channel — no EPG data available.',
+                        })}
+                        onClick={() => onOpen({
+                            title: 'No programme info',
+                            start: now,
+                            stop: now + 30 * 60 * 1000,
+                        })}
+                    >
                         <div className="fta-cell__title">No programme info</div>
-                    </div>
+                        <div className="fta-cell__subtitle">Live channel · press OK to play</div>
+                    </button>
                 )}
                 {programmes.map((p) => {
                     const startOffsetMin = (p.start - gridStartMs) / 60000;

@@ -13,6 +13,16 @@
 > should I touch next".
 
 
+> **🟢 v2.8.103 — FTA Vesper-style icon rail + long-press favourite + focusable empty cells (Jun 2, 2026).**
+> User asked for a full UX rebuild: Vesper-style left icon rail, no top bar, long-press LEFT to favourite, empty cells must be navigable, no love-heart in the sidebar.
+>   - **Permanent left icon rail (`IconRail`).**  Always-visible 76 px wide vertical strip with 3 stacked icons (Categories · Favourites · Refresh) at the top, "ON NOW V2" wordmark above.  Expands to 160 px when focused (smooth 220 ms width transition), revealing the labels.  Categories opens the slide-in submenu (now positioned `left: 76px` so the rail icons stay visible behind it); Favourites toggles the `tab` state between `live` and `favourites`; Refresh bumps a `refreshKey` state that's in the EPG fetch effect's dependency array, forcing a re-fetch.  Includes its own Up/Down/Right/Enter/Escape handler.
+>   - **No top bar.**  `.fta-topbar { display: none !important; }`.  Brisbane + clock float in a tiny strip in the top-right corner.  The Free-to-Air / Favourites / Brisbane chips are all gone from the top — they live on the rail now.
+>   - **Tap-vs-hold LEFT splitter.**  keydown on the live cell starts a 550 ms timer.  keyup before 550 ms → "tap" → opens the rail focused on Categories.  Timer fires before keyup → "hold" → toggles the channel's favourite status and visually pulses the rail's Favourites icon (`is-favourite-pulse` 700 ms scale-glow keyframe).  Exactly one path runs per gesture — no more accidentally favouriting when you meant to open the menu.  Verified: 150 ms tap → rail opens, favs unchanged; 800 ms hold → favs add mjh-seven-bri + pulse on rail; second 800 ms hold → favs remove (toggle).
+>   - **Empty rows focusable.**  Channel rows with no programme data (gap / dead EPG feed) now render a focusable `<button>` "No programme info · Live channel · press OK to play" instead of a passive `<div>`.  Stripped the `:not(.fta-cell--empty)` filters from every cell selector so D-pad nav lands on them.  Clicking still triggers the channel's live stream via the normal `onProgrammeOpen` path.
+>   - **Heart icon removed.**  Per user feedback "I don't need there to be a love heart there either" — pulled the `Heart` `<button>` from `Sidebar`, kept the imports clean.
+
+
+
 > **🟢 v2.8.102 — FTA Down-from-live no longer skips into future column (Jun 2, 2026).**
 > User reported: "when scrolling down, as soon as it gets to a certain section, it skips all the way across to the next thing, and then when you go to push down it's sitting way away from the Live Now".
 >
