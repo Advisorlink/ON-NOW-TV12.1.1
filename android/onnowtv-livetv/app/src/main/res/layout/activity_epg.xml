@@ -40,6 +40,10 @@
             android:textStyle="bold"
             android:letterSpacing="0.20"
             android:fontFamily="sans-serif-medium"
+            android:focusable="true"
+            android:clickable="true"
+            android:padding="6dp"
+            android:background="@drawable/category_bg"
             android:text="ALL" />
 
         <TextView
@@ -259,4 +263,50 @@
             </FrameLayout>
         </LinearLayout>
     </LinearLayout>
+
+    <!--
+        Categories drawer overlay.  Slides in from the left and
+        occupies the full height.  Opens with the MENU remote key
+        or BACK from the EPG; closes when an item is picked or
+        BACK is pressed again.
+    -->
+    <FrameLayout
+        android:id="@+id/categories_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC06080F"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:clickable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="380dp"
+            android:layout_height="match_parent"
+            android:background="@color/livetv_bg_card"
+            android:orientation="vertical"
+            android:elevation="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="22dp"
+                android:paddingBottom="14dp"
+                android:textColor="@color/livetv_accent"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.22"
+                android:fontFamily="sans-serif-medium"
+                android:text="CATEGORIES" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/categories_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="true" />
+        </LinearLayout>
+    </FrameLayout>
 </FrameLayout>
