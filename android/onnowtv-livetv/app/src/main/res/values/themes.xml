@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme: dark navy matches the Vesper / OnNow V2 palette. -->
+    <style name="Theme.OnNowLiveTV" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/livetv_bg</item>
+        <item name="android:statusBarColor">@color/livetv_bg</item>
+        <item name="android:navigationBarColor">@color/livetv_bg</item>
+        <item name="colorPrimary">@color/livetv_accent</item>
+        <item name="colorPrimaryDark">@color/livetv_bg_alt</item>
+        <item name="colorAccent">@color/livetv_accent</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.OnNowLiveTV.NoActionBar" parent="Theme.OnNowLiveTV">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <!--
+        Launcher splash: dark navy backdrop with a subtle blue glow,
+        the big red "V2" + white "Live TV" wordmark wired in via the
+        windowBackground drawable so it paints the INSTANT the
+        launcher hands control to us — no white flash.
+    -->
+    <style name="Theme.OnNowLiveTV.Splash" parent="Theme.OnNowLiveTV.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_gradient</item>
+        <item name="android:statusBarColor">@color/livetv_bg</item>
+        <item name="android:navigationBarColor">@color/livetv_bg</item>
+    </style>
+</resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 Live TV splash background.
+
+    Dark navy (#06080F — the Vesper palette base) with a subtle
+    radial blue glow drawn from the centre.  Same look as the FTA
+    splash, but built for the Live TV brand.  Doubles as the
+    windowBackground so the user sees it the instant the launcher
+    hands control over.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF06080F" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="900"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#335DC8FF"
+                android:centerColor="#1A5DC8FF"
+                android:endColor="#0006080F" />
+        </shape>
+    </item>
+</layer-list>

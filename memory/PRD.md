@@ -13,6 +13,25 @@
 > should I touch next".
 
 
+> **🟢 v2.8.111 — V2 Live TV native Android app scaffolded with RecyclerView EPG (Jun 2, 2026).**
+> Brand-new fifth app in the suite: `/app/android/onnowtv-livetv/`.  User requirement was non-negotiable: the EPG MUST use Android's RecyclerView focus engine, not any JS spatial-navigation library.
+>
+> Architecture:
+>   - **3 Activities:** `MainActivity` (splash + bundle fetch), `EpgActivity` (the guide), `PlayerActivity` (ExoPlayer for live streams).
+>   - **EPG implementation:** outer vertical `RecyclerView` of channel rows; each row contains a 104dp channel-rail item on the left + a horizontal `RecyclerView` of programme cells on the right.  Every cell is `android:focusable="true"` — D-pad arrow keys are routed by Android's native `FocusFinder` with zero custom keydown handlers.
+>   - **ScrollSync orchestrator** keeps every row's horizontal scroll position locked in lockstep AND in sync with the time-strip header's HorizontalScrollView.  Per-row scroll listeners feed offsets into the orchestrator; the orchestrator broadcasts to every peer.
+>   - **NowLineOverlay** draws the vertical red NOW line on top of the grid via a custom `View.onDraw`, recalculated on every scroll/tick.  Doesn't intercept input.
+>   - **Backend:** resurrected `instant_bundle.py` (was already in `/app/backend/`, mounted at `/api/xtream/*`).  Pre-warms 14 091 channels + 158 categories from the managed Xtream provider (`njala.ddns.me:8443`).  EPG refreshes every 2 h, channels every 6 h.  Returns gzipped JSON.  Credentials live in backend `.env` only — APK ships with zero secrets.
+>   - **Player:** ExoPlayer (media3 1.4.1) with a tight `LoadControl` (800 ms `bufferForPlayback`) for fast channel tune-in.
+>   - **Branding:** dark Vesper navy splash with the red "V2" + white "Live TV" wordmark.  Matches the rest of the suite.
+>   - **Build pipeline:** `.github/workflows/build-livetv.yml` mirrors `build-fta.yml` — produces signed debug + release APKs on every push to `main`, publishes to the `livetv-latest` GitHub release.
+>
+> Backend already serving: `curl /api/xtream/instant-bundle/meta → {channels_count: 14091, categories_count: 158}`.  EPG buckets are empty pending the first 2-hour refresh tick; the JSON shape is correct (`stream_id` not `id` — parser updated to match).
+>
+> Next: push to GitHub, wait for `livetv-latest.apk` to build, sideload, test the RecyclerView focus behaviour.
+
+
+
 > **🟢 v2.8.109 — Karaoke phone-to-TV mic latency dramatically reduced (Jun 2, 2026).**
 > User reported: "the lag is too long between when it actually gets to the mic and when it gets to the speaker… needs to be almost instant."
 >
