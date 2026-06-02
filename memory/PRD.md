@@ -13,6 +13,15 @@
 > should I touch next".
 
 
+> **🟢 v2.8.106 — FTA wordmark logo + Categories submenu no longer closes on arrows (Jun 2, 2026).**
+> User feedback: (a) the in-app logo should match the provided mockup — pure type "V2 Free-to-Air" (red V2 + white Free-to-Air), no TV icon; (b) the Categories submenu instantly closes when clicked / when pressing LEFT.
+>
+> Fixes:
+>   - **Brandmark redesigned to pure wordmark.**  Pulled the 44×44 red TV-gradient tile out of `IconRail`.  Expanded state now shows "V2" in a bold red `#FF2535` Inter 26px next to "Free-to-Air" in white Inter 18px — exactly matching the mockup `4d3a3e0c…png`.  Collapsed state shows a centred bold red "V2" badge so the rail keeps identity at 76px width.
+>   - **SideMenu stops swallowing LEFT/RIGHT.**  The submenu's window-level keydown listener used to dismiss the entire menu on any of LEFT / RIGHT / Escape / Backspace, with LEFT routing back to the rail and RIGHT routing to the EPG.  User reported "the menu instantly closes when you click it or push left".  Rewrote the handler so ONLY Escape / Backspace dismiss the menu; ArrowLeft / ArrowRight are now `preventDefault` + `stopImmediatePropagation`'d so they neither close the menu nor leak into the global `useSpatialFocus` engine that would otherwise yank focus into the EPG.  UP / DOWN continue to walk the items via the spatial focus hook.  Picking an item still closes (via `onPick`).  Verified: click Categories → menu opens → LEFT → still open → DOWN → still open → click "News" → menu closes + EPG filters to News-only.
+
+
+
 > **🟢 v2.8.105 — FTA rebranded to "Live TV" + categories submenu fix (Jun 2, 2026).**
 > User feedback: (a) clicking Categories button made the rail look like it closed (it was actually hidden behind the submenu); (b) splash screen wordmark should be a red TV icon with "LIVE" underneath; (c) in-app brand should say "V2 Live TV".
 >
