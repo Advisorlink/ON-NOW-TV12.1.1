@@ -466,6 +466,48 @@
     opacity: 1;
 }
 
+/* v2.8.100 — "Tuning in…" indicator while the HLS handshake is in
+   flight.  Sits over the cover art so the user knows the click
+   registered (previous version made fast double-clicks feel like
+   the first click did nothing). */
+.fta-preview-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(3, 6, 15, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 3;
+    pointer-events: none;
+    animation: fta-fade-in 220ms ease-out;
+}
+
+.fta-preview-loading__spinner {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    border-top-color: var(--fta-accent);
+    animation: fta-spin 700ms linear infinite;
+}
+
+.fta-preview-loading__label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes fta-spin {
+    to { transform: rotate(360deg); }
+}
+
 .fta-preview-hint {
     position: absolute;
     top: 14px;
