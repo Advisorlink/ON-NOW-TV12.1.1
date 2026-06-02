@@ -2,28 +2,32 @@
 <!--
     ON NOW V2 Live TV splash background.
 
-    Dark navy (#06080F — the Vesper palette base) with a subtle
-    radial blue glow drawn from the centre.  Same look as the FTA
-    splash, but built for the Live TV brand.  Doubles as the
+    Dark navy (#0A0F1A — the Vesper palette base) with a subtle
+    radial blue glow drawn from the centre.  Doubles as the
     windowBackground so the user sees it the instant the launcher
     hands control over.
+
+    v2.8.115 — gradientRadius now has an explicit dp unit. Without
+    a unit some Android TV firmwares throw a resource inflation
+    exception when the drawable is used as a windowBackground,
+    which is what crashed v2.8.114 at boot.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#FF06080F" />
+            <solid android:color="#FF0A0F1A" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <gradient
                 android:type="radial"
-                android:gradientRadius="900"
+                android:gradientRadius="600dp"
                 android:centerX="0.5"
                 android:centerY="0.5"
                 android:startColor="#335DC8FF"
                 android:centerColor="#1A5DC8FF"
-                android:endColor="#0006080F" />
+                android:endColor="#000A0F1A" />
         </shape>
     </item>
 </layer-list>

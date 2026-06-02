@@ -13,6 +13,20 @@
 > should I touch next".
 
 
+> **🟢 v2.8.115 — V2 Live TV: crash-on-boot fixed + diagnostic screen (Jun 2, 2026).**
+> User reported v2.8.114 (the Vesper redesign) crashes immediately on launch: "OnNow V2 Live keeps stopping".  Without adb logcat from the TV box, this was a guessing game — so I shipped two changes simultaneously.
+>
+> **Most likely root cause fixed:**
+>   - `splash_gradient.xml` declared `android:gradientRadius="900"` with no unit.  Some Android TV firmware variants throw a resource-inflation exception when a unit-less gradientRadius is used as a window's `android:windowBackground` (which `Theme.OnNowLiveTV.Splash` does for the launcher).  Changed to `600dp`.  Also fixed the gradient end-colour from `#0006080F` to `#000A0F1A` to match the new palette.
+>
+> **Defensive fix (in case the cast was the real issue):**
+>   - `ChannelPillAdapter` had `private val progressContainer: FrameLayout = progress.parent as FrameLayout` at VH init.  Hard cast could NPE on some adapter-recycling paths.  Refactored to a lazy `progressContainer()` method that does `as? FrameLayout` and gracefully no-ops if the parent isn't yet attached.
+>
+> **Diagnostic safety net (so the user never sees the generic "keeps stopping" dialog again):**
+>   - New `LiveTVApp : Application` registers a global `Thread.setDefaultUncaughtExceptionHandler` that launches `CrashActivity` showing the full stack trace on a navy background in monospace.  Runs in a separate `:crash` process so it stays up even if the main process dies.  Wired into `AndroidManifest.xml` via `android:name=".LiveTVApp"`.  If the app crashes again, we'll see the actual stack trace on screen.
+
+
+
 > **🟢 v2.8.114 — V2 Live TV redesigned to Vesper layout (Jun 2, 2026).**
 > User feedback after testing v2.8.113: "the new RecyclerView focus engine is working way better than the old Vesper React app, but I prefer the old Vesper design".  Surgical pivot — keep the proven native focus engine, swap out the entire layout for the old Vesper Live TV pattern.
 >
