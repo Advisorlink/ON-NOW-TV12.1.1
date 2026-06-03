@@ -1298,25 +1298,48 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         btn.disabled = true;
         status.textContent = 'Requesting microphone…';
         status.classList.remove('err');
+        // v2.8.124 — Two-stage getUserMedia for minimum latency.
+        //
+        // Stage 1: ask for a low-latency capture (AEC/NS/AGC OFF).
+        //   These three DSP stages each add 20-40 ms of buffering
+        //   inside the browser audio pipeline.  For karaoke we
+        //   don't need AEC (the TV speakers aren't fed back into
+        //   the phone mic across a room) or NS / AGC (the singer
+        //   wants their voice raw and immediate).
+        //
+        // Stage 2: if stage 1 is rejected (some Android Chrome
+        //   builds refuse the constraint set entirely), fall back
+        //   to the safe defaults — at least the mic captures.
+        //
+        // v2.8.109 tried this with `latency: 0` AND `sampleRate: 48000`
+        // and got rejected on some devices.  v2.8.124 drops the
+        // `latency` hint (the worst offender) and uses two independent
+        // attempts so the fallback is automatic.
         try {
-            // v2.8.110 — Conservative constraints.  v2.8.109 disabled
-            // AEC/NS/AGC and set `latency: 0` to chase low latency,
-            // but on some Android Chrome builds that constraint set
-            // is rejected entirely → mic capture silently fails (no
-            // volume meter, no audio on TV).  Reverted to the
-            // browser defaults; the lower-latency wins now come
-            // purely from the SDP rewrite + TV-side
-            // playoutDelayHint = 0 (both safe).
-            micStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    channelCount: 1,
-                    sampleRate: 48000,
-                },
-                video: false,
-            });
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        channelCount: 1,
+                    },
+                    video: false,
+                });
+                console.info('[mic] low-latency capture acquired (AEC/NS/AGC off)');
+            } catch (lowLatErr) {
+                console.warn('[mic] low-latency constraints rejected, falling back:', lowLatErr);
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 48000,
+                    },
+                    video: false,
+                });
+            }
         } catch (e) {
             status.textContent = 'Mic access denied. Allow the microphone and tap Try Again.';
             status.classList.add('err');
