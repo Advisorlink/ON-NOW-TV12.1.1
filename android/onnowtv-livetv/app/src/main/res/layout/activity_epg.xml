@@ -109,11 +109,11 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- HERO -->
+        <!-- HERO (shorter — gives the body 9-row capacity) -->
         <FrameLayout
             android:id="@+id/hero"
             android:layout_width="match_parent"
-            android:layout_height="380dp">
+            android:layout_height="260dp">
 
             <ImageView
                 android:id="@+id/hero_backdrop"
@@ -178,14 +178,15 @@
                     android:contentDescription="Sign out" />
             </LinearLayout>
 
-            <!-- Hero text -->
+            <!-- Hero text — anchored top-left so the hero can shrink
+                 without losing the cinematic header layout -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="start|bottom"
+                android:layout_gravity="start|top"
                 android:layout_marginStart="36dp"
                 android:layout_marginEnd="420dp"
-                android:layout_marginBottom="28dp"
+                android:layout_marginTop="22dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -194,7 +195,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.30"
                     android:text="LIVE TV" />
@@ -203,9 +204,9 @@
                     android:id="@+id/hero_channel_name"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="64sp"
+                    android:textSize="50sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-black"
                     android:letterSpacing="-0.03"
@@ -216,7 +217,7 @@
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="10dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
@@ -246,7 +247,7 @@
                         android:id="@+id/hero_now_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="14dp"
+                        android:layout_marginStart="12dp"
                         android:textColor="@color/livetv_fg_bright"
                         android:textSize="14sp"
                         android:textStyle="bold"
@@ -260,10 +261,10 @@
                     android:id="@+id/hero_synopsis"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:textColor="@color/livetv_fg_dim"
-                    android:textSize="13sp"
-                    android:lineSpacingExtra="3dp"
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="2dp"
                     android:maxLines="2"
                     android:ellipsize="end"
                     android:text="" />
@@ -271,7 +272,7 @@
                 <FrameLayout
                     android:layout_width="420dp"
                     android:layout_height="3dp"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="10dp"
                     android:background="#1AFFFFFF">
 
                     <View
@@ -281,17 +282,64 @@
                         android:background="@color/livetv_accent" />
                 </FrameLayout>
 
+                <!-- UP NEXT card — matches the reference design:
+                     cyan monospace eyebrow + bold title + dim time. -->
+                <LinearLayout
+                    android:id="@+id/hero_up_next_card"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="@drawable/up_next_card_bg">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.30"
+                        android:text="UP NEXT" />
+
+                    <TextView
+                        android:id="@+id/hero_up_next_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_fg_bright"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/hero_up_next_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:textColor="@color/livetv_fg"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+                </LinearLayout>
+
+                <!-- Hidden legacy view: keep the id so any Kotlin
+                     paths that still write to it don't NPE. -->
                 <TextView
                     android:id="@+id/hero_up_next"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_fg_dimmer"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.22"
-                    android:maxLines="1"
-                    android:ellipsize="end"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone"
                     android:text="" />
             </LinearLayout>
         </FrameLayout>

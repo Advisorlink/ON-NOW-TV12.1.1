@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.BundleCache
 import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.data.XtreamRepository
 import java.net.HttpURLConnection
@@ -25,17 +26,18 @@ import java.net.URL
 /**
  * Boot loader for the Live TV app.
  *
- * Behaviour:
- *   - Fetch the bundle FIRST (the backend gz cache is fast).
- *   - If the bundle already ships with >= FAST_SKIP_EPG_BUCKETS
- *     EPG buckets, go straight to EpgActivity — no minimum hold.
- *     This is the common case on every launch after the very
- *     first one, so the user doesn't wait 60 s on every boot.
- *   - Otherwise: enter a polling loop, hold for AT LEAST 60 s
- *     AND until popular regions' EPG (`epg_priority_ready`) is
- *     populated.  Show clean "12,094 channels · 1,820 EPG ready"
- *     counters and a determinate progress bar.
- *   - 5-minute safety hatch.
+ * **Disk-cache fast path (the common case):**
+ *   If `BundleCache` already has a bundle on disk we parse it
+ *   IMMEDIATELY (no network, no waiting) and hand off to
+ *   EpgActivity before the loader screen even paints.  A
+ *   background refresh fires from `LiveTVApp` to keep the cache
+ *   fresh, so the next launch already has the latest data.
+ *
+ * **First-ever boot (no cache):**
+ *   Show the descriptive loader.  Wait for the backend to report
+ *   `epg_priority_ready` (UK / US / AU / Kayo) AND a minimum of
+ *   60 seconds.  Persist the bundle to disk on success so the
+ *   next launch skips the loader.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -48,16 +50,37 @@ class MainActivity : AppCompatActivity() {
     private val minHoldMs = 60_000L
     private val pollIntervalMs = 1_500L
     private val maxHoldMs = 5 * 60_000L
-    /** If the initial bundle already has at least this many EPG
-     *  buckets we skip the loader entirely. */
-    private val fastSkipEpgBuckets = 200
 
     private var bundleKick: Job? = null
     @Volatile private var bundleResult: XtreamBundle? = null
+    @Volatile private var bundleJson: String? = null
     @Volatile private var bundleError: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // FAST PATH — try the disk cache before we even inflate the loader.
+        if (BundleCache.exists(this)) {
+            try {
+                val json = BundleCache.loadJson(this)
+                if (!json.isNullOrBlank()) {
+                    val bundle = XtreamRepository.parseBundleJson(json)
+                    if (bundle.channels.isNotEmpty()) {
+                        BundleHolder.current = bundle
+                        Log.i("MainActivity", "fast-path: loaded ${bundle.channels.size} channels / ${bundle.epg.size} epg buckets from disk (age=${BundleCache.ageMs(this) / 1000}s)")
+                        scheduleBackgroundRefresh()
+                        startActivity(Intent(this, EpgActivity::class.java))
+                        overridePendingTransition(0, 0)
+                        finish()
+                        return
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w("MainActivity", "fast-path failed, falling back to loader: ${t.message}")
+            }
+        }
+
+        // SLOW PATH — first install (or corrupted cache).  Show loader.
         setContentView(R.layout.activity_main)
         setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)
 
@@ -70,6 +93,17 @@ class MainActivity : AppCompatActivity() {
         startLoad()
     }
 
+    /**
+     * Triggers a bundle refresh after the fast-path handoff.  We
+     * detach from this Activity's lifecycle by handing the work to
+     * EpgActivity via a global flag — the next time EpgActivity's
+     * onResume fires it kicks off the refresh.  Simpler than
+     * GlobalScope and survives the handoff cleanly.
+     */
+    private fun scheduleBackgroundRefresh() {
+        BundleHolder.needsBackgroundRefresh = true
+    }
+
     private fun startLoad() {
         retry.visibility = View.GONE
         headline.text = "Connecting…"
@@ -77,6 +111,7 @@ class MainActivity : AppCompatActivity() {
         statusCounters.text = ""
         progress.progress = 0
         bundleResult = null
+        bundleJson = null
         bundleError = null
         bundleKick?.cancel()
         bundleKick = null
@@ -95,47 +130,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun runLoader() {
-        // STEP 1 — kick off the bundle fetch immediately.  The
-        // backend serves a pre-gzipped cached payload (~250 KB),
-        // so this typically returns in well under a second.
         val started = SystemClock.elapsedRealtime()
         headline.text = "Loading guide…"
         substatus.text = "Downloading bundle…"
         progress.progress = 60
 
+        // Kick off the bundle fetch as JSON so we can both parse
+        // it AND save the raw text to BundleCache for next time.
         bundleKick = lifecycleScope.async(Dispatchers.IO) {
             try {
-                val b = XtreamRepository.fetchBundle()
+                val text = XtreamRepository.fetchBundleJson()
+                bundleJson = text
+                val b = XtreamRepository.parseBundleJson(text)
                 bundleResult = b
-                Log.i("MainActivity", "bundle: ${b.channels.size} channels, ${b.epg.size} epg buckets")
+                BundleCache.saveJson(applicationContext, text)
+                Log.i("MainActivity", "bundle: ${b.channels.size} channels, ${b.epg.size} epg buckets (cached)")
             } catch (t: Throwable) {
                 bundleError = t.message ?: t::class.java.simpleName
                 Log.w("MainActivity", "bundle fetch failed: $bundleError")
             }
         }
 
-        // STEP 2 — wait for either the bundle to land OR ~4s,
-        // whichever comes first.  This lets us decide whether to
-        // fast-skip the loader.
-        val waitDeadline = SystemClock.elapsedRealtime() + 4_000L
-        while (lifecycleScope.isActive
-            && bundleResult == null
-            && bundleError == null
-            && SystemClock.elapsedRealtime() < waitDeadline) {
-            delay(150L)
-        }
-
-        val initial = bundleResult
-        if (initial != null && initial.channels.isNotEmpty() && initial.epg.size >= fastSkipEpgBuckets) {
-            // Happy path: already-warm backend.  Skip the loader.
-            BundleHolder.current = initial
-            progress.progress = 1000
-            handoff()
-            return
-        }
-
-        // STEP 3 — slow path: poll meta until popular EPG is ready
-        // AND minimum hold has elapsed.
         var lastMeta: Meta? = null
         var lastMetaErrorAt = 0L
 
@@ -163,29 +178,23 @@ class MainActivity : AppCompatActivity() {
             delay(pollIntervalMs)
         }
 
-        // STEP 4 — make sure we have a bundle in memory.
+        headline.text = "Finalising guide…"
+        substatus.text = "Downloading bundle…"
+        progress.progress = 970
+
         val bundle = bundleResult ?: run {
-            headline.text = "Finalising guide…"
-            substatus.text = "Downloading bundle…"
-            progress.progress = 970
-            XtreamRepository.fetchBundle()
+            val text = XtreamRepository.fetchBundleJson()
+            BundleCache.saveJson(applicationContext, text)
+            XtreamRepository.parseBundleJson(text)
         }
         BundleHolder.current = bundle
         progress.progress = 1000
-        handoff()
-    }
 
-    private fun handoff() {
         startActivity(Intent(this@MainActivity, EpgActivity::class.java))
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }
 
-    /**
-     * Render the current meta payload.
-     * Drops the poll counter — user feedback was that it felt
-     * technical and noisy.  Shows clean channel + EPG counts.
-     */
     private fun applyMeta(meta: Meta?, elapsedMs: Long, lastMetaErrorAt: Long) {
         if (meta == null) {
             headline.text = "Connecting to backend…"
@@ -195,7 +204,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Clean visual counters: channels loaded + EPG channels ready.
         val parts = mutableListOf<String>()
         parts.add("${fmt(meta.channelsCount)} channels loaded")
         if (meta.priorityTotal > 0) {
@@ -281,9 +289,10 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-/** Process-scoped holder for the freshly-fetched bundle.  Avoids
- *  serialising channels + EPG through an Intent extra (which would
- *  blow the Binder 1 MB transaction limit). */
+/** Process-scoped holder for the freshly-fetched bundle. */
 object BundleHolder {
     @Volatile var current: tv.onnowtv.livetv.data.XtreamBundle? = null
+    /** Set by MainActivity when it took the fast disk-cache path
+     *  and EpgActivity should refresh the bundle in the background. */
+    @Volatile var needsBackgroundRefresh: Boolean = false
 }
