@@ -78,13 +78,22 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var guideToday: TextView
     private lateinit var guideChannelHeader: TextView
 
+    // Search overlay refs
+    private lateinit var searchOverlay: View
+    private lateinit var searchOverlayInput: EditText
+    private lateinit var searchOverlayResults: RecyclerView
+    private lateinit var searchOverlayEmpty: TextView
+    private lateinit var searchOverlayCount: TextView
+    private lateinit var searchOverlayClose: ImageButton
+    private lateinit var searchResultsAdapter: tv.onnowtv.livetv.ui.SearchResultsAdapter
+    private val searchHandler = Handler(Looper.getMainLooper())
+
     private lateinit var categoryAdapter: CategoryPillAdapter
     private lateinit var channelAdapter: ChannelPillAdapter
     private lateinit var guideAdapter: GuideRowAdapter
 
     private var currentCategoryId: String? = null
     private var focusedChannel: Channel? = null
-    private var searchQuery: String = ""
     private var allCategoriesWithCounts: List<Category> = emptyList()
     private val epgCache = mutableMapOf<String, List<Programme>>()
     /** Channels whose lazy-fetch returned no EPG.  We remember
@@ -181,6 +190,13 @@ class EpgActivity : AppCompatActivity() {
         guideClock         = findViewById(R.id.guide_clock)
         guideToday         = findViewById(R.id.guide_today)
         guideChannelHeader = findViewById(R.id.guide_channel_header)
+
+        searchOverlay        = findViewById(R.id.search_overlay)
+        searchOverlayInput   = findViewById(R.id.search_overlay_input)
+        searchOverlayResults = findViewById(R.id.search_overlay_results)
+        searchOverlayEmpty   = findViewById(R.id.search_overlay_empty)
+        searchOverlayCount   = findViewById(R.id.search_overlay_count)
+        searchOverlayClose   = findViewById(R.id.search_overlay_close)
     }
 
     private fun buildCategories() {
@@ -283,9 +299,7 @@ class EpgActivity : AppCompatActivity() {
 
     private fun wireRail() {
         railHome.setOnClickListener { finish() }
-        railSearch.setOnClickListener {
-            searchInput.requestFocus()
-        }
+        railSearch.setOnClickListener { openSearchOverlay() }
         railRefresh.setOnClickListener { applyCategory() }
         railList.setOnClickListener {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
@@ -294,29 +308,124 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun wireSearch() {
-        searchInput.addTextChangedListener(object : TextWatcher {
+        // Set up the full-screen search overlay (was previously the
+        // inline EditText above the channel list).
+        searchResultsAdapter = tv.onnowtv.livetv.ui.SearchResultsAdapter(
+            onActivate = { r ->
+                closeSearchOverlay()
+                if (r.channel.epgChannelId != null) {
+                    epgCache[r.channel.epgChannelId] = epgCache[r.channel.epgChannelId] ?: emptyList()
+                }
+                launchPlayer(r.channel)
+            },
+        )
+        searchOverlayResults.layoutManager = LinearLayoutManager(this)
+        searchOverlayResults.adapter = searchResultsAdapter
+        searchOverlayResults.itemAnimator = null
+
+        searchOverlayInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                searchQuery = s?.toString()?.trim().orEmpty()
-                applyCategory()
+                val q = s?.toString()?.trim().orEmpty()
+                searchHandler.removeCallbacksAndMessages(null)
+                searchHandler.postDelayed({ runSearch(q) }, 180L)
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+        searchOverlayClose.setOnClickListener { closeSearchOverlay() }
+    }
+
+    private fun openSearchOverlay() {
+        searchOverlay.visibility = View.VISIBLE
+        searchOverlayInput.setText("")
+        searchOverlayCount.text = ""
+        searchOverlayEmpty.visibility = View.VISIBLE
+        searchOverlayResults.visibility = View.GONE
+        searchResultsAdapter.submit(emptyList())
+        searchOverlayInput.requestFocus()
+    }
+
+    private fun closeSearchOverlay() {
+        searchHandler.removeCallbacksAndMessages(null)
+        searchOverlay.visibility = View.GONE
+        // Restore focus to the channels column.
+        channelsList.post {
+            channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+    }
+
+    /**
+     * Run the search query against ALL channels (name match) and
+     * ALL cached EPG buckets (programme title match).  We cap the
+     * result list at 200 rows so super-broad queries ("the") don't
+     * lock the UI thread.
+     */
+    private fun runSearch(query: String) {
+        if (query.length < 2) {
+            searchResultsAdapter.submit(emptyList())
+            searchOverlayEmpty.visibility = View.VISIBLE
+            searchOverlayResults.visibility = View.GONE
+            searchOverlayCount.text = ""
+            return
+        }
+        val q = query.lowercase(Locale.UK)
+        val now = System.currentTimeMillis()
+        val results = mutableListOf<tv.onnowtv.livetv.ui.SearchResult>()
+        val seenChannels = HashSet<String>()
+
+        // Channel-name matches first (boosted to top of list).
+        for (ch in bundle.channels) {
+            if (ch.name.lowercase(Locale.UK).contains(q)) {
+                results.add(tv.onnowtv.livetv.ui.SearchResult(channel = ch))
+                seenChannels.add(ch.id)
+                if (results.size >= 60) break
+            }
+        }
+
+        // EPG programme-title matches.  Scan cached buckets only —
+        // we don't fan out to the backend for every keystroke.
+        epgLoop@ for ((sid, progs) in epgCache) {
+            val ch = bundle.channels.firstOrNull { it.epgChannelId == sid } ?: continue
+            for (p in progs) {
+                if (p.stopMs < now) continue
+                if (!p.title.lowercase(Locale.UK).contains(q)) continue
+                val kind = if (p.startMs <= now && p.stopMs > now) "NOW" else "UPCOMING"
+                results.add(tv.onnowtv.livetv.ui.SearchResult(channel = ch, programme = p, kind = kind))
+                if (results.size >= 200) break@epgLoop
+            }
+        }
+
+        if (results.isEmpty()) {
+            searchResultsAdapter.submit(emptyList())
+            searchOverlayEmpty.text = "No channels or programmes match “$query”."
+            searchOverlayEmpty.visibility = View.VISIBLE
+            searchOverlayResults.visibility = View.GONE
+            searchOverlayCount.text = "0 RESULTS"
+        } else {
+            searchResultsAdapter.submit(results)
+            searchOverlayEmpty.visibility = View.GONE
+            searchOverlayResults.visibility = View.VISIBLE
+            searchOverlayCount.text = "${"%,d".format(results.size)} RESULTS"
+        }
+    }
+
+    override fun onBackPressed() {
+        if (searchOverlay.visibility == View.VISIBLE) {
+            closeSearchOverlay()
+            return
+        }
+        super.onBackPressed()
     }
 
     /* ───────── data helpers ─────────── */
 
     private fun applyCategory() {
         val sel = currentCategoryId
-        var channels: List<Channel> = when (sel) {
+        val channels: List<Channel> = when (sel) {
             "__all__", null -> bundle.channels
             "__favourites__" -> emptyList()  // future: SharedPreferences-backed
             "__recents__" -> emptyList()
             else -> bundle.channels.filter { it.categoryId == sel }
-        }
-        if (searchQuery.isNotEmpty()) {
-            val q = searchQuery.lowercase(Locale.UK)
-            channels = bundle.channels.filter { it.name.lowercase(Locale.UK).contains(q) }
         }
         val visible = channels.take(500)
         channelAdapter.submit(visible)
@@ -539,6 +648,7 @@ class EpgActivity : AppCompatActivity() {
         clockHandler.removeCallbacksAndMessages(null)
         categoryFocusHandler.removeCallbacksAndMessages(null)
         channelFocusHandler.removeCallbacksAndMessages(null)
+        searchHandler.removeCallbacksAndMessages(null)
         artJob?.cancel()
         super.onDestroy()
     }
