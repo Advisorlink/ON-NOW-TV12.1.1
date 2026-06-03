@@ -14,16 +14,20 @@ import tv.onnowtv.livetv.data.Programme
 
 /**
  * MIDDLE column: vertical list of channel pill cards.  Each card
- * shows logo + channel number + name + NOW programme title + cyan
- * progress bar.
+ * shows logo + channel number + name + NOW pill + programme title
+ * + cyan progress bar.
  *
  * `onFocus` updates the hero + guide list; `onActivate` launches the
- * stream in PlayerActivity.
+ * stream in PlayerActivity.  `onBound` is called every time a row
+ * binds so the activity can lazy-fetch EPG for channels that aren't
+ * already cached (this is what makes channel pills show their NOW
+ * title without the user needing to highlight them).
  */
 class ChannelPillAdapter(
     private val nowResolver: (Channel) -> Programme?,
     private val onFocus: (Channel) -> Unit,
     private val onActivate: (Channel) -> Unit,
+    private val onBound: (Channel) -> Unit = {},
 ) : RecyclerView.Adapter<ChannelPillAdapter.VH>() {
 
     private val items = mutableListOf<Channel>()
@@ -34,6 +38,14 @@ class ChannelPillAdapter(
         items.clear()
         items.addAll(list)
         notifyDataSetChanged()
+    }
+
+    /** Re-render visible rows without changing the dataset.  Used
+     *  when a lazy EPG fetch completes so a pill that was showing
+     *  "Loading guide…" can update in-place. */
+    fun refreshChannel(channelId: String) {
+        val idx = items.indexOfFirst { it.id == channelId }
+        if (idx >= 0) notifyItemChanged(idx)
     }
 
     override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
@@ -51,11 +63,12 @@ class ChannelPillAdapter(
     override fun getItemCount(): Int = items.size
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val logo: ImageView = itemView.findViewById<ImageView>(R.id.ch_logo)
-        private val numV: TextView = itemView.findViewById<TextView>(R.id.ch_num)
-        private val nameV: TextView = itemView.findViewById<TextView>(R.id.ch_name)
-        private val nowV: TextView = itemView.findViewById<TextView>(R.id.ch_now_title)
-        private val progress: View = itemView.findViewById<View>(R.id.ch_progress)
+        private val logo: ImageView = itemView.findViewById(R.id.ch_logo)
+        private val numV: TextView = itemView.findViewById(R.id.ch_num)
+        private val nameV: TextView = itemView.findViewById(R.id.ch_name)
+        private val nowV: TextView = itemView.findViewById(R.id.ch_now_title)
+        private val nowPill: TextView = itemView.findViewById(R.id.ch_now_pill)
+        private val progress: View = itemView.findViewById(R.id.ch_progress)
 
         private fun progressContainer(): FrameLayout? = progress.parent as? FrameLayout
 
@@ -70,6 +83,7 @@ class ChannelPillAdapter(
 
             val now = nowResolver(channel)
             if (now != null) {
+                nowPill.visibility = View.VISIBLE
                 nowV.text = now.title
                 val pct = computeProgress(now)
                 val container = progressContainer()
@@ -80,12 +94,18 @@ class ChannelPillAdapter(
                     progress.layoutParams = lp
                 }
             } else {
+                nowPill.visibility = View.GONE
                 nowV.text = "Loading guide…"
                 progressContainer()?.post {
                     val lp = progress.layoutParams
                     lp.width = 0
                     progress.layoutParams = lp
                 }
+                // Ask the activity to lazy-fetch this channel's EPG
+                // even though it isn't focused — that's what makes
+                // the NOW title populate without the user having to
+                // highlight every channel.
+                onBound(channel)
             }
 
             itemView.setOnFocusChangeListener { _, hasFocus ->

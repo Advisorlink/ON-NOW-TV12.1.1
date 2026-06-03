@@ -89,6 +89,10 @@ class EpgActivity : AppCompatActivity() {
     private val epgCache = mutableMapOf<String, List<Programme>>()
     private val tmdbArtCache = mutableMapOf<String, String>()  // title → backdrop url
     private var artJob: Job? = null
+    // Channels currently being lazy-fetched.  Prevents the same
+    // channel from being requested twice when the RecyclerView
+    // rebinds the same row multiple times during a scroll.
+    private val pendingEpgFetch = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private val clockHandler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
@@ -218,6 +222,7 @@ class EpgActivity : AppCompatActivity() {
                 loadGuideForChannel(ch)
             },
             onActivate = { ch -> launchPlayer(ch) },
+            onBound = { ch -> lazyFetchForChannel(ch) },
         )
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
@@ -276,6 +281,16 @@ class EpgActivity : AppCompatActivity() {
         channelAdapter.submit(visible)
         channelCountChip.text = "${"%,d".format(visible.size)} CHANNELS"
         categoryAdapter.setSelected(sel)
+
+        // Pre-populate the hero + guide with the first channel so
+        // the user doesn't have to manually highlight a row to see
+        // anything — the screen feels alive from frame zero.
+        val first = visible.firstOrNull()
+        if (first != null) {
+            focusedChannel = first
+            updateHero(first)
+            loadGuideForChannel(first)
+        }
     }
 
     private fun liveProgrammeOf(ch: Channel): Programme? {
@@ -382,6 +397,41 @@ class EpgActivity : AppCompatActivity() {
         } catch (t: Throwable) {
             Log.w("EpgActivity", "tmdb art failed: ${t.message}")
             ""
+        }
+    }
+
+    /**
+     * Lazy-fetch EPG for a visible channel pill that has no
+     * cached programme list yet.  Triggered from
+     * `ChannelPillAdapter.onBound` so the channel pill's NOW
+     * title + progress bar populate even when the user hasn't
+     * highlighted that pill yet.  Idempotent via
+     * `pendingEpgFetch` so identical rebinds don't double-fetch.
+     */
+    private fun lazyFetchForChannel(ch: Channel) {
+        val sid = ch.epgChannelId ?: return
+        if (sid.isBlank()) return
+        if (epgCache[sid]?.isNotEmpty() == true) return
+        if (!pendingEpgFetch.add(sid)) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val fetched = try {
+                XtreamRepository.fetchEpgForChannel(sid)
+            } catch (_: Throwable) {
+                emptyList()
+            }
+            if (fetched.isNotEmpty()) {
+                epgCache[sid] = fetched
+            }
+            pendingEpgFetch.remove(sid)
+            if (fetched.isNotEmpty()) {
+                channelsList.post { channelAdapter.refreshChannel(ch.id) }
+                if (focusedChannel?.id == ch.id) {
+                    guideList.post {
+                        guideAdapter.submit(fetched)
+                        focusedChannel?.let { updateHero(it) }
+                    }
+                }
+            }
         }
     }
 

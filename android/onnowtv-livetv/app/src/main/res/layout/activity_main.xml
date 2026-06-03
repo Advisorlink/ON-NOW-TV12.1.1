@@ -99,33 +99,32 @@
             android:progress="0"
             android:progressDrawable="@drawable/loader_progress" />
 
-        <!-- Sub-status: e.g. "12,094 channels · 1,820 / 2,400 popular EPG ready" -->
+        <!-- Sub-status: short phase description ("Downloading bundle…", "Warming popular regions…") -->
         <TextView
             android:id="@+id/loader_substatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:textColor="@color/livetv_fg_dim"
-            android:textSize="13sp"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.08"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center"
             android:text="" />
 
-        <!-- Elapsed counter + poll count.  ALWAYS updates every poll
-             so the user can see the app isn't frozen. -->
+        <!-- Clean live counters: "12,094 channels loaded  ·  1,820 / 2,400 popular EPG ready".
+             Updates every poll so the user sees data flowing in. -->
         <TextView
-            android:id="@+id/loader_elapsed"
+            android:id="@+id/loader_counters"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:textColor="@color/livetv_accent"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:fontFamily="monospace"
             android:textStyle="bold"
-            android:letterSpacing="0.20"
+            android:letterSpacing="0.16"
             android:gravity="center"
-            android:text="Elapsed 0s · poll 0" />
+            android:text="" />
 
         <!-- Retry CTA: hidden by default -->
         <TextView
