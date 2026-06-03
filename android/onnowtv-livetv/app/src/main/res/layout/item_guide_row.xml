@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Guide row (right column).  Either a programme entry (time + title)
-    or a day header (TODAY / TOMORROW).  Visibility flips per type
-    inside the adapter.
--->
+<!-- Guide row matching reference: time stacked over OK TO REMIND, title to the right. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -15,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="14dp"
-        android:paddingBottom="8dp"
+        android:paddingBottom="10dp"
         android:fontFamily="monospace"
         android:textColor="@color/livetv_accent"
         android:textSize="11sp"
@@ -29,40 +25,65 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
         android:background="@drawable/guide_row_bg"
         android:focusable="true"
         android:clickable="true"
-        android:padding="12dp">
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp">
 
-        <TextView
-            android:id="@+id/guide_time"
-            android:layout_width="64dp"
+        <LinearLayout
+            android:layout_width="58dp"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textColor="@color/livetv_fg_dim"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/guide_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_accent"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/guide_ampm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.18"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/guide_remind"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_fg_dimmer"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.20"
+                android:text="OK TO REMIND" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/guide_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="14dp"
+            android:layout_gravity="center_vertical"
             android:textColor="@color/livetv_fg"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:fontFamily="sans-serif-medium"
             android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="2"
             android:text="" />
-
-        <ImageView
-            android:id="@+id/guide_reminder_icon"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginStart="8dp"
-            android:visibility="gone"
-            android:contentDescription="@null" />
     </LinearLayout>
 </LinearLayout>

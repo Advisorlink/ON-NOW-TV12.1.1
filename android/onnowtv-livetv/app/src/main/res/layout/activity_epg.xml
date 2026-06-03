@@ -1,38 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    V2 Live TV — Vesper-style layout.
+    V2 Live TV — final Vesper-reference layout (v2.8.117).
 
-      • Hero (fixed top, 240dp): TMDB backdrop + LIVE TV eyebrow,
-        big channel name, NOW programme info, cyan progress bar,
-        UP NEXT line.  Top-right corner: Favourite / Refresh /
-        Sign-out icon cluster.
-      • Body (3 columns):
-          – Categories list (left, 240dp wide)
-          – Channels list   (middle, 380dp wide) — pill cards with
-                              logo + ch# + name + NOW + progress
-          – Guide list      (right, fills remainder) — grouped by
-                              TODAY / TOMORROW
+    Structure:
+      [ ICON RAIL 64dp ] [ MAIN ]
+
+    MAIN = vertical:
+      HERO (380dp): backdrop full-width + V2 monogram top-left in cyan glow,
+                    LIVE TV · CH 236 cyan monospace, MASSIVE channel name (72sp),
+                    NOW · 03:00 PM · prog title + 2-line synopsis,
+                    cyan progress bar, UP NEXT footer.
+                    Top-right: clock + Favourite / Refresh / Sign-out 40dp pills.
+
+      BODY 3 columns:
+        L (220dp): CHANNEL GROUPS list (Favourites, Recently Watched, then categories).
+        M (440dp): CHANNELS list (channel# + logo + name + NOW pill + prog title + progress).
+        R (fills): GUIDE — TODAY · SAT 16 MAY 03:34 PM header, then GUIDE · CHANNEL banner,
+                   then list of programmes with monospace time + OK TO REMIND label.
 -->
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/epg_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/livetv_bg"
-    android:focusable="false">
+    android:orientation="horizontal"
+    android:background="@color/livetv_bg">
 
+    <!-- ───────── LEFT ICON RAIL ───────── -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="64dp"
         android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp"
+        android:background="#0E1422">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="V2"
+            android:textColor="@color/livetv_accent"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.04"
+            android:shadowColor="#665DC8FF"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="14" />
+
+        <Space android:layout_width="0dp" android:layout_height="42dp" />
+
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:layout_marginBottom="32dp" android:src="@drawable/ic_nav_home"
+            android:contentDescription="@null" />
+
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_nav_tv"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <!-- ───────── MAIN ───────── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- ────────── HERO ────────── -->
+        <!-- HERO -->
         <FrameLayout
             android:id="@+id/hero"
             android:layout_width="match_parent"
-            android:layout_height="240dp"
-            android:clipChildren="false"
-            android:clipToPadding="false">
+            android:layout_height="380dp">
 
             <ImageView
                 android:id="@+id/hero_backdrop"
@@ -41,27 +80,24 @@
                 android:scaleType="centerCrop"
                 android:contentDescription="@null" />
 
-            <!-- Left-to-right gradient overlay for legibility. -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/hero_gradient" />
 
-            <!-- Bottom fade so hero blends into body. -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="80dp"
+                android:layout_height="100dp"
                 android:layout_gravity="bottom"
                 android:background="@drawable/hero_bottom_fade" />
 
-            <!-- Top-right utility icon cluster. -->
+            <!-- Top-right icon cluster + clock -->
             <LinearLayout
-                android:id="@+id/hero_icon_cluster"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|end"
                 android:layout_marginTop="20dp"
-                android:layout_marginEnd="28dp"
+                android:layout_marginEnd="32dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
@@ -76,47 +112,38 @@
                     android:textStyle="bold"
                     android:text="" />
 
-                <ImageButton
-                    android:id="@+id/btn_favourite"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                <ImageButton android:id="@+id/btn_favourite"
+                    android:layout_width="40dp" android:layout_height="40dp"
                     android:layout_marginEnd="6dp"
                     android:background="@drawable/hero_icon_btn_bg"
                     android:src="@drawable/ic_star"
-                    android:padding="10dp"
-                    android:focusable="true"
+                    android:padding="10dp" android:focusable="true"
                     android:contentDescription="Favourite" />
 
-                <ImageButton
-                    android:id="@+id/btn_refresh"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                <ImageButton android:id="@+id/btn_refresh"
+                    android:layout_width="40dp" android:layout_height="40dp"
                     android:layout_marginEnd="6dp"
                     android:background="@drawable/hero_icon_btn_bg"
                     android:src="@drawable/ic_refresh"
-                    android:padding="10dp"
-                    android:focusable="true"
+                    android:padding="10dp" android:focusable="true"
                     android:contentDescription="Refresh" />
 
-                <ImageButton
-                    android:id="@+id/btn_logout"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                <ImageButton android:id="@+id/btn_logout"
+                    android:layout_width="40dp" android:layout_height="40dp"
                     android:background="@drawable/hero_icon_btn_bg"
                     android:src="@drawable/ic_exit"
-                    android:padding="10dp"
-                    android:focusable="true"
+                    android:padding="10dp" android:focusable="true"
                     android:contentDescription="Sign out" />
             </LinearLayout>
 
-            <!-- Hero text content -->
+            <!-- Hero text -->
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|bottom"
-                android:layout_marginStart="32dp"
-                android:layout_marginBottom="36dp"
-                android:layout_marginEnd="320dp"
+                android:layout_marginStart="36dp"
+                android:layout_marginEnd="420dp"
+                android:layout_marginBottom="28dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -125,9 +152,9 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="11sp"
+                    android:textSize="12sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.32"
+                    android:letterSpacing="0.30"
                     android:text="LIVE TV" />
 
                 <TextView
@@ -136,37 +163,48 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="36sp"
+                    android:textSize="64sp"
                     android:textStyle="bold"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="-0.025"
+                    android:fontFamily="sans-serif-black"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
                     android:ellipsize="end"
-                    android:text="Live TV" />
+                    android:text="LIVE TV" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="14dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
                     <TextView
-                        android:id="@+id/hero_now_label"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="monospace"
                         android:textColor="@color/livetv_accent"
-                        android:textSize="10sp"
+                        android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.24"
                         android:text="NOW" />
 
                     <TextView
+                        android:id="@+id/hero_now_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:text="" />
+
+                    <TextView
                         android:id="@+id/hero_now_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
+                        android:layout_marginStart="14dp"
                         android:textColor="@color/livetv_fg_bright"
                         android:textSize="14sp"
                         android:textStyle="bold"
@@ -180,18 +218,18 @@
                     android:id="@+id/hero_synopsis"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="8dp"
                     android:textColor="@color/livetv_fg_dim"
                     android:textSize="13sp"
-                    android:lineSpacingExtra="2dp"
+                    android:lineSpacingExtra="3dp"
                     android:maxLines="2"
                     android:ellipsize="end"
                     android:text="" />
 
                 <FrameLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="420dp"
                     android:layout_height="3dp"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="14dp"
                     android:background="#1AFFFFFF">
 
                     <View
@@ -205,34 +243,34 @@
                     android:id="@+id/hero_up_next"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="10dp"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_fg_dimmer"
                     android:textSize="10sp"
-                    android:letterSpacing="0.20"
+                    android:letterSpacing="0.22"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:text="" />
             </LinearLayout>
         </FrameLayout>
 
-        <!-- ────────── BODY (3 columns) ────────── -->
+        <!-- BODY 3 columns -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="horizontal"
-            android:paddingStart="32dp"
-            android:paddingEnd="32dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingStart="36dp"
+            android:paddingEnd="36dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="20dp">
 
-            <!-- Left: categories -->
+            <!-- Categories -->
             <LinearLayout
                 android:layout_width="220dp"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
-                android:layout_marginEnd="16dp">
+                android:layout_marginEnd="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -243,7 +281,7 @@
                     android:textSize="10sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.24"
-                    android:text="CATEGORIES" />
+                    android:text="CHANNEL GROUPS" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/categories_list"
@@ -255,12 +293,12 @@
                     android:overScrollMode="never" />
             </LinearLayout>
 
-            <!-- Middle: channels -->
+            <!-- Channels -->
             <LinearLayout
-                android:layout_width="360dp"
+                android:layout_width="440dp"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
-                android:layout_marginEnd="16dp">
+                android:layout_marginEnd="20dp">
 
                 <TextView
                     android:id="@+id/channels_header"
@@ -284,23 +322,32 @@
                     android:overScrollMode="never" />
             </LinearLayout>
 
-            <!-- Right: guide -->
+            <!-- Guide -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingBottom="10dp"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_fg_dimmer"
-                    android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.24"
-                    android:text="GUIDE" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/guide_today"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.24"
+                        android:text="TODAY" />
+                </LinearLayout>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/guide_list"
@@ -313,4 +360,4 @@
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-</FrameLayout>
+</LinearLayout>
