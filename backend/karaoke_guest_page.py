@@ -1323,10 +1323,20 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                         noiseSuppression: false,
                         autoGainControl: false,
                         channelCount: 1,
+                        // v2.8.125 — Soft `latency: 0` hint (ideal,
+                        // not exact) so devices that honour the hint
+                        // pick their smallest capture buffer, while
+                        // devices that don't simply ignore it.
+                        latency: { ideal: 0 },
+                        // Voice-band sample rate.  48 kHz adds 3×
+                        // the samples per buffer for no perceptible
+                        // karaoke benefit.  16 kHz is what most
+                        // mobile codecs sample at anyway.
+                        sampleRate: { ideal: 16000 },
                     },
                     video: false,
                 });
-                console.info('[mic] low-latency capture acquired (AEC/NS/AGC off)');
+                console.info('[mic] low-latency capture acquired (AEC/NS/AGC off, 16k, lat0)');
             } catch (lowLatErr) {
                 console.warn('[mic] low-latency constraints rejected, falling back:', lowLatErr);
                 micStream = await navigator.mediaDevices.getUserMedia({
@@ -1423,7 +1433,12 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                 const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/);
                 if (m) {
                     const pt = m[1];
-                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=10;useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=64000';
+                    // v2.8.125 — Push to 5 ms Opus frames (was 10 ms).
+                    // Halves the per-packet serialisation delay at
+                    // the cost of slightly more network overhead.
+                    // Opus supports down to 2.5 ms but 5 ms is the
+                    // sweet spot for WebRTC interop.
+                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=5;useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=64000';
                     const fmtpRe = new RegExp('a=fmtp:' + pt + ' [^\\r\\n]*');
                     if (fmtpRe.test(sdp)) {
                         sdp = sdp.replace(fmtpRe, fmtpLine);
@@ -1434,15 +1449,40 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                             '$1\r\n' + fmtpLine
                         );
                     }
-                    // Force 10 ms ptime alongside the audio m= section.
+                    // Force 5 ms ptime alongside the audio m= section.
                     sdp = sdp.replace(
                         /(a=rtpmap:\d+ opus\/48000\/2[^\r\n]*)/,
-                        '$1\r\na=ptime:10\r\na=maxptime:10'
+                        '$1\r\na=ptime:5\r\na=maxptime:5'
                     );
                 }
                 offer.sdp = sdp;
             }
             await micPC.setLocalDescription(offer);
+            // v2.8.125 — Force the audio sender to its lowest
+            // priority / lowest-latency encoder settings.  WebRTC
+            // normally allocates a generous send buffer; we override
+            // it to bias for immediacy over robustness.
+            try {
+                micPC.getSenders().forEach((sender) => {
+                    if (sender.track && sender.track.kind === 'audio' && sender.getParameters) {
+                        const params = sender.getParameters();
+                        if (params.encodings && params.encodings.length > 0) {
+                            params.encodings.forEach((enc) => {
+                                enc.priority = 'high';
+                                enc.networkPriority = 'high';
+                                enc.maxBitrate = 64000;
+                            });
+                            // degradationPreference: 'maintain-framerate'
+                            // tells WebRTC to drop bits-per-second
+                            // before adding queuing delay.
+                            if ('degradationPreference' in params) {
+                                params.degradationPreference = 'maintain-framerate';
+                            }
+                            sender.setParameters(params).catch(() => { /* not fatal */ });
+                        }
+                    }
+                });
+            } catch (e) { /* not fatal */ }
             await sendMicSignal('offer', { sdp: micPC.localDescription });
             // Tell server the mic is on so the TV can start playback
             await fetch('/api/karaoke/party/' + CODE + '/mic/on', { method: 'POST' });
