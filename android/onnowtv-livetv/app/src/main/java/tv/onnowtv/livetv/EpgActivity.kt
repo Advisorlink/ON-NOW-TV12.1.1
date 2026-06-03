@@ -62,13 +62,7 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var heroNowTitle: TextView
     private lateinit var heroSynopsis: TextView
     private lateinit var heroProgress: View
-    private lateinit var heroUpNextCard: View
-    private lateinit var upNext1Time: TextView
-    private lateinit var upNext1Title: TextView
-    private lateinit var upNext2Time: TextView
-    private lateinit var upNext2Title: TextView
-    private lateinit var upNext3Time: TextView
-    private lateinit var upNext3Title: TextView
+    private lateinit var heroUpNext: TextView
     private lateinit var clock: TextView
     private lateinit var btnFavourite: ImageButton
     private lateinit var btnRefresh: ImageButton
@@ -172,13 +166,7 @@ class EpgActivity : AppCompatActivity() {
         heroNowTitle       = findViewById(R.id.hero_now_title)
         heroSynopsis       = findViewById(R.id.hero_synopsis)
         heroProgress       = findViewById(R.id.hero_progress)
-        heroUpNextCard     = findViewById(R.id.hero_up_next_card)
-        upNext1Time        = findViewById(R.id.up_next_1_time)
-        upNext1Title       = findViewById(R.id.up_next_1_title)
-        upNext2Time        = findViewById(R.id.up_next_2_time)
-        upNext2Title       = findViewById(R.id.up_next_2_title)
-        upNext3Time        = findViewById(R.id.up_next_3_time)
-        upNext3Title       = findViewById(R.id.up_next_3_title)
+        heroUpNext         = findViewById(R.id.hero_up_next)
         clock              = findViewById(R.id.clock)
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
@@ -360,15 +348,10 @@ class EpgActivity : AppCompatActivity() {
                 lp.width = (parent.width * pct).toInt().coerceAtLeast(0)
                 heroProgress.layoutParams = lp
             }
-            val nextList = upcomingProgrammesOf(ch, now, 3)
-            if (nextList.isNotEmpty()) {
-                heroUpNextCard.visibility = View.VISIBLE
-                populateUpNextRow(upNext1Time, upNext1Title, nextList.getOrNull(0))
-                populateUpNextRow(upNext2Time, upNext2Title, nextList.getOrNull(1))
-                populateUpNextRow(upNext3Time, upNext3Title, nextList.getOrNull(2))
-            } else {
-                heroUpNextCard.visibility = View.INVISIBLE
-            }
+            val next = upcomingProgrammeOf(ch, now)
+            heroUpNext.text = next?.let {
+                "UP NEXT · ${formatTime(it.startMs)} · ${it.title}"
+            } ?: ""
             loadHeroBackdrop(now.title, ch)
         } else {
             heroNowTime.text = ""
@@ -379,7 +362,7 @@ class EpgActivity : AppCompatActivity() {
                 lp.width = 0
                 heroProgress.layoutParams = lp
             }
-            heroUpNextCard.visibility = View.INVISIBLE
+            heroUpNext.text = ""
             // No programme → channel logo fallback only.
             if (!ch.logoUrl.isNullOrBlank()) {
                 heroBackdrop.load(ch.logoUrl)
@@ -389,26 +372,9 @@ class EpgActivity : AppCompatActivity() {
         guideChannelHeader.text = "GUIDE · ${ch.name.uppercase(Locale.UK)}"
     }
 
-    private fun upcomingProgrammesOf(ch: Channel, now: Programme, count: Int): List<Programme> {
-        val list = epgCache[ch.epgChannelId] ?: return emptyList()
-        return list.filter { it.startMs > now.startMs }.take(count)
-    }
-
-    private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? =
-        upcomingProgrammesOf(ch, now, 1).firstOrNull()
-
-    private fun populateUpNextRow(timeView: TextView, titleView: TextView, p: Programme?) {
-        if (p == null) {
-            timeView.text = ""
-            titleView.text = ""
-            timeView.visibility = View.INVISIBLE
-            titleView.visibility = View.INVISIBLE
-        } else {
-            timeView.text = formatTime(p.startMs)
-            titleView.text = p.title
-            timeView.visibility = View.VISIBLE
-            titleView.visibility = View.VISIBLE
-        }
+    private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? {
+        val list = epgCache[ch.epgChannelId] ?: return null
+        return list.firstOrNull { it.startMs > now.startMs }
     }
 
     /**

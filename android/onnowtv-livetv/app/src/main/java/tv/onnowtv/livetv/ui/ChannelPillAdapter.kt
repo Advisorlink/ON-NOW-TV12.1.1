@@ -99,7 +99,7 @@ class ChannelPillAdapter(
                 // If we've already tried to fetch and the channel
                 // has no EPG, stop pretending we're still loading —
                 // show a short dim hint instead.
-                nowV.text = if (isKnownEmpty(channel)) "No guide info" else "Loading guide…"
+                nowV.text = if (isKnownEmpty(channel)) "NO GUIDE DATA" else "Loading guide…"
                 progressContainer()?.post {
                     val lp = progress.layoutParams
                     lp.width = 0
