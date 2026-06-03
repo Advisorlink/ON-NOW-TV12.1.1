@@ -16,4 +16,6 @@
     <color name="livetv_now_line">#5DC8FF</color>
     <color name="livetv_row_separator">#11FFFFFF</color>
     <color name="livetv_card_border">#1AFFFFFF</color>
+    <color name="livetv_reminder_yellow">#FFC83D</color>
+    <color name="livetv_reminder_yellow_dim">#80FFC83D</color>
 </resources>

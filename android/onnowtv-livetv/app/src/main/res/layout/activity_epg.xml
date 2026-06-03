@@ -114,11 +114,11 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- HERO -->
+        <!-- HERO — kept compact so 9+ guide / channel rows fit -->
         <FrameLayout
             android:id="@+id/hero"
             android:layout_width="match_parent"
-            android:layout_height="340dp">
+            android:layout_height="240dp">
 
             <ImageView
                 android:id="@+id/hero_backdrop"
@@ -192,17 +192,14 @@
                     android:contentDescription="Sign out" />
             </LinearLayout>
 
-            <!-- Hero text — top-left anchored.  CRITICAL: in a
-                 FrameLayout `0dp` width without a weight collapses
-                 to invisible; use `wrap_content` or `match_parent`.
-                 v2.8.127 fixes the disappearing heading bug. -->
+            <!-- Hero text — top-left anchored.  -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|top"
                 android:layout_marginStart="36dp"
                 android:layout_marginEnd="320dp"
-                android:layout_marginTop="32dp"
+                android:layout_marginTop="22dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -211,7 +208,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.32"
                     android:text="LIVE TV" />
@@ -220,9 +217,9 @@
                     android:id="@+id/hero_channel_name"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="56sp"
+                    android:textSize="42sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-black"
                     android:letterSpacing="-0.03"
@@ -346,8 +343,8 @@
             android:orientation="horizontal"
             android:paddingStart="36dp"
             android:paddingEnd="36dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="20dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="14dp">
 
             <!-- L: Channel groups -->
             <LinearLayout

@@ -100,6 +100,15 @@ class EpgActivity : AppCompatActivity() {
      *  these so the channel pill stops showing "Loading guide…"
      *  forever — it'll just show the channel name. */
     private val epgKnownEmpty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** Programme IDs (channelId + ":" + startMs) the user has
+     *  flagged with a reminder.  Toggles to yellow on click.
+     *  Stored in memory for now; a future patch can persist to
+     *  SharedPreferences + fire system AlarmManager events. */
+    private val reminderSet = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private fun reminderKey(p: Programme): String {
+        val sid = focusedChannel?.epgChannelId ?: ""
+        return "$sid:${p.startMs}"
+    }
     private val tmdbArtCache = mutableMapOf<String, String>()  // title → backdrop url
     private var artJob: Job? = null
     // Channels currently being lazy-fetched.  Prevents the same
@@ -285,7 +294,19 @@ class EpgActivity : AppCompatActivity() {
         channelsList.adapter = channelAdapter
         channelsList.itemAnimator = null
 
-        guideAdapter = GuideRowAdapter(onActivate = { /* future: toggle reminder */ })
+        guideAdapter = GuideRowAdapter(
+            onActivate = { /* no-op: tap is handled via the reminder toggle */ },
+            reminderResolver = { p -> reminderSet.contains(reminderKey(p)) },
+            onReminderToggle = { p ->
+                val key = reminderKey(p)
+                val nowSet = if (reminderSet.contains(key)) {
+                    reminderSet.remove(key); false
+                } else {
+                    reminderSet.add(key); true
+                }
+                nowSet
+            },
+        )
         guideList.layoutManager = LinearLayoutManager(this)
         guideList.adapter = guideAdapter
         guideList.itemAnimator = null
