@@ -1,22 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    V2 Live TV — final Vesper-reference layout (v2.8.117).
+    V2 Live TV EPG (matches Vesper reference screenshot).
 
-    Structure:
+    Layout:
       [ ICON RAIL 64dp ] [ MAIN ]
 
+    Icon rail (top-to-bottom):  V2 wordmark · Home · Search · Refresh · List
+                                                                              [bottom]
+                                Sign-out
+
     MAIN = vertical:
-      HERO (380dp): backdrop full-width + V2 monogram top-left in cyan glow,
-                    LIVE TV · CH 236 cyan monospace, MASSIVE channel name (72sp),
-                    NOW · 03:00 PM · prog title + 2-line synopsis,
-                    cyan progress bar, UP NEXT footer.
-                    Top-right: clock + Favourite / Refresh / Sign-out 40dp pills.
+      HERO (380dp): backdrop + LIVE TV·CH 236 eyebrow + BIG channel name +
+                    NOW pill · prog title + synopsis + cyan progress bar +
+                    UP NEXT.  Top-right: clock + Favourite / Refresh / Sign-out.
 
       BODY 3 columns:
-        L (220dp): CHANNEL GROUPS list (Favourites, Recently Watched, then categories).
-        M (440dp): CHANNELS list (channel# + logo + name + NOW pill + prog title + progress).
-        R (fills): GUIDE — TODAY · SAT 16 MAY 03:34 PM header, then GUIDE · CHANNEL banner,
-                   then list of programmes with monospace time + OK TO REMIND label.
+        L  (220dp): "CHANNEL GROUPS" + Favourites / Recently Watched pills +
+                    region groups with counts.
+        M  (440dp): "Search channels & guide…" bar + channel count chip +
+                    channel pill list.
+        R  (fills): "TODAY · {DATE}" header + "GUIDE · {CHANNEL}" sub-header +
+                    list of programmes with bell + OK TO REMIND.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -39,25 +43,63 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="V2"
-            android:textColor="@color/livetv_accent"
+            android:textColor="@color/livetv_accent_red"
             android:textSize="22sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-black"
             android:letterSpacing="-0.04"
-            android:shadowColor="#665DC8FF"
+            android:shadowColor="#80FF2535"
             android:shadowDx="0"
             android:shadowDy="0"
             android:shadowRadius="14" />
 
-        <Space android:layout_width="0dp" android:layout_height="42dp" />
+        <Space android:layout_width="0dp" android:layout_height="38dp" />
 
-        <ImageView android:layout_width="24dp" android:layout_height="24dp"
-            android:layout_marginBottom="32dp" android:src="@drawable/ic_nav_home"
-            android:contentDescription="@null" />
+        <ImageButton android:id="@+id/rail_home"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_home"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Home" />
 
-        <ImageView android:layout_width="24dp" android:layout_height="24dp"
-            android:src="@drawable/ic_nav_tv"
-            android:contentDescription="@null" />
+        <ImageButton android:id="@+id/rail_search"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_search"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Search" />
+
+        <ImageButton android:id="@+id/rail_refresh"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_refresh"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Refresh" />
+
+        <ImageButton android:id="@+id/rail_list"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_list"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="List" />
+
+        <Space android:layout_width="0dp" android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton android:id="@+id/rail_signout"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_signout"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Sign out" />
     </LinearLayout>
 
     <!-- ───────── MAIN ───────── -->
@@ -262,10 +304,10 @@
             android:orientation="horizontal"
             android:paddingStart="36dp"
             android:paddingEnd="36dp"
-            android:paddingTop="6dp"
+            android:paddingTop="10dp"
             android:paddingBottom="20dp">
 
-            <!-- Categories -->
+            <!-- L: Channel groups -->
             <LinearLayout
                 android:layout_width="220dp"
                 android:layout_height="match_parent"
@@ -293,24 +335,66 @@
                     android:overScrollMode="never" />
             </LinearLayout>
 
-            <!-- Channels -->
+            <!-- M: Channels -->
             <LinearLayout
                 android:layout_width="440dp"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:layout_marginEnd="20dp">
 
-                <TextView
-                    android:id="@+id/channels_header"
+                <!-- Search bar -->
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingBottom="10dp"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_fg_dimmer"
-                    android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.24"
-                    android:text="CHANNELS" />
+                    android:layout_height="44dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/search_bar_bg"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="10dp">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_search_small"
+                        android:contentDescription="@null" />
+
+                    <EditText
+                        android:id="@+id/search_input"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:background="@null"
+                        android:textColor="@color/livetv_fg"
+                        android:textColorHint="@color/livetv_fg_dimmer"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:hint="Search channels &amp; guide…"
+                        android:singleLine="true"
+                        android:imeOptions="actionSearch"
+                        android:inputType="text"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true" />
+
+                    <TextView
+                        android:id="@+id/channel_count_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:background="@drawable/channel_count_chip_bg"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.20"
+                        android:text="0 CHANNELS" />
+                </LinearLayout>
+
+                <Space android:layout_width="0dp" android:layout_height="10dp" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/channels_list"
@@ -322,19 +406,20 @@
                     android:overScrollMode="never" />
             </LinearLayout>
 
-            <!-- Guide -->
+            <!-- R: Guide -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
+                <!-- Date + clock row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingBottom="10dp"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:paddingBottom="6dp">
 
                     <TextView
                         android:id="@+id/guide_today"
@@ -347,7 +432,32 @@
                         android:textStyle="bold"
                         android:letterSpacing="0.24"
                         android:text="TODAY" />
+
+                    <TextView
+                        android:id="@+id/guide_clock"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_fg_dim"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:text="" />
                 </LinearLayout>
+
+                <!-- GUIDE · channel sub-header -->
+                <TextView
+                    android:id="@+id/guide_channel_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="10dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dimmer"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.24"
+                    android:text="GUIDE" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/guide_list"

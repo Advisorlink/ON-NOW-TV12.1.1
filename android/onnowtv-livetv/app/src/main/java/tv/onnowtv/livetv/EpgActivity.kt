@@ -4,7 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
+import android.util.Log
 import android.view.View
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -15,7 +19,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import tv.onnowtv.livetv.data.Category
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
@@ -24,43 +31,34 @@ import tv.onnowtv.livetv.data.XtreamRepository
 import tv.onnowtv.livetv.ui.CategoryPillAdapter
 import tv.onnowtv.livetv.ui.ChannelPillAdapter
 import tv.onnowtv.livetv.ui.GuideRowAdapter
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * V2 Live TV — Vesper-style EPG.
- *
- *   ── Layout ──
- *     • HERO (top, 240 dp): TMDB backdrop + LIVE TV eyebrow + big
- *       channel name + NOW programme info + cyan progress bar +
- *       UP NEXT line + top-right icon cluster (★ / ⟳ / ↪).
- *     • BODY (3 columns):
- *         CATEGORIES (left, 220 dp) → CHANNELS (middle, 360 dp) →
- *         GUIDE (right, fills remainder) grouped by TODAY / TOMORROW.
- *
- *   ── Navigation ──
- *     Native D-pad routes ↑/↓ within a column and ←/→ between
- *     columns automatically thanks to `nextFocusLeft/Right`
- *     attributes on each RecyclerView.  No custom keydown
- *     interceptors are needed for the column-jump case.
- *
- *   ── Data flow ──
- *     • Categories list submitted once from the bundle.
- *     • When a category gains focus → refilter channel list.
- *     • When a channel gains focus → update hero + load guide (lazy
- *       fetch /api/xtream/epg/{stream_id} if bundle EPG was empty).
- *     • Pressing OK on a channel → launch PlayerActivity.
+ * V2 Live TV — Vesper-style EPG.  See `activity_epg.xml` for the
+ * layout rationale.
  */
 class EpgActivity : AppCompatActivity() {
 
     private lateinit var bundle: XtreamBundle
+
+    // Rail refs
+    private lateinit var railHome: ImageButton
+    private lateinit var railSearch: ImageButton
+    private lateinit var railRefresh: ImageButton
+    private lateinit var railList: ImageButton
+    private lateinit var railSignout: ImageButton
 
     // Hero refs
     private lateinit var hero: FrameLayout
     private lateinit var heroBackdrop: ImageView
     private lateinit var heroChannelName: TextView
     private lateinit var heroEyebrow: TextView
+    private lateinit var heroNowTime: TextView
     private lateinit var heroNowTitle: TextView
     private lateinit var heroSynopsis: TextView
     private lateinit var heroProgress: View
@@ -73,8 +71,12 @@ class EpgActivity : AppCompatActivity() {
     // Body refs
     private lateinit var categoriesList: RecyclerView
     private lateinit var channelsList: RecyclerView
-    private lateinit var channelsHeader: TextView
+    private lateinit var searchInput: EditText
+    private lateinit var channelCountChip: TextView
     private lateinit var guideList: RecyclerView
+    private lateinit var guideClock: TextView
+    private lateinit var guideToday: TextView
+    private lateinit var guideChannelHeader: TextView
 
     private lateinit var categoryAdapter: CategoryPillAdapter
     private lateinit var channelAdapter: ChannelPillAdapter
@@ -82,11 +84,15 @@ class EpgActivity : AppCompatActivity() {
 
     private var currentCategoryId: String? = null
     private var focusedChannel: Channel? = null
+    private var searchQuery: String = ""
     private var allCategoriesWithCounts: List<Category> = emptyList()
     private val epgCache = mutableMapOf<String, List<Programme>>()
+    private val tmdbArtCache = mutableMapOf<String, String>()  // title → backdrop url
+    private var artJob: Job? = null
 
     private val clockHandler = Handler(Looper.getMainLooper())
-    private val clockFmt = SimpleDateFormat("h:mma", Locale.UK)
+    private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val dateFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,74 +106,15 @@ class EpgActivity : AppCompatActivity() {
             return
         }
         bundle = held
-        // Seed the EPG cache from the bundle.
         epgCache.putAll(bundle.epg)
 
-        // Wire views
-        hero = findViewById<FrameLayout>(R.id.hero)
-        heroBackdrop = findViewById<ImageView>(R.id.hero_backdrop)
-        heroChannelName = findViewById<TextView>(R.id.hero_channel_name)
-        heroEyebrow = findViewById<TextView>(R.id.hero_eyebrow)
-        heroNowTitle = findViewById<TextView>(R.id.hero_now_title)
-        heroSynopsis = findViewById<TextView>(R.id.hero_synopsis)
-        heroProgress = findViewById<View>(R.id.hero_progress)
-        heroUpNext = findViewById<TextView>(R.id.hero_up_next)
-        clock = findViewById<TextView>(R.id.clock)
-        btnFavourite = findViewById<ImageButton>(R.id.btn_favourite)
-        btnRefresh = findViewById<ImageButton>(R.id.btn_refresh)
-        btnLogout = findViewById<ImageButton>(R.id.btn_logout)
-        categoriesList = findViewById<RecyclerView>(R.id.categories_list)
-        channelsList = findViewById<RecyclerView>(R.id.channels_list)
-        channelsHeader = findViewById<TextView>(R.id.channels_header)
-        guideList = findViewById<RecyclerView>(R.id.guide_list)
-
-        // Build category metadata with real channel counts.
-        val countsByCat: Map<String, Int> = bundle.channels
-            .groupingBy { it.categoryId ?: "" }
-            .eachCount()
-        val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
-        allCategoriesWithCounts = listOf(virtualAll) + bundle.categories
-            .map { it.copy(channelCount = countsByCat[it.id] ?: 0) }
-            .filter { it.channelCount > 0 && !it.name.contains("#####") }
-
-        // Smart default: highest EPG coverage ratio.
-        val epgCoverageByCat: Map<String, Double> = bundle.categories.associate { cat ->
-            val cs = bundle.channels.filter { it.categoryId == cat.id }
-            val ratio = if (cs.isEmpty()) 0.0
-            else cs.count { ch ->
-                val eid = ch.epgChannelId
-                !eid.isNullOrBlank() && (epgCache[eid]?.isNotEmpty() == true)
-            }.toDouble() / cs.size
-            cat.id to ratio
-        }
-        val bestCat = bundle.categories
-            .filter { !it.name.contains("#####") && (countsByCat[it.id] ?: 0) >= 5 }
-            .maxByOrNull { (epgCoverageByCat[it.id] ?: 0.0) }
-        currentCategoryId = if (bestCat != null && (epgCoverageByCat[bestCat.id] ?: 0.0) > 0.1) {
-            bestCat.id
-        } else {
-            "__all__"
-        }
-
-        setupCategoriesList()
-        setupChannelsList()
-        setupGuideList()
+        wireViews()
+        buildCategories()
+        setupAdapters()
         applyCategory()
-
-        // Wire the hero icon cluster.
-        btnRefresh.setOnClickListener {
-            // Soft-refresh: re-apply current category to rebuild the list.
-            applyCategory()
-        }
-        btnFavourite.setOnClickListener {
-            // Future: persist favourite to SharedPreferences.
-        }
-        btnLogout.setOnClickListener {
-            // Exit the app cleanly.
-            finishAffinity()
-        }
-
-        // Refresh hero idle state every 30 s.
+        wireHeroIcons()
+        wireRail()
+        wireSearch()
         startClock()
 
         // Focus the first category on boot.
@@ -176,22 +123,82 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
-    /* ───────── set-up ─────────── */
+    private fun wireViews() {
+        railHome     = findViewById(R.id.rail_home)
+        railSearch   = findViewById(R.id.rail_search)
+        railRefresh  = findViewById(R.id.rail_refresh)
+        railList     = findViewById(R.id.rail_list)
+        railSignout  = findViewById(R.id.rail_signout)
 
-    private fun setupCategoriesList() {
+        hero               = findViewById(R.id.hero)
+        heroBackdrop       = findViewById(R.id.hero_backdrop)
+        heroChannelName    = findViewById(R.id.hero_channel_name)
+        heroEyebrow        = findViewById(R.id.hero_eyebrow)
+        heroNowTime        = findViewById(R.id.hero_now_time)
+        heroNowTitle       = findViewById(R.id.hero_now_title)
+        heroSynopsis       = findViewById(R.id.hero_synopsis)
+        heroProgress       = findViewById(R.id.hero_progress)
+        heroUpNext         = findViewById(R.id.hero_up_next)
+        clock              = findViewById(R.id.clock)
+        btnFavourite       = findViewById(R.id.btn_favourite)
+        btnRefresh         = findViewById(R.id.btn_refresh)
+        btnLogout          = findViewById(R.id.btn_logout)
+
+        categoriesList     = findViewById(R.id.categories_list)
+        channelsList       = findViewById(R.id.channels_list)
+        searchInput        = findViewById(R.id.search_input)
+        channelCountChip   = findViewById(R.id.channel_count_chip)
+        guideList          = findViewById(R.id.guide_list)
+        guideClock         = findViewById(R.id.guide_clock)
+        guideToday         = findViewById(R.id.guide_today)
+        guideChannelHeader = findViewById(R.id.guide_channel_header)
+    }
+
+    private fun buildCategories() {
+        val countsByCat: Map<String, Int> = bundle.channels
+            .groupingBy { it.categoryId ?: "" }
+            .eachCount()
+        val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
+        val favourites = Category(id = "__favourites__", name = "Favourites", channelCount = 0)
+        val recents = Category(id = "__recents__", name = "Recently Watched", channelCount = 0)
+
+        // Real categories with counts (filter junk separator rows).
+        val real = bundle.categories
+            .map { it.copy(channelCount = countsByCat[it.id] ?: 0) }
+            .filter { it.channelCount > 0 && !it.name.contains("#####") }
+
+        allCategoriesWithCounts = listOf(favourites, recents, virtualAll) + real
+
+        // Smart default: highest EPG coverage ratio in real categories.
+        val epgCoverageByCat: Map<String, Double> = real.associate { cat ->
+            val cs = bundle.channels.filter { it.categoryId == cat.id }
+            val ratio = if (cs.isEmpty()) 0.0
+            else cs.count { ch ->
+                val eid = ch.epgChannelId
+                !eid.isNullOrBlank() && (epgCache[eid]?.isNotEmpty() == true)
+            }.toDouble() / cs.size
+            cat.id to ratio
+        }
+        val bestCat = real
+            .filter { it.channelCount >= 5 }
+            .maxByOrNull { epgCoverageByCat[it.id] ?: 0.0 }
+        currentCategoryId = if (bestCat != null && (epgCoverageByCat[bestCat.id] ?: 0.0) > 0.1) {
+            bestCat.id
+        } else {
+            "__all__"
+        }
+    }
+
+    private fun setupAdapters() {
         categoryAdapter = CategoryPillAdapter(
             onPick = { c ->
                 currentCategoryId = c.id
                 applyCategory()
-                // Move focus into the channels column on pick.
                 channelsList.post {
-                    channelsList.findViewHolderForAdapterPosition(0)
-                        ?.itemView?.requestFocus()
+                    channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 }
             },
             onFocus = { c ->
-                // Live-filter as the user scrolls the categories list
-                // — feels instant on a TV remote.
                 if (c.id != currentCategoryId) {
                     currentCategoryId = c.id
                     applyCategory()
@@ -202,9 +209,7 @@ class EpgActivity : AppCompatActivity() {
         categoriesList.adapter = categoryAdapter
         categoriesList.itemAnimator = null
         categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
-    }
 
-    private fun setupChannelsList() {
         channelAdapter = ChannelPillAdapter(
             nowResolver = { ch -> liveProgrammeOf(ch) },
             onFocus = { ch ->
@@ -217,30 +222,59 @@ class EpgActivity : AppCompatActivity() {
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
         channelsList.itemAnimator = null
-    }
 
-    private fun setupGuideList() {
-        guideAdapter = GuideRowAdapter(
-            onActivate = { /* future: toggle reminder */ },
-        )
+        guideAdapter = GuideRowAdapter(onActivate = { /* future: toggle reminder */ })
         guideList.layoutManager = LinearLayoutManager(this)
         guideList.adapter = guideAdapter
         guideList.itemAnimator = null
     }
 
-    /* ───────── helpers ─────────── */
+    private fun wireHeroIcons() {
+        btnRefresh.setOnClickListener { applyCategory() }
+        btnFavourite.setOnClickListener { /* future: persist favourite */ }
+        btnLogout.setOnClickListener { finishAffinity() }
+    }
+
+    private fun wireRail() {
+        railHome.setOnClickListener { finish() }
+        railSearch.setOnClickListener {
+            searchInput.requestFocus()
+        }
+        railRefresh.setOnClickListener { applyCategory() }
+        railList.setOnClickListener {
+            categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+        railSignout.setOnClickListener { finishAffinity() }
+    }
+
+    private fun wireSearch() {
+        searchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                searchQuery = s?.toString()?.trim().orEmpty()
+                applyCategory()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+    }
+
+    /* ───────── data helpers ─────────── */
 
     private fun applyCategory() {
         val sel = currentCategoryId
-        val channels = if (sel == null || sel == "__all__") {
-            bundle.channels
-        } else {
-            bundle.channels.filter { it.categoryId == sel }
+        var channels: List<Channel> = when (sel) {
+            "__all__", null -> bundle.channels
+            "__favourites__" -> emptyList()  // future: SharedPreferences-backed
+            "__recents__" -> emptyList()
+            else -> bundle.channels.filter { it.categoryId == sel }
+        }
+        if (searchQuery.isNotEmpty()) {
+            val q = searchQuery.lowercase(Locale.UK)
+            channels = bundle.channels.filter { it.name.lowercase(Locale.UK).contains(q) }
         }
         val visible = channels.take(500)
         channelAdapter.submit(visible)
-        val label = allCategoriesWithCounts.firstOrNull { it.id == sel }?.name ?: "ALL"
-        channelsHeader.text = "CHANNELS · $label  ·  ${visible.size}"
+        channelCountChip.text = "${"%,d".format(visible.size)} CHANNELS"
         categoryAdapter.setSelected(sel)
     }
 
@@ -255,9 +289,9 @@ class EpgActivity : AppCompatActivity() {
         heroEyebrow.text = ch.lcn?.let { "LIVE TV · CH $it" } ?: "LIVE TV"
         val now = liveProgrammeOf(ch)
         if (now != null) {
-            heroNowTitle.text = "${formatTime(now.startMs)}  ${now.title}"
+            heroNowTime.text = formatTime(now.startMs)
+            heroNowTitle.text = now.title
             heroSynopsis.text = now.description ?: ""
-            // Progress
             val pct = computeProgress(now)
             heroProgress.post {
                 val parent = heroProgress.parent as? View ?: return@post
@@ -265,12 +299,13 @@ class EpgActivity : AppCompatActivity() {
                 lp.width = (parent.width * pct).toInt().coerceAtLeast(0)
                 heroProgress.layoutParams = lp
             }
-            // UP NEXT
             val next = upcomingProgrammeOf(ch, now)
             heroUpNext.text = next?.let {
                 "UP NEXT · ${formatTime(it.startMs)} · ${it.title}"
             } ?: ""
+            loadHeroBackdrop(now.title, ch)
         } else {
+            heroNowTime.text = ""
             heroNowTitle.text = "Loading guide…"
             heroSynopsis.text = ""
             heroProgress.post {
@@ -279,17 +314,75 @@ class EpgActivity : AppCompatActivity() {
                 heroProgress.layoutParams = lp
             }
             heroUpNext.text = ""
+            // No programme → channel logo fallback only.
+            if (!ch.logoUrl.isNullOrBlank()) {
+                heroBackdrop.load(ch.logoUrl)
+            }
         }
-        // For now we use the channel logo as the backdrop fallback —
-        // wire TMDB once focused-channel art lookup is added.
-        if (!ch.logoUrl.isNullOrBlank()) {
-            heroBackdrop.load(ch.logoUrl)
-        }
+        // GUIDE · channel sub-header
+        guideChannelHeader.text = "GUIDE · ${ch.name.uppercase(Locale.UK)}"
     }
 
     private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? {
         val list = epgCache[ch.epgChannelId] ?: return null
         return list.firstOrNull { it.startMs > now.startMs }
+    }
+
+    /**
+     * Fetch a TMDB backdrop for the currently-airing programme.
+     * Cached client-side so repeated focus changes don't re-hit the
+     * backend.  Falls back to the channel logo if TMDB has nothing
+     * for the title.
+     */
+    private fun loadHeroBackdrop(title: String, ch: Channel) {
+        val key = title.trim().lowercase(Locale.UK)
+        val cached = tmdbArtCache[key]
+        if (cached != null) {
+            if (cached.isNotBlank()) heroBackdrop.load(cached) { crossfade(true); crossfade(220) }
+            else if (!ch.logoUrl.isNullOrBlank()) heroBackdrop.load(ch.logoUrl)
+            return
+        }
+        // Optimistically show channel logo while waiting.
+        if (!ch.logoUrl.isNullOrBlank()) heroBackdrop.load(ch.logoUrl)
+
+        artJob?.cancel()
+        artJob = lifecycleScope.launch(Dispatchers.IO) {
+            val backdrop = fetchTmdbBackdrop(title)
+            tmdbArtCache[key] = backdrop
+            if (backdrop.isNotBlank() && focusedChannel?.id == ch.id) {
+                withContext(Dispatchers.Main) {
+                    heroBackdrop.load(backdrop) {
+                        crossfade(true); crossfade(220)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun fetchTmdbBackdrop(title: String): String {
+        return try {
+            val url = URL(
+                XtreamRepository.BACKEND_BASE.trimEnd('/') +
+                "/api/epg/art?title=" + URLEncoder.encode(title, "UTF-8")
+            )
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5_000
+                readTimeout = 10_000
+                setRequestProperty("Accept", "application/json")
+            }
+            try {
+                if (conn.responseCode !in 200..299) return ""
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val obj = JSONObject(text)
+                obj.optString("backdrop").ifBlank { obj.optString("poster") }
+            } finally {
+                conn.disconnect()
+            }
+        } catch (t: Throwable) {
+            Log.w("EpgActivity", "tmdb art failed: ${t.message}")
+            ""
+        }
     }
 
     private fun loadGuideForChannel(ch: Channel) {
@@ -299,7 +392,6 @@ class EpgActivity : AppCompatActivity() {
             guideAdapter.submit(cached)
         } else {
             guideAdapter.submit(emptyList())
-            // Lazy fetch from backend.
             lifecycleScope.launch(Dispatchers.IO) {
                 val fetched = XtreamRepository.fetchEpgForChannel(sid)
                 if (fetched.isNotEmpty()) {
@@ -307,7 +399,6 @@ class EpgActivity : AppCompatActivity() {
                     guideList.post {
                         if (focusedChannel?.epgChannelId == sid) {
                             guideAdapter.submit(fetched)
-                            // Hero might still be on this channel; refresh it.
                             focusedChannel?.let { updateHero(it) }
                             channelAdapter.notifyDataSetChanged()
                         }
@@ -336,12 +427,15 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun formatTime(ms: Long): String =
-        clockFmt.format(Date(ms)).lowercase(Locale.UK)
+        clockFmt.format(Date(ms)).uppercase(Locale.UK)
 
     private fun startClock() {
         val tick = object : Runnable {
             override fun run() {
-                clock.text = clockFmt.format(Date()).lowercase(Locale.UK)
+                val nowStr = clockFmt.format(Date()).uppercase(Locale.UK)
+                clock.text = nowStr
+                guideClock.text = nowStr
+                guideToday.text = "TODAY · ${dateFmt.format(Date()).uppercase(Locale.UK)}"
                 focusedChannel?.let { updateHero(it) }
                 clockHandler.postDelayed(this, 30_000L)
             }
@@ -351,6 +445,7 @@ class EpgActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         clockHandler.removeCallbacksAndMessages(null)
+        artJob?.cancel()
         super.onDestroy()
     }
 }

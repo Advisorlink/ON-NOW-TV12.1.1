@@ -13,6 +13,34 @@
 > should I touch next".
 
 
+
+> **🟢 v2.8.118 — V2 Live TV: mockup-matched UI + blocking 60s boot loader + TMDB hero (Jun 3, 2026).**
+> User feedback after sideloading v2.8.117 ("looks nothing like the mockup, build a blocking loader that waits for popular EPG to populate, and TMDB cover art is broken").
+>
+> **A — Backend (`/app/backend/instant_bundle.py`):**
+>   - `_refresh_epg` now splits the gap-channel pre-warm into TWO phases.  Phase 1 = priority regions matched by category-name substring (`uk`, `usa`, `australia`, `kayo`, etc.) — runs to completion FIRST.  Phase 2 = the rest — trickles in afterwards.  After phase 1 the cached gz payload is rebuilt so any client that hits `/instant-bundle` already has popular EPG populated.
+>   - `_state` now carries live progress counters (`epg_phase`, `epg_priority_total/done`, `epg_warm_total/done`, `epg_priority_ready`).
+>   - `/api/xtream/instant-bundle/meta` exposes those counters so the native loader can drive a determinate progress bar.
+>
+> **B — Android boot loader (`MainActivity.kt` + `activity_main.xml`):**
+>   - Rewrote the splash from "fetch bundle → enter EPG" into a polling state machine.
+>   - Blocks for AT LEAST 60 seconds AND until `epg_priority_ready=true`.
+>   - Polls `/instant-bundle/meta` every 1.5s and renders: phase headline ("Loading channels…", "Warming popular regions…", "Almost ready…"), monospace sub-status counter ("12,094 channels · 1,820 / 2,400 popular EPG ready"), determinate progress bar (0→1000), and a "WAITING FOR UK · US · AU · KAYO EPG TO POPULATE" footer.
+>   - 5-minute safety hatch enters EPG with whatever's loaded if the backend never reports ready.
+>
+> **C — EPG mockup parity (`activity_epg.xml` + `EpgActivity.kt`):**
+>   - Left rail simplified per user spec to 5 icons: Home (`finish()`), Search (focuses search bar), Refresh (re-applies category), List (focuses categories), Sign-out (`finishAffinity()`).
+>   - New search bar above the channels column ("Search channels & guide…" + live channel-count chip "27 CHANNELS" in cyan).  Search live-filters the channel list across ALL channels.
+>   - Channel groups list now shows counts ("UK | Entertainment  80") and prepends Favourites + Recently Watched + All channels.
+>   - Guide column gains a date+clock row ("TODAY · SAT 03 JUN" + "03:34 PM") AND a "GUIDE · {CHANNEL NAME}" sub-header that updates on focus.
+>   - Guide rows now show a bell icon next to "OK TO REMIND".
+>
+> **D — TMDB hero backdrop:**
+>   - `EpgActivity.loadHeroBackdrop()` hits `/api/epg/art?title=...` for the currently-airing programme and Coil-loads the TMDB w1280 backdrop with a 220ms crossfade.  Falls back to the channel logo if TMDB has nothing.  Cached per-title in-memory so repeated focus doesn't re-fetch.
+>
+> Backend verified locally (meta endpoint exposes new counters).  Kotlin pending APK build via GitHub Actions `build-livetv.yml` — user to Save to GitHub.
+
+
 > **🟢 v2.8.116 — V2 Live TV: root crash diagnosed from on-screen stack trace, fixed (Jun 2, 2026).**
 > Diagnostic screen worked perfectly — user sent a photo of the crash output.  Full root cause:
 >
