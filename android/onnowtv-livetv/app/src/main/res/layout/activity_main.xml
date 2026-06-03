@@ -112,6 +112,21 @@
             android:gravity="center"
             android:text="" />
 
+        <!-- Elapsed counter + poll count.  ALWAYS updates every poll
+             so the user can see the app isn't frozen. -->
+        <TextView
+            android:id="@+id/loader_elapsed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/livetv_accent"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:letterSpacing="0.20"
+            android:gravity="center"
+            android:text="Elapsed 0s · poll 0" />
+
         <!-- Retry CTA: hidden by default -->
         <TextView
             android:id="@+id/loader_retry"

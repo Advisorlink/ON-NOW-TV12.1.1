@@ -754,6 +754,19 @@ def start_scheduler(admin_token: str = "") -> None:
 
     async def _boot() -> None:
         await _restore_from_db()
+        # Fire an immediate refresh on startup so the very first
+        # /instant-bundle/meta call already returns populated data.
+        # Without this the scheduler waits for its first 60-second
+        # tick AND for `_restore_from_db` to finish, during which
+        # the meta endpoint returns channels_count=0 and the
+        # native Live TV loader sits at "Loading channels…".
+        p = _provider_from_env()
+        if p and not _state["channels"]:
+            try:
+                await _refresh_channels(p)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("instant_bundle: startup channels refresh failed: %s", exc)
+                _state["last_error"] = f"startup-channels: {exc}"
         await _scheduler_loop()
 
     asyncio.create_task(_boot())
