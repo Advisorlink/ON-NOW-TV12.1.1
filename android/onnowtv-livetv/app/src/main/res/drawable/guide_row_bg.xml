@@ -1,8 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Each guide row sits in its own rounded card to match the
-     SKY HISTORY 2 reference where every "OK TO REMIND" entry is
-     visibly boxed in its own subtle dark capsule. -->
+<!--
+    Guide row background.
+
+    Four visual states:
+      • activated + focused : YELLOW glow ring (reminder set, row highlighted)
+      • activated           : YELLOW outline (reminder set)
+      • focused             : cyan accent outline
+      • default             : subtle dark capsule
+
+    `isActivated = true` is toggled from GuideRowAdapter when the
+    user pushes OK to set a reminder.
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Reminder set AND focused: bright yellow glow -->
+    <item android:state_activated="true" android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#1F2A1A" />
+            <corners android:radius="14dp" />
+            <stroke android:width="2dp" android:color="@color/livetv_reminder_yellow" />
+        </shape>
+    </item>
+
+    <!-- Reminder set: solid yellow outline -->
+    <item android:state_activated="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#16190E" />
+            <corners android:radius="14dp" />
+            <stroke android:width="2dp" android:color="@color/livetv_reminder_yellow" />
+        </shape>
+    </item>
+
+    <!-- Focused (D-pad highlight) -->
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/livetv_bg_focused" />
@@ -10,6 +39,8 @@
             <stroke android:width="1dp" android:color="@color/livetv_accent" />
         </shape>
     </item>
+
+    <!-- Default -->
     <item>
         <shape android:shape="rectangle">
             <solid android:color="#0E1422" />

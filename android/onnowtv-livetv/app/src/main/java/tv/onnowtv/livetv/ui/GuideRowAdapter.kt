@@ -119,16 +119,19 @@ class GuideRowAdapter(
 
         private fun paintReminder(set: Boolean) {
             val ctx = itemView.context
+            // Drives the yellow-glow outline via guide_row_bg.xml's
+            // state_activated selector.
+            body.isActivated = set
             if (set) {
                 val yellow = ContextCompat.getColor(ctx, R.color.livetv_reminder_yellow)
                 bellV.imageTintList = ColorStateList.valueOf(yellow)
                 remindV.setTextColor(yellow)
-                remindV.text = "SET"
+                remindV.text = "REMINDER SET"
             } else {
                 val dim = ContextCompat.getColor(ctx, R.color.livetv_fg_dimmer)
                 bellV.imageTintList = ColorStateList.valueOf(dim)
                 remindV.setTextColor(dim)
-                remindV.text = "REMIND"
+                remindV.text = "PUSH OK TO SET REMINDER"
             }
         }
     }

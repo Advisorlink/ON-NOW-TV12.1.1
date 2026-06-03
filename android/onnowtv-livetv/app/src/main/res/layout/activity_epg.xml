@@ -377,7 +377,7 @@
 
             <!-- M: Channels -->
             <LinearLayout
-                android:layout_width="660dp"
+                android:layout_width="600dp"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:layout_marginEnd="20dp">
@@ -439,71 +439,46 @@
                     android:overScrollMode="never" />
             </LinearLayout>
 
-            <!-- R: Guide -->
+            <!-- R: Guide  (heading = "COMING UP NEXT" + "TODAY · date · time") -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
-                <!-- Date + clock row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingBottom="6dp">
-
-                    <TextView
-                        android:id="@+id/guide_today"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/livetv_accent"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.24"
-                        android:text="TODAY" />
-
-                    <TextView
-                        android:id="@+id/guide_clock"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/livetv_fg_dim"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.18"
-                        android:text="" />
-                </LinearLayout>
-
-                <!-- GUIDE · channel sub-header -->
+                <!-- Heading: COMING UP NEXT -->
                 <TextView
-                    android:id="@+id/guide_channel_header"
+                    android:id="@+id/guide_today"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="6dp"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_fg_dimmer"
-                    android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.24"
-                    android:text="GUIDE" />
-
-                <!-- "COMING UP NEXT" heading above the programme list -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="10dp"
+                    android:paddingBottom="3dp"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="11sp"
+                    android:textSize="12sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.28"
+                    android:letterSpacing="0.30"
                     android:text="COMING UP NEXT" />
+
+                <!-- Subheading: TODAY · 12 Feb · 4:32 PM -->
+                <TextView
+                    android:id="@+id/guide_clock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="10dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.22"
+                    android:text="" />
+
+                <!-- Hidden legacy id (no longer rendered, kept so existing
+                     Kotlin findViewById paths don't NPE). -->
+                <TextView
+                    android:id="@+id/guide_channel_header"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/guide_list"
