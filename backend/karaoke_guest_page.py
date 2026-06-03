@@ -496,6 +496,148 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         .mic-picker__swatch[data-style="galaxy"]  { background: radial-gradient(circle at 30% 30%, #ffe1f5, #a96bff, #1a0a45, #080418); }
 
         /* =============================================================
+         * v2.8.126 — TUNE LATENCY panel.
+         * Collapsible card that lets the singer flip AEC/NS/AGC,
+         * Opus ptime, sample rate and bitrate without touching code.
+         * ============================================================ */
+        .lat-panel {
+            width: 100%; max-width: 340px;
+            margin: 18px auto 0;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .lat-panel__toggle {
+            width: 100%;
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px;
+            padding: 12px 14px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 220, 245, 0.85);
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.20em;
+            cursor: pointer;
+        }
+        .lat-panel__toggle svg { transition: transform 200ms ease; opacity: 0.7; }
+        .lat-panel[aria-expanded="true"] .lat-panel__toggle svg { transform: rotate(180deg); }
+        .lat-panel__body {
+            padding: 4px 14px 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .lat-presets {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 6px; margin: 10px 0 14px;
+        }
+        .lat-preset {
+            padding: 8px 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 9px;
+            color: rgba(255, 220, 245, 0.85);
+            font-family: inherit; font-weight: 700;
+            font-size: 11px; letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: border-color 180ms, background 180ms;
+        }
+        .lat-preset.is-active {
+            background: rgba(255, 122, 184, 0.18);
+            border-color: rgba(255, 122, 184, 0.7);
+            color: #ffd0e6;
+        }
+        .lat-row {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px;
+            padding: 8px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .lat-row:first-of-type { border-top: none; }
+        .lat-row--full { display: block; }
+        .lat-label {
+            color: rgba(255, 220, 245, 0.78);
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .lat-switch {
+            display: flex; align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .lat-switch span {
+            color: rgba(255, 220, 245, 0.85);
+            font-size: 13px; font-weight: 600;
+            flex: 1;
+        }
+        .lat-switch input[type="checkbox"] {
+            appearance: none; -webkit-appearance: none;
+            width: 42px; height: 24px;
+            background: rgba(255, 255, 255, 0.10);
+            border-radius: 999px;
+            position: relative;
+            cursor: pointer;
+            transition: background 200ms;
+            flex-shrink: 0;
+        }
+        .lat-switch input[type="checkbox"]::after {
+            content: '';
+            position: absolute; top: 2px; left: 2px;
+            width: 20px; height: 20px;
+            background: #fff; border-radius: 50%;
+            transition: transform 220ms ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
+        .lat-switch input[type="checkbox"]:checked {
+            background: rgba(255, 122, 184, 0.85);
+        }
+        .lat-switch input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+        .lat-seg {
+            display: inline-flex;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 8px; padding: 2px;
+            gap: 2px;
+        }
+        .lat-seg__opt {
+            background: transparent; border: none;
+            color: rgba(255, 220, 245, 0.65);
+            font-family: monospace; font-size: 11px;
+            font-weight: 800; letter-spacing: 0.05em;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 160ms, color 160ms;
+        }
+        .lat-seg__opt.is-active {
+            background: rgba(255, 122, 184, 0.7);
+            color: #fff;
+        }
+        .lat-apply {
+            width: 100%;
+            padding: 12px 14px;
+            margin-top: 12px;
+            background: linear-gradient(90deg, #ff7ab8, #5eb5ff);
+            border: none;
+            border-radius: 11px;
+            color: #fff;
+            font-family: inherit; font-weight: 800;
+            font-size: 13px; letter-spacing: 0.06em;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(255, 122, 184, 0.35);
+        }
+        .lat-apply:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+        .lat-tip {
+            color: rgba(255, 220, 245, 0.55);
+            font-size: 10.5px; line-height: 1.4;
+            margin: 10px 0 0;
+            text-align: center;
+        }
+
+        /* =============================================================
          * v2.8.83 — LIVE state: full-screen real-microphone artwork
          *
          * Once the singer taps "Turn on your mic" AND the WebRTC peer
@@ -796,6 +938,79 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         <div class="mic-picker">
             <p class="mic-picker__eyebrow">CHOOSE YOUR MIC</p>
             <div class="mic-picker__strip" id="mic-picker-strip"></div>
+        </div>
+
+        <!-- v2.8.126 — Latency tuning panel.  Lets the singer flip
+             AEC / NS / AGC, Opus ptime, sample rate and bitrate
+             without an APK rebuild.  Choices live in localStorage
+             and apply on the next mic activation.  Tap "Apply &
+             Reconnect" to immediately tear down and recreate the
+             peer connection with the new settings. -->
+        <div class="lat-panel" id="lat-panel">
+            <button type="button" class="lat-panel__toggle" id="lat-panel-toggle" aria-expanded="false">
+                <span>TUNE LATENCY</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+            </button>
+            <div class="lat-panel__body" id="lat-panel-body" hidden>
+                <div class="lat-presets">
+                    <button type="button" class="lat-preset" data-preset="ultra">Ultra Low</button>
+                    <button type="button" class="lat-preset" data-preset="low">Low</button>
+                    <button type="button" class="lat-preset" data-preset="balanced">Balanced</button>
+                    <button type="button" class="lat-preset" data-preset="safe">Safe</button>
+                </div>
+
+                <div class="lat-row">
+                    <label class="lat-switch">
+                        <input type="checkbox" id="lat-aec" />
+                        <span>Echo Cancellation</span>
+                    </label>
+                </div>
+                <div class="lat-row">
+                    <label class="lat-switch">
+                        <input type="checkbox" id="lat-ns" />
+                        <span>Noise Suppression</span>
+                    </label>
+                </div>
+                <div class="lat-row">
+                    <label class="lat-switch">
+                        <input type="checkbox" id="lat-agc" />
+                        <span>Auto Gain Control</span>
+                    </label>
+                </div>
+
+                <div class="lat-row">
+                    <span class="lat-label">Opus frame size</span>
+                    <div class="lat-seg" data-group="ptime">
+                        <button type="button" class="lat-seg__opt" data-value="5">5 ms</button>
+                        <button type="button" class="lat-seg__opt" data-value="10">10 ms</button>
+                        <button type="button" class="lat-seg__opt" data-value="20">20 ms</button>
+                    </div>
+                </div>
+
+                <div class="lat-row">
+                    <span class="lat-label">Sample rate</span>
+                    <div class="lat-seg" data-group="sr">
+                        <button type="button" class="lat-seg__opt" data-value="16000">16 kHz</button>
+                        <button type="button" class="lat-seg__opt" data-value="24000">24 kHz</button>
+                        <button type="button" class="lat-seg__opt" data-value="48000">48 kHz</button>
+                    </div>
+                </div>
+
+                <div class="lat-row">
+                    <span class="lat-label">Bitrate</span>
+                    <div class="lat-seg" data-group="br">
+                        <button type="button" class="lat-seg__opt" data-value="32000">32k</button>
+                        <button type="button" class="lat-seg__opt" data-value="64000">64k</button>
+                        <button type="button" class="lat-seg__opt" data-value="128000">128k</button>
+                    </div>
+                </div>
+
+                <div class="lat-row lat-row--full">
+                    <button type="button" id="lat-apply" class="lat-apply">Apply &amp; Reconnect</button>
+                </div>
+
+                <p class="lat-tip" id="lat-tip">Active settings load when you tap “Turn on your mic”.</p>
+            </div>
         </div>
     </div>
 
@@ -1292,53 +1507,56 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         $('mic-meter').style.width = '0%';
     }
 
+    // v2.8.126 — Latency tuning settings (driven by the
+    // "Tune Latency" panel in the pre-LIVE phase).  Persisted in
+    // localStorage so they survive reloads.
+    const LAT_PRESETS = {
+        ultra:    { aec: false, ns: false, agc: false, ptime: 5,  sr: 16000, br: 32000 },
+        low:      { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000 },
+        balanced: { aec: false, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000 },
+        safe:     { aec: true,  ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000 },
+    };
+    function readLatSettings() {
+        try {
+            const raw = localStorage.getItem('karaoke-lat');
+            if (raw) {
+                const v = JSON.parse(raw);
+                if (v && typeof v === 'object') {
+                    return Object.assign({}, LAT_PRESETS.low, v);
+                }
+            }
+        } catch (e) { /* ignore */ }
+        return Object.assign({}, LAT_PRESETS.low);
+    }
+    function writeLatSettings(v) {
+        try { localStorage.setItem('karaoke-lat', JSON.stringify(v)); }
+        catch (e) { /* ignore */ }
+    }
+
     async function turnOnMic() {
         const btn = $('mic-cta');
         const status = $('mic-status');
         btn.disabled = true;
         status.textContent = 'Requesting microphone…';
         status.classList.remove('err');
-        // v2.8.124 — Two-stage getUserMedia for minimum latency.
-        //
-        // Stage 1: ask for a low-latency capture (AEC/NS/AGC OFF).
-        //   These three DSP stages each add 20-40 ms of buffering
-        //   inside the browser audio pipeline.  For karaoke we
-        //   don't need AEC (the TV speakers aren't fed back into
-        //   the phone mic across a room) or NS / AGC (the singer
-        //   wants their voice raw and immediate).
-        //
-        // Stage 2: if stage 1 is rejected (some Android Chrome
-        //   builds refuse the constraint set entirely), fall back
-        //   to the safe defaults — at least the mic captures.
-        //
-        // v2.8.109 tried this with `latency: 0` AND `sampleRate: 48000`
-        // and got rejected on some devices.  v2.8.124 drops the
-        // `latency` hint (the worst offender) and uses two independent
-        // attempts so the fallback is automatic.
+        // v2.8.126 — Pull the live tuning panel settings.
+        const LAT = readLatSettings();
         try {
             try {
                 micStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false,
+                        echoCancellation: LAT.aec,
+                        noiseSuppression: LAT.ns,
+                        autoGainControl: LAT.agc,
                         channelCount: 1,
-                        // v2.8.125 — Soft `latency: 0` hint (ideal,
-                        // not exact) so devices that honour the hint
-                        // pick their smallest capture buffer, while
-                        // devices that don't simply ignore it.
                         latency: { ideal: 0 },
-                        // Voice-band sample rate.  48 kHz adds 3×
-                        // the samples per buffer for no perceptible
-                        // karaoke benefit.  16 kHz is what most
-                        // mobile codecs sample at anyway.
-                        sampleRate: { ideal: 16000 },
+                        sampleRate: { ideal: LAT.sr },
                     },
                     video: false,
                 });
-                console.info('[mic] low-latency capture acquired (AEC/NS/AGC off, 16k, lat0)');
+                console.info('[mic] capture acquired with settings', LAT);
             } catch (lowLatErr) {
-                console.warn('[mic] low-latency constraints rejected, falling back:', lowLatErr);
+                console.warn('[mic] preferred constraints rejected, falling back:', lowLatErr);
                 micStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
@@ -1433,12 +1651,10 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                 const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/);
                 if (m) {
                     const pt = m[1];
-                    // v2.8.125 — Push to 5 ms Opus frames (was 10 ms).
-                    // Halves the per-packet serialisation delay at
-                    // the cost of slightly more network overhead.
-                    // Opus supports down to 2.5 ms but 5 ms is the
-                    // sweet spot for WebRTC interop.
-                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=5;useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=64000';
+                    // v2.8.126 — Use the singer's chosen Opus
+                    // frame size + bitrate (driven by the Tune
+                    // Latency panel).
+                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=' + LAT.ptime + ';useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=' + LAT.br;
                     const fmtpRe = new RegExp('a=fmtp:' + pt + ' [^\\r\\n]*');
                     if (fmtpRe.test(sdp)) {
                         sdp = sdp.replace(fmtpRe, fmtpLine);
@@ -1449,10 +1665,10 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                             '$1\r\n' + fmtpLine
                         );
                     }
-                    // Force 5 ms ptime alongside the audio m= section.
+                    // Force chosen ptime alongside the audio m= section.
                     sdp = sdp.replace(
                         /(a=rtpmap:\d+ opus\/48000\/2[^\r\n]*)/,
-                        '$1\r\na=ptime:5\r\na=maxptime:5'
+                        '$1\r\na=ptime:' + LAT.ptime + '\r\na=maxptime:' + LAT.ptime
                     );
                 }
                 offer.sdp = sdp;
@@ -1470,7 +1686,7 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                             params.encodings.forEach((enc) => {
                                 enc.priority = 'high';
                                 enc.networkPriority = 'high';
-                                enc.maxBitrate = 64000;
+                                enc.maxBitrate = LAT.br;
                             });
                             // degradationPreference: 'maintain-framerate'
                             // tells WebRTC to drop bits-per-second
@@ -1959,6 +2175,110 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     renderMicPicker();
     renderMicLive();
 
+    // v2.8.126 — TUNE LATENCY panel wiring.
+    function applyLatPanelState() {
+        const v = readLatSettings();
+        const aec = document.getElementById('lat-aec');
+        const ns  = document.getElementById('lat-ns');
+        const agc = document.getElementById('lat-agc');
+        if (aec) aec.checked = !!v.aec;
+        if (ns)  ns.checked  = !!v.ns;
+        if (agc) agc.checked = !!v.agc;
+        document.querySelectorAll('.lat-seg').forEach((seg) => {
+            const grp = seg.getAttribute('data-group');
+            const key = grp === 'ptime' ? 'ptime' : (grp === 'sr' ? 'sr' : 'br');
+            seg.querySelectorAll('.lat-seg__opt').forEach((b) => {
+                const eq = String(b.getAttribute('data-value')) === String(v[key]);
+                b.classList.toggle('is-active', eq);
+            });
+        });
+        // Mark whichever preset (if any) matches exactly.
+        document.querySelectorAll('.lat-preset').forEach((b) => {
+            const p = LAT_PRESETS[b.getAttribute('data-preset')];
+            const match = p && p.aec === v.aec && p.ns === v.ns && p.agc === v.agc
+                && p.ptime === v.ptime && p.sr === v.sr && p.br === v.br;
+            b.classList.toggle('is-active', !!match);
+        });
+    }
+    function bindLatPanel() {
+        const panel = document.getElementById('lat-panel');
+        const toggle = document.getElementById('lat-panel-toggle');
+        const body = document.getElementById('lat-panel-body');
+        if (!panel || !toggle || !body) return;
+        toggle.addEventListener('click', () => {
+            const expanded = panel.getAttribute('aria-expanded') === 'true';
+            panel.setAttribute('aria-expanded', String(!expanded));
+            toggle.setAttribute('aria-expanded', String(!expanded));
+            body.hidden = expanded;
+        });
+        // Presets
+        document.querySelectorAll('.lat-preset').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const p = LAT_PRESETS[btn.getAttribute('data-preset')];
+                if (!p) return;
+                writeLatSettings(Object.assign({}, p));
+                applyLatPanelState();
+            });
+        });
+        // Toggles
+        ['lat-aec', 'lat-ns', 'lat-agc'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', () => {
+                const v = readLatSettings();
+                if (id === 'lat-aec') v.aec = el.checked;
+                if (id === 'lat-ns')  v.ns  = el.checked;
+                if (id === 'lat-agc') v.agc = el.checked;
+                writeLatSettings(v);
+                applyLatPanelState();
+            });
+        });
+        // Segmented controls
+        document.querySelectorAll('.lat-seg').forEach((seg) => {
+            const grp = seg.getAttribute('data-group');
+            const key = grp === 'ptime' ? 'ptime' : (grp === 'sr' ? 'sr' : 'br');
+            seg.querySelectorAll('.lat-seg__opt').forEach((b) => {
+                b.addEventListener('click', () => {
+                    const v = readLatSettings();
+                    v[key] = parseInt(b.getAttribute('data-value'), 10);
+                    writeLatSettings(v);
+                    applyLatPanelState();
+                });
+            });
+        });
+        // Apply & reconnect: tear down + re-arm mic with new settings.
+        const apply = document.getElementById('lat-apply');
+        const tip   = document.getElementById('lat-tip');
+        if (apply) {
+            apply.addEventListener('click', async () => {
+                const wasLive = document.getElementById('phase-mic')
+                    && document.getElementById('phase-mic').classList.contains('is-live');
+                if (!wasLive) {
+                    if (tip) tip.textContent = 'Settings saved. Tap “Turn on your mic”.';
+                    return;
+                }
+                if (tip) tip.textContent = 'Reconnecting with new settings…';
+                apply.disabled = true;
+                try {
+                    // Tear down the current peer + stream so the next
+                    // turnOnMic() starts cleanly with our fresh
+                    // localStorage values.
+                    cleanupMic();
+                    document.getElementById('phase-mic').classList.remove('is-live');
+                    // Small delay so audio resources release fully.
+                    await new Promise((r) => setTimeout(r, 220));
+                    await turnOnMic();
+                    if (tip) tip.textContent = 'Reconnected. Listen on TV.';
+                } catch (e) {
+                    if (tip) tip.textContent = 'Reconnect failed — tap “Turn on your mic” manually.';
+                } finally {
+                    apply.disabled = false;
+                }
+            });
+        }
+        applyLatPanelState();
+    }
+    bindLatPanel();
 
     // Hook into the existing polling loop to dispatch updates
     load();
