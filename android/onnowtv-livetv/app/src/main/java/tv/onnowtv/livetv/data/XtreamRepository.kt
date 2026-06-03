@@ -31,6 +31,14 @@ object XtreamRepository {
 
     suspend fun fetchBundle(backendBase: String = BACKEND_BASE): XtreamBundle =
         withContext(Dispatchers.IO) {
+            val text = fetchBundleJson(backendBase)
+            parseBundle(text)
+        }
+
+    /** Fetch the raw bundle JSON string (decompressed).  Exposed
+     *  so callers can persist the JSON to disk via `BundleCache`. */
+    suspend fun fetchBundleJson(backendBase: String = BACKEND_BASE): String =
+        withContext(Dispatchers.IO) {
             val url = URL(backendBase.trimEnd('/') + ENDPOINT)
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -52,11 +60,14 @@ object XtreamRepository {
                 }
                 val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 Log.i(TAG, "bundle fetched: ${text.length} chars")
-                parseBundle(text)
+                text
             } finally {
                 conn.disconnect()
             }
         }
+
+    /** Parse a previously-fetched JSON string into a typed bundle. */
+    fun parseBundleJson(json: String): XtreamBundle = parseBundle(json)
 
     private fun parseBundle(json: String): XtreamBundle {
         val obj = JSONObject(json)

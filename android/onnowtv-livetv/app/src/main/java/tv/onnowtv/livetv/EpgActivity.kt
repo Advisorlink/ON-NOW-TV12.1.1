@@ -62,7 +62,9 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var heroNowTitle: TextView
     private lateinit var heroSynopsis: TextView
     private lateinit var heroProgress: View
-    private lateinit var heroUpNext: TextView
+    private lateinit var heroUpNextCard: View
+    private lateinit var heroUpNextTime: TextView
+    private lateinit var heroUpNextTitle: TextView
     private lateinit var clock: TextView
     private lateinit var btnFavourite: ImageButton
     private lateinit var btnRefresh: ImageButton
@@ -121,6 +123,25 @@ class EpgActivity : AppCompatActivity() {
         wireSearch()
         startClock()
 
+        // Background refresh: if MainActivity took the fast disk-
+        // cache path, ask for a fresh bundle now and persist it so
+        // the NEXT launch reads the latest data on disk.  Doesn't
+        // block the UI — we render the cached bundle now and only
+        // overwrite the on-disk cache if/when the refresh lands.
+        if (BundleHolder.needsBackgroundRefresh) {
+            BundleHolder.needsBackgroundRefresh = false
+            val appCtx = applicationContext
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val text = XtreamRepository.fetchBundleJson()
+                    tv.onnowtv.livetv.data.BundleCache.saveJson(appCtx, text)
+                    Log.i("EpgActivity", "background refresh ok (${text.length} chars cached)")
+                } catch (t: Throwable) {
+                    Log.w("EpgActivity", "background refresh failed: ${t.message}")
+                }
+            }
+        }
+
         // Focus the first category on boot.
         categoriesList.post {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
@@ -142,7 +163,9 @@ class EpgActivity : AppCompatActivity() {
         heroNowTitle       = findViewById(R.id.hero_now_title)
         heroSynopsis       = findViewById(R.id.hero_synopsis)
         heroProgress       = findViewById(R.id.hero_progress)
-        heroUpNext         = findViewById(R.id.hero_up_next)
+        heroUpNextCard     = findViewById(R.id.hero_up_next_card)
+        heroUpNextTime     = findViewById(R.id.hero_up_next_time)
+        heroUpNextTitle    = findViewById(R.id.hero_up_next_title)
         clock              = findViewById(R.id.clock)
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
@@ -315,9 +338,13 @@ class EpgActivity : AppCompatActivity() {
                 heroProgress.layoutParams = lp
             }
             val next = upcomingProgrammeOf(ch, now)
-            heroUpNext.text = next?.let {
-                "UP NEXT · ${formatTime(it.startMs)} · ${it.title}"
-            } ?: ""
+            if (next != null) {
+                heroUpNextCard.visibility = View.VISIBLE
+                heroUpNextTime.text = formatTime(next.startMs)
+                heroUpNextTitle.text = next.title
+            } else {
+                heroUpNextCard.visibility = View.INVISIBLE
+            }
             loadHeroBackdrop(now.title, ch)
         } else {
             heroNowTime.text = ""
@@ -328,7 +355,7 @@ class EpgActivity : AppCompatActivity() {
                 lp.width = 0
                 heroProgress.layoutParams = lp
             }
-            heroUpNext.text = ""
+            heroUpNextCard.visibility = View.INVISIBLE
             // No programme → channel logo fallback only.
             if (!ch.logoUrl.isNullOrBlank()) {
                 heroBackdrop.load(ch.logoUrl)
