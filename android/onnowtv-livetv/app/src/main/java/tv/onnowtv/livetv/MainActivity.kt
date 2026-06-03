@@ -10,11 +10,14 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.data.XtreamRepository
 import java.net.HttpURLConnection
 import java.net.URL
@@ -28,20 +31,33 @@ import java.net.URL
  *     (UK / US / AU / Kayo) have their EPG fully warmed
  *     (`epg_priority_ready=true`).
  *   - Show a determinate progress bar + descriptive sub-status
- *     while waiting ("Loading channels…", "Warming popular
- *     regions… 1,820 / 2,400", "Almost ready — finalising guide…").
- *   - Only AFTER both conditions are met do we fetch the full
- *     gzipped bundle and hand off to EpgActivity.
+ *     + visible elapsed-time counter + poll counter so the user
+ *     can always see the app is alive.
+ *   - If meta keeps reporting `channels_count == 0` after 10 s,
+ *     kick off the full bundle fetch in parallel — that endpoint
+ *     forces the backend to sync-refresh channels (the scheduler
+ *     can take a long time on cold starts and `/meta` never
+ *     triggers a refresh on its own).
+ *   - 5-minute safety hatch so we never get permanently stuck.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var headline: TextView
     private lateinit var substatus: TextView
+    private lateinit var elapsedTV: TextView
     private lateinit var progress: ProgressBar
     private lateinit var retry: TextView
 
     private val minHoldMs = 60_000L
     private val pollIntervalMs = 1_500L
+    private val maxHoldMs = 5 * 60_000L
+    private val bundleKickMs = 10_000L
+
+    private var pollCount = 0
+    private var bundleKick: Job? = null
+    @Volatile private var bundleResult: XtreamBundle? = null
+    @Volatile private var bundleError: String? = null
+    @Volatile private var bundleStartedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +66,7 @@ class MainActivity : AppCompatActivity() {
 
         headline  = findViewById(R.id.loader_headline)
         substatus = findViewById(R.id.loader_substatus)
+        elapsedTV = findViewById(R.id.loader_elapsed)
         progress  = findViewById(R.id.loader_progress)
         retry     = findViewById(R.id.loader_retry)
 
@@ -60,7 +77,14 @@ class MainActivity : AppCompatActivity() {
         retry.visibility = View.GONE
         headline.text = "Connecting…"
         substatus.text = ""
+        elapsedTV.text = "Elapsed 0s · poll 0"
         progress.progress = 0
+        pollCount = 0
+        bundleResult = null
+        bundleError = null
+        bundleStartedAt = 0L
+        bundleKick?.cancel()
+        bundleKick = null
 
         lifecycleScope.launch {
             try {
@@ -78,44 +102,70 @@ class MainActivity : AppCompatActivity() {
     private suspend fun runLoaderLoop() {
         val started = SystemClock.elapsedRealtime()
         var lastMeta: Meta? = null
+        var lastMetaErrorAt = 0L
 
         // Phase: keep polling until BOTH (a) priority EPG is ready
         // AND (b) the minimum hold time has elapsed.  Drive the
         // progress bar from a blend of priority-warm progress and
         // the 60s minimum-hold clock.
         while (lifecycleScope.isActive) {
+            pollCount++
             val meta = try {
                 fetchMeta()
             } catch (t: Throwable) {
+                lastMetaErrorAt = SystemClock.elapsedRealtime()
                 Log.w("MainActivity", "meta fetch failed: ${t.message}")
                 null
             }
             if (meta != null) lastMeta = meta
-            applyMeta(lastMeta, started)
 
             val elapsed = SystemClock.elapsedRealtime() - started
-            val priorityReady = lastMeta?.priorityReady == true && (lastMeta?.channelsCount ?: 0) > 0
+
+            // If the backend is reporting 0 channels for too long,
+            // kick off the bundle endpoint directly — it triggers
+            // a sync refresh on the server even though /meta won't.
+            if (lastMeta?.channelsCount == 0 && elapsed >= bundleKickMs && bundleKick == null) {
+                Log.i("MainActivity", "channels=0 after ${elapsed}ms — kicking /instant-bundle")
+                bundleStartedAt = SystemClock.elapsedRealtime()
+                bundleKick = lifecycleScope.async(Dispatchers.IO) {
+                    try {
+                        val b = XtreamRepository.fetchBundle()
+                        bundleResult = b
+                        Log.i("MainActivity", "bundle kicked: ${b.channels.size} channels")
+                    } catch (t: Throwable) {
+                        bundleError = t.message ?: t::class.java.simpleName
+                        Log.w("MainActivity", "bundle kick failed: $bundleError")
+                    }
+                }
+            }
+
+            applyMeta(lastMeta, started, lastMetaErrorAt)
+
+            val priorityReady = (lastMeta?.priorityReady == true) && (lastMeta?.channelsCount ?: 0) > 0
+
+            // Happy path: priority ready AND minimum hold elapsed.
             if (priorityReady && elapsed >= minHoldMs) break
-            // Safety hatch: if we've been waiting for 5 min and
-            // still nothing, drop into the EPG anyway with whatever
-            // EPG is populated so far — the per-channel lazy fetch
-            // will fill in the gaps.
-            if (elapsed >= 5 * 60_000L && (lastMeta?.channelsCount ?: 0) > 0) {
-                Log.w("MainActivity", "loader safety hatch — entering EPG with partial EPG warm")
+
+            // Safety hatch: 5 minutes elapsed AND we got channels somewhere.
+            val haveChannels = (lastMeta?.channelsCount ?: 0) > 0 || bundleResult != null
+            if (elapsed >= maxHoldMs && haveChannels) {
+                Log.w("MainActivity", "safety hatch — entering EPG (priorityReady=$priorityReady)")
                 break
             }
             delay(pollIntervalMs)
         }
 
-        // Final phase: fetch the bundle itself (it's been being
-        // rebuilt server-side after every priority pass).
+        // Final phase: ensure we have the bundle in memory.
         headline.text = "Finalising guide…"
         substatus.text = "Downloading bundle…"
         progress.progress = 970
 
-        val bundle = XtreamRepository.fetchBundle()
+        val bundle = bundleResult ?: run {
+            // No bundle yet — fetch synchronously here.
+            XtreamRepository.fetchBundle()
+        }
         BundleHolder.current = bundle
-        Log.i("MainActivity", "bundle: ${bundle.channels.size} channels, ${bundle.epg.size} epg buckets")
+        Log.i("MainActivity", "bundle ready: ${bundle.channels.size} channels, ${bundle.epg.size} epg buckets")
         progress.progress = 1000
 
         startActivity(Intent(this@MainActivity, EpgActivity::class.java))
@@ -125,26 +175,38 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Render the current meta payload into the loader UI.
-     * Computes a blended progress percentage:
-     *   - 0..15%  → channels fetched
-     *   - 15..85% → priority EPG warm progress
-     *   - 85..95% → minimum-hold clock (so the bar always moves
-     *               even after priority is done but we're still
-     *               holding the 60-second minimum)
-     *   - 95..100% reserved for the final bundle download.
+     * Always updates the elapsed-time counter so the user can
+     * see the app isn't frozen.
      */
-    private fun applyMeta(meta: Meta?, startedMs: Long) {
+    private fun applyMeta(meta: Meta?, startedMs: Long, lastMetaErrorAt: Long) {
+        val elapsed = SystemClock.elapsedRealtime() - startedMs
+        elapsedTV.text = buildElapsedLine(elapsed)
+
         if (meta == null) {
             headline.text = "Connecting to backend…"
-            substatus.text = ""
+            substatus.text = if (lastMetaErrorAt > 0) {
+                "Couldn't reach server — retrying… (poll #$pollCount)"
+            } else {
+                "Polling backend… (poll #$pollCount)"
+            }
+            progress.progress = 40
             return
         }
 
         when {
             meta.channelsCount == 0 -> {
                 headline.text = "Loading channels…"
-                substatus.text = "Connecting to provider…"
-                progress.progress = 80
+                val bundleNote = when {
+                    bundleResult != null -> "bundle fetched, waiting for meta"
+                    bundleError != null  -> "bundle retry failed: $bundleError"
+                    bundleStartedAt > 0  -> "asking server to refresh… (${(SystemClock.elapsedRealtime() - bundleStartedAt) / 1000}s)"
+                    elapsed < bundleKickMs -> "connecting to provider… (${bundleKickMs / 1000 - elapsed / 1000}s until retry)"
+                    else                 -> "connecting to provider…"
+                }
+                substatus.text = bundleNote
+                // Show creeping progress so user sees motion.
+                val secs = (elapsed / 1000).toInt()
+                progress.progress = (60 + (secs * 3)).coerceAtMost(140)
             }
             !meta.priorityReady && meta.priorityTotal > 0 -> {
                 headline.text = "Warming popular regions…"
@@ -161,7 +223,6 @@ class MainActivity : AppCompatActivity() {
             }
             else -> {
                 // Priority done. Show minimum-hold countdown.
-                val elapsed = SystemClock.elapsedRealtime() - startedMs
                 val pct = (elapsed.toFloat() / minHoldMs.toFloat()).coerceIn(0f, 1f)
                 headline.text = "Almost ready…"
                 val secsLeft = ((minHoldMs - elapsed).coerceAtLeast(0L) / 1000L).toInt()
@@ -178,6 +239,14 @@ class MainActivity : AppCompatActivity() {
                 progress.progress = (850 + (pct * 100).toInt()).coerceIn(850, 950)
             }
         }
+    }
+
+    private fun buildElapsedLine(elapsedMs: Long): String {
+        val total = elapsedMs / 1000L
+        val m = total / 60
+        val s = total % 60
+        return if (m > 0) "Elapsed ${m}m ${s}s · poll #$pollCount"
+        else "Elapsed ${s}s · poll #$pollCount"
     }
 
     private data class Meta(
@@ -220,6 +289,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fmt(n: Int): String = "%,d".format(n)
+
+    override fun onDestroy() {
+        bundleKick?.cancel()
+        super.onDestroy()
+    }
 }
 
 /** Process-scoped holder for the freshly-fetched bundle.  Avoids
