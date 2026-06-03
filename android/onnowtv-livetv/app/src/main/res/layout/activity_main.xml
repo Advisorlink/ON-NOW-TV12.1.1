@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    MainActivity splash + bundle-fetch screen.  Big centred "V2 Live
-    TV" wordmark on dark navy.  Once the instant-bundle finishes
-    loading, we hand off to EpgActivity.
+    MainActivity descriptive boot loader.
+
+    Big centred "V2 Live TV" wordmark up top.  Beneath it a status
+    block: phase headline + sub-status + determinate progress bar +
+    counters.  Holds for at least 60 seconds AND until popular
+    regions (UK / US / AU / Kayo) EPG is fully warm before launching
+    EpgActivity.
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -11,54 +15,128 @@
     android:background="@drawable/splash_gradient">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:baselineAligned="false">
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingStart="60dp"
+        android:paddingEnd="60dp">
 
+        <!-- Brand wordmark -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:baselineAligned="false">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/brand_v2"
+                android:textColor="@color/livetv_accent_red"
+                android:textSize="120sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.04"
+                android:includeFontPadding="false"
+                android:shadowColor="#80FF2535"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="36" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="22dp"
+                android:text="@string/brand_suffix"
+                android:textColor="@color/livetv_fg"
+                android:textSize="70sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.01"
+                android:includeFontPadding="false"
+                android:shadowColor="#66000000"
+                android:shadowDx="0"
+                android:shadowDy="6"
+                android:shadowRadius="18" />
+        </LinearLayout>
+
+        <!-- Eyebrow -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/brand_v2"
+            android:layout_marginTop="38dp"
+            android:fontFamily="monospace"
+            android:text="PREPARING YOUR GUIDE"
             android:textColor="@color/livetv_accent"
-            android:textSize="140sp"
+            android:textSize="13sp"
             android:textStyle="bold"
-            android:fontFamily="sans-serif-black"
-            android:letterSpacing="-0.04"
-            android:includeFontPadding="false"
-            android:shadowColor="#80FF2535"
-            android:shadowDx="0"
-            android:shadowDy="0"
-            android:shadowRadius="32" />
+            android:letterSpacing="0.36" />
 
+        <!-- Phase headline (e.g. "Loading channels…", "Warming popular regions…") -->
         <TextView
+            android:id="@+id/loader_headline"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="22dp"
-            android:text="@string/brand_suffix"
+            android:layout_marginTop="14dp"
             android:textColor="@color/livetv_fg"
-            android:textSize="84sp"
+            android:textSize="28sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-medium"
-            android:letterSpacing="-0.01"
-            android:includeFontPadding="false"
-            android:shadowColor="#66000000"
-            android:shadowDx="0"
-            android:shadowDy="6"
-            android:shadowRadius="18" />
+            android:gravity="center"
+            android:text="Connecting…" />
+
+        <!-- Determinate progress bar -->
+        <ProgressBar
+            android:id="@+id/loader_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="540dp"
+            android:layout_height="6dp"
+            android:layout_marginTop="22dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressDrawable="@drawable/loader_progress" />
+
+        <!-- Sub-status: e.g. "12,094 channels · 1,820 / 2,400 popular EPG ready" -->
+        <TextView
+            android:id="@+id/loader_substatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.08"
+            android:gravity="center"
+            android:text="" />
+
+        <!-- Retry CTA: hidden by default -->
+        <TextView
+            android:id="@+id/loader_retry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:padding="12dp"
+            android:textColor="@color/livetv_accent"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-medium"
+            android:visibility="gone"
+            android:focusable="true"
+            android:clickable="true"
+            android:text="Tap to retry" />
     </LinearLayout>
 
+    <!-- Footer hint -->
     <TextView
-        android:id="@+id/loading_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="58dp"
-        android:text="@string/loading_guide"
-        android:textColor="@color/livetv_fg_dim"
-        android:textSize="14sp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.16" />
+        android:layout_marginBottom="44dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dimmer"
+        android:textSize="10sp"
+        android:letterSpacing="0.36"
+        android:text="WAITING FOR UK · US · AU · KAYO EPG TO POPULATE" />
 </FrameLayout>

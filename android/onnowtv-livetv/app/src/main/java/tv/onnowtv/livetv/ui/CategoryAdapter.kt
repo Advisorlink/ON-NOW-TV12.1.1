@@ -9,9 +9,10 @@ import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.Category
 
 /**
- * LEFT column: vertical list of category pills.  Lightweight — just
- * a name per row.  Focus + click are handled inline; the parent
- * activity is told via `onPick` to swap the channel list.
+ * LEFT column ("CHANNEL GROUPS"): vertical list of group rows.
+ * Each row shows the group name + the channel count (right-aligned
+ * monospace), mirroring the Vesper reference screenshot
+ * ("UK | Entertainment   80").
  */
 class CategoryPillAdapter(
     private val onPick: (Category) -> Unit,
@@ -41,7 +42,7 @@ class CategoryPillAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_category_pill, parent, false)
-        return VH(v as TextView)
+        return VH(v)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -50,9 +51,13 @@ class CategoryPillAdapter(
 
     override fun getItemCount(): Int = items.size
 
-    inner class VH(itemView: TextView) : RecyclerView.ViewHolder(itemView) {
+    inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val name: TextView = itemView.findViewById(R.id.cat_name)
+        private val count: TextView = itemView.findViewById(R.id.cat_count)
+
         fun bind(c: Category) {
-            (itemView as TextView).text = c.name
+            name.text = c.name
+            count.text = if (c.channelCount > 0) "%,d".format(c.channelCount) else ""
             itemView.isSelected = (c.id == selectedId)
             itemView.setOnClickListener { onPick(c) }
             itemView.setOnFocusChangeListener { _, hasFocus ->

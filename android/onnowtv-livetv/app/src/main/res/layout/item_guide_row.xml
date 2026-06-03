@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Guide row matching reference: time stacked over OK TO REMIND, title to the right. -->
+<!-- Guide row matching reference: time stacked over bell + OK TO REMIND, title to the right. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -34,7 +34,7 @@
         android:paddingEnd="6dp">
 
         <LinearLayout
-            android:layout_width="58dp"
+            android:layout_width="74dp"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
@@ -59,17 +59,32 @@
                 android:letterSpacing="0.18"
                 android:text="" />
 
-            <TextView
-                android:id="@+id/guide_remind"
+            <!-- Bell + OK TO REMIND -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:fontFamily="monospace"
-                android:textColor="@color/livetv_fg_dimmer"
-                android:textSize="8sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.20"
-                android:text="OK TO REMIND" />
+                android:layout_marginTop="3dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:src="@drawable/ic_bell"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/guide_remind"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dimmer"
+                    android:textSize="8sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.20"
+                    android:text="OK TO REMIND" />
+            </LinearLayout>
         </LinearLayout>
 
         <TextView

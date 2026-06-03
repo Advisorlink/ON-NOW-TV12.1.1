@@ -1,21 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Category pill card (left column).  Just the category name.
+    Category pill card (left "Channel Groups" column).
+    Shows the group name on the left and the channel count on the right.
+    Layout matches the Vesper reference: "UK | Entertainment   80".
 -->
-<TextView
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="44dp"
-    android:layout_marginBottom="6dp"
+    android:layout_height="46dp"
+    android:layout_marginBottom="4dp"
+    android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
     android:background="@drawable/category_pill_bg"
     android:focusable="true"
-    android:clickable="true"
-    android:textColor="@color/livetv_fg"
-    android:textSize="14sp"
-    android:fontFamily="sans-serif-medium"
-    android:ellipsize="end"
-    android:maxLines="1"
-    android:text="" />
+    android:clickable="true">
+
+    <TextView
+        android:id="@+id/cat_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/livetv_fg"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/cat_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dim"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:text="" />
+</LinearLayout>

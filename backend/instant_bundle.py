@@ -70,7 +70,28 @@ _state: Dict[str, Any] = {
     # the endpoint at once.
     "cached_payload_gz":   None,
     "cached_payload_at":   0,
+    # Live progress reporting for the native Android Live TV
+    # boot loader.  These keys update during _refresh_epg so the
+    # client can show a determinate progress bar while waiting
+    # for popular regions (UK / US / AU / Kayo) to be ready
+    # BEFORE entering the EPG.
+    "epg_priority_ready":   False,   # popular regions warmed
+    "epg_priority_total":   0,
+    "epg_priority_done":    0,
+    "epg_warm_total":       0,       # all gap channels
+    "epg_warm_done":        0,
+    "epg_phase":            "boot",  # boot | channels | xmltv | warming_priority | warming_rest | ready
 }
+
+# Regions whose channels the client wants fully warmed BEFORE the EPG
+# screen opens.  Matched against category name (case-insensitive
+# substring).  Anything else is "rest" and trickles in afterwards.
+PRIORITY_REGION_TOKENS = (
+    "uk", "united kingdom", "british",
+    "us", "usa", "united states", "american",
+    "au", "aus", "australia", "australian",
+    "kayo",
+)
 _state_lock = asyncio.Lock()
 _collection: Optional[AsyncIOMotorCollection] = None
 _admin_token: str = ""
@@ -315,6 +336,7 @@ async def _restore_from_db() -> None:
 async def _refresh_channels(p: Dict[str, Any]) -> None:
     """Fetch categories + live streams and cache normalised records."""
     log.info("instant_bundle: refreshing channels…")
+    _state["epg_phase"] = "channels"
     cats_raw = await _player_api(p, "get_live_categories")
     streams_raw = await _player_api(p, "get_live_streams")
 
@@ -365,6 +387,7 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
     the entire 150 MB XMLTV blob in RAM — that single allocation
     was a major contributor to the production pod OOM-kills."""
     log.info("instant_bundle: refreshing EPG…")
+    _state["epg_phase"] = "xmltv"
     url = f"{_base_url(p)}/xmltv.php"
     params = {"username": p["username"], "password": p["password"]}
 
@@ -539,11 +562,39 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
             "instant_bundle: pre-warming get_short_epg for %d gap channels…",
             len(missing_sids),
         )
+
+        # Split into priority (popular regions) vs the rest.  The
+        # native Live TV loader blocks until priority is ready
+        # before opening the EPG, so this dramatically improves
+        # perceived "EPG is populated on first boot" UX.
+        cat_name_by_id = {c["id"]: (c.get("name") or "").lower() for c in _state["categories"]}
+        def _is_priority_channel(ch_dict: Dict[str, Any]) -> bool:
+            cname = cat_name_by_id.get(str(ch_dict.get("category_id") or ""), "")
+            return any(tok in cname for tok in PRIORITY_REGION_TOKENS)
+
+        priority_sids: List[str] = []
+        rest_sids: List[str] = []
+        for ch in _state["channels"]:
+            sid = str(ch["stream_id"])
+            if sid not in by_stream_id:  # only those missing
+                if _is_priority_channel(ch):
+                    priority_sids.append(sid)
+                else:
+                    rest_sids.append(sid)
+
+        async with _state_lock:
+            _state["epg_priority_total"] = len(priority_sids)
+            _state["epg_priority_done"]  = 0
+            _state["epg_warm_total"]     = len(missing_sids)
+            _state["epg_warm_done"]      = 0
+            _state["epg_priority_ready"] = (len(priority_sids) == 0)
+            _state["epg_phase"]          = "warming_priority"
+
         sem = asyncio.Semaphore(25)
         prewarm_added = 0
         prewarm_total_progs = 0
 
-        async def _warm_one(sid: str) -> None:
+        async def _warm_one(sid: str, is_priority: bool) -> None:
             nonlocal prewarm_added, prewarm_total_progs
             url = f"{_base_url(p)}/player_api.php"
             params = {
@@ -559,9 +610,15 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                     resp.raise_for_status()
                     data = resp.json()
                 except Exception:
+                    if is_priority:
+                        _state["epg_priority_done"] += 1
+                    _state["epg_warm_done"] += 1
                     return
             items_raw = data.get("epg_listings") if isinstance(data, dict) else None
             if not items_raw:
+                if is_priority:
+                    _state["epg_priority_done"] += 1
+                _state["epg_warm_done"] += 1
                 return
             kept: List[Dict[str, Any]] = []
             for it in items_raw:
@@ -597,14 +654,39 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 by_stream_id[sid] = kept
                 prewarm_added += 1
                 prewarm_total_progs += len(kept)
+            if is_priority:
+                _state["epg_priority_done"] += 1
+            _state["epg_warm_done"] += 1
 
-        # Run in chunks so we don't queue 14 k coroutines at once.
+        # Phase 1: PRIORITY channels (UK / US / AU / Kayo) — runs to completion
+        # before the rest so the client loader can flip to "ready" early.
         CHUNK = 500
-        for i in range(0, len(missing_sids), CHUNK):
-            await asyncio.gather(*[_warm_one(s) for s in missing_sids[i:i + CHUNK]])
+        for i in range(0, len(priority_sids), CHUNK):
+            await asyncio.gather(*[_warm_one(s, True) for s in priority_sids[i:i + CHUNK]])
             log.info(
-                "instant_bundle: pre-warm progress %d/%d (added=%d so far)",
-                min(i + CHUNK, len(missing_sids)), len(missing_sids), prewarm_added,
+                "instant_bundle: priority pre-warm %d/%d (added=%d so far)",
+                min(i + CHUNK, len(priority_sids)), len(priority_sids), prewarm_added,
+            )
+        # Publish: priority pass complete — flush a partial cached
+        # payload so any client that polls /meta sees popular EPG
+        # populated even before the rest finishes.
+        async with _state_lock:
+            _state["epg"] = by_stream_id
+            _state["epg_priority_ready"] = True
+            _state["epg_phase"]          = "warming_rest"
+            await _rebuild_cached_payload()
+        log.info(
+            "instant_bundle: PRIORITY pre-warm complete (%d channels warmed) — "
+            "trickle phase starting for %d remaining gap channels",
+            len(priority_sids), len(rest_sids),
+        )
+
+        # Phase 2: the rest — trickles in in the background.
+        for i in range(0, len(rest_sids), CHUNK):
+            await asyncio.gather(*[_warm_one(s, False) for s in rest_sids[i:i + CHUNK]])
+            log.info(
+                "instant_bundle: rest pre-warm %d/%d (added=%d so far)",
+                min(i + CHUNK, len(rest_sids)), len(rest_sids), prewarm_added,
             )
 
         log.info(
@@ -622,6 +704,8 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         _state["epg_fetched_at"] = int(time.time())
         _state["generated_at"]   = int(time.time())
         _state["last_error"]     = None
+        _state["epg_phase"]      = "ready"
+        _state["epg_priority_ready"] = True
         # Rebuild the cached gz payload now (atomically under the
         # lock) so the next /instant-bundle request streams the
         # fresh data without re-allocating 30+ MB.
@@ -726,7 +810,8 @@ async def instant_bundle() -> Response:
 async def instant_bundle_meta() -> Dict[str, Any]:
     """Lightweight metadata endpoint — used by the client to decide
     whether to bother re-downloading the full bundle (compares
-    `generated_at` against its local cache)."""
+    `generated_at` against its local cache), AND by the native Live
+    TV boot loader to drive a determinate progress bar."""
     return {
         "provider_id":          _provider_from_env()["id"] if _provider_from_env() else "",
         "channels_count":       len(_state["channels"]),
@@ -736,6 +821,13 @@ async def instant_bundle_meta() -> Dict[str, Any]:
         "channels_fetched_at":  _state["channels_fetched_at"],
         "epg_fetched_at":       _state["epg_fetched_at"],
         "last_error":           _state["last_error"],
+        # Live progress for the boot loader.
+        "epg_phase":            _state.get("epg_phase", "boot"),
+        "epg_priority_ready":   bool(_state.get("epg_priority_ready", False)),
+        "epg_priority_total":   int(_state.get("epg_priority_total", 0)),
+        "epg_priority_done":    int(_state.get("epg_priority_done", 0)),
+        "epg_warm_total":       int(_state.get("epg_warm_total", 0)),
+        "epg_warm_done":        int(_state.get("epg_warm_done", 0)),
     }
 
 
