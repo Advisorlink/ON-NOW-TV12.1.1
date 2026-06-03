@@ -39,8 +39,7 @@ class GuideRowAdapter(
     }
 
     private val rows = mutableListOf<Row>()
-    private val timeFmt = SimpleDateFormat("h:mm", Locale.UK)
-    private val ampmFmt = SimpleDateFormat("a", Locale.UK)
+    private val timeFmt = SimpleDateFormat("h:mm a", Locale.UK)
     private val dayFmt = SimpleDateFormat("dd MMM", Locale.UK)
 
     init { setHasStableIds(true) }
@@ -92,7 +91,6 @@ class GuideRowAdapter(
         private val header: TextView = itemView.findViewById(R.id.guide_day_header)
         private val body: LinearLayout = itemView.findViewById(R.id.guide_row_body)
         private val timeV: TextView = itemView.findViewById(R.id.guide_time)
-        private val ampmV: TextView = itemView.findViewById(R.id.guide_ampm)
         private val titleV: TextView = itemView.findViewById(R.id.guide_title)
         private val bellV: ImageView = itemView.findViewById(R.id.guide_remind_bell)
         private val remindV: TextView = itemView.findViewById(R.id.guide_remind)
@@ -107,8 +105,7 @@ class GuideRowAdapter(
                 is Row.Entry -> {
                     header.visibility = View.GONE
                     body.visibility = View.VISIBLE
-                    timeV.text = timeFmt.format(Date(row.programme.startMs))
-                    ampmV.text = ampmFmt.format(Date(row.programme.startMs)).uppercase(Locale.UK)
+                    timeV.text = timeFmt.format(Date(row.programme.startMs)).uppercase(Locale.UK)
                     titleV.text = row.programme.title
                     paintReminder(reminderResolver(row.programme))
                     body.setOnClickListener {
@@ -126,12 +123,12 @@ class GuideRowAdapter(
                 val yellow = ContextCompat.getColor(ctx, R.color.livetv_reminder_yellow)
                 bellV.imageTintList = ColorStateList.valueOf(yellow)
                 remindV.setTextColor(yellow)
-                remindV.text = "REMINDER SET"
+                remindV.text = "SET"
             } else {
                 val dim = ContextCompat.getColor(ctx, R.color.livetv_fg_dimmer)
                 bellV.imageTintList = ColorStateList.valueOf(dim)
                 remindV.setTextColor(dim)
-                remindV.text = "OK TO REMIND"
+                remindV.text = "REMIND"
             }
         }
     }
