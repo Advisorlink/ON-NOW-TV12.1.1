@@ -616,6 +616,13 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         .lat-switch input[type="checkbox"]:checked::after {
             transform: translateX(18px);
         }
+        .lat-switch--disabled { opacity: 0.55; cursor: not-allowed; }
+        .lat-switch--disabled em {
+            font-style: normal;
+            color: rgba(255, 200, 61, 0.85);
+            font-size: 10px;
+            margin-left: 6px;
+        }
         .lat-seg {
             display: inline-flex;
             background: rgba(255, 255, 255, 0.06);
@@ -1115,9 +1122,9 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             </div>
 
             <div class="lat-row">
-                <label class="lat-switch">
-                    <input type="checkbox" id="lat-aec" />
-                    <span>Echo Cancellation</span>
+                <label class="lat-switch lat-switch--disabled">
+                    <input type="checkbox" id="lat-aec" checked disabled />
+                    <span>Echo Cancellation <em>(required on Android)</em></span>
                 </label>
             </div>
             <div class="lat-row">
@@ -1620,20 +1627,26 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         $('mic-meter').style.width = '0%';
     }
 
-    // v2.8.126 — Latency tuning settings (driven by the
-    // "Tune Latency" panel in the pre-LIVE phase).  Persisted in
-    // localStorage so they survive reloads.
+    // v2.8.126 — Latency tuning settings.
     //
-    // v2.8.130 — "Ultra Low" downgraded from 5ms ptime to 10ms.
-    // 5ms produced a malformed SDP that some Android Chrome
-    // builds rejected mid-negotiation → singer's visualizer
-    // never fired → no audio to the TV.  10ms is the safe floor.
+    // v2.8.133 — IMPORTANT Android Chrome compatibility fix.
+    // `echoCancellation: false` is accepted on most Android builds,
+    // but the resulting MediaStream is silently empty on many of
+    // them (no JS error, no microphone audio).  ONLY Safe worked
+    // for the user because Safe is the only preset that keeps AEC
+    // on.  AEC adds ~10-20ms of capture latency — still well worth
+    // it given the alternative is "no audio at all".
+    //
+    // We keep AEC ON in every preset and only vary NS/AGC + sample
+    // rate + Opus ptime, which is where the real latency wins live
+    // anyway.  Turbo skips the issue entirely by going AudioWorklet
+    // raw-PCM but still depends on `getUserMedia` succeeding.
     const LAT_PRESETS = {
-        turbo:    { aec: false, ns: false, agc: false, ptime: 10, sr: 24000, br: 64000, mode: 'turbo' },
-        ultra:    { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 32000, mode: 'webrtc' },
-        low:      { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000, mode: 'webrtc' },
-        balanced: { aec: false, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000, mode: 'webrtc' },
-        safe:     { aec: true,  ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000, mode: 'webrtc' },
+        turbo:    { aec: true, ns: false, agc: false, ptime: 10, sr: 24000, br: 64000, mode: 'turbo' },
+        ultra:    { aec: true, ns: false, agc: false, ptime: 10, sr: 16000, br: 32000, mode: 'webrtc' },
+        low:      { aec: true, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000, mode: 'webrtc' },
+        balanced: { aec: true, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000, mode: 'webrtc' },
+        safe:     { aec: true, ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000, mode: 'webrtc' },
     };
     function readLatSettings() {
         try {
@@ -1752,9 +1765,26 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         const inputSR = ctx.sampleRate || 48000;
         const step = inputSR / TARGET_SR;
 
+        // Track silence to help debug "no audio on TV" reports.
+        let silentFrames = 0;
+        let totalFrames = 0;
         worklet.port.onmessage = (e) => {
             if (!turboWs || turboWs.readyState !== 1) return;
             const f32 = e.data;  // Float32, length 480 at inputSR (10 ms)
+            // Quick silence detector: if RMS < 1e-4 for 100 consecutive
+            // frames (~1 s), warn — likely the Android Chrome silent-
+            // stream bug (AEC off).  Recoverable: user picks Safe.
+            let sumSq = 0;
+            for (let i = 0; i < f32.length; i++) sumSq += f32[i] * f32[i];
+            const rms = Math.sqrt(sumSq / f32.length);
+            if (rms < 1e-4) { silentFrames++; } else { silentFrames = 0; }
+            totalFrames++;
+            if (silentFrames === 100) {
+                console.warn('[turbo] microphone returning silence for ~1s — Android Chrome may have rejected the stream. Try the Safe preset.');
+            }
+            if (totalFrames % 100 === 0) {
+                console.info('[turbo] frame ' + totalFrames + ' rms=' + rms.toFixed(4));
+            }
             // Cheap decimation downsample: take every (inputSR/TARGET_SR)
             // sample.  At 48 kHz → 24 kHz that's every 2nd sample.
             const outLen = Math.floor(f32.length / step);
@@ -1763,7 +1793,6 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             for (let i = 0; i < outLen; i++) {
                 const s = f32[Math.floor(idx)] || 0;
                 idx += step;
-                // Clip + scale.
                 const v = Math.max(-1, Math.min(1, s));
                 out[i] = (v < 0 ? v * 0x8000 : v * 0x7FFF) | 0;
             }
@@ -1809,7 +1838,11 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             try {
                 micStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        echoCancellation: LAT.aec,
+                        // v2.8.133 — AEC must stay ON for Android.
+                        // Disabling it returns a silent stream on many
+                        // Android Chrome builds.  Use the LAT setting
+                        // only for NS/AGC + sample rate.
+                        echoCancellation: true,
                         noiseSuppression: LAT.ns,
                         autoGainControl: LAT.agc,
                         channelCount: 1,
