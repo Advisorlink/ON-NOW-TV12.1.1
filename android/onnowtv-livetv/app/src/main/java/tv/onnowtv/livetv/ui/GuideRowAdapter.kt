@@ -1,10 +1,13 @@
 package tv.onnowtv.livetv.ui
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.Programme
@@ -15,15 +18,19 @@ import java.util.Locale
 
 /**
  * RIGHT column: vertical list of guide entries for the focused
- * channel.  Groups by day with `TODAY · 02 Jun` / `TOMORROW · 03 Jun`
- * monospace cyan headers.
+ * channel.  Each row card shows TIME / am-pm / bell + OK TO REMIND
+ * on the left and the programme title (single line) on the right.
  *
- * Each row holds a TIME and a TITLE (and optionally a reminder icon
- * later).  Activating a future row would toggle a reminder; we
- * leave that hook open via `onActivate`.
+ * Tap toggles the **reminder** state for that programme: when set,
+ * the bell + label render in YELLOW and the label reads "REMINDER
+ * SET".  Reminders are owned by EpgActivity via
+ * [reminderResolver] / [onReminderToggle] (so they can be persisted
+ * to SharedPreferences in a later patch).
  */
 class GuideRowAdapter(
     private val onActivate: (Programme) -> Unit,
+    private val reminderResolver: (Programme) -> Boolean = { false },
+    private val onReminderToggle: (Programme) -> Boolean = { false },
 ) : RecyclerView.Adapter<GuideRowAdapter.VH>() {
 
     sealed class Row {
@@ -32,7 +39,8 @@ class GuideRowAdapter(
     }
 
     private val rows = mutableListOf<Row>()
-    private val timeFmt = SimpleDateFormat("h:mma", Locale.UK)
+    private val timeFmt = SimpleDateFormat("h:mm", Locale.UK)
+    private val ampmFmt = SimpleDateFormat("a", Locale.UK)
     private val dayFmt = SimpleDateFormat("dd MMM", Locale.UK)
 
     init { setHasStableIds(true) }
@@ -81,10 +89,13 @@ class GuideRowAdapter(
     override fun getItemCount(): Int = rows.size
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val header: TextView = itemView.findViewById<TextView>(R.id.guide_day_header)
-        private val body: LinearLayout = itemView.findViewById<LinearLayout>(R.id.guide_row_body)
-        private val timeV: TextView = itemView.findViewById<TextView>(R.id.guide_time)
-        private val titleV: TextView = itemView.findViewById<TextView>(R.id.guide_title)
+        private val header: TextView = itemView.findViewById(R.id.guide_day_header)
+        private val body: LinearLayout = itemView.findViewById(R.id.guide_row_body)
+        private val timeV: TextView = itemView.findViewById(R.id.guide_time)
+        private val ampmV: TextView = itemView.findViewById(R.id.guide_ampm)
+        private val titleV: TextView = itemView.findViewById(R.id.guide_title)
+        private val bellV: ImageView = itemView.findViewById(R.id.guide_remind_bell)
+        private val remindV: TextView = itemView.findViewById(R.id.guide_remind)
 
         fun bind(row: Row) {
             when (row) {
@@ -96,11 +107,31 @@ class GuideRowAdapter(
                 is Row.Entry -> {
                     header.visibility = View.GONE
                     body.visibility = View.VISIBLE
-                    val from = timeFmt.format(Date(row.programme.startMs)).lowercase(Locale.UK)
-                    timeV.text = from
+                    timeV.text = timeFmt.format(Date(row.programme.startMs))
+                    ampmV.text = ampmFmt.format(Date(row.programme.startMs)).uppercase(Locale.UK)
                     titleV.text = row.programme.title
-                    body.setOnClickListener { onActivate(row.programme) }
+                    paintReminder(reminderResolver(row.programme))
+                    body.setOnClickListener {
+                        val nowSet = onReminderToggle(row.programme)
+                        paintReminder(nowSet)
+                        onActivate(row.programme)
+                    }
                 }
+            }
+        }
+
+        private fun paintReminder(set: Boolean) {
+            val ctx = itemView.context
+            if (set) {
+                val yellow = ContextCompat.getColor(ctx, R.color.livetv_reminder_yellow)
+                bellV.imageTintList = ColorStateList.valueOf(yellow)
+                remindV.setTextColor(yellow)
+                remindV.text = "REMINDER SET"
+            } else {
+                val dim = ContextCompat.getColor(ctx, R.color.livetv_fg_dimmer)
+                bellV.imageTintList = ColorStateList.valueOf(dim)
+                remindV.setTextColor(dim)
+                remindV.text = "OK TO REMIND"
             }
         }
     }

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Guide card — thin row matching SKY HISTORY 2 reference.
-     ~52dp total height, each in its own rounded card. -->
+<!-- Guide card — matches reference exactly.
+     Single-line title (NO wrapping), small time block on left,
+     bell + OK TO REMIND under the time.  When the user clicks
+     and a reminder is set, the bell + label go YELLOW. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -27,16 +29,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:background="@drawable/guide_row_bg"
         android:focusable="true"
         android:clickable="true"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp">
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
 
         <LinearLayout
-            android:layout_width="74dp"
+            android:layout_width="78dp"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
@@ -46,7 +49,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
                 android:textColor="@color/livetv_accent"
-                android:textSize="13sp"
+                android:textSize="15sp"
                 android:textStyle="bold"
                 android:letterSpacing="-0.02"
                 android:text="" />
@@ -57,21 +60,23 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
                 android:textColor="@color/livetv_fg_dim"
-                android:textSize="9sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:letterSpacing="0.18"
+                android:letterSpacing="0.20"
                 android:text="" />
 
             <LinearLayout
+                android:id="@+id/guide_remind_row"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="3dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
                 <ImageView
-                    android:layout_width="9dp"
-                    android:layout_height="9dp"
+                    android:id="@+id/guide_remind_bell"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
                     android:src="@drawable/ic_bell"
                     android:contentDescription="@null" />
 
@@ -79,10 +84,10 @@
                     android:id="@+id/guide_remind"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="3dp"
+                    android:layout_marginStart="4dp"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_fg_dimmer"
-                    android:textSize="7sp"
+                    android:textSize="8sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.22"
                     android:text="OK TO REMIND" />
@@ -94,14 +99,13 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:layout_gravity="center_vertical"
+            android:layout_marginStart="12dp"
             android:textColor="@color/livetv_fg"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-medium"
             android:ellipsize="end"
-            android:maxLines="2"
+            android:maxLines="1"
             android:text="" />
     </LinearLayout>
 </LinearLayout>
