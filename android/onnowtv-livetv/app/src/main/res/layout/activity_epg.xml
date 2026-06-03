@@ -22,8 +22,13 @@
         R  (fills): "TODAY · {DATE}" header + "GUIDE · {CHANNEL}" sub-header +
                     list of programmes with bell + OK TO REMIND.
 -->
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/livetv_bg">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
@@ -380,45 +385,29 @@
                 android:orientation="vertical"
                 android:layout_marginEnd="20dp">
 
-                <!-- Search bar -->
+                <!-- Header row: "PLAYING NOW" + channel count chip -->
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
+                    android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:background="@drawable/search_bar_bg"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="10dp">
+                    android:paddingBottom="10dp">
 
-                    <ImageView
-                        android:layout_width="16dp"
-                        android:layout_height="16dp"
-                        android:src="@drawable/ic_search_small"
-                        android:contentDescription="@null" />
-
-                    <EditText
-                        android:id="@+id/search_input"
+                    <TextView
                         android:layout_width="0dp"
-                        android:layout_height="match_parent"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="10dp"
-                        android:background="@null"
-                        android:textColor="@color/livetv_fg"
-                        android:textColorHint="@color/livetv_fg_dimmer"
-                        android:textSize="13sp"
-                        android:fontFamily="sans-serif-medium"
-                        android:hint="Search channels &amp; guide…"
-                        android:singleLine="true"
-                        android:imeOptions="actionSearch"
-                        android:inputType="text"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true" />
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.28"
+                        android:text="PLAYING NOW" />
 
                     <TextView
                         android:id="@+id/channel_count_chip"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
                         android:paddingStart="8dp"
                         android:paddingEnd="8dp"
                         android:paddingTop="3dp"
@@ -432,7 +421,15 @@
                         android:text="0 CHANNELS" />
                 </LinearLayout>
 
-                <Space android:layout_width="0dp" android:layout_height="10dp" />
+                <!-- Hidden search EditText kept in DOM so legacy
+                     Kotlin paths that reference it don't NPE.  Real
+                     search now lives in the full-screen overlay
+                     opened from the rail. -->
+                <EditText
+                    android:id="@+id/search_input"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/channels_list"
@@ -524,3 +521,128 @@
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
+
+<!-- ===== SEARCH OVERLAY =====
+     Full-screen dark search panel.  Hidden by default; toggled
+     visible by EpgActivity when the rail's Search icon is tapped.
+     Searches BOTH channel names and EPG programme titles. -->
+<LinearLayout
+    android:id="@+id/search_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F00A1224"
+    android:visibility="gone"
+    android:focusable="true"
+    android:descendantFocusability="afterDescendants"
+    android:paddingStart="120dp"
+    android:paddingEnd="120dp"
+    android:paddingTop="56dp"
+    android:paddingBottom="40dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.32"
+            android:text="SEARCH" />
+
+        <TextView
+            android:id="@+id/search_overlay_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:background="@drawable/channel_count_chip_bg"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.20"
+            android:text="" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/search_bar_bg"
+        android:paddingStart="18dp"
+        android:paddingEnd="14dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search_small"
+            android:contentDescription="@null" />
+
+        <EditText
+            android:id="@+id/search_overlay_input"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="14dp"
+            android:background="@null"
+            android:textColor="@color/livetv_fg"
+            android:textColorHint="@color/livetv_fg_dimmer"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:hint="Search every channel and every programme…"
+            android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:focusable="true"
+            android:focusableInTouchMode="true" />
+
+        <ImageButton
+            android:id="@+id/search_overlay_close"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_exit"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Close" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/search_overlay_results"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="22dp"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:nestedScrollingEnabled="true"
+        android:clipToPadding="false"
+        android:overScrollMode="never" />
+
+    <TextView
+        android:id="@+id/search_overlay_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dimmer"
+        android:textSize="14sp"
+        android:letterSpacing="0.20"
+        android:text="Start typing to search every channel and every programme."
+        android:visibility="visible" />
+</LinearLayout>
+
+</FrameLayout>

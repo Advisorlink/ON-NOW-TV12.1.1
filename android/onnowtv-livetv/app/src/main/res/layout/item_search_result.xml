@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Search result row.
+     [logo] [CH# · CHANNEL NAME / matched programme + time]
+     Tap = launch player.  Used by SearchResultsAdapter. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="68dp"
+    android:layout_marginBottom="6dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/channel_pill_bg"
+    android:focusable="true"
+    android:clickable="true"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
+
+    <FrameLayout
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@drawable/channel_logo_bg">
+
+        <ImageView
+            android:id="@+id/sr_logo"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_gravity="center"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/sr_chnum"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_accent"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/sr_channel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/livetv_fg"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.01"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/sr_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.18"
+                android:text="" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/sr_kind_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/now_pill_bg"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:layout_marginEnd="8dp"
+                android:textColor="@color/livetv_fg"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.12"
+                android:text="NOW"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/sr_subtitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
