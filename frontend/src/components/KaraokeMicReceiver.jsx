@@ -132,78 +132,36 @@ export default function KaraokeMicReceiver({ partySession }) {
 
     async function handleSignal(sig) {
         const singerId = sig.from_id;
-        // Helper: route the remote mic stream to the hidden <audio>
-        // element.  Used as a fallback when Web Audio can't be
-        // started (no user gesture, etc.).
-        const attachToAudioElement = (stream) => {
-            if (!audioElRef.current) return;
-            audioElRef.current.srcObject = stream;
-            audioElRef.current.muted = false;
-            audioElRef.current.volume = 1.0;
-            const p = audioElRef.current.play();
-            if (p) p.catch((err) => console.warn('[karaoke-mic] <audio>.play() blocked:', err));
-            console.info('[karaoke-mic] route: <audio> element (fallback)');
-        };
-
         if (sig.kind === 'offer' && sig.payload?.sdp) {
             // Tear down any prior peer (e.g. singer re-tapped)
             teardownPeer();
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
             pc.ontrack = (e) => {
-                // v2.8.124 — TWO routing paths for the remote mic
-                // stream, chosen at runtime:
-                //
-                // (A) Web Audio API → AudioContext destination.
-                //     Skips the HTML media-element jitter buffer
-                //     (which adds 50-150 ms of output latency on
-                //     Android WebView).  Used when AudioContext
-                //     resumes successfully.
-                //
-                // (B) Plain <audio> element fallback.  Reliable
-                //     but laggier — used only if AudioContext
-                //     can't be put into the running state (e.g.
-                //     no prior user gesture).
+                // v2.8.130 — Reverted to plain <audio> playback.
+                // v2.8.124 tried Web Audio routing for lower latency
+                // but on Android WebView (the only environment that
+                // matters for this app) `ctx.state === 'running'`
+                // didn't guarantee the stream actually reached the
+                // speakers — the user reported total audio loss on
+                // every preset except "Safe".  The TV-side jitter
+                // buffer fix that still works (and that we keep) is
+                // `playoutDelayHint = 0` set on the audio receiver,
+                // which forces the WebRTC stack to use its smallest
+                // playout buffer.
                 const stream = e.streams[0];
-
-                let webAudioOk = false;
-                try {
-                    const AC = window.AudioContext || window.webkitAudioContext;
-                    if (AC) {
-                        // Force lowest-latency hint AND a fresh context per
-                        // singer — Chrome on Android keeps the last latency
-                        // hint sticky across reuses.
-                        const ctx = new AC({ latencyHint: 'interactive' });
-                        audioCtxRef.current = ctx;
-                        const src = ctx.createMediaStreamSource(stream);
-                        src.connect(ctx.destination);
-                        // resume() returns a promise; if it doesn't
-                        // resolve to running state we'll fall back to
-                        // the <audio> element below.
-                        const resumePromise = ctx.resume ? ctx.resume() : Promise.resolve();
-                        Promise.resolve(resumePromise).then(() => {
-                            if (ctx.state === 'running') {
-                                console.info('[karaoke-mic] route: Web Audio (low-lat)');
-                            } else {
-                                console.warn('[karaoke-mic] AudioContext state=' + ctx.state + ', falling back to <audio>');
-                                attachToAudioElement(stream);
-                            }
-                        }).catch((err) => {
-                            console.warn('[karaoke-mic] AudioContext resume failed, fallback:', err);
-                            attachToAudioElement(stream);
+                if (audioElRef.current) {
+                    audioElRef.current.srcObject = stream;
+                    audioElRef.current.muted = false;
+                    audioElRef.current.volume = 1.0;
+                    const playPromise = audioElRef.current.play();
+                    if (playPromise) {
+                        playPromise.catch((err) => {
+                            console.warn('[karaoke-mic] audio.play() blocked:', err);
                         });
-                        webAudioOk = true;
                     }
-                } catch (err) {
-                    console.warn('[karaoke-mic] Web Audio path failed, fallback:', err);
-                    webAudioOk = false;
                 }
-
-                if (!webAudioOk) {
-                    attachToAudioElement(stream);
-                }
-
-                console.info('[karaoke-mic] remote track attached', {
+                console.info('[karaoke-mic] remote track attached via <audio>', {
                     kind: e.track.kind,
                     enabled: e.track.enabled,
                     muted: e.track.muted,

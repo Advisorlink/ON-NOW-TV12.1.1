@@ -1608,8 +1608,13 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     // v2.8.126 — Latency tuning settings (driven by the
     // "Tune Latency" panel in the pre-LIVE phase).  Persisted in
     // localStorage so they survive reloads.
+    //
+    // v2.8.130 — "Ultra Low" downgraded from 5ms ptime to 10ms.
+    // 5ms produced a malformed SDP that some Android Chrome
+    // builds rejected mid-negotiation → singer's visualizer
+    // never fired → no audio to the TV.  10ms is the safe floor.
     const LAT_PRESETS = {
-        ultra:    { aec: false, ns: false, agc: false, ptime: 5,  sr: 16000, br: 32000 },
+        ultra:    { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 32000 },
         low:      { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000 },
         balanced: { aec: false, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000 },
         safe:     { aec: true,  ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000 },
@@ -1749,10 +1754,14 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                 const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/);
                 if (m) {
                     const pt = m[1];
-                    // v2.8.126 — Use the singer's chosen Opus
-                    // frame size + bitrate (driven by the Tune
-                    // Latency panel).
-                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=' + LAT.ptime + ';useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=' + LAT.br;
+                    // v2.8.130 — Clamp the SDP ptime to ≥ 10 ms.
+                    // Opus over WebRTC supports 2.5/5/10/20/40/60 ms
+                    // but only 10/20 are universally accepted by
+                    // Android Chrome and Android WebView.  Any value
+                    // below 10 risks the offer being rejected mid-
+                    // handshake on some devices.
+                    const safePtime = Math.max(10, parseInt(LAT.ptime, 10) || 10);
+                    const fmtpLine = 'a=fmtp:' + pt + ' minptime=' + safePtime + ';useinbandfec=0;usedtx=0;stereo=0;cbr=0;maxaveragebitrate=' + LAT.br;
                     const fmtpRe = new RegExp('a=fmtp:' + pt + ' [^\\r\\n]*');
                     if (fmtpRe.test(sdp)) {
                         sdp = sdp.replace(fmtpRe, fmtpLine);
@@ -1766,7 +1775,7 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                     // Force chosen ptime alongside the audio m= section.
                     sdp = sdp.replace(
                         /(a=rtpmap:\d+ opus\/48000\/2[^\r\n]*)/,
-                        '$1\r\na=ptime:' + LAT.ptime + '\r\na=maxptime:' + LAT.ptime
+                        '$1\r\na=ptime:' + safePtime + '\r\na=maxptime:' + safePtime
                     );
                 }
                 offer.sdp = sdp;
