@@ -1,89 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Guide card — single-line horizontal layout.
-     [ 10:00 PM ] [ Title ........................ ] [ 🔔 ]
-     Whole row ~32dp tall → 10+ rows visible. -->
+<!-- Guide tile — 2 rows per tile.
+     Row 1: [ time ] [ programme name (fills) ]
+     Row 2: 🔔 PUSH OK TO SET REMINDER  (turns yellow when set,
+            and a yellow glow outline ring lights up around the
+            whole tile).
+     Single-line title (ellipsized) → exact-known height. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:layout_marginBottom="5dp">
+    android:layout_marginBottom="6dp">
 
     <TextView
         android:id="@+id/guide_day_header"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="10dp"
-        android:paddingBottom="4dp"
-        android:fontFamily="monospace"
-        android:textColor="@color/livetv_accent"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.24"
-        android:visibility="gone"
-        android:text="" />
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/guide_row_body"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:orientation="vertical"
         android:background="@drawable/guide_row_bg"
         android:focusable="true"
         android:clickable="true"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:paddingStart="14dp"
-        android:paddingEnd="12dp">
+        android:paddingEnd="14dp">
 
-        <!-- TIME — single line "10:00 PM" -->
-        <TextView
-            android:id="@+id/guide_time"
-            android:layout_width="80dp"
+        <!-- Row 1: time · title -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textColor="@color/livetv_accent"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="-0.02"
-            android:maxLines="1"
-            android:text="" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <!-- AM/PM kept around so older binding code doesn't NPE -->
-        <TextView
-            android:id="@+id/guide_ampm"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone" />
+            <TextView
+                android:id="@+id/guide_time"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_accent"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:letterSpacing="-0.02"
+                android:maxLines="1"
+                android:text="" />
 
-        <!-- TITLE — single line, fills the rest -->
-        <TextView
-            android:id="@+id/guide_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="@color/livetv_fg"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:fontFamily="sans-serif-medium"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="" />
+            <!-- legacy hidden -->
+            <TextView
+                android:id="@+id/guide_ampm"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
-        <!-- REMIND inline at the end: bell + tiny label -->
+            <TextView
+                android:id="@+id/guide_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/livetv_fg"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="" />
+        </LinearLayout>
+
+        <!-- Row 2: 🔔 Push OK to set reminder -->
         <LinearLayout
             android:id="@+id/guide_remind_row"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginTop="3dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <ImageView
                 android:id="@+id/guide_remind_bell"
-                android:layout_width="10dp"
-                android:layout_height="10dp"
+                android:layout_width="11dp"
+                android:layout_height="11dp"
                 android:src="@drawable/ic_bell"
                 android:contentDescription="@null" />
 
@@ -91,13 +92,13 @@
                 android:id="@+id/guide_remind"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
+                android:layout_marginStart="5dp"
                 android:fontFamily="monospace"
                 android:textColor="@color/livetv_fg_dimmer"
-                android:textSize="7sp"
+                android:textSize="9sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.18"
-                android:text="REMIND" />
+                android:text="PUSH OK TO SET REMINDER" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
