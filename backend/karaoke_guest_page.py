@@ -537,24 +537,36 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
         .lat-presets {
-            display: grid; grid-template-columns: repeat(4, 1fr);
-            gap: 6px; margin: 10px 0 14px;
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 5px; margin: 10px 0 14px;
         }
         .lat-preset {
-            padding: 8px 4px;
+            padding: 8px 2px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.10);
             border-radius: 9px;
             color: rgba(255, 220, 245, 0.85);
             font-family: inherit; font-weight: 700;
-            font-size: 11px; letter-spacing: 0.02em;
+            font-size: 10.5px; letter-spacing: 0.01em;
             cursor: pointer;
             transition: border-color 180ms, background 180ms;
+        }
+        .lat-preset--turbo {
+            background: linear-gradient(135deg, rgba(255,200,61,0.18), rgba(255,122,184,0.18));
+            border-color: rgba(255, 200, 61, 0.7);
+            color: #ffe9b0;
+            font-weight: 900;
         }
         .lat-preset.is-active {
             background: rgba(255, 122, 184, 0.18);
             border-color: rgba(255, 122, 184, 0.7);
             color: #ffd0e6;
+        }
+        .lat-preset--turbo.is-active {
+            background: linear-gradient(135deg, rgba(255,200,61,0.38), rgba(255,122,184,0.38));
+            border-color: #ffc83d;
+            color: #fff5cc;
+            box-shadow: 0 0 22px rgba(255, 200, 61, 0.45);
         }
         .lat-row {
             display: flex; align-items: center; justify-content: space-between;
@@ -1095,6 +1107,7 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         </div>
         <div class="lat-panel__body" id="lat-panel-body">
             <div class="lat-presets">
+                <button type="button" class="lat-preset lat-preset--turbo" data-preset="turbo">⚡ Turbo</button>
                 <button type="button" class="lat-preset" data-preset="ultra">Ultra Low</button>
                 <button type="button" class="lat-preset" data-preset="low">Low</button>
                 <button type="button" class="lat-preset" data-preset="balanced">Balanced</button>
@@ -1588,6 +1601,8 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     function cleanupMic() {
         cancelAnimationFrame(micMeterRAF);
         micMeterRAF = 0;
+        // v2.8.131 — Tear down Turbo too so reconnect works clean.
+        try { stopTurboCapture(); } catch (e) { /* ignore */ }
         if (micPC) {
             try { micPC.close(); } catch {}
             micPC = null;
@@ -1614,10 +1629,11 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     // builds rejected mid-negotiation → singer's visualizer
     // never fired → no audio to the TV.  10ms is the safe floor.
     const LAT_PRESETS = {
-        ultra:    { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 32000 },
-        low:      { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000 },
-        balanced: { aec: false, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000 },
-        safe:     { aec: true,  ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000 },
+        turbo:    { aec: false, ns: false, agc: false, ptime: 10, sr: 24000, br: 64000, mode: 'turbo' },
+        ultra:    { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 32000, mode: 'webrtc' },
+        low:      { aec: false, ns: false, agc: false, ptime: 10, sr: 16000, br: 64000, mode: 'webrtc' },
+        balanced: { aec: false, ns: false, agc: false, ptime: 10, sr: 48000, br: 64000, mode: 'webrtc' },
+        safe:     { aec: true,  ns: true,  agc: true,  ptime: 20, sr: 48000, br: 64000, mode: 'webrtc' },
     };
     function readLatSettings() {
         try {
@@ -1634,6 +1650,151 @@ GUEST_JOIN_HTML = r"""<!doctype html>
     function writeLatSettings(v) {
         try { localStorage.setItem('karaoke-lat', JSON.stringify(v)); }
         catch (e) { /* ignore */ }
+    }
+
+    // v2.8.131 — TURBO MODE
+    //
+    // Bypasses WebRTC entirely.  Captures raw PCM via AudioWorklet,
+    // converts to Int16, sends as binary WebSocket frames straight
+    // to the backend relay (`/api/karaoke/mic-stream/{code}`).
+    //
+    // We pick 24 kHz mono for the wire format: voice is fully
+    // intelligible above 16 kHz, AudioWorklet runs natively at
+    // 48 kHz, so we just take every 2nd sample (a cheap antialias-
+    // by-decimation is fine for the voice band).
+    //
+    // 24 kHz × 16 bit × 1 ch = 384 kbit/s.  Trivial on Wi-Fi.
+    let turboWs = null;
+    let turboWorklet = null;
+    let turboCtx = null;
+
+    function getPartyCode() {
+        // The party code is in the URL: /api/karaoke/join/{CODE}
+        try {
+            const path = window.location.pathname || '';
+            const m = path.match(/\/karaoke\/join\/([A-Za-z0-9]+)/);
+            if (m) return m[1].toUpperCase();
+        } catch (e) { /* ignore */ }
+        // Fallback: pull from a global the page injects.
+        try { return (window.PARTY_CODE || '').toString().toUpperCase(); } catch (e) { return ''; }
+    }
+
+    async function startTurboCapture(LAT) {
+        if (!micStream) throw new Error('mic stream missing');
+        const code = getPartyCode();
+        if (!code) throw new Error('party code missing');
+
+        // 1. Open the WebSocket BEFORE we start streaming so we
+        //    don't blow the first 100 ms of audio into the void.
+        const proto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        const url = proto + '//' + window.location.host + '/api/karaoke/mic-stream/' + code;
+        const ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+        await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error('ws timeout')), 6000);
+            ws.onopen = () => { clearTimeout(t); resolve(); };
+            ws.onerror = (e) => { clearTimeout(t); reject(new Error('ws error')); };
+        });
+        turboWs = ws;
+
+        const TARGET_SR = 24000;
+        // Handshake: tell backend we are the phone + format.
+        ws.send(JSON.stringify({
+            role: 'phone',
+            code: code,
+            fmt: { sampleRate: TARGET_SR, channels: 1, encoding: 'pcm16le' },
+        }));
+
+        // 2. Spin up an AudioWorklet on the existing mic capture
+        //    context.  The worklet emits Float32 frames at
+        //    `currentTime` cadence (~2.7 ms per 128-sample frame at
+        //    48 kHz); we'll downsample to TARGET_SR and convert to
+        //    Int16 before sending.
+        const workletSrc = `
+            class TurboPcmProcessor extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    // Buffer ~10 ms of input before posting to JS to
+                    // limit message overhead while keeping latency low.
+                    this._buf = new Float32Array(480);  // 10 ms @ 48 kHz
+                    this._pos = 0;
+                }
+                process(inputs) {
+                    const ch = inputs[0] && inputs[0][0];
+                    if (!ch) return true;
+                    for (let i = 0; i < ch.length; i++) {
+                        this._buf[this._pos++] = ch[i];
+                        if (this._pos >= this._buf.length) {
+                            this.port.postMessage(this._buf.slice());
+                            this._pos = 0;
+                        }
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('turbo-pcm', TurboPcmProcessor);
+        `;
+        const blob = new Blob([workletSrc], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const AC = window.AudioContext || window.webkitAudioContext;
+        // Reuse the meter context if it exists at the same SR.
+        const ctx = (micAudioCtx && micAudioCtx.sampleRate)
+            ? micAudioCtx
+            : new AC({ latencyHint: 'interactive' });
+        if (ctx.audioWorklet) {
+            await ctx.audioWorklet.addModule(blobUrl);
+        } else {
+            throw new Error('AudioWorklet not supported');
+        }
+        const src = ctx.createMediaStreamSource(micStream);
+        const worklet = new AudioWorkletNode(ctx, 'turbo-pcm');
+        const inputSR = ctx.sampleRate || 48000;
+        const step = inputSR / TARGET_SR;
+
+        worklet.port.onmessage = (e) => {
+            if (!turboWs || turboWs.readyState !== 1) return;
+            const f32 = e.data;  // Float32, length 480 at inputSR (10 ms)
+            // Cheap decimation downsample: take every (inputSR/TARGET_SR)
+            // sample.  At 48 kHz → 24 kHz that's every 2nd sample.
+            const outLen = Math.floor(f32.length / step);
+            const out = new Int16Array(outLen);
+            let idx = 0;
+            for (let i = 0; i < outLen; i++) {
+                const s = f32[Math.floor(idx)] || 0;
+                idx += step;
+                // Clip + scale.
+                const v = Math.max(-1, Math.min(1, s));
+                out[i] = (v < 0 ? v * 0x8000 : v * 0x7FFF) | 0;
+            }
+            try { turboWs.send(out.buffer); } catch (sendErr) { /* will drop */ }
+        };
+
+        src.connect(worklet);
+        // We don't connect worklet → destination; we don't want the
+        // singer to hear themselves locally (creates a feedback loop
+        // via the room).
+        if (ctx.state === 'suspended') {
+            try { await ctx.resume(); } catch (e) { /* ignore */ }
+        }
+        turboWorklet = worklet;
+        turboCtx = ctx;
+        console.info('[turbo] streaming live to', url, 'sr=', inputSR, '→', TARGET_SR);
+
+        ws.onclose = () => {
+            console.warn('[turbo] ws closed');
+            try { worklet.disconnect(); } catch (e) {}
+            try { src.disconnect(); } catch (e) {}
+            turboWs = null;
+        };
+        ws.onerror = (e) => { console.warn('[turbo] ws error', e); };
+    }
+
+    function stopTurboCapture() {
+        try { if (turboWorklet) turboWorklet.disconnect(); } catch (e) {}
+        try { if (turboWs) turboWs.close(); } catch (e) {}
+        turboWorklet = null;
+        turboWs = null;
     }
 
     async function turnOnMic() {
@@ -1709,6 +1870,24 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             };
             tick();
         } catch (e) { /* meter optional */ }
+
+        // v2.8.131 — Turbo mode: ditch WebRTC entirely.  Capture raw
+        // PCM via AudioWorklet, ship over WebSocket directly to the
+        // backend → TV.  Realistic LAN latency: ~25-50 ms (vs ~120
+        // ms for WebRTC + WebView <audio>).
+        if (LAT.mode === 'turbo') {
+            try {
+                await startTurboCapture(LAT);
+                status.textContent = "Turbo: you're live!";
+                btn.textContent = 'Turbo Live';
+                btn.disabled = true;
+                document.getElementById('phase-mic').classList.add('is-live');
+                return;
+            } catch (turboErr) {
+                console.warn('[turbo] failed, falling back to WebRTC:', turboErr);
+                status.textContent = 'Turbo unavailable — using WebRTC';
+            }
+        }
 
         // WebRTC peer connection — open offer to TV
         try {

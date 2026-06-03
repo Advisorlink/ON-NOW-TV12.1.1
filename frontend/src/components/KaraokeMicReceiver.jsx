@@ -33,6 +33,114 @@ const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 // the TV speakers."  Always go through REACT_APP_BACKEND_URL.
 const API_BASE = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
 
+// v2.8.131 — TURBO MODE RECEIVER.
+//
+// Listens on the raw-PCM relay WebSocket (`/api/karaoke/mic-stream/
+// {code}?role=tv`).  Plays incoming Int16 frames through Web Audio
+// with a SMALL ring buffer (we deliberately don't buffer for
+// network jitter — we want sub-50 ms latency, and a glitch is far
+// better than the smoothness of WebRTC's 100 ms jitter buffer).
+//
+// This is a JS stopgap.  The Phase 3 native Android receiver in
+// the karaoke APK will be even tighter (~10 ms via AudioTrack).
+class TurboReceiver {
+    constructor(code) {
+        this.code = code;
+        this.ws = null;
+        this.ctx = null;
+        this.sampleRate = 24000;  // default; replaced on `fmt` msg
+        this.nextStartTime = 0;
+        this.scheduledAhead = 0.040;  // 40 ms playout cushion
+    }
+
+    start() {
+        const wsProto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        // We deliberately use the SAME-ORIGIN protocol/host so the
+        // WS goes through whatever proxy the React app loads over.
+        // On a native APK (Capacitor / WebView) we fall back to the
+        // REACT_APP_BACKEND_URL host.
+        const apiUrl = (process.env.REACT_APP_BACKEND_URL || window.location.origin)
+            .replace(/^https?:/, wsProto);
+        const url = apiUrl.replace(/\/$/, '') + '/api/karaoke/mic-stream/' + this.code;
+        const ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+        ws.onopen = () => {
+            try {
+                ws.send(JSON.stringify({ role: 'tv', code: this.code }));
+            } catch (e) { /* ignore */ }
+            console.info('[turbo-rx] connected', url);
+        };
+        ws.onmessage = (e) => this.onMessage(e);
+        ws.onclose = () => { console.info('[turbo-rx] closed'); this.cleanupCtx(); };
+        ws.onerror = (e) => { console.warn('[turbo-rx] error', e); };
+        this.ws = ws;
+    }
+
+    ensureCtx() {
+        if (this.ctx) return this.ctx;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        // sampleRate must match the wire format; create the context
+        // at that rate so we don't pay for a resampling stage.
+        try {
+            this.ctx = new AC({ latencyHint: 'interactive', sampleRate: this.sampleRate });
+        } catch (e) {
+            // Some browsers throw on unsupported sample rates;
+            // fall back to default and let Web Audio resample.
+            this.ctx = new AC({ latencyHint: 'interactive' });
+        }
+        this.nextStartTime = this.ctx.currentTime + this.scheduledAhead;
+        return this.ctx;
+    }
+
+    onMessage(e) {
+        if (typeof e.data === 'string') {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'fmt' && msg.sampleRate) {
+                    this.sampleRate = msg.sampleRate;
+                    console.info('[turbo-rx] fmt', msg);
+                }
+            } catch (err) { /* ignore */ }
+            return;
+        }
+        // Binary frame: Int16 little-endian PCM at `sampleRate`.
+        const ctx = this.ensureCtx();
+        const i16 = new Int16Array(e.data);
+        if (i16.length === 0) return;
+        // Convert Int16 → Float32.
+        const f32 = new Float32Array(i16.length);
+        for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+        // Build a tiny AudioBuffer and schedule it.
+        const buf = ctx.createBuffer(1, f32.length, this.sampleRate);
+        buf.copyToChannel(f32, 0);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        // Schedule slightly ahead of `currentTime` to avoid an
+        // underrun.  If we've drifted (network blip), snap back to
+        // a fresh cushion so we don't build up latency over time.
+        const now = ctx.currentTime;
+        if (this.nextStartTime < now + 0.005) {
+            this.nextStartTime = now + this.scheduledAhead;
+        }
+        src.start(this.nextStartTime);
+        this.nextStartTime += buf.duration;
+    }
+
+    cleanupCtx() {
+        if (this.ctx) {
+            try { this.ctx.close(); } catch (e) {}
+            this.ctx = null;
+        }
+    }
+
+    stop() {
+        try { if (this.ws) this.ws.close(); } catch (e) {}
+        this.ws = null;
+        this.cleanupCtx();
+    }
+}
+
 async function postSignal(code, kind, payload) {
     try {
         await fetch(`${API_BASE}/api/karaoke/party/${code}/mic/signal`, {
@@ -66,8 +174,26 @@ export default function KaraokeMicReceiver({ partySession }) {
     // "no sound from phone reaches TV".
     const pendingIceRef = useRef([]);
     const remoteDescSetRef = useRef(false);
+    // v2.8.131 — Turbo mode receiver (raw PCM over WebSocket).
+    // Lives in parallel with the WebRTC path: whichever the singer
+    // opts into on their phone, that's what we hear on the TV.
+    const turboRef = useRef(null);
 
     const code = partySession?.code || readPartySession()?.code;
+
+    // v2.8.131 — Open the Turbo WS whenever we have a party code.
+    // The backend silently drops bytes if no phone is sending, so
+    // it's safe to keep the socket open for the whole session.
+    useEffect(() => {
+        if (!code) return undefined;
+        const rx = new TurboReceiver(code);
+        try { rx.start(); } catch (e) { console.warn('[turbo-rx] start failed', e); }
+        turboRef.current = rx;
+        return () => {
+            try { rx.stop(); } catch (e) { /* ignore */ }
+            if (turboRef.current === rx) turboRef.current = null;
+        };
+    }, [code]);
 
     // -- party polling --------------------------------------------------
     useEffect(() => {

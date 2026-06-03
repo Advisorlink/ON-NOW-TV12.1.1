@@ -26,11 +26,12 @@ import random
 import secrets
 import string
 import time
+import asyncio
 from dataclasses import dataclass, field, asdict
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from karaoke_guest_page import render_guest_join_page
@@ -451,3 +452,174 @@ def guest_join_page(code: str):
     user gets the same look-and-feel for both the happy path and
     the error case."""
     return render_guest_join_page(code)
+
+
+# ───────────────────────────── TURBO MIC RELAY ─────────────────────────────
+#
+# v2.8.131 — Bypass WebRTC.  When the phone is in "Turbo" mode it
+# captures raw PCM via AudioWorklet and ships it directly over a
+# WebSocket.  The backend just forwards bytes 1:1 to every connected
+# TV receiver for that party.
+#
+# Latency budget (LAN Wi-Fi):
+#   capture (no DSP, AudioWorklet 128-sample frames)      ~3 ms
+#   network (phone → backend → TV, two short hops)        ~5-15 ms
+#   AudioTrack PERFORMANCE_MODE_LOW_LATENCY (TV native)   ~10-30 ms
+#                                                  total  20-50 ms
+#
+# That's the karaoke-mic range — sub-50 ms feels "in your hand".
+#
+# Wire format:
+#   First text message sent by either side must be JSON:
+#       { "role": "phone" | "tv", "code": "ABCD", "fmt": {...} }
+#   `fmt` is sender-side only and describes the audio:
+#       { "sampleRate": 24000, "channels": 1, "encoding": "pcm16le" }
+#   After that, all binary frames sent by the phone are forwarded
+#   verbatim to every TV connected to the same party code.
+#
+# The relay does NO codec work — it just bridges sockets.  Keep it
+# dumb so we can swap implementations later (UDP, WebTransport) without
+# touching the client logic.
+
+@dataclass
+class _MicRoom:
+    code: str
+    # We hold ALL TV listeners in a set; the phone is a single
+    # active sender (we drop the previous one if a new singer arms).
+    phone: Optional[WebSocket] = None
+    tvs: Set[WebSocket] = field(default_factory=set)
+    # Latest format announcement from the phone (so a TV that
+    # connects mid-stream can pick up the right sample rate).
+    fmt: Optional[Dict[str, object]] = None
+
+
+_MIC_ROOMS: Dict[str, _MicRoom] = {}
+_MIC_LOCK = asyncio.Lock()
+
+
+async def _mic_get_room(code: str) -> _MicRoom:
+    async with _MIC_LOCK:
+        room = _MIC_ROOMS.get(code)
+        if room is None:
+            room = _MicRoom(code=code)
+            _MIC_ROOMS[code] = room
+        return room
+
+
+async def _mic_broadcast_fmt(room: _MicRoom) -> None:
+    if not room.fmt:
+        return
+    msg = {"type": "fmt", **room.fmt}
+    dead: List[WebSocket] = []
+    for tv in list(room.tvs):
+        try:
+            await tv.send_json(msg)
+        except Exception:
+            dead.append(tv)
+    for d in dead:
+        room.tvs.discard(d)
+
+
+@karaoke_party_router.websocket("/mic-stream/{code}")
+async def mic_stream(ws: WebSocket, code: str) -> None:
+    """Phone↔TV raw-PCM relay.  See header comment for protocol."""
+    await ws.accept()
+    role: Optional[str] = None
+    room = await _mic_get_room(code.upper())
+    try:
+        # First message: handshake.  Expect text JSON.
+        try:
+            handshake_text = await asyncio.wait_for(ws.receive_text(), timeout=10.0)
+        except asyncio.TimeoutError:
+            await ws.close(code=4000)
+            return
+        import json
+        try:
+            hs = json.loads(handshake_text)
+        except Exception:
+            await ws.close(code=4001)
+            return
+        role = str(hs.get("role") or "").lower()
+        if role not in ("phone", "tv"):
+            await ws.close(code=4002)
+            return
+
+        if role == "phone":
+            fmt = hs.get("fmt")
+            if isinstance(fmt, dict):
+                room.fmt = fmt
+            # If another singer was already sending, kick them.
+            old = room.phone
+            room.phone = ws
+            if old is not None and old is not ws:
+                try:
+                    await old.close(code=4100)
+                except Exception:
+                    pass
+            await _mic_broadcast_fmt(room)
+            # Notify TVs we have a phone now.
+            for tv in list(room.tvs):
+                try:
+                    await tv.send_json({"type": "phone-armed"})
+                except Exception:
+                    room.tvs.discard(tv)
+            # Forward bytes until phone disconnects.
+            while True:
+                msg = await ws.receive()
+                # Binary audio frame → forward to all TVs.
+                if "bytes" in msg and msg["bytes"] is not None:
+                    payload = msg["bytes"]
+                    dead: List[WebSocket] = []
+                    for tv in list(room.tvs):
+                        try:
+                            await tv.send_bytes(payload)
+                        except Exception:
+                            dead.append(tv)
+                    for d in dead:
+                        room.tvs.discard(d)
+                # Text message: control channel (e.g. "fmt" update).
+                elif "text" in msg and msg["text"] is not None:
+                    try:
+                        ctrl = json.loads(msg["text"])
+                    except Exception:
+                        continue
+                    if isinstance(ctrl, dict) and ctrl.get("type") == "fmt" and isinstance(ctrl.get("fmt"), dict):
+                        room.fmt = ctrl["fmt"]
+                        await _mic_broadcast_fmt(room)
+                # Disconnect message
+                elif msg.get("type") == "websocket.disconnect":
+                    break
+
+        else:  # role == "tv"
+            room.tvs.add(ws)
+            # Replay the current format (if any) so a late-joining
+            # TV can configure its AudioTrack immediately.
+            if room.fmt:
+                try:
+                    await ws.send_json({"type": "fmt", **room.fmt})
+                except Exception:
+                    pass
+            # Keep the socket open; ignore any data the TV sends.
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    break
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        # Best-effort cleanup, no logging spam.
+        pass
+    finally:
+        try:
+            if role == "phone" and room.phone is ws:
+                room.phone = None
+                for tv in list(room.tvs):
+                    try:
+                        await tv.send_json({"type": "phone-disarmed"})
+                    except Exception:
+                        room.tvs.discard(tv)
+            elif role == "tv":
+                room.tvs.discard(ws)
+        except Exception:
+            pass
