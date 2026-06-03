@@ -215,13 +215,14 @@ class EpgActivity : AppCompatActivity() {
         val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
         val favourites = Category(id = "__favourites__", name = "Favourites", channelCount = 0)
         val recents = Category(id = "__recents__", name = "Recently Watched", channelCount = 0)
+        val reminders = Category(id = "__reminders__", name = "Reminders", channelCount = 0)
 
         // Real categories with counts (filter junk separator rows).
         val real = bundle.categories
             .map { it.copy(channelCount = countsByCat[it.id] ?: 0) }
             .filter { it.channelCount > 0 && !it.name.contains("#####") }
 
-        allCategoriesWithCounts = listOf(favourites, recents, virtualAll) + real
+        allCategoriesWithCounts = listOf(favourites, recents, reminders, virtualAll) + real
 
         // Smart default: highest EPG coverage ratio in real categories.
         val epgCoverageByCat: Map<String, Double> = real.associate { cat ->
@@ -446,6 +447,13 @@ class EpgActivity : AppCompatActivity() {
             "__all__", null -> bundle.channels
             "__favourites__" -> emptyList()  // future: SharedPreferences-backed
             "__recents__" -> emptyList()
+            "__reminders__" -> {
+                // Channels with at least one active reminder.
+                val sidsWithReminders = reminderSet
+                    .mapNotNull { it.substringBefore(':', "").takeIf { s -> s.isNotBlank() } }
+                    .toSet()
+                bundle.channels.filter { (it.epgChannelId ?: "") in sidsWithReminders }
+            }
             else -> bundle.channels.filter { it.categoryId == sel }
         }
         val visible = channels.take(500)
@@ -656,8 +664,11 @@ class EpgActivity : AppCompatActivity() {
             override fun run() {
                 val nowStr = clockFmt.format(Date()).uppercase(Locale.UK)
                 clock.text = nowStr
-                guideClock.text = nowStr
-                guideToday.text = "TODAY · ${dateFmt.format(Date()).uppercase(Locale.UK)}"
+                // Right-column heading is now:
+                //   COMING UP NEXT
+                //   TODAY · 12 FEB · 4:32 PM
+                guideToday.text = "COMING UP NEXT"
+                guideClock.text = "TODAY · ${dateFmt.format(Date()).uppercase(Locale.UK)} · $nowStr"
                 focusedChannel?.let { updateHero(it) }
                 clockHandler.postDelayed(this, 30_000L)
             }

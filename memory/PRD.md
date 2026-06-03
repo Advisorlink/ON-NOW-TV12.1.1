@@ -12,6 +12,13 @@
 > `HANDOFF_CURRENT.md` for "what's the current state and what
 > should I touch next".
 
+> **🟢 v2.8.119 — V2 Live TV: 2-row guide tiles + Reminders category + Coming Up Next heading (Feb 12, 2026).**
+> User feedback after seeing the dense single-line layout: revert to a 2-row tile but compact.
+>
+> - `item_guide_row.xml`: Row 1 = `(TIME) (PROGRAMME NAME)`; Row 2 = `🔔 PUSH OK TO SET REMINDER`.  Tap toggles to `REMINDER SET` + the tile's `isActivated` flag flips on which engages `guide_row_bg.xml`'s new `state_activated` selector to draw a 2dp **yellow glow outline** around the whole tile.
+> - `activity_epg.xml`: Right-column heading is now JUST `COMING UP NEXT` + `TODAY · 12 FEB · 4:32 PM` (removed the redundant `GUIDE · channel` sub-header; legacy id kept hidden so Kotlin findViewById doesn't NPE).  Middle channels column shrunk `660dp → 600dp` to give Coming Up Next more horizontal room so the 2-row tiles can breathe.
+> - `EpgActivity.kt`: Added a new **Reminders** virtual category (`__reminders__`) into the left rail alongside Favourites / Recently Watched / All Channels.  Selecting it filters the middle column to only channels that have at least one active reminder.  `startClock()` now drives the new heading format.
+
 
 
 > **🟢 v2.8.118 — V2 Live TV: mockup-matched UI + blocking 60s boot loader + TMDB hero (Jun 3, 2026).**
