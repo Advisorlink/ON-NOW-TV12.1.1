@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Guide row matching reference: time stacked over bell + OK TO REMIND, title to the right. -->
+<!--
+    Guide row card matching SKY HISTORY 2 reference exactly:
+    [ TIME (big) / PM (small) / 🔔 OK TO REMIND ] [ TITLE ]
+    Each item is its own rounded dark card with subtle outline.
+-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:layout_marginBottom="8dp">
 
     <TextView
         android:id="@+id/guide_day_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="14dp"
-        android:paddingBottom="10dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="6dp"
         android:fontFamily="monospace"
         android:textColor="@color/livetv_accent"
         android:textSize="11sp"
@@ -28,13 +33,13 @@
         android:background="@drawable/guide_row_bg"
         android:focusable="true"
         android:clickable="true"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp">
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
 
         <LinearLayout
-            android:layout_width="74dp"
+            android:layout_width="86dp"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
@@ -44,8 +49,9 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
                 android:textColor="@color/livetv_accent"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
+                android:letterSpacing="-0.02"
                 android:text="" />
 
             <TextView
@@ -56,20 +62,20 @@
                 android:textColor="@color/livetv_fg_dim"
                 android:textSize="10sp"
                 android:textStyle="bold"
-                android:letterSpacing="0.18"
+                android:letterSpacing="0.20"
                 android:text="" />
 
-            <!-- Bell + OK TO REMIND -->
+            <!-- 🔔 OK TO REMIND immediately under the time block -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
                 <ImageView
-                    android:layout_width="10dp"
-                    android:layout_height="10dp"
+                    android:layout_width="11dp"
+                    android:layout_height="11dp"
                     android:src="@drawable/ic_bell"
                     android:contentDescription="@null" />
 
@@ -82,7 +88,7 @@
                     android:textColor="@color/livetv_fg_dimmer"
                     android:textSize="8sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.20"
+                    android:letterSpacing="0.22"
                     android:text="OK TO REMIND" />
             </LinearLayout>
         </LinearLayout>
@@ -95,7 +101,8 @@
             android:layout_marginStart="14dp"
             android:layout_gravity="center_vertical"
             android:textColor="@color/livetv_fg"
-            android:textSize="14sp"
+            android:textSize="15sp"
+            android:textStyle="bold"
             android:fontFamily="sans-serif-medium"
             android:ellipsize="end"
             android:maxLines="2"

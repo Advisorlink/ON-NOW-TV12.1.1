@@ -100,6 +100,7 @@ class EpgActivity : AppCompatActivity() {
 
     private val clockHandler = Handler(Looper.getMainLooper())
     private val categoryFocusHandler = Handler(Looper.getMainLooper())
+    private val channelFocusHandler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
     private val dateFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
@@ -249,10 +250,16 @@ class EpgActivity : AppCompatActivity() {
 
         channelAdapter = ChannelPillAdapter(
             nowResolver = { ch -> liveProgrammeOf(ch) },
+            // Debounce by 120 ms so D-pad scrolling stays smooth.
+            // Without debounce every key event runs updateHero +
+            // loadGuideForChannel synchronously which stutters.
             onFocus = { ch ->
-                focusedChannel = ch
-                updateHero(ch)
-                loadGuideForChannel(ch)
+                channelFocusHandler.removeCallbacksAndMessages(null)
+                channelFocusHandler.postDelayed({
+                    focusedChannel = ch
+                    updateHero(ch)
+                    loadGuideForChannel(ch)
+                }, 120L)
             },
             onActivate = { ch -> launchPlayer(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
@@ -531,6 +538,7 @@ class EpgActivity : AppCompatActivity() {
     override fun onDestroy() {
         clockHandler.removeCallbacksAndMessages(null)
         categoryFocusHandler.removeCallbacksAndMessages(null)
+        channelFocusHandler.removeCallbacksAndMessages(null)
         artJob?.cancel()
         super.onDestroy()
     }

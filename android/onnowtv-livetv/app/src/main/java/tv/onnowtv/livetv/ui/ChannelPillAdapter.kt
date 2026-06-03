@@ -79,7 +79,7 @@ class ChannelPillAdapter(
             } else {
                 logo.setImageDrawable(null)
             }
-            numV.text = channel.lcn?.let { "CH $it" } ?: ""
+            numV.text = channel.lcn ?: ""
             nameV.text = channel.name
 
             val now = nowResolver(channel)
