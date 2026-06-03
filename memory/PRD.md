@@ -1,5 +1,17 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.120 — Vesper TV NATIVE rebuild Phase 1 / Home screen (Feb 12, 2026).**
+> User asked to rebuild Vesper exactly as it is today but driven by RecyclerView under the hood so movement is as smooth as V2 Live TV.  **Existing `/app/android/vesper-tv/` is untouched** so a rollback is just "uninstall the new APK".
+>
+> - New side-by-side Android project at **`/app/android/vesper-tv-native/`** with a different `applicationId = tv.onnowtv.app.recycler` — both APKs install together.
+> - Phase 1 ships:
+>   - Side nav (Home / TV Shows / Movies / Search / Library / Settings) as a vertical RecyclerView with the cyan focus-pill style from V2 Live TV.
+>   - Vertical RecyclerView of "row-of-rows": row 0 is a hero billboard (backdrop + title + meta + synopsis + PLAY pill), rows 1…n are horizontal poster rails (`Movies Popular` / `Series Popular` / `Movies New` / `Series New`).
+>   - Pure-Kotlin `CatalogRepository` hits the same `/api/addons` + `/api/addons/{id}/catalog/{type}/{id}` endpoints the React Vesper uses, so the rendered content is **identical** to the user's existing app.
+>   - Poster tiles 156×234 dp (2:3) with cyan focus ring, Coil image loading, named adapters (`SideNavAdapter`, `ShelvesAdapter`, `PosterAdapter`) so every scroll surface is RecyclerView.
+> - New GitHub Actions workflow `.github/workflows/build-vesper-native.yml` produces `vesper-native-debug.apk` + `vesper-native-release.apk` and publishes them to the `vesper-native-latest` release tag.
+> - Phases 2+ (Detail, Search, Library, Settings, Player) deferred to next sessions — Phase 1's job is to prove the architecture + Spotify-style Home screen renders the user's real catalog data smoothly.
+
 > ## ⚠️ NEXT AGENT — READ `/app/memory/HANDOFF_CURRENT.md` FIRST
 >
 > The handoff doc captures everything learned across the v2.8.66 →
