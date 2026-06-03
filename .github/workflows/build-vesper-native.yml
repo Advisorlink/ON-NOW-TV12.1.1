@@ -65,9 +65,12 @@ jobs:
         working-directory: android/vesper-tv-native
         run: |
           set -euo pipefail
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7 || true
-          fi
+          # ALWAYS regenerate the wrapper jar from the runner's
+          # system gradle.  We can't reliably ship gradle-wrapper.jar
+          # through git from the sandbox (binary auto-staging is
+          # unreliable), so this step guarantees a working wrapper
+          # on every run.
+          gradle wrapper --gradle-version 8.7 || true
           chmod +x ./gradlew || true
 
       - name: Build debug + release APKs
