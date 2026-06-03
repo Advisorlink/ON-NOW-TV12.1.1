@@ -63,8 +63,12 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var heroSynopsis: TextView
     private lateinit var heroProgress: View
     private lateinit var heroUpNextCard: View
-    private lateinit var heroUpNextTime: TextView
-    private lateinit var heroUpNextTitle: TextView
+    private lateinit var upNext1Time: TextView
+    private lateinit var upNext1Title: TextView
+    private lateinit var upNext2Time: TextView
+    private lateinit var upNext2Title: TextView
+    private lateinit var upNext3Time: TextView
+    private lateinit var upNext3Title: TextView
     private lateinit var clock: TextView
     private lateinit var btnFavourite: ImageButton
     private lateinit var btnRefresh: ImageButton
@@ -89,6 +93,10 @@ class EpgActivity : AppCompatActivity() {
     private var searchQuery: String = ""
     private var allCategoriesWithCounts: List<Category> = emptyList()
     private val epgCache = mutableMapOf<String, List<Programme>>()
+    /** Channels whose lazy-fetch returned no EPG.  We remember
+     *  these so the channel pill stops showing "Loading guide…"
+     *  forever — it'll just show the channel name. */
+    private val epgKnownEmpty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val tmdbArtCache = mutableMapOf<String, String>()  // title → backdrop url
     private var artJob: Job? = null
     // Channels currently being lazy-fetched.  Prevents the same
@@ -97,6 +105,7 @@ class EpgActivity : AppCompatActivity() {
     private val pendingEpgFetch = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private val clockHandler = Handler(Looper.getMainLooper())
+    private val categoryFocusHandler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
     private val dateFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
@@ -164,8 +173,12 @@ class EpgActivity : AppCompatActivity() {
         heroSynopsis       = findViewById(R.id.hero_synopsis)
         heroProgress       = findViewById(R.id.hero_progress)
         heroUpNextCard     = findViewById(R.id.hero_up_next_card)
-        heroUpNextTime     = findViewById(R.id.hero_up_next_time)
-        heroUpNextTitle    = findViewById(R.id.hero_up_next_title)
+        upNext1Time        = findViewById(R.id.up_next_1_time)
+        upNext1Title       = findViewById(R.id.up_next_1_title)
+        upNext2Time        = findViewById(R.id.up_next_2_time)
+        upNext2Title       = findViewById(R.id.up_next_2_title)
+        upNext3Time        = findViewById(R.id.up_next_3_time)
+        upNext3Title       = findViewById(R.id.up_next_3_title)
         clock              = findViewById(R.id.clock)
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
@@ -219,16 +232,25 @@ class EpgActivity : AppCompatActivity() {
     private fun setupAdapters() {
         categoryAdapter = CategoryPillAdapter(
             onPick = { c ->
+                categoryFocusHandler.removeCallbacksAndMessages(null)
                 currentCategoryId = c.id
                 applyCategory()
                 channelsList.post {
                     channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 }
             },
+            // Debounce focus-driven filtering by 220 ms so D-pad
+            // scrolling stays smooth even on a slow TV.  Avoids
+            // re-running notifyDataSetChanged() for every key event.
             onFocus = { c ->
                 if (c.id != currentCategoryId) {
-                    currentCategoryId = c.id
-                    applyCategory()
+                    categoryFocusHandler.removeCallbacksAndMessages(null)
+                    categoryFocusHandler.postDelayed({
+                        if (c.id != currentCategoryId) {
+                            currentCategoryId = c.id
+                            applyCategory()
+                        }
+                    }, 220L)
                 }
             },
         )
@@ -246,6 +268,7 @@ class EpgActivity : AppCompatActivity() {
             },
             onActivate = { ch -> launchPlayer(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
+            isKnownEmpty = { ch -> epgKnownEmpty.contains(ch.epgChannelId ?: "") },
         )
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
@@ -337,11 +360,12 @@ class EpgActivity : AppCompatActivity() {
                 lp.width = (parent.width * pct).toInt().coerceAtLeast(0)
                 heroProgress.layoutParams = lp
             }
-            val next = upcomingProgrammeOf(ch, now)
-            if (next != null) {
+            val nextList = upcomingProgrammesOf(ch, now, 3)
+            if (nextList.isNotEmpty()) {
                 heroUpNextCard.visibility = View.VISIBLE
-                heroUpNextTime.text = formatTime(next.startMs)
-                heroUpNextTitle.text = next.title
+                populateUpNextRow(upNext1Time, upNext1Title, nextList.getOrNull(0))
+                populateUpNextRow(upNext2Time, upNext2Title, nextList.getOrNull(1))
+                populateUpNextRow(upNext3Time, upNext3Title, nextList.getOrNull(2))
             } else {
                 heroUpNextCard.visibility = View.INVISIBLE
             }
@@ -365,9 +389,26 @@ class EpgActivity : AppCompatActivity() {
         guideChannelHeader.text = "GUIDE · ${ch.name.uppercase(Locale.UK)}"
     }
 
-    private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? {
-        val list = epgCache[ch.epgChannelId] ?: return null
-        return list.firstOrNull { it.startMs > now.startMs }
+    private fun upcomingProgrammesOf(ch: Channel, now: Programme, count: Int): List<Programme> {
+        val list = epgCache[ch.epgChannelId] ?: return emptyList()
+        return list.filter { it.startMs > now.startMs }.take(count)
+    }
+
+    private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? =
+        upcomingProgrammesOf(ch, now, 1).firstOrNull()
+
+    private fun populateUpNextRow(timeView: TextView, titleView: TextView, p: Programme?) {
+        if (p == null) {
+            timeView.text = ""
+            titleView.text = ""
+            timeView.visibility = View.INVISIBLE
+            titleView.visibility = View.INVISIBLE
+        } else {
+            timeView.text = formatTime(p.startMs)
+            titleView.text = p.title
+            timeView.visibility = View.VISIBLE
+            titleView.visibility = View.VISIBLE
+        }
     }
 
     /**
@@ -439,6 +480,7 @@ class EpgActivity : AppCompatActivity() {
         val sid = ch.epgChannelId ?: return
         if (sid.isBlank()) return
         if (epgCache[sid]?.isNotEmpty() == true) return
+        if (epgKnownEmpty.contains(sid)) return  // already tried, nothing there
         if (!pendingEpgFetch.add(sid)) return
         lifecycleScope.launch(Dispatchers.IO) {
             val fetched = try {
@@ -448,15 +490,15 @@ class EpgActivity : AppCompatActivity() {
             }
             if (fetched.isNotEmpty()) {
                 epgCache[sid] = fetched
+            } else {
+                epgKnownEmpty.add(sid)
             }
             pendingEpgFetch.remove(sid)
-            if (fetched.isNotEmpty()) {
-                channelsList.post { channelAdapter.refreshChannel(ch.id) }
-                if (focusedChannel?.id == ch.id) {
-                    guideList.post {
-                        guideAdapter.submit(fetched)
-                        focusedChannel?.let { updateHero(it) }
-                    }
+            channelsList.post { channelAdapter.refreshChannel(ch.id) }
+            if (fetched.isNotEmpty() && focusedChannel?.id == ch.id) {
+                guideList.post {
+                    guideAdapter.submit(fetched)
+                    focusedChannel?.let { updateHero(it) }
                 }
             }
         }
@@ -522,6 +564,7 @@ class EpgActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         clockHandler.removeCallbacksAndMessages(null)
+        categoryFocusHandler.removeCallbacksAndMessages(null)
         artJob?.cancel()
         super.onDestroy()
     }

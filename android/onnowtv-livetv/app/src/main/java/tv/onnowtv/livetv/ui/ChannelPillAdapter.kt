@@ -28,6 +28,7 @@ class ChannelPillAdapter(
     private val onFocus: (Channel) -> Unit,
     private val onActivate: (Channel) -> Unit,
     private val onBound: (Channel) -> Unit = {},
+    private val isKnownEmpty: (Channel) -> Boolean = { false },
 ) : RecyclerView.Adapter<ChannelPillAdapter.VH>() {
 
     private val items = mutableListOf<Channel>()
@@ -95,7 +96,10 @@ class ChannelPillAdapter(
                 }
             } else {
                 nowPill.visibility = View.GONE
-                nowV.text = "Loading guide…"
+                // If we've already tried to fetch and the channel
+                // has no EPG, stop pretending we're still loading —
+                // show a short dim hint instead.
+                nowV.text = if (isKnownEmpty(channel)) "No guide info" else "Loading guide…"
                 progressContainer()?.post {
                     val lp = progress.layoutParams
                     lp.width = 0
@@ -105,7 +109,9 @@ class ChannelPillAdapter(
                 // even though it isn't focused — that's what makes
                 // the NOW title populate without the user having to
                 // highlight every channel.
-                onBound(channel)
+                if (!isKnownEmpty(channel)) {
+                    onBound(channel)
+                }
             }
 
             itemView.setOnFocusChangeListener { _, hasFocus ->
