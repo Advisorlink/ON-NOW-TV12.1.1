@@ -311,8 +311,16 @@ GUEST_JOIN_HTML = r"""<!doctype html>
                 radial-gradient(ellipse at 50% 100%, rgba(78,167,255,0.20), transparent 70%),
                 linear-gradient(180deg, #1a0a2a 0%, #060418 100%);
             display:none; flex-direction:column; align-items:center;
-            justify-content:center; padding:30px 24px;
+            /* v2.8.127 — Switched from justify-content:center to
+               flex-start so the TUNE LATENCY panel and anything
+               below the mic art doesn't get clipped off the bottom
+               of the viewport.  overflow-y:auto means the singer
+               can scroll down to find the panel on small phones. */
+            justify-content:flex-start;
+            padding:40px 24px 80px;
             text-align:center; color:#fff;
+            overflow-y:auto;
+            -webkit-overflow-scrolling:touch;
         }
         .mic-phase.show { display:flex; }
         .mic-phase__eyebrow {
@@ -637,6 +645,79 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             text-align: center;
         }
 
+        /* Floating "LATENCY" FAB visible on every phase of the
+           guest journey.  Bottom-right, above the iOS safe area. */
+        .lat-fab {
+            position: fixed;
+            right: 14px; bottom: calc(14px + env(safe-area-inset-bottom));
+            z-index: 80;
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 14px 10px 12px;
+            background: rgba(20, 8, 38, 0.92);
+            border: 1px solid rgba(255, 122, 184, 0.55);
+            border-radius: 999px;
+            color: #ffd0e6;
+            font-family: monospace;
+            font-size: 11px; font-weight: 800;
+            letter-spacing: 0.20em;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.04) inset;
+            cursor: pointer;
+        }
+        .lat-fab svg { opacity: 0.9; }
+        .lat-fab:active { transform: scale(0.96); }
+
+        /* Full-screen modal.  Sheet slides up from the bottom. */
+        .lat-modal {
+            position: fixed; inset: 0;
+            z-index: 90;
+            display: none;
+            background: rgba(4, 2, 14, 0.78);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .lat-modal.show { display: flex; }
+        .lat-modal__sheet {
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: linear-gradient(180deg, #1a0a2a 0%, #060418 100%);
+            border-top-left-radius: 22px;
+            border-top-right-radius: 22px;
+            border-top: 1px solid rgba(255,122,184,0.30);
+            box-shadow: 0 -20px 60px rgba(0,0,0,0.55);
+            padding: 4px 18px 28px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .lat-modal__head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 4px 8px;
+        }
+        .lat-modal__title {
+            margin: 0;
+            font-family: 'Geist', system-ui;
+            font-size: 22px; font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .lat-modal__close {
+            width: 36px; height: 36px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 50%;
+            color: #fff;
+            display: grid; place-items: center;
+            cursor: pointer;
+        }
+        .lat-modal__close:active { transform: scale(0.94); }
+        /* Body inside the modal reuses lat-* classes verbatim. */
+        .lat-modal .lat-panel__body {
+            padding: 6px 0 0;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+
         /* =============================================================
          * v2.8.83 — LIVE state: full-screen real-microphone artwork
          *
@@ -940,78 +1021,10 @@ GUEST_JOIN_HTML = r"""<!doctype html>
             <div class="mic-picker__strip" id="mic-picker-strip"></div>
         </div>
 
-        <!-- v2.8.126 — Latency tuning panel.  Lets the singer flip
-             AEC / NS / AGC, Opus ptime, sample rate and bitrate
-             without an APK rebuild.  Choices live in localStorage
-             and apply on the next mic activation.  Tap "Apply &
-             Reconnect" to immediately tear down and recreate the
-             peer connection with the new settings. -->
-        <div class="lat-panel" id="lat-panel">
-            <button type="button" class="lat-panel__toggle" id="lat-panel-toggle" aria-expanded="false">
-                <span>TUNE LATENCY</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
-            </button>
-            <div class="lat-panel__body" id="lat-panel-body" hidden>
-                <div class="lat-presets">
-                    <button type="button" class="lat-preset" data-preset="ultra">Ultra Low</button>
-                    <button type="button" class="lat-preset" data-preset="low">Low</button>
-                    <button type="button" class="lat-preset" data-preset="balanced">Balanced</button>
-                    <button type="button" class="lat-preset" data-preset="safe">Safe</button>
-                </div>
-
-                <div class="lat-row">
-                    <label class="lat-switch">
-                        <input type="checkbox" id="lat-aec" />
-                        <span>Echo Cancellation</span>
-                    </label>
-                </div>
-                <div class="lat-row">
-                    <label class="lat-switch">
-                        <input type="checkbox" id="lat-ns" />
-                        <span>Noise Suppression</span>
-                    </label>
-                </div>
-                <div class="lat-row">
-                    <label class="lat-switch">
-                        <input type="checkbox" id="lat-agc" />
-                        <span>Auto Gain Control</span>
-                    </label>
-                </div>
-
-                <div class="lat-row">
-                    <span class="lat-label">Opus frame size</span>
-                    <div class="lat-seg" data-group="ptime">
-                        <button type="button" class="lat-seg__opt" data-value="5">5 ms</button>
-                        <button type="button" class="lat-seg__opt" data-value="10">10 ms</button>
-                        <button type="button" class="lat-seg__opt" data-value="20">20 ms</button>
-                    </div>
-                </div>
-
-                <div class="lat-row">
-                    <span class="lat-label">Sample rate</span>
-                    <div class="lat-seg" data-group="sr">
-                        <button type="button" class="lat-seg__opt" data-value="16000">16 kHz</button>
-                        <button type="button" class="lat-seg__opt" data-value="24000">24 kHz</button>
-                        <button type="button" class="lat-seg__opt" data-value="48000">48 kHz</button>
-                    </div>
-                </div>
-
-                <div class="lat-row">
-                    <span class="lat-label">Bitrate</span>
-                    <div class="lat-seg" data-group="br">
-                        <button type="button" class="lat-seg__opt" data-value="32000">32k</button>
-                        <button type="button" class="lat-seg__opt" data-value="64000">64k</button>
-                        <button type="button" class="lat-seg__opt" data-value="128000">128k</button>
-                    </div>
-                </div>
-
-                <div class="lat-row lat-row--full">
-                    <button type="button" id="lat-apply" class="lat-apply">Apply &amp; Reconnect</button>
-                </div>
-
-                <p class="lat-tip" id="lat-tip">Active settings load when you tap “Turn on your mic”.</p>
-            </div>
-        </div>
+        <!-- v2.8.127 — Latency tuning panel lives OUTSIDE the
+             singer-up phase so the user can configure it at any
+             time (before their turn, during, after).  See the
+             #lat-modal block at the bottom of the document. -->
     </div>
 
     <!-- LIVE view: full-screen real-microphone artwork (v2.8.83) -->
@@ -1056,6 +1069,91 @@ GUEST_JOIN_HTML = r"""<!doctype html>
 <div id="toast" class="toast">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
     <span id="toast-text">Added!</span>
+</div>
+
+<!-- v2.8.127 — Floating "TUNE LATENCY" button + full-screen modal.
+     Visible from every phase of the guest journey so the user
+     can configure mic latency before, during, or after their
+     turn.  Tap the floating gear → modal slides up. -->
+<button type="button" id="lat-fab" class="lat-fab" aria-label="Tune mic latency">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8"  y1="23" x2="16" y2="23"/>
+    </svg>
+    <span>LATENCY</span>
+</button>
+
+<div id="lat-modal" class="lat-modal" aria-hidden="true">
+    <div class="lat-modal__sheet" role="dialog" aria-label="Microphone latency settings">
+        <div class="lat-modal__head">
+            <h2 class="lat-modal__title">Mic Latency</h2>
+            <button type="button" id="lat-modal-close" class="lat-modal__close" aria-label="Close">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="lat-panel__body" id="lat-panel-body">
+            <div class="lat-presets">
+                <button type="button" class="lat-preset" data-preset="ultra">Ultra Low</button>
+                <button type="button" class="lat-preset" data-preset="low">Low</button>
+                <button type="button" class="lat-preset" data-preset="balanced">Balanced</button>
+                <button type="button" class="lat-preset" data-preset="safe">Safe</button>
+            </div>
+
+            <div class="lat-row">
+                <label class="lat-switch">
+                    <input type="checkbox" id="lat-aec" />
+                    <span>Echo Cancellation</span>
+                </label>
+            </div>
+            <div class="lat-row">
+                <label class="lat-switch">
+                    <input type="checkbox" id="lat-ns" />
+                    <span>Noise Suppression</span>
+                </label>
+            </div>
+            <div class="lat-row">
+                <label class="lat-switch">
+                    <input type="checkbox" id="lat-agc" />
+                    <span>Auto Gain Control</span>
+                </label>
+            </div>
+
+            <div class="lat-row">
+                <span class="lat-label">Opus frame size</span>
+                <div class="lat-seg" data-group="ptime">
+                    <button type="button" class="lat-seg__opt" data-value="5">5 ms</button>
+                    <button type="button" class="lat-seg__opt" data-value="10">10 ms</button>
+                    <button type="button" class="lat-seg__opt" data-value="20">20 ms</button>
+                </div>
+            </div>
+
+            <div class="lat-row">
+                <span class="lat-label">Sample rate</span>
+                <div class="lat-seg" data-group="sr">
+                    <button type="button" class="lat-seg__opt" data-value="16000">16 kHz</button>
+                    <button type="button" class="lat-seg__opt" data-value="24000">24 kHz</button>
+                    <button type="button" class="lat-seg__opt" data-value="48000">48 kHz</button>
+                </div>
+            </div>
+
+            <div class="lat-row">
+                <span class="lat-label">Bitrate</span>
+                <div class="lat-seg" data-group="br">
+                    <button type="button" class="lat-seg__opt" data-value="32000">32k</button>
+                    <button type="button" class="lat-seg__opt" data-value="64000">64k</button>
+                    <button type="button" class="lat-seg__opt" data-value="128000">128k</button>
+                </div>
+            </div>
+
+            <div class="lat-row lat-row--full">
+                <button type="button" id="lat-apply" class="lat-apply">Apply &amp; Reconnect</button>
+            </div>
+
+            <p class="lat-tip" id="lat-tip">Settings apply the next time you tap “Turn on your mic”.</p>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -2201,16 +2299,34 @@ GUEST_JOIN_HTML = r"""<!doctype html>
         });
     }
     function bindLatPanel() {
-        const panel = document.getElementById('lat-panel');
-        const toggle = document.getElementById('lat-panel-toggle');
-        const body = document.getElementById('lat-panel-body');
-        if (!panel || !toggle || !body) return;
-        toggle.addEventListener('click', () => {
-            const expanded = panel.getAttribute('aria-expanded') === 'true';
-            panel.setAttribute('aria-expanded', String(!expanded));
-            toggle.setAttribute('aria-expanded', String(!expanded));
-            body.hidden = expanded;
-        });
+        // v2.8.127 — Bind both the FAB (which opens the modal) and
+        // the panel controls inside the modal sheet.  The panel now
+        // lives at the document root so it works on every phase.
+        const fab = document.getElementById('lat-fab');
+        const modal = document.getElementById('lat-modal');
+        const closeBtn = document.getElementById('lat-modal-close');
+        if (fab && modal) {
+            fab.addEventListener('click', () => {
+                modal.classList.add('show');
+                modal.setAttribute('aria-hidden', 'false');
+                applyLatPanelState();
+            });
+        }
+        if (closeBtn && modal) {
+            closeBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+                modal.setAttribute('aria-hidden', 'true');
+            });
+        }
+        if (modal) {
+            // Tap the dark backdrop to dismiss.
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                    modal.setAttribute('aria-hidden', 'true');
+                }
+            });
+        }
         // Presets
         document.querySelectorAll('.lat-preset').forEach((btn) => {
             btn.addEventListener('click', () => {
