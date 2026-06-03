@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon — cyan "V" wordmark on a dark navy background.
+     Used for both `android:icon` and `android:banner` in the
+     manifest so the TV launcher tile shows the brand mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#06080F"
+        android:pathData="M0,0 H48 V48 H0 Z"/>
+    <path android:fillColor="#5DC8FF"
+        android:pathData="M13,12 L24,36 L35,12 L31,12 L24,28 L17,12 Z"/>
+</vector>

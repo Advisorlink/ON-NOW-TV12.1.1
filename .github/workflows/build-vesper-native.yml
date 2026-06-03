@@ -1,0 +1,144 @@
+name: Build Vesper TV Native APK
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'android/vesper-tv-native/**'
+      - '.github/workflows/build-vesper-native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & sign Vesper Native APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Derive versionCode + versionName
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VC=$(( 1 + $(git rev-list --count HEAD -- android/vesper-tv-native/ || echo 0) ))
+          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md 2>/dev/null | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
+          [ -z "$VN" ] && VN="0.1.0"
+          echo "VC=$VC" >> $GITHUB_OUTPUT
+          echo "VN=$VN" >> $GITHUB_OUTPUT
+          echo "versionCode=$VC versionName=$VN"
+
+      - name: Set up keystore (reuse launcher's dev signing chain)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          ANDROID_KS_DIR="${RUNNER_TEMP}/ks"
+          mkdir -p "$ANDROID_KS_DIR"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
+            echo "RELEASE_STORE_FILE=$ANDROID_KS_DIR/release.jks"      >> $GITHUB_ENV
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"           >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"                        >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"                  >> $GITHUB_ENV
+          else
+            echo "No release keystore — debug APK will still build."
+          fi
+
+      - name: Bootstrap gradle wrapper
+        working-directory: android/vesper-tv-native
+        run: |
+          set -euo pipefail
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.7 || true
+          fi
+          chmod +x ./gradlew || true
+
+      - name: Build debug + release APKs
+        working-directory: android/vesper-tv-native
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VC }}
+          VERSION_NAME: ${{ steps.version.outputs.VN }}
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleRelease \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=$VERSION_NAME \
+            --no-daemon \
+            --warning-mode summary
+
+      - name: Locate + rename APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== all APKs produced ==="
+          find android/vesper-tv-native/app/build/outputs/apk -name "*.apk" -type f -ls || true
+
+          DBG=$(find android/vesper-tv-native/app/build/outputs/apk -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$DBG" ]; then
+            echo "::error::No debug APK produced"
+            exit 1
+          fi
+          cp "$DBG" "$GITHUB_WORKSPACE/vesper-native-debug.apk"
+
+          REL=$(find android/vesper-tv-native/app/build/outputs/apk -name "*-release.apk" -type f | head -n1)
+          if [ -z "$REL" ]; then
+            REL=$(find android/vesper-tv-native/app/build/outputs/apk -name "*-release-unsigned.apk" -type f | head -n1)
+          fi
+          if [ -n "$REL" ]; then
+            cp "$REL" "$GITHUB_WORKSPACE/vesper-native-release.apk"
+          fi
+
+      - name: Publish to GitHub Releases (vesper-native-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: vesper-native-latest
+          name: "Vesper TV Native ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          body: |
+            **Vesper TV — native RecyclerView rebuild (v0.1 / Home screen).**
+
+            Side-by-side with the existing WebView Vesper APK
+            (`tv.onnowtv.app`) — this build installs under a different
+            package id (`tv.onnowtv.app.recycler`) so you can keep
+            both apps on your TV and flip between them freely.
+
+            v0.1 ships:
+              • Home screen — side nav (Home / TV Shows / Movies /
+                Search / Library / Settings) + Hero billboard +
+                horizontal poster rails (Movies Popular · Series
+                Popular · Movies New · Series New).
+              • All scroll surfaces driven by pure RecyclerView,
+                matching the V2 Live TV smoothness profile.
+              • Real catalog data pulled from the same Vesper backend
+                addons API (`/api/addons/.../catalog/...`) so the
+                content matches the current WebView Vesper exactly.
+
+            Later phases: Detail · Search · Library · Settings · Player.
+
+            Install:
+            1. Download `vesper-native-debug.apk` (or `-release.apk`).
+            2. Sideload via `adb install` or a file-explorer.
+            3. Launch — appears as "Vesper" alongside your existing
+               Vesper app on the launcher.
+          files: |
+            vesper-native-debug.apk
+            vesper-native-release.apk
+          fail_on_unmatched_files: false
+          prerelease: true
+          make_latest: 'false'

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hero billboard gradient — fades from transparent at the top
+     to the page background at the bottom so text reads cleanly
+     against backdrops. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="90"
+                android:startColor="#00060810"
+                android:centerColor="#60060810"
+                android:endColor="@color/vesper_bg_0" />
+        </shape>
+    </item>
+</layer-list>
