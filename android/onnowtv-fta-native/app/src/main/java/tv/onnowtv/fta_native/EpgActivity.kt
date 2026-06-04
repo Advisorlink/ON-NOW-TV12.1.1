@@ -88,8 +88,10 @@ class EpgActivity : AppCompatActivity() {
     // Sidebar widgets
     private lateinit var previewCard: FrameLayout
     private lateinit var previewArt: ImageView
+    private lateinit var previewArtOverlay: ImageView
     private lateinit var previewPlayerView: PlayerView
     private lateinit var previewHint: TextView
+    private lateinit var previewEyebrow: TextView
     private lateinit var previewTitle: TextView
     private lateinit var previewMeta: TextView
     private lateinit var previewProgressBar: View
@@ -98,7 +100,8 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var infoLcn: TextView
     private lateinit var infoName: TextView
     private lateinit var infoSynopsis: TextView
-    private lateinit var infoChips: LinearLayout
+    private lateinit var infoChips: com.google.android.flexbox.FlexboxLayout
+    private lateinit var infoFavGlyph: TextView
     private lateinit var upnextBlock: LinearLayout
     private lateinit var upnextTitle: TextView
     private lateinit var upnextMeta: TextView
@@ -151,8 +154,10 @@ class EpgActivity : AppCompatActivity() {
 
         previewCard           = findViewById(R.id.preview_card)
         previewArt            = findViewById(R.id.preview_art)
+        previewArtOverlay     = findViewById(R.id.preview_art_overlay)
         previewPlayerView     = findViewById(R.id.preview_player)
         previewHint           = findViewById(R.id.preview_hint)
+        previewEyebrow        = findViewById(R.id.preview_eyebrow)
         previewTitle          = findViewById(R.id.preview_title)
         previewMeta           = findViewById(R.id.preview_meta)
         previewProgressBar    = findViewById(R.id.preview_progress_bar)
@@ -162,6 +167,7 @@ class EpgActivity : AppCompatActivity() {
         infoName       = findViewById(R.id.info_name)
         infoSynopsis   = findViewById(R.id.info_synopsis)
         infoChips      = findViewById(R.id.info_chips)
+        infoFavGlyph   = findViewById(R.id.info_fav_glyph)
         upnextBlock    = findViewById(R.id.upnext_block)
         upnextTitle    = findViewById(R.id.upnext_title)
         upnextMeta     = findViewById(R.id.upnext_meta)
@@ -366,35 +372,47 @@ class EpgActivity : AppCompatActivity() {
     }
 
     // ─────────────────────────────────────────── sidebar refresh
+    /** Latest "request token" — used to discard stale TMDB art
+     *  responses when the user has already moved focus to a
+     *  different programme. */
+    @Volatile private var artRequestId: Long = 0L
+    private val artCache = java.util.concurrent.ConcurrentHashMap<String, FtaRepository.ProgrammeArt?>()
+    private var artDebounceJob: kotlinx.coroutines.Job? = null
+
     private fun refreshSidebar() {
         val ch = focusedChannel
         if (ch == null) {
             previewTitle.text = ""
             previewMeta.text = ""
-            previewProgressBar.layoutParams =
-                (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
+            (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
+                .also { previewProgressBar.layoutParams = it }
             infoLcn.text = ""
             infoName.text = ""
             infoSynopsis.text = "Select a channel"
             upnextBlock.visibility = View.GONE
+            infoFavGlyph.visibility = View.GONE
             return
         }
-        // Cover art (channel logo for now — TMDB programme backdrop
-        // would be Phase 3).
+
+        // Channel-logo info strip + fallback art for the hero.
         if (!ch.logo.isNullOrBlank()) {
-            previewArt.load(ch.logo) { crossfade(true); crossfade(160) }
-            infoLogo.load(ch.logo) { crossfade(true); crossfade(160) }
+            infoLogo.load(ch.logo) { crossfade(true); crossfade(140) }
         } else {
-            previewArt.setImageDrawable(null)
             infoLogo.setImageDrawable(null)
         }
+        infoFavGlyph.visibility = if (favourites.contains(ch.id)) View.VISIBLE else View.GONE
 
         val p = focusedProgramme
         val now = System.currentTimeMillis()
         val live = if (p != null && p.startMs <= now && p.stopMs > now) p else findLive(ch.id, now)
 
-        // Programme title + time + progress overlay
+        // Top-line text + progress.
         if (live != null) {
+            val futureMin = ((live.startMs - now) / 60_000L)
+            previewEyebrow.text = when {
+                futureMin > 0 -> "STARTS IN ${futureMin}m"
+                else -> "NOW PLAYING"
+            }
             previewTitle.text = live.title.ifBlank { ch.name }
             val remainingMin = ((live.stopMs - now) / 60_000L).coerceAtLeast(0)
             previewMeta.text = "${cellTimeFmt.format(Date(live.startMs)).lowercase(Locale.UK)} – " +
@@ -409,23 +427,21 @@ class EpgActivity : AppCompatActivity() {
                 previewProgressBar.layoutParams = lp
             }
         } else {
+            previewEyebrow.text = "ON AIR"
             previewTitle.text = ch.name
             previewMeta.text = ""
             (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
                 .also { previewProgressBar.layoutParams = it }
         }
 
-        // Info row text
-        infoLcn.text = ch.lcn ?: ""
+        // Info text
+        infoLcn.text = ch.lcn?.let { "CH $it" } ?: ""
         infoName.text = ch.name
-
-        // Synopsis
         val synopsis = (focusedProgramme?.description
             ?: live?.description
             ?: "").trim()
         infoSynopsis.text = if (synopsis.isBlank()) "No programme info available." else synopsis
 
-        // Chips
         renderChips(live)
 
         // Up next
@@ -438,36 +454,107 @@ class EpgActivity : AppCompatActivity() {
         } else {
             upnextBlock.visibility = View.GONE
         }
+
+        // Fetch / display TMDB artwork.  Channel logo is the
+        // immediate fallback so the card is never blank.
+        fetchAndApplyArt(ch, live)
+    }
+
+    /** Debounced TMDB art fetch.  Cancels any pending lookup and
+     *  waits 220 ms before hitting the backend so rapid D-pad
+     *  scrolling never piles up requests. */
+    private fun fetchAndApplyArt(ch: FtaChannel, live: FtaProgramme?) {
+        val title = (live?.title?.takeIf { it.isNotBlank() } ?: ch.name).trim()
+        val year = live?.startMs?.let {
+            java.util.Calendar.getInstance().apply { timeInMillis = it }.get(java.util.Calendar.YEAR)
+        }
+        val key = "$title|$year"
+        val token = ++artRequestId
+
+        // Immediate optimistic fallback — channel logo so the card
+        // never goes blank while we wait for TMDB.
+        val cached = artCache[key]
+        if (cached != null) {
+            applyArt(token, cached)
+            return
+        }
+        applyArt(token, null)  // shows channel logo as fallback
+
+        artDebounceJob?.cancel()
+        artDebounceJob = lifecycleScope.launch {
+            kotlinx.coroutines.delay(220)
+            if (token != artRequestId) return@launch
+            val art = withContext(Dispatchers.IO) {
+                try { FtaRepository.fetchProgrammeArt(title, year) } catch (_: Throwable) { null }
+            }
+            artCache[key] = art
+            if (token == artRequestId) applyArt(token, art)
+        }
+    }
+
+    private fun applyArt(token: Long, art: FtaRepository.ProgrammeArt?) {
+        if (token != artRequestId) return
+        val url = art?.backdrop?.takeIf { it.isNotBlank() }
+            ?: art?.poster?.takeIf { it.isNotBlank() }
+            ?: focusedChannel?.logo
+        if (url.isNullOrBlank()) {
+            previewArt.setImageDrawable(null)
+            previewArtOverlay.alpha = 0f
+            return
+        }
+        // Crossfade: draw the new image into the overlay, fade it
+        // in over 320 ms, then swap to the base and clear the
+        // overlay so subsequent changes have a clean canvas.
+        previewArtOverlay.alpha = 0f
+        previewArtOverlay.load(url) {
+            crossfade(false)
+            listener(
+                onSuccess = { _, _ ->
+                    previewArtOverlay.animate().alpha(1f).setDuration(320).withEndAction {
+                        previewArt.setImageDrawable(previewArtOverlay.drawable)
+                        previewArtOverlay.alpha = 0f
+                    }.start()
+                },
+                onError = { _, _ ->
+                    // Fallback straight to base.
+                    previewArt.load(url) { crossfade(true); crossfade(220) }
+                },
+            )
+        }
     }
 
     private fun renderChips(live: FtaProgramme?) {
         infoChips.removeAllViews()
         val ctx = this
-        fun chip(text: String) {
+        fun chip(text: String, ratingStyle: Boolean = false) {
+            if (text.isBlank()) return
             val tv = TextView(ctx).apply {
-                this.text = text
-                setTextColor(ContextCompat.getColor(ctx, R.color.fta_fg_dim))
+                this.text = text.uppercase(Locale.UK)
+                setTextColor(
+                    if (ratingStyle) android.graphics.Color.parseColor("#FF7A88")
+                    else ContextCompat.getColor(ctx, R.color.fta_fg)
+                )
                 textSize = 10f
                 typeface = android.graphics.Typeface.create("monospace", android.graphics.Typeface.BOLD)
-                letterSpacing = 0.14f
-                setBackgroundResource(R.drawable.info_chip_bg)
-                setPadding(dpI(8f), dpI(3f), dpI(8f), dpI(3f))
+                letterSpacing = 0.18f
+                setBackgroundResource(
+                    if (ratingStyle) R.drawable.info_chip_rating_bg else R.drawable.info_chip_bg
+                )
+                setPadding(dpI(10f), dpI(4f), dpI(10f), dpI(4f))
             }
-            val lp = LinearLayout.LayoutParams(
+            val lp = com.google.android.flexbox.FlexboxLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { marginEnd = dpI(6f) }
+            ).apply {
+                marginEnd = dpI(6f)
+                bottomMargin = dpI(6f)
+            }
             infoChips.addView(tv, lp)
         }
-        // Programme metadata isn't shipped in the EPG payload yet
-        // (rating / category come from XMLTV but our React lacked them
-        // historically too) — keep the chips set to HD + CC for now
-        // so the row matches the React layout visually.
+        live?.rating?.let { chip(it, ratingStyle = true) }
+        live?.category?.let { chip(it) }
         chip("HD")
         chip("CC")
-        // suppress unused-param warning — placeholder for future
-        // rating / category chips once we surface them in the EPG.
-        live?.let { /* future: chip(it.rating); chip(it.category) */ }
     }
 
     private fun findLive(channelId: String, now: Long): FtaProgramme? =

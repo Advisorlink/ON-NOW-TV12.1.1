@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Red LIVE pill on the top-left of the preview tile. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FF2535" />
-    <corners android:radius="4dp" />
-</shape>
+<!-- Cinematic LIVE pill with a soft red glow ring. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#FF2535"
+                android:endColor="#FF6B7B"
+                android:angle="270" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+</layer-list>
