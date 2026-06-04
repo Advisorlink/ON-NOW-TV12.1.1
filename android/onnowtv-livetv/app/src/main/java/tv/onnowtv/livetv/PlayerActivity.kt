@@ -161,6 +161,12 @@ class PlayerActivity : AppCompatActivity() {
             .setLoadControl(loadControl)
             .build()
         playerView.player = p
+        // Set the controller's auto-hide timeout (3.5 s) programmatically
+        // — the XML attribute names for these vary between media3
+        // releases, so we configure them here instead of in the layout
+        // to avoid resource linking errors.
+        playerView.controllerShowTimeoutMs = 3_500
+        playerView.controllerHideOnTouch = true
         player = p
 
         p.addListener(object : Player.Listener {
