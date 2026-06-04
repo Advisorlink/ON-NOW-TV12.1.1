@@ -52,11 +52,45 @@ export default function ContinueWatchingShelf() {
     };
 
     const resume = async (e) => {
+        const t = e.type || 'movie';
+        // For series CW ids look like "tt1234:s1e3" (native path) or
+        // "tt1234:1:3" (party path) — pull out the base IMDB id +
+        // season + episode so we can route the WebView to the
+        // episode picker BEFORE firing the native player.  This is
+        // what lets the user press BACK from the player and land
+        // on the episode selector for that show.
+        const baseId =
+            (t === 'series' && e.id?.includes(':')
+                ? e.id.split(':')[0]
+                : e.id) || e.id;
+        let focusSeason = 0;
+        let focusEpisode = 0;
+        if (t === 'series' && e.id?.includes(':')) {
+            const m1 = e.id.match(/:s(\d+)e(\d+)$/i);
+            if (m1) { focusSeason = Number(m1[1]); focusEpisode = Number(m1[2]); }
+            else {
+                const m2 = e.id.match(/:(\d+):(\d+)$/);
+                if (m2) { focusSeason = Number(m2[1]); focusEpisode = Number(m2[2]); }
+            }
+        }
+
         // Direct play — re-use the previously selected stream so the
         // user doesn't have to pick a source again.  Falls back to
         // the Detail page only if we don't have the stream URL.
         if (e.streamUrl && Host.playVideo) {
             const startAtMs = Math.max(0, (e.positionMs || 0) - 5_000);
+            // For series, navigate the WebView to the detail page
+            // FIRST with focusSeason/focusEpisode so that pressing
+            // BACK from the native player lands on the episode
+            // picker for that show.  No `resume=1` here — we're
+            // bypassing the Detail page's stream-pick logic by
+            // calling Host.playVideo directly.
+            if (t === 'series' && focusSeason && focusEpisode) {
+                navigate(
+                    `/title/series/${baseId}` +
+                    `?focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`,
+                );
+            }
             const fired = Host.playVideo({
                 url: e.streamUrl,
                 title: e.title || '',
@@ -74,15 +108,13 @@ export default function ContinueWatchingShelf() {
             });
             if (fired) return;
         }
-        // Fallback: route to the detail page for source pick.
-        const t = e.type || 'movie';
-        // For series CW ids look like "tt1234:s1e1" — strip the suffix
-        // when constructing the route so meta resolves.
-        const baseId =
-            (t === 'series' && e.id?.includes(':')
-                ? e.id.split(':')[0]
-                : e.id) || e.id;
-        navigate(`/title/${t}/${baseId}?resume=1`);
+        // Fallback: route to the detail page for source pick.  For
+        // series, include the focus hints so the episode picker
+        // opens on the right episode.
+        const suffix = (t === 'series' && focusSeason && focusEpisode)
+            ? `&focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`
+            : '';
+        navigate(`/title/${t}/${baseId}?resume=1${suffix}`);
     };
 
     return (
