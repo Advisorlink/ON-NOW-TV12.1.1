@@ -503,5 +503,3 @@ object BundleHolder {
      *  and EpgActivity should refresh the bundle in the background. */
     @Volatile var needsBackgroundRefresh: Boolean = false
 }
-sh: Boolean = false
-}
