@@ -42,6 +42,7 @@ import tv.onnowtv.fta_native.data.FtaSideNavItem
 import tv.onnowtv.fta_native.ui.CategoryListAdapter
 import tv.onnowtv.fta_native.ui.EpgGridAdapter
 import tv.onnowtv.fta_native.ui.FtaSideNavAdapter
+import tv.onnowtv.fta_native.update.FtaUpdateChecker
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -175,6 +176,18 @@ class EpgActivity : AppCompatActivity() {
         setupPreviewCard()
         startClock()
         load()
+        // Kick off the self-update check ~2 s after startup so the
+        // EPG can settle visually before any dialog appears.  Uses
+        // the backend base baked into BuildConfig.
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                FtaUpdateChecker(
+                    activity = this,
+                    backendBase = BuildConfig.BACKEND_BASE,
+                    currentVersion = BuildConfig.VERSION_NAME,
+                ).checkAndPrompt()
+            } catch (_: Throwable) { /* never let an update check crash the app */ }
+        }, 2_000L)
     }
 
     // ─────────────────────────────────────────── side nav
