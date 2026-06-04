@@ -513,23 +513,10 @@ def now_ts() -> int:
 #  Auth
 # ════════════════════════════════════════════════════════════════════
 def require_admin(request: Request) -> None:
-    """Two ways to authenticate:
-      1. `Authorization: Bearer <ADMIN_TOKEN>` header (machine clients).
-      2. `admin_session` cookie holding a JWT (browser admin UI).
-    Either passes."""
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Bearer "):
-        if auth.removeprefix("Bearer ").strip() == ADMIN_TOKEN:
-            return
-    # Try session cookie
-    cookie = request.cookies.get("admin_session", "")
-    if cookie:
-        try:
-            jwt.decode(cookie, JWT_SECRET, algorithms=[JWT_ALG])
-            return
-        except jwt.InvalidTokenError:
-            pass
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin token required")
+    """v2.8.126 — Auth temporarily disabled per operator request.
+    The launcher is single-user for now; we'll re-enable token /
+    cookie gating before multi-tenant rollout."""
+    return
 
 
 # ════════════════════════════════════════════════════════════════════
