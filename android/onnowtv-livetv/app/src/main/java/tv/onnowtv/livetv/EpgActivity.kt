@@ -271,9 +271,10 @@ class EpgActivity : AppCompatActivity() {
                     channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 }
             },
-            // Debounce focus-driven filtering by 220 ms so D-pad
-            // scrolling stays smooth even on a slow TV.  Avoids
-            // re-running notifyDataSetChanged() for every key event.
+            // Dwell-fire: only refilter the channel list when the
+            // user has stopped on a category for ~1 second.  Prevents
+            // every D-pad step from re-rendering the entire channel
+            // column while scrolling through the rail.
             onFocus = { c ->
                 if (c.id != currentCategoryId) {
                     categoryFocusHandler.removeCallbacksAndMessages(null)
@@ -282,7 +283,7 @@ class EpgActivity : AppCompatActivity() {
                             currentCategoryId = c.id
                             applyCategory()
                         }
-                    }, 220L)
+                    }, 1_000L)
                 }
             },
         )
@@ -293,16 +294,19 @@ class EpgActivity : AppCompatActivity() {
 
         channelAdapter = ChannelPillAdapter(
             nowResolver = { ch -> liveProgrammeOf(ch) },
-            // Debounce by 120 ms so D-pad scrolling stays smooth.
-            // Without debounce every key event runs updateHero +
-            // loadGuideForChannel synchronously which stutters.
+            // Dwell-fire: only repaint the hero + load "Coming Up
+            // Next" when the user has stopped on a channel for ~1
+            // second.  Stops every D-pad step from triggering a
+            // full EPG fetch for that channel — those fetches
+            // pile up and starve the EPG already in flight, which
+            // is why some channels were "still missing things".
             onFocus = { ch ->
                 channelFocusHandler.removeCallbacksAndMessages(null)
                 channelFocusHandler.postDelayed({
                     focusedChannel = ch
                     updateHero(ch)
                     loadGuideForChannel(ch)
-                }, 120L)
+                }, 1_000L)
             },
             onActivate = { ch -> launchPlayer(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
