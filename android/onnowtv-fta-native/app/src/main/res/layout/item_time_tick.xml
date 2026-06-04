@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Time-tick label in the topbar (e.g. "3:00pm").  Positioned by
+     code at `startOffsetMs * px_per_min`. -->
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:fontFamily="monospace"
+    android:textColor="@color/fta_fg_dimmer"
+    android:textSize="10sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.16"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:layout_marginTop="8dp" />

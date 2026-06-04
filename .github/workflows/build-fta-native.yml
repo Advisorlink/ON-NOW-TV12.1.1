@@ -1,0 +1,113 @@
+name: Build FTA Native APK
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'android/onnowtv-fta-native/**'
+      - '.github/workflows/build-fta-native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Derive versionCode / versionName
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-fta-native/ || echo 0) ))
+          VN="0.1.0"
+          echo "VC=$VC" >> $GITHUB_OUTPUT
+          echo "VN=$VN" >> $GITHUB_OUTPUT
+
+      - name: Set up keystore (reuse launcher's dev signing chain)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          ANDROID_KS_DIR="${RUNNER_TEMP}/ks"
+          mkdir -p "$ANDROID_KS_DIR"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
+            echo "RELEASE_STORE_FILE=$ANDROID_KS_DIR/release.jks"      >> $GITHUB_ENV
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"           >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"                        >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"                  >> $GITHUB_ENV
+          fi
+
+      - name: Bootstrap gradle wrapper
+        working-directory: android/onnowtv-fta-native
+        run: |
+          set -euo pipefail
+          gradle wrapper --gradle-version 8.7 || true
+          chmod +x ./gradlew || true
+
+      - name: Build debug + release APKs
+        working-directory: android/onnowtv-fta-native
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VC }}
+          VERSION_NAME: ${{ steps.version.outputs.VN }}
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleRelease \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=$VERSION_NAME \
+            --no-daemon --warning-mode summary
+
+      - name: Locate APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          DBG=$(find android/onnowtv-fta-native/app/build/outputs/apk -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$DBG" ]; then echo "::error::No debug APK"; exit 1; fi
+          cp "$DBG" "$GITHUB_WORKSPACE/fta-native-debug.apk"
+          REL=$(find android/onnowtv-fta-native/app/build/outputs/apk -name "*-release.apk" -type f | head -n1)
+          [ -z "$REL" ] && REL=$(find android/onnowtv-fta-native/app/build/outputs/apk -name "*-release-unsigned.apk" -type f | head -n1)
+          if [ -n "$REL" ]; then cp "$REL" "$GITHUB_WORKSPACE/fta-native-release.apk"; fi
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: fta-native-latest
+          name: "FTA Native ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          body: |
+            **ON NOW FTA — native RecyclerView rebuild (Phase 1).**
+
+            Side-by-side with the existing WebView FTA APK
+            (`tv.onnowtv.fta`).  This build installs under
+            `tv.onnowtv.fta.recycler` so both apps coexist on the
+            launcher.  WebView app stays as the rollback.
+
+            Phase 1:
+              • Topbar — brand + Free-to-Air / Favourites tabs + city
+                chip + clock
+              • Side rail — Categories / Favourites / Refresh
+              • EPG grid — channel rail + horizontally-scrolling
+                programme cells positioned by absolute time
+              • NOW vertical red line on the grid
+              • Tap a programme → ExoPlayer (with the right MJH
+                User-Agent + Referer)
+              • All scroll surfaces are pure RecyclerView so D-pad
+                nav feels like V2 Live TV
+          files: |
+            fta-native-debug.apk
+            fta-native-release.apk
+          fail_on_unmatched_files: false
+          prerelease: true
+          make_latest: 'false'

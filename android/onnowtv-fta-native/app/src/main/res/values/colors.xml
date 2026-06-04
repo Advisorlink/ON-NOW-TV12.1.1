@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Palette mirrors the React fta.css custom properties. -->
+<resources>
+    <color name="fta_bg">#03060F</color>
+    <color name="fta_bg_card">#0D1525</color>
+    <color name="fta_bg_card_alt">#0A1120</color>
+    <color name="fta_bg_focused">#18253F</color>
+
+    <color name="fta_fg">#F5F7FA</color>
+    <color name="fta_fg_dim">#9BA8C2</color>
+    <color name="fta_fg_dimmer">#5B6580</color>
+
+    <color name="fta_blue">#5DC8FF</color>
+    <color name="fta_blue_bright">#8DE0FF</color>
+
+    <color name="fta_now_red">#FF2535</color>
+    <color name="fta_line">#1AFFFFFF</color>
+</resources>

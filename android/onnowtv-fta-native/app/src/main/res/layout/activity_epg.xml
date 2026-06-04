@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FTA NATIVE — EPG screen.
+
+    Layout:
+      [ SIDE NAV (88dp) ][ TOPBAR + GRID body ]
+        TOPBAR: brand wordmark · tabs · clock
+        GRID body =
+            [ Channel rail (104dp) ][ Horizontal-scrolling timeline ]
+        Each row is a horizontal RecyclerView of programme cells
+        positioned absolutely at `startMs * px_per_min` — the same
+        model the React FTA uses.  The NOW vertical red line is
+        drawn as an overlay over the timeline.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/fta_bg">
+
+    <!-- ───────── SIDE NAV ───────── -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/side_nav"
+        android:layout_width="@dimen/fta_side_rail_w"
+        android:layout_height="match_parent"
+        android:background="#0A0E1A"
+        android:paddingTop="28dp"
+        android:paddingBottom="28dp"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:overScrollMode="never" />
+
+    <!-- ───────── MAIN CONTENT ───────── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Topbar -->
+        <LinearLayout
+            android:id="@+id/topbar"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/fta_topbar_h"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:background="#080C18">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/brand"
+                android:textColor="@color/fta_blue"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.02"
+                android:shadowColor="#665DC8FF"
+                android:shadowDx="0" android:shadowDy="0" android:shadowRadius="14" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/brand_suffix"
+                android:textColor="@color/fta_fg"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.01" />
+
+            <!-- Tabs (Live / Favourites) -->
+            <LinearLayout
+                android:id="@+id/tabs"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginStart="32dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/city_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:paddingTop="6dp" android:paddingBottom="6dp"
+                android:background="@drawable/time_chip_bg"
+                android:textColor="@color/fta_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.22"
+                android:text="BRISBANE" />
+
+            <TextView
+                android:id="@+id/clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:textColor="@color/fta_fg"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.08"
+                android:text="" />
+        </LinearLayout>
+
+        <!-- Time-ticks header row (hour labels above the grid). -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Spacer to align with the channel rail. -->
+            <View
+                android:layout_width="@dimen/fta_channel_rail_w"
+                android:layout_height="32dp"
+                android:background="#080C18" />
+
+            <HorizontalScrollView
+                android:id="@+id/ticks_scroll"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:scrollbars="none"
+                android:fillViewport="false">
+
+                <FrameLayout
+                    android:id="@+id/ticks_strip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:background="#080C18" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <!-- Grid body -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/grid_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="false"
+                android:overScrollMode="never"
+                android:clipToPadding="false" />
+
+            <!-- NOW vertical red line — positioned by EpgActivity
+                 in `setNowLineX` once the grid layout stabilises. -->
+            <View
+                android:id="@+id/now_line"
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="0dp"
+                android:background="@color/fta_now_red"
+                android:visibility="invisible" />
+
+            <!-- Loader -->
+            <LinearLayout
+                android:id="@+id/loader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ProgressBar
+                    android:layout_width="40dp"
+                    android:layout_height="40dp" />
+
+                <TextView
+                    android:id="@+id/loader_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/fta_fg_dim"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.22"
+                    android:text="LOADING FREE-TO-AIR EPG…" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>
