@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.Category
 import tv.onnowtv.livetv.data.Channel
+import tv.onnowtv.livetv.data.FavouritesStore
 import tv.onnowtv.livetv.data.Programme
 import tv.onnowtv.livetv.data.ReminderStore
 import tv.onnowtv.livetv.data.XtreamBundle
@@ -101,6 +102,19 @@ class EpgActivity : AppCompatActivity() {
      *  these so the channel pill stops showing "Loading guide…"
      *  forever — it'll just show the channel name. */
     private val epgKnownEmpty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** Channel IDs the user has favourited.  Mirrors [FavouritesStore]. */
+    private val favouriteSet = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** What the middle column is currently showing.  Tracked so
+     *  `launchPlayer` knows whether to look up a real channel or
+     *  a synthetic Reminders-row entry. */
+    private var currentChannelList: List<Channel> = emptyList()
+    /** When the Reminders virtual category is active, this maps a
+     *  synthetic row-channel id → the reminded Programme so the
+     *  pill paints the programme title and so click handlers can
+     *  tune into the underlying real channel. */
+    private var currentReminderProgrammes: Map<String, ReminderStore.Reminder> = emptyMap()
+
     /** Programme IDs (channelId + ":" + startMs) the user has
      *  flagged with a reminder.  Toggles to yellow on click.
      *  Backed by [ReminderStore] so reminders survive process
@@ -139,6 +153,8 @@ class EpgActivity : AppCompatActivity() {
         bundle = held
         epgCache.putAll(bundle.epg)
         rehydrateReminders()
+        favouriteSet.clear()
+        favouriteSet.addAll(FavouritesStore.load(this))
 
         wireViews()
         buildCategories()
@@ -168,9 +184,20 @@ class EpgActivity : AppCompatActivity() {
             }
         }
 
-        // Focus the first category on boot.
+        // Focus the All-channels pill on boot (index 3 in the
+        // rail: Favourites · Recently Watched · Reminders · All
+        // channels · …categories).  The user wants the middle
+        // column populated immediately, not stuck on an empty
+        // Favourites view.
         categoriesList.post {
-            categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+            val allChannelsIndex = allCategoriesWithCounts
+                .indexOfFirst { it.id == "__all__" }
+                .coerceAtLeast(0)
+            categoriesList.scrollToPosition(allChannelsIndex)
+            categoriesList.post {
+                categoriesList.findViewHolderForAdapterPosition(allChannelsIndex)
+                    ?.itemView?.requestFocus()
+            }
         }
 
         // Attach the persistent-reminder watcher so a saved
@@ -230,9 +257,9 @@ class EpgActivity : AppCompatActivity() {
             .groupingBy { it.categoryId ?: "" }
             .eachCount()
         val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
-        val favourites = Category(id = "__favourites__", name = "Favourites", channelCount = 0)
+        val favourites = Category(id = "__favourites__", name = "Favourites", channelCount = favouriteSet.size)
         val recents = Category(id = "__recents__", name = "Recently Watched", channelCount = 0)
-        val reminders = Category(id = "__reminders__", name = "Reminders", channelCount = 0)
+        val reminders = Category(id = "__reminders__", name = "Reminders", channelCount = reminderSet.size)
 
         // Real categories with counts (filter junk separator rows).
         val real = bundle.categories
@@ -251,14 +278,12 @@ class EpgActivity : AppCompatActivity() {
             }.toDouble() / cs.size
             cat.id to ratio
         }
-        val bestCat = real
-            .filter { it.channelCount >= 5 }
-            .maxByOrNull { epgCoverageByCat[it.id] ?: 0.0 }
-        currentCategoryId = if (bestCat != null && (epgCoverageByCat[bestCat.id] ?: 0.0) > 0.1) {
-            bestCat.id
-        } else {
-            "__all__"
-        }
+        // Default category is ALWAYS "All channels" on boot — the
+        // user wants a populated middle column the moment the EPG
+        // opens, never the empty Favourites stub.  The previous
+        // EPG-coverage heuristic is kept off until favourites /
+        // recents have real backing storage.
+        currentCategoryId = "__all__"
     }
 
     private fun setupAdapters() {
@@ -309,6 +334,28 @@ class EpgActivity : AppCompatActivity() {
                 }, 1_000L)
             },
             onActivate = { ch -> launchPlayer(ch) },
+            onLongPress = { ch ->
+                val nowFav = FavouritesStore.toggle(this, ch.id)
+                if (nowFav) {
+                    favouriteSet.add(ch.id)
+                    android.widget.Toast.makeText(
+                        this, "Added ${ch.name} to favourites",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    favouriteSet.remove(ch.id)
+                    android.widget.Toast.makeText(
+                        this, "Removed ${ch.name} from favourites",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                // Rebuild the Favourites pill's count + refresh the
+                // middle column if the user is currently viewing
+                // the Favourites virtual category.
+                buildCategories()
+                categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
+                if (currentCategoryId == "__favourites__") applyCategory()
+            },
             onBound = { ch -> lazyFetchForChannel(ch) },
             isKnownEmpty = { ch -> epgKnownEmpty.contains(ch.epgChannelId ?: "") },
         )
@@ -504,20 +551,39 @@ class EpgActivity : AppCompatActivity() {
 
     private fun applyCategory() {
         val sel = currentCategoryId
+        // For the Reminders virtual category we expand into a row
+        // per reminded programme (NOT one per channel).  Each row
+        // shows the programme title in the "NOW" slot and the
+        // channel's actual name + start-time in the title slot, so
+        // four different reminders on the same channel produce four
+        // distinct rows.
+        if (sel == "__reminders__") {
+            val rows = buildReminderRows()
+            currentChannelList = rows.map { it.first }
+            currentReminderProgrammes = rows.associate { it.first.id to it.second }
+            channelAdapter.submit(rows.map { it.first })
+            if (rows.isNotEmpty()) {
+                channelsList.post {
+                    channelsList.scrollToPosition(0)
+                    channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+                }
+            } else {
+                guideAdapter.submit(emptyList())
+                focusedChannel = null
+            }
+            return
+        }
+        // Coming out of Reminders → drop the synthetic overrides.
+        currentReminderProgrammes = emptyMap()
+
         val channels: List<Channel> = when (sel) {
             "__all__", null -> bundle.channels
-            "__favourites__" -> emptyList()  // future: SharedPreferences-backed
+            "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
-            "__reminders__" -> {
-                // Channels with at least one active reminder.
-                val sidsWithReminders = reminderSet
-                    .mapNotNull { it.substringBefore(':', "").takeIf { s -> s.isNotBlank() } }
-                    .toSet()
-                bundle.channels.filter { (it.epgChannelId ?: "") in sidsWithReminders }
-            }
             else -> bundle.channels.filter { it.categoryId == sel }
         }
         val visible = channels.take(500)
+        currentChannelList = visible
         channelAdapter.submit(visible)
         channelCountChip.text = "${"%,d".format(visible.size)} CHANNELS"
         categoryAdapter.setSelected(sel)
@@ -534,9 +600,47 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun liveProgrammeOf(ch: Channel): Programme? {
+        // When the Reminders virtual category is showing, the
+        // middle column holds SYNTHETIC channels — one per stored
+        // reminder.  In that case "now playing" is the reminded
+        // programme itself, regardless of wall-clock time.
+        val reminder = currentReminderProgrammes[ch.id]
+        if (reminder != null) {
+            return Programme(
+                title = reminder.title,
+                description = null,
+                startMs = reminder.startMs,
+                stopMs = reminder.stopMs,
+            )
+        }
         val list = epgCache[ch.epgChannelId] ?: return null
         val n = System.currentTimeMillis()
         return list.firstOrNull { it.isLiveAt(n) }
+    }
+
+    /**
+     * Build the synthetic-channel list used by the Reminders
+     * virtual category.  One row per stored reminder, sorted by
+     * start time (soonest first).  Returns pairs of
+     *  (synthetic Channel for the pill, original Reminder for routing).
+     */
+    private fun buildReminderRows(): List<Pair<Channel, ReminderStore.Reminder>> {
+        val store = ReminderStore.load(this).values
+            .sortedBy { it.startMs }
+        return store.mapNotNull { r ->
+            val realChannel = bundle.channels.firstOrNull { it.id == r.channelId }
+                ?: return@mapNotNull null
+            val synthId = "reminder:${r.key}"
+            val timeLabel = formatTime(r.startMs)
+            val syntheticName = "${realChannel.name}  ·  $timeLabel"
+            val synthChannel = realChannel.copy(
+                id = synthId,
+                name = syntheticName,
+                // streamUrl / logoUrl / lcn inherited from the real
+                // channel so the player + pill render correctly.
+            )
+            synthChannel to r
+        }
     }
 
     private fun updateHero(ch: Channel) {
@@ -700,6 +804,13 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun launchPlayer(ch: Channel) {
+        // If we're launching a synthetic Reminders row, redirect to
+        // the underlying real channel so the player + playback queue
+        // see a normal channel record.
+        val effective = if (ch.id.startsWith("reminder:")) {
+            val r = currentReminderProgrammes[ch.id]
+            r?.let { bundle.channels.firstOrNull { it.id == r.channelId } } ?: return
+        } else ch
         // Hand the player the same channel list that's currently
         // showing in the middle column so D-pad UP/DOWN inside the
         // player zaps within the active category instead of the
@@ -710,9 +821,11 @@ class EpgActivity : AppCompatActivity() {
         val sel = currentCategoryId
         val byCategory: List<Channel> = when (sel) {
             "__all__", null -> bundle.channels
-            "__favourites__" -> emptyList()
+            "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
             "__reminders__" -> {
+                // Player should zap through reminder-channels, not
+                // synthetic rows.
                 val sidsWithReminders = reminderSet
                     .mapNotNull { it.substringBefore(':', "").takeIf { s -> s.isNotBlank() } }
                     .toSet()
@@ -721,19 +834,19 @@ class EpgActivity : AppCompatActivity() {
             else -> bundle.channels.filter { it.categoryId == sel }
         }
         val visibleList: List<Channel> = when {
-            byCategory.any { it.id == ch.id } -> byCategory
-            ch.categoryId != null -> bundle.channels.filter { it.categoryId == ch.categoryId }
+            byCategory.any { it.id == effective.id } -> byCategory
+            effective.categoryId != null -> bundle.channels.filter { it.categoryId == effective.categoryId }
                 .ifEmpty { bundle.channels }
             else -> bundle.channels
         }
 
-        PlaybackQueue.setQueue(visibleList, ch.id)
+        PlaybackQueue.setQueue(visibleList, effective.id)
 
         val intent = Intent(this, PlayerActivity::class.java).apply {
-            putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
-            putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
-            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
-            val live = liveProgrammeOf(ch)
+            putExtra(PlayerActivity.EXTRA_URL, effective.streamUrl)
+            putExtra(PlayerActivity.EXTRA_TITLE, effective.name)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, effective.id)
+            val live = liveProgrammeOf(effective)
             putExtra(PlayerActivity.EXTRA_SUBTITLE, live?.title ?: "")
         }
         startActivity(intent)

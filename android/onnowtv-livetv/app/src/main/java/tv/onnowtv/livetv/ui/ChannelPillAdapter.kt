@@ -27,6 +27,7 @@ class ChannelPillAdapter(
     private val nowResolver: (Channel) -> Programme?,
     private val onFocus: (Channel) -> Unit,
     private val onActivate: (Channel) -> Unit,
+    private val onLongPress: (Channel) -> Unit = {},
     private val onBound: (Channel) -> Unit = {},
     private val isKnownEmpty: (Channel) -> Boolean = { false },
 ) : RecyclerView.Adapter<ChannelPillAdapter.VH>() {
@@ -118,6 +119,12 @@ class ChannelPillAdapter(
                 if (hasFocus) onFocus(channel)
             }
             itemView.setOnClickListener { onActivate(channel) }
+            // Long-press OK / hold-OK = toggle favourite.  The owning
+            // EpgActivity handles the persistence + toast feedback.
+            itemView.setOnLongClickListener {
+                onLongPress(channel)
+                true  // consume so OnClick isn't also fired
+            }
         }
 
         private fun computeProgress(p: Programme): Float {
