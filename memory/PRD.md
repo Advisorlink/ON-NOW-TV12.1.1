@@ -1,5 +1,30 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.123 — FTA Native: Phase 2 polish, all six features in one batch (Feb 13, 2026).**
+>
+> Per user "build it all now" — packed every Phase 2 ask into a single APK build so the user gets the full UX in one sideload.
+>
+> 1. **Splash screen** — new `MainActivity` displays the red→amber gradient + big white "V2" + "Free-to-Air" wordmark for 900 ms before handing off to `EpgActivity`. Matches the WebView FTA splash so the two builds feel identical on launch. New `Theme.OnNowFta.Splash` makes the gradient the `windowBackground` so it appears the instant the launcher hands control over (no white flash).
+>
+> 2. **Categories slide-out submenu** — new `CategoryListAdapter` + `cat_panel` LinearLayout in the layout (260 dp wide, hidden by default). Tapping the Categories side-rail icon toggles the panel. Populated from `/api/fta/categories` (Live TV · Kids · Sport · News · Drama · Movies · Reality · Music · More, each with its channel count). Picking a category re-filters the visible channels + shows a cyan chip in the topbar with the active category name. BACK key closes the panel without exiting.
+>
+> 3. **Long-press OK to favourite** — `EpgGridAdapter` cells now register `setOnLongClickListener` which fires `onFavouriteToggle(channel)`. `EpgActivity` persists via `FtaFavouritesStore`, shows a toast (`★ Added Seven to Favourites` / `Removed Seven from Favourites`), and tells the adapter to redraw so the row rail's cyan activated border lights up immediately. Refactored `channel_rail_bg.xml` from a plain shape into a state-list selector with an `state_activated` 2 dp cyan border.
+>
+> 4. **Side preview pane** — top-right 280×158 dp overlay containing a second `ExoPlayer` instance bound to a `PlayerView` (muted, controllerless, 800 ms buffer for fast tune-in). On every cell focus change, `EpgActivity.debouncedTunePreview` waits 800 ms of stillness on the same channel before kicking off `FtaRepository.resolveStreamUrl` + `setMediaItem` + `prepare`. Prevents thrash while the user is rapidly D-padding. Tapping a cell pauses the preview and launches the full `PlayerActivity` (with sound) so we don't have two HLS sockets to the same stream.
+>
+> 5. **City picker** — clicking the BRISBANE topbar chip opens an `AlertDialog` populated from `/api/fta/cities` (Brisbane / Sydney / Melbourne / Adelaide / Perth / Hobart / Darwin / Canberra). Picking a city updates `currentCity`, repaints the chip, and re-fetches channels + EPG. New `FtaRepository.fetchCities()` with in-memory cache + hardcoded fallback if the endpoint is down.
+>
+> 6. **Refresh toast** — "Refreshing EPG…" Toast fires when the user activates the Refresh side-rail icon, so they know the tap registered before the loader spinner shows.
+>
+> **Files touched this phase**:
+>   - New: `MainActivity.kt`, `ui/CategoryListAdapter.kt`, `layout/activity_main.xml`, `layout/item_category.xml`, `drawable/fta_splash_gradient.xml`, `drawable/category_panel_bg.xml`, `drawable/category_row_bg.xml`, `drawable/preview_card_bg.xml`.
+>   - Rewritten: `EpgActivity.kt` (categories + city picker + long-press fav + preview pane + back-key handler), `layout/activity_epg.xml` (categories panel + active-cat chip + preview card), `drawable/channel_rail_bg.xml` (state-list with activated cyan border).
+>   - Updated: `data/FtaRepository.kt` (real `/api/fta/categories` + `fetchCities()`), `ui/EpgGridAdapter.kt` (`onFavouriteToggle` + `refreshFavourites` + `isFavourite` per-row), `res/values/themes.xml` (Splash theme), `res/values/dimens.xml` (`fta_cat_panel_w`, `fta_preview_w`, `fta_preview_h`), `AndroidManifest.xml` (MainActivity becomes launcher).
+>
+> **Compile verified**: 0 errors across all 10 Kotlin files via kotlinc 1.9.22 + full AAR classpath. GitHub Actions `build-fta-native.yml` will pick up the new files automatically on push and rebuild `fta-native-debug.apk` + `fta-native-release.apk` under the `fta-native-latest` release tag.
+
+
+
 > **🟢 v2.8.122 — FTA Native: Phase 1 MVP compile-clean (Feb 13, 2026).**
 > User asked to rebuild the Free-to-Air app natively from scratch so it has the buttery-smooth `RecyclerView` focus engine of V2 Live TV. Phase 1 ships compile-clean to GitHub Actions; user sideloads via the new `fta-native-latest` release tag.
 >

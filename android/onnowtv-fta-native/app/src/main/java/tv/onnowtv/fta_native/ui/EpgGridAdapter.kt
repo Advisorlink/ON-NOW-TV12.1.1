@@ -39,6 +39,7 @@ import java.util.Locale
 class EpgGridAdapter(
     private val onProgrammeOpen: (FtaChannel, FtaProgramme) -> Unit,
     private val onProgrammeFocus: (FtaChannel, FtaProgramme) -> Unit,
+    private val onFavouriteToggle: (FtaChannel) -> Unit = { },
     private val onScrollX: (Int) -> Unit = {},
 ) : RecyclerView.Adapter<EpgGridAdapter.VH>() {
 
@@ -46,6 +47,7 @@ class EpgGridAdapter(
     private val programmesByChannel = mutableMapOf<String, List<FtaProgramme>>()
     private var gridStartMs: Long = System.currentTimeMillis()
     private var windowHours: Int = 12
+    private val favourites = mutableSetOf<String>()
 
     /** All bound row views — used to mirror horizontal scroll
      *  positions when the user pans one row with the D-pad. */
@@ -65,11 +67,21 @@ class EpgGridAdapter(
         programmes: Map<String, List<FtaProgramme>>,
         gridStartMs: Long,
         windowHours: Int = 12,
+        favourites: Set<String> = emptySet(),
     ) {
         this.channels.clear(); this.channels.addAll(channels)
         this.programmesByChannel.clear(); this.programmesByChannel.putAll(programmes)
         this.gridStartMs = gridStartMs
         this.windowHours = windowHours
+        this.favourites.clear(); this.favourites.addAll(favourites)
+        notifyDataSetChanged()
+    }
+
+    /** Refresh the favourites set without rebuilding the channel
+     *  list — used after a long-press toggle so the heart pip on
+     *  the row rail updates immediately. */
+    fun refreshFavourites(favourites: Set<String>) {
+        this.favourites.clear(); this.favourites.addAll(favourites)
         notifyDataSetChanged()
     }
 
@@ -98,14 +110,17 @@ class EpgGridAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         boundRows.add(holder)
+        val ch = channels[position]
         holder.bind(
-            channel = channels[position],
-            programmes = programmesByChannel[channels[position].id].orEmpty(),
+            channel = ch,
+            programmes = programmesByChannel[ch.id].orEmpty(),
             gridStartMs = gridStartMs,
             windowHours = windowHours,
             sharedScrollX = sharedScrollX,
+            isFavourite = favourites.contains(ch.id),
             onProgrammeOpen = onProgrammeOpen,
             onProgrammeFocus = onProgrammeFocus,
+            onFavouriteToggle = onFavouriteToggle,
             onRowScrolled = { x -> setScrollX(x) },
         )
     }
@@ -128,8 +143,10 @@ class EpgGridAdapter(
             gridStartMs: Long,
             windowHours: Int,
             sharedScrollX: Int,
+            isFavourite: Boolean,
             onProgrammeOpen: (FtaChannel, FtaProgramme) -> Unit,
             onProgrammeFocus: (FtaChannel, FtaProgramme) -> Unit,
+            onFavouriteToggle: (FtaChannel) -> Unit,
             onRowScrolled: (Int) -> Unit,
         ) {
             val ctx = itemView.context
@@ -142,6 +159,8 @@ class EpgGridAdapter(
             } else {
                 logo.setImageDrawable(null)
             }
+            // Favourite marker — a soft cyan glow on the row rail.
+            itemView.findViewById<View>(R.id.row_rail).isActivated = isFavourite
 
             // --- Programme strip ---
             strip.removeAllViews()
@@ -184,6 +203,10 @@ class EpgGridAdapter(
                 }
                 cellView.layoutParams = lp
                 cellView.setOnClickListener { onProgrammeOpen(channel, p) }
+                cellView.setOnLongClickListener {
+                    onFavouriteToggle(channel)
+                    true
+                }
                 cellView.setOnFocusChangeListener { _, hasFocus ->
                     if (hasFocus) onProgrammeFocus(channel, p)
                 }

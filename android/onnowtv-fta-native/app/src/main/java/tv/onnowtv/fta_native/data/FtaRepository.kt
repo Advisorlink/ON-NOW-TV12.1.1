@@ -35,6 +35,25 @@ object FtaRepository {
         return Bundle(channels, programmes, categories)
     }
 
+    /** Static list of AU capitals matching backend SUPPORTED_CITIES.
+     *  Cached after first successful fetch from `/api/fta/cities`. */
+    private var citiesCache: List<String>? = null
+    fun fetchCities(): List<String> {
+        citiesCache?.let { return it }
+        val body = httpGet("$BACKEND_BASE/api/fta/cities") ?: return DEFAULT_CITIES
+        return try {
+            val obj = JSONObject(body)
+            val arr = obj.optJSONArray("cities") ?: return DEFAULT_CITIES
+            val out = (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+            citiesCache = out
+            out.ifEmpty { DEFAULT_CITIES }
+        } catch (_: Throwable) {
+            DEFAULT_CITIES
+        }
+    }
+
+    private val DEFAULT_CITIES = listOf("Brisbane", "Sydney", "Melbourne", "Adelaide", "Perth", "Hobart", "Darwin", "Canberra")
+
     fun fetchChannels(city: String = DEFAULT_CITY): List<FtaChannel> {
         val url = "$BACKEND_BASE/api/fta/channels?city=$city"
         val body = httpGet(url) ?: return emptyList()
@@ -127,16 +146,40 @@ object FtaRepository {
     }
 
     fun fetchCategories(city: String, channels: List<FtaChannel>): List<FtaCategory> {
-        // Derive counts from the channel list — the backend
-        // `/api/fta/categories` endpoint exists but its counts can
-        // lag behind the channels endpoint when MJH refreshes.
+        // Prefer the backend endpoint — it knows the canonical
+        // display order (live → kids → sport → news → drama →
+        // movies → reality → music → more) AND filters out empty
+        // categories.  Fall back to deriving from the channel list
+        // if the endpoint is unreachable.
+        val body = httpGet("$BACKEND_BASE/api/fta/categories?city=$city")
+        if (body != null) {
+            try {
+                val obj = JSONObject(body)
+                val arr = obj.optJSONArray("categories")
+                if (arr != null) {
+                    val out = ArrayList<FtaCategory>(arr.length())
+                    for (i in 0 until arr.length()) {
+                        val c = arr.optJSONObject(i) ?: continue
+                        val id = c.optString("id")
+                        if (id.isBlank()) continue
+                        out.add(
+                            FtaCategory(
+                                id = id,
+                                name = c.optString("label").ifBlank { id.replaceFirstChar { ch -> ch.uppercase() } },
+                                channelCount = c.optInt("count"),
+                            ),
+                        )
+                    }
+                    if (out.isNotEmpty()) return out
+                }
+            } catch (_: Throwable) { /* fall through */ }
+        }
+        // Local fallback.
         val byCat = channels.flatMap { ch -> ch.categories.map { it to ch.id } }
             .groupBy({ it.first }, { it.second })
-        // Hardcoded display order, mirroring the React build's
-        // category nav.
-        val order = listOf("live", "news", "sport", "kids", "movies", "music", "abc")
+        val order = listOf("live", "kids", "sport", "news", "drama", "movies", "reality", "music", "more")
         val out = mutableListOf<FtaCategory>()
-        out.add(FtaCategory(id = "live", name = "Free-to-Air", channelCount = channels.size))
+        out.add(FtaCategory(id = "live", name = "Live TV", channelCount = channels.size))
         for (key in order.drop(1)) {
             val ids = byCat[key] ?: continue
             if (ids.isEmpty()) continue
