@@ -53,6 +53,15 @@ export default function ContinueWatchingShelf() {
 
     const resume = async (e) => {
         const t = e.type || 'movie';
+        // Pull the freshest position from native SharedPreferences
+        // BEFORE firing the player.  The shelf entry in React state
+        // can be up to POLL_MS stale, and the native player updates
+        // its progress map every 5 s — without this refresh the
+        // resume can land 5–30 seconds behind where they actually
+        // stopped.
+        cw.syncFromNative();
+        const fresh = cw.getEntry?.(e.id) || e;
+        const startPosMs = Math.max(0, Number(fresh.positionMs) || 0);
         // For series CW ids look like "tt1234:s1e3" (native path) or
         // "tt1234:1:3" (party path) — pull out the base IMDB id +
         // season + episode so we can route the WebView to the
@@ -77,8 +86,11 @@ export default function ContinueWatchingShelf() {
         // Direct play — re-use the previously selected stream so the
         // user doesn't have to pick a source again.  Falls back to
         // the Detail page only if we don't have the stream URL.
-        if (e.streamUrl && Host.playVideo) {
-            const startAtMs = Math.max(0, (e.positionMs || 0) - 5_000);
+        if ((fresh.streamUrl || e.streamUrl) && Host.playVideo) {
+            // 2 s rewind so the user gets a soft "lead-in" without
+            // losing actual progress.  Was previously 5 s which felt
+            // like the resume was jumping noticeably backwards.
+            const startAtMs = Math.max(0, startPosMs - 2_000);
             // For series, navigate the WebView to the detail page
             // FIRST with focusSeason/focusEpisode so that pressing
             // BACK from the native player lands on the episode
@@ -92,7 +104,7 @@ export default function ContinueWatchingShelf() {
                 );
             }
             const fired = Host.playVideo({
-                url: e.streamUrl,
+                url: fresh.streamUrl || e.streamUrl,
                 title: e.title || '',
                 type: e.type || 'movie',
                 subtitleUrl: e.subtitleUrl || '',

@@ -716,21 +716,63 @@ class ExoPlayerActivity : ComponentActivity() {
     private val pollScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main
     )
+    /** Last time we flushed (positionMs, durationMs) to
+     *  SharedPreferences("onnowtv_progress").  Throttled to 5s so we
+     *  don't burn IO writing every 250 ms tick. */
+    @Volatile private var lastProgressSaveAt: Long = 0L
+
     private fun startPositionPolling() {
         pollJob?.cancel()
         pollJob = pollScope.launch {
             while (isActive) {
                 if (::player.isInitialized) {
-                    positionMsFlow.value = player.currentPosition.coerceAtLeast(0L)
-                    durationMsFlow.value = player.duration.coerceAtLeast(0L)
+                    val pos = player.currentPosition.coerceAtLeast(0L)
+                    val dur = player.duration.coerceAtLeast(0L)
+                    positionMsFlow.value = pos
+                    durationMsFlow.value = dur
                     bufferedPercentFlow.value = player.bufferedPercentage
                     bufferAheadMsFlow.value =
                         (player.bufferedPosition - player.currentPosition)
                             .coerceAtLeast(0L)
+                    // v2.8.125 — Persist the live position so the
+                    // Continue Watching shelf can resume from where
+                    // the user actually is, not from whatever stale
+                    // value the JS side last wrote.  Only writes
+                    // while playback is healthy (pos > 0 + duration
+                    // known) so we don't clobber existing CW state
+                    // during the IDLE→READY transition.
+                    if (player.isPlaying && pos > 0L) {
+                        maybePersistProgress(pos, dur)
+                    }
                 }
                 delay(250)
             }
         }
+    }
+
+    /** Throttled save of (positionMs, durationMs) into
+     *  SharedPreferences("onnowtv_progress") keyed by [cwId].  Mirror
+     *  of [VlcPlayerActivity.maybePersistProgress] so the ExoPlayer
+     *  path also keeps Continue Watching in sync — without this, the
+     *  CW shelf only updates when the user closes the player, which
+     *  means resume always jumps to a stale position. */
+    private fun maybePersistProgress(timeMs: Long, lengthMs: Long) {
+        val id = cwId
+        if (id.isBlank() || timeMs <= 0L) return
+        val now = System.currentTimeMillis()
+        if (now - lastProgressSaveAt < 5_000L) return
+        lastProgressSaveAt = now
+        try {
+            val obj = org.json.JSONObject().apply {
+                put("positionMs", timeMs)
+                put("durationMs", lengthMs)
+                put("updatedAt", now)
+            }
+            getSharedPreferences("onnowtv_progress", MODE_PRIVATE)
+                .edit()
+                .putString(id, obj.toString())
+                .apply()
+        } catch (_: Exception) { /* ignore — best effort */ }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -773,6 +815,15 @@ class ExoPlayerActivity : ComponentActivity() {
     override fun finish() {
         try {
             val pos = player.currentPosition.coerceAtLeast(0L)
+            val dur = player.duration.coerceAtLeast(0L)
+            // v2.8.125 — Force-persist the final position on exit
+            // (bypass the 5 s throttle) so the Continue Watching
+            // shelf always sees the latest position when the user
+            // backs out, even if they exited within 5 s of the last
+            // periodic save.
+            lastProgressSaveAt = 0L
+            maybePersistProgress(pos, dur)
+
             val data = Intent().apply {
                 putExtra("position_ms", pos)
                 putExtra("stream_url", streamUrl)

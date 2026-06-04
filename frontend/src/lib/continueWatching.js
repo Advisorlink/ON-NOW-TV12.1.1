@@ -105,6 +105,15 @@ export function getEntries() {
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
 
+/** Lookup a single CW entry by id.  Returns undefined if the entry
+ *  doesn't exist.  Used by the resume flow to grab the FRESH
+ *  position out of storage right before firing the player, since
+ *  the shelf's React state can be slightly stale. */
+export function getEntry(id) {
+    if (!id) return undefined;
+    return readAll().find((e) => e.id === id);
+}
+
 export function upsert(partial) {
     if (!partial?.id) return;
     const list = readAll();
