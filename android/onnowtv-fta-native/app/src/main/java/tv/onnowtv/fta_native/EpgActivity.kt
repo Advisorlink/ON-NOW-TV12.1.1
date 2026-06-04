@@ -10,7 +10,9 @@ import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -26,9 +28,8 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -47,22 +48,25 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Single-activity FTA experience (Phase 2).
+ * Single-activity FTA experience (Phase 2 redesigned to match the
+ * React Sidebar layout).
  *
- *  • Topbar — brand wordmark + Live / Favourites tabs + active
- *    category chip + city chip (focusable, opens picker) + clock.
- *  • Side rail — Categories / Favourites / Refresh.  "Categories"
- *    toggles the slide-out submenu; "Favourites" toggles the favs
- *    tab; "Refresh" reloads channels + EPG with a toast.
- *  • Slide-out categories panel — populated from `/api/fta/categories`.
- *  • Grid — vertical RecyclerView of channel rows.  Each row is a
- *    horizontal strip of programme cells positioned absolutely by
- *    their start time.  Long-press OK on any cell toggles that
- *    channel's favourite status.
- *  • Preview pane — top-right overlay.  Auto-tunes to the focused
- *    channel after 800 ms.  Muted; tap any cell → full
- *    [PlayerActivity] with sound.
- *  • Tap a programme → [PlayerActivity].
+ *  Horizontal layout:
+ *      [side nav][cat panel slide-out][sidebar 340dp][topbar+EPG]
+ *
+ *  Sidebar (left of the EPG):
+ *      • Preview tile (16:9) — cover art by default.  Pressing OK
+ *        on the tile ARMS the HLS preview (muted ExoPlayer).  Press
+ *        OK again → full [PlayerActivity] with sound.
+ *      • Info row: logo + LCN + name of the focused channel.
+ *      • Synopsis paragraph.
+ *      • Chips row (rating, category, HD, CC).
+ *      • "Coming up next" block — title + start–stop range.
+ *
+ *  Focus on a programme cell ONLY updates the sidebar's info text +
+ *  cover art — never touches the player.  Scrolling stays smooth.
+ *
+ *  Long-press OK on a cell toggles that channel's favourite.
  */
 class EpgActivity : AppCompatActivity() {
 
@@ -79,17 +83,31 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var nowLine: View
     private lateinit var loader: View
     private lateinit var loaderText: TextView
-    private lateinit var previewCard: View
+
+    // Sidebar widgets
+    private lateinit var previewCard: FrameLayout
+    private lateinit var previewArt: ImageView
     private lateinit var previewPlayerView: PlayerView
-    private lateinit var previewStatus: TextView
-    private lateinit var previewLabel: TextView
-    private lateinit var previewSub: TextView
+    private lateinit var previewHint: TextView
+    private lateinit var previewTitle: TextView
+    private lateinit var previewMeta: TextView
+    private lateinit var previewProgressBar: View
+    private lateinit var previewProgressTrack: View
+    private lateinit var infoLogo: ImageView
+    private lateinit var infoLcn: TextView
+    private lateinit var infoName: TextView
+    private lateinit var infoSynopsis: TextView
+    private lateinit var infoChips: LinearLayout
+    private lateinit var upnextBlock: LinearLayout
+    private lateinit var upnextTitle: TextView
+    private lateinit var upnextMeta: TextView
 
     private lateinit var gridAdapter: EpgGridAdapter
     private lateinit var catAdapter: CategoryListAdapter
 
     private val clockHandler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val cellTimeFmt = SimpleDateFormat("h:mma", Locale.UK)
 
     private val favourites = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
@@ -97,16 +115,20 @@ class EpgActivity : AppCompatActivity() {
     private var allProgrammes: Map<String, List<FtaProgramme>> = emptyMap()
     private var allCategories: List<FtaCategory> = emptyList()
     private var currentTab: String = "live"
-    /** Active category id when `currentTab == "live"`.  `"live"` = all linear channels. */
     private var currentCategory: String = "live"
     private var currentCity: String = FtaRepository.DEFAULT_CITY
     private var gridStartMs: Long = 0L
     private val WINDOW_HOURS = 12
 
-    // Preview pane state
+    // Sidebar state — the FOCUSED channel/programme.  Distinct from
+    // the PLAYING channel (held by the preview player itself).
+    private var focusedChannel: FtaChannel? = null
+    private var focusedProgramme: FtaProgramme? = null
+
+    // Preview player state
     private var previewPlayer: ExoPlayer? = null
-    private var previewChannelId: String? = null
-    private var previewDebounceJob: Job? = null
+    private var previewArmed: Boolean = false
+    private var previewChannel: FtaChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,11 +147,23 @@ class EpgActivity : AppCompatActivity() {
         nowLine        = findViewById(R.id.now_line)
         loader         = findViewById(R.id.loader)
         loaderText     = findViewById(R.id.loader_text)
-        previewCard       = findViewById(R.id.preview_card)
-        previewPlayerView = findViewById(R.id.preview_player)
-        previewStatus     = findViewById(R.id.preview_status)
-        previewLabel      = findViewById(R.id.preview_label)
-        previewSub        = findViewById(R.id.preview_sub)
+
+        previewCard           = findViewById(R.id.preview_card)
+        previewArt            = findViewById(R.id.preview_art)
+        previewPlayerView     = findViewById(R.id.preview_player)
+        previewHint           = findViewById(R.id.preview_hint)
+        previewTitle          = findViewById(R.id.preview_title)
+        previewMeta           = findViewById(R.id.preview_meta)
+        previewProgressBar    = findViewById(R.id.preview_progress_bar)
+        previewProgressTrack  = findViewById(R.id.preview_progress_track)
+        infoLogo       = findViewById(R.id.info_logo)
+        infoLcn        = findViewById(R.id.info_lcn)
+        infoName       = findViewById(R.id.info_name)
+        infoSynopsis   = findViewById(R.id.info_synopsis)
+        infoChips      = findViewById(R.id.info_chips)
+        upnextBlock    = findViewById(R.id.upnext_block)
+        upnextTitle    = findViewById(R.id.upnext_title)
+        upnextMeta     = findViewById(R.id.upnext_meta)
 
         favourites.addAll(FtaFavouritesStore.load(this))
 
@@ -138,7 +172,7 @@ class EpgActivity : AppCompatActivity() {
         setupCategoriesPanel()
         setupCityChip()
         setupGrid()
-        setupPreviewPlayer()
+        setupPreviewCard()
         startClock()
         load()
     }
@@ -192,9 +226,6 @@ class EpgActivity : AppCompatActivity() {
 
     private fun setTab(id: String) {
         currentTab = id
-        // Switching to favs resets the category to "live" so the
-        // category-filter and the favs-filter don't compound and
-        // empty the grid.
         if (id == "favs") currentCategory = "live"
         repaintTabs()
         repaintActiveCatChip()
@@ -219,8 +250,6 @@ class EpgActivity : AppCompatActivity() {
             repaintActiveCatChip()
             applyTab()
             catAdapter.submit(allCategories, currentCategory)
-            // Auto-close the panel after picking — same pattern as
-            // the React FTA submenu.
             setCategoriesPanelOpen(false)
         }
         catList.layoutManager = LinearLayoutManager(this)
@@ -239,10 +268,7 @@ class EpgActivity : AppCompatActivity() {
                 catList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
             }
         } else {
-            // Move focus back into the grid.
-            gridList.post {
-                gridList.requestFocus()
-            }
+            gridList.post { gridList.requestFocus() }
         }
     }
 
@@ -266,6 +292,9 @@ class EpgActivity : AppCompatActivity() {
                     if (picked != currentCity) {
                         currentCity = picked
                         cityChip.text = picked.uppercase(Locale.UK)
+                        // Tear the preview player down — different
+                        // city = different stream URLs.
+                        disarmPreview()
                         load()
                     }
                 }
@@ -278,7 +307,12 @@ class EpgActivity : AppCompatActivity() {
     private fun setupGrid() {
         gridAdapter = EpgGridAdapter(
             onProgrammeOpen = { ch, p -> launchPlayer(ch, p) },
-            onProgrammeFocus = { ch, _ -> debouncedTunePreview(ch) },
+            onProgrammeFocus = { ch, p ->
+                // Update the sidebar only.  Do NOT touch the player.
+                focusedChannel = ch
+                focusedProgramme = p
+                refreshSidebar()
+            },
             onFavouriteToggle = { ch -> toggleFavourite(ch) },
             onScrollX = { x ->
                 if (ticksScroll.scrollX != x) ticksScroll.scrollX = x
@@ -299,8 +333,6 @@ class EpgActivity : AppCompatActivity() {
             if (nowOn) "★ Added ${ch.name} to Favourites" else "Removed ${ch.name} from Favourites",
             Toast.LENGTH_SHORT,
         ).show()
-        // If we're currently filtered to favourites, the row might
-        // need to disappear — re-apply the tab.
         if (currentTab == "favs") applyTab()
     }
 
@@ -318,6 +350,229 @@ class EpgActivity : AppCompatActivity() {
         gridList.post {
             gridList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }
+    }
+
+    // ─────────────────────────────────────────── sidebar refresh
+    private fun refreshSidebar() {
+        val ch = focusedChannel
+        if (ch == null) {
+            previewTitle.text = ""
+            previewMeta.text = ""
+            previewProgressBar.layoutParams =
+                (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
+            infoLcn.text = ""
+            infoName.text = ""
+            infoSynopsis.text = "Select a channel"
+            upnextBlock.visibility = View.GONE
+            return
+        }
+        // Cover art (channel logo for now — TMDB programme backdrop
+        // would be Phase 3).
+        if (!ch.logo.isNullOrBlank()) {
+            previewArt.load(ch.logo) { crossfade(true); crossfade(160) }
+            infoLogo.load(ch.logo) { crossfade(true); crossfade(160) }
+        } else {
+            previewArt.setImageDrawable(null)
+            infoLogo.setImageDrawable(null)
+        }
+
+        val p = focusedProgramme
+        val now = System.currentTimeMillis()
+        val live = if (p != null && p.startMs <= now && p.stopMs > now) p else findLive(ch.id, now)
+
+        // Programme title + time + progress overlay
+        if (live != null) {
+            previewTitle.text = live.title.ifBlank { ch.name }
+            val remainingMin = ((live.stopMs - now) / 60_000L).coerceAtLeast(0)
+            previewMeta.text = "${cellTimeFmt.format(Date(live.startMs)).lowercase(Locale.UK)} – " +
+                cellTimeFmt.format(Date(live.stopMs)).lowercase(Locale.UK) +
+                if (remainingMin > 0) "  ·  ${remainingMin}m left" else ""
+            val pct = ((now - live.startMs).toFloat() / (live.stopMs - live.startMs).coerceAtLeast(1L))
+                .coerceIn(0f, 1f)
+            previewProgressTrack.post {
+                val trackW = previewProgressTrack.width
+                val lp = previewProgressBar.layoutParams as LinearLayout.LayoutParams
+                lp.width = (trackW * pct).toInt()
+                previewProgressBar.layoutParams = lp
+            }
+        } else {
+            previewTitle.text = ch.name
+            previewMeta.text = ""
+            (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
+                .also { previewProgressBar.layoutParams = it }
+        }
+
+        // Info row text
+        infoLcn.text = ch.lcn ?: ""
+        infoName.text = ch.name
+
+        // Synopsis
+        val synopsis = (focusedProgramme?.description
+            ?: live?.description
+            ?: "").trim()
+        infoSynopsis.text = if (synopsis.isBlank()) "No programme info available." else synopsis
+
+        // Chips
+        renderChips(live)
+
+        // Up next
+        val upNext = findUpNext(ch.id, now)
+        if (upNext != null) {
+            upnextBlock.visibility = View.VISIBLE
+            upnextTitle.text = upNext.title.ifBlank { "—" }
+            upnextMeta.text = "${cellTimeFmt.format(Date(upNext.startMs)).lowercase(Locale.UK)} – " +
+                cellTimeFmt.format(Date(upNext.stopMs)).lowercase(Locale.UK)
+        } else {
+            upnextBlock.visibility = View.GONE
+        }
+    }
+
+    private fun renderChips(live: FtaProgramme?) {
+        infoChips.removeAllViews()
+        val ctx = this
+        fun chip(text: String) {
+            val tv = TextView(ctx).apply {
+                this.text = text
+                setTextColor(ContextCompat.getColor(ctx, R.color.fta_fg_dim))
+                textSize = 10f
+                typeface = android.graphics.Typeface.create("monospace", android.graphics.Typeface.BOLD)
+                letterSpacing = 0.14f
+                setBackgroundResource(R.drawable.info_chip_bg)
+                setPadding(dpI(8f), dpI(3f), dpI(8f), dpI(3f))
+            }
+            val lp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { marginEnd = dpI(6f) }
+            infoChips.addView(tv, lp)
+        }
+        // Programme metadata isn't shipped in the EPG payload yet
+        // (rating / category come from XMLTV but our React lacked them
+        // historically too) — keep the chips set to HD + CC for now
+        // so the row matches the React layout visually.
+        chip("HD")
+        chip("CC")
+        // suppress unused-param warning — placeholder for future
+        // rating / category chips once we surface them in the EPG.
+        live?.let { /* future: chip(it.rating); chip(it.category) */ }
+    }
+
+    private fun findLive(channelId: String, now: Long): FtaProgramme? =
+        allProgrammes[channelId]?.firstOrNull { it.startMs <= now && it.stopMs > now }
+
+    private fun findUpNext(channelId: String, now: Long): FtaProgramme? =
+        allProgrammes[channelId]?.firstOrNull { it.startMs > now }
+
+    // ─────────────────────────────────────────── preview tile
+    private fun setupPreviewCard() {
+        previewCard.setOnClickListener {
+            val ch = focusedChannel ?: return@setOnClickListener
+            if (previewArmed && previewChannel?.id == ch.id) {
+                // Second OK on the SAME channel → go full screen.
+                val live = findLive(ch.id, System.currentTimeMillis())
+                if (live != null) launchPlayer(ch, live)
+            } else {
+                // First OK (or different channel) → arm the preview.
+                armPreview(ch)
+            }
+        }
+        // Ensure preview is initially OFF.
+        previewPlayerView.visibility = View.INVISIBLE
+        previewHint.visibility = View.VISIBLE
+    }
+
+    private fun armPreview(ch: FtaChannel) {
+        try {
+            ensurePreviewPlayer()
+            val player = previewPlayer ?: return
+            previewArmed = true
+            previewChannel = ch
+            previewHint.visibility = View.GONE
+            // Resolve the stream URL off the main thread.
+            lifecycleScope.launch {
+                val url = withContext(Dispatchers.IO) {
+                    try { FtaRepository.resolveStreamUrl(ch, currentCity) } catch (_: Throwable) { null }
+                }
+                if (url.isNullOrBlank()) {
+                    previewArmed = false
+                    previewHint.visibility = View.VISIBLE
+                    Toast.makeText(this@EpgActivity, "Couldn't resolve stream", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val item = MediaItem.Builder()
+                    .setUri(url)
+                    .setMimeType(MimeTypes.APPLICATION_M3U8)
+                    .build()
+                player.setMediaItem(item)
+                player.prepare()
+                player.playWhenReady = true
+                previewPlayerView.visibility = View.VISIBLE
+            }
+        } catch (t: Throwable) {
+            Log.w("EpgActivity", "armPreview failed", t)
+            previewArmed = false
+            previewHint.visibility = View.VISIBLE
+        }
+    }
+
+    private fun disarmPreview() {
+        previewArmed = false
+        previewChannel = null
+        previewHint.visibility = View.VISIBLE
+        previewPlayerView.visibility = View.INVISIBLE
+        try { previewPlayer?.stop() } catch (_: Throwable) {}
+        try { previewPlayer?.clearMediaItems() } catch (_: Throwable) {}
+    }
+
+    private fun ensurePreviewPlayer() {
+        if (previewPlayer != null) return
+        try {
+            val okClient = OkHttpClient.Builder()
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .build()
+            val httpFactory = OkHttpDataSource.Factory(okClient)
+                .setUserAgent("otg/1.5.1 (AppleTv Apple TV 4; tvOS16.0)")
+            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
+            val loadControl = DefaultLoadControl.Builder()
+                // DefaultLoadControl invariants:
+                //   minBuffer >= bufferForPlayback
+                //   minBuffer >= bufferForPlaybackAfterRebuffer
+                //   maxBuffer >= minBuffer
+                .setBufferDurationsMs(2_000, 5_000, 500, 1_500)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            previewPlayer = ExoPlayer.Builder(this)
+                .setLoadControl(loadControl)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build()
+                .apply {
+                    volume = 0f  // muted — the EPG keeps focus
+                    previewPlayerView.player = this
+                }
+            previewPlayerView.useController = false
+            previewPlayerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+        } catch (t: Throwable) {
+            Log.w("EpgActivity", "preview player init failed", t)
+            previewPlayer = null
+        }
+    }
+
+    // ─────────────────────────────────────────── full-screen play
+    private fun launchPlayer(ch: FtaChannel, p: FtaProgramme) {
+        // Pause the preview so we don't have two HLS sockets open.
+        try { previewPlayer?.pause() } catch (_: Throwable) {}
+        val intent = Intent(this, PlayerActivity::class.java).apply {
+            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, ch.name)
+            putExtra(PlayerActivity.EXTRA_PROGRAMME_TITLE, p.title)
+            putExtra(PlayerActivity.EXTRA_MJH_MASTER, ch.mjhMaster ?: "")
+            val headersFlat = ch.streamHeaders.entries
+                .joinToString("\n") { "${it.key}:${it.value}" }
+            putExtra(PlayerActivity.EXTRA_HEADERS, headersFlat)
+        }
+        startActivity(intent)
     }
 
     // ─────────────────────────────────────────── network load
@@ -343,6 +598,13 @@ class EpgActivity : AppCompatActivity() {
             applyTab()
             loader.visibility = View.GONE
             positionNowLine()
+            // Seed the sidebar with the first visible channel so it's
+            // never blank.
+            allChannels.firstOrNull()?.let {
+                focusedChannel = it
+                focusedProgramme = findLive(it.id, System.currentTimeMillis())
+                refreshSidebar()
+            }
         }
     }
 
@@ -364,9 +626,6 @@ class EpgActivity : AppCompatActivity() {
             view.layoutParams = lp
             ticksStrip.addView(view)
         }
-        // Re-position the NOW line every 30 s so the red line
-        // drifts forward in real time even when the user isn't
-        // touching the grid.
         clockHandler.post(object : Runnable {
             override fun run() {
                 positionNowLine()
@@ -399,95 +658,8 @@ class EpgActivity : AppCompatActivity() {
         })
     }
 
-    // ─────────────────────────────────────────── preview pane
-    private fun setupPreviewPlayer() {
-        try {
-            val okClient = OkHttpClient.Builder()
-                .connectTimeout(8, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .build()
-            val httpFactory = OkHttpDataSource.Factory(okClient)
-                .setUserAgent("otg/1.5.1 (AppleTv Apple TV 4; tvOS16.0)")
-            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
-            val loadControl = DefaultLoadControl.Builder()
-                // Tight buffer so channel changes settle quickly — the
-                // user is scouting, not watching.  Constraints required
-                // by DefaultLoadControl:
-                //   minBufferMs        >= bufferForPlaybackMs
-                //   minBufferMs        >= bufferForPlaybackAfterRebufferMs
-                //   maxBufferMs        >= minBufferMs
-                .setBufferDurationsMs(2_000, 5_000, 500, 1_500)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            previewPlayer = ExoPlayer.Builder(this)
-                .setLoadControl(loadControl)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .build()
-                .apply {
-                    volume = 0f
-                    playWhenReady = true
-                    previewPlayerView.player = this
-                }
-            previewPlayerView.useController = false
-            previewPlayerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-        } catch (t: Throwable) {
-            Log.w("EpgActivity", "preview pane init failed — disabling", t)
-            previewPlayer = null
-            previewCard.visibility = View.GONE
-        }
-    }
-
-    /** Debounce focus → tune the preview after 800 ms of stillness
-     *  on the same channel.  Prevents the preview from thrashing
-     *  while the user is rapidly D-padding across cells. */
-    private fun debouncedTunePreview(ch: FtaChannel) {
-        if (ch.id == previewChannelId && previewCard.visibility == View.VISIBLE) return
-        previewLabel.text = ch.name
-        previewSub.text = (ch.lcn?.let { "CH $it · " } ?: "") + (ch.network ?: "")
-        previewDebounceJob?.cancel()
-        previewDebounceJob = lifecycleScope.launch {
-            delay(800)
-            val url = withContext(Dispatchers.IO) {
-                try { FtaRepository.resolveStreamUrl(ch, currentCity) } catch (_: Throwable) { null }
-            }
-            if (url.isNullOrBlank()) return@launch
-            previewChannelId = ch.id
-            previewCard.visibility = View.VISIBLE
-            previewStatus.visibility = View.VISIBLE
-            val item = MediaItem.Builder()
-                .setUri(url)
-                .setMimeType(MimeTypes.APPLICATION_M3U8)
-                .build()
-            previewPlayer?.setMediaItem(item)
-            previewPlayer?.prepare()
-            // Hide the TUNING… overlay shortly after the first
-            // frame is expected.
-            previewPlayerView.postDelayed({ previewStatus.visibility = View.GONE }, 2_500)
-        }
-    }
-
-    // ─────────────────────────────────────────── full-screen play
-    private fun launchPlayer(ch: FtaChannel, p: FtaProgramme) {
-        // Pause the preview so we don't have two HLS sockets open
-        // to the same stream while the full PlayerActivity warms.
-        previewPlayer?.pause()
-        val intent = Intent(this, PlayerActivity::class.java).apply {
-            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
-            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, ch.name)
-            putExtra(PlayerActivity.EXTRA_PROGRAMME_TITLE, p.title)
-            putExtra(PlayerActivity.EXTRA_MJH_MASTER, ch.mjhMaster ?: "")
-            val headersFlat = ch.streamHeaders.entries
-                .joinToString("\n") { "${it.key}:${it.value}" }
-            putExtra(PlayerActivity.EXTRA_HEADERS, headersFlat)
-        }
-        startActivity(intent)
-    }
-
     // ─────────────────────────────────────────── back / escape
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Pressing BACK while the categories panel is open should
-        // close the panel instead of exiting the app.
         if (keyCode == KeyEvent.KEYCODE_BACK && catPanel.visibility == View.VISIBLE) {
             setCategoriesPanelOpen(false)
             return true
@@ -498,7 +670,7 @@ class EpgActivity : AppCompatActivity() {
     // ─────────────────────────────────────────── lifecycle
     override fun onResume() {
         super.onResume()
-        previewPlayer?.playWhenReady = true
+        if (previewArmed) previewPlayer?.playWhenReady = true
     }
 
     override fun onPause() {
@@ -507,8 +679,7 @@ class EpgActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        previewDebounceJob?.cancel()
-        previewPlayer?.release()
+        try { previewPlayer?.release() } catch (_: Throwable) {}
         previewPlayer = null
         clockHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -527,4 +698,6 @@ class EpgActivity : AppCompatActivity() {
 
     private fun dp(v: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
+
+    private fun dpI(v: Float): Int = dp(v).toInt()
 }
