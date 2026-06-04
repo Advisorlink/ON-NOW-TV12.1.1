@@ -514,16 +514,28 @@ class PlayerActivity : AppCompatActivity() {
 
     /* ─────────────────── Lifecycle ─────────────────── */
 
-    override fun onPause() {
-        super.onPause()
-        // Pause playback so the audio doesn't leak when the user
-        // backgrounds the app via HOME.  We'll resume in onResume.
-        player?.playWhenReady = false
+    override fun onStop() {
+        // App moved to background / HOME pressed.  Aggressively kill
+        // the upstream socket so the provider's concurrent-stream
+        // tracker frees our slot — the user's account allows only
+        // ONE stream at a time, so we cannot afford to leak the
+        // connection while the app is offscreen.
+        releaseUpstream()
+        super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
-        player?.playWhenReady = true
+        // Restart playback after returning from background.
+        val ch = currentChannel
+        val p = player
+        if (ch != null && p != null && p.currentMediaItem == null) {
+            p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
+            p.playWhenReady = true
+            p.prepare()
+        } else {
+            p?.playWhenReady = true
+        }
     }
 
     override fun onDestroy() {
@@ -532,8 +544,13 @@ class PlayerActivity : AppCompatActivity() {
         progressHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
+        releaseUpstream()
         player?.release()
         player = null
+        // Force-evict the OkHttp pool one last time so no socket
+        // can outlive the activity.
+        try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
+        cachedHttpClient = null
         super.onDestroy()
     }
 }
