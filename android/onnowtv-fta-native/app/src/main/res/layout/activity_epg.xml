@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    FTA NATIVE — EPG screen.
+    FTA NATIVE — EPG screen (Phase 2).
 
     Layout:
-      [ SIDE NAV (88dp) ][ TOPBAR + GRID body ]
-        TOPBAR: brand wordmark · tabs · clock
-        GRID body =
-            [ Channel rail (104dp) ][ Horizontal-scrolling timeline ]
-        Each row is a horizontal RecyclerView of programme cells
-        positioned absolutely at `startMs * px_per_min` — the same
-        model the React FTA uses.  The NOW vertical red line is
-        drawn as an overlay over the timeline.
+      [ SIDE NAV (88dp) ][ CATEGORIES PANEL (260dp, slide-out) ]
+      [ TOPBAR + ticks header + grid body + preview pane overlay ]
+
+    The categories panel is hidden by default (visibility=GONE) and
+    toggled by the "Categories" side-rail icon.  When visible it
+    pushes the grid right, mirroring the WebView FTA UX where the
+    submenu sits to the right of the rail.
+
+    The preview pane is an overlay in the top-right of the grid
+    body — a small ExoPlayer that auto-tunes to the focused channel
+    after an 800 ms debounce.  Tap a programme → opens the full
+    PlayerActivity.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
@@ -30,6 +35,38 @@
         android:descendantFocusability="afterDescendants"
         android:focusable="false"
         android:overScrollMode="never" />
+
+    <!-- ───────── CATEGORIES SLIDE-OUT PANEL ───────── -->
+    <LinearLayout
+        android:id="@+id/cat_panel"
+        android:layout_width="@dimen/fta_cat_panel_w"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/category_panel_bg"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="22dp"
+            android:paddingBottom="14dp"
+            android:text="CATEGORIES"
+            android:textColor="@color/fta_blue"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.30" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/cat_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="false"
+            android:overScrollMode="never" />
+    </LinearLayout>
 
     <!-- ───────── MAIN CONTENT ───────── -->
     <LinearLayout
@@ -80,11 +117,30 @@
                 android:orientation="horizontal"
                 android:layout_marginStart="32dp" />
 
+            <!-- Currently-selected category chip (when a non-live
+                 category is active, e.g. "KIDS" or "SPORT"). -->
+            <TextView
+                android:id="@+id/active_cat_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:paddingStart="10dp" android:paddingEnd="10dp"
+                android:paddingTop="4dp" android:paddingBottom="4dp"
+                android:background="@drawable/next_pill_bg"
+                android:textColor="@color/fta_bg"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.22"
+                android:visibility="gone"
+                android:text="" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
+            <!-- City chip — focusable, click opens the city picker. -->
             <TextView
                 android:id="@+id/city_chip"
                 android:layout_width="wrap_content"
@@ -97,6 +153,8 @@
                 android:textStyle="bold"
                 android:fontFamily="monospace"
                 android:letterSpacing="0.22"
+                android:focusable="true"
+                android:clickable="true"
                 android:text="BRISBANE" />
 
             <TextView
@@ -155,8 +213,7 @@
                 android:overScrollMode="never"
                 android:clipToPadding="false" />
 
-            <!-- NOW vertical red line — positioned by EpgActivity
-                 in `setNowLineX` once the grid layout stabilises. -->
+            <!-- NOW vertical red line — positioned by EpgActivity. -->
             <View
                 android:id="@+id/now_line"
                 android:layout_width="2dp"
@@ -164,6 +221,73 @@
                 android:layout_marginStart="0dp"
                 android:background="@color/fta_now_red"
                 android:visibility="invisible" />
+
+            <!-- ───────── PREVIEW PANE (top-right overlay) ───────── -->
+            <LinearLayout
+                android:id="@+id/preview_card"
+                android:layout_width="@dimen/fta_preview_w"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="14dp"
+                android:layout_marginEnd="22dp"
+                android:orientation="vertical"
+                android:background="@drawable/preview_card_bg"
+                android:padding="6dp"
+                android:visibility="invisible">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/fta_preview_h">
+
+                    <androidx.media3.ui.PlayerView
+                        android:id="@+id/preview_player"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        app:resize_mode="fill"
+                        app:use_controller="false"
+                        app:show_buffering="never" />
+
+                    <!-- "TUNING…" overlay shown while the preview
+                         player is buffering the new channel. -->
+                    <TextView
+                        android:id="@+id/preview_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.22"
+                        android:visibility="gone"
+                        android:text="TUNING…" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/preview_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/fta_fg"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/preview_sub"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/fta_fg_dim"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.10"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+            </LinearLayout>
 
             <!-- Loader -->
             <LinearLayout
