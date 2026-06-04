@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     private val tipHandler = Handler(Looper.getMainLooper())
     private val dotsHandler = Handler(Looper.getMainLooper())
     private val brandHandler = Handler(Looper.getMainLooper())
+    private val countdownHandler = Handler(Looper.getMainLooper())
 
     // Rotating tips — swap every TIP_INTERVAL_MS so the user has
     // something to read during the long first-boot wait.
