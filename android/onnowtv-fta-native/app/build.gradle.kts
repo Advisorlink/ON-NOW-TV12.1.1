@@ -13,6 +13,13 @@ android {
         targetSdk     = 34
         versionCode   = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
         versionName   = (project.findProperty("versionName") as String?) ?: "0.1.0"
+
+        // Backend base URL the in-app updater + repository hit.
+        // Overridable per-build via -PbackendBase=… in case we ever
+        // need to point a debug APK at a staging stack.
+        val backendBase = (project.findProperty("backendBase") as String?)
+            ?: "https://onnowtv.duckdns.org"
+        buildConfigField("String", "BACKEND_BASE", "\"$backendBase\"")
     }
 
     signingConfigs {

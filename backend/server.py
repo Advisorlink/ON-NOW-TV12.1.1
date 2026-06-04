@@ -1484,6 +1484,80 @@ def _parse_semver_from_body(body: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+# ----- App version check (FTA Native) ---------------------------------------
+#
+# Same shape as `/api/app/latest-version` (Vesper / WebView build) but reads
+# the `fta-native-latest` release tag so the in-app update gate on the new
+# native FTA app can self-update.  Cached separately for 5 min.
+
+@api.get("/app/latest-version-fta-native")
+async def app_latest_version_fta_native():
+    cache_key = "github:fta-native-latest:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+
+    owner_repo = os.environ.get("APK_GITHUB_REPO", "andrewbailey-uk/onnowtv-v2")
+    url = f"https://api.github.com/repos/{owner_repo}/releases/tags/fta-native-latest"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            r = await client.get(
+                url,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "fta-native-update-check",
+                },
+            )
+            if r.status_code == 404:
+                empty = {
+                    "version": None, "tag_name": None, "name": None,
+                    "published_at": None, "notes": "",
+                    "apk_url": None, "html_url": None,
+                }
+                await cache.set(cache_key, empty, 60)
+                return {"cached": False, **empty}
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(502, f"GitHub release lookup failed: {exc.response.status_code} {exc.response.text[:200]}") from None
+    except httpx.RequestError as exc:
+        raise HTTPException(504, f"GitHub network error: {exc}") from None
+
+    # Pick the *-debug.apk asset (matches build-fta-native.yml output).
+    apk_url = None
+    for asset in (data.get("assets") or []):
+        name = (asset.get("name") or "").lower()
+        if name.endswith("-debug.apk") or name == "fta-native-debug.apk":
+            apk_url = asset.get("browser_download_url")
+            break
+    if not apk_url:
+        # Last-resort fallback: any .apk asset.
+        for asset in (data.get("assets") or []):
+            if (asset.get("name") or "").lower().endswith(".apk"):
+                apk_url = asset.get("browser_download_url")
+                break
+
+    # The workflow names releases like "FTA Native 0.2.0 (build 5)" —
+    # parse the semver out of that string.
+    name_str = data.get("name") or ""
+    body = data.get("body") or ""
+    import re as _re
+    semver = None
+    m = _re.search(r"\b(\d+\.\d+\.\d+)\b", name_str) or _re.search(r"\b(\d+\.\d+\.\d+)\b", body)
+    if m:
+        semver = m.group(1)
+
+    out = {
+        "version":      semver,
+        "tag_name":     data.get("tag_name"),
+        "name":         name_str,
+        "published_at": data.get("published_at"),
+        "notes":        body,
+        "apk_url":      apk_url,
+        "html_url":     data.get("html_url"),
+    }
+    await cache.set(cache_key, out, 300)
+    return {"cached": False, **out}
 
 
 @api.post("/tmdb/upcoming-episodes")
