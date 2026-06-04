@@ -16,6 +16,10 @@
     <color name="livetv_now_line">#5DC8FF</color>
     <color name="livetv_row_separator">#11FFFFFF</color>
     <color name="livetv_card_border">#1AFFFFFF</color>
-    <color name="livetv_reminder_yellow">#FFC83D</color>
-    <color name="livetv_reminder_yellow_dim">#80FFC83D</color>
+    <!-- Reminder accent.  Was yellow (#FFC83D) historically — the
+         resource name still says "yellow" but the value is now a
+         soft mint green per the user's preference.  Kept the name
+         to avoid churning every drawable / layout reference. -->
+    <color name="livetv_reminder_yellow">#5BD49A</color>
+    <color name="livetv_reminder_yellow_dim">#805BD49A</color>
 </resources>

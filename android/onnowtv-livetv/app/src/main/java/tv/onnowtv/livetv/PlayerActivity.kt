@@ -220,9 +220,16 @@ class PlayerActivity : AppCompatActivity() {
             }
 
         playerView.player = p
-        playerView.controllerShowTimeoutMs = 3_500
+        // Transport controller stays HIDDEN by default once playback
+        // starts — set a long auto-hide and disable the click-to-show
+        // so the controller only appears when the user explicitly
+        // presses a D-pad / number / OK key.  The Listener that
+        // fires on STATE_READY (above) will pre-hide it the moment
+        // the first frame lands.
+        playerView.controllerShowTimeoutMs = 3_000
         playerView.controllerHideOnTouch = true
         playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+        playerView.useController = true
         player = p
 
         p.addListener(object : Player.Listener {
@@ -243,6 +250,18 @@ class PlayerActivity : AppCompatActivity() {
                     Player.STATE_READY -> {
                         status.text = ""
                         consecutiveFailures = 0
+                        // First frame is on screen — hide the
+                        // transport controller AND the info card
+                        // immediately so the picture fills the
+                        // whole screen at full brightness.  The
+                        // user can press OK / INFO / D-pad to
+                        // bring them back.
+                        playerView.hideController()
+                        hideHandler.removeCallbacksAndMessages(null)
+                        infoCard.animate().cancel()
+                        infoCard.animate().alpha(0f).setDuration(180)
+                            .withEndAction { infoCard.visibility = View.GONE }
+                            .start()
                     }
                     Player.STATE_BUFFERING -> { /* spinner shown by PlayerView */ }
                     Player.STATE_ENDED -> { status.text = "Stream ended" }
