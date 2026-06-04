@@ -26,8 +26,6 @@
         android:layout_height="match_parent"
         app:resize_mode="fit"
         app:use_controller="true"
-        app:controller_show_timeout_ms="3500"
-        app:controller_hide_on_touch="true"
         app:show_buffering="when_playing" />
 
     <!-- ─────────── Channel info overlay (top-left) ─────────── -->
