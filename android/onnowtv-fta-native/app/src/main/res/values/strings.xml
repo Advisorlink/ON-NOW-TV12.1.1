@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FTA</string>
+    <string name="brand">ON NOW</string>
+    <string name="brand_suffix">FTA</string>
+    <string name="tab_live">Free-to-Air</string>
+    <string name="tab_favs">Favourites</string>
+    <string name="nav_cats">Categories</string>
+    <string name="nav_favs">Favourites</string>
+    <string name="nav_refresh">Refresh</string>
+</resources>

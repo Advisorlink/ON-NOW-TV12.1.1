@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Grid scale.  9 px per minute matches React's
+         `--fta-grid-px-per-min` so the visual density mirrors the
+         existing FTA UI. -->
+    <dimen name="fta_px_per_min">9dp</dimen>
+    <dimen name="fta_row_h">64dp</dimen>
+    <dimen name="fta_channel_rail_w">104dp</dimen>
+    <dimen name="fta_topbar_h">68dp</dimen>
+    <dimen name="fta_side_rail_w">88dp</dimen>
+</resources>
