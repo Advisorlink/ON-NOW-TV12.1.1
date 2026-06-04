@@ -39,6 +39,7 @@ import java.util.Locale
 class EpgGridAdapter(
     private val onProgrammeOpen: (FtaChannel, FtaProgramme) -> Unit,
     private val onProgrammeFocus: (FtaChannel, FtaProgramme) -> Unit,
+    private val onScrollX: (Int) -> Unit = {},
 ) : RecyclerView.Adapter<EpgGridAdapter.VH>() {
 
     private val channels = mutableListOf<FtaChannel>()
@@ -75,10 +76,13 @@ class EpgGridAdapter(
     /** Update every visible row's HorizontalScrollView position to
      *  [x] px so all rows pan together. */
     fun setScrollX(x: Int) {
-        sharedScrollX = x.coerceAtLeast(0)
+        val clamped = x.coerceAtLeast(0)
+        if (clamped == sharedScrollX) return
+        sharedScrollX = clamped
         for (vh in boundRows) {
             if (vh.scroller.scrollX != sharedScrollX) vh.scroller.scrollX = sharedScrollX
         }
+        onScrollX(sharedScrollX)
     }
 
     fun currentScrollX(): Int = sharedScrollX

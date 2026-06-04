@@ -47,14 +47,30 @@ object FtaRepository {
             val catList = if (cats != null)
                 (0 until cats.length()).map { cats.optString(it) }
                 else emptyList()
-            val headersObj = c.optJSONObject("headers")
+            // MJH `tv.json` returns `headers` either as a JSON
+            // object OR as a URL-form-encoded string (e.g.
+            // "user-agent=…&referer=…").  Be tolerant of both.
             val headers = mutableMapOf<String, String>()
+            val headersObj = c.optJSONObject("headers")
             if (headersObj != null) {
                 val it = headersObj.keys()
                 while (it.hasNext()) {
                     val k = it.next()
                     val v = headersObj.optString(k)
-                    if (v.isNotBlank()) headers[k] = v
+                    if (v.isNotBlank()) headers[k.lowercase()] = v
+                }
+            } else {
+                val raw = c.optString("headers").trim()
+                if (raw.isNotBlank()) {
+                    for (pair in raw.split('&', '\n')) {
+                        val idx = pair.indexOf('=')
+                        if (idx <= 0) continue
+                        val k = pair.substring(0, idx).trim().lowercase()
+                        val v = pair.substring(idx + 1).trim()
+                        if (k.isNotBlank() && v.isNotBlank()) {
+                            headers[k] = try { java.net.URLDecoder.decode(v, "UTF-8") } catch (_: Throwable) { v }
+                        }
+                    }
                 }
             }
             out.add(
@@ -95,7 +111,9 @@ object FtaRepository {
                 list.add(
                     FtaProgramme(
                         title = p.optString("title").ifBlank { p.optString("name") },
-                        description = p.optString("description").takeIf { it.isNotBlank() },
+                        description = p.optString("desc")
+                            .ifBlank { p.optString("description") }
+                            .takeIf { it.isNotBlank() },
                         startMs = startMs,
                         stopMs = stopMs,
                         channelId = cid,
