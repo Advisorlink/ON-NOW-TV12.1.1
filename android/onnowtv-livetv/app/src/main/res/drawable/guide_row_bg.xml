@@ -3,8 +3,8 @@
     Guide row background.
 
     Four visual states:
-      • activated + focused : YELLOW glow ring (reminder set, row highlighted)
-      • activated           : YELLOW outline (reminder set)
+      • activated + focused : GREEN glow ring (reminder set, row highlighted)
+      • activated           : GREEN outline  (reminder set)
       • focused             : cyan accent outline
       • default             : subtle dark capsule
 
@@ -13,19 +13,19 @@
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Reminder set AND focused: bright yellow glow -->
+    <!-- Reminder set AND focused: bright green glow -->
     <item android:state_activated="true" android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="#1F2A1A" />
+            <solid android:color="#142219" />
             <corners android:radius="14dp" />
             <stroke android:width="2dp" android:color="@color/livetv_reminder_yellow" />
         </shape>
     </item>
 
-    <!-- Reminder set: solid yellow outline -->
+    <!-- Reminder set: solid green outline -->
     <item android:state_activated="true">
         <shape android:shape="rectangle">
-            <solid android:color="#16190E" />
+            <solid android:color="#0E1A14" />
             <corners android:radius="14dp" />
             <stroke android:width="2dp" android:color="@color/livetv_reminder_yellow" />
         </shape>

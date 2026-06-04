@@ -49,9 +49,17 @@ class GuideRowAdapter(
         val now = Calendar.getInstance()
         val today = now.get(Calendar.DAY_OF_YEAR)
         val year = now.get(Calendar.YEAR)
+        val nowMs = now.timeInMillis
         var lastHeader: Int? = null
         val cal = Calendar.getInstance()
-        for (p in programmes) {
+        // "Coming Up Next" = programmes whose START is in the future.
+        // We deliberately EXCLUDE the show that's currently airing
+        // (that's already on screen as the hero NOW playing).  This
+        // is what users naturally expect when they read the heading.
+        val upcoming = programmes
+            .filter { it.startMs > nowMs }
+            .sortedBy { it.startMs }
+        for (p in upcoming) {
             cal.timeInMillis = p.startMs
             val key = cal.get(Calendar.YEAR) * 1000 + cal.get(Calendar.DAY_OF_YEAR)
             if (key != lastHeader) {
