@@ -77,6 +77,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private var player: ExoPlayer? = null
+    private var cachedHttpClient: OkHttpClient? = null
     private lateinit var playerView: PlayerView
     private lateinit var status: TextView
     private lateinit var infoCard: View
@@ -178,9 +179,16 @@ class PlayerActivity : AppCompatActivity() {
             .setTargetBufferBytes(C.LENGTH_UNSET)
             .build()
 
-        // OkHttp data source with the VLC user-agent + keep-alive +
-        // redirects.  Vesper's player uses exactly this combo and
-        // streams the same Xtream `.ts` URLs cleanly.
+        // OkHttp data source — tuned for 1-concurrent-stream IPTV
+        // providers.  Critical settings:
+        //   • Tiny connection pool (max 1 conn, 5-second idle) so an
+        //     orphaned socket can't hold the provider's stream slot
+        //     for the default 5 minutes after we tune away.
+        //   • `Connection: close` on every request so the provider
+        //     frees the slot as soon as the socket closes, not when
+        //     keep-alive eventually times out.
+        // Vesper's player uses exactly this combo for the same
+        // single-stream-limit Xtream feeds.
         val okClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(25, TimeUnit.SECONDS)
@@ -188,10 +196,17 @@ class PlayerActivity : AppCompatActivity() {
             .retryOnConnectionFailure(true)
             .followRedirects(true)
             .followSslRedirects(true)
-            .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+            .connectionPool(ConnectionPool(1, 5, TimeUnit.SECONDS))
             .build()
         val httpFactory = OkHttpDataSource.Factory(okClient)
             .setUserAgent(UA)
+            .setDefaultRequestProperties(
+                mapOf("Connection" to "close"),
+            )
+        // Cache the http client so we can evict its connection pool
+        // on `player.stop()` / activity teardown for guaranteed
+        // upstream-socket release.
+        cachedHttpClient = okClient
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(httpFactory)
 
@@ -279,6 +294,24 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
+     * Fully kill any open upstream socket so the provider's
+     * concurrent-stream tracker releases our slot immediately.
+     * Called before every tune-in AND on activity teardown — the
+     * user is allowed only ONE simultaneous stream on their
+     * Xtream credentials so we cannot afford to leave a stale
+     * connection sitting in the OkHttp pool.
+     */
+    private fun releaseUpstream() {
+        val p = player
+        if (p != null) {
+            try { p.stop() } catch (_: Throwable) {}
+            try { p.clearMediaItems() } catch (_: Throwable) {}
+        }
+        try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
+        try { cachedHttpClient?.dispatcher?.cancelAll() } catch (_: Throwable) {}
+    }
+
+    /**
      * Tune to a given channel by swapping the active MediaItem
      * without releasing the player.  This is the fast zap path —
      * <600 ms first frame on most HLS feeds.
@@ -292,12 +325,10 @@ class PlayerActivity : AppCompatActivity() {
         currentChannel = channel
         val p = player ?: return
         if (!initial) status.text = "Tuning…"
-        // Explicit stop forces the previous HTTP socket to close
-        // before the new media item opens.  Some Xtream providers
-        // (openresty front-ends) won't release the previous stream
-        // slot until the socket is fully closed, returning 503 on
-        // the next request if the old stream is still tracked.
-        try { p.stop() } catch (_: Throwable) { /* ok */ }
+        // Force the previous upstream socket fully closed so the
+        // provider's session tracker frees the slot before we
+        // request the new channel.
+        releaseUpstream()
         p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         p.playWhenReady = true
         p.prepare()
@@ -316,7 +347,7 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
-            try { p.stop() } catch (_: Throwable) {}
+            releaseUpstream()
             p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
             p.playWhenReady = true
             p.prepare()
