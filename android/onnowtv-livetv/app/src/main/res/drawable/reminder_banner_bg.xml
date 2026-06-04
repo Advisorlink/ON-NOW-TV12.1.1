@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reminder pop-up card.  Slides in from the top-right.  Card
+     mirrors the player info overlay: dark navy with a cyan top
+     border but the cyan is swapped for the reminder YELLOW so
+     it's instantly distinguishable from the "now playing" card. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#EE0A0F1A" />
+    <corners android:radius="14dp" />
+    <stroke android:width="2dp" android:color="@color/livetv_reminder_yellow" />
+</shape>

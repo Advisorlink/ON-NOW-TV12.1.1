@@ -3,9 +3,10 @@
     MainActivity descriptive boot loader.
 
     Big centred "V2 Live TV" wordmark up top.  Beneath it a status
-    block: phase headline + sub-status + determinate progress bar +
-    counters.  Holds for at least 60 seconds AND until popular
-    regions (UK / US / AU / Kayo) EPG is fully warm before launching
+    block: phase headline + 3 pulsing dots (proof of life) + sub-
+    status + determinate progress bar + counters + rotating tip.
+    Holds for at least 60 seconds AND until popular regions
+    (UK / US / AU / Kayo) EPG is fully warm before launching
     EpgActivity.
 -->
 <FrameLayout
@@ -32,6 +33,7 @@
             android:baselineAligned="false">
 
             <TextView
+                android:id="@+id/loader_brand_v2"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/brand_v2"
@@ -88,6 +90,14 @@
             android:gravity="center"
             android:text="Connecting…" />
 
+        <!-- Pulsing dots — proof we're alive while data is in flight. -->
+        <include
+            android:id="@+id/loader_dots_container"
+            layout="@layout/loader_dots"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" />
+
         <!-- Determinate progress bar -->
         <ProgressBar
             android:id="@+id/loader_progress"
@@ -99,7 +109,7 @@
             android:progress="0"
             android:progressDrawable="@drawable/loader_progress" />
 
-        <!-- Sub-status: short phase description ("Downloading bundle…", "Warming popular regions…") -->
+        <!-- Sub-status: short phase description -->
         <TextView
             android:id="@+id/loader_substatus"
             android:layout_width="wrap_content"
@@ -111,8 +121,7 @@
             android:gravity="center"
             android:text="" />
 
-        <!-- Clean live counters: "12,094 channels loaded  ·  1,820 / 2,400 popular EPG ready".
-             Updates every poll so the user sees data flowing in. -->
+        <!-- Live counters that smoothly increment as data arrives. -->
         <TextView
             android:id="@+id/loader_counters"
             android:layout_width="wrap_content"
@@ -124,6 +133,21 @@
             android:textStyle="bold"
             android:letterSpacing="0.16"
             android:gravity="center"
+            android:text="" />
+
+        <!-- Rotating "did you know" tip — swaps every 4 seconds so
+             the user has something to read while waiting. -->
+        <TextView
+            android:id="@+id/loader_tip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:textColor="@color/livetv_fg_dimmer"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp"
+            android:maxLines="2"
             android:text="" />
 
         <!-- Retry CTA: hidden by default -->
