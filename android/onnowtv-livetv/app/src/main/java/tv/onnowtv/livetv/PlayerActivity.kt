@@ -10,18 +10,25 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
 import coil.load
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Full-screen ExoPlayer for a single live channel.
@@ -49,18 +56,24 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_SUBTITLE = "extra_subtitle"
         const val EXTRA_CHANNEL_ID = "extra_channel_id"
 
-        private const val INFO_HOLD_MS = 4_000L
+        private const val INFO_HOLD_MS = 2_500L
         private const val NUMBER_PILL_TIMEOUT_MS = 1_500L
 
-        /** Buffer thresholds, optimised for INSTANT first-frame on
-         *  cheap TV boxes.  Lower numbers = faster zap, but more
-         *  rebuffering on flaky links.  These values are 35% lower
-         *  than ExoPlayer's defaults and have tested fine on the
-         *  user's HK1 box over 4G hotspot. */
-        private const val MIN_BUFFER_MS              = 1_500
-        private const val MAX_BUFFER_MS              = 12_000
-        private const val BUFFER_FOR_PLAYBACK_MS     = 500
-        private const val BUFFER_FOR_REBUFFER_MS     = 1_000
+        /** Buffer thresholds, tuned for direct MPEG-TS over HTTPS
+         *  (the Xtream feeds use `.ts` URLs).  TS streams have
+         *  2-4 s gaps between keyframes so very tight buffers
+         *  cause the player to sit on a black frame waiting for
+         *  a keyframe.  These match the Vesper ExoPlayer that's
+         *  been battle-tested over months. */
+        private const val MIN_BUFFER_MS              = 30_000
+        private const val MAX_BUFFER_MS              = 90_000
+        private const val BUFFER_FOR_PLAYBACK_MS     = 3_000
+        private const val BUFFER_FOR_REBUFFER_MS     = 5_000
+
+        /** User-Agent advertised to the Xtream server.  Mirrors VLC
+         *  so IPTV providers that block ExoPlayer/4.x by default
+         *  still hand us the stream. */
+        private const val UA = "VLC/3.0.20 LibVLC/3.0.20"
     }
 
     private var player: ExoPlayer? = null
@@ -155,34 +168,97 @@ class PlayerActivity : AppCompatActivity() {
                 BUFFER_FOR_PLAYBACK_MS,
                 BUFFER_FOR_REBUFFER_MS,
             )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setTargetBufferBytes(C.LENGTH_UNSET)
             .build()
+
+        // OkHttp data source with the VLC user-agent + keep-alive +
+        // redirects.  Vesper's player uses exactly this combo and
+        // streams the same Xtream `.ts` URLs cleanly.
+        val okClient = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(25, TimeUnit.SECONDS)
+            .writeTimeout(25, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+            .build()
+        val httpFactory = OkHttpDataSource.Factory(okClient)
+            .setUserAgent(UA)
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Accept-Language" to "en,en-US;q=0.9",
+                    "Connection" to "keep-alive",
+                ),
+            )
+        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(httpFactory)
+
+        val bandwidth = DefaultBandwidthMeter.Builder(this).build()
 
         val p = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setBandwidthMeter(bandwidth)
             .build()
+            .apply {
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                    .setPreferredAudioLanguages("eng", "en", "english")
+                    .setPreferredTextLanguages("eng", "en", "english")
+                    .build()
+            }
+
         playerView.player = p
-        // Set the controller's auto-hide timeout (3.5 s) programmatically
-        // — the XML attribute names for these vary between media3
-        // releases, so we configure them here instead of in the layout
-        // to avoid resource linking errors.
         playerView.controllerShowTimeoutMs = 3_500
         playerView.controllerHideOnTouch = true
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         player = p
 
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) {
-                    status.text = ""
-                } else if (state == Player.STATE_BUFFERING) {
-                    // PlayerView's built-in buffering spinner already
-                    // covers this — leave status clear.
+                when (state) {
+                    Player.STATE_READY -> { status.text = "" }
+                    Player.STATE_BUFFERING -> { /* spinner shown by PlayerView */ }
+                    Player.STATE_ENDED -> { status.text = "Stream ended" }
+                    else -> Unit
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
                 Log.w("PlayerActivity", "playback error: ${error.errorCodeName}", error)
-                status.text = "Playback failed: ${error.errorCodeName}"
+                status.text = buildErrorMessage(error)
             }
         })
+    }
+
+    /**
+     * Pull the most useful diagnostic info out of a PlaybackException
+     * — for `Bad HTTP status` we extract the actual HTTP code from
+     * the cause chain so the user knows whether it's 403 (blocked)
+     * vs 404 (missing) vs 500 (server failure).
+     */
+    private fun buildErrorMessage(error: PlaybackException): String {
+        val name = error.errorCodeName
+        val cause = error.cause
+        val httpHint = if (cause != null) {
+            // Walk the cause chain looking for a HttpDataSource.HttpDataSourceException
+            // / InvalidResponseCodeException — those carry the
+            // numeric status code as a public field.
+            var c: Throwable? = cause
+            var hint: String? = null
+            while (c != null && hint == null) {
+                val cls = c::class.java.simpleName
+                val msg = c.message
+                if (cls.contains("InvalidResponseCode") && msg != null) {
+                    hint = msg.lines().firstOrNull() ?: msg
+                } else if (msg != null && msg.contains("HTTP status code")) {
+                    hint = msg.lines().firstOrNull() ?: msg
+                }
+                c = c.cause
+            }
+            hint
+        } else null
+        return if (!httpHint.isNullOrBlank()) "Playback failed — $httpHint" else "Playback failed — $name"
     }
 
     /**

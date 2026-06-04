@@ -166,15 +166,36 @@
             android:text="Tap to retry" />
     </LinearLayout>
 
-    <!-- Footer hint -->
-    <TextView
+    <!-- Footer hint + 5-minute first-load countdown.  Counts DOWN
+         from 5:00 → 0:00 so the user has tangible proof that things
+         are actually moving along during the long first-boot wait. -->
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="44dp"
-        android:fontFamily="monospace"
-        android:textColor="@color/livetv_fg_dimmer"
-        android:textSize="10sp"
-        android:letterSpacing="0.36"
-        android:text="WAITING FOR UK · US · AU · KAYO EPG TO POPULATE" />
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_fg_dimmer"
+            android:textSize="10sp"
+            android:letterSpacing="0.36"
+            android:text="FIRST LOAD CAN TAKE UP TO 5 MINUTES" />
+
+        <TextView
+            android:id="@+id/loader_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.10"
+            android:text="5:00" />
+    </LinearLayout>
 </FrameLayout>
