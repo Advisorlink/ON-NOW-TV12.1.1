@@ -59,20 +59,16 @@ class PlayerActivity : AppCompatActivity() {
         private const val INFO_HOLD_MS = 2_500L
         private const val NUMBER_PILL_TIMEOUT_MS = 1_500L
 
-        /** Buffer thresholds, tuned for direct MPEG-TS over HTTPS
-         *  (the Xtream feeds use `.ts` URLs).  TS streams have
-         *  2-4 s gaps between keyframes so very tight buffers
-         *  cause the player to sit on a black frame waiting for
-         *  a keyframe.  These match the Vesper ExoPlayer that's
-         *  been battle-tested over months. */
-        private const val MIN_BUFFER_MS              = 30_000
-        private const val MAX_BUFFER_MS              = 90_000
-        private const val BUFFER_FOR_PLAYBACK_MS     = 3_000
-        private const val BUFFER_FOR_REBUFFER_MS     = 5_000
+        /** Buffer thresholds — verbatim copy of Vesper's
+         *  ExoPlayerActivity (which has been playing these exact
+         *  Xtream `.ts` feeds reliably for months). */
+        private const val MIN_BUFFER_MS              = 50_000
+        private const val MAX_BUFFER_MS              = 120_000
+        private const val BUFFER_FOR_PLAYBACK_MS     = 6_000
+        private const val BUFFER_FOR_REBUFFER_MS     = 10_000
 
-        /** User-Agent advertised to the Xtream server.  Matches
-         *  Vesper's known-working UA so providers that whitelist
-         *  certain UAs still hand us the stream. */
+        /** User-Agent — exact string Vesper uses.  The provider is
+         *  known to accept it. */
         private const val UA = "Vesper-ExoPlayer/2.7.43"
     }
 
@@ -179,16 +175,12 @@ class PlayerActivity : AppCompatActivity() {
             .setTargetBufferBytes(C.LENGTH_UNSET)
             .build()
 
-        // OkHttp data source — tuned for 1-concurrent-stream IPTV
-        // providers.  Critical settings:
-        //   • Tiny connection pool (max 1 conn, 5-second idle) so an
-        //     orphaned socket can't hold the provider's stream slot
-        //     for the default 5 minutes after we tune away.
-        //   • `Connection: close` on every request so the provider
-        //     frees the slot as soon as the socket closes, not when
-        //     keep-alive eventually times out.
-        // Vesper's player uses exactly this combo for the same
-        // single-stream-limit Xtream feeds.
+        // OkHttp data source — EXACT copy of Vesper's working
+        // config.  Keep-alive ON (5-minute pool TTL) — Vesper has
+        // been streaming the same Xtream `.ts` feeds successfully
+        // with this setup for months.  Connection-close was wrong
+        // for our provider — it caused ExoPlayer to report
+        // ERROR_CODE_IO_NETWORK_CONNECTION_FAILED mid-segment.
         val okClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(25, TimeUnit.SECONDS)
@@ -196,16 +188,19 @@ class PlayerActivity : AppCompatActivity() {
             .retryOnConnectionFailure(true)
             .followRedirects(true)
             .followSslRedirects(true)
-            .connectionPool(ConnectionPool(1, 5, TimeUnit.SECONDS))
+            .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
             .build()
         val httpFactory = OkHttpDataSource.Factory(okClient)
             .setUserAgent(UA)
             .setDefaultRequestProperties(
-                mapOf("Connection" to "close"),
+                mapOf(
+                    "Accept-Language" to "en,en-US;q=0.9",
+                    "Connection" to "keep-alive",
+                ),
             )
         // Cache the http client so we can evict its connection pool
-        // on `player.stop()` / activity teardown for guaranteed
-        // upstream-socket release.
+        // on activity teardown — single-stream Xtream credentials
+        // need the slot freed when the user exits the player.
         cachedHttpClient = okClient
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(httpFactory)
@@ -313,8 +308,12 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Tune to a given channel by swapping the active MediaItem
-     * without releasing the player.  This is the fast zap path —
-     * <600 ms first frame on most HLS feeds.
+     * on the SAME ExoPlayer instance.  This is the fast zap path
+     * — Vesper does it this way and it's what the user wants
+     * (instant channel changes).  The previous media source is
+     * cancelled internally by ExoPlayer when we call
+     * `setMediaItem`, so the upstream socket is freed before the
+     * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
         if (currentChannel?.id != channel.id) {
@@ -325,10 +324,6 @@ class PlayerActivity : AppCompatActivity() {
         currentChannel = channel
         val p = player ?: return
         if (!initial) status.text = "Tuning…"
-        // Force the previous upstream socket fully closed so the
-        // provider's session tracker frees the slot before we
-        // request the new channel.
-        releaseUpstream()
         p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         p.playWhenReady = true
         p.prepare()
@@ -347,7 +342,6 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
-            releaseUpstream()
             p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
             p.playWhenReady = true
             p.prepare()
