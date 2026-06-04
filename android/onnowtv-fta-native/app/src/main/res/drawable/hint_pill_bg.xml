@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Cyan "PRESS OK TO PLAY" hint pill. -->
+<!-- Cyan "Press OK" hint pill with a soft outline. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/fta_blue" />
-    <corners android:radius="4dp" />
+    <gradient
+        android:startColor="#5DC8FF"
+        android:endColor="#7DD7FF"
+        android:angle="270" />
+    <corners android:radius="3dp" />
 </shape>

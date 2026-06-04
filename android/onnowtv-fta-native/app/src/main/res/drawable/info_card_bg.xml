@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Side gradient (left → right) used on the bottom synopsis card
+     so the descriptor block looks etched into the same cinematic
+     plate as the backdrop. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#FF101522"
+        android:endColor="#FF080C18"
+        android:angle="0" />
+    <corners
+        android:bottomLeftRadius="14dp"
+        android:bottomRightRadius="14dp"
+        android:topLeftRadius="0dp"
+        android:topRightRadius="0dp" />
+</shape>

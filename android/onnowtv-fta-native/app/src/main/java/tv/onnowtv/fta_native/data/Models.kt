@@ -27,6 +27,8 @@ data class FtaProgramme(
     val startMs: Long,
     val stopMs: Long,
     val channelId: String,
+    val rating: String? = null,
+    val category: String? = null,
 )
 
 data class FtaCategory(

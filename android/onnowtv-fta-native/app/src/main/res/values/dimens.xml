@@ -9,7 +9,7 @@
     <dimen name="fta_topbar_h">68dp</dimen>
     <dimen name="fta_side_rail_w">88dp</dimen>
     <dimen name="fta_cat_panel_w">260dp</dimen>
-    <dimen name="fta_sidebar_w">340dp</dimen>
+    <dimen name="fta_sidebar_w">360dp</dimen>
     <dimen name="fta_preview_w">280dp</dimen>
     <dimen name="fta_preview_h">158dp</dimen>
 </resources>

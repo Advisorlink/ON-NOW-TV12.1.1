@@ -136,6 +136,8 @@ object FtaRepository {
                         startMs = startMs,
                         stopMs = stopMs,
                         channelId = cid,
+                        rating = p.optString("rating").takeIf { it.isNotBlank() },
+                        category = p.optString("category").takeIf { it.isNotBlank() },
                     ),
                 )
             }
@@ -197,6 +199,28 @@ object FtaRepository {
         val body = httpGet(url) ?: return null
         val obj = JSONObject(body)
         return obj.optString("url").takeIf { it.isNotBlank() }
+    }
+
+    /** TMDB artwork lookup for an EPG programme.  Backend caches
+     *  the result for 7 days so this is safe to call as often as
+     *  focus changes.  Returns null on miss / network error. */
+    data class ProgrammeArt(val backdrop: String, val poster: String, val tmdbTitle: String, val mediaType: String, val tmdbId: Int)
+    fun fetchProgrammeArt(title: String, year: Int?): ProgrammeArt? {
+        if (title.isBlank()) return null
+        val enc = java.net.URLEncoder.encode(title.trim(), "UTF-8")
+        val url = StringBuilder("$BACKEND_BASE/api/epg/art?title=$enc")
+        if (year != null && year in 1950..2100) url.append("&year=$year")
+        val body = httpGet(url.toString()) ?: return null
+        return try {
+            val obj = JSONObject(body)
+            ProgrammeArt(
+                backdrop = obj.optString("backdrop"),
+                poster = obj.optString("poster"),
+                tmdbTitle = obj.optString("tmdb_title"),
+                mediaType = obj.optString("media_type"),
+                tmdbId = obj.optInt("tmdb_id"),
+            )
+        } catch (_: Throwable) { null }
     }
 
     private fun httpGet(url: String): String? = try {
