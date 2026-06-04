@@ -1,10 +1,14 @@
 package tv.onnowtv.livetv
 
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -38,6 +42,13 @@ import java.net.URL
  *   `epg_priority_ready` (UK / US / AU / Kayo) AND a minimum of
  *   60 seconds.  Persist the bundle to disk on success so the
  *   next launch skips the loader.
+ *
+ * The loader has three "alive" indicators so it never feels stuck
+ * to the user (~5 minute first-boot wait):
+ *   1) Three cyan dots that pulse from left to right ("typing").
+ *   2) Counters that smoothly animate up as data flows in.
+ *   3) A rotating "Did you know…" tip that swaps every 4s.
+ *   4) A subtle pulsing glow on the V2 wordmark.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -46,6 +57,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusCounters: TextView
     private lateinit var progress: ProgressBar
     private lateinit var retry: TextView
+    private lateinit var tip: TextView
+    private lateinit var brandV2: TextView
+    private lateinit var dot1: View
+    private lateinit var dot2: View
+    private lateinit var dot3: View
 
     private val minHoldMs = 60_000L
     private val pollIntervalMs = 1_500L
@@ -55,6 +71,31 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var bundleResult: XtreamBundle? = null
     @Volatile private var bundleJson: String? = null
     @Volatile private var bundleError: String? = null
+
+    // Smoothly-animated counter values so the visible number creeps
+    // up to the latest backend value instead of jumping in big chunks.
+    private var animatedChannels = 0
+    private var animatedPriorityDone = 0
+    private var lastPriorityTotal = 0
+    private var counterAnimator: ValueAnimator? = null
+    private val tipHandler = Handler(Looper.getMainLooper())
+    private val dotsHandler = Handler(Looper.getMainLooper())
+    private val brandHandler = Handler(Looper.getMainLooper())
+
+    // Rotating tips — swap every TIP_INTERVAL_MS so the user has
+    // something to read during the long first-boot wait.
+    private val TIPS = listOf(
+        "TIP — Press OK on any guide row to set a reminder.",
+        "TIP — Reminders glow YELLOW until they fire.",
+        "TIP — The left rail filters channels by country and genre.",
+        "TIP — The Search icon finds channels AND programmes by name.",
+        "TIP — The next boot is INSTANT — your guide is cached on disk.",
+        "TIP — We're pre-warming UK, US, AU and Kayo EPG first so the channels you watch are ready.",
+        "TIP — 12,000+ channels, refreshed automatically in the background.",
+        "TIP — D-pad UP/DOWN switches channels while you're watching.",
+    )
+    private val TIP_INTERVAL_MS = 4_000L
+    private var tipIndex = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +130,15 @@ class MainActivity : AppCompatActivity() {
         statusCounters = findViewById(R.id.loader_counters)
         progress       = findViewById(R.id.loader_progress)
         retry          = findViewById(R.id.loader_retry)
+        tip            = findViewById(R.id.loader_tip)
+        brandV2        = findViewById(R.id.loader_brand_v2)
+        dot1           = findViewById(R.id.loader_dot_1)
+        dot2           = findViewById(R.id.loader_dot_2)
+        dot3           = findViewById(R.id.loader_dot_3)
+
+        startDotsAnimation()
+        startTipsRotation()
+        startBrandPulse()
 
         startLoad()
     }
@@ -97,17 +147,102 @@ class MainActivity : AppCompatActivity() {
      * Triggers a bundle refresh after the fast-path handoff.  We
      * detach from this Activity's lifecycle by handing the work to
      * EpgActivity via a global flag — the next time EpgActivity's
-     * onResume fires it kicks off the refresh.  Simpler than
-     * GlobalScope and survives the handoff cleanly.
+     * onResume fires it kicks off the refresh.
      */
     private fun scheduleBackgroundRefresh() {
         BundleHolder.needsBackgroundRefresh = true
     }
 
+    /* ───────────── Loader "alive" indicators ───────────── */
+
+    /**
+     * Pulse the three loader dots from left to right.  Each dot
+     * scales 1→1.4→1 with a slight alpha shift on the same 900 ms
+     * cycle, staggered 150 ms apart.  Looks like typing dots that
+     * never stop — clear proof to the user we're still working.
+     */
+    private fun startDotsAnimation() {
+        val dots = listOf(dot1, dot2, dot3)
+        val cycleMs = 900L
+        val staggerMs = 150L
+        dots.forEachIndexed { i, dot ->
+            dot.alpha = 0.35f
+            val pulse = Runnable {
+                dot.animate()
+                    .scaleX(1.35f).scaleY(1.35f).alpha(1f)
+                    .setDuration(cycleMs / 2)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction {
+                        dot.animate()
+                            .scaleX(1f).scaleY(1f).alpha(0.35f)
+                            .setDuration(cycleMs / 2)
+                            .setInterpolator(AccelerateDecelerateInterpolator())
+                            .start()
+                    }
+                    .start()
+            }
+            val ticker = object : Runnable {
+                override fun run() {
+                    pulse.run()
+                    dotsHandler.postDelayed(this, cycleMs)
+                }
+            }
+            dotsHandler.postDelayed(ticker, i * staggerMs)
+        }
+    }
+
+    /** Subtle 2-second pulse on the red V2 glow so the brand
+     *  feels alive instead of static. */
+    private fun startBrandPulse() {
+        val cycleMs = 2_000L
+        val ticker = object : Runnable {
+            override fun run() {
+                brandV2.animate()
+                    .scaleX(1.04f).scaleY(1.04f)
+                    .setDuration(cycleMs / 2)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction {
+                        brandV2.animate()
+                            .scaleX(1f).scaleY(1f)
+                            .setDuration(cycleMs / 2)
+                            .setInterpolator(AccelerateDecelerateInterpolator())
+                            .start()
+                    }
+                    .start()
+                brandHandler.postDelayed(this, cycleMs)
+            }
+        }
+        brandHandler.post(ticker)
+    }
+
+    /** Rotate through helpful tips every 4 s with a cross-fade. */
+    private fun startTipsRotation() {
+        // Seed the first tip immediately so the row isn't blank.
+        tip.text = TIPS[tipIndex]
+        tip.alpha = 0f
+        tip.animate().alpha(1f).setDuration(400).start()
+        val ticker = object : Runnable {
+            override fun run() {
+                tipIndex = (tipIndex + 1) % TIPS.size
+                tip.animate()
+                    .alpha(0f).setDuration(280)
+                    .withEndAction {
+                        tip.text = TIPS[tipIndex]
+                        tip.animate().alpha(1f).setDuration(280).start()
+                    }
+                    .start()
+                tipHandler.postDelayed(this, TIP_INTERVAL_MS)
+            }
+        }
+        tipHandler.postDelayed(ticker, TIP_INTERVAL_MS)
+    }
+
+    /* ───────────── Loader state machine ───────────── */
+
     private fun startLoad() {
         retry.visibility = View.GONE
         headline.text = "Connecting…"
-        substatus.text = ""
+        substatus.text = "Reaching the backend…"
         statusCounters.text = ""
         progress.progress = 0
         bundleResult = null
@@ -179,7 +314,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         headline.text = "Finalising guide…"
-        substatus.text = "Downloading bundle…"
+        substatus.text = "Almost there…"
         progress.progress = 970
 
         val bundle = bundleResult ?: run {
@@ -204,15 +339,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val parts = mutableListOf<String>()
-        parts.add("${fmt(meta.channelsCount)} channels loaded")
-        if (meta.priorityTotal > 0) {
-            val done = meta.priorityDone.coerceAtMost(meta.priorityTotal)
-            parts.add("${fmt(done)} / ${fmt(meta.priorityTotal)} popular EPG ready")
-        } else if (meta.warmTotal > 0) {
-            parts.add("${fmt(meta.warmDone)} / ${fmt(meta.warmTotal)} EPG channels ready")
-        }
-        statusCounters.text = parts.joinToString("  ·  ")
+        // Smoothly animate the counters so the numbers feel ALIVE
+        // (creeping up) instead of jumping every 1.5 s poll.
+        animateCounterTo(meta.channelsCount, meta.priorityDone, meta.priorityTotal)
+        lastPriorityTotal = meta.priorityTotal
 
         when {
             meta.channelsCount == 0 -> {
@@ -222,8 +352,8 @@ class MainActivity : AppCompatActivity() {
                 progress.progress = (60 + (secs * 3)).coerceAtMost(140)
             }
             !meta.priorityReady && meta.priorityTotal > 0 -> {
-                headline.text = "Loading the guide…"
-                substatus.text = "Warming UK · US · AU · Kayo channels"
+                headline.text = "Warming the guide…"
+                substatus.text = "Loading UK · US · AU · Kayo channels"
                 val ratio = meta.priorityDone.toFloat() / meta.priorityTotal.toFloat()
                 progress.progress = (150 + (ratio * 700).toInt()).coerceIn(150, 850)
             }
@@ -236,10 +366,49 @@ class MainActivity : AppCompatActivity() {
                 val pct = (elapsedMs.toFloat() / minHoldMs.toFloat()).coerceIn(0f, 1f)
                 headline.text = "Almost ready…"
                 val secsLeft = ((minHoldMs - elapsedMs).coerceAtLeast(0L) / 1000L).toInt()
-                substatus.text = if (secsLeft > 0) "Finalising in ${secsLeft}s" else "Loading EPG…"
+                substatus.text = if (secsLeft > 0) "Finalising in ${secsLeft}s" else "Wrapping up…"
                 progress.progress = (850 + (pct * 100).toInt()).coerceIn(850, 950)
             }
         }
+    }
+
+    /**
+     * Smoothly tween the visible channel + EPG counters from their
+     * current values to the latest backend values over 1.2 s.  We
+     * cancel any in-flight animator first so a fresh poll re-targets
+     * the latest data without weird mid-flight pauses.
+     */
+    private fun animateCounterTo(targetChannels: Int, targetPriorityDone: Int, priorityTotal: Int) {
+        counterAnimator?.cancel()
+        val startChannels = animatedChannels
+        val startPriority = animatedPriorityDone
+        val deltaChannels = targetChannels - startChannels
+        val deltaPriority = targetPriorityDone - startPriority
+        if (deltaChannels == 0 && deltaPriority == 0) {
+            renderCounters(startChannels, startPriority, priorityTotal)
+            return
+        }
+        counterAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1_200L
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { va ->
+                val f = va.animatedValue as Float
+                animatedChannels    = (startChannels + (deltaChannels * f)).toInt()
+                animatedPriorityDone = (startPriority + (deltaPriority * f)).toInt()
+                renderCounters(animatedChannels, animatedPriorityDone, priorityTotal)
+            }
+            start()
+        }
+    }
+
+    private fun renderCounters(channels: Int, priorityDone: Int, priorityTotal: Int) {
+        val parts = mutableListOf<String>()
+        if (channels > 0) parts.add("${fmt(channels)} channels loaded")
+        if (priorityTotal > 0) {
+            val done = priorityDone.coerceAtMost(priorityTotal)
+            parts.add("${fmt(done)} / ${fmt(priorityTotal)} popular EPG ready")
+        }
+        statusCounters.text = parts.joinToString("  ·  ")
     }
 
     private data class Meta(
@@ -285,6 +454,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         bundleKick?.cancel()
+        tipHandler.removeCallbacksAndMessages(null)
+        dotsHandler.removeCallbacksAndMessages(null)
+        brandHandler.removeCallbacksAndMessages(null)
+        counterAnimator?.cancel()
         super.onDestroy()
     }
 }

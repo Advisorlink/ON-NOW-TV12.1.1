@@ -1,5 +1,41 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.121 — V2 Live TV: alive loader + fast-zap player + persistent reminders (Feb 12, 2026, overnight).**
+>
+> User went to bed asking for "everything perfect" while they slept. Four-track effort to lift V2 Live TV to a polished, real-world-usable state.
+>
+> **REMOVED** — `/app/android/vesper-tv-native/` directory + `.github/workflows/build-vesper-native.yml`.  Original `/app/android/vesper-tv/` WebView build is untouched.  GitHub release tag `vesper-native-latest` still needs manual deletion from the GitHub UI by the user.
+>
+> **LOADER — ALIVE INDICATORS (`MainActivity.kt`, `activity_main.xml`, `loader_dots.xml`)**
+>   - Three pulsing cyan dots driven by staggered `ViewPropertyAnimator` cycles (900 ms each, 150 ms stagger) — proof we're working.
+>   - Rotating "TIP" carousel (8 entries) cross-fading every 4 s so users have something to read during the ~5 min first-boot wait.
+>   - V2 wordmark gentle 2-s scale pulse (1→1.04→1) so the brand feels alive.
+>   - Counters smoothly tween between polls via `ValueAnimator` rather than jumping in 1.5 s chunks.
+>
+> **PLAYER — FAST ZAPPING + INFO OVERLAY (`PlayerActivity.kt`, `activity_player.xml`)**
+>   - Same `ExoPlayer` instance reused across channel switches — `setMediaItem` + `prepare()` zaps in ~500 ms vs ~2 s with activity recreation.
+>   - Buffer tuned for instant first frame: `MIN_BUFFER_MS=1500`, `BUFFER_FOR_PLAYBACK_MS=500`, `BUFFER_FOR_REBUFFER_MS=1000` (35 % lower than ExoPlayer defaults).
+>   - Top-left INFO CARD: channel logo + LCN + name + NOW programme + cyan progress bar + UP NEXT timestamp.  Auto-fades 4 s after every tune-in; OK/INFO re-shows it.
+>   - D-pad UP/DOWN/CHANNEL_UP/CHANNEL_DOWN tunes prev/next via the new `PlaybackQueue` global (categorised channel list shared from EPG → player).
+>   - Number keys 0-9 buffer an LCN; top-right "→ XX" pill appears; commits after 1.5 s pause via `PlaybackQueue.byLcn`.
+>   - 30-s ticker re-evaluates current/next programme + progress for long viewing sessions.
+>
+> **PERSISTENT REMINDERS + TOP-RIGHT POP-UPS (`ReminderStore.kt`, `ReminderWatcher.kt`, `reminder_banner.xml`)**
+>   - `ReminderStore` persists full programme+channel metadata to `SharedPreferences` as JSON.  Auto-prunes expired entries.
+>   - EPG row "PUSH OK TO SET REMINDER" click now PERSISTS — survives app restart.  `rehydrateReminders()` reloads on EpgActivity boot so yellow-glow rows remain set.
+>   - `ReminderWatcher`: foreground 15-s poll loop attached to EpgActivity AND PlayerActivity.  Pops a YELLOW-bordered banner in the top-right when a reminder is within `LEAD_MS=60 s` of start OR within `POST_START_MS=90 s` after.  Banner shows logo + countdown / "STARTED — TUNE IN" + programme title + channel name + "PRESS OK TO WATCH NOW".  OK on the banner → tunes the player (reseating `PlaybackQueue` to that channel's category siblings).  5-min cooldown after engagement prevents nag.
+>
+> **NEW FILES**
+>   - `PlaybackQueue.kt` — global channel list + index for player navigation
+>   - `ReminderStore.kt` — SharedPreferences-backed reminder persistence
+>   - `ReminderWatcher.kt` — foreground polling watcher + banner controller
+>   - `reminder_banner.xml`, `reminder_banner_bg.xml`, `player_overlay_bg.xml`, `now_pill_red.xml`, `loader_dots.xml`, `loader_dot_bg.xml`, `dimens.xml`
+>
+> **STILL TODO (next sessions)**
+>   - AlarmManager so reminders fire even when app is BACKGROUNDED (current scope is foreground only)
+>   - Continue Watching / Favourites category persistence (currently empty stubs)
+>   - Native Karaoke `AudioTrack` low-latency receiver (Phase 3 of Turbo Mode)
+
 > **🟢 v2.8.120 — Vesper TV NATIVE rebuild Phase 1 / Home screen (Feb 12, 2026).**
 > User asked to rebuild Vesper exactly as it is today but driven by RecyclerView under the hood so movement is as smooth as V2 Live TV.  **Existing `/app/android/vesper-tv/` is untouched** so a rollback is just "uninstall the new APK".
 >

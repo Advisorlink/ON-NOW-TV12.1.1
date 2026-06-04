@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Full-screen ExoPlayer.
+
+    Layers (top → bottom):
+      1) PlayerView (the video)
+      2) Channel info overlay — top-left card with channel logo +
+         LCN + name + NOW programme + progress bar + UP NEXT.
+         Auto-fades 4 seconds after every tune-in / channel change.
+      3) Number-tune indicator — top-right pill showing the
+         typed digit stream ("→ 21…") while the user types a
+         channel number on the remote.
+      4) Status / error text (centred).
+-->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -13,8 +26,159 @@
         android:layout_height="match_parent"
         app:resize_mode="fit"
         app:use_controller="true"
+        app:controller_show_timeout_ms="3500"
+        app:controller_hide_on_touch="true"
         app:show_buffering="when_playing" />
 
+    <!-- ─────────── Channel info overlay (top-left) ─────────── -->
+    <LinearLayout
+        android:id="@+id/info_card"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="36dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/player_overlay_bg"
+        android:paddingStart="18dp"
+        android:paddingEnd="22dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:elevation="6dp">
+
+        <ImageView
+            android:id="@+id/info_logo"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:scaleType="centerInside"
+            android:contentDescription="@null" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/info_lcn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_accent"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.18"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/info_channel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:textColor="@color/livetv_fg"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:background="@drawable/now_pill_red"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_bg"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.20"
+                    android:text="NOW" />
+
+                <TextView
+                    android:id="@+id/info_now_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:maxWidth="520dp"
+                    android:textColor="@color/livetv_fg_bright"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+            </LinearLayout>
+
+            <!-- Skinny cyan progress bar — current programme. -->
+            <FrameLayout
+                android:layout_width="480dp"
+                android:layout_height="3dp"
+                android:layout_marginTop="8dp"
+                android:background="#1AFFFFFF">
+
+                <View
+                    android:id="@+id/info_progress"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:background="@color/livetv_accent" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/info_up_next"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_fg_dimmer"
+                android:textSize="11sp"
+                android:letterSpacing="0.20"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ─────────── Number-tune pill (top-right) ─────────── -->
+    <TextView
+        android:id="@+id/tune_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="36dp"
+        android:layout_marginEnd="36dp"
+        android:background="@drawable/player_overlay_bg"
+        android:paddingStart="22dp"
+        android:paddingEnd="22dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_accent"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.16"
+        android:visibility="gone"
+        android:text="" />
+
+    <!-- ─────────── Status / errors (centred) ─────────── -->
     <TextView
         android:id="@+id/player_status"
         android:layout_width="wrap_content"

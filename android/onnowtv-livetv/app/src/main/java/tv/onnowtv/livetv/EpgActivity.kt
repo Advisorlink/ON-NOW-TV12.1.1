@@ -26,6 +26,7 @@ import org.json.JSONObject
 import tv.onnowtv.livetv.data.Category
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
+import tv.onnowtv.livetv.data.ReminderStore
 import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.data.XtreamRepository
 import tv.onnowtv.livetv.ui.CategoryPillAdapter
@@ -102,8 +103,10 @@ class EpgActivity : AppCompatActivity() {
     private val epgKnownEmpty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     /** Programme IDs (channelId + ":" + startMs) the user has
      *  flagged with a reminder.  Toggles to yellow on click.
-     *  Stored in memory for now; a future patch can persist to
-     *  SharedPreferences + fire system AlarmManager events. */
+     *  Backed by [ReminderStore] so reminders survive process
+     *  restarts and EPG re-fetches.  The mirrored in-memory map
+     *  drives the GuideRow paint and is kept in sync with the
+     *  on-disk SharedPreferences whenever we add/remove. */
     private val reminderSet = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private fun reminderKey(p: Programme): String {
         val sid = focusedChannel?.epgChannelId ?: ""
@@ -135,6 +138,7 @@ class EpgActivity : AppCompatActivity() {
         }
         bundle = held
         epgCache.putAll(bundle.epg)
+        rehydrateReminders()
 
         wireViews()
         buildCategories()
@@ -167,6 +171,19 @@ class EpgActivity : AppCompatActivity() {
         // Focus the first category on boot.
         categoriesList.post {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+
+        // Attach the persistent-reminder watcher so a saved
+        // reminder pops a banner at the top-right of the EPG when
+        // its programme is about to start.  OK on the banner →
+        // tunes straight into the channel.
+        val rootFrame = findViewById<android.widget.FrameLayout>(android.R.id.content)
+        // Walk down to the actual FrameLayout at the top of the
+        // activity_epg.xml tree (the root is the FrameLayout
+        // wrapping the side rail + main + search overlay).
+        val targetFrame = (rootFrame.getChildAt(0) as? android.widget.FrameLayout) ?: rootFrame
+        ReminderWatcher.attach(this, targetFrame) { reminder ->
+            ReminderWatcher.launchPlayerFor(this, reminder)
         }
     }
 
@@ -301,9 +318,13 @@ class EpgActivity : AppCompatActivity() {
             onReminderToggle = { p ->
                 val key = reminderKey(p)
                 val nowSet = if (reminderSet.contains(key)) {
-                    reminderSet.remove(key); false
+                    reminderSet.remove(key)
+                    persistRemoveReminder(key)
+                    false
                 } else {
-                    reminderSet.add(key); true
+                    reminderSet.add(key)
+                    persistAddReminder(key, p)
+                    true
                 }
                 nowSet
             },
@@ -311,6 +332,42 @@ class EpgActivity : AppCompatActivity() {
         guideList.layoutManager = LinearLayoutManager(this)
         guideList.adapter = guideAdapter
         guideList.itemAnimator = null
+    }
+
+    /**
+     * Add a reminder to persistent storage so it survives a
+     * process restart and the watcher can pop a banner when the
+     * programme is about to start.
+     */
+    private fun persistAddReminder(key: String, p: Programme) {
+        val channel = focusedChannel ?: return
+        val map = ReminderStore.load(this)
+        map[key] = ReminderStore.Reminder(
+            key = key,
+            channelId = channel.id,
+            channelName = channel.name,
+            channelLogo = channel.logoUrl,
+            channelLcn = channel.lcn,
+            title = p.title,
+            startMs = p.startMs,
+            stopMs = p.stopMs,
+        )
+        ReminderStore.save(this, map)
+    }
+
+    private fun persistRemoveReminder(key: String) {
+        val map = ReminderStore.load(this)
+        if (map.remove(key) != null) ReminderStore.save(this, map)
+    }
+
+    /** Restore reminders from SharedPreferences into the in-memory
+     *  set so the guide rows paint with their yellow glow correctly
+     *  on app boot.  Stale entries (stop < now) are pruned. */
+    private fun rehydrateReminders() {
+        val map = ReminderStore.load(this)
+        ReminderStore.pruneExpired(this, map)
+        reminderSet.clear()
+        reminderSet.addAll(map.keys)
     }
 
     private fun wireHeroIcons() {
@@ -639,9 +696,39 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun launchPlayer(ch: Channel) {
+        // Hand the player the same channel list that's currently
+        // showing in the middle column so D-pad UP/DOWN inside the
+        // player zaps within the active category instead of the
+        // raw full bundle.  If the launching channel isn't in the
+        // visible list (e.g. opened via search), fall back to that
+        // channel's own category siblings so the player's up/down
+        // still wraps a sensible neighbourhood.
+        val sel = currentCategoryId
+        val byCategory: List<Channel> = when (sel) {
+            "__all__", null -> bundle.channels
+            "__favourites__" -> emptyList()
+            "__recents__" -> emptyList()
+            "__reminders__" -> {
+                val sidsWithReminders = reminderSet
+                    .mapNotNull { it.substringBefore(':', "").takeIf { s -> s.isNotBlank() } }
+                    .toSet()
+                bundle.channels.filter { (it.epgChannelId ?: "") in sidsWithReminders }
+            }
+            else -> bundle.channels.filter { it.categoryId == sel }
+        }
+        val visibleList: List<Channel> = when {
+            byCategory.any { it.id == ch.id } -> byCategory
+            ch.categoryId != null -> bundle.channels.filter { it.categoryId == ch.categoryId }
+                .ifEmpty { bundle.channels }
+            else -> bundle.channels
+        }
+
+        PlaybackQueue.setQueue(visibleList, ch.id)
+
         val intent = Intent(this, PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
             putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
             val live = liveProgrammeOf(ch)
             putExtra(PlayerActivity.EXTRA_SUBTITLE, live?.title ?: "")
         }
@@ -682,6 +769,7 @@ class EpgActivity : AppCompatActivity() {
         channelFocusHandler.removeCallbacksAndMessages(null)
         searchHandler.removeCallbacksAndMessages(null)
         artJob?.cancel()
+        ReminderWatcher.detach(this)
         super.onDestroy()
     }
 }
