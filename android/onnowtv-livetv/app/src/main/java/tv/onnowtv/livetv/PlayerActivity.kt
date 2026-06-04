@@ -70,10 +70,10 @@ class PlayerActivity : AppCompatActivity() {
         private const val BUFFER_FOR_PLAYBACK_MS     = 3_000
         private const val BUFFER_FOR_REBUFFER_MS     = 5_000
 
-        /** User-Agent advertised to the Xtream server.  Mirrors VLC
-         *  so IPTV providers that block ExoPlayer/4.x by default
-         *  still hand us the stream. */
-        private const val UA = "VLC/3.0.20 LibVLC/3.0.20"
+        /** User-Agent advertised to the Xtream server.  Matches
+         *  Vesper's known-working UA so providers that whitelist
+         *  certain UAs still hand us the stream. */
+        private const val UA = "Vesper-ExoPlayer/2.7.43"
     }
 
     private var player: ExoPlayer? = null
@@ -91,9 +91,15 @@ class PlayerActivity : AppCompatActivity() {
     private val hideHandler = Handler(Looper.getMainLooper())
     private val numberHandler = Handler(Looper.getMainLooper())
     private val progressHandler = Handler(Looper.getMainLooper())
+    private val retryHandler = Handler(Looper.getMainLooper())
     private val numberBuffer = StringBuilder()
     private var currentChannel: Channel? = null
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    /** Number of consecutive failed attempts on the CURRENT channel.
+     *  Resets to 0 whenever the user tunes to a different channel.
+     *  Used to back off if the upstream provider keeps returning
+     *  503 (concurrent-stream limit, rate-limit, etc.). */
+    private var consecutiveFailures = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -186,12 +192,6 @@ class PlayerActivity : AppCompatActivity() {
             .build()
         val httpFactory = OkHttpDataSource.Factory(okClient)
             .setUserAgent(UA)
-            .setDefaultRequestProperties(
-                mapOf(
-                    "Accept-Language" to "en,en-US;q=0.9",
-                    "Connection" to "keep-alive",
-                ),
-            )
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(httpFactory)
 
@@ -216,17 +216,28 @@ class PlayerActivity : AppCompatActivity() {
         player = p
 
         p.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                Log.w("PlayerActivity", "playback error: ${error.errorCodeName}", error)
+                val httpCode = extractHttpStatus(error)
+                if (httpCode == 503 && consecutiveFailures < 3) {
+                    consecutiveFailures += 1
+                    val delay = 800L * (1 shl (consecutiveFailures - 1))  // 0.8 / 1.6 / 3.2 s
+                    status.text = "Provider busy (503) — retrying in ${delay / 1000.0}s…"
+                    scheduleRetry(delay)
+                } else {
+                    status.text = buildErrorMessage(error)
+                }
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_READY -> { status.text = "" }
+                    Player.STATE_READY -> {
+                        status.text = ""
+                        consecutiveFailures = 0
+                    }
                     Player.STATE_BUFFERING -> { /* spinner shown by PlayerView */ }
                     Player.STATE_ENDED -> { status.text = "Stream ended" }
                     else -> Unit
                 }
-            }
-            override fun onPlayerError(error: PlaybackException) {
-                Log.w("PlayerActivity", "playback error: ${error.errorCodeName}", error)
-                status.text = buildErrorMessage(error)
             }
         })
     }
@@ -239,26 +250,32 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun buildErrorMessage(error: PlaybackException): String {
         val name = error.errorCodeName
-        val cause = error.cause
-        val httpHint = if (cause != null) {
-            // Walk the cause chain looking for a HttpDataSource.HttpDataSourceException
-            // / InvalidResponseCodeException — those carry the
-            // numeric status code as a public field.
-            var c: Throwable? = cause
-            var hint: String? = null
-            while (c != null && hint == null) {
-                val cls = c::class.java.simpleName
-                val msg = c.message
-                if (cls.contains("InvalidResponseCode") && msg != null) {
-                    hint = msg.lines().firstOrNull() ?: msg
-                } else if (msg != null && msg.contains("HTTP status code")) {
-                    hint = msg.lines().firstOrNull() ?: msg
-                }
-                c = c.cause
+        val code = extractHttpStatus(error)
+        return if (code != null) "Playback failed — HTTP $code" else "Playback failed — $name"
+    }
+
+    /** Walk the cause chain looking for the numeric HTTP status code
+     *  carried by InvalidResponseCodeException so we can surface it
+     *  to the user AND drive 503-retry logic. */
+    private fun extractHttpStatus(error: PlaybackException): Int? {
+        var c: Throwable? = error
+        while (c != null) {
+            val cls = c::class.java.simpleName
+            // media3 uses `HttpDataSource.InvalidResponseCodeException`
+            // which has a public `responseCode: Int` field.
+            if (cls.contains("InvalidResponseCode")) {
+                try {
+                    val field = c::class.java.getField("responseCode")
+                    val v = field.getInt(c)
+                    if (v > 0) return v
+                } catch (_: Throwable) { /* ignore reflection failures */ }
             }
-            hint
-        } else null
-        return if (!httpHint.isNullOrBlank()) "Playback failed — $httpHint" else "Playback failed — $name"
+            val msg = c.message ?: ""
+            Regex("Response code: (\\d{3})").find(msg)?.groupValues?.get(1)
+                ?.toIntOrNull()?.let { return it }
+            c = c.cause
+        }
+        return null
     }
 
     /**
@@ -267,14 +284,44 @@ class PlayerActivity : AppCompatActivity() {
      * <600 ms first frame on most HLS feeds.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
+        if (currentChannel?.id != channel.id) {
+            // Different channel → reset retry budget.
+            consecutiveFailures = 0
+            retryHandler.removeCallbacksAndMessages(null)
+        }
         currentChannel = channel
         val p = player ?: return
         if (!initial) status.text = "Tuning…"
+        // Explicit stop forces the previous HTTP socket to close
+        // before the new media item opens.  Some Xtream providers
+        // (openresty front-ends) won't release the previous stream
+        // slot until the socket is fully closed, returning 503 on
+        // the next request if the old stream is still tracked.
+        try { p.stop() } catch (_: Throwable) { /* ok */ }
         p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         p.playWhenReady = true
         p.prepare()
         renderInfoCard(channel)
         showInfoCard()
+    }
+
+    /**
+     * Schedule a delayed retry of the current channel.  Used when
+     * the upstream provider returns HTTP 503 (concurrent-stream
+     * limit / rate-limit) — a short pause usually clears the
+     * provider's session tracker so the next request succeeds.
+     */
+    private fun scheduleRetry(delayMs: Long) {
+        val ch = currentChannel ?: return
+        val p = player ?: return
+        retryHandler.removeCallbacksAndMessages(null)
+        retryHandler.postDelayed({
+            try { p.stop() } catch (_: Throwable) {}
+            p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
+            p.playWhenReady = true
+            p.prepare()
+            status.text = "Reconnecting…"
+        }, delayMs)
     }
 
     /* ─────────────────── Channel info overlay ─────────────────── */
@@ -452,6 +499,7 @@ class PlayerActivity : AppCompatActivity() {
         hideHandler.removeCallbacksAndMessages(null)
         numberHandler.removeCallbacksAndMessages(null)
         progressHandler.removeCallbacksAndMessages(null)
+        retryHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
         player?.release()
         player = null

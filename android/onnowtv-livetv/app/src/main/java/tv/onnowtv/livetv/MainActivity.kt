@@ -62,14 +62,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dot1: View
     private lateinit var dot2: View
     private lateinit var dot3: View
-    private lateinit var countdown: TextView
 
     private val minHoldMs = 18_000L
     private val pollIntervalMs = 1_500L
     private val maxHoldMs = 5 * 60_000L
-    /** Wall-clock cap shown to the user — "first load can take up
-     *  to 5 minutes".  The countdown ticker uses this. */
-    private val firstLoadBudgetMs = 5 * 60_000L
 
     private var bundleKick: Job? = null
     @Volatile private var bundleResult: XtreamBundle? = null
@@ -85,7 +81,6 @@ class MainActivity : AppCompatActivity() {
     private val tipHandler = Handler(Looper.getMainLooper())
     private val dotsHandler = Handler(Looper.getMainLooper())
     private val brandHandler = Handler(Looper.getMainLooper())
-    private val countdownHandler = Handler(Looper.getMainLooper())
 
     // Rotating tips — swap every TIP_INTERVAL_MS so the user has
     // something to read during the long first-boot wait.
@@ -140,34 +135,12 @@ class MainActivity : AppCompatActivity() {
         dot1           = findViewById(R.id.loader_dot_1)
         dot2           = findViewById(R.id.loader_dot_2)
         dot3           = findViewById(R.id.loader_dot_3)
-        countdown      = findViewById(R.id.loader_countdown)
 
         startDotsAnimation()
         startTipsRotation()
         startBrandPulse()
-        startCountdown()
 
         startLoad()
-    }
-
-    /**
-     * Render a "5:00" → "0:00" countdown ticking once per second
-     * in the loader footer.  Once it hits zero we hold at "0:00" —
-     * the loader's safety hatch will have already kicked in by then.
-     */
-    private fun startCountdown() {
-        val deadline = SystemClock.elapsedRealtime() + firstLoadBudgetMs
-        countdownHandler.post(object : Runnable {
-            override fun run() {
-                val remainingMs = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
-                val mins = remainingMs / 60_000L
-                val secs = (remainingMs % 60_000L) / 1_000L
-                countdown.text = "%d:%02d".format(mins, secs)
-                if (remainingMs > 0) {
-                    countdownHandler.postDelayed(this, 1_000L)
-                }
-            }
-        })
     }
 
     /**
@@ -490,7 +463,6 @@ class MainActivity : AppCompatActivity() {
         tipHandler.removeCallbacksAndMessages(null)
         dotsHandler.removeCallbacksAndMessages(null)
         brandHandler.removeCallbacksAndMessages(null)
-        countdownHandler.removeCallbacksAndMessages(null)
         counterAnimator?.cancel()
         super.onDestroy()
     }
