@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.124 — Vesper: BACK from Continue-Watching player lands on the episode picker (Feb 13, 2026).**
+> User report: "when watching a TV show from Continue Watching and they push BACK to get back, it needs to go to the episode selection screen for that particular TV show."
+>
+> Before the fix: clicking a series CW tile fired `Host.playVideo` immediately. Pressing BACK in the native player returned the user to whatever React page they came from (usually Home), NOT the episode picker for that show.
+>
+> Fix in `/app/frontend/src/components/ContinueWatchingShelf.jsx → resume(e)`:
+>   - Parse season + episode from the CW id. Two formats accepted — `tt1234:s1e3` (the SeriesEpisodes native-play path) and `tt1234:1:3` (the Watch-Together autoplay path).
+>   - For series CW tiles, navigate the WebView to `/title/series/{baseId}?focusSeason=S&focusEpisode=E` BEFORE calling `Host.playVideo`. The native player Activity stacks on top of MainActivity; when the user presses BACK, the player finishes and the WebView surfaces — now sitting on the Detail page with the episode picker already open and that specific episode highlighted (via the existing `focusSeason` / `focusEpisode` URL params consumed by `SeriesEpisodes` → `episodesShown=true` initial state).
+>   - Movies are unaffected — BACK from a movie CW still returns to wherever the user came from.
+>   - Fallback path (when `Host.playVideo` isn't available, e.g. browser) now also includes the focus hints so the episode picker opens immediately.
+>
+> No backend changes. React build verified locally (`yarn build`, no errors). Pending the user pushing to GitHub so the deploy-frontend.yml workflow rsyncs the new bundle to the Contabo VPS — at which point every box hitting `/` from the WebView APK picks up the new behaviour.
+
+
+
 > **🟢 v2.8.123 — FTA Native: Phase 2 polish, all six features in one batch (Feb 13, 2026).**
 >
 > Per user "build it all now" — packed every Phase 2 ask into a single APK build so the user gets the full UX in one sideload.
