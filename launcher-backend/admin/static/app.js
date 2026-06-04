@@ -44,28 +44,20 @@ async function api(path, opts = {}) {
     return r.json();
 }
 
-/* ─────────────  Auth  ───────────── */
-function showLogin() { $('#login').hidden = false; $('#app').hidden = true; stopDevicePolling(); }
+/* ─────────────  Auth (v2.8.126 — disabled, single-operator mode) ───── */
+function showLogin() { /* no-op — auth is off */ showApp(); }
 function showApp()   { $('#login').hidden = true;  $('#app').hidden = false;  refreshAll(); startDevicePolling(); }
 
 $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const token = e.target.token.value.trim();
-    if (!token) return;
-    try {
-        const form = new FormData();
-        form.append('token', token);
-        const r = await fetch(_abs('/api/admin/login'), { method: 'POST', body: form, credentials: 'same-origin' });
-        if (!r.ok) throw new Error('Invalid token');
-        showApp();
-    } catch (err) {
-        $('#loginErr').textContent = err.message;
-    }
+    // Auth is off — just enter the app.
+    showApp();
 });
 
 $('#logout').addEventListener('click', async () => {
+    // Logout is a visual reset only while auth is disabled.
     try { await api('/api/admin/logout', { method: 'POST' }); } catch {}
-    showLogin();
+    showApp();
 });
 
 /* ─────────────  Tabs  ───────────── */
