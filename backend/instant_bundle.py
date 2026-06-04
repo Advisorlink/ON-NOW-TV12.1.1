@@ -602,7 +602,7 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 "password": p["password"],
                 "action":   "get_short_epg",
                 "stream_id": sid,
-                "limit":    "24",  # next ~24 programmes (~12-72 h)
+                "limit":    "200",  # multi-day window for Coming Up Next
             }
             async with sem:
                 try:
@@ -865,8 +865,12 @@ async def epg_for_channel(stream_id: str) -> Dict[str, Any]:
         }
     """
     # First try the in-memory cache (populated by the bulk refresh).
+    # Only trust the cache when it's reasonably full — older builds
+    # warmed the cache with limit=24 which is too short for "Coming
+    # Up Next" multi-day views.  When the cache is short we re-fetch
+    # to get the full ~200 entry window.
     cached = _state.get("epg", {}).get(str(stream_id))
-    if cached:
+    if cached and len(cached) >= 40:
         return {
             "stream_id": str(stream_id),
             "programmes": [
@@ -891,7 +895,11 @@ async def epg_for_channel(stream_id: str) -> Dict[str, Any]:
         "password":  p["password"],
         "action":    "get_short_epg",
         "stream_id": str(stream_id),
-        "limit":     "24",
+        # Bump from 24 → 200 so "Coming Up Next" can show several
+        # days in advance.  Providers cap their response anyway
+        # (typically 50-150 programmes), so this just removes our
+        # own artificial ceiling.
+        "limit":     "200",
     }
     try:
         resp = await _http().get(url, params=params, timeout=10.0)

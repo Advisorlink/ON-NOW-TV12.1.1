@@ -220,16 +220,16 @@ class PlayerActivity : AppCompatActivity() {
             }
 
         playerView.player = p
-        // Transport controller stays HIDDEN by default once playback
-        // starts — set a long auto-hide and disable the click-to-show
-        // so the controller only appears when the user explicitly
-        // presses a D-pad / number / OK key.  The Listener that
-        // fires on STATE_READY (above) will pre-hide it the moment
-        // the first frame lands.
+        // Hide controls by default — they only appear when the user
+        // explicitly presses a button.  Auto-hide after 3 s when
+        // shown.  We also call hideController() inside tuneTo and
+        // inside the STATE_READY listener to guarantee no chrome
+        // is on screen during loading / buffering / first frame.
         playerView.controllerShowTimeoutMs = 3_000
         playerView.controllerHideOnTouch = true
         playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         playerView.useController = true
+        playerView.controllerAutoShow = false
         player = p
 
         p.addListener(object : Player.Listener {
@@ -336,18 +336,27 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
         if (currentChannel?.id != channel.id) {
-            // Different channel → reset retry budget.
             consecutiveFailures = 0
             retryHandler.removeCallbacksAndMessages(null)
         }
         currentChannel = channel
         val p = player ?: return
         if (!initial) status.text = "Tuning…"
+        // Hide ExoPlayer's transport controls AND the info card the
+        // moment we start tuning.  We don't want any chrome on
+        // screen during the loading / buffering phase — the user
+        // wants the playback area to come up bright and clean.
+        playerView.hideController()
+        hideHandler.removeCallbacksAndMessages(null)
+        infoCard.animate().cancel()
+        infoCard.visibility = View.GONE
+        infoCard.alpha = 0f
         p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         p.playWhenReady = true
         p.prepare()
+        // Pre-populate the info card with the new channel so it's
+        // ready to flash when the user presses OK / INFO later.
         renderInfoCard(channel)
-        showInfoCard()
     }
 
     /**
