@@ -401,31 +401,41 @@ class EpgActivity : AppCompatActivity() {
 
     // ─────────────────────────────────────────── preview pane
     private fun setupPreviewPlayer() {
-        val okClient = OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .build()
-        val httpFactory = OkHttpDataSource.Factory(okClient)
-            .setUserAgent("otg/1.5.1 (AppleTv Apple TV 4; tvOS16.0)")
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
-        val loadControl = DefaultLoadControl.Builder()
-            // Tight buffer so channel changes settle quickly — the
-            // user is scouting, not watching.
-            .setBufferDurationsMs(800, 3_000, 400, 1_000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-        previewPlayer = ExoPlayer.Builder(this)
-            .setLoadControl(loadControl)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build()
-            .apply {
-                volume = 0f
-                playWhenReady = true
-                previewPlayerView.player = this
-            }
-        previewPlayerView.useController = false
-        previewPlayerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+        try {
+            val okClient = OkHttpClient.Builder()
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .build()
+            val httpFactory = OkHttpDataSource.Factory(okClient)
+                .setUserAgent("otg/1.5.1 (AppleTv Apple TV 4; tvOS16.0)")
+            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
+            val loadControl = DefaultLoadControl.Builder()
+                // Tight buffer so channel changes settle quickly — the
+                // user is scouting, not watching.  Constraints required
+                // by DefaultLoadControl:
+                //   minBufferMs        >= bufferForPlaybackMs
+                //   minBufferMs        >= bufferForPlaybackAfterRebufferMs
+                //   maxBufferMs        >= minBufferMs
+                .setBufferDurationsMs(2_000, 5_000, 500, 1_500)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            previewPlayer = ExoPlayer.Builder(this)
+                .setLoadControl(loadControl)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build()
+                .apply {
+                    volume = 0f
+                    playWhenReady = true
+                    previewPlayerView.player = this
+                }
+            previewPlayerView.useController = false
+            previewPlayerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+        } catch (t: Throwable) {
+            Log.w("EpgActivity", "preview pane init failed — disabling", t)
+            previewPlayer = null
+            previewCard.visibility = View.GONE
+        }
     }
 
     /** Debounce focus → tune the preview after 800 ms of stillness

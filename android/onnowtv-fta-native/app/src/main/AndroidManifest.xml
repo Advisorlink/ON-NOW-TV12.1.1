@@ -47,5 +47,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowFta.NoActionBar" />
+
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@style/Theme.OnNowFta.NoActionBar" />
     </application>
 </manifest>
