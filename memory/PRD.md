@@ -1,5 +1,40 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.122 — FTA Native: Phase 1 MVP compile-clean (Feb 13, 2026).**
+> User asked to rebuild the Free-to-Air app natively from scratch so it has the buttery-smooth `RecyclerView` focus engine of V2 Live TV. Phase 1 ships compile-clean to GitHub Actions; user sideloads via the new `fta-native-latest` release tag.
+>
+> **Files completed (`/app/android/onnowtv-fta-native/`)**
+>   - `FtaApp.kt`, `EpgActivity.kt`, `PlayerActivity.kt` — single-activity EPG + ExoPlayer.
+>   - `ui/EpgGridAdapter.kt` — vertical RV of channel rows. Each row is a HorizontalScrollView wrapping a `FrameLayout` strip. Programme cells are positioned ABSOLUTELY by `marginLeft = (start_ms − grid_start_ms) × px_per_min / 60000`, width = `(stop_ms − start_ms) × px_per_min / 60000`. All rows share a single `sharedScrollX`; per-row scroll listeners propagate to every other row + the time-ticks header + the NOW red line, so panning right on any row pans the entire grid in lockstep.
+>   - `ui/FtaSideNavAdapter.kt` — left rail of icons (Categories / Favourites / Refresh).
+>   - `data/FtaRepository.kt` — OkHttp + `org.json` parser hitting `/api/fta/channels` + `/api/fta/epg` + `/api/fta/streams/{id}`. Tolerant of MJH's two `headers` payload formats (dict OR URL-form-encoded string).
+>   - `data/Models.kt`, `data/FtaFavouritesStore.kt`.
+>   - Layouts: `activity_epg.xml`, `activity_player.xml`, `item_channel_row.xml`, `item_programme_cell.xml`, `item_sidenav.xml`, `item_topbar_tab.xml`, `item_time_tick.xml`. Drawables: `cell_bg`, `channel_rail_bg`, `next_pill_bg`, `sidenav_bg`, `time_chip_bg`, `ic_grid/star/refresh/launcher`.
+>
+> **Wired up:**
+>   - Backend URL hardcoded to `https://onnowtv.duckdns.org` (same as the Live TV / Vesper native builds).
+>   - `applicationId = tv.onnowtv.fta.recycler` so it installs side-by-side with the WebView FTA APK (`tv.onnowtv.fta`).
+>   - Brisbane default city baked in.
+>   - GitHub Actions workflow `.github/workflows/build-fta-native.yml` already created — publishes `fta-native-debug.apk` + `fta-native-release.apk` to the `fta-native-latest` release tag on every push.
+>
+> **Compile verified locally**: Downloaded kotlinc 1.9.22 + Android 29 stubs + every AAR's `classes.jar`, ran the full source tree through kotlinc → **0 errors, 1 unused-param warning** (kept the parameter for API consistency). Real AGP build will resolve the `R.*` references from AAPT-generated resources.
+>
+> **Fixes applied during compile pass:**
+>   - Description field: programme JSON returns `desc` (not `description`). Repository now reads `desc` first, falls back to `description`.
+>   - NOW red line math: now-line lives inside the FrameLayout that already starts AFTER the side rail, so we don't double-count the side rail width. Only the per-row channel rail width + the row-strip's scroll offset get added.
+>   - Scroll sync: replaced the 50 ms polling loop with a direct `onScrollX(x)` callback from the adapter that pushes scroll offsets into the ticks-header HSV + the NOW line in the same frame the row scrolled.
+>   - Recursion guard added to `EpgGridAdapter.setScrollX` so propagating the shared scroll offset to all rows doesn't ping-pong infinitely via the per-row scroll listeners.
+>
+> **Phase 2+ (next session — deferred per user's explicit "Phase 1 only" instruction):**
+>   - Categories submenu (Kids / Sport / News / Drama / Movies / Reality / Music / More) — backend `/api/fta/categories` already lists them.
+>   - Long-press OK on a channel rail → toggle favourite (V2 Live TV pattern).
+>   - Side preview pane (small live preview tile in the corner so users can scout while the EPG stays focused).
+>   - Refresh button confirmation toast.
+>   - City picker (modal listing `SUPPORTED_CITIES` from `/api/fta/cities`).
+>   - Native splash screen (red→amber gradient + V2 FREE-TO-AIR wordmark matching the WebView build).
+
+
+
 > **🟢 v2.8.121 — V2 Live TV: alive loader + fast-zap player + persistent reminders (Feb 12, 2026, overnight).**
 >
 > User went to bed asking for "everything perfect" while they slept. Four-track effort to lift V2 Live TV to a polished, real-world-usable state.

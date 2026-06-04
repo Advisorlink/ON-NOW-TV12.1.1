@@ -120,7 +120,7 @@ class EpgActivity : AppCompatActivity() {
 
     private fun setupTabs() {
         val inflater = LayoutInflater.from(this)
-        listOf("live" to "Free-to-Air", "favs" to "Favourites").forEachIndexed { idx, (id, label) ->
+        listOf("live" to "Free-to-Air", "favs" to "Favourites").forEach { (id, label) ->
             val tv = inflater.inflate(R.layout.item_topbar_tab, tabsContainer, false) as TextView
             tv.text = label
             tv.tag = id
@@ -165,6 +165,10 @@ class EpgActivity : AppCompatActivity() {
         gridAdapter = EpgGridAdapter(
             onProgrammeOpen = { ch, p -> launchPlayer(ch, p) },
             onProgrammeFocus = { _, _ -> /* phase 2: side preview pane */ },
+            onScrollX = { x ->
+                if (ticksScroll.scrollX != x) ticksScroll.scrollX = x
+                positionNowLine()
+            },
         )
         gridList.layoutManager = LinearLayoutManager(this)
         gridList.adapter = gridAdapter
@@ -213,18 +217,13 @@ class EpgActivity : AppCompatActivity() {
             view.layoutParams = lp
             ticksStrip.addView(view)
         }
-        // Keep the ticks strip in lockstep with the grid rows.
-        gridList.addOnScrollListener(object : RecyclerView.OnScrollListener() {})
-        // The actual sync is driven by EpgGridAdapter's per-row
-        // scroll-change listener via setScrollX — we mirror that
-        // into ticksScroll by polling at 20Hz.  Cheap; could be
-        // wired more tightly in a later iteration.
+        // Re-position the NOW line every 30 s so the red line
+        // drifts forward in real time even when the user isn't
+        // touching the grid.
         clockHandler.post(object : Runnable {
             override fun run() {
-                val x = gridAdapter.currentScrollX()
-                if (ticksScroll.scrollX != x) ticksScroll.scrollX = x
                 positionNowLine()
-                clockHandler.postDelayed(this, 50L)
+                clockHandler.postDelayed(this, 30_000L)
             }
         })
     }
@@ -234,8 +233,10 @@ class EpgActivity : AppCompatActivity() {
         val pxPerMs = pxPerMin / 60_000f
         val nowOffsetMs = System.currentTimeMillis() - gridStartMs
         val baseX = (nowOffsetMs.toFloat() * pxPerMs).toInt()
-        val visualX = (resources.getDimensionPixelSize(R.dimen.fta_side_rail_w) +
-            resources.getDimensionPixelSize(R.dimen.fta_channel_rail_w) +
+        // now_line lives inside the FrameLayout that already starts
+        // AFTER the side rail — only add the per-row channel rail
+        // width + the row-strip's horizontal scroll offset.
+        val visualX = (resources.getDimensionPixelSize(R.dimen.fta_channel_rail_w) +
             baseX -
             gridAdapter.currentScrollX()).coerceAtLeast(0)
         val lp = nowLine.layoutParams as FrameLayout.LayoutParams
