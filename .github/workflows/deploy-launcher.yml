@@ -1,0 +1,243 @@
+name: Deploy Launcher Backend to Contabo VPS
+
+# Auto-syncs /app/launcher-backend/ to the Contabo VPS and restarts
+# the launcher service whenever the launcher code changes on main.
+#
+# This deploys the launcher FastAPI server + admin UI (NOT the
+# launcher Android APK — that's `build-launcher.yml`).
+#
+# The workflow auto-detects how the launcher is running on the VPS:
+#   1. systemd:  any of onnowtv-launcher{,-backend}.service
+#   2. docker:   any container named onnowtv-launcher{,-backend}
+#   3. docker-compose: looks for a compose file in the install path
+#
+# Required GitHub secret: VPS_SSH_PASSWORD  (same one deploy-backend uses)
+#
+# Optional repo variables (Settings → Secrets and variables → Actions → Variables):
+#   VPS_HOST           default 62.84.181.66
+#   VPS_USER           default root
+#   VPS_LAUNCHER_PATH  default auto-detect (tries /opt/onnowtv/launcher,
+#                              /opt/onnowtv-launcher, /srv/onnowtv-launcher)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "launcher-backend/**"
+      - ".github/workflows/deploy-launcher.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-launcher
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Sync launcher → VPS → restart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install rsync + sshpass
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rsync sshpass
+
+      - name: Resolve VPS host / user
+        id: targets
+        run: |
+          VPS_HOST="${VPS_HOST_OVERRIDE:-62.84.181.66}"
+          VPS_USER="${VPS_USER_OVERRIDE:-root}"
+          echo "host=$VPS_HOST" >> "$GITHUB_OUTPUT"
+          echo "user=$VPS_USER" >> "$GITHUB_OUTPUT"
+        env:
+          VPS_HOST_OVERRIDE: ${{ vars.VPS_HOST }}
+          VPS_USER_OVERRIDE: ${{ vars.VPS_USER }}
+
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ steps.targets.outputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Auto-detect launcher install path + restart mechanism
+        id: detect
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_LAUNCHER_PATH_OVERRIDE: ${{ vars.VPS_LAUNCHER_PATH }}
+        run: |
+          if [ -z "$SSHPASS" ]; then
+            echo "::error::VPS_SSH_PASSWORD secret is not set. Add it under Settings → Secrets → Actions."
+            exit 1
+          fi
+
+          # Returns the first path / service that exists on the VPS.
+          # If you've manually set vars.VPS_LAUNCHER_PATH it wins.
+          INSTALL_PATH=$(sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              if [ -n '$VPS_LAUNCHER_PATH_OVERRIDE' ] && [ -d '$VPS_LAUNCHER_PATH_OVERRIDE' ]; then
+                echo '$VPS_LAUNCHER_PATH_OVERRIDE'
+                exit 0
+              fi
+              for p in /opt/onnowtv/launcher /opt/onnowtv-launcher /srv/onnowtv-launcher /opt/launcher-backend; do
+                if [ -d \"\$p\" ]; then echo \"\$p\"; exit 0; fi
+              done
+              echo NOT_FOUND
+            ")
+
+          if [ "$INSTALL_PATH" = "NOT_FOUND" ] || [ -z "$INSTALL_PATH" ]; then
+            echo "::warning::Could not auto-detect launcher install path on VPS."
+            echo "Searched: /opt/onnowtv/launcher, /opt/onnowtv-launcher, /srv/onnowtv-launcher, /opt/launcher-backend"
+            echo "Falling back to /opt/onnowtv/launcher (creating it if missing)."
+            INSTALL_PATH=/opt/onnowtv/launcher
+          fi
+
+          # Detect restart mechanism.
+          RESTART_KIND=$(sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              # Prefer the most common name first.
+              for svc in onnowtv-launcher.service onnowtv-launcher-backend.service launcher-backend.service; do
+                if systemctl list-unit-files \"\$svc\" 2>/dev/null | grep -q \"\$svc\"; then
+                  echo \"systemd:\$svc\"; exit 0
+                fi
+              done
+              for cname in onnowtv-launcher onnowtv-launcher-backend launcher-backend launcher; do
+                if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx \"\$cname\"; then
+                  echo \"docker:\$cname\"; exit 0
+                fi
+              done
+              if [ -f '$INSTALL_PATH/docker-compose.yml' ] || [ -f '$INSTALL_PATH/compose.yml' ]; then
+                echo 'compose'; exit 0
+              fi
+              echo 'none'
+            ")
+
+          echo "install_path=$INSTALL_PATH" >> "$GITHUB_OUTPUT"
+          echo "restart_kind=$RESTART_KIND" >> "$GITHUB_OUTPUT"
+          echo "Resolved install path: $INSTALL_PATH"
+          echo "Restart mechanism:     $RESTART_KIND"
+
+      - name: Rsync launcher code to VPS
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.detect.outputs.install_path }}
+        run: |
+          # First make sure the target path exists so rsync doesn't
+          # fail on a freshly-provisioned VPS.
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_PATH'"
+
+          # NEVER delete the data/ directory on the VPS — it holds
+          # uploaded APKs, wallpapers, the store.json that drives the
+          # admin UI, etc.  And NEVER overwrite .env on the VPS.
+          sshpass -e rsync -avz \
+            --exclude="__pycache__" \
+            --exclude="*.pyc" \
+            --exclude=".env" \
+            --exclude=".env.*" \
+            --exclude="*.bak*" \
+            --exclude="*.log" \
+            --exclude=".pytest_cache" \
+            --exclude="data/" \
+            -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
+            launcher-backend/ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
+
+      - name: Install new Python dependencies (idempotent)
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.detect.outputs.install_path }}
+        run: |
+          # Pick the first venv that exists.  /opt/onnowtv/venv is
+          # shared with the main backend; fall back to a launcher-
+          # local venv if the operator created one.
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              set -e
+              VENV=''
+              for cand in /opt/onnowtv/launcher-venv /opt/onnowtv-launcher/venv $VPS_PATH/venv /opt/onnowtv/venv; do
+                if [ -x \"\$cand/bin/pip\" ]; then VENV=\"\$cand\"; break; fi
+              done
+              if [ -z \"\$VENV\" ]; then
+                echo 'ℹ No Python venv detected — skipping pip install (probably running under Docker).'
+              elif [ -f \"$VPS_PATH/requirements.txt\" ]; then
+                \"\$VENV/bin/pip\" install --quiet --disable-pip-version-check -r \"$VPS_PATH/requirements.txt\"
+              fi
+            "
+
+      - name: Restart launcher service
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.detect.outputs.install_path }}
+          RESTART_KIND: ${{ steps.detect.outputs.restart_kind }}
+        run: |
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              set -e
+              case '$RESTART_KIND' in
+                systemd:*)
+                  svc='${RESTART_KIND#systemd:}'
+                  echo '🔄 Restarting systemd unit:' \"\$svc\"
+                  systemctl restart \"\$svc\"
+                  sleep 4
+                  if ! systemctl is-active --quiet \"\$svc\"; then
+                    echo '❌ Service failed to start. Recent logs:'
+                    journalctl -u \"\$svc\" --no-pager -n 30
+                    exit 1
+                  fi
+                  ;;
+                docker:*)
+                  cname='${RESTART_KIND#docker:}'
+                  echo '🔄 Restarting docker container:' \"\$cname\"
+                  docker restart \"\$cname\"
+                  sleep 4
+                  if ! docker ps --format '{{.Names}}' | grep -qx \"\$cname\"; then
+                    echo '❌ Container failed to come back up. Recent logs:'
+                    docker logs --tail 30 \"\$cname\" 2>&1 || true
+                    exit 1
+                  fi
+                  ;;
+                compose)
+                  echo '🔄 docker compose restart in' '$VPS_PATH'
+                  cd '$VPS_PATH'
+                  docker compose restart || docker-compose restart
+                  ;;
+                none|*)
+                  echo '::warning::No known restart mechanism detected.'
+                  echo 'The code has been rsynced but the running process was NOT restarted.'
+                  echo 'Manually restart the launcher backend on the VPS, or set the'
+                  echo 'systemd/docker name so this workflow can auto-restart in future.'
+                  ;;
+              esac
+              echo '✅ Restart sequence finished.'
+            "
+
+      - name: Smoke-test the launcher admin page
+        run: |
+          # Try the most common URLs people host the launcher under.
+          # Any 200 OR 401 (auth still on) is a green light — the
+          # process is up.  Only fail when nothing responds.
+          for path in /launcher/api/admin/store /launcher/admin/ /api/admin/store /admin/; do
+            for proto in https http; do
+              url="$proto://onnowtv.duckdns.org$path"
+              code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$url" || echo 000)
+              echo "$url → HTTP $code"
+              if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+                echo "✅ Launcher responding at $url"
+                exit 0
+              fi
+            done
+          done
+          echo "::warning::Could not confirm the launcher is responding over HTTPS."
+          echo "The rsync + restart succeeded; you may just need to hit a different URL."
