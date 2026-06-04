@@ -62,10 +62,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dot1: View
     private lateinit var dot2: View
     private lateinit var dot3: View
+    private lateinit var countdown: TextView
 
-    private val minHoldMs = 60_000L
+    private val minHoldMs = 18_000L
     private val pollIntervalMs = 1_500L
     private val maxHoldMs = 5 * 60_000L
+    /** Wall-clock cap shown to the user — "first load can take up
+     *  to 5 minutes".  The countdown ticker uses this. */
+    private val firstLoadBudgetMs = 5 * 60_000L
 
     private var bundleKick: Job? = null
     @Volatile private var bundleResult: XtreamBundle? = null
@@ -94,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         "TIP — 12,000+ channels, refreshed automatically in the background.",
         "TIP — D-pad UP/DOWN switches channels while you're watching.",
     )
-    private val TIP_INTERVAL_MS = 4_000L
+    private val TIP_INTERVAL_MS = 7_500L
     private var tipIndex = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,12 +139,34 @@ class MainActivity : AppCompatActivity() {
         dot1           = findViewById(R.id.loader_dot_1)
         dot2           = findViewById(R.id.loader_dot_2)
         dot3           = findViewById(R.id.loader_dot_3)
+        countdown      = findViewById(R.id.loader_countdown)
 
         startDotsAnimation()
         startTipsRotation()
         startBrandPulse()
+        startCountdown()
 
         startLoad()
+    }
+
+    /**
+     * Render a "5:00" → "0:00" countdown ticking once per second
+     * in the loader footer.  Once it hits zero we hold at "0:00" —
+     * the loader's safety hatch will have already kicked in by then.
+     */
+    private fun startCountdown() {
+        val deadline = SystemClock.elapsedRealtime() + firstLoadBudgetMs
+        countdownHandler.post(object : Runnable {
+            override fun run() {
+                val remainingMs = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                val mins = remainingMs / 60_000L
+                val secs = (remainingMs % 60_000L) / 1_000L
+                countdown.text = "%d:%02d".format(mins, secs)
+                if (remainingMs > 0) {
+                    countdownHandler.postDelayed(this, 1_000L)
+                }
+            }
+        })
     }
 
     /**
@@ -302,10 +328,16 @@ class MainActivity : AppCompatActivity() {
             val elapsed = SystemClock.elapsedRealtime() - started
             applyMeta(lastMeta, elapsed, lastMetaErrorAt)
 
+            // EXIT — most-important conditions first:
+            //   1) Bundle has arrived AND we've held for the minimum.
+            //   2) Popular EPG ready AND minimum hold met.
+            //   3) Safety hatch: any channels visible after maxHoldMs.
+            val haveBundle = bundleResult != null
             val priorityReady = (lastMeta?.priorityReady == true) && (lastMeta?.channelsCount ?: 0) > 0
+            if (haveBundle && elapsed >= minHoldMs) break
             if (priorityReady && elapsed >= minHoldMs) break
 
-            val haveChannels = (lastMeta?.channelsCount ?: 0) > 0 || bundleResult != null
+            val haveChannels = (lastMeta?.channelsCount ?: 0) > 0 || haveBundle
             if (elapsed >= maxHoldMs && haveChannels) {
                 Log.w("MainActivity", "safety hatch — entering EPG")
                 break
@@ -457,6 +489,7 @@ class MainActivity : AppCompatActivity() {
         tipHandler.removeCallbacksAndMessages(null)
         dotsHandler.removeCallbacksAndMessages(null)
         brandHandler.removeCallbacksAndMessages(null)
+        countdownHandler.removeCallbacksAndMessages(null)
         counterAnimator?.cancel()
         super.onDestroy()
     }
@@ -468,4 +501,6 @@ object BundleHolder {
     /** Set by MainActivity when it took the fast disk-cache path
      *  and EpgActivity should refresh the bundle in the background. */
     @Volatile var needsBackgroundRefresh: Boolean = false
+}
+sh: Boolean = false
 }

@@ -90,6 +90,12 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    // OkHttp data source so we can set a custom User-Agent + use
+    // HTTP/2 + connection pooling for the Xtream MPEG-TS feeds —
+    // some servers (like njala.ddns.me) reject the default
+    // ExoPlayer user-agent string with HTTP 403.
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Image loading for channel logos.
     implementation("io.coil-kt:coil:2.6.0")

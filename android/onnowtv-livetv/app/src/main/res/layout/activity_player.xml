@@ -34,21 +34,21 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
-        android:layout_marginStart="36dp"
-        android:layout_marginTop="36dp"
+        android:layout_marginStart="28dp"
+        android:layout_marginTop="28dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/player_overlay_bg"
-        android:paddingStart="18dp"
-        android:paddingEnd="22dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
         android:elevation="6dp">
 
         <ImageView
             android:id="@+id/info_logo"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:scaleType="centerInside"
             android:contentDescription="@null" />
 
@@ -56,7 +56,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginStart="16dp">
+            android:layout_marginStart="12dp">
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -70,7 +70,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="13sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.18"
                     android:text="" />
@@ -79,9 +79,9 @@
                     android:id="@+id/info_channel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
+                    android:layout_marginStart="8dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="22sp"
+                    android:textSize="16sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="1"
@@ -92,34 +92,33 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp"
+                    android:paddingTop="1dp"
+                    android:paddingBottom="1dp"
                     android:background="@drawable/now_pill_red"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_bg"
-                    android:textSize="10sp"
+                    android:textSize="9sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.20"
+                    android:letterSpacing="0.18"
                     android:text="NOW" />
 
                 <TextView
                     android:id="@+id/info_now_title"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:maxWidth="520dp"
+                    android:layout_marginStart="8dp"
+                    android:maxWidth="420dp"
                     android:textColor="@color/livetv_fg_bright"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
+                    android:textSize="12sp"
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -128,9 +127,9 @@
 
             <!-- Skinny cyan progress bar — current programme. -->
             <FrameLayout
-                android:layout_width="480dp"
-                android:layout_height="3dp"
-                android:layout_marginTop="8dp"
+                android:layout_width="380dp"
+                android:layout_height="2dp"
+                android:layout_marginTop="6dp"
                 android:background="#1AFFFFFF">
 
                 <View
@@ -144,11 +143,11 @@
                 android:id="@+id/info_up_next"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:fontFamily="monospace"
                 android:textColor="@color/livetv_fg_dimmer"
-                android:textSize="11sp"
-                android:letterSpacing="0.20"
+                android:textSize="9sp"
+                android:letterSpacing="0.18"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="" />
