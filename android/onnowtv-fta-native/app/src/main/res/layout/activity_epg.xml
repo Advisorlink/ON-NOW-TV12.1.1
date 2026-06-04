@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    FTA NATIVE — EPG screen (Phase 2).
+    FTA NATIVE — EPG screen (Phase 2 layout, matched to React UX).
 
-    Layout:
-      [ SIDE NAV (88dp) ][ CATEGORIES PANEL (260dp, slide-out) ]
-      [ TOPBAR + ticks header + grid body + preview pane overlay ]
+    Horizontal layout:
+      [ SIDE NAV (88dp) ]
+      [ CATEGORIES PANEL (260dp, slide-out) ]
+      [ SIDEBAR (340dp) — preview + info + synopsis + chips + up next ]
+      [ EPG body — topbar (clock strip) + time ticks + channel rows ]
 
-    The categories panel is hidden by default (visibility=GONE) and
-    toggled by the "Categories" side-rail icon.  When visible it
-    pushes the grid right, mirroring the WebView FTA UX where the
-    submenu sits to the right of the rail.
+    The Sidebar mirrors the React Sidebar component: 16:9 preview
+    tile on top (cover art by default, becomes a live HLS feed
+    after an explicit OK), info row (channel logo + LCN/name),
+    synopsis paragraph, chips row, and a "Coming up next" block.
 
-    The preview pane is an overlay in the top-right of the grid
-    body — a small ExoPlayer that auto-tunes to the focused channel
-    after an 800 ms debounce.  Tap a programme → opens the full
-    PlayerActivity.
+    The preview does NOT auto-tune on focus change — the user's
+    explicit feedback was that the EPG scroll should stay smooth
+    and the preview should only play after they OK the tile.  Focus
+    change only updates the sidebar's INFO (title, synopsis, up
+    next) — never touches the player.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -68,7 +71,268 @@
             android:overScrollMode="never" />
     </LinearLayout>
 
-    <!-- ───────── MAIN CONTENT ───────── -->
+    <!-- ───────── SIDEBAR (preview + info + up-next) ───────── -->
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
+        android:layout_width="@dimen/fta_sidebar_w"
+        android:layout_height="match_parent"
+        android:background="#080C18"
+        android:scrollbars="none"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="18dp"
+            android:paddingBottom="22dp">
+
+            <!-- Preview tile.  Focusable button — first OK arms the
+                 preview, second OK opens full PlayerActivity. -->
+            <FrameLayout
+                android:id="@+id/preview_card"
+                android:layout_width="match_parent"
+                android:layout_height="172dp"
+                android:background="@drawable/preview_card_bg"
+                android:focusable="true"
+                android:clickable="true"
+                android:foreground="@drawable/preview_card_focus">
+
+                <!-- Always-on cover art (channel logo or programme
+                     artwork) so the tile is never black during focus
+                     changes. -->
+                <ImageView
+                    android:id="@+id/preview_art"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="@null" />
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/preview_player"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="invisible"
+                    app:resize_mode="fill"
+                    app:use_controller="false"
+                    app:show_buffering="never" />
+
+                <!-- Dark gradient over the bottom so the title +
+                     progress overlay is legible. -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="68dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/preview_gradient" />
+
+                <!-- LIVE pill -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginTop="10dp"
+                    android:paddingStart="8dp" android:paddingEnd="8dp"
+                    android:paddingTop="3dp" android:paddingBottom="3dp"
+                    android:background="@drawable/live_pill_bg"
+                    android:text="● LIVE"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.18" />
+
+                <!-- "Press OK to play" hint — visible until the user
+                     arms the preview. -->
+                <TextView
+                    android:id="@+id/preview_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|end"
+                    android:layout_marginEnd="10dp"
+                    android:layout_marginTop="10dp"
+                    android:paddingStart="8dp" android:paddingEnd="8dp"
+                    android:paddingTop="3dp" android:paddingBottom="3dp"
+                    android:background="@drawable/hint_pill_bg"
+                    android:text="PRESS OK TO PLAY"
+                    android:textColor="@color/fta_bg"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.22" />
+
+                <!-- Bottom overlay: programme title + time + progress -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:orientation="vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="10dp">
+
+                    <TextView
+                        android:id="@+id/preview_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/preview_meta"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:textColor="#D0DBE6"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.08"
+                        android:text="" />
+
+                    <View
+                        android:id="@+id/preview_progress_track"
+                        android:layout_width="match_parent"
+                        android:layout_height="3dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/progress_track_bg" />
+
+                    <View
+                        android:id="@+id/preview_progress_bar"
+                        android:layout_width="0dp"
+                        android:layout_height="3dp"
+                        android:layout_marginTop="-3dp"
+                        android:background="@color/fta_blue" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Info row: channel logo + LCN + name -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="14dp">
+
+                <ImageView
+                    android:id="@+id/info_logo"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:scaleType="centerInside"
+                    android:contentDescription="@null" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/info_lcn"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/fta_blue"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.14"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/info_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/fta_fg"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Synopsis -->
+            <TextView
+                android:id="@+id/info_synopsis"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/fta_fg_dim"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                android:fontFamily="sans-serif"
+                android:maxLines="5"
+                android:ellipsize="end"
+                android:text="" />
+
+            <!-- Chips row -->
+            <LinearLayout
+                android:id="@+id/info_chips"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp" />
+
+            <!-- Coming up next -->
+            <LinearLayout
+                android:id="@+id/upnext_block"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:padding="12dp"
+                android:background="@drawable/upnext_bg"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="COMING UP NEXT"
+                    android:textColor="@color/fta_blue"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.22" />
+
+                <TextView
+                    android:id="@+id/upnext_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/fta_fg"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/upnext_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/fta_fg_dim"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.08"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ───────── MAIN CONTENT (topbar + ticks + grid) ───────── -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
@@ -82,8 +346,8 @@
             android:layout_height="@dimen/fta_topbar_h"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="28dp"
-            android:paddingEnd="28dp"
+            android:paddingStart="22dp"
+            android:paddingEnd="22dp"
             android:background="#080C18">
 
             <TextView
@@ -91,7 +355,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/brand"
                 android:textColor="@color/fta_blue"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-black"
                 android:letterSpacing="-0.02"
@@ -101,29 +365,26 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="8dp"
                 android:text="@string/brand_suffix"
                 android:textColor="@color/fta_fg"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="-0.01" />
 
-            <!-- Tabs (Live / Favourites) -->
             <LinearLayout
                 android:id="@+id/tabs"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginStart="32dp" />
+                android:layout_marginStart="28dp" />
 
-            <!-- Currently-selected category chip (when a non-live
-                 category is active, e.g. "KIDS" or "SPORT"). -->
             <TextView
                 android:id="@+id/active_cat_chip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
+                android:layout_marginStart="14dp"
                 android:paddingStart="10dp" android:paddingEnd="10dp"
                 android:paddingTop="4dp" android:paddingBottom="4dp"
                 android:background="@drawable/next_pill_bg"
@@ -140,7 +401,6 @@
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- City chip — focusable, click opens the city picker. -->
             <TextView
                 android:id="@+id/city_chip"
                 android:layout_width="wrap_content"
@@ -170,13 +430,11 @@
                 android:text="" />
         </LinearLayout>
 
-        <!-- Time-ticks header row (hour labels above the grid). -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <!-- Spacer to align with the channel rail. -->
             <View
                 android:layout_width="@dimen/fta_channel_rail_w"
                 android:layout_height="32dp"
@@ -198,7 +456,6 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- Grid body -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -213,7 +470,6 @@
                 android:overScrollMode="never"
                 android:clipToPadding="false" />
 
-            <!-- NOW vertical red line — positioned by EpgActivity. -->
             <View
                 android:id="@+id/now_line"
                 android:layout_width="2dp"
@@ -222,74 +478,6 @@
                 android:background="@color/fta_now_red"
                 android:visibility="invisible" />
 
-            <!-- ───────── PREVIEW PANE (top-right overlay) ───────── -->
-            <LinearLayout
-                android:id="@+id/preview_card"
-                android:layout_width="@dimen/fta_preview_w"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|end"
-                android:layout_marginTop="14dp"
-                android:layout_marginEnd="22dp"
-                android:orientation="vertical"
-                android:background="@drawable/preview_card_bg"
-                android:padding="6dp"
-                android:visibility="invisible">
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/fta_preview_h">
-
-                    <androidx.media3.ui.PlayerView
-                        android:id="@+id/preview_player"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        app:resize_mode="fill"
-                        app:use_controller="false"
-                        app:show_buffering="never" />
-
-                    <!-- "TUNING…" overlay shown while the preview
-                         player is buffering the new channel. -->
-                    <TextView
-                        android:id="@+id/preview_status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.22"
-                        android:visibility="gone"
-                        android:text="TUNING…" />
-                </FrameLayout>
-
-                <TextView
-                    android:id="@+id/preview_label"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/fta_fg"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-
-                <TextView
-                    android:id="@+id/preview_sub"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/fta_fg_dim"
-                    android:textSize="10sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.10"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-            </LinearLayout>
-
-            <!-- Loader -->
             <LinearLayout
                 android:id="@+id/loader"
                 android:layout_width="wrap_content"
