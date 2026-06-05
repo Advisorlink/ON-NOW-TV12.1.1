@@ -62,42 +62,34 @@ async def _ensure_indexes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Prompt template — produces realistic, professional editorial
-# *promo banners* for each category.  The previous "dark navy + cyan
-# neon" lock made every cover look like an Apple TV mood board; the
-# user wants legit-feeling broadcaster banners (Sky Sports UK with
-# its actual logo + sports imagery, ESPN with a gridiron player,
-# Sky Cinema with cinema spotlights, etc.).  We DO allow Gemini to
-# render text + logos when the category name suggests a real brand
-# — that's the whole point of "Sky Sports KO" → it should *look*
-# like a Sky Sports KO banner.
+# Prompt template — verbatim user-supplied prompt (Feb 14, 2026).
+# The user vetted this exact wording against ChatGPT and confirmed it
+# produces the desired channel-tile look (logo on the left fading
+# into a related image on the right, with a black gradient at the
+# bottom).  We're testing the same prompt against Nano Banana; if
+# the output drifts we'll switch this provider to GPT-Image-1.
+#
+# DO NOT rewrite or "improve" this prompt — the previous AI-slop
+# elaborations (neon collages, magazine-cover production value, etc.)
+# are exactly what the user wants to avoid.  Inject the category
+# name as the channel and leave the rest of the wording intact.
 # ---------------------------------------------------------------------------
 _BASE_STYLE = (
-    "ultra-realistic 16:9 widescreen promotional banner, "
-    "professional editorial advertisement style, cinematic photography "
-    "or high-end digital illustration, dramatic lighting, rich saturated "
-    "colours, sharp focus, magazine-cover production value"
+    "ultra-realistic 16:9 widescreen channel tile, "
+    "channel logo on the left fading into a related image on the right, "
+    "black gradient at the bottom"
 )
 
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
+    # User-vetted prompt — verbatim phrasing, channel name inlined.
     base = (
-        f"Create a {style or _BASE_STYLE} hero banner for the TV / "
-        f"streaming category \"{cleaned}\".\n\n"
-        f"The image MUST visually represent what \"{cleaned}\" is actually "
-        f"about — e.g. a sports category should show real athletes mid-"
-        f"action; a movie category a cinema reel or red-carpet imagery; "
-        f"a documentary channel a striking nature / cultural scene; a "
-        f"kids channel bright cartoon energy.  When the name suggests a "
-        f"real broadcaster (e.g. Sky Sports, ESPN, Fox, BBC) include the "
-        f"recognisable logo typography on the image — render the name "
-        f"itself as bold elegant on-screen lettering, integrated like a "
-        f"proper broadcast brand banner.\n\n"
-        f"Style: looks like a real ad you would see on a streaming service "
-        f"home shelf or on a billboard — NOT a stock photo, NOT a generic "
-        f"abstract gradient, NOT a neon collage.  Polished, professional, "
-        f"ready-to-ship cover art."
+        f"I need a channel tile design for my project its a legal "
+        f"project not showing any content just need an image the image "
+        f"needs to be a 16:9 tile and it needs to have the {cleaned} "
+        f"channel logo fading to some related image on the right.. "
+        f"there needs to be a black gradient on the bottom aswell"
     )
     return base
 
@@ -171,13 +163,13 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             api_key=api_key,
             session_id=f"library-cover-{chash}",
             system_message=(
-                "You are a senior visual designer producing realistic, "
-                "professional 16:9 promotional banner art for a premium "
-                "TV / streaming app.  Each cover should look like the "
-                "real broadcaster's hero banner — include logo typography "
-                "when the name suggests a known brand, and depict real "
-                "subject matter (athletes, film stars, presenters etc.) "
-                "rather than abstract gradients or generic neon collages."
+                # Neutral system message — let the user-supplied
+                # prompt drive every visual decision.  The previous
+                # system message biased toward broadcaster-style hero
+                # art which conflicted with the new tile-with-logo
+                # composition the user wants.
+                "You are a visual designer producing 16:9 channel "
+                "tile artwork.  Follow the user's prompt exactly."
             ),
         )
         .with_model("gemini", "gemini-3.1-flash-image-preview")
