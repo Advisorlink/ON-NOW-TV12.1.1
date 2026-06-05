@@ -390,7 +390,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/fta_side_rail_w">
 
             <View
                 android:layout_width="@dimen/fta_channel_rail_w"
@@ -413,11 +414,12 @@
             </HorizontalScrollView>
         </LinearLayout>
 
-        <!-- EPG GRID — full width -->
+        <!-- EPG GRID — full width (with left padding to clear the side-nav overlay) -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            android:paddingStart="@dimen/fta_side_rail_w">
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/grid_list"

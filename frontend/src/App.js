@@ -22,7 +22,9 @@ import WatchTogether from '@/pages/WatchTogether';
 // v2.8.90 — ON NOW V2 Free-to-Air EPG page (Brisbane AU FTA).
 import FreeToAir from '@/pages/FreeToAir';
 import LiveTV from '@/pages/LiveTV';
-import SportsGuide from '@/pages/SportsGuide';
+// v2.8.127 — Sports Guide rebuilt as a native screen in V2 Live TV.
+// The /sports React route is retired; users open it from the trophy
+// icon in the V2 Live TV side rail now.
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
@@ -585,7 +587,6 @@ function App() {
                                 <Route path="/play" element={<RequireProfile><Player /></RequireProfile>} />
                                 <Route path="/watch-together" element={<RequireProfile><WatchTogether /></RequireProfile>} />
                                 <Route path="/live-tv" element={<RequireProfile><LiveTV /></RequireProfile>} />
-                                <Route path="/sports" element={<RequireProfile><SportsGuide /></RequireProfile>} />
                                 <Route path="/person/:tmdbId" element={<RequireProfile><Person /></RequireProfile>} />
 
                                 {/* v2.8.43 — ON NOW TV TUNES (music app).

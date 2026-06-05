@@ -187,11 +187,16 @@ class EpgGridAdapter(
                 val titleV: TextView = cellView.findViewById(R.id.cell_title)
                 val timeV: TextView = cellView.findViewById(R.id.cell_time)
                 val nextV: TextView = cellView.findViewById(R.id.cell_next_pill)
+                val liveV: TextView = cellView.findViewById(R.id.cell_live_pill)
                 titleV.text = p.title.ifBlank { "—" }
                 timeV.text = formatStartLabel(p.startMs)
+                // "LIVE" pill on the programme currently airing.
+                val isLive = p.startMs <= nowMs && p.stopMs > nowMs
+                liveV.visibility = if (isLive) View.VISIBLE else View.GONE
                 // "NEXT" pill on the first programme that hasn't
-                // started yet — visual cue for users.
-                nextV.visibility = if (p.startMs > nowMs && p.startMs - nowMs < 90 * 60_000L)
+                // started yet (within the next 90 minutes).  Hidden
+                // for the live cell so we don't double-pill.
+                nextV.visibility = if (!isLive && p.startMs > nowMs && p.startMs - nowMs < 90 * 60_000L)
                     View.VISIBLE else View.GONE
                 val lp = FrameLayout.LayoutParams(
                     width - ctx.dp(3f).toInt(),

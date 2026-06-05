@@ -53,6 +53,7 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var railSearch: ImageButton
     private lateinit var railRefresh: ImageButton
     private lateinit var railList: ImageButton
+    private lateinit var railSports: ImageButton
     private lateinit var railSignout: ImageButton
 
     // Hero refs
@@ -219,6 +220,7 @@ class EpgActivity : AppCompatActivity() {
         railSearch   = findViewById(R.id.rail_search)
         railRefresh  = findViewById(R.id.rail_refresh)
         railList     = findViewById(R.id.rail_list)
+        railSports   = findViewById(R.id.rail_sports)
         railSignout  = findViewById(R.id.rail_signout)
 
         hero               = findViewById(R.id.hero)
@@ -433,6 +435,9 @@ class EpgActivity : AppCompatActivity() {
         railRefresh.setOnClickListener { applyCategory() }
         railList.setOnClickListener {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+        railSports.setOnClickListener {
+            startActivity(android.content.Intent(this, SportsGuideActivity::class.java))
         }
         railSignout.setOnClickListener { finishAffinity() }
     }

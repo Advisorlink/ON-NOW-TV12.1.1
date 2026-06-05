@@ -50,6 +50,13 @@
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
         <activity
+            android:name=".SportsGuideActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <activity
             android:name=".CrashActivity"
             android:exported="false"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar"
