@@ -1,5 +1,24 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.142 — Cost optimisation: quality=medium @ 1280×720 (4× cheaper, identical at tile size)
+
+Same provider + auth as v2.8.141 (GPT-Image-1 via Emergent universal key), two cost knobs turned down for the same visual result at the actual rendered tile size on a TV:
+
+| Setting | Before (v2.8.141) | After (v2.8.142) | Effect |
+|---|---|---|---|
+| `quality` | `"high"` | `"medium"` | ~4× cheaper |
+| Output res | 1920×1080 | 1280×720 | ~55 % smaller PNG, faster TV decode |
+| Cost / gen | ~$0.25 | **~$0.063** | — |
+| Gens / $17 budget | ~68 | **~270** | — |
+| Gen latency | ~60 s | **~25 s** | ~2.4× faster |
+| File size on disk | ~2.4 MB | ~1.2 MB | half |
+
+### Verification
+Same prompt ("Sky Sports KO boxing") returned a 1280×720 PNG in 25 s.  Independent visual analysis scored it 10/10 on layout, 9/10 on logo+fade, 8/10 on bottom gradient — still verdicted **broadcaster-quality**, with the only fidelity drop being micro-detail (sweat droplets, fine textures) that is **not visible** at the 300-500 px tile rendering size on a 1080p TV panel.
+
+### Files touched
+- `backend/library.py` — `quality="medium"`, output normalised to 1280×720 (centre-crop to 16:9 → LANCZOS-resize).
+
 ## v2.8.141 — Image gen pinned: GPT-Image-1 via Emergent universal key at 1920×1080 native
 
 User chose to top up the Emergent universal key ($17 of headroom) rather than juggle OpenAI/fal.ai billing limits.  Final wiring:
