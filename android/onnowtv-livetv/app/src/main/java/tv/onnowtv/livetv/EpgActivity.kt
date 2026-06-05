@@ -75,7 +75,9 @@ class EpgActivity : AppCompatActivity() {
 
     // Preview-card refs (in-hero live mini player)
     private lateinit var previewPlayerView: PlayerView
-    private lateinit var previewEmpty: View
+    private lateinit var previewThumbnail: ImageView
+    private lateinit var previewIdleHint: View
+    private lateinit var previewThumbFade: View
     private lateinit var previewLiveBadge: View
     private lateinit var previewMiniBar: View
 
@@ -247,7 +249,9 @@ class EpgActivity : AppCompatActivity() {
         btnLogout          = findViewById(R.id.btn_logout)
 
         previewPlayerView  = findViewById(R.id.preview_player_view)
-        previewEmpty       = findViewById(R.id.preview_empty)
+        previewThumbnail   = findViewById(R.id.preview_thumbnail)
+        previewIdleHint    = findViewById(R.id.preview_idle_hint)
+        previewThumbFade   = findViewById(R.id.preview_thumb_fade)
         previewLiveBadge   = findViewById(R.id.preview_live_badge)
         previewMiniBar     = findViewById(R.id.preview_mini_bar)
 
@@ -713,6 +717,12 @@ class EpgActivity : AppCompatActivity() {
             // No programme → channel logo fallback only.
             if (!ch.logoUrl.isNullOrBlank()) {
                 heroBackdrop.load(ch.logoUrl)
+                // Mirror the same fallback art into the idle preview
+                // thumbnail (only matters before the user has tapped
+                // OK to start playback).
+                if (previewThumbnail.visibility == View.VISIBLE) {
+                    previewThumbnail.load(ch.logoUrl)
+                }
             }
         }
         // GUIDE · channel sub-header
@@ -734,12 +744,20 @@ class EpgActivity : AppCompatActivity() {
         val key = title.trim().lowercase(Locale.UK)
         val cached = tmdbArtCache[key]
         if (cached != null) {
-            if (cached.isNotBlank()) heroBackdrop.load(cached) { crossfade(true); crossfade(220) }
-            else if (!ch.logoUrl.isNullOrBlank()) heroBackdrop.load(ch.logoUrl)
+            if (cached.isNotBlank()) {
+                heroBackdrop.load(cached) { crossfade(true); crossfade(220) }
+                paintPreviewThumb(cached)
+            } else if (!ch.logoUrl.isNullOrBlank()) {
+                heroBackdrop.load(ch.logoUrl)
+                paintPreviewThumb(ch.logoUrl)
+            }
             return
         }
         // Optimistically show channel logo while waiting.
-        if (!ch.logoUrl.isNullOrBlank()) heroBackdrop.load(ch.logoUrl)
+        if (!ch.logoUrl.isNullOrBlank()) {
+            heroBackdrop.load(ch.logoUrl)
+            paintPreviewThumb(ch.logoUrl)
+        }
 
         artJob?.cancel()
         artJob = lifecycleScope.launch(Dispatchers.IO) {
@@ -750,9 +768,18 @@ class EpgActivity : AppCompatActivity() {
                     heroBackdrop.load(backdrop) {
                         crossfade(true); crossfade(220)
                     }
+                    paintPreviewThumb(backdrop)
                 }
             }
         }
+    }
+
+    /** Update the idle-state preview thumbnail.  No-op once the user
+     *  has tapped OK and the live PlayerView has taken over. */
+    private fun paintPreviewThumb(url: String?) {
+        if (url.isNullOrBlank()) return
+        if (previewThumbnail.visibility != View.VISIBLE) return
+        previewThumbnail.load(url) { crossfade(true); crossfade(220) }
     }
 
     private fun fetchTmdbBackdrop(title: String): String {
@@ -873,7 +900,11 @@ class EpgActivity : AppCompatActivity() {
 
     /** Swap the in-hero preview to [ch] (no full-screen). */
     private fun startPreview(ch: Channel) {
-        previewEmpty.visibility = View.GONE
+        // Hide the idle TMDB-art placeholder and reveal the player.
+        previewThumbnail.visibility = View.GONE
+        previewThumbFade.visibility = View.GONE
+        previewIdleHint.visibility = View.GONE
+        previewPlayerView.visibility = View.VISIBLE
         previewLiveBadge.visibility = View.VISIBLE
         previewMiniBar.visibility = View.VISIBLE
         LivePreviewSession.setChannel(this, ch)
@@ -972,7 +1003,10 @@ class EpgActivity : AppCompatActivity() {
         // the hero card (no buffer hit, no restart).
         if (LivePreviewSession.isAlive() && LivePreviewSession.currentChannel != null) {
             LivePreviewSession.attachTo(previewPlayerView)
-            previewEmpty.visibility = View.GONE
+            previewThumbnail.visibility = View.GONE
+            previewThumbFade.visibility = View.GONE
+            previewIdleHint.visibility = View.GONE
+            previewPlayerView.visibility = View.VISIBLE
             previewLiveBadge.visibility = View.VISIBLE
             previewMiniBar.visibility = View.VISIBLE
         }

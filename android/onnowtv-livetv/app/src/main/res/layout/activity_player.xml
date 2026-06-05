@@ -25,10 +25,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:resize_mode="fit"
-        app:use_controller="true"
-        app:show_buffering="when_playing" />
+        app:use_controller="false"
+        app:show_buffering="never" />
 
     <!-- ─────────── Channel info overlay (top-left) ─────────── -->
+    <!-- HIDDEN per user request — kept in the tree so existing
+         findViewById refs in PlayerActivity still resolve.  All
+         code paths that previously animated this in are now no-ops
+         (see PlayerActivity.showInfoCard). -->
     <LinearLayout
         android:id="@+id/info_card"
         android:layout_width="wrap_content"
@@ -38,11 +42,11 @@
         android:layout_marginTop="28dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@drawable/player_overlay_bg"
         android:paddingStart="14dp"
         android:paddingEnd="18dp"
         android:paddingTop="10dp"
         android:paddingBottom="10dp"
+        android:visibility="gone"
         android:elevation="6dp">
 
         <ImageView
