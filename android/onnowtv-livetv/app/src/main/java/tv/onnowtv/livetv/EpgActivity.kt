@@ -1114,19 +1114,43 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Drop the surface from the shared player BEFORE another
+        // activity (LibraryActivity / PlayerActivity) takes us off-
+        // screen.  If we leave `previewPlayerView.player` pointing
+        // at the shared instance, PlayerView's setPlayer() will
+        // short-circuit ( `if (this.player == player) return;` )
+        // when we come back — the surface stays unbound and the
+        // preview shows nothing.  Setting it to null guarantees the
+        // next attachTo() is a fresh assignment that triggers the
+        // surface re-binding path inside PlayerView.
+        if (LivePreviewSession.isAlive()) {
+            LivePreviewSession.detachWithoutRelease(previewPlayerView)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
-        // Returning from full-screen: re-attach the shared player to
-        // our preview surface so playback continues seamlessly in
-        // the hero card (no buffer hit, no restart).
+        // Returning from full-screen / Library / background — re-bind
+        // the shared player to our preview surface so playback
+        // continues seamlessly in the hero card (no buffer hit, no
+        // restart).  We flip the surface VISIBLE *before* the attach
+        // so the TextureView has a live SurfaceTexture by the time
+        // PlayerView calls setVideoSurface() on the underlying player.
         if (LivePreviewSession.isAlive() && LivePreviewSession.currentChannel != null) {
-            LivePreviewSession.attachTo(previewPlayerView)
             previewThumbnail.visibility = View.GONE
             previewThumbFade.visibility = View.GONE
             previewIdleHint.visibility = View.GONE
             previewPlayerView.visibility = View.VISIBLE
             previewLiveBadge.visibility = View.VISIBLE
             previewMiniBar.visibility = View.VISIBLE
+            // Defer one frame so the TextureView is laid out + its
+            // SurfaceTexture is ready.
+            previewPlayerView.post {
+                LivePreviewSession.attachTo(previewPlayerView)
+                LivePreviewSession.getOrCreate(this).playWhenReady = true
+            }
         }
     }
 
