@@ -125,3 +125,4 @@ websockets==16.0
 yarl==1.23.0
 yt-dlp==2026.3.17
 zipp==3.23.1
+fal-client==1.0.0
