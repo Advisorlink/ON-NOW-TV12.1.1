@@ -1,5 +1,51 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.131 — Exit-stops-stream + Collections / Library with AI-generated covers (Feb 14, 2026).**
+>
+> Two user asks delivered in one batch:
+>
+> **A. Exit-stops-stream** — when the user EXITS the app (HOME, BACK out of root, or app-switcher swipe-away), the upstream Xtream socket must be released immediately.  Done via `ProcessLifecycleOwner` hooked into `LiveTVApp.onCreate`: whenever the entire process goes to background the observer calls `LivePreviewSession.release()`, killing the ExoPlayer + evicting the OkHttp pool.  `PlayerActivity.onResume` gracefully re-creates the session if the user re-opens the app while it was in full-screen.
+>
+> **B. Collections / Library** — brand-new feature for the native Live TV app:
+>
+>   - **Backend** — new `backend/library.py` with two endpoints:
+>     - `POST /api/library/generate-cover { name, salt? }` — generates a 16:9 HD cover via Gemini Nano Banana (`gemini-3.1-flash-image-preview`) using a tightly-tuned style prompt (dark navy + cyan/blue neon, photorealistic editorial, NO text) so every cover sits in the same visual family.  Persists `{ hash, mime, b64, name, prompt }` in Mongo (`library_covers`) keyed by a deterministic SHA-256-derived 24-char hash; subsequent calls without `salt` hit the cache and return in ~30 ms instead of ~15 s.
+>     - `GET /api/library/cover/{hash}.png` — serves the cached image bytes with `Cache-Control: public, max-age=31536000, immutable`.  Verified end-to-end in this preview env: fresh gen ~15 s, cache hit 33 ms, 875 KB JPEG produced.
+>
+>   - **Android data layer** — three new files in `tv.onnowtv.livetv.data`:
+>     - `Collection.kt` — record `{ id, categoryId, name, coverHash, coverUrl, addedAt }`.
+>     - `CollectionsStore.kt` — SharedPreferences-backed JSON store (`v2_livetv_collections`), de-duped by `categoryId`.
+>     - `CoversApi.kt` — HTTP client for `/api/library/generate-cover` + `/api/library/cover/`; `forceSalt` enables the "Regenerate cover" path.
+>
+>   - **Interaction** —
+>     - LONG-PRESS OK on a **category pill** → "Add to Library" dialog (skips synthetic `__all__`/`__favourites__` etc.).  Confirm → placeholder Collection saved immediately, Toast "Generating AI cover…", `CoversApi.generate(...)` fires in the background; when it resolves the Collection is updated in place.  If already saved → dialog offers "Open Library" or "Regenerate cover".
+>     - LONG-PRESS OK on a **channel pill** → existing favourite toggle (already wired in v2.x).
+>
+>   - **Library screen** — brand-new `LibraryActivity` opened by the new `rail_library` icon (between Sports and Fullscreen on the side rail, per user request).  Two horizontal RecyclerViews:
+>     - TOP — **COLLECTIONS**: 320×180 dp 16:9 tiles showing the AI cover with a dark-navy gradient overlay + channel name + "%,d CHANNELS" caption.  OK opens the category in `EpgActivity` via new `EXTRA_INITIAL_CATEGORY_ID` intent extra (+ `onNewIntent` for the `singleTask` reuse case); LONG-PRESS opens a regenerate dialog with Cancel / Regenerate / **"Re-style ALL"** (user explicitly asked for the bulk re-style so all covers can be made to match).
+>     - BOTTOM — **FAVOURITES**: 340×110 dp tiles with channel logo + LCN ("CH 504") + name + "NOW · <programme>" pulled from `BundleHolder.current.epg`.  OK launches full-screen via the shared `LivePreviewSession` for zero-buffer-hit playback.
+>     - Layout fully d-pad navigable (UP/DOWN between rows, LEFT/RIGHT within a row); auto-focus the first tile after load; "OK = OPEN · LONG-PRESS = REGENERATE COVER · BACK = EXIT" footer.
+>
+>   - **Visual style** — every cover sits in the same family because the prompt template locks down the palette (`#0A0F1A` base, cyan/electric-blue accents) and forbids text/logos.  The Re-style ALL path simply re-runs every Collection with a fresh salt so users can refresh the whole shelf with one tap.
+>
+> **Files touched**:
+>   - NEW backend: `backend/library.py`; registered in `server.py`.
+>   - NEW Android Kotlin: `LiveTVApp.kt` (ProcessLifecycleOwner hook), `LibraryActivity.kt`, `data/Collection.kt`, `data/CollectionsStore.kt`, `data/CoversApi.kt`, `ui/CollectionTileAdapter.kt`, `ui/FavouriteTileAdapter.kt`.
+>   - NEW Android resources: `layout/activity_library.xml`, `layout/item_collection_tile.xml`, `layout/item_favourite_tile.xml`, `drawable/ic_nav_library.xml`, `drawable/library_tile_bg.xml`, `drawable/library_tile_overlay.xml`.
+>   - EDIT `EpgActivity.kt` — `EXTRA_INITIAL_CATEGORY_ID` companion + `onNewIntent` + `promptAddToLibrary` + `generateCoverFor` + new rail-library wire-up.
+>   - EDIT `ui/CategoryAdapter.kt` — optional `onLongPick` lambda.
+>   - EDIT `activity_epg.xml` — `rail_library` ImageButton between Sports and Fullscreen.
+>   - EDIT `AndroidManifest.xml` — `LibraryActivity` registered.
+>   - EDIT `app/build.gradle.kts` — added `androidx.lifecycle:lifecycle-process:2.7.0`.
+>
+> **Verification**:
+>   - All 14 XML files re-parsed via Python ElementTree — clean.
+>   - Backend live-tested at `http://localhost:8001/api/library/generate-cover` — fresh gen `Sky Cinema HD` returned a 1.16 MB base64 (875 KB JPEG) in 14.8 s; second call to `Sports` cache-hit in 33 ms; `GET /api/library/cover/{hash}.png` returned 200 OK with `image/jpeg` and 795 KB body.
+>   - Python lint of `backend/library.py` clean.
+>   - Kotlin compile must still be verified by the GitHub Actions `build-livetv.yml` workflow on next push (no `gradlew`/`kotlinc` available in this preview env).
+>
+> **Not yet built (deferred)**: the "backup-with-code like Vesper" sync layer — Collections + Favourites currently persist locally only.  The Vesper `/api/backup/save|restore` endpoints are generic JSON containers and can absorb the Live TV state in a follow-up: roughly 60 lines of Kotlin + a small "Backup / Restore" pill on the LibraryActivity header.
+
 > **🟢 v2.8.130 — Live TV hero refinements: 16:9 preview + idle TMDB thumbnail + zero-dim full-screen (Feb 14, 2026).**
 >
 > Follow-up to v2.8.129 after on-device testing.  User feedback:

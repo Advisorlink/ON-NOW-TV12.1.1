@@ -47,7 +47,17 @@ import java.util.Locale
  */
 class EpgActivity : AppCompatActivity() {
 
+    companion object {
+        /** Intent extra used by [LibraryActivity] to deep-link into a
+         *  saved Collection — when present, that category becomes
+         *  the initial selection instead of "All channels". */
+        const val EXTRA_INITIAL_CATEGORY_ID = "extra_initial_category_id"
+    }
+
     private lateinit var bundle: XtreamBundle
+
+    // Add the new rail library button
+    private lateinit var railLibrary: ImageButton
 
     // Rail refs
     private lateinit var railHome: ImageButton
@@ -231,6 +241,7 @@ class EpgActivity : AppCompatActivity() {
         railRefresh  = findViewById(R.id.rail_refresh)
         railList     = findViewById(R.id.rail_list)
         railSports   = findViewById(R.id.rail_sports)
+        railLibrary  = findViewById(R.id.rail_library)
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railSignout  = findViewById(R.id.rail_signout)
 
@@ -304,6 +315,12 @@ class EpgActivity : AppCompatActivity() {
         // EPG-coverage heuristic is kept off until favourites /
         // recents have real backing storage.
         currentCategoryId = "__all__"
+
+        // Deep-link override: LibraryActivity passes the saved
+        // Collection's category id here so opening a tile lands the
+        // user straight in that category's channel list.
+        intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)?.takeIf { it.isNotBlank() }
+            ?.let { currentCategoryId = it }
     }
 
     private fun setupAdapters() {
@@ -331,6 +348,7 @@ class EpgActivity : AppCompatActivity() {
                     }, 1_000L)
                 }
             },
+            onLongPick = { c -> promptAddToLibrary(c) },
         )
         categoriesList.layoutManager = LinearLayoutManager(this)
         categoriesList.adapter = categoryAdapter
@@ -459,6 +477,9 @@ class EpgActivity : AppCompatActivity() {
         }
         railSports.setOnClickListener {
             startActivity(android.content.Intent(this, SportsGuideActivity::class.java))
+        }
+        railLibrary.setOnClickListener {
+            startActivity(android.content.Intent(this, LibraryActivity::class.java))
         }
         railFullscreen.setOnClickListener {
             // Rail fullscreen button — go full-screen on whatever is
@@ -996,6 +1017,103 @@ class EpgActivity : AppCompatActivity() {
         clockHandler.post(tick)
     }
 
+    /**
+     * Long-pressing a category opens the "Add to Library" dialog
+     * which (a) saves the [tv.onnowtv.livetv.data.Collection] to
+     * [tv.onnowtv.livetv.data.CollectionsStore] and (b) kicks off
+     * a Nano Banana cover-art generation in the background.  The
+     * user can browse the Library while it's still generating —
+     * the tile will swap from a placeholder to the artwork the
+     * moment Coil resolves the URL.
+     */
+    private fun promptAddToLibrary(category: Category) {
+        // Skip the synthetic virtual categories — they don't have
+        // a real underlying Xtream category to bind a Collection to.
+        if (category.id.startsWith("__")) return
+
+        val ctx = this
+        val alreadySaved = tv.onnowtv.livetv.data.CollectionsStore.has(ctx, category.id)
+        val title = if (alreadySaved) "Already in your library" else "Add \"${category.name}\" to library?"
+        val msg = if (alreadySaved)
+            "This category is already saved.  Open the Library to manage it, " +
+            "or pick \"Regenerate cover\" to ask the AI for a fresh image."
+        else
+            "We'll create a 16:9 AI cover automatically (~30s).  All covers " +
+            "share the same dark navy / blue neon style so your shelf stays consistent."
+
+        val dlg = android.app.AlertDialog.Builder(ctx, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(title)
+            .setMessage(msg)
+        if (alreadySaved) {
+            dlg.setPositiveButton("Open Library") { _, _ ->
+                startActivity(android.content.Intent(ctx, LibraryActivity::class.java))
+            }
+            dlg.setNeutralButton("Regenerate cover") { _, _ ->
+                generateCoverFor(category, regenerate = true)
+            }
+            dlg.setNegativeButton("Cancel", null)
+        } else {
+            dlg.setPositiveButton("Add + Generate Cover") { _, _ ->
+                generateCoverFor(category, regenerate = false)
+            }
+            dlg.setNegativeButton("Cancel", null)
+        }
+        dlg.show()
+    }
+
+    private fun generateCoverFor(category: Category, regenerate: Boolean) {
+        val ctx = this
+        // Insert a placeholder record so the LibraryActivity shows
+        // the new collection immediately (Coil will fill the cover
+        // when the URL resolves).
+        val existing = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
+            .firstOrNull { it.categoryId == category.id }
+        val record = existing?.copy(name = category.name)
+            ?: tv.onnowtv.livetv.data.Collection(
+                id = java.util.UUID.randomUUID().toString(),
+                categoryId = category.id,
+                name = category.name,
+                coverHash = null,
+                coverUrl = null,
+                addedAt = System.currentTimeMillis(),
+            )
+        if (existing == null) {
+            tv.onnowtv.livetv.data.CollectionsStore.add(ctx, record)
+        }
+        // Fire the generation in the background.
+        val toast = android.widget.Toast.makeText(
+            ctx,
+            if (regenerate) "Regenerating cover…" else "Generating AI cover…",
+            android.widget.Toast.LENGTH_SHORT,
+        )
+        toast.show()
+        lifecycleScope.launch {
+            try {
+                val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    tv.onnowtv.livetv.data.CoversApi.generate(
+                        name = category.name,
+                        forceSalt = if (regenerate) tv.onnowtv.livetv.data.CoversApi.freshSalt() else null,
+                    )
+                }
+                tv.onnowtv.livetv.data.CollectionsStore.update(
+                    ctx,
+                    record.copy(coverHash = gen.hash, coverUrl = gen.url),
+                )
+                android.widget.Toast.makeText(
+                    ctx,
+                    "Added \"${category.name}\" to your library",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } catch (t: Throwable) {
+                android.widget.Toast.makeText(
+                    ctx,
+                    "Cover generation failed: ${t.message ?: "unknown"}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Returning from full-screen: re-attach the shared player to
@@ -1009,6 +1127,22 @@ class EpgActivity : AppCompatActivity() {
             previewPlayerView.visibility = View.VISIBLE
             previewLiveBadge.visibility = View.VISIBLE
             previewMiniBar.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Honour deep-link intents fired by LibraryActivity (or any
+     * other future "open this category" entry point) when this
+     * activity is reused under `singleTask` instead of being
+     * recreated.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)?.takeIf { it.isNotBlank() }?.let { id ->
+            currentCategoryId = id
+            categoryAdapter.setSelected(id)
+            applyCategory()
         }
     }
 

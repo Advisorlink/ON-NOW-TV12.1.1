@@ -4229,6 +4229,9 @@ app.include_router(sportsdb_router)
 from backup import router as backup_router  # noqa: E402
 app.include_router(backup_router)
 
+from library import router as library_router  # noqa: E402
+app.include_router(library_router)
+
 from instant_bundle import router as instant_bundle_router  # noqa: E402
 app.include_router(instant_bundle_router)
 

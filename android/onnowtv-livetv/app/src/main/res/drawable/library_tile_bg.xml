@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Library tile background — base dark navy with rounded corners
+     and a vivid cyan stroke when focused so the user can spot the
+     selected tile from across the room.  Matches the rest of the
+     Live TV V2 aesthetic. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="14dp" />
+                    <solid android:color="#16213A" />
+                    <stroke android:width="2.5dp" android:color="#5C9CFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="#0F1525" />
+            <stroke android:width="1dp" android:color="#1F2A45" />
+        </shape>
+    </item>
+</selector>
