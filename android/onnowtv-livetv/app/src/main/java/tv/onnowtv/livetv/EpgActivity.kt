@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.media3.ui.PlayerView
 import coil.load
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,6 +55,7 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var railRefresh: ImageButton
     private lateinit var railList: ImageButton
     private lateinit var railSports: ImageButton
+    private lateinit var railFullscreen: ImageButton
     private lateinit var railSignout: ImageButton
 
     // Hero refs
@@ -70,6 +72,12 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var btnFavourite: ImageButton
     private lateinit var btnRefresh: ImageButton
     private lateinit var btnLogout: ImageButton
+
+    // Preview-card refs (in-hero live mini player)
+    private lateinit var previewPlayerView: PlayerView
+    private lateinit var previewEmpty: View
+    private lateinit var previewLiveBadge: View
+    private lateinit var previewMiniBar: View
 
     // Body refs
     private lateinit var categoriesList: RecyclerView
@@ -221,6 +229,7 @@ class EpgActivity : AppCompatActivity() {
         railRefresh  = findViewById(R.id.rail_refresh)
         railList     = findViewById(R.id.rail_list)
         railSports   = findViewById(R.id.rail_sports)
+        railFullscreen = findViewById(R.id.rail_fullscreen)
         railSignout  = findViewById(R.id.rail_signout)
 
         hero               = findViewById(R.id.hero)
@@ -236,6 +245,11 @@ class EpgActivity : AppCompatActivity() {
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
         btnLogout          = findViewById(R.id.btn_logout)
+
+        previewPlayerView  = findViewById(R.id.preview_player_view)
+        previewEmpty       = findViewById(R.id.preview_empty)
+        previewLiveBadge   = findViewById(R.id.preview_live_badge)
+        previewMiniBar     = findViewById(R.id.preview_mini_bar)
 
         categoriesList     = findViewById(R.id.categories_list)
         channelsList       = findViewById(R.id.channels_list)
@@ -426,7 +440,10 @@ class EpgActivity : AppCompatActivity() {
     private fun wireHeroIcons() {
         btnRefresh.setOnClickListener { applyCategory() }
         btnFavourite.setOnClickListener { /* future: persist favourite */ }
-        btnLogout.setOnClickListener { finishAffinity() }
+        btnLogout.setOnClickListener {
+            LivePreviewSession.release()
+            finishAffinity()
+        }
     }
 
     private fun wireRail() {
@@ -439,7 +456,20 @@ class EpgActivity : AppCompatActivity() {
         railSports.setOnClickListener {
             startActivity(android.content.Intent(this, SportsGuideActivity::class.java))
         }
-        railSignout.setOnClickListener { finishAffinity() }
+        railFullscreen.setOnClickListener {
+            // Rail fullscreen button — go full-screen on whatever is
+            // currently in the preview (or, if nothing yet, on the
+            // currently-focused channel pill).
+            val ch = LivePreviewSession.currentChannel ?: focusedChannel
+            if (ch != null) openFullscreen(ch)
+        }
+        railSignout.setOnClickListener {
+            // Tear down the shared player on sign-out so the
+            // upstream Xtream concurrent-stream slot is released
+            // before MainActivity returns.
+            LivePreviewSession.release()
+            finishAffinity()
+        }
     }
 
     private fun wireSearch() {
@@ -451,7 +481,9 @@ class EpgActivity : AppCompatActivity() {
                 if (r.channel.epgChannelId != null) {
                     epgCache[r.channel.epgChannelId] = epgCache[r.channel.epgChannelId] ?: emptyList()
                 }
-                launchPlayer(r.channel)
+                // Search results are an explicit "play this" — go
+                // straight to full-screen via the shared player.
+                openFullscreen(r.channel)
             },
         )
         searchOverlayResults.layoutManager = LinearLayoutManager(this)
@@ -650,7 +682,7 @@ class EpgActivity : AppCompatActivity() {
 
     private fun updateHero(ch: Channel) {
         heroChannelName.text = ch.name
-        heroEyebrow.text = ch.lcn?.let { "LIVE TV · CH $it" } ?: "LIVE TV"
+        heroEyebrow.text = ch.lcn?.let { "CH $it" } ?: "LIVE TV"
         val now = liveProgrammeOf(ch)
         if (now != null) {
             heroNowTime.text = formatTime(now.startMs)
@@ -808,14 +840,61 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Two-tap channel activation:
+     *
+     *   1st OK  →  start (or swap to) the channel in the in-hero
+     *              preview window — full audio, no chrome.
+     *   2nd OK  →  shrink it OUT of the hero and into the full
+     *              ExoPlayer activity, **without re-buffering** —
+     *              the surface just changes, the stream continues.
+     *
+     * Mirrors the React Vesper behaviour the user demoed in the
+     * screenshot.  See [LivePreviewSession] for the shared-player
+     * plumbing.
+     */
     private fun launchPlayer(ch: Channel) {
-        // If we're launching a synthetic Reminders row, redirect to
-        // the underlying real channel so the player + playback queue
-        // see a normal channel record.
+        // Synthetic Reminders rows → real underlying channel.
         val effective = if (ch.id.startsWith("reminder:")) {
             val r = currentReminderProgrammes[ch.id]
             r?.let { bundle.channels.firstOrNull { it.id == r.channelId } } ?: return
         } else ch
+
+        val alreadyPreviewing = LivePreviewSession.currentChannel?.id == effective.id
+        if (!alreadyPreviewing) {
+            // First tap on a new channel — start preview.
+            startPreview(effective)
+            return
+        }
+        // Second tap (same channel still in preview) — go full-screen,
+        // re-using the very same ExoPlayer instance.
+        openFullscreen(effective)
+    }
+
+    /** Swap the in-hero preview to [ch] (no full-screen). */
+    private fun startPreview(ch: Channel) {
+        previewEmpty.visibility = View.GONE
+        previewLiveBadge.visibility = View.VISIBLE
+        previewMiniBar.visibility = View.VISIBLE
+        LivePreviewSession.setChannel(this, ch)
+        LivePreviewSession.attachTo(previewPlayerView)
+        focusedChannel = ch
+        updateHero(ch)
+        loadGuideForChannel(ch)
+    }
+
+    /** Push [ch] into [PlayerActivity] using the same shared player. */
+    private fun openFullscreen(ch: Channel) {
+        // Make sure the shared player is on the right channel before
+        // launching — covers the case where the rail fullscreen
+        // button was pressed before the user ever tapped a tile.
+        if (LivePreviewSession.currentChannel?.id != ch.id) {
+            LivePreviewSession.setChannel(this, ch)
+        }
+        // Detach from the preview surface so the full-screen
+        // PlayerView can pick it up cleanly.
+        LivePreviewSession.detachWithoutRelease(previewPlayerView)
+
         // Hand the player the same channel list that's currently
         // showing in the middle column so D-pad UP/DOWN inside the
         // player zaps within the active category instead of the
@@ -839,19 +918,20 @@ class EpgActivity : AppCompatActivity() {
             else -> bundle.channels.filter { it.categoryId == sel }
         }
         val visibleList: List<Channel> = when {
-            byCategory.any { it.id == effective.id } -> byCategory
-            effective.categoryId != null -> bundle.channels.filter { it.categoryId == effective.categoryId }
+            byCategory.any { it.id == ch.id } -> byCategory
+            ch.categoryId != null -> bundle.channels.filter { it.categoryId == ch.categoryId }
                 .ifEmpty { bundle.channels }
             else -> bundle.channels
         }
 
-        PlaybackQueue.setQueue(visibleList, effective.id)
+        PlaybackQueue.setQueue(visibleList, ch.id)
 
         val intent = Intent(this, PlayerActivity::class.java).apply {
-            putExtra(PlayerActivity.EXTRA_URL, effective.streamUrl)
-            putExtra(PlayerActivity.EXTRA_TITLE, effective.name)
-            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, effective.id)
-            val live = liveProgrammeOf(effective)
+            putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
+            putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
+            putExtra(PlayerActivity.EXTRA_USE_SHARED_PLAYER, true)
+            val live = liveProgrammeOf(ch)
             putExtra(PlayerActivity.EXTRA_SUBTITLE, live?.title ?: "")
         }
         startActivity(intent)
@@ -883,6 +963,19 @@ class EpgActivity : AppCompatActivity() {
             }
         }
         clockHandler.post(tick)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Returning from full-screen: re-attach the shared player to
+        // our preview surface so playback continues seamlessly in
+        // the hero card (no buffer hit, no restart).
+        if (LivePreviewSession.isAlive() && LivePreviewSession.currentChannel != null) {
+            LivePreviewSession.attachTo(previewPlayerView)
+            previewEmpty.visibility = View.GONE
+            previewLiveBadge.visibility = View.VISIBLE
+            previewMiniBar.visibility = View.VISIBLE
+        }
     }
 
     override fun onDestroy() {

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Preview-card outer shell:  rounded corners + cyan/blue outer
+    glow so the live preview window pops against the dark hero.
+    Matches the screenshot reference exactly (1px blue border,
+    slight inner highlight).
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Outer glow (soft, low-alpha). -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="#1A3AB6FF" />
+        </shape>
+    </item>
+
+    <!-- Inset 2dp — the main card body with crisp 1.5dp blue border. -->
+    <item
+        android:left="2dp"
+        android:top="2dp"
+        android:right="2dp"
+        android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="#0A0F1A" />
+            <stroke android:width="1.5dp" android:color="#5C9CFF" />
+        </shape>
+    </item>
+</layer-list>

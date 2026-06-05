@@ -55,6 +55,11 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_SUBTITLE = "extra_subtitle"
         const val EXTRA_CHANNEL_ID = "extra_channel_id"
+        /** When `true`, attach the process-wide [LivePreviewSession]
+         *  player instead of building a brand-new ExoPlayer.  This
+         *  is what allows the preview→full-screen→preview round-trip
+         *  to happen with zero buffer hit. */
+        const val EXTRA_USE_SHARED_PLAYER = "extra_use_shared_player"
 
         private const val INFO_HOLD_MS = 2_500L
         private const val NUMBER_PILL_TIMEOUT_MS = 1_500L
@@ -74,6 +79,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var cachedHttpClient: OkHttpClient? = null
+    private var usingSharedPlayer: Boolean = false
     private lateinit var playerView: PlayerView
     private lateinit var status: TextView
     private lateinit var infoCard: View
@@ -116,6 +122,7 @@ class PlayerActivity : AppCompatActivity() {
         val url = intent.getStringExtra(EXTRA_URL)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
+        usingSharedPlayer = intent.getBooleanExtra(EXTRA_USE_SHARED_PLAYER, false)
 
         if (url.isNullOrBlank()) {
             finish(); return
@@ -137,8 +144,12 @@ class PlayerActivity : AppCompatActivity() {
                 epgChannelId = channelId,
             )
 
-        buildPlayer()
-        tuneTo(currentChannel!!, initial = true)
+        if (usingSharedPlayer) {
+            attachSharedPlayer(currentChannel!!)
+        } else {
+            buildPlayer()
+            tuneTo(currentChannel!!, initial = true)
+        }
         startProgressTicker()
 
         // Attach the reminder watcher so a programme that's about
@@ -159,6 +170,35 @@ class PlayerActivity : AppCompatActivity() {
                 tuneTo(channel)
             }
         }
+    }
+
+    /**
+     * Reuse the process-wide [LivePreviewSession] player so the
+     * stream that was already running in the EPG's preview window
+     * continues with no buffer hit — the [PlayerView] simply
+     * adopts the live surface.  See [LivePreviewSession] for the
+     * lifecycle contract.
+     */
+    private fun attachSharedPlayer(channel: Channel) {
+        val p = LivePreviewSession.getOrCreate(this)
+        player = p
+        playerView.player = p
+        playerView.controllerShowTimeoutMs = 3_000
+        playerView.controllerHideOnTouch = true
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+        playerView.useController = true
+        playerView.controllerAutoShow = false
+
+        // If the shared player happens to be on a different channel
+        // (e.g. the rail fullscreen button was pressed while the
+        // preview was empty), bring it onto the requested channel
+        // now.  Otherwise we just adopt the running playback.
+        if (LivePreviewSession.currentChannel?.id != channel.id) {
+            LivePreviewSession.setChannel(this, channel)
+        }
+        renderInfoCard(channel)
+        // Surface stays clean — no transient "Tuning…" because the
+        // user already saw the stream in the preview.
     }
 
     /* ─────────────────── ExoPlayer ─────────────────── */
@@ -354,6 +394,12 @@ class PlayerActivity : AppCompatActivity() {
         p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         p.playWhenReady = true
         p.prepare()
+        if (usingSharedPlayer) {
+            // Keep the session in sync so when we shrink back to
+            // the EPG the preview shows whatever channel the user
+            // last zapped to in full-screen.
+            LivePreviewSession.rememberChannel(channel)
+        }
         // Pre-populate the info card with the new channel so it's
         // ready to flash when the user presses OK / INFO later.
         renderInfoCard(channel)
@@ -542,12 +588,27 @@ class PlayerActivity : AppCompatActivity() {
         // tracker frees our slot — the user's account allows only
         // ONE stream at a time, so we cannot afford to leak the
         // connection while the app is offscreen.
-        releaseUpstream()
+        //
+        // EXCEPTION: when we're using the shared session player we
+        // do NOT touch the upstream — the EPG preview behind us is
+        // still alive and will keep streaming.  The session owner
+        // (EpgActivity sign-out) is responsible for tearing it down.
+        if (!usingSharedPlayer) {
+            releaseUpstream()
+        }
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
+        if (usingSharedPlayer) {
+            // Re-bind the surface in case Android paused us.  The
+            // session player keeps running.
+            val p = LivePreviewSession.getOrCreate(this)
+            if (playerView.player !== p) playerView.player = p
+            p.playWhenReady = true
+            return
+        }
         // Restart playback after returning from background.
         val ch = currentChannel
         val p = player
@@ -566,13 +627,20 @@ class PlayerActivity : AppCompatActivity() {
         progressHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
-        releaseUpstream()
-        player?.release()
-        player = null
-        // Force-evict the OkHttp pool one last time so no socket
-        // can outlive the activity.
-        try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
-        cachedHttpClient = null
+        if (usingSharedPlayer) {
+            // Detach the surface — DO NOT release the underlying
+            // player.  EpgActivity's onResume will re-adopt it.
+            playerView.player = null
+            player = null
+        } else {
+            releaseUpstream()
+            player?.release()
+            player = null
+            // Force-evict the OkHttp pool one last time so no socket
+            // can outlive the activity.
+            try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
+            cachedHttpClient = null
+        }
         super.onDestroy()
     }
 }

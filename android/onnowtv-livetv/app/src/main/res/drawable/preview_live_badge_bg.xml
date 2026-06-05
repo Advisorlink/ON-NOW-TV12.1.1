@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LIVE pill — solid cyan/blue rounded chip used inside the
+     in-EPG preview card.  Matches the screenshot reference. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="6dp" />
+    <solid android:color="#3B82F6" />
+</shape>
