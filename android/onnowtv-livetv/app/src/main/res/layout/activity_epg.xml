@@ -105,6 +105,15 @@
             android:focusable="true"
             android:contentDescription="Sports Guide" />
 
+        <ImageButton android:id="@+id/rail_library"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_library"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="My Library" />
+
         <ImageButton android:id="@+id/rail_fullscreen"
             android:layout_width="44dp" android:layout_height="44dp"
             android:layout_marginTop="14dp"

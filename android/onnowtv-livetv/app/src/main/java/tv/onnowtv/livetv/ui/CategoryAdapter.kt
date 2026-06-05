@@ -17,6 +17,7 @@ import tv.onnowtv.livetv.data.Category
 class CategoryPillAdapter(
     private val onPick: (Category) -> Unit,
     private val onFocus: (Category) -> Unit,
+    private val onLongPick: ((Category) -> Unit)? = null,
 ) : RecyclerView.Adapter<CategoryPillAdapter.VH>() {
 
     private val items = mutableListOf<Category>()
@@ -60,6 +61,10 @@ class CategoryPillAdapter(
             count.text = if (c.channelCount > 0) "%,d".format(c.channelCount) else ""
             itemView.isSelected = (c.id == selectedId)
             itemView.setOnClickListener { onPick(c) }
+            itemView.setOnLongClickListener {
+                onLongPick?.invoke(c)
+                onLongPick != null
+            }
             itemView.setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) onFocus(c)
             }
