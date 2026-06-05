@@ -78,7 +78,14 @@ class LibraryDialog(private val activity: Activity) {
             activity.resources.displayMetrics,
         ).toInt()
         dialog.window?.setLayout(widthPx, WindowManager.LayoutParams.WRAP_CONTENT)
-        root.layoutParams = ViewGroup.LayoutParams(
+        // The dialog's DecorView is a FrameLayout — FrameLayout's
+        // `measureChildWithMargins` casts every child's LayoutParams
+        // to `MarginLayoutParams`.  Using plain `ViewGroup.LayoutParams`
+        // here crashed with `ClassCastException: LayoutParams cannot
+        // be cast to MarginLayoutParams` on the first measure pass.
+        // `MarginLayoutParams` is the right superclass (zero margins
+        // by default) and is accepted by every parent ViewGroup.
+        root.layoutParams = ViewGroup.MarginLayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         )

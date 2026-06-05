@@ -139,9 +139,28 @@ object LivePreviewSession {
     }
 
     /** Attach [view] as the current rendering surface.  Detaches
-     *  any previous surface automatically (PlayerView handles this). */
+     *  any previous surface automatically (PlayerView handles this).
+     *
+     *  IMPORTANT: when `view.player` is already the shared player
+     *  (e.g. EpgActivity is coming back from the Library → fullscreen
+     *  → back → back path and the post-in-onResume already ran once),
+     *  `PlayerView.setPlayer` short-circuits with `if (this.player ==
+     *  player) return;` and the underlying TextureView's surface is
+     *  NEVER re-bound.  After the activity went through `onStop` its
+     *  TextureView's SurfaceTexture was destroyed + recreated, so the
+     *  player's cached video surface is stale and the preview stays
+     *  black until the process restarts.
+     *
+     *  Force a full unbind/rebind by toggling to null first whenever
+     *  the player is already set on this view — that's the only way
+     *  to make PlayerView recompute its surface binding against the
+     *  fresh SurfaceTexture. */
     fun attachTo(view: PlayerView) {
-        view.player = getOrCreate(view.context)
+        val p = getOrCreate(view.context)
+        if (view.player === p) {
+            view.player = null
+        }
+        view.player = p
     }
 
     /** Detach [view] from the shared player WITHOUT releasing the

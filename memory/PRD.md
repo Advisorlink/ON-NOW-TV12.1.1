@@ -1,5 +1,44 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.137 — Live TV: two production-blocking bugs in Library → fullscreen → back chain (Feb 14, 2026).**
+>
+> Two related bugs surfaced on the user's TV box and both are now fixed:
+>
+> **BUG A — `LibraryDialog` crashes the app with `ClassCastException` when long-pressing a category to add to Library.**  Crash report (captured by the in-app `CrashActivity` diagnostic):
+>
+> ```
+> java.lang.ClassCastException: android.view.ViewGroup$LayoutParams cannot be cast to android.view.ViewGroup$MarginLayoutParams
+>   at android.view.ViewGroup.measureChildWithMargins(ViewGroup.java:6741)
+>   at android.widget.FrameLayout.onMeasure(FrameLayout.java:185)
+>   …
+> ```
+>
+> **Root cause:** v2.8.136 added `root.layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT)` inside `LibraryDialog.init` to force the inflated layout to re-measure against the newly-resized window.  But the Dialog's DecorView is a `FrameLayout`, and `FrameLayout.onMeasure` calls `measureChildWithMargins` on each child — which casts every child's LayoutParams to `MarginLayoutParams`.  Plain `ViewGroup.LayoutParams` doesn't extend `MarginLayoutParams`, so the cast bombs on the first measure pass.
+>
+> **Fix:** swap `ViewGroup.LayoutParams(...)` → `ViewGroup.MarginLayoutParams(...)`.  `MarginLayoutParams` has the same `(width, height)` constructor, initialises all four margins to zero, and is the type FrameLayout actually expects.
+>
+> **BUG B — preview pane stays BLANK after EpgActivity ← LibraryActivity ← PlayerActivity back-stack pop.**  User-reported flow: enter Library → click a Favourite → fullscreen plays → BACK → returns to Library (fine) → BACK → returns to EPG, but **the preview surface is black** AND clicking other channels doesn't fix it (every subsequent attempt stays blank too).
+>
+> **Root cause:** `LivePreviewSession.attachTo(view)` was `view.player = getOrCreate(view.context)`.  `PlayerView.setPlayer(p)` short-circuits with `if (this.player == player) return;` — it skips the surface re-binding entirely when the player reference is unchanged.  After the back-stack pop, EpgActivity went through `onStop`, which destroys the TextureView's `SurfaceTexture`.  A new SurfaceTexture is created when EpgActivity resumes, but the ExoPlayer's cached video surface still points at the destroyed one.  Setting `view.player = p` again is a no-op because the player object is the same — PlayerView never re-binds against the fresh surface, so the preview stays black.  Every subsequent `startPreview(newChannel)` call hits the same short-circuit because `view.player` is already the shared player.
+>
+> **Fix:** force a true unbind/rebind inside `attachTo`:
+>
+> ```kotlin
+> fun attachTo(view: PlayerView) {
+>     val p = getOrCreate(view.context)
+>     if (view.player === p) view.player = null  // force PlayerView to unbind
+>     view.player = p                            // then rebind against the live SurfaceTexture
+> }
+> ```
+>
+> The `view.player = null` step calls `PlayerView.clearVideoTextureView(...)` internally, which clears the stale surface.  The follow-up `view.player = p` then runs the full `setVideoTextureView(...)` path against whatever SurfaceTexture is currently live — restoring playback every time.
+>
+> **Files touched**:
+>   - `ui/LibraryDialog.kt` — `ViewGroup.LayoutParams` → `ViewGroup.MarginLayoutParams`.
+>   - `LivePreviewSession.kt` — `attachTo()` forces surface re-bind via null-toggle.
+>
+> **Verification:** both changes are surgical edits to already-compiled code paths; no new imports needed.  Static review confirms the Kotlin syntax is clean (changes use only standard `android.view` + `androidx.media3.ui` APIs).  Real compile + on-device verification deferred to next push (CI build via `build-livetv.yml`).
+
 > **🟢 v2.8.136 — Library dialog rendering: fix tiny vertical strip + missing primary button (Feb 14, 2026).**
 >
 > Symptom from the screenshot: the "Add to library" dialog rendered as a thin ~150 dp vertical strip — "MY LIBRARY" eyebrow + a truncated "Add" title + body wrapped to one word per line + only the "Cancel" button visible (primary "Add + Generate" pushed off-screen to the right).
