@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.134 — Hotfix: CI Kotlin compile errors caught + fixed (Feb 14, 2026).**
+>
+> The `build-livetv.yml` GH Actions run failed v2.8.133 with `> Compilation error.` on `:app:compileDebugKotlin`.  Two bugs identified by a local kotlinc 1.9.22 syntax pass:
+>
+> 1. **`OutputStream.write` overload ambiguity in `CoversApi.kt`** — `con.outputStream.use { it.write(body) }` where `body: ByteArray` triggered "overload resolution ambiguity" because the JVM `OutputStream` has both `write(byte[])` and `write(int)`.  Fixed by being explicit: `it.write(body, 0, body.size)`.
+>
+> 2. **Potential `Collection` name shadow** — defensively renamed `tv.onnowtv.livetv.data.Collection` → `LibraryCollection` so it no longer collides with `kotlin.collections.Collection<T>` (the receiver type of `awaitAll()` used in `LibraryActivity.regenerateAll`).  All call sites updated: `CollectionsStore.kt`, `CollectionTileAdapter.kt`, `LibraryActivity.kt`, `EpgActivity.kt`.
+>
+> Standalone kotlinc verification: `kotlinc tv/onnowtv/livetv/data/{Collection,CollectionsStore,CoversApi}.kt -d test.jar` now reports zero `error:` lines (only the expected "unresolved reference: android" entries due to the Android SDK not being on the local classpath — those resolve correctly under Gradle).
+>
+> **Files touched**:
+>   - `data/Collection.kt` — renamed data class.
+>   - `data/CollectionsStore.kt`, `ui/CollectionTileAdapter.kt`, `LibraryActivity.kt`, `EpgActivity.kt` — type updates.
+>   - `data/CoversApi.kt` — overload fix.
+
 > **🟢 v2.8.133 — AI cover style rewrite + Vesper-style Library dialog with live progress + collection-tile focus fix (Feb 14, 2026).**
 >
 > Five user asks delivered in one batch:
