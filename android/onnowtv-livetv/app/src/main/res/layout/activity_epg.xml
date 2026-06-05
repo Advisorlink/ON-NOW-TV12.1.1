@@ -24,6 +24,7 @@
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/livetv_bg">
@@ -104,6 +105,15 @@
             android:focusable="true"
             android:contentDescription="Sports Guide" />
 
+        <ImageButton android:id="@+id/rail_fullscreen"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_fullscreen"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Fullscreen" />
+
         <Space android:layout_width="0dp" android:layout_height="0dp"
             android:layout_weight="1" />
 
@@ -123,11 +133,11 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- HERO — kept compact so 9+ guide / channel rows fit -->
+        <!-- HERO — preview window on the left, cinematic info on the right -->
         <FrameLayout
             android:id="@+id/hero"
             android:layout_width="match_parent"
-            android:layout_height="240dp">
+            android:layout_height="360dp">
 
             <ImageView
                 android:id="@+id/hero_backdrop"
@@ -143,7 +153,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@color/livetv_bg"
-                android:alpha="0.20" />
+                android:alpha="0.55" />
 
             <View
                 android:layout_width="match_parent"
@@ -155,6 +165,121 @@
                 android:layout_height="100dp"
                 android:layout_gravity="bottom"
                 android:background="@drawable/hero_bottom_fade" />
+
+            <!-- ─────── LEFT: live preview card ─────── -->
+            <FrameLayout
+                android:id="@+id/preview_card"
+                android:layout_width="380dp"
+                android:layout_height="320dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="32dp"
+                android:background="@drawable/preview_card_bg"
+                android:padding="6dp">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/preview_player_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:resize_mode="zoom"
+                    app:use_controller="false"
+                    app:surface_type="texture_view"
+                    android:background="#000000" />
+
+                <!-- Empty-state poster shown when nothing is loaded yet. -->
+                <LinearLayout
+                    android:id="@+id/preview_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="#0A0F1A">
+
+                    <ImageView
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:src="@drawable/ic_mini_play"
+                        android:alpha="0.35"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_fg_dim"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.20"
+                        android:text="PICK A CHANNEL" />
+                </LinearLayout>
+
+                <!-- LIVE pill (top-left, inside card). -->
+                <TextView
+                    android:id="@+id/preview_live_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|top"
+                    android:layout_margin="14dp"
+                    android:background="@drawable/preview_live_badge_bg"
+                    android:fontFamily="monospace"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
+                    android:text="LIVE"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.18"
+                    android:visibility="gone" />
+
+                <!-- Bottom mini bar: play arrow · progress · LIVE · audio. -->
+                <LinearLayout
+                    android:id="@+id/preview_mini_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_mini_play"
+                        android:contentDescription="@null" />
+
+                    <FrameLayout
+                        android:layout_width="0dp"
+                        android:layout_height="3dp"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="10dp"
+                        android:background="#33FFFFFF">
+
+                        <View
+                            android:id="@+id/preview_mini_progress"
+                            android:layout_width="60dp"
+                            android:layout_height="match_parent"
+                            android:background="#5C9CFF" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:fontFamily="monospace"
+                        android:text="LIVE"
+                        android:textColor="#E6EAF2"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.16" />
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_mini_audio"
+                        android:contentDescription="@null" />
+                </LinearLayout>
+            </FrameLayout>
 
             <!-- Top-right icon cluster + clock -->
             <LinearLayout
@@ -201,14 +326,13 @@
                     android:contentDescription="Sign out" />
             </LinearLayout>
 
-            <!-- Hero text — top-left anchored.  -->
+            <!-- Hero text — right of the preview card.  -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="start|top"
-                android:layout_marginStart="36dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="448dp"
                 android:layout_marginEnd="320dp"
-                android:layout_marginTop="22dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -217,7 +341,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:textColor="@color/livetv_accent"
-                    android:textSize="11sp"
+                    android:textSize="13sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.32"
                     android:text="LIVE TV" />
@@ -226,9 +350,9 @@
                     android:id="@+id/hero_channel_name"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="6dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="42sp"
+                    android:textSize="56sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-black"
                     android:letterSpacing="-0.03"

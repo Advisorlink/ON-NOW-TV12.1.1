@@ -1,5 +1,37 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.129 — Live TV hero redesign: in-EPG preview window + seamless preview ↔ full-screen handoff + rail fullscreen button (Feb 14, 2026).**
+>
+> User request (urgent): redesign the Live TV hero to match the screenshot — preview window on the left with a LIVE badge + cinematic TMDB info on the right.  Critical behaviour:
+>   1. Single OK on a programme starts playback in the in-hero preview (with sound).
+>   2. Second OK on the same programme opens it full-screen — **without restarting the stream**.
+>   3. BACK from full-screen shrinks playback back into the preview — **continues playing from where it was** (no buffer hit).
+>   4. New rail icon (left side) that goes full-screen from anywhere.
+>
+> **How seamlessness is achieved**:
+>   - New `LivePreviewSession` singleton owns **one process-wide `ExoPlayer`** that both `EpgActivity` and `PlayerActivity` attach to.  Going full-screen is just a `PlayerView` surface swap — the underlying `ExoPlayer` keeps decoding the same MediaItem, zero re-buffering.
+>   - `PlayerActivity` gained an `EXTRA_USE_SHARED_PLAYER` extra (default `false`, so reminder direct-launches still build their own player).  When `true`, `attachSharedPlayer()` adopts the session player; lifecycle hooks (`onStop`, `onDestroy`) skip `releaseUpstream` / `player.release()` so the session survives the full-screen → preview shrink.
+>   - `EpgActivity.openFullscreen()` first calls `LivePreviewSession.detachWithoutRelease(previewPlayerView)` so the surface handover is clean.  `EpgActivity.onResume()` re-attaches when we return.
+>
+> **Hero layout changes** (`activity_epg.xml`):
+>   - Hero is now 360 dp tall (was 240 dp).
+>   - New `<FrameLayout id="preview_card">` on the left (380 × 320 dp, blue-glow rounded shell via `preview_card_bg.xml`).  Holds a `PlayerView` (TextureView for proper rounded-corner clipping, no controller), an empty-state "PICK A CHANNEL" poster, a LIVE pill (top-left), and a decorative mini bar at the bottom (play arrow · progress · LIVE label · audio bars).
+>   - Right text column shifted to `marginStart=448dp` so it sits next to the preview card.  Channel name bumped from 42 sp → 56 sp, eyebrow simplified from "LIVE TV · CH 527" → "CH 527" to match the screenshot.
+>   - New rail icon `rail_fullscreen` (uses `ic_nav_fullscreen.xml`).  Click → `openFullscreen(currentChannel ?: focusedChannel)`.
+>
+> **Channel-click flow** (`EpgActivity.launchPlayer`):
+>   1. If `LivePreviewSession.currentChannel?.id != ch.id` → `startPreview(ch)` — swap the session to this channel, show LIVE badge + mini-bar.
+>   2. Else (same channel already previewing) → `openFullscreen(ch)`.
+>   Search-result OK bypasses the two-tap and goes straight to full-screen (user already made an explicit choice).  Sign-out / rail-logout call `LivePreviewSession.release()` so the upstream Xtream single-stream slot is freed.
+>
+> **Files touched**:
+>   - NEW: `LivePreviewSession.kt`, `preview_card_bg.xml`, `preview_live_badge_bg.xml`, `ic_nav_fullscreen.xml`, `ic_mini_play.xml`, `ic_mini_audio.xml`.
+>   - `activity_epg.xml` — hero rewrite + rail fullscreen button + `xmlns:app`.
+>   - `EpgActivity.kt` — preview wiring, two-tap launchPlayer, onResume re-attach, signout/logout release.
+>   - `PlayerActivity.kt` — `EXTRA_USE_SHARED_PLAYER`, `attachSharedPlayer`, lifecycle branches that skip release when shared.
+>
+> **Verification**: XML parses cleanly (all 6 layout/drawable files validated via Python `ElementTree`).  Kotlin compile must be verified via the `build-livetv.yml` GitHub Actions workflow on next push — no `gradlew`/`kotlinc` in this preview env.
+
 > **🟢 v2.8.128 — Native Sports Guide compile-clean + FTA "always live line" DOWN nav + FTA OTA versioning fix (Feb 14, 2026).**
 >
 > Three asks from the user this session:
