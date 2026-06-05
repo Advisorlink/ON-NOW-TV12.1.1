@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.136 — Library dialog rendering: fix tiny vertical strip + missing primary button (Feb 14, 2026).**
+>
+> Symptom from the screenshot: the "Add to library" dialog rendered as a thin ~150 dp vertical strip — "MY LIBRARY" eyebrow + a truncated "Add" title + body wrapped to one word per line + only the "Cancel" button visible (primary "Add + Generate" pushed off-screen to the right).
+>
+> **Root cause**: `android:layout_width="640dp"` on the root `LinearLayout` of `dialog_add_to_library.xml` is **ignored** by Android's default `Dialog` — Dialog wraps its content with `WRAP_CONTENT` window-LayoutParams regardless of what the inflated view says.  Since all the inner views use `wrap_content` widths, the dialog collapsed to the widest unbreakable element (probably the row of monospace progress text), squeezing the body + title into one-word columns.
+>
+> **Fix** (`ui/LibraryDialog.kt`):
+>   - After `dialog.setContentView(root)`, **force the window's layout** via `dialog.window?.setLayout(720dp, WRAP_CONTENT)` using `TypedValue.applyDimension(COMPLEX_UNIT_DIP, 720f, ...)` so the value is correct on any pixel density.
+>   - Pin the root's `layoutParams` to `MATCH_PARENT / WRAP_CONTENT` so the children re-measure against the new 720 dp canvas.
+>   - Switched `dialog_add_to_library.xml` root `layout_width="640dp"` → `match_parent` for the same reason — width is now controlled by the window, not the inflated view.
+>
+> Both Title and Body now render full-length, both buttons (Cancel + Add + Generate) sit visibly inside the dialog, and the progress strip has room to animate.
+>
+> **Files touched**:
+>   - `ui/LibraryDialog.kt` — `setLayout(720dp, WRAP_CONTENT)` + root LayoutParams reset.
+>   - `res/layout/dialog_add_to_library.xml` — root width `match_parent`.
+
 > **🟢 v2.8.135 — CI hotfix #2: async-inside-map missing CoroutineScope receiver (Feb 14, 2026).**
 >
 > v2.8.134 fixed two suspect bugs but the CI run still failed with two clear errors visible in this push's log:

@@ -7,8 +7,11 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import tv.onnowtv.livetv.R
@@ -63,6 +66,22 @@ class LibraryDialog(private val activity: Activity) {
         val inflater = LayoutInflater.from(activity)
         root = inflater.inflate(R.layout.dialog_add_to_library, null)
         dialog.setContentView(root)
+        // The root LinearLayout's `android:layout_width="640dp"` is
+        // ignored by Dialog's default window WRAP_CONTENT sizing
+        // (visible in the screenshot — the dialog shrank to a thin
+        // vertical strip).  Force the window to the desired width
+        // in pixels here, and pin the root view's LayoutParams to
+        // match so children wrap correctly.
+        val widthPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            720f,
+            activity.resources.displayMetrics,
+        ).toInt()
+        dialog.window?.setLayout(widthPx, WindowManager.LayoutParams.WRAP_CONTENT)
+        root.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
         title = root.findViewById(R.id.dlg_title)
         body = root.findViewById(R.id.dlg_body)
         progressBlock = root.findViewById(R.id.dlg_progress_block)
