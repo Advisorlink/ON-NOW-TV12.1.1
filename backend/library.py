@@ -163,64 +163,46 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
 
     prompt = _build_prompt(req.name, req.style)
 
-    # ---------- fal.ai Recraft v3 ----------
-    # We use Recraft v3 because it's the strongest model on fal.ai
-    # for branded design work — it renders logos, typography and
-    # graphic compositions far more legibly than the photo-first
-    # alternatives (FLUX, Stable Diffusion).  Perfect for channel
-    # tiles where the brand name *is* the subject on the left half.
-    #
-    # We request 1920×1080 (true 16:9, matches the Android tile's
-    # native dimensions exactly so we never have to up- or down-
-    # scale on the device).  fal.ai accepts a custom `{width,height}`
-    # dict, which we use here to lock the aspect.
-    import fal_client
-
-    # Configure the SDK to read FAL_KEY from process env once.  The
-    # library reads it lazily so this just makes sure the env var
-    # is present at call time.
-    if not os.environ.get("FAL_KEY"):
+    # ---------- OpenAI GPT-Image-1 via the Emergent Universal Key ----------
+    # User explicitly chose this provider — has ~$17 of headroom on
+    # the universal key budget at the time of writing.  GPT-Image-1
+    # picks `1536×1024` automatically for landscape prompts; we then
+    # centre-crop to 16:9 and resize to exact 1920×1080 (the Android
+    # tile's native resolution).
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
         raise HTTPException(
             status_code=500,
-            detail="FAL_KEY not configured — set FAL_KEY in backend/.env",
+            detail="EMERGENT_LLM_KEY not configured — set it in backend/.env",
         )
 
     try:
-        handler = await fal_client.submit_async(
-            "fal-ai/recraft-v3",
-            arguments={
-                "prompt": prompt,
-                "image_size": {"width": 1920, "height": 1080},
-                # `realistic_image` mixes photographic right-side
-                # subjects with crisp brand typography on the left —
-                # the closest match to the broadcaster look the user
-                # is chasing.  Swap to `digital_illustration` if a
-                # particular category looks better as graphic art.
-                "style": "realistic_image",
-            },
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+    except Exception as exc:  # pragma: no cover
+        log.exception("OpenAIImageGeneration import failed")
+        raise HTTPException(status_code=500, detail="emergentintegrations missing") from exc
+
+    image_gen = OpenAIImageGeneration(api_key=api_key)
+    try:
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+            quality="high",  # default in the wrapper is "low" — looks muddy
         )
-        result = await handler.get()
     except Exception as exc:
-        log.exception("fal.ai Recraft v3 generation failed for %r", req.name)
+        log.exception("GPT-Image-1 generation failed for %r", req.name)
         raise HTTPException(status_code=502, detail=f"image gen failed: {exc}") from exc
 
-    images_arr = result.get("images") or []
-    if not images_arr:
-        raise HTTPException(status_code=502, detail="fal.ai returned no image")
+    if not images:
+        raise HTTPException(status_code=502, detail="OpenAI returned no image")
 
-    image_url = images_arr[0].get("url")
-    if not image_url:
-        raise HTTPException(status_code=502, detail="fal.ai image had no URL")
+    raw_bytes = images[0]
 
-    # Download the raw bytes from fal's signed CDN URL.
-    import httpx
-    async with httpx.AsyncClient(timeout=60.0) as http:
-        dl = await http.get(image_url)
-        dl.raise_for_status()
-        raw_bytes = dl.content
-
-    # Belt-and-braces 16:9 normalisation — Recraft sometimes returns
-    # a few px off, and we want a guaranteed 1920×1080 PNG.
+    # Normalise to 1920×1080 — centre-crop to 16:9 then LANCZOS-resize
+    # to the Android tile's native resolution.  Means we never up- or
+    # down-scale on the device and the cover renders pixel-perfect on
+    # 1080p TV panels.
     try:
         from io import BytesIO
         from PIL import Image
@@ -244,7 +226,7 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
         cropped.save(buf, format="PNG", optimize=True)
         png_bytes = buf.getvalue()
     except Exception:
-        log.exception("16:9 normalisation failed — serving fal.ai bytes as-is")
+        log.exception("16:9 normalisation failed — serving raw bytes")
         png_bytes = raw_bytes
 
     mime = "image/png"
