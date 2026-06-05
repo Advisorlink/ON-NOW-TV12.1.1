@@ -188,7 +188,12 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             prompt=prompt,
             model="gpt-image-1",
             number_of_images=1,
-            quality="high",  # default in the wrapper is "low" — looks muddy
+            # `medium` is the sweet spot for TV tiles — visually
+            # identical to `high` at the rendered size (~300-500 px
+            # wide on screen) but ~4× cheaper (~$0.063 vs ~$0.25 per
+            # generation).  Quality `low` looks visibly muddier; not
+            # worth the savings.
+            quality="medium",
         )
     except Exception as exc:
         log.exception("GPT-Image-1 generation failed for %r", req.name)
@@ -199,10 +204,10 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
 
     raw_bytes = images[0]
 
-    # Normalise to 1920×1080 — centre-crop to 16:9 then LANCZOS-resize
-    # to the Android tile's native resolution.  Means we never up- or
-    # down-scale on the device and the cover renders pixel-perfect on
-    # 1080p TV panels.
+    # Normalise to 1280×720 — centre-crop to 16:9 then LANCZOS-resize
+    # to standard 720p HD (the Android tile renders at ~300-500 px
+    # wide on a 1080p TV, so 720p is pixel-perfect at every realistic
+    # tile size while saving ~55 % file size vs 1080p).
     try:
         from io import BytesIO
         from PIL import Image
@@ -220,8 +225,8 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             cropped = src.crop((0, y0, w, y0 + new_h))
         else:
             cropped = src
-        if cropped.size != (1920, 1080):
-            cropped = cropped.resize((1920, 1080), Image.LANCZOS)
+        if cropped.size != (1280, 720):
+            cropped = cropped.resize((1280, 720), Image.LANCZOS)
         buf = BytesIO()
         cropped.save(buf, format="PNG", optimize=True)
         png_bytes = buf.getvalue()
