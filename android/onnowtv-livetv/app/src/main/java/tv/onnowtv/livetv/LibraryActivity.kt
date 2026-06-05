@@ -16,7 +16,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.onnowtv.livetv.data.Channel
-import tv.onnowtv.livetv.data.Collection
+import tv.onnowtv.livetv.data.LibraryCollection
 import tv.onnowtv.livetv.data.CollectionsStore
 import tv.onnowtv.livetv.data.CoversApi
 import tv.onnowtv.livetv.data.FavouritesStore
@@ -155,7 +155,7 @@ class LibraryActivity : AppCompatActivity() {
 
     // ───────────────────────────────────────────────────── navigation
 
-    private fun openCollection(c: Collection) {
+    private fun openCollection(c: LibraryCollection) {
         val intent = Intent(this, EpgActivity::class.java).apply {
             // Reuse the existing "open with this category selected" path.
             putExtra(EpgActivity.EXTRA_INITIAL_CATEGORY_ID, c.categoryId)
@@ -179,7 +179,7 @@ class LibraryActivity : AppCompatActivity() {
 
     // ─────────────────────────────────────────────── regenerate-cover
 
-    private fun promptRegenerateCover(c: Collection) {
+    private fun promptRegenerateCover(c: LibraryCollection) {
         val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
         dlg.showIdle(
             titleText = "Regenerate cover for \"${c.name}\"?",
@@ -199,7 +199,7 @@ class LibraryActivity : AppCompatActivity() {
         )
     }
 
-    private fun regenerate(c: Collection, dlg: tv.onnowtv.livetv.ui.LibraryDialog) {
+    private fun regenerate(c: LibraryCollection, dlg: tv.onnowtv.livetv.ui.LibraryDialog) {
         collectionsAdapter.setBusy(c.id, true)
         lifecycleScope.launch {
             try {

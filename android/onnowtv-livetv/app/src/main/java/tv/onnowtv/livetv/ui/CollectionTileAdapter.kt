@@ -8,7 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import tv.onnowtv.livetv.R
-import tv.onnowtv.livetv.data.Collection
+import tv.onnowtv.livetv.data.LibraryCollection
 
 /**
  * Library COLLECTIONS row — 16:9 AI-generated cover tiles.
@@ -20,16 +20,16 @@ import tv.onnowtv.livetv.data.Collection
  * show "GENERATING…" while Nano Banana is in flight.
  */
 class CollectionTileAdapter(
-    private val onPick: (Collection) -> Unit,
-    private val onLongPick: (Collection) -> Unit,
+    private val onPick: (LibraryCollection) -> Unit,
+    private val onLongPick: (LibraryCollection) -> Unit,
 ) : RecyclerView.Adapter<CollectionTileAdapter.VH>() {
 
-    private val items = mutableListOf<Collection>()
+    private val items = mutableListOf<LibraryCollection>()
     private val busy = mutableSetOf<String>()
 
     init { setHasStableIds(true) }
 
-    fun submit(list: List<Collection>) {
+    fun submit(list: List<LibraryCollection>) {
         items.clear()
         items.addAll(list)
         notifyDataSetChanged()
@@ -69,7 +69,7 @@ class CollectionTileAdapter(
         private val count: TextView = itemView.findViewById(R.id.tile_count)
         private val busyBadge: View = itemView.findViewById(R.id.tile_busy_badge)
 
-        fun bind(c: Collection) {
+        fun bind(c: LibraryCollection) {
             name.text = c.name
             val n = channelCounts[c.categoryId] ?: 0
             count.text = when {

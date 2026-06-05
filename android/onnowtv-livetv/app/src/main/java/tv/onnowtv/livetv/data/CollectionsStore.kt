@@ -5,11 +5,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persistent list of user-curated Collections (saved categories).
+ * Persistent list of user-curated saved categories (a.k.a.
+ * Collections) for the Library screen.
  *
  * Serialised to SharedPreferences as a JSON array so it survives
  * process restarts AND survives the Xtream EPG bundle being
- * re-fetched.  The shape mirrors [Collection] exactly.
+ * re-fetched.  The shape mirrors [LibraryCollection] exactly.
  *
  * `LibraryActivity` reads on boot and writes via [add] / [remove]
  * / [update].  `BackupClient` (separate workstream) will hand
@@ -24,15 +25,15 @@ object CollectionsStore {
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
-    fun load(ctx: Context): MutableList<Collection> {
+    fun load(ctx: Context): MutableList<LibraryCollection> {
         val raw = prefs(ctx).getString(KEY, null) ?: return mutableListOf()
         return try {
             val arr = JSONArray(raw)
-            val out = mutableListOf<Collection>()
+            val out = mutableListOf<LibraryCollection>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 out.add(
-                    Collection(
+                    LibraryCollection(
                         id = obj.optString("id"),
                         categoryId = obj.optString("categoryId"),
                         name = obj.optString("name"),
@@ -48,7 +49,7 @@ object CollectionsStore {
         }
     }
 
-    fun save(ctx: Context, items: List<Collection>) {
+    fun save(ctx: Context, items: List<LibraryCollection>) {
         val arr = JSONArray()
         for (c in items) {
             val obj = JSONObject().apply {
@@ -64,7 +65,7 @@ object CollectionsStore {
         prefs(ctx).edit().putString(KEY, arr.toString()).apply()
     }
 
-    fun add(ctx: Context, c: Collection) {
+    fun add(ctx: Context, c: LibraryCollection) {
         val list = load(ctx)
         // Dedupe by categoryId — long-pressing the same category
         // twice should update the existing record, not create a
@@ -79,7 +80,7 @@ object CollectionsStore {
         if (list.removeAll { it.id == id }) save(ctx, list)
     }
 
-    fun update(ctx: Context, c: Collection) {
+    fun update(ctx: Context, c: LibraryCollection) {
         val list = load(ctx)
         val idx = list.indexOfFirst { it.id == c.id }
         if (idx >= 0) {

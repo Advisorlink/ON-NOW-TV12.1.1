@@ -59,7 +59,7 @@ object CoversApi {
             setRequestProperty("Accept", "application/json")
         }
         try {
-            con.outputStream.use { it.write(body) }
+            con.outputStream.use { it.write(body, 0, body.size) }
             val status = con.responseCode
             val stream = if (status in 200..299) con.inputStream else con.errorStream
             val text = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() } ?: ""

@@ -1033,7 +1033,7 @@ class EpgActivity : AppCompatActivity() {
     /**
      * Long-pressing a category opens the new Vesper-style "Add to
      * Library" dialog which (a) saves the
-     * [tv.onnowtv.livetv.data.Collection] to
+     * [tv.onnowtv.livetv.data.LibraryCollection] to
      * [tv.onnowtv.livetv.data.CollectionsStore] and (b) kicks off
      * a Nano Banana cover-art generation right inside the dialog
      * with a live progress strip + elapsed timer so the user can
@@ -1084,7 +1084,7 @@ class EpgActivity : AppCompatActivity() {
         val existing = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
             .firstOrNull { it.categoryId == category.id }
         val record = existing?.copy(name = category.name)
-            ?: tv.onnowtv.livetv.data.Collection(
+            ?: tv.onnowtv.livetv.data.LibraryCollection(
                 id = java.util.UUID.randomUUID().toString(),
                 categoryId = category.id,
                 name = category.name,
