@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.130 — Live TV hero refinements: 16:9 preview + idle TMDB thumbnail + zero-dim full-screen (Feb 14, 2026).**
+>
+> Follow-up to v2.8.129 after on-device testing.  User feedback:
+>   - "Preview is square — needs 16:9 so more EPG fits."  Fixed: preview card resized from 380 × 320 dp (≈ 5:4) to **400 × 225 dp (16:9)**.  Hero height reduced from 360 dp → 280 dp, giving back ~80 dp to the EPG body (4–5 more rows visible on a 1080p TV).  Channel-name font dropped 56 sp → 44 sp to fit the shorter hero cleanly.
+>   - "Need TMDB cover art in the 16:9 preview until channel clicked."  Fixed: the old "PICK A CHANNEL" placeholder was replaced with a `centerCrop` ImageView (`preview_thumbnail`) that mirrors whatever TMDB backdrop `loadHeroBackdrop()` resolves for the focused programme — falls back to the channel logo if TMDB has nothing.  A subtle bottom fade plus a centred "PRESS OK TO PLAY" hint sit over the artwork.  As soon as `startPreview(ch)` fires, the thumbnail/fade/hint hide and the live `PlayerView` (initially `visibility="gone"`) takes over.
+>   - "Full-screen needs full colour, no dimming, and remove the info card at the top."  Fixed in `activity_player.xml`: `info_card` now has `android:visibility="gone"` and no longer references `player_overlay_bg`; `PlayerView` switched to `app:use_controller="false"` + `app:show_buffering="never"`.  In Kotlin: `PlayerActivity.showInfoCard()` is now a no-op (kept as a stub so all existing call-sites compile); `buildPlayer()` and `attachSharedPlayer()` both force `useController = false` + `SHOW_BUFFERING_NEVER`.
+>
+> **Files touched**:
+>   - `res/layout/activity_epg.xml` — hero 280 dp, preview card 16:9, TMDB thumbnail / fade / hint, hero text margin shifted to 464 dp, channel name 44 sp.
+>   - `res/layout/activity_player.xml` — info card gone, controller off, no buffering spinner.
+>   - `EpgActivity.kt` — `previewEmpty` replaced by `previewThumbnail` + `previewIdleHint` + `previewThumbFade`; `paintPreviewThumb()` helper mirrors TMDB art into the idle thumbnail; `startPreview()` + `onResume()` toggle visibility correctly.
+>   - `PlayerActivity.kt` — `showInfoCard()` is a no-op; controller forced off in both shared and non-shared player paths.
+>
+> **Verification**: both XML files re-parsed cleanly with `ElementTree`.  Kotlin compile remains a GitHub-Actions-only check in this preview env.
+
 > **🟢 v2.8.129 — Live TV hero redesign: in-EPG preview window + seamless preview ↔ full-screen handoff + rail fullscreen button (Feb 14, 2026).**
 >
 > User request (urgent): redesign the Live TV hero to match the screenshot — preview window on the left with a LIVE badge + cinematic TMDB info on the right.  Critical behaviour:

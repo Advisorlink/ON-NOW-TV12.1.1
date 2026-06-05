@@ -183,11 +183,10 @@ class PlayerActivity : AppCompatActivity() {
         val p = LivePreviewSession.getOrCreate(this)
         player = p
         playerView.player = p
-        playerView.controllerShowTimeoutMs = 3_000
-        playerView.controllerHideOnTouch = true
-        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-        playerView.useController = true
-        playerView.controllerAutoShow = false
+        // Per user request: full-screen playback must stay full
+        // colour — no controller overlay, no dimming.
+        playerView.useController = false
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
 
         // If the shared player happens to be on a different channel
         // (e.g. the rail fullscreen button was pressed while the
@@ -260,16 +259,11 @@ class PlayerActivity : AppCompatActivity() {
             }
 
         playerView.player = p
-        // Hide controls by default — they only appear when the user
-        // explicitly presses a button.  Auto-hide after 3 s when
-        // shown.  We also call hideController() inside tuneTo and
-        // inside the STATE_READY listener to guarantee no chrome
-        // is on screen during loading / buffering / first frame.
-        playerView.controllerShowTimeoutMs = 3_000
-        playerView.controllerHideOnTouch = true
-        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-        playerView.useController = true
-        playerView.controllerAutoShow = false
+        // Per user request, full-screen playback never shows a
+        // controller overlay — keep the screen full-colour with no
+        // dimming whatsoever.
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+        playerView.useController = false
         player = p
 
         p.addListener(object : Player.Listener {
@@ -460,15 +454,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showInfoCard() {
-        infoCard.animate().cancel()
-        infoCard.alpha = 1f
-        infoCard.visibility = View.VISIBLE
-        hideHandler.removeCallbacksAndMessages(null)
-        hideHandler.postDelayed({
-            infoCard.animate().alpha(0f).setDuration(280)
-                .withEndAction { infoCard.visibility = View.GONE }
-                .start()
-        }, INFO_HOLD_MS)
+        // Permanently disabled per user request — full-screen
+        // playback must remain free of any overlay dimming.  The
+        // info card now lives only as an invisible placeholder
+        // inside `activity_player.xml` so the legacy findViewById
+        // wiring still resolves cleanly.
+        // (No-op.)
     }
 
     /** Every 5 s, refresh the NOW/UP NEXT + progress bar so they

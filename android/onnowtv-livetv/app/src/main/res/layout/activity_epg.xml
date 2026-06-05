@@ -137,7 +137,7 @@
         <FrameLayout
             android:id="@+id/hero"
             android:layout_width="match_parent"
-            android:layout_height="360dp">
+            android:layout_height="280dp">
 
             <ImageView
                 android:id="@+id/hero_backdrop"
@@ -166,51 +166,59 @@
                 android:layout_gravity="bottom"
                 android:background="@drawable/hero_bottom_fade" />
 
-            <!-- ─────── LEFT: live preview card ─────── -->
+            <!-- ─────── LEFT: live preview card (16:9) ─────── -->
             <FrameLayout
                 android:id="@+id/preview_card"
-                android:layout_width="380dp"
-                android:layout_height="320dp"
+                android:layout_width="400dp"
+                android:layout_height="225dp"
                 android:layout_gravity="start|center_vertical"
                 android:layout_marginStart="32dp"
                 android:background="@drawable/preview_card_bg"
-                android:padding="6dp">
+                android:padding="5dp">
+
+                <!-- TMDB cover art shown until the user picks a channel.
+                     centerCrop fills the 16:9 card edge-to-edge. -->
+                <ImageView
+                    android:id="@+id/preview_thumbnail"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:background="#0A0F1A"
+                    android:contentDescription="@null" />
+
+                <!-- Soft bottom fade so the "PRESS OK TO PLAY" hint
+                     reads cleanly over the artwork. -->
+                <View
+                    android:id="@+id/preview_thumb_fade"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/hero_bottom_fade" />
+
+                <TextView
+                    android:id="@+id/preview_idle_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="12dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_bright"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.22"
+                    android:text="PRESS OK TO PLAY"
+                    android:shadowColor="#000000"
+                    android:shadowDx="0" android:shadowDy="1" android:shadowRadius="3" />
 
                 <androidx.media3.ui.PlayerView
                     android:id="@+id/preview_player_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    app:resize_mode="zoom"
+                    app:resize_mode="fit"
                     app:use_controller="false"
                     app:surface_type="texture_view"
-                    android:background="#000000" />
-
-                <!-- Empty-state poster shown when nothing is loaded yet. -->
-                <LinearLayout
-                    android:id="@+id/preview_empty"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:background="#0A0F1A">
-
-                    <ImageView
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:src="@drawable/ic_mini_play"
-                        android:alpha="0.35"
-                        android:contentDescription="@null" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/livetv_fg_dim"
-                        android:textSize="11sp"
-                        android:letterSpacing="0.20"
-                        android:text="PICK A CHANNEL" />
-                </LinearLayout>
+                    android:background="#000000"
+                    android:visibility="gone" />
 
                 <!-- LIVE pill (top-left, inside card). -->
                 <TextView
@@ -218,7 +226,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="start|top"
-                    android:layout_margin="14dp"
+                    android:layout_margin="12dp"
                     android:background="@drawable/preview_live_badge_bg"
                     android:fontFamily="monospace"
                     android:paddingHorizontal="9dp"
@@ -236,8 +244,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="bottom"
-                    android:layout_marginHorizontal="12dp"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginHorizontal="10dp"
+                    android:layout_marginBottom="10dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:visibility="gone">
@@ -331,8 +339,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
-                android:layout_marginStart="448dp"
-                android:layout_marginEnd="320dp"
+                android:layout_marginStart="464dp"
+                android:layout_marginEnd="280dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -350,9 +358,9 @@
                     android:id="@+id/hero_channel_name"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="@color/livetv_fg"
-                    android:textSize="56sp"
+                    android:textSize="44sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-black"
                     android:letterSpacing="-0.03"
