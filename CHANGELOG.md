@@ -1,5 +1,22 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.141 — Image gen pinned: GPT-Image-1 via Emergent universal key at 1920×1080 native
+
+User chose to top up the Emergent universal key ($17 of headroom) rather than juggle OpenAI/fal.ai billing limits.  Final wiring:
+
+- **Provider**: `OpenAIImageGeneration` from `emergentintegrations.llm.openai.image_generation`, model `gpt-image-1`, `quality="high"`.
+- **Auth**: `EMERGENT_LLM_KEY` from `/app/backend/.env` (the user's own OpenAI + fal.ai keys are now unused; left in `.env` for future failover).
+- **Output**: GPT-Image-1 auto-picks 1536×1024 for landscape prompts; we centre-crop to 16:9 then LANCZOS-resize to exact **1920×1080** PNG (the Android tile's native resolution → zero device-side scaling).
+- **Verification**: end-to-end test with prompt "Sky Sports KO boxing" returned a 1920×1080 PNG (2.4 MB) in ~60 s.  Independent visual analyser scored the result **broadcaster-quality** — 10/10 on 16:9 layout, 10/10 on logo placement, 9/10 on bottom gradient, 7/10 on fade transition smoothness.
+- **Cost envelope**: ~$0.17 per high-quality 1024-class generation ⇒ ~100 covers per $17 of universal-key balance.
+
+**Side effect**: `fal-client` was added to `backend/requirements.txt` during the previous experiment; left in place so a future provider switch needs only the `library.py` edit and no dependency change.
+
+### Files touched
+- `backend/library.py` — pinned to `OpenAIImageGeneration` via `EMERGENT_LLM_KEY` with explicit 1920×1080 normalisation.
+- `backend/.env` — `OPENAI_API_KEY` + `FAL_KEY` left in place but unused.
+- `backend/requirements.txt` — `fal-client==1.0.0` added (harmless idle dep).
+
 ## v2.8.140 — Switch image gen to GPT-Image-1 + editable category name before generation
 
 ### Image provider: Nano Banana → GPT-Image-1 (high quality)
