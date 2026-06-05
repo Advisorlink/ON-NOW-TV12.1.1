@@ -593,10 +593,20 @@ class PlayerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (usingSharedPlayer) {
-            // Re-bind the surface in case Android paused us.  The
-            // session player keeps running.
+            // Re-bind the surface in case Android paused us.  If the
+            // process was backgrounded the session may have been
+            // fully released (see LiveTVApp.ProcessLifecycleOwner) —
+            // in that case rebuild it now and re-tune to whichever
+            // channel this activity was launched for.
+            val sessionAlive = LivePreviewSession.isAlive()
             val p = LivePreviewSession.getOrCreate(this)
             if (playerView.player !== p) playerView.player = p
+            val ch = currentChannel
+            if (!sessionAlive && ch != null) {
+                // Session was released — restart this channel from
+                // scratch.  Single restart per HOME→re-open cycle.
+                LivePreviewSession.setChannel(this, ch)
+            }
             p.playWhenReady = true
             return
         }

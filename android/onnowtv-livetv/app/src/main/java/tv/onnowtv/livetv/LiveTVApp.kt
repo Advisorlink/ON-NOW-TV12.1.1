@@ -4,6 +4,9 @@ import android.app.Application
 import android.content.Intent
 import android.os.Process
 import android.util.Log
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlin.system.exitProcess
 
 /**
@@ -38,5 +41,25 @@ class LiveTVApp : Application() {
             Process.killProcess(Process.myPid())
             exitProcess(10)
         }
+
+        // ─────────────────────────────────────────────────────────
+        // Whole-app background detector.  When the user EXITS or
+        // HOMES out of the app the upstream IPTV stream MUST stop
+        // immediately — the provider only allows ONE concurrent
+        // stream per account, and the user has explicitly demanded
+        // "stream stops the moment we exit".
+        // ─────────────────────────────────────────────────────────
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStop(owner: LifecycleOwner) {
+                    // Process moved to background — release the
+                    // shared live player and free the upstream
+                    // socket pool.  ExoPlayer fully tears down,
+                    // OkHttp connection pool is evicted.
+                    Log.i("LiveTVApp", "App backgrounded — releasing LivePreviewSession")
+                    LivePreviewSession.release()
+                }
+            }
+        )
     }
 }
