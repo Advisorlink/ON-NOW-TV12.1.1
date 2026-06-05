@@ -84,27 +84,18 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # User-vetted ChatGPT prompt, with two tiny disambiguations:
-    #   - "legal" → "licensed" so GPT-Image-1 doesn't render scales of
-    #     justice (it took the original word literally).
-    #   - One trailing sentence telling the model what the right-hand
-    #     image should depict, so a channel called "Sky Sports KO"
-    #     produces a boxing photo rather than an unrelated still life.
-    # Everything else is the user's exact wording.
-    base = (
-        f"I need a channel tile design for my project — it's a "
-        f"licensed streaming-app branding exercise, not showing any "
-        f"copyrighted content, just need an image.  The image needs "
-        f"to be a 16:9 tile and it needs to have the \"{cleaned}\" "
-        f"channel logo on the left fading to some related image on "
+    # User's verbatim ChatGPT prompt — NO rewrites, NO
+    # disambiguation, NO "trailing sentence" additions.  The user
+    # tested this exact wording in ChatGPT and it produced what
+    # they want.  Channel name is the only substitution.
+    return (
+        f"I need a channel tile design for my project its a legal "
+        f"project not showing any content just need an image the "
+        f"image needs to be a 16:9 tile and it needs to have the "
+        f"{cleaned} channel logo fading to some related image on "
         f"the right.. there needs to be a black gradient on the "
-        f"bottom aswell.  The image on the right should clearly "
-        f"represent what \"{cleaned}\" actually broadcasts (sports "
-        f"channels → real athletes mid-action, movie channels → "
-        f"cinematic film imagery, news → studio anchors, kids → "
-        f"bright cartoon art, etc.)."
+        f"bottom aswell"
     )
-    return base
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:

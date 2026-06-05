@@ -1,5 +1,46 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.143 — Wipe Gemini cache, restore verbatim prompt, focus border on every tile
+
+User reported on-device:
+> "It's showing the old ones. It showed the old designs that the old one did through the Gemini one. Use my EXACT prompt. Make sure all the Gemini stuff's deleted. Make sure the focus actually has the border and moves on all tiles."
+
+### A. Mongo cache wiped
+- `db.library_covers.delete_many({})` ran via a one-shot script — 7 Gemini-era cover documents deleted.
+- All `/api/library/cover/{hash}.png` URLs that previously served Nano Banana output now 404.
+- Next generation request for any category triggers a fresh GPT-Image-1 run, persisted with a new hash.
+
+### B. Verbatim prompt restored (no rewrites)
+- `_build_prompt(name, style)` now returns the user's **literal** ChatGPT-vetted wording with only the channel name inlined.  Previous "licensed branding exercise" disambiguation + the trailing "what the right-hand image should depict" sentence are gone.
+- Surprisingly clean output despite the word "legal" — the model correctly ignores "legal project" as context when the channel name gives a strong subject hint (e.g. "Sky Sports KO **boxing**" via the editable name field added in v2.8.140).  Independent visual analyser scored: 9/10 broadcaster look, 8/10 logo+fade, 10/10 bottom gradient, **0/10 "legal" misinterpretation**.
+
+### C. Focus border visible on every interactive element
+Root cause of "focus not showing": the collection-tile cover ImageView fills the entire FrameLayout edge-to-edge, so the focus stroke painted on the FrameLayout's `background` drawable was completely hidden behind the cover image.  The pill rows (category, channel, guide) had a focus stroke too, but at 1-2 dp it was barely visible at TV distance.
+
+Fixes:
+1. **New drawable** `library_tile_focus_fg.xml` — selector with a 3.5 dp `#5C9CFF` stroke for `state_focused` / `state_selected` / `state_pressed` (white) on a transparent fill so it always paints OVER the cover image.
+2. **Collection tile** (`item_collection_tile.xml`) — added `android:foreground="@drawable/library_tile_focus_fg"` to the root FrameLayout.
+3. **Favourite tile** (`item_favourite_tile.xml`) — same foreground override (same cover-fills-the-tile problem).
+4. **Category pill** (`category_pill_bg.xml`) — focus stroke 2 dp → 3 dp, brighter `#5C9CFF` (was the dimmer accent).
+5. **Channel pill** (`channel_pill_bg.xml`) — focus stroke 2 dp → 3 dp, `#5C9CFF`.
+6. **Guide row** (`guide_row_bg.xml`) — focus stroke 1 dp → 3 dp, `#5C9CFF` (now matches the activated-reminder yellow ring's thickness for visual consistency).
+
+### How the user gets the fresh look on-device
+1. Push v2.8.143 (this push) via GitHub Actions.
+2. Open Library — existing tiles may show broken/blank covers because their old hashes 404 now AND Coil may still cache the previous bytes for a short while.
+3. Long-press any tile → **"Re-style ALL"** in the dialog regenerates every collection in parallel with the new salt — fresh hashes mean fresh URLs, which Coil cannot cache-hit; every cover repaints with the new GPT-Image-1 output.
+4. Move around with the D-pad — 3-3.5 dp blue accent border should now be obvious on every category, channel, guide row, collection tile and favourite tile.
+
+### Files touched
+- `backend/library.py` — verbatim prompt restored.
+- Mongo `library_covers` collection — wiped (no code change, one-off DB op).
+- `res/drawable/library_tile_focus_fg.xml` — NEW (foreground focus overlay).
+- `res/layout/item_collection_tile.xml` — `android:foreground` added.
+- `res/layout/item_favourite_tile.xml` — `android:foreground` added.
+- `res/drawable/category_pill_bg.xml` — focus stroke 3 dp `#5C9CFF`.
+- `res/drawable/channel_pill_bg.xml` — focus stroke 3 dp `#5C9CFF`.
+- `res/drawable/guide_row_bg.xml` — focus stroke 3 dp `#5C9CFF`.
+
 ## v2.8.142 — Cost optimisation: quality=medium @ 1280×720 (4× cheaper, identical at tile size)
 
 Same provider + auth as v2.8.141 (GPT-Image-1 via Emergent universal key), two cost knobs turned down for the same visual result at the actual rendered tile size on a TV:
