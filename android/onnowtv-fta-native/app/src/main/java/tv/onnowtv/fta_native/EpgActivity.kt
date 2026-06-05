@@ -85,26 +85,23 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var loader: View
     private lateinit var loaderText: TextView
 
-    // Sidebar widgets
+    // Banner widgets (Phase 4 — top-banner layout)
     private lateinit var previewCard: FrameLayout
     private lateinit var previewArt: ImageView
     private lateinit var previewArtOverlay: ImageView
     private lateinit var previewPlayerView: PlayerView
     private lateinit var previewHint: TextView
-    private lateinit var previewEyebrow: TextView
-    private lateinit var previewTitle: TextView
-    private lateinit var previewMeta: TextView
-    private lateinit var previewProgressBar: View
-    private lateinit var previewProgressTrack: View
-    private lateinit var infoLogo: ImageView
-    private lateinit var infoLcn: TextView
-    private lateinit var infoName: TextView
-    private lateinit var infoSynopsis: TextView
+    private lateinit var previewLogo: ImageView
+    private lateinit var previewChannelLabel: TextView
+    private lateinit var infoEyebrow: TextView
+    private lateinit var infoTitle: TextView
+    private lateinit var infoMeta: TextView
     private lateinit var infoChips: com.google.android.flexbox.FlexboxLayout
-    private lateinit var infoFavGlyph: TextView
+    private lateinit var infoSynopsis: TextView
     private lateinit var upnextBlock: LinearLayout
+    private lateinit var upnextTime: TextView
     private lateinit var upnextTitle: TextView
-    private lateinit var upnextMeta: TextView
+    private lateinit var upnextDesc: TextView
 
     private lateinit var gridAdapter: EpgGridAdapter
     private lateinit var catAdapter: CategoryListAdapter
@@ -157,20 +154,17 @@ class EpgActivity : AppCompatActivity() {
         previewArtOverlay     = findViewById(R.id.preview_art_overlay)
         previewPlayerView     = findViewById(R.id.preview_player)
         previewHint           = findViewById(R.id.preview_hint)
-        previewEyebrow        = findViewById(R.id.preview_eyebrow)
-        previewTitle          = findViewById(R.id.preview_title)
-        previewMeta           = findViewById(R.id.preview_meta)
-        previewProgressBar    = findViewById(R.id.preview_progress_bar)
-        previewProgressTrack  = findViewById(R.id.preview_progress_track)
-        infoLogo       = findViewById(R.id.info_logo)
-        infoLcn        = findViewById(R.id.info_lcn)
-        infoName       = findViewById(R.id.info_name)
-        infoSynopsis   = findViewById(R.id.info_synopsis)
+        previewLogo           = findViewById(R.id.preview_logo)
+        previewChannelLabel   = findViewById(R.id.preview_channel_label)
+        infoEyebrow    = findViewById(R.id.info_eyebrow)
+        infoTitle      = findViewById(R.id.info_title)
+        infoMeta       = findViewById(R.id.info_meta)
         infoChips      = findViewById(R.id.info_chips)
-        infoFavGlyph   = findViewById(R.id.info_fav_glyph)
+        infoSynopsis   = findViewById(R.id.info_synopsis)
         upnextBlock    = findViewById(R.id.upnext_block)
+        upnextTime     = findViewById(R.id.upnext_time)
         upnextTitle    = findViewById(R.id.upnext_title)
-        upnextMeta     = findViewById(R.id.upnext_meta)
+        upnextDesc     = findViewById(R.id.upnext_desc)
 
         favourites.addAll(FtaFavouritesStore.load(this))
 
@@ -382,61 +376,44 @@ class EpgActivity : AppCompatActivity() {
     private fun refreshSidebar() {
         val ch = focusedChannel
         if (ch == null) {
-            previewTitle.text = ""
-            previewMeta.text = ""
-            (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
-                .also { previewProgressBar.layoutParams = it }
-            infoLcn.text = ""
-            infoName.text = ""
+            infoTitle.text = ""
+            infoMeta.text = ""
             infoSynopsis.text = "Select a channel"
-            upnextBlock.visibility = View.GONE
-            infoFavGlyph.visibility = View.GONE
+            previewChannelLabel.text = ""
+            upnextBlock.visibility = View.INVISIBLE
             return
         }
 
-        // Channel-logo info strip + fallback art for the hero.
+        // Channel logo strip on the preview tile.
         if (!ch.logo.isNullOrBlank()) {
-            infoLogo.load(ch.logo) { crossfade(true); crossfade(140) }
+            previewLogo.load(ch.logo) { crossfade(true); crossfade(140) }
         } else {
-            infoLogo.setImageDrawable(null)
+            previewLogo.setImageDrawable(null)
         }
-        infoFavGlyph.visibility = if (favourites.contains(ch.id)) View.VISIBLE else View.GONE
+        val lcn = ch.lcn?.let { "CH $it · " } ?: ""
+        previewChannelLabel.text = (lcn + ch.name).uppercase(Locale.UK)
 
         val p = focusedProgramme
         val now = System.currentTimeMillis()
         val live = if (p != null && p.startMs <= now && p.stopMs > now) p else findLive(ch.id, now)
 
-        // Top-line text + progress.
         if (live != null) {
             val futureMin = ((live.startMs - now) / 60_000L)
-            previewEyebrow.text = when {
-                futureMin > 0 -> "STARTS IN ${futureMin}m"
-                else -> "NOW PLAYING"
-            }
-            previewTitle.text = live.title.ifBlank { ch.name }
+            infoEyebrow.text = if (futureMin > 0) "STARTS IN ${futureMin}m" else "NOW PLAYING"
+            infoTitle.text = live.title.ifBlank { ch.name }
             val remainingMin = ((live.stopMs - now) / 60_000L).coerceAtLeast(0)
-            previewMeta.text = "${cellTimeFmt.format(Date(live.startMs)).lowercase(Locale.UK)} – " +
-                cellTimeFmt.format(Date(live.stopMs)).lowercase(Locale.UK) +
-                if (remainingMin > 0) "  ·  ${remainingMin}m left" else ""
-            val pct = ((now - live.startMs).toFloat() / (live.stopMs - live.startMs).coerceAtLeast(1L))
-                .coerceIn(0f, 1f)
-            previewProgressTrack.post {
-                val trackW = previewProgressTrack.width
-                val lp = previewProgressBar.layoutParams as LinearLayout.LayoutParams
-                lp.width = (trackW * pct).toInt()
-                previewProgressBar.layoutParams = lp
+            infoMeta.text = buildString {
+                append(cellTimeFmt.format(Date(live.startMs)).lowercase(Locale.UK))
+                append(" – ")
+                append(cellTimeFmt.format(Date(live.stopMs)).lowercase(Locale.UK))
+                if (remainingMin > 0) append("  ·  ${remainingMin}m left")
             }
         } else {
-            previewEyebrow.text = "ON AIR"
-            previewTitle.text = ch.name
-            previewMeta.text = ""
-            (previewProgressBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
-                .also { previewProgressBar.layoutParams = it }
+            infoEyebrow.text = "ON AIR"
+            infoTitle.text = ch.name
+            infoMeta.text = ""
         }
 
-        // Info text
-        infoLcn.text = ch.lcn?.let { "CH $it" } ?: ""
-        infoName.text = ch.name
         val synopsis = (focusedProgramme?.description
             ?: live?.description
             ?: "").trim()
@@ -444,19 +421,16 @@ class EpgActivity : AppCompatActivity() {
 
         renderChips(live)
 
-        // Up next
         val upNext = findUpNext(ch.id, now)
         if (upNext != null) {
             upnextBlock.visibility = View.VISIBLE
+            upnextTime.text = cellTimeFmt.format(Date(upNext.startMs)).lowercase(Locale.UK)
             upnextTitle.text = upNext.title.ifBlank { "—" }
-            upnextMeta.text = "${cellTimeFmt.format(Date(upNext.startMs)).lowercase(Locale.UK)} – " +
-                cellTimeFmt.format(Date(upNext.stopMs)).lowercase(Locale.UK)
+            upnextDesc.text = (upNext.description ?: "").trim()
         } else {
-            upnextBlock.visibility = View.GONE
+            upnextBlock.visibility = View.INVISIBLE
         }
 
-        // Fetch / display TMDB artwork.  Channel logo is the
-        // immediate fallback so the card is never blank.
         fetchAndApplyArt(ch, live)
     }
 
