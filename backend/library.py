@@ -161,9 +161,16 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
                 b64=cached["b64"],
             )
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    # Prefer the user's direct OpenAI key when supplied — that
+    # bypasses the Emergent Universal proxy (no shared budget cap)
+    # and hits OpenAI's image API directly.  Falls back to the
+    # universal Emergent key when only that one is configured.
+    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
+        raise HTTPException(
+            status_code=500,
+            detail="No OpenAI key configured — set OPENAI_API_KEY or EMERGENT_LLM_KEY in backend/.env",
+        )
 
     try:
         from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
