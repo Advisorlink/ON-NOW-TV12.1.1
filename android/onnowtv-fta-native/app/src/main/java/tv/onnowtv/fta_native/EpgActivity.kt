@@ -732,11 +732,42 @@ class EpgActivity : AppCompatActivity() {
         })
     }
 
-    // ─────────────────────────────────────────── back / escape
+    // ─────────────────────────────────────────── back / escape / dpad
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK && catPanel.visibility == View.VISIBLE) {
             setCategoriesPanelOpen(false)
             return true
+        }
+        // "Always go down the live line" — if the focused cell is the
+        // FIRST cell of its row (i.e. the currently-airing live
+        // programme) then DPAD_DOWN / DPAD_UP must land on the FIRST
+        // cell of the next / previous row, regardless of horizontal
+        // scroll.  Once the user steps RIGHT into a future cell, the
+        // default geometric FocusFinder takes back over and behaves
+        // like a normal grid (horizontal-column-memory).
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            val focused = currentFocus
+            if (focused != null && gridAdapter.isLiveCell(focused)) {
+                val pos = gridList.findContainingViewHolder(focused)?.bindingAdapterPosition
+                    ?: -1
+                if (pos >= 0) {
+                    val target = if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) pos + 1 else pos - 1
+                    if (target in 0 until gridAdapter.itemCount) {
+                        // Make sure the target row is bound + on
+                        // screen, then ask its live cell to take
+                        // focus.  Reset the shared horizontal scroll
+                        // so the live column is visible after the
+                        // jump (matches the React behaviour where
+                        // returning to live snaps scrollLeft = 0).
+                        gridList.scrollToPosition(target)
+                        gridList.post {
+                            gridAdapter.setScrollX(0)
+                            gridAdapter.liveCellAt(target)?.requestFocus()
+                        }
+                        return true
+                    }
+                }
+            }
         }
         return super.onKeyDown(keyCode, event)
     }
