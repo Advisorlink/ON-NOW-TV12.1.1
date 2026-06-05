@@ -51,6 +51,7 @@ class LibraryDialog(private val activity: Activity) {
     private val progressTime: TextView
     private val btnPrimary: Button
     private val btnSecondary: Button
+    private val btnTertiary: Button
 
     private val ui = Handler(Looper.getMainLooper())
     private var progressAnim: ValueAnimator? = null
@@ -100,21 +101,27 @@ class LibraryDialog(private val activity: Activity) {
         progressTime = root.findViewById(R.id.dlg_progress_time)
         btnPrimary = root.findViewById(R.id.dlg_btn_primary)
         btnSecondary = root.findViewById(R.id.dlg_btn_secondary)
+        btnTertiary = root.findViewById(R.id.dlg_btn_tertiary)
     }
 
     /**
      * Configure first-paint state.
      *
-     * @param onPrimary   what runs when the primary CTA is pressed.
-     * @param onSecondary what runs when Cancel/Close is pressed.
+     * @param onPrimary    runs when the primary CTA is pressed.
+     * @param onSecondary  runs when Cancel/Close is pressed.
+     * @param onTertiary   runs when the optional 3rd button is
+     *                     pressed.  Pass `null` (the default) to
+     *                     hide the tertiary button entirely.
      */
     fun showIdle(
         titleText: String,
         bodyText: String,
         primaryLabel: String = "Add + Generate",
         secondaryLabel: String = "Cancel",
+        tertiaryLabel: String? = null,
         onPrimary: () -> Unit,
         onSecondary: () -> Unit = { dismiss() },
+        onTertiary: (() -> Unit)? = null,
     ) {
         title.text = titleText
         body.text = bodyText
@@ -124,6 +131,13 @@ class LibraryDialog(private val activity: Activity) {
         btnSecondary.text = secondaryLabel
         btnPrimary.setOnClickListener { onPrimary() }
         btnSecondary.setOnClickListener { onSecondary() }
+        if (tertiaryLabel != null && onTertiary != null) {
+            btnTertiary.visibility = View.VISIBLE
+            btnTertiary.text = tertiaryLabel
+            btnTertiary.setOnClickListener { onTertiary() }
+        } else {
+            btnTertiary.visibility = View.GONE
+        }
         if (!dialog.isShowing) dialog.show()
         // Give focus to the primary CTA so a single OK confirms.
         btnPrimary.post { btnPrimary.requestFocus() }
@@ -139,6 +153,7 @@ class LibraryDialog(private val activity: Activity) {
         body.text = bodyText
         progressBlock.visibility = View.VISIBLE
         btnPrimary.visibility = View.GONE
+        btnTertiary.visibility = View.GONE
         btnSecondary.text = "Hide"
         btnSecondary.setOnClickListener { dismiss() }
 
@@ -199,6 +214,7 @@ class LibraryDialog(private val activity: Activity) {
         progressBlock.visibility = View.GONE
         body.text = "Something went wrong:\n\n$message"
         btnPrimary.visibility = View.GONE
+        btnTertiary.visibility = View.GONE
         btnSecondary.text = "Close"
         btnSecondary.setOnClickListener { dismiss() }
     }

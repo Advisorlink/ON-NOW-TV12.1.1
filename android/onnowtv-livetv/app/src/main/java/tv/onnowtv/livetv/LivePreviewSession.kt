@@ -138,28 +138,48 @@ object LivePreviewSession {
         currentChannel = channel
     }
 
-    /** Attach [view] as the current rendering surface.  Detaches
-     *  any previous surface automatically (PlayerView handles this).
+    /** Attach [view] as the current rendering surface.
      *
-     *  IMPORTANT: when `view.player` is already the shared player
-     *  (e.g. EpgActivity is coming back from the Library → fullscreen
-     *  → back → back path and the post-in-onResume already ran once),
-     *  `PlayerView.setPlayer` short-circuits with `if (this.player ==
-     *  player) return;` and the underlying TextureView's surface is
-     *  NEVER re-bound.  After the activity went through `onStop` its
-     *  TextureView's SurfaceTexture was destroyed + recreated, so the
-     *  player's cached video surface is stale and the preview stays
-     *  black until the process restarts.
+     *  This is the SINGLE most fragile bit of the shared-player
+     *  trick — after the back-stack collapses
+     *  `EpgActivity ← PlayerActivity` (or `← LibraryActivity ←
+     *  PlayerActivity`), the EPG's preview surface stays black even
+     *  though the player is happily decoding frames.  Three different
+     *  things can be stale:
      *
-     *  Force a full unbind/rebind by toggling to null first whenever
-     *  the player is already set on this view — that's the only way
-     *  to make PlayerView recompute its surface binding against the
-     *  fresh SurfaceTexture. */
+     *    1. `view.player === p` already → `PlayerView.setPlayer(p)`
+     *       short-circuits at its first `if (this.player == player)
+     *       return;` line and the surface is never re-bound.
+     *    2. The TextureView's SurfaceTexture was destroyed during
+     *       `onStop` and a brand new one was just created on resume,
+     *       but the player still references the dead Surface object.
+     *    3. The player's internal video output target is whatever
+     *       PlayerActivity's playerView was — `clearVideoTextureView`
+     *       was called on THAT textureView, so the player has no
+     *       video output AT ALL.
+     *
+     *  The fix that covers all three: explicitly clear the player's
+     *  video output FIRST (force-detach the player from whatever
+     *  surface it thinks it owns), null the view's player (force the
+     *  PlayerView side to forget anything), then re-assign.  That
+     *  guarantees `PlayerView.setPlayer` runs its full bind path —
+     *  `componentListener.setSurfaceTextureListener(textureView)`
+     *  registers, ExoPlayer's `setVideoTextureView(textureView)` is
+     *  called, and the live SurfaceTexture is bound. */
     fun attachTo(view: PlayerView) {
         val p = getOrCreate(view.context)
-        if (view.player === p) {
-            view.player = null
-        }
+        // 1. Tell the player it has NO video output anymore.  This is
+        //    safe even if the player was previously bound to another
+        //    PlayerView (e.g. PlayerActivity's playerView that just
+        //    got destroyed).
+        p.clearVideoSurface()
+        // 2. Tell THIS PlayerView to forget any cached player so the
+        //    next assignment runs the full bind path.
+        view.player = null
+        // 3. Re-assign.  PlayerView.setPlayer(p) now sees this.player
+        //    == null and runs the full bind: it registers the
+        //    SurfaceTextureListener AND calls p.setVideoTextureView()
+        //    against the live SurfaceTexture.
         view.player = p
     }
 
