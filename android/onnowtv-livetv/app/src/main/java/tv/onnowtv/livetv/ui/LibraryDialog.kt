@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.TextView
 import tv.onnowtv.livetv.R
 
@@ -78,14 +79,17 @@ class LibraryDialog(private val activity: Activity) {
             activity.resources.displayMetrics,
         ).toInt()
         dialog.window?.setLayout(widthPx, WindowManager.LayoutParams.WRAP_CONTENT)
-        // The dialog's DecorView is a FrameLayout — FrameLayout's
-        // `measureChildWithMargins` casts every child's LayoutParams
-        // to `MarginLayoutParams`.  Using plain `ViewGroup.LayoutParams`
-        // here crashed with `ClassCastException: LayoutParams cannot
-        // be cast to MarginLayoutParams` on the first measure pass.
-        // `MarginLayoutParams` is the right superclass (zero margins
-        // by default) and is accepted by every parent ViewGroup.
-        root.layoutParams = ViewGroup.MarginLayoutParams(
+        // The dialog's DecorView is a `FrameLayout` and its
+        // `onMeasure` casts every child's LayoutParams directly to
+        // `FrameLayout.LayoutParams` (line 186 of FrameLayout.java).
+        // - `ViewGroup.LayoutParams`          → crashed at line 185
+        //   (`measureChildWithMargins` needs MarginLayoutParams).
+        // - `ViewGroup.MarginLayoutParams`    → crashed at line 186
+        //   (FrameLayout.onMeasure needs FrameLayout.LayoutParams).
+        // Only `FrameLayout.LayoutParams` survives both casts.  It
+        // extends `MarginLayoutParams`, takes the same `(w, h)` ctor
+        // and zeroes margins by default.
+        root.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         )

@@ -1,5 +1,46 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.138 — LibraryDialog crash: FINAL fix — use `FrameLayout.LayoutParams` (Feb 14, 2026).**
+>
+> User's crash report from v2.8.137 (after my last fix):
+>
+> ```
+> java.lang.ClassCastException: android.view.ViewGroup$MarginLayoutParams cannot be cast to android.widget.FrameLayout$LayoutParams
+>   at android.widget.FrameLayout.onMeasure(FrameLayout.java:186)
+> ```
+>
+> **The crash moved from line 185 → line 186.**  That's diagnostic gold: line 185 is `measureChildWithMargins(...)` which needs `MarginLayoutParams`, and line 186 is `(LayoutParams) child.getLayoutParams()` where `LayoutParams` is the inner `FrameLayout.LayoutParams` class.
+>
+> ```java
+> for (int i = 0; i < count; i++) {
+>     final View child = getChildAt(i);
+>     if (mMeasureAllChildren || child.getVisibility() != GONE) {
+>         measureChildWithMargins(child, ...);                             // line 185 → needs MarginLayoutParams
+>         final LayoutParams lp = (LayoutParams) child.getLayoutParams();  // line 186 → needs FrameLayout.LayoutParams
+>         …
+>     }
+> }
+> ```
+>
+> The cast chain:
+>   - `ViewGroup.LayoutParams`        → crashed at **line 185** (`measureChildWithMargins` requires `MarginLayoutParams`).  This was the original v2.8.137 crash.
+>   - `ViewGroup.MarginLayoutParams`  → crashed at **line 186** (FrameLayout's inner cast requires its own `FrameLayout.LayoutParams`).  This was the post-fix crash.
+>   - **`FrameLayout.LayoutParams`**  → satisfies both casts.  It `extends MarginLayoutParams`, takes the same `(width, height)` constructor, and is the type FrameLayout always expects for direct children.
+>
+> **Fix** (`ui/LibraryDialog.kt`): import `android.widget.FrameLayout` and swap the assignment to:
+>
+> ```kotlin
+> root.layoutParams = FrameLayout.LayoutParams(
+>     ViewGroup.LayoutParams.MATCH_PARENT,
+>     ViewGroup.LayoutParams.WRAP_CONTENT,
+> )
+> ```
+>
+> **Why this didn't surface during static review:** the v2.8.136 `MarginLayoutParams` swap fixed the line-185 cast and superficially "looked right" because every direct child of every standard `ViewGroup` accepts `MarginLayoutParams`.  But `FrameLayout` is special — it casts to its own inner class one line later, and that's a strictly tighter type.  Lesson learned: when fixing a `ClassCastException` from a specific ViewGroup, **always use that ViewGroup's own `LayoutParams` subclass**, never just the base `MarginLayoutParams`.
+>
+> **Files touched**:
+>   - `ui/LibraryDialog.kt` — import `android.widget.FrameLayout` + `root.layoutParams = FrameLayout.LayoutParams(...)`.
+
 > **🟢 v2.8.137 — Live TV: two production-blocking bugs in Library → fullscreen → back chain (Feb 14, 2026).**
 >
 > Two related bugs surfaced on the user's TV box and both are now fixed:
