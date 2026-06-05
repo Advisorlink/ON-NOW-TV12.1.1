@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixture card surface.  Focused gets a thicker cyan border +
+     soft glow.  Resting is a glass-morphism navy plate. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#FF142035"
+                android:endColor="#FF0C1322"
+                android:angle="135" />
+            <corners android:radius="14dp" />
+            <stroke android:width="2dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#FF101728"
+                android:endColor="#FF0A0F1A"
+                android:angle="135" />
+            <corners android:radius="14dp" />
+            <stroke android:width="1dp" android:color="#1F2E4A" />
+        </shape>
+    </item>
+</selector>

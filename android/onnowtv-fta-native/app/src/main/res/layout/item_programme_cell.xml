@@ -33,6 +33,26 @@
             android:text="" />
 
         <TextView
+            android:id="@+id/cell_live_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:background="@drawable/live_pill_bg"
+            android:fontFamily="monospace"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.20"
+            android:visibility="gone"
+            android:shadowColor="#88FF2535"
+            android:shadowDx="0" android:shadowDy="0" android:shadowRadius="6"
+            android:text="● LIVE" />
+
+        <TextView
             android:id="@+id/cell_next_pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

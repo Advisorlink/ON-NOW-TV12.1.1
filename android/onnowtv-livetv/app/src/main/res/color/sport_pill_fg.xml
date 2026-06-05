@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground text colour for the sport picker pill.
+     focused → black on cyan
+     activated (picked but unfocused) → cyan on dark
+     resting → white-ish -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#06090F" />
+    <item android:state_activated="true" android:color="#5DC8FF" />
+    <item android:color="#E6EAF2" />
+</selector>

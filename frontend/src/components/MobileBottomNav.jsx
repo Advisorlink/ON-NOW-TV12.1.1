@@ -24,7 +24,6 @@ import {
     Tv,
     BookOpen,
     Menu,
-    Trophy,
     Users,
     Plug,
     Settings as SettingsIcon,
@@ -47,7 +46,6 @@ const TABS = [
  * so phone users have feature-parity with TV.
  */
 const MORE_ITEMS = [
-    { label: 'Sports Guide',     path: '/sports',         Icon: Trophy,      hint: 'Live scores + fixtures' },
     { label: 'TV Shows',         path: '/?filter=series', Icon: Tv2,         hint: 'Series in your library' },
     { label: 'Movies',           path: '/?filter=movie',  Icon: Film,        hint: 'Films in your library' },
     { label: 'Watch Together',   path: '/watch-together', Icon: Users,       hint: 'Co-watch with friends in sync' },

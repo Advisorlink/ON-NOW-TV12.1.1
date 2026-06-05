@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    V2 LIVE TV — Sports Guide (Phase 1 — clean rebuild).
+
+    Vertical stack:
+      [ topbar — title + clock ]
+      [ sport-picker rail (horizontal RecyclerView, left/right) ]
+      [ fixture list (vertical RecyclerView, up/down) ]
+
+    Picking a sport in the top rail filters the fixture list below.
+    Each fixture card shows time + teams + matching channel logos
+    in a "watch on …" strip.  Pressing OK on a card opens the
+    main channel for that fixture.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/livetv_bg">
+
+    <!-- TOPBAR -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:background="#0A0F1A">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SPORTS GUIDE"
+            android:textColor="@color/livetv_blue"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.30"
+            android:shadowColor="#665DC8FF"
+            android:shadowDx="0" android:shadowDy="0" android:shadowRadius="14" />
+
+        <TextView
+            android:id="@+id/sports_eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:textColor="#7C8B9E"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.20"
+            android:text="" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/sports_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#E6EAF2"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.08"
+            android:text="" />
+    </LinearLayout>
+
+    <!-- SPORT PICKER RAIL -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sport_rail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:clipToPadding="false"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:overScrollMode="never" />
+
+    <!-- FIXTURE LIST -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/fixtures_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="32dp"
+            android:clipToPadding="false"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="false"
+            android:overScrollMode="never" />
+
+        <!-- Loader -->
+        <LinearLayout
+            android:id="@+id/sports_loader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <ProgressBar
+                android:layout_width="36dp"
+                android:layout_height="36dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="monospace"
+                android:textColor="#7C8B9E"
+                android:textSize="12sp"
+                android:letterSpacing="0.22"
+                android:text="LOADING SPORTS GUIDE…" />
+        </LinearLayout>
+
+        <!-- Empty state -->
+        <TextView
+            android:id="@+id/sports_empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:fontFamily="monospace"
+            android:textColor="#7C8B9E"
+            android:textSize="13sp"
+            android:letterSpacing="0.18"
+            android:visibility="gone"
+            android:text="NO FIXTURES IN THIS WINDOW" />
+    </FrameLayout>
+</LinearLayout>
