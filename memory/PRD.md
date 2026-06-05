@@ -1,5 +1,25 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.139 — Live TV: 4 fixes in one push (Feb 14, 2026).**
+>
+> All four user-reported issues from the on-device test:
+>
+> **A. Preview stays BLACK after fullscreen → BACK → EPG** (third attempt — finally bulletproof).  Root cause: `LivePreviewSession.attachTo(view)` was just `view.player = getOrCreate(...)`.  Three stale states could trip it up — `view.player === p` short-circuit, dead SurfaceTexture, or player's video output still pointing at PlayerActivity's destroyed textureView.  Fix: `attachTo()` now does `p.clearVideoSurface()` → `view.player = null` → `view.player = p`.  That sequence force-detaches the player from any old surface AND makes `PlayerView.setPlayer` run its full bind path against the live SurfaceTexture, no matter how stale the previous state was.
+>
+> **B. Category list auto-fires EPG on dwell.**  The previous behaviour ran `applyCategory()` after a 1-second dwell on any focused category — annoying when just scrolling.  Fix: removed the `onFocus` dwell-fire entirely.  Category clicks (OK) still call `applyCategory()`; scrolling does nothing.  Dwell-fire stays enabled on the CHANNEL row — that one still refreshes the "COMING UP NEXT" column after a 1-second pause.
+>
+> **C. D-pad UP/DOWN at list boundaries escapes the container.**  User wants each vertical list (categories, channels, guide) to *contain* its own UP/DOWN navigation.  Fix: new helper `containVerticalKeyNav(list)` in `EpgActivity` — consumes UP when the focused row is at index 0 and DOWN when it's at the last row.  LEFT/RIGHT untouched, so cross-container hops still work.
+>
+> **D. "Add your own" cover in Library.**  Long-press a Collection tile → dialog now shows three buttons: **Regenerate this** / **Re-style ALL** / **Add your own**.  Last one opens Android's storage picker (`ACTION_OPEN_DOCUMENT`, `image/*` filter) — USB OTG sticks + internal storage both exposed out of the box on Android TV.  Picked image is copied into `filesDir/library_covers/<id>.<timestamp>.<ext>` (timestamped so Coil's file-uri cache always sees a fresh path) and the collection's `coverUrl` is updated to a `file://...` URL.  Tile re-paints instantly.
+>
+> **Files touched**:
+>   - `LivePreviewSession.kt` — bulletproof `attachTo()` (A).
+>   - `EpgActivity.kt` — removed category dwell-fire + `containVerticalKeyNav` (B, C).
+>   - `LibraryActivity.kt` — `pickCoverLauncher` + `importCustomCover()` (D).
+>   - `ui/LibraryDialog.kt` — optional `tertiaryLabel`/`onTertiary` on `showIdle`.
+>   - `res/layout/dialog_add_to_library.xml` — third button `dlg_btn_tertiary` (hidden by default).
+>   - `CHANGELOG.md` — `## v2.8.139` block at top so CI auto-derives the right versionName.
+
 > **🟢 v2.8.138 — LibraryDialog crash: FINAL fix — use `FrameLayout.LayoutParams` (Feb 14, 2026).**
 >
 > User's crash report from v2.8.137 (after my last fix):

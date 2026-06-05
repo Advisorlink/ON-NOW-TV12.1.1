@@ -1,5 +1,53 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.139 — Live TV: 4 fixes (preview blank, category dwell-fire, container key nav, "Add your own" cover)
+
+### Bug A: Preview stays BLACK after fullscreen → BACK → EPG
+
+**Symptom**: Tap a favourite in the EPG (or Library) → fullscreen plays fine → press BACK → return to EPG with the preview pane completely black, AND clicking other channels keeps it black too.
+
+**Root cause (third attempt — the previous two only fixed two of the three stale-state cases)**: `LivePreviewSession.attachTo(view)` was `view.player = getOrCreate(view.context)`.  Three things could be stale by the time EpgActivity resumes:
+
+1. `view.player === p` → `PlayerView.setPlayer(p)` short-circuits with `if (this.player == player) return;`
+2. The TextureView's SurfaceTexture was destroyed during `onStop` and a fresh one created on resume, but the player still references the dead Surface.
+3. The player's internal video output target was PlayerActivity's playerView — `clearVideoTextureView` was called on THAT textureView, so the player has no video output at all.
+
+The fix that covers all three (and is now correct):
+
+```kotlin
+fun attachTo(view: PlayerView) {
+    val p = getOrCreate(view.context)
+    p.clearVideoSurface()      // 1. force-detach player from any old surface
+    view.player = null         // 2. force PlayerView to forget any cached player
+    view.player = p            // 3. full bind path runs → setVideoTextureView() against the live SurfaceTexture
+}
+```
+
+### Bug B: Categories list auto-fires EPG on every D-pad step
+
+**Symptom**: Just dwelling on a category for ≥1 second re-renders the middle "PLAYING NOW" column + the right "COMING UP NEXT" column — even though the user hasn't clicked anything yet.
+
+**Fix**: removed the `onFocus` dwell-fire from `CategoryPillAdapter` in `EpgActivity.setupAdapters()`.  Category clicks (OK) still trigger `applyCategory()`; scrolling the rail no longer does anything.  Dwell-fire stays enabled on the CHANNEL list (middle column) — that one still pre-populates "COMING UP NEXT" after a 1-second pause, which is the desired behaviour.
+
+### Bug C: D-pad UP/DOWN at list boundaries jumps to a sibling container
+
+**Symptom**: Press UP at the top of the middle channel list → focus jumps to the rail.  Press DOWN at the bottom → focus jumps to the sign-out icon.  User wants each list to *contain* vertical navigation; only LEFT/RIGHT should cross containers.
+
+**Fix**: new `containVerticalKeyNav(list: RecyclerView)` helper wired onto all three vertical lists (`categoriesList`, `channelsList`, `guideList`).  Consumes `KEYCODE_DPAD_UP` when the focused row is at index 0 and `KEYCODE_DPAD_DOWN` when it's at the last row.  LEFT and RIGHT pass through to Android's default focus search, which still hops categories ⇆ channels ⇆ guide cleanly.
+
+### Feature: "Add your own" cover in Library
+
+**Where**: long-press a Collection tile in `LibraryActivity` → the dialog now shows three buttons: **Regenerate this** / **Re-style ALL** / **Add your own**.
+
+**What it does**: opens Android's storage picker (`ACTION_OPEN_DOCUMENT` with `image/*` filter) — this exposes USB OTG sticks AND internal storage on Android TV out of the box.  Picked image is copied into `filesDir/library_covers/<collectionId>.<timestamp>.<ext>` so the path stays valid after the USB is unmounted.  The collection record's `coverUrl` is updated to `file://...` and the tile re-paints immediately.
+
+**Files touched**:
+- `LivePreviewSession.kt` — bulletproof `attachTo()` (Bug A).
+- `EpgActivity.kt` — removed category dwell-fire (Bug B) + `containVerticalKeyNav` helper (Bug C).
+- `LibraryActivity.kt` — `pickCoverLauncher` + `importCustomCover()` (Feature).
+- `ui/LibraryDialog.kt` — optional `tertiaryLabel`/`onTertiary` parameter on `showIdle()`.
+- `res/layout/dialog_add_to_library.xml` — third button (`dlg_btn_tertiary`), hidden by default.
+
 ## v2.8.85 — Apologies, actually fixing the 3 broken karaoke flows
 
 ### Bug 1: Instrumental played the original (with vocals)

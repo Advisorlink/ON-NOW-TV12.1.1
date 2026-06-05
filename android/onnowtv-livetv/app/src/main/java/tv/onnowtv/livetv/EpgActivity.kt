@@ -346,21 +346,14 @@ class EpgActivity : AppCompatActivity() {
                     channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 }
             },
-            // Dwell-fire: only refilter the channel list when the
-            // user has stopped on a category for ~1 second.  Prevents
-            // every D-pad step from re-rendering the entire channel
-            // column while scrolling through the rail.
-            onFocus = { c ->
-                if (c.id != currentCategoryId) {
-                    categoryFocusHandler.removeCallbacksAndMessages(null)
-                    categoryFocusHandler.postDelayed({
-                        if (c.id != currentCategoryId) {
-                            currentCategoryId = c.id
-                            applyCategory()
-                        }
-                    }, 1_000L)
-                }
-            },
+            // Per user request (v2.8.139): scrolling through the
+            // category rail must NOT auto-fire the EPG.  The middle
+            // "PLAYING NOW" column + the right "COMING UP NEXT"
+            // column only refresh when the user explicitly clicks
+            // (OK) on a category.  Dwell-fire stays enabled on the
+            // CHANNEL list below — that's the row the user wants
+            // pre-populated when they pause for a second.
+            onFocus = { /* no-op — apply on click only */ },
             onLongPick = { c -> promptAddToLibrary(c) },
         )
         categoriesList.layoutManager = LinearLayoutManager(this)
@@ -434,6 +427,39 @@ class EpgActivity : AppCompatActivity() {
         guideList.layoutManager = LinearLayoutManager(this)
         guideList.adapter = guideAdapter
         guideList.itemAnimator = null
+
+        // Each vertical list is its own container — D-pad UP/DOWN
+        // must stay inside the list at its boundaries.  LEFT/RIGHT
+        // is still allowed to cross to the next column (default
+        // focus traversal handles that).
+        containVerticalKeyNav(categoriesList)
+        containVerticalKeyNav(channelsList)
+        containVerticalKeyNav(guideList)
+    }
+
+    /**
+     * Block D-pad UP when the currently-focused row is the first
+     * one in [list] and D-pad DOWN when it's the last.  Without
+     * this, Android's default focus search jumps to whatever
+     * neighbouring view it finds (often the rail at the top, the
+     * sign-out button at the bottom, or the wrong column).
+     *
+     * LEFT and RIGHT are deliberately untouched so the user can
+     * still hop categories ⇆ channels ⇆ guide horizontally.
+     */
+    private fun containVerticalKeyNav(list: RecyclerView) {
+        list.setOnKeyListener { _, keyCode, event ->
+            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            val focused = list.focusedChild ?: return@setOnKeyListener false
+            val pos = list.getChildAdapterPosition(focused)
+            if (pos == RecyclerView.NO_POSITION) return@setOnKeyListener false
+            val itemCount = list.adapter?.itemCount ?: 0
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_UP   -> pos == 0
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> pos >= itemCount - 1
+                else -> false
+            }
+        }
     }
 
     /**

@@ -184,10 +184,12 @@ class LibraryActivity : AppCompatActivity() {
         dlg.showIdle(
             titleText = "Regenerate cover for \"${c.name}\"?",
             bodyText = "We'll create a fresh realistic broadcaster-style banner — usually 10–20 seconds.\n\n" +
-                "Or pick \"Re-style ALL\" to refresh every cover in your library in parallel.  " +
+                "Or pick \"Re-style ALL\" to refresh every cover in your library in parallel, " +
+                "or \"Add your own\" to pull a custom image from a USB stick / internal storage.  " +
                 "Press BACK to cancel.",
             primaryLabel = "Regenerate this",
             secondaryLabel = "Re-style ALL",
+            tertiaryLabel = "Add your own",
             onPrimary = {
                 dlg.showBusy("Regenerating — usually 10–20 seconds.")
                 regenerate(c, dlg)
@@ -196,7 +198,87 @@ class LibraryActivity : AppCompatActivity() {
                 dlg.dismiss()
                 regenerateAll()
             },
+            onTertiary = {
+                dlg.dismiss()
+                launchPickCustomCover(c)
+            },
         )
+    }
+
+    // ────────────────────────────────────── custom cover picker
+
+    /** Set when the user taps "Add your own" — the activity-result
+     *  callback uses it to know which collection to update. */
+    private var pendingCustomCoverFor: LibraryCollection? = null
+
+    private val pickCoverLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val target = pendingCustomCoverFor
+        pendingCustomCoverFor = null
+        if (uri == null || target == null) return@registerForActivityResult
+        importCustomCover(target, uri)
+    }
+
+    private fun launchPickCustomCover(c: LibraryCollection) {
+        pendingCustomCoverFor = c
+        // Image MIME types only.  Android TV's storage picker
+        // exposes USB OTG sticks + internal storage out of the box.
+        pickCoverLauncher.launch(arrayOf("image/*"))
+    }
+
+    /** Copy the picked image into the app's private files dir
+     *  (so we own a stable path even after the user unmounts the
+     *  USB) then update the collection record so the tile re-paints
+     *  with the local copy. */
+    private fun importCustomCover(c: LibraryCollection, uri: android.net.Uri) {
+        collectionsAdapter.setBusy(c.id, true)
+        lifecycleScope.launch {
+            try {
+                val savedPath = withContext(Dispatchers.IO) {
+                    val dir = java.io.File(filesDir, "library_covers").apply { mkdirs() }
+                    // Wipe any previous custom cover for this collection.
+                    dir.listFiles { f -> f.name.startsWith("${c.id}.") }
+                        ?.forEach { runCatching { it.delete() } }
+                    val mime = contentResolver.getType(uri)
+                    val ext = when (mime) {
+                        "image/png" -> "png"
+                        "image/webp" -> "webp"
+                        "image/gif" -> "gif"
+                        else -> "jpg"
+                    }
+                    // Timestamped filename so Coil's file-uri cache
+                    // (keyed by absolute path + lastModified) treats
+                    // each re-import as a fresh image.
+                    val stamp = System.currentTimeMillis()
+                    val out = java.io.File(dir, "${c.id}.$stamp.$ext")
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        out.outputStream().use { input.copyTo(it) }
+                    } ?: error("Could not read the picked file")
+                    out.absolutePath
+                }
+                val coverUrl = "file://$savedPath"
+                val updated = c.copy(
+                    coverHash = "custom:${System.currentTimeMillis()}",
+                    coverUrl = coverUrl,
+                )
+                CollectionsStore.update(this@LibraryActivity, updated)
+                collectionsAdapter.setBusy(c.id, false)
+                refresh()
+                android.widget.Toast.makeText(
+                    this@LibraryActivity,
+                    "Cover updated for \"${c.name}\"",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } catch (t: Throwable) {
+                collectionsAdapter.setBusy(c.id, false)
+                android.widget.Toast.makeText(
+                    this@LibraryActivity,
+                    "Couldn't import that image: ${t.message ?: "unknown error"}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
     }
 
     private fun regenerate(c: LibraryCollection, dlg: tv.onnowtv.livetv.ui.LibraryDialog) {
