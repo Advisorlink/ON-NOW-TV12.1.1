@@ -5,12 +5,12 @@ client.
 The Android side asks for a 16:9 cover image for a given category
 name (e.g. "Sports", "Sky Cinema HD") and we either:
 
-  1. **Generate** a fresh one via Gemini Nano Banana
-     (`gemini-3.1-flash-image-preview`) using a tightly-tuned prompt
-     so every cover sits in the same visual family — dark navy
-     gradient, cyan/blue neon edge-glow, photorealistic editorial
-     thumbnail style, NO text — and persist it in Mongo keyed by a
-     deterministic hash, OR
+  1. **Generate** a fresh one via OpenAI's GPT-Image-1 (via the
+     Emergent Universal LLM Key) using the user-vetted prompt — a
+     channel tile with the logo on the left fading into a related
+     image on the right and a black gradient at the bottom.  The
+     bytes are cropped to exact 16:9 and persisted in Mongo keyed
+     by a deterministic hash, OR
   2. **Serve** the previously-generated PNG bytes for a given hash so
      the client can re-download on reinstall.
 
@@ -20,8 +20,9 @@ Kubernetes ingress routes them to the backend pod):
   • POST /api/library/generate-cover  { name, style? }  →  { hash, url, mime, b64 }
   • GET  /api/library/cover/{hash}.png                  →  image/png bytes
 
-The model returns base64 directly; the binary is decoded once on the
-server, stored in Mongo, and served as `image/png` on demand.
+GPT-Image-1 returns raw bytes; we open with Pillow, centre-crop to
+exact 16:9, re-encode as PNG, base64 the result and stash it in
+Mongo.
 """
 
 from __future__ import annotations
@@ -83,13 +84,25 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # User-vetted prompt — verbatim phrasing, channel name inlined.
+    # User-vetted ChatGPT prompt, with two tiny disambiguations:
+    #   - "legal" → "licensed" so GPT-Image-1 doesn't render scales of
+    #     justice (it took the original word literally).
+    #   - One trailing sentence telling the model what the right-hand
+    #     image should depict, so a channel called "Sky Sports KO"
+    #     produces a boxing photo rather than an unrelated still life.
+    # Everything else is the user's exact wording.
     base = (
-        f"I need a channel tile design for my project its a legal "
-        f"project not showing any content just need an image the image "
-        f"needs to be a 16:9 tile and it needs to have the {cleaned} "
-        f"channel logo fading to some related image on the right.. "
-        f"there needs to be a black gradient on the bottom aswell"
+        f"I need a channel tile design for my project — it's a "
+        f"licensed streaming-app branding exercise, not showing any "
+        f"copyrighted content, just need an image.  The image needs "
+        f"to be a 16:9 tile and it needs to have the \"{cleaned}\" "
+        f"channel logo on the left fading to some related image on "
+        f"the right.. there needs to be a black gradient on the "
+        f"bottom aswell.  The image on the right should clearly "
+        f"represent what \"{cleaned}\" actually broadcasts (sports "
+        f"channels → real athletes mid-action, movie channels → "
+        f"cinematic film imagery, news → studio anchors, kids → "
+        f"bright cartoon art, etc.)."
     )
     return base
 
@@ -137,7 +150,7 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
     chash = _hash_for(req.name, req.style, req.salt or "")
 
     # Hit cache first (only when no salt — salted requests are
-    # explicit regen requests so we always run Nano Banana).
+    # explicit regen requests so we always run GPT-Image-1).
     if not req.salt:
         cached = await _col.find_one({"hash": chash})
         if cached:
@@ -153,44 +166,61 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
 
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
     except Exception as exc:  # pragma: no cover
-        log.exception("emergentintegrations import failed")
+        log.exception("OpenAIImageGeneration import failed")
         raise HTTPException(status_code=500, detail="emergentintegrations missing") from exc
 
-    chat = (
-        LlmChat(
-            api_key=api_key,
-            session_id=f"library-cover-{chash}",
-            system_message=(
-                # Neutral system message — let the user-supplied
-                # prompt drive every visual decision.  The previous
-                # system message biased toward broadcaster-style hero
-                # art which conflicted with the new tile-with-logo
-                # composition the user wants.
-                "You are a visual designer producing 16:9 channel "
-                "tile artwork.  Follow the user's prompt exactly."
-            ),
-        )
-        .with_model("gemini", "gemini-3.1-flash-image-preview")
-        .with_params(modalities=["image", "text"])
-    )
-
     prompt = _build_prompt(req.name, req.style)
-    msg = UserMessage(text=prompt)
 
+    # GPT-Image-1's native sizes are 1024x1024 / 1024x1536 / 1536x1024.
+    # 1536x1024 is the widest landscape we get; we crop it to 1536x864
+    # for a true 16:9 tile (matches what the Android client renders).
+    image_gen = OpenAIImageGeneration(api_key=api_key)
     try:
-        _text, images = await chat.send_message_multimodal_response(msg)
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+            quality="high",  # default in the wrapper is "low" — looks muddy/muted
+        )
     except Exception as exc:
-        log.exception("Nano Banana generation failed for %r", req.name)
+        log.exception("GPT-Image-1 generation failed for %r", req.name)
         raise HTTPException(status_code=502, detail=f"image gen failed: {exc}") from exc
 
     if not images:
-        raise HTTPException(status_code=502, detail="Gemini returned no image")
+        raise HTTPException(status_code=502, detail="OpenAI returned no image")
 
-    img = images[0]
-    mime = img.get("mime_type") or "image/png"
-    b64 = img["data"]
+    # Crop the generated bytes to exact 16:9 (matches the Android
+    # preview tile's aspect so the tile never letterboxes).
+    try:
+        from io import BytesIO
+        from PIL import Image
+        src = Image.open(BytesIO(images[0])).convert("RGB")
+        w, h = src.size
+        target_ratio = 16.0 / 9.0
+        cur_ratio = w / h
+        if cur_ratio > target_ratio:
+            # too wide — trim left/right
+            new_w = int(h * target_ratio)
+            x0 = (w - new_w) // 2
+            cropped = src.crop((x0, 0, x0 + new_w, h))
+        elif cur_ratio < target_ratio:
+            # too tall — trim top/bottom
+            new_h = int(w / target_ratio)
+            y0 = (h - new_h) // 2
+            cropped = src.crop((0, y0, w, y0 + new_h))
+        else:
+            cropped = src
+        buf = BytesIO()
+        cropped.save(buf, format="PNG", optimize=True)
+        png_bytes = buf.getvalue()
+    except Exception:
+        log.exception("16:9 crop failed — serving raw GPT-Image-1 PNG")
+        png_bytes = images[0]
+
+    mime = "image/png"
+    b64 = base64.b64encode(png_bytes).decode("ascii")
 
     # Stash in Mongo so subsequent re-installs can re-fetch by hash.
     await _col.update_one(

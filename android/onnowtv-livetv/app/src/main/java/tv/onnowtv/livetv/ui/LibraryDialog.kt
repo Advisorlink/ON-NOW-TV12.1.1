@@ -13,7 +13,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import tv.onnowtv.livetv.R
 
@@ -52,6 +54,8 @@ class LibraryDialog(private val activity: Activity) {
     private val btnPrimary: Button
     private val btnSecondary: Button
     private val btnTertiary: Button
+    private val nameBlock: LinearLayout
+    private val nameInput: EditText
 
     private val ui = Handler(Looper.getMainLooper())
     private var progressAnim: ValueAnimator? = null
@@ -102,11 +106,17 @@ class LibraryDialog(private val activity: Activity) {
         btnPrimary = root.findViewById(R.id.dlg_btn_primary)
         btnSecondary = root.findViewById(R.id.dlg_btn_secondary)
         btnTertiary = root.findViewById(R.id.dlg_btn_tertiary)
+        nameBlock = root.findViewById(R.id.dlg_name_block)
+        nameInput = root.findViewById(R.id.dlg_name_input)
     }
 
     /**
      * Configure first-paint state.
      *
+     * @param nameHint     when non-null, the dialog shows an editable
+     *                     text field pre-populated with this string.
+     *                     The current value is read via [editedName]
+     *                     from the primary-button callback.
      * @param onPrimary    runs when the primary CTA is pressed.
      * @param onSecondary  runs when Cancel/Close is pressed.
      * @param onTertiary   runs when the optional 3rd button is
@@ -119,6 +129,7 @@ class LibraryDialog(private val activity: Activity) {
         primaryLabel: String = "Add + Generate",
         secondaryLabel: String = "Cancel",
         tertiaryLabel: String? = null,
+        nameHint: String? = null,
         onPrimary: () -> Unit,
         onSecondary: () -> Unit = { dismiss() },
         onTertiary: (() -> Unit)? = null,
@@ -138,10 +149,29 @@ class LibraryDialog(private val activity: Activity) {
         } else {
             btnTertiary.visibility = View.GONE
         }
+        if (nameHint != null) {
+            nameBlock.visibility = View.VISIBLE
+            nameInput.setText(nameHint)
+            nameInput.setSelection(nameInput.text?.length ?: 0)
+        } else {
+            nameBlock.visibility = View.GONE
+            nameInput.setText("")
+        }
         if (!dialog.isShowing) dialog.show()
-        // Give focus to the primary CTA so a single OK confirms.
-        btnPrimary.post { btnPrimary.requestFocus() }
+        // Give focus to the name field when it's visible (so OK key
+        // immediately starts editing), else focus the primary CTA so
+        // a single OK confirms.
+        if (nameHint != null) {
+            nameInput.post { nameInput.requestFocus() }
+        } else {
+            btnPrimary.post { btnPrimary.requestFocus() }
+        }
     }
+
+    /** Current text in the editable name field — the caller reads
+     *  this inside `onPrimary` so it sees whatever the user typed. */
+    val editedName: String
+        get() = nameInput.text?.toString()?.trim().orEmpty()
 
     /**
      * Switch to busy state.  The progress bar animates to ~95 %
@@ -152,6 +182,7 @@ class LibraryDialog(private val activity: Activity) {
     fun showBusy(bodyText: String = "Generating your cover — usually 10–20 seconds.") {
         body.text = bodyText
         progressBlock.visibility = View.VISIBLE
+        nameBlock.visibility = View.GONE
         btnPrimary.visibility = View.GONE
         btnTertiary.visibility = View.GONE
         btnSecondary.text = "Hide"
@@ -212,6 +243,7 @@ class LibraryDialog(private val activity: Activity) {
         progressAnim?.cancel()
         ticker?.let { ui.removeCallbacks(it); ticker = null }
         progressBlock.visibility = View.GONE
+        nameBlock.visibility = View.GONE
         body.text = "Something went wrong:\n\n$message"
         btnPrimary.visibility = View.GONE
         btnTertiary.visibility = View.GONE

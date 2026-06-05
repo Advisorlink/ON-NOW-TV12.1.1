@@ -1,5 +1,40 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.140 — Switch image gen to GPT-Image-1 + editable category name before generation
+
+### Image provider: Nano Banana → GPT-Image-1 (high quality)
+
+User feedback: Nano Banana's output was "terrible" — muddy palette, AI-slop composition, no real broadcaster feel.  Switched to OpenAI's GPT-Image-1 via `emergentintegrations.llm.openai.image_generation.OpenAIImageGeneration` (still uses the same Emergent Universal Key).
+
+**Backend changes** (`/app/backend/library.py`):
+- Replaced the `LlmChat` block with `OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY).generate_images(...)`.
+- `quality="high"` (the wrapper defaults to `"low"`, which produces muted output).
+- Output bytes are opened with Pillow, centre-cropped to exact **16:9** (1536×864), re-encoded as PNG and base64'd before persisting.
+- Tuned prompt: kept the user's verbatim core ("16:9 tile", "logo fading to related image", "black gradient on bottom") but disambiguated the word "legal" (GPT-Image-1 took it literally and rendered scales of justice 😅) → "licensed streaming-app branding exercise, not showing any copyrighted content".  Added one trailing sentence telling the model what the right-hand subject should depict.
+
+⚠️ **Budget exhausted** during test generation — the Emergent Universal Key needs a top-up before next generation will succeed.  Backend code is verified end-to-end against the `/api/library/generate-cover` endpoint (one successful 1536×864 PNG round-trip in the previous test).
+
+### New: editable category name before generation
+
+User can now refine the brand/category name **before** the generator fires — useful for nudging GPT-Image-1 toward a clearer right-side subject (e.g. typing "Sky Sports KO boxing" instead of "Sky Sports KO" so the generator picks a boxing photo on the right).
+
+**Dialog changes** (`ui/LibraryDialog.kt` + `res/layout/dialog_add_to_library.xml`):
+- New `dlg_name_block` (LinearLayout) → `dlg_name_input` (EditText, capital-words input type), hidden by default.
+- `showIdle()` gained a `nameHint: String? = null` parameter — when non-null the field is shown and pre-populated.  Caller reads `dlg.editedName` inside the `onPrimary` callback to get whatever the user typed.
+- Name block auto-hides during the busy/error states.
+
+**Call-site changes**:
+- `EpgActivity.promptAddToLibrary` — both branches (already-saved + first-time-add) pass `nameHint = category.name`.  `runGeneration` accepts `overrideName: String? = null` and uses it as the display name on the Collection record AND as the `name` field on the cover API request.
+- `LibraryActivity.promptRegenerateCover` + `regenerate()` — same pattern, the edited name overrides the Collection's stored name.
+
+### Files touched
+
+- `backend/library.py` — provider swap + crop + tuned prompt.
+- `android/onnowtv-livetv/app/src/main/res/layout/dialog_add_to_library.xml` — `dlg_name_block` + `dlg_name_input`.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/ui/LibraryDialog.kt` — `nameHint` / `editedName` API.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/EpgActivity.kt` — wire `nameHint` into both add/regen prompts.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/LibraryActivity.kt` — wire `nameHint` into the regen dialog + use `overrideName` in `regenerate()`.
+
 ## v2.8.139 — Live TV: 4 fixes (preview blank, category dwell-fire, container key nav, "Add your own" cover)
 
 ### Bug A: Preview stays BLACK after fullscreen → BACK → EPG
