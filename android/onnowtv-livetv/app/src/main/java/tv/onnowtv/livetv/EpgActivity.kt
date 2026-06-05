@@ -1077,25 +1077,31 @@ class EpgActivity : AppCompatActivity() {
         if (alreadySaved) {
             dlg.showIdle(
                 titleText = "Already in your library",
-                bodyText = "\"${category.name}\" is already saved.  Generate a fresh AI cover for it now?",
+                bodyText = "\"${category.name}\" is already saved.  Generate a fresh AI cover for it now?  " +
+                    "Tweak the brand name below first if you want the generator to lean a particular way " +
+                    "(e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\").",
                 primaryLabel = "Regenerate cover",
                 secondaryLabel = "Close",
+                nameHint = category.name,
                 onPrimary = {
-                    dlg.showBusy("Regenerating your cover — usually 10–20 seconds.")
-                    runGeneration(category, regenerate = true, dlg)
+                    val typed = dlg.editedName.ifBlank { category.name }
+                    dlg.showBusy("Regenerating cover for \"$typed\" — usually 10–20 seconds.")
+                    runGeneration(category, regenerate = true, dlg, overrideName = typed)
                 },
             )
         } else {
             dlg.showIdle(
                 titleText = "Add \"${category.name}\" to library",
-                bodyText = "We'll create a realistic 16:9 promotional banner that looks like a proper " +
-                    "broadcaster cover — usually 10–20 seconds.  You can browse the rest of the EPG " +
-                    "while it generates.",
+                bodyText = "We'll create a realistic 16:9 channel tile — usually 10–20 seconds.  " +
+                    "Tweak the name below first if you want — e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\" " +
+                    "tells the generator exactly what to show on the right of the tile.",
                 primaryLabel = "Add + Generate",
                 secondaryLabel = "Cancel",
+                nameHint = category.name,
                 onPrimary = {
-                    dlg.showBusy()
-                    runGeneration(category, regenerate = false, dlg)
+                    val typed = dlg.editedName.ifBlank { category.name }
+                    dlg.showBusy("Generating cover for \"$typed\" — usually 10–20 seconds.")
+                    runGeneration(category, regenerate = false, dlg, overrideName = typed)
                 },
             )
         }
@@ -1105,27 +1111,31 @@ class EpgActivity : AppCompatActivity() {
         category: Category,
         regenerate: Boolean,
         dlg: tv.onnowtv.livetv.ui.LibraryDialog,
+        overrideName: String? = null,
     ) {
         val ctx = this
+        val displayName = overrideName?.takeIf { it.isNotBlank() } ?: category.name
         val existing = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
             .firstOrNull { it.categoryId == category.id }
-        val record = existing?.copy(name = category.name)
+        val record = existing?.copy(name = displayName)
             ?: tv.onnowtv.livetv.data.LibraryCollection(
                 id = java.util.UUID.randomUUID().toString(),
                 categoryId = category.id,
-                name = category.name,
+                name = displayName,
                 coverHash = null,
                 coverUrl = null,
                 addedAt = System.currentTimeMillis(),
             )
         if (existing == null) {
             tv.onnowtv.livetv.data.CollectionsStore.add(ctx, record)
+        } else if (existing.name != displayName) {
+            tv.onnowtv.livetv.data.CollectionsStore.update(ctx, record)
         }
         lifecycleScope.launch {
             try {
                 val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
                     tv.onnowtv.livetv.data.CoversApi.generate(
-                        name = category.name,
+                        name = displayName,
                         forceSalt = if (regenerate) tv.onnowtv.livetv.data.CoversApi.freshSalt() else null,
                     )
                 }

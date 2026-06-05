@@ -183,16 +183,19 @@ class LibraryActivity : AppCompatActivity() {
         val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
         dlg.showIdle(
             titleText = "Regenerate cover for \"${c.name}\"?",
-            bodyText = "We'll create a fresh realistic broadcaster-style banner — usually 10–20 seconds.\n\n" +
-                "Or pick \"Re-style ALL\" to refresh every cover in your library in parallel, " +
+            bodyText = "Tweak the name below first if you want the generator to lean a particular way " +
+                "(e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\").\n\n" +
+                "Pick \"Re-style ALL\" to refresh every cover in your library in parallel, " +
                 "or \"Add your own\" to pull a custom image from a USB stick / internal storage.  " +
                 "Press BACK to cancel.",
             primaryLabel = "Regenerate this",
             secondaryLabel = "Re-style ALL",
             tertiaryLabel = "Add your own",
+            nameHint = c.name,
             onPrimary = {
-                dlg.showBusy("Regenerating — usually 10–20 seconds.")
-                regenerate(c, dlg)
+                val typed = dlg.editedName.ifBlank { c.name }
+                dlg.showBusy("Regenerating cover for \"$typed\" — usually 10–20 seconds.")
+                regenerate(c, dlg, overrideName = typed)
             },
             onSecondary = {
                 dlg.dismiss()
@@ -281,14 +284,23 @@ class LibraryActivity : AppCompatActivity() {
         }
     }
 
-    private fun regenerate(c: LibraryCollection, dlg: tv.onnowtv.livetv.ui.LibraryDialog) {
+    private fun regenerate(
+        c: LibraryCollection,
+        dlg: tv.onnowtv.livetv.ui.LibraryDialog,
+        overrideName: String? = null,
+    ) {
+        val displayName = overrideName?.takeIf { it.isNotBlank() } ?: c.name
         collectionsAdapter.setBusy(c.id, true)
         lifecycleScope.launch {
             try {
                 val gen = withContext(Dispatchers.IO) {
-                    CoversApi.generate(c.name, forceSalt = CoversApi.freshSalt())
+                    CoversApi.generate(displayName, forceSalt = CoversApi.freshSalt())
                 }
-                val updated = c.copy(coverHash = gen.hash, coverUrl = gen.url)
+                val updated = c.copy(
+                    name = displayName,
+                    coverHash = gen.hash,
+                    coverUrl = gen.url,
+                )
                 CollectionsStore.update(this@LibraryActivity, updated)
                 dlg.snapToComplete()
                 refresh()
