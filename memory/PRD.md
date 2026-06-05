@@ -1,5 +1,25 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.132 — Vesper TV: hide stream URLs in autoplay + green Watched / yellow Watching episode badges (Feb 14, 2026).**
+>
+> Two refinements to `frontend/src/components/SeriesEpisodes.jsx`:
+>
+> **A. Autoplay loading screen** — when **Autoplay 1080p** is enabled in Settings, clicking a TV episode used to (a) expand the card to its full stream-list panel, (b) fetch the streams, (c) auto-play the first 1080p candidate the moment it appeared.  During the 1–3 s addon resolution the user could see the raw addon URLs flashing on screen — the user explicitly demanded this never happen.
+>
+>   - New `autoplayResolvingId` state replaces the eager `setOpenEpisodeId(ep.id)` call.  In autoplay mode the card stays **collapsed** while a discreet `"LOADING"` spinner overlays the 16:9 thumbnail (a `Loader2` from `lucide-react` + an uppercase monospace label with 0.24 em letter-spacing for the cinema feel).
+>   - `playStream(...)` clears `autoplayResolvingId` first so that, if the user backs out of the player and returns to the picker, no card is stuck on "Loading…".
+>   - Fallback: if the addon returns NO 1080p candidate (the autoplay heuristic finds nothing), the overlay drops and the card expands normally so the user can pick a stream manually.  Same fallback fires on addon error.
+>
+> **B. Watched vs Watching badges** — the existing single Watched pill was blue and never differentiated half-finished episodes.  Now there are two:
+>
+>   - **Watched** badge (top-right of the thumbnail) — bright GREEN (`rgba(34,197,94,0.94)` chip with a matching soft green glow `rgba(34,197,94,0.45)`), keeps the checkmark icon, fires only when `cw.isWatched(cwIdForEp)` is true.
+>   - **Watching** badge (top-right of the thumbnail) — bright YELLOW (`rgba(250,204,21,0.95)` chip with `rgba(250,204,21,0.40)` glow), uses a clock icon, fires when the episode is NOT watched yet but `pct > 0` (i.e. partial progress recorded by `continueWatching.getProgress`).  `data-testid="watching-{S}-{E}"` for QA.  The existing thin progress bar at the bottom of the thumbnail stays as a finer-grained indicator alongside the chip.
+>
+> **Files touched**:
+>   - `frontend/src/components/SeriesEpisodes.jsx` — added `autoplayResolvingId` state + autoplay-aware `handleEpisodeClick` + Watched colour swap + new Watching chip + `playStream` cleanup.
+>
+> **Verification**: `yarn build` clean (22 s, no warnings introduced).
+
 > **🟢 v2.8.131 — Exit-stops-stream + Collections / Library with AI-generated covers (Feb 14, 2026).**
 >
 > Two user asks delivered in one batch:
