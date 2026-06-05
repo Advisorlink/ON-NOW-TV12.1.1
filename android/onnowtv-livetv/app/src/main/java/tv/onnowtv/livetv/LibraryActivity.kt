@@ -1,6 +1,5 @@
 package tv.onnowtv.livetv
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -12,6 +11,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.onnowtv.livetv.data.Channel
@@ -179,19 +180,26 @@ class LibraryActivity : AppCompatActivity() {
     // ─────────────────────────────────────────────── regenerate-cover
 
     private fun promptRegenerateCover(c: Collection) {
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Regenerate cover")
-            .setMessage(
-                "Generate a brand-new AI cover for \"${c.name}\"?\n\n" +
-                "All covers share the same dark navy / blue neon style so they keep matching."
-            )
-            .setPositiveButton("Regenerate") { _, _ -> regenerate(c, makeAllMatch = false) }
-            .setNeutralButton("Re-style ALL") { _, _ -> regenerateAll() }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
+        dlg.showIdle(
+            titleText = "Regenerate cover for \"${c.name}\"?",
+            bodyText = "We'll create a fresh realistic broadcaster-style banner — usually 10–20 seconds.\n\n" +
+                "Or pick \"Re-style ALL\" to refresh every cover in your library in parallel.  " +
+                "Press BACK to cancel.",
+            primaryLabel = "Regenerate this",
+            secondaryLabel = "Re-style ALL",
+            onPrimary = {
+                dlg.showBusy("Regenerating — usually 10–20 seconds.")
+                regenerate(c, dlg)
+            },
+            onSecondary = {
+                dlg.dismiss()
+                regenerateAll()
+            },
+        )
     }
 
-    private fun regenerate(c: Collection, makeAllMatch: Boolean) {
+    private fun regenerate(c: Collection, dlg: tv.onnowtv.livetv.ui.LibraryDialog) {
         collectionsAdapter.setBusy(c.id, true)
         lifecycleScope.launch {
             try {
@@ -200,36 +208,54 @@ class LibraryActivity : AppCompatActivity() {
                 }
                 val updated = c.copy(coverHash = gen.hash, coverUrl = gen.url)
                 CollectionsStore.update(this@LibraryActivity, updated)
+                dlg.snapToComplete()
                 refresh()
             } catch (t: Throwable) {
                 collectionsAdapter.setBusy(c.id, false)
-                AlertDialog.Builder(this@LibraryActivity)
-                    .setTitle("Couldn't regenerate")
-                    .setMessage(t.message ?: "Unknown error")
-                    .setPositiveButton("OK", null)
-                    .show()
+                dlg.showError(t.message ?: "Unknown error")
             }
         }
     }
 
+    /**
+     * Bulk re-style — fires every Collection's regeneration **in
+     * parallel** (Nano Banana easily handles 4-8 concurrent calls)
+     * so the whole shelf refreshes in roughly one cover's worth of
+     * wall-clock time instead of N × ~15 s.
+     */
     private fun regenerateAll() {
         val all = CollectionsStore.load(this)
         if (all.isEmpty()) return
-        for (c in all) collectionsAdapter.setBusy(c.id, true)
-        lifecycleScope.launch {
-            for (c in all) {
-                try {
-                    val gen = withContext(Dispatchers.IO) {
-                        CoversApi.generate(c.name, forceSalt = CoversApi.freshSalt())
+        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
+        dlg.showIdle(
+            titleText = "Re-style every cover",
+            bodyText = "Generate a fresh banner for all ${all.size} collections in parallel — " +
+                "usually about 15–25 seconds total.",
+            primaryLabel = "Re-style ALL",
+            secondaryLabel = "Cancel",
+            onPrimary = {
+                dlg.showBusy("Re-styling ${all.size} covers in parallel…")
+                for (c in all) collectionsAdapter.setBusy(c.id, true)
+                lifecycleScope.launch {
+                    val jobs = all.map { c ->
+                        kotlinx.coroutines.async(Dispatchers.IO) {
+                            try {
+                                val gen = CoversApi.generate(c.name, forceSalt = CoversApi.freshSalt())
+                                CollectionsStore.update(this@LibraryActivity,
+                                    c.copy(coverHash = gen.hash, coverUrl = gen.url))
+                            } catch (_: Throwable) {
+                                /* swallow individual failures so the
+                                 * batch keeps progressing */
+                            }
+                        }
                     }
-                    CollectionsStore.update(this@LibraryActivity,
-                        c.copy(coverHash = gen.hash, coverUrl = gen.url))
+                    jobs.awaitAll()
+                    for (c in all) collectionsAdapter.setBusy(c.id, false)
+                    dlg.snapToComplete()
                     refresh()
-                } catch (_: Throwable) {
-                    collectionsAdapter.setBusy(c.id, false)
                 }
-            }
-        }
+            },
+        )
     }
 
     // ────────────────────────────────────────────────────── clock

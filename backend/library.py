@@ -62,26 +62,42 @@ async def _ensure_indexes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Prompt template — locked-down so every cover sits in the same
-# visual family.  The Nano Banana model has no width/height knob,
-# so we describe aspect ratio in plain English which biases the
-# diffusion process strongly.
+# Prompt template — produces realistic, professional editorial
+# *promo banners* for each category.  The previous "dark navy + cyan
+# neon" lock made every cover look like an Apple TV mood board; the
+# user wants legit-feeling broadcaster banners (Sky Sports UK with
+# its actual logo + sports imagery, ESPN with a gridiron player,
+# Sky Cinema with cinema spotlights, etc.).  We DO allow Gemini to
+# render text + logos when the category name suggests a real brand
+# — that's the whole point of "Sky Sports KO" → it should *look*
+# like a Sky Sports KO banner.
 # ---------------------------------------------------------------------------
 _BASE_STYLE = (
-    "16:9 widescreen aspect ratio, cinematic HD streaming-service cover art, "
-    "dark navy background (#0A0F1A), subtle cyan/electric blue neon accents, "
-    "deep contrast lighting, sharp focus, photorealistic editorial thumbnail, "
-    "high production value, professional studio composition, "
-    "NO TEXT, NO LOGOS, NO LETTERS, NO WATERMARKS"
+    "ultra-realistic 16:9 widescreen promotional banner, "
+    "professional editorial advertisement style, cinematic photography "
+    "or high-end digital illustration, dramatic lighting, rich saturated "
+    "colours, sharp focus, magazine-cover production value"
 )
 
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
     base = (
-        f"Create a {style or _BASE_STYLE}.  The subject should evoke the "
-        f"theme \"{cleaned}\" through visual symbolism only — never spell "
-        f"the words out."
+        f"Create a {style or _BASE_STYLE} hero banner for the TV / "
+        f"streaming category \"{cleaned}\".\n\n"
+        f"The image MUST visually represent what \"{cleaned}\" is actually "
+        f"about — e.g. a sports category should show real athletes mid-"
+        f"action; a movie category a cinema reel or red-carpet imagery; "
+        f"a documentary channel a striking nature / cultural scene; a "
+        f"kids channel bright cartoon energy.  When the name suggests a "
+        f"real broadcaster (e.g. Sky Sports, ESPN, Fox, BBC) include the "
+        f"recognisable logo typography on the image — render the name "
+        f"itself as bold elegant on-screen lettering, integrated like a "
+        f"proper broadcast brand banner.\n\n"
+        f"Style: looks like a real ad you would see on a streaming service "
+        f"home shelf or on a billboard — NOT a stock photo, NOT a generic "
+        f"abstract gradient, NOT a neon collage.  Polished, professional, "
+        f"ready-to-ship cover art."
     )
     return base
 
@@ -155,9 +171,13 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             api_key=api_key,
             session_id=f"library-cover-{chash}",
             system_message=(
-                "You are a senior visual designer producing 16:9 cover "
-                "art for a premium IPTV streaming app.  All covers MUST "
-                "follow the same dark-navy / blue-neon aesthetic."
+                "You are a senior visual designer producing realistic, "
+                "professional 16:9 promotional banner art for a premium "
+                "TV / streaming app.  Each cover should look like the "
+                "real broadcaster's hero banner — include logo typography "
+                "when the name suggests a known brand, and depict real "
+                "subject matter (athletes, film stars, presenters etc.) "
+                "rather than abstract gradients or generic neon collages."
             ),
         )
         .with_model("gemini", "gemini-3.1-flash-image-preview")

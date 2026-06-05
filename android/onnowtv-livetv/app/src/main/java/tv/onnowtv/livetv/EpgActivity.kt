@@ -210,14 +210,27 @@ class EpgActivity : AppCompatActivity() {
         // channels · …categories).  The user wants the middle
         // column populated immediately, not stuck on an empty
         // Favourites view.
-        categoriesList.post {
-            val allChannelsIndex = allCategoriesWithCounts
-                .indexOfFirst { it.id == "__all__" }
-                .coerceAtLeast(0)
-            categoriesList.scrollToPosition(allChannelsIndex)
-            categoriesList.post {
-                categoriesList.findViewHolderForAdapterPosition(allChannelsIndex)
+        //
+        // EXCEPTION: when launched from LibraryActivity via the
+        // deep-link extra, jump focus DIRECTLY into the channel
+        // list so the user lands on the first channel of their
+        // collection — not parked on a category pill.
+        val deepLinkCategoryId = intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)
+        if (!deepLinkCategoryId.isNullOrBlank()) {
+            channelsList.post {
+                channelsList.findViewHolderForAdapterPosition(0)
                     ?.itemView?.requestFocus()
+            }
+        } else {
+            categoriesList.post {
+                val allChannelsIndex = allCategoriesWithCounts
+                    .indexOfFirst { it.id == "__all__" }
+                    .coerceAtLeast(0)
+                categoriesList.scrollToPosition(allChannelsIndex)
+                categoriesList.post {
+                    categoriesList.findViewHolderForAdapterPosition(allChannelsIndex)
+                        ?.itemView?.requestFocus()
+                }
             }
         }
 
@@ -1018,13 +1031,13 @@ class EpgActivity : AppCompatActivity() {
     }
 
     /**
-     * Long-pressing a category opens the "Add to Library" dialog
-     * which (a) saves the [tv.onnowtv.livetv.data.Collection] to
+     * Long-pressing a category opens the new Vesper-style "Add to
+     * Library" dialog which (a) saves the
+     * [tv.onnowtv.livetv.data.Collection] to
      * [tv.onnowtv.livetv.data.CollectionsStore] and (b) kicks off
-     * a Nano Banana cover-art generation in the background.  The
-     * user can browse the Library while it's still generating —
-     * the tile will swap from a placeholder to the artwork the
-     * moment Coil resolves the URL.
+     * a Nano Banana cover-art generation right inside the dialog
+     * with a live progress strip + elapsed timer so the user can
+     * see exactly how long the cover takes.
      */
     private fun promptAddToLibrary(category: Category) {
         // Skip the synthetic virtual categories — they don't have
@@ -1033,39 +1046,41 @@ class EpgActivity : AppCompatActivity() {
 
         val ctx = this
         val alreadySaved = tv.onnowtv.livetv.data.CollectionsStore.has(ctx, category.id)
-        val title = if (alreadySaved) "Already in your library" else "Add \"${category.name}\" to library?"
-        val msg = if (alreadySaved)
-            "This category is already saved.  Open the Library to manage it, " +
-            "or pick \"Regenerate cover\" to ask the AI for a fresh image."
-        else
-            "We'll create a 16:9 AI cover automatically (~30s).  All covers " +
-            "share the same dark navy / blue neon style so your shelf stays consistent."
+        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(ctx)
 
-        val dlg = android.app.AlertDialog.Builder(ctx, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(title)
-            .setMessage(msg)
         if (alreadySaved) {
-            dlg.setPositiveButton("Open Library") { _, _ ->
-                startActivity(android.content.Intent(ctx, LibraryActivity::class.java))
-            }
-            dlg.setNeutralButton("Regenerate cover") { _, _ ->
-                generateCoverFor(category, regenerate = true)
-            }
-            dlg.setNegativeButton("Cancel", null)
+            dlg.showIdle(
+                titleText = "Already in your library",
+                bodyText = "\"${category.name}\" is already saved.  Generate a fresh AI cover for it now?",
+                primaryLabel = "Regenerate cover",
+                secondaryLabel = "Close",
+                onPrimary = {
+                    dlg.showBusy("Regenerating your cover — usually 10–20 seconds.")
+                    runGeneration(category, regenerate = true, dlg)
+                },
+            )
         } else {
-            dlg.setPositiveButton("Add + Generate Cover") { _, _ ->
-                generateCoverFor(category, regenerate = false)
-            }
-            dlg.setNegativeButton("Cancel", null)
+            dlg.showIdle(
+                titleText = "Add \"${category.name}\" to library",
+                bodyText = "We'll create a realistic 16:9 promotional banner that looks like a proper " +
+                    "broadcaster cover — usually 10–20 seconds.  You can browse the rest of the EPG " +
+                    "while it generates.",
+                primaryLabel = "Add + Generate",
+                secondaryLabel = "Cancel",
+                onPrimary = {
+                    dlg.showBusy()
+                    runGeneration(category, regenerate = false, dlg)
+                },
+            )
         }
-        dlg.show()
     }
 
-    private fun generateCoverFor(category: Category, regenerate: Boolean) {
+    private fun runGeneration(
+        category: Category,
+        regenerate: Boolean,
+        dlg: tv.onnowtv.livetv.ui.LibraryDialog,
+    ) {
         val ctx = this
-        // Insert a placeholder record so the LibraryActivity shows
-        // the new collection immediately (Coil will fill the cover
-        // when the URL resolves).
         val existing = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
             .firstOrNull { it.categoryId == category.id }
         val record = existing?.copy(name = category.name)
@@ -1080,13 +1095,6 @@ class EpgActivity : AppCompatActivity() {
         if (existing == null) {
             tv.onnowtv.livetv.data.CollectionsStore.add(ctx, record)
         }
-        // Fire the generation in the background.
-        val toast = android.widget.Toast.makeText(
-            ctx,
-            if (regenerate) "Regenerating cover…" else "Generating AI cover…",
-            android.widget.Toast.LENGTH_SHORT,
-        )
-        toast.show()
         lifecycleScope.launch {
             try {
                 val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -1099,17 +1107,9 @@ class EpgActivity : AppCompatActivity() {
                     ctx,
                     record.copy(coverHash = gen.hash, coverUrl = gen.url),
                 )
-                android.widget.Toast.makeText(
-                    ctx,
-                    "Added \"${category.name}\" to your library",
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
+                dlg.snapToComplete()
             } catch (t: Throwable) {
-                android.widget.Toast.makeText(
-                    ctx,
-                    "Cover generation failed: ${t.message ?: "unknown"}",
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
+                dlg.showError(t.message ?: "Unknown error")
             }
         }
     }
@@ -1143,6 +1143,15 @@ class EpgActivity : AppCompatActivity() {
             currentCategoryId = id
             categoryAdapter.setSelected(id)
             applyCategory()
+            // Move focus into the channel list so the user lands on
+            // the first channel of the deep-linked category instead
+            // of staying on whatever rail icon they opened the
+            // Library from.  Runs on the next frame to give the
+            // list time to bind its first row.
+            channelsList.post {
+                channelsList.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.requestFocus()
+            }
         }
     }
 
