@@ -11,7 +11,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
-import tv.onnowtv.livetv.data.BundleHolder
 import tv.onnowtv.livetv.data.Fixture
 import tv.onnowtv.livetv.data.SportMeta
 import tv.onnowtv.livetv.data.SportsRepository
@@ -86,6 +85,13 @@ class SportsGuideActivity : AppCompatActivity() {
         sportRail.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         sportRail.adapter = sportAdapter
         sportRail.itemAnimator = null
+        // Pre-focus the first pill once the rail has bound items so
+        // the user sees a focus highlight the instant they land on
+        // the screen — no D-pad nudge needed.
+        sportRail.post {
+            sportRail.findViewHolderForAdapterPosition(0)
+                ?.itemView?.requestFocus()
+        }
     }
 
     private fun setupFixturesList() {
@@ -111,6 +117,12 @@ class SportsGuideActivity : AppCompatActivity() {
                 allSports = bundle.sports
                 sportAdapter.submit(allSports, activeKey)
                 applyFilter()
+                // Now that the rail is populated, snap focus to the
+                // first pill so the user sees the cyan highlight.
+                sportRail.post {
+                    sportRail.findViewHolderForAdapterPosition(0)
+                        ?.itemView?.requestFocus()
+                }
             } catch (t: Throwable) {
                 empty.visibility = View.VISIBLE
                 empty.text = "FAILED TO LOAD — PRESS BACK & RETRY"

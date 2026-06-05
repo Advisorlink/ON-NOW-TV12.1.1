@@ -29,7 +29,10 @@ jobs:
         run: |
           set -euo pipefail
           VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-fta-native/ || echo 0) ))
-          VN="0.1.0"
+          # Use the build counter as the semver patch component so
+          # every push bumps the user-visible version + the OTA
+          # checker's `isNewer` comparator detects the update.
+          VN="0.1.${VC}"
           echo "VC=$VC" >> $GITHUB_OUTPUT
           echo "VN=$VN" >> $GITHUB_OUTPUT
 

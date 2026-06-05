@@ -99,6 +99,39 @@ class EpgGridAdapter(
 
     fun currentScrollX(): Int = sharedScrollX
 
+    /**
+     * Returns the first focusable programme cell ("live now" cell)
+     * in the row at [position], or null if that row isn't currently
+     * bound or has no cells.  Used by [EpgActivity]'s DPAD_DOWN /
+     * DPAD_UP intercept to snap focus to the live column when the
+     * source cell is itself the live cell of its row.
+     */
+    fun liveCellAt(position: Int): View? {
+        val vh = boundRows.firstOrNull { it.bindingAdapterPosition == position }
+            ?: return null
+        // The cells are added in time order to `strip` — index 0
+        // is the leftmost, i.e. either the currently-airing cell or
+        // (if "live now" already finished and a later cell took
+        // pole position) the next one up.  Either way it's the
+        // cell the user perceives as "the live one on this row".
+        for (i in 0 until vh.strip.childCount) {
+            val v = vh.strip.getChildAt(i)
+            if (v.isFocusable) return v
+        }
+        return null
+    }
+
+    /** True iff [view] is the first focusable cell of its row strip
+     *  — i.e. the "live now" cell.  Returns false if the view isn't
+     *  inside any bound row strip. */
+    fun isLiveCell(view: View?): Boolean {
+        if (view == null) return false
+        for (vh in boundRows) {
+            if (vh.strip.indexOfChild(view) == 0) return true
+        }
+        return false
+    }
+
     override fun getItemCount(): Int = channels.size
     override fun getItemId(position: Int): Long = channels[position].id.hashCode().toLong()
 

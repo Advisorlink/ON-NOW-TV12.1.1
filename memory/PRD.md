@@ -1,5 +1,35 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.128 — Native Sports Guide compile-clean + FTA "always live line" DOWN nav + FTA OTA versioning fix (Feb 14, 2026).**
+>
+> Three asks from the user this session:
+>
+> **A. Native Sports Guide finalised (`onnowtv-livetv`)**
+>   - The scaffold from the previous fork (`SportsGuideActivity` + `SportRailAdapter` + `FixtureCardAdapter` + `SportsRepository` + layouts/drawables) was already feature-complete but had a `package` mismatch — `SportsGuideActivity.kt` imported `tv.onnowtv.livetv.data.BundleHolder` while the actual `BundleHolder` object lives in `tv.onnowtv.livetv` (root package). Same-package reference works without an import, so the stray `import` was dropped — that was the lone compile blocker.
+>   - Added focus-on-load to `SportsGuideActivity` so the first sport pill grabs focus the instant the `/api/sportsdb/fixtures` call resolves (no D-pad nudge needed to see the cyan highlight).
+>   - End-to-end RecyclerView focus engine: sport rail is a horizontal `RecyclerView` (each pill is `focusable=true`), fixtures list is a vertical `RecyclerView` (each card is `focusable=true`), Android's default `FocusFinder` routes UP/DOWN between them.
+>   - Pressing OK on a fixture card launches `PlayerActivity` with the matched channel id — broadcaster→channel matching uses `SportsRepository.broadcastMatches` (fuzzy token matcher: every word of the broadcaster tag must appear in the channel name).
+>   - Trophy icon (`ic_nav_sports`) lives in the EpgActivity side rail; click opens the Sports Guide activity.
+>   - React `SportsGuide.jsx` was already removed from `App.js`'s router; the orphan helper `/app/frontend/src/lib/sportsMatch.js` (no longer imported by any consumer) was also deleted in this build.
+>
+> **B. FTA EPG: "always go down the live line"** (`onnowtv-fta-native`)
+>   - User report: pressing DOWN from a live cell could land on a future cell of the next row when the live programme was short — felt like the focus "skipped". They want DOWN from the live column to ALWAYS land on the live column of the next row; horizontal-column-memory should only kick in once the user has stepped RIGHT into future cells.
+>   - Fix in `EpgGridAdapter`: exposed two helpers — `liveCellAt(position)` returns the first focusable cell of a row strip, `isLiveCell(view)` returns true iff the view is index 0 of its strip.
+>   - Fix in `EpgActivity.onKeyDown`: intercept DPAD_DOWN / DPAD_UP — if `gridAdapter.isLiveCell(currentFocus)` is true, manually focus `gridAdapter.liveCellAt(targetRow)` and snap `setScrollX(0)` so the live column is fully visible after the jump. Otherwise fall through to Android's default geometric FocusFinder (which preserves horizontal column on future cells, matching the user's earlier ask in v2.8.101).
+>
+> **C. FTA in-app update prompt wasn't firing** (`onnowtv-fta-native`)
+>   - Root cause: `build-fta-native.yml` hardcoded `VN="0.1.0"` on every push, so the GitHub release tag's parsed semver and the locally installed APK's `BuildConfig.VERSION_NAME` were always identical. `FtaUpdateChecker.isNewer("0.1.0", "0.1.0")` returns false → no prompt ever fires.
+>   - Fix: changed the workflow's version derivation to `VN="0.1.${VC}"` where `VC` is the commit counter — every push now produces a unique semver in both the APK and the release name. The backend's existing `\b(\d+\.\d+\.\d+)\b` parser captures it; the OTA comparator works end-to-end.
+>
+> **Files touched**:
+>   - `/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/SportsGuideActivity.kt` — dropped bad import, added focus-on-load.
+>   - `/app/android/onnowtv-fta-native/app/src/main/java/tv/onnowtv/fta_native/ui/EpgGridAdapter.kt` — added `liveCellAt` + `isLiveCell` helpers.
+>   - `/app/android/onnowtv-fta-native/app/src/main/java/tv/onnowtv/fta_native/EpgActivity.kt` — DPAD_DOWN/UP intercept.
+>   - `/app/.github/workflows/build-fta-native.yml` — `VN="0.1.${VC}"`.
+>   - Deleted: `/app/frontend/src/lib/sportsMatch.js`.
+>
+> **Verification**: `yarn build` clean (no broken imports). Kotlin compile must be verified by GitHub Actions on next push (no `gradlew` / `kotlinc` available in this preview env — see CRITICAL_INFO in handoff).
+
 > **🟢 v2.8.124 — Vesper: BACK from Continue-Watching player lands on the episode picker (Feb 13, 2026).**
 > User report: "when watching a TV show from Continue Watching and they push BACK to get back, it needs to go to the episode selection screen for that particular TV show."
 >
