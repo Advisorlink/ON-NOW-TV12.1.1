@@ -1,5 +1,21 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.135 — CI hotfix #2: async-inside-map missing CoroutineScope receiver (Feb 14, 2026).**
+>
+> v2.8.134 fixed two suspect bugs but the CI run still failed with two clear errors visible in this push's log:
+>
+>   1. `LibraryActivity.kt:243` — *Suspension functions can be called only within coroutine body* (for `CoversApi.generate`).
+>   2. `LibraryActivity.kt:252` — *Unresolved reference: awaitAll. None of the following candidates is applicable because of receiver type mismatch.*
+>
+> **Root cause:** the `regenerateAll` body called `kotlinx.coroutines.async(Dispatchers.IO) { … }` *inside a `.map { c -> }` lambda*.  The `async` function is an extension on `CoroutineScope`, but `.map { … }`'s lambda has no scope receiver — so `async` resolved to the wrong thing (an unscoped helper that returned `Job` rather than `Deferred<T>`), which in turn made `jobs.awaitAll()` fail receiver-type matching AND made the `suspend` call invalid (because the lambda was no longer a coroutine body).
+>
+> **Fix:** capture `this` (the `CoroutineScope` from `lifecycleScope.launch`) into a local `val scope = this`, then call `scope.async(Dispatchers.IO) { … }` inside the `.map`.  Now `scope.async` returns a true `Deferred<Unit>`, the body of the lambda is a coroutine body again (so `CoversApi.generate` is callable), and `jobs.awaitAll()` resolves to the canonical `Collection<Deferred<T>>.awaitAll()` extension.
+>
+> Verified by compiling a stub mirror of the pattern against `kotlinx-coroutines-core-jvm-1.5.0.jar` via local `kotlinc 1.9.22` — zero errors.
+>
+> **Files touched**:
+>   - `LibraryActivity.kt` — `val scope = this; scope.async(...)` inside the `.map`.
+
 > **🟢 v2.8.134 — Hotfix: CI Kotlin compile errors caught + fixed (Feb 14, 2026).**
 >
 > The `build-livetv.yml` GH Actions run failed v2.8.133 with `> Compilation error.` on `:app:compileDebugKotlin`.  Two bugs identified by a local kotlinc 1.9.22 syntax pass:
