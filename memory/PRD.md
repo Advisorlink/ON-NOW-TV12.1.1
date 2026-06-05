@@ -1,5 +1,40 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.8.133 — AI cover style rewrite + Vesper-style Library dialog with live progress + collection-tile focus fix (Feb 14, 2026).**
+>
+> Five user asks delivered in one batch:
+>
+> **1. AI cover prompt — realistic broadcaster banners, not neon mood-boards.**  Rewrote `_BASE_STYLE` + `_build_prompt()` in `backend/library.py`.  Old prompt locked every cover to "dark navy + cyan neon, NO TEXT, NO LOGOS" which produced generic abstract art.  New prompt:
+>   - "Ultra-realistic 16:9 promotional banner, professional editorial advertisement style, cinematic photography or high-end digital illustration, dramatic lighting, rich saturated colours, sharp focus, magazine-cover production value."
+>   - Requires the image to depict the actual subject (real athletes for sports categories, cinema reels for movie channels, wildlife for documentary, cartoon energy for kids).
+>   - **Allows brand typography / logos** when the category name suggests a real broadcaster — Sky Sports / ESPN / Fox / BBC etc. now get rendered as proper broadcast brand banners.
+>   - System message updated to reinforce the realism direction.
+>   - Smoke-tested locally: `Sky Sports UK` regen produced a 1.22 MB JPEG in 12.3 s.
+>
+> **2. Pop-up redesign — Vesper-style glass card.**  Killed the legacy `AlertDialog.Builder` modal.  New custom dialog:
+>   - `res/layout/dialog_add_to_library.xml` — 640 dp wide glass card on a rounded `library_dialog_bg` shell with a fine `#1F2A45` rim + soft top highlight.
+>   - Eyebrow ("MY LIBRARY") + 30 sp title + 14 sp body with proper line-spacing.
+>   - Primary CTA = blue pill (`library_btn_primary_bg`, focus glows white-edged); Secondary = outlined ghost (`library_btn_secondary_bg`).
+>   - `ui/LibraryDialog.kt` helper wraps the layout + exposes three states: `showIdle(title, body, primary, secondary)`, `showBusy(body)`, `showError(message)`, plus `snapToComplete()` that slams the bar to 100 % before auto-dismissal.
+>   - Used everywhere now — `EpgActivity.promptAddToLibrary` (single-press category long-press) and `LibraryActivity.promptRegenerateCover` / `regenerateAll` (collection-tile long-press).  Re-style ALL is the secondary button on the regen dialog; BACK = cancel.
+>
+> **3. Live progress + elapsed timer.**  Inside the dialog:
+>   - Animated `library_progress_fill` strip drives from 0 → 95 % of parent width over `ETA_MS = 18 s` using `ValueAnimator.ofInt`.  When the network call resolves, `snapToComplete()` cancels the animator + slams the fill to 100 %.
+>   - "GENERATING COVER…" label on the left + monospace `0s` … `12s` … elapsed counter on the right (ticks every 500 ms).
+>   - Honest copy: "usually 10–20 seconds."
+>
+> **4. Parallel Re-style ALL.**  Old code looped sequentially → 4 collections × 15 s = ~60 s.  New code uses `kotlinx.coroutines.async(Dispatchers.IO)` for each entry then `jobs.awaitAll()` — Nano Banana easily handles 4–8 concurrent requests so the full shelf refreshes in roughly one cover's worth of wall-clock time.  Dialog progress reflects this with the body copy "Re-styling {N} covers in parallel…".
+>
+> **5. Focus bug — collection click now lands on the first channel.**  When `LibraryActivity.openCollection()` calls `startActivity(EpgActivity)` with `FLAG_ACTIVITY_CLEAR_TOP`, the existing EpgActivity is reused via `singleTask` so `onNewIntent` fires (not `onCreate`).  Old `onNewIntent` only flipped the category but left focus stranded on the rail's library icon.  Now `onNewIntent` (and the analogous `onCreate` deep-link branch) explicitly calls `channelsList.post { findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }` so the user lands on the first channel of the saved collection.
+>
+> **Files touched**:
+>   - `backend/library.py` — new realistic prompt + system message.
+>   - NEW Android: `ui/LibraryDialog.kt`, `res/layout/dialog_add_to_library.xml`, `res/drawable/library_dialog_bg.xml`, `library_progress_track.xml`, `library_progress_fill.xml`, `library_btn_primary_bg.xml`, `library_btn_secondary_bg.xml`.
+>   - EDIT `EpgActivity.kt` — replaced AlertDialog with LibraryDialog, focus into channels list on deep-link onCreate + onNewIntent.
+>   - EDIT `LibraryActivity.kt` — replaced AlertDialog with LibraryDialog, parallel Re-style ALL via `async`/`awaitAll`, dropped legacy import.
+>
+> **Verification**: 7 new/edited XML files re-parsed clean (Python ElementTree); `backend/library.py` byte-compiles clean; live `Sky Sports UK` regen test passed (`hash=ee58ef82…`, 12.3 s, image/jpeg, 1.22 MB).  Kotlin compile deferred to `build-livetv.yml` on next push.
+
 > **🟢 v2.8.132 — Vesper TV: hide stream URLs in autoplay + green Watched / yellow Watching episode badges (Feb 14, 2026).**
 >
 > Two refinements to `frontend/src/components/SeriesEpisodes.jsx`:
