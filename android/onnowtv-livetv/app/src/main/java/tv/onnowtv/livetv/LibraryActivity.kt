@@ -237,10 +237,17 @@ class LibraryActivity : AppCompatActivity() {
                 dlg.showBusy("Re-styling ${all.size} covers in parallel…")
                 for (c in all) collectionsAdapter.setBusy(c.id, true)
                 lifecycleScope.launch {
+                    // The async-on-Collection-map call below needs a
+                    // CoroutineScope receiver, but the `.map { }`
+                    // lambda doesn't carry one.  Capture `this` and
+                    // call `async` through the captured scope so the
+                    // extension resolves correctly.
+                    val scope = this
                     val jobs = all.map { c ->
-                        kotlinx.coroutines.async(Dispatchers.IO) {
+                        scope.async(Dispatchers.IO) {
                             try {
-                                val gen = CoversApi.generate(c.name, forceSalt = CoversApi.freshSalt())
+                                val gen = CoversApi.generate(
+                                    c.name, forceSalt = CoversApi.freshSalt())
                                 CollectionsStore.update(this@LibraryActivity,
                                     c.copy(coverHash = gen.hash, coverUrl = gen.url))
                             } catch (_: Throwable) {
