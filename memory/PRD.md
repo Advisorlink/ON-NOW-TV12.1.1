@@ -1,5 +1,29 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.9.2 — Kids extracted into a standalone APK with HOME-button lockdown (Feb 2026).**
+>
+> Per the user's "remove the kids section from Vesper entirely and have it as a stand-alone app" request, Kids mode is no longer part of Vesper TV.  It now ships as its own Android module that wraps the same React `/kids` tree in a kiosk shell with native HOME interception and a 4-digit PIN gate.
+>
+> **A. New module: `android/onnowtv-kids/`** — scaffolded from `onnowtv-fta`'s WebView wrapper.
+>   - Package: `tv.onnowtv.kids`.  Loads `${app_url}/kids` (shared React build).
+>   - Manifest: **two** intent filters on `MainActivity` — the regular `LAUNCHER`/`LEANBACK_LAUNCHER` PLUS `CATEGORY_HOME` + `CATEGORY_DEFAULT`.  After the parent picks the Kids APK as the default home app (Settings → Default apps → Home), every HOME-button press routes back into Kids; the PIN gate then decides whether to let them out.
+>   - Native PIN overlay: 4-digit `kids_pin_box_*` boxes driven by the remote's number keys via `dispatchKeyEvent`.  Default PIN `0000` (Toast prompts the parent to change it in Settings on first run).  Shake animation on wrong PIN.
+>   - **Triggers for the PIN gate**: BACK at WebView root, HOME (`onNewIntent` with `CATEGORY_HOME`), and the on-screen Settings gear (left rail).  Nothing else.
+>   - Left settings rail (`kids_settings_rail`) — slim transparent column down the left edge with a single ⚙ gear button.  Tapping it raises the PIN overlay; on success the WebView loads `/kids/settings?gate=passed` (ratings, content types, change PIN).
+>   - JS bridge: `window.OnNowKids` — `openExoPlayer(...)`, `isNativePlayerAvailable()`, plus `savePin(newPin)` so the React Settings page keeps the native PIN store in sync with localStorage.
+>   - New GitHub Actions workflow: `.github/workflows/build-kids.yml` (mirrors `build-fta.yml`).  Publishes `kids-latest` release with both debug + release APKs.
+>
+> **B. Vesper TV — Kids wiring stripped.**
+>   - `App.js`: `HomeRouter()` always returns `<Home />`; `?profile=kids` / `?profile=exit-kids` deep-link branches are now no-ops.  React Kids pages (`KidsHome`, `KidsExitPin`, `KidsSetup`, `KidsSettings`) stay in the tree because the standalone Kids APK loads them from the same React build.
+>
+> **C. Launcher — Kids tile rewired.**
+>   - `onTileSelected` for the Kids tile now launches `tv.onnowtv.kids` directly (no more Vesper `?profile=kids` deep-link).
+>   - `enforceKidsLockIfNeeded()` is now a no-op stub — the Kids APK owns its own lockdown.
+>
+> **Verification status**: code compile pending on next GitHub Actions run.  Functional verification requires sideloading the Kids APK + setting it as the default home app.
+
+
+
 > **🟢 v2.9.1 — Brand-styled dialogs, "+ Add Collection" header button, category bulk-add, back-to-Library, blue spinner, player controls, v14 cover prompt (Feb 2026).**
 >
 > **Big changes in this push:**

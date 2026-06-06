@@ -215,29 +215,13 @@ if (typeof window !== 'undefined') {
         const lockedInKids = cur === 'kids' && kidsPin && kidsPin.length === 4;
 
         if (profileParam === 'kids') {
-            // Remember the user's adult profile BEFORE we switch to
-            // Kids — so a later Movies/TV tap restores them, not
-            // dump them on the profile picker.
-            if (cur && cur !== 'kids') {
-                localStorage.setItem(LAST_NON_KIDS_KEY, cur);
-            }
-            localStorage.setItem(ACTIVE_KEY, 'kids');
+            // v2.9.2 — Kids extracted into a standalone APK
+            // (`tv.onnowtv.kids`).  Vesper no longer enters Kids
+            // mode from a deep-link; the launcher tile now starts
+            // the Kids APK directly.  Strip the query and ignore.
         } else if (profileParam === 'exit-kids') {
-            if (lockedInKids) {
-                // PIN-protected — refuse the silent switch.  The
-                // route handler below will strip the query so a
-                // refresh doesn't keep re-trying.  The kid stays in
-                // Kids mode and must hit "Exit Kids" → enter PIN.
-            } else {
-                const previous = localStorage.getItem(LAST_NON_KIDS_KEY);
-                if (previous) {
-                    localStorage.setItem(ACTIVE_KEY, previous);
-                } else {
-                    // No adult profile remembered → clear so the
-                    // ProfileSelect picker takes over.
-                    localStorage.removeItem(ACTIVE_KEY);
-                }
-            }
+            // v2.9.2 — see above.  No-op for symmetry; the Kids APK
+            // owns its own exit-PIN gate.
         } else {
             // v2.8.5 — Per user spec: every time Vesper boots without
             // a `?profile=…` deep-link, ALWAYS land on the profile
@@ -356,7 +340,9 @@ function RequireProfile({ children }) {
 }
 
 function HomeRouter() {
-    return isKidsActive() ? <KidsHome /> : <Home />;
+    // v2.9.2 — Kids extracted into its own APK; Vesper always
+    // shows the adult Home now regardless of legacy profile state.
+    return <Home />;
 }
 
 /* Routes where the mobile bottom-nav should be hidden — full-bleed

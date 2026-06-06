@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 KIDS — splash overlay.  Sits on top of the WebView
+    until React's `onPageFinished` fires; then MainActivity fades it
+    out across 450ms.  Pure type splash — big "V2 KIDS" wordmark in
+    the centre with the warm tangerine→magenta gradient background.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/kids_splash_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_gradient">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="V2"
+            android:textColor="#FFE9DA"
+            android:textSize="110sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.04"
+            android:layout_marginEnd="22dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KIDS"
+            android:textColor="#FFFFFF"
+            android:textSize="110sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.02" />
+    </LinearLayout>
+</FrameLayout>

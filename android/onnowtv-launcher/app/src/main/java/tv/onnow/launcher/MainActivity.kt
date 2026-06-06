@@ -137,9 +137,12 @@ class MainActivity : AppCompatActivity() {
         // sees the launcher.  Source-of-truth is the launcher
         // backend's /api/launcher/kids-lock/{device_id} endpoint —
         // Vesper sets it true when Kids+PIN activates, sets it false
-        // on PIN-out.  The bounce is best-effort: a network failure
-        // (offline box) silently no-ops — the in-Vesper PIN gate
-        // remains the canonical lock.
+        // v2.9.2 — Kids extracted into its own APK with native HOME
+        // lockdown.  The launcher no longer needs to bounce HOME
+        // presses to Vesper-Kids; the Kids APK registers itself as
+        // CATEGORY_HOME and gates its own exit PIN.  Keeping the
+        // method name as a stub so older configurations still call
+        // through cleanly.
         enforceKidsLockIfNeeded()
     }
 
@@ -179,52 +182,12 @@ class MainActivity : AppCompatActivity() {
      *     reconnected box can recover from a stuck-locked state.
      */
     private fun enforceKidsLockIfNeeded() {
-        // 1. Cheap synchronous read of the last-known state from
-        //    SharedPreferences.  If locked, paint a black overlay
-        //    IMMEDIATELY so the kid doesn't see the launcher while
-        //    we relaunch Vesper.
-        val prefs = getSharedPreferences("kids_lock_cache", MODE_PRIVATE)
-        val cachedLocked = prefs.getBoolean("locked", false)
-        val cachedTs = prefs.getLong("ts", 0L)
-        val cacheAgeMs = System.currentTimeMillis() - cachedTs
-        val cacheFresh = cacheAgeMs in 0..(24L * 3600 * 1000)
-        if (cachedLocked && cacheFresh) {
-            showKidsLockOverlayAndBounce()
-        }
-        // 2. Always also poll the LIVE state — the cache might be
-        //    stale (PIN was just entered on another box, etc.).
-        //    Background coroutine; updates the cache + bounces if
-        //    the live answer flips to locked.
-        lifecycleScope.launch(Dispatchers.IO) {
-            val deviceId = tv.onnow.launcher.onboarding.OnboardingActivity
-                .deviceId(this@MainActivity)
-            val baseUrl = LauncherRepository.DEFAULT_BASE_URL.trimEnd('/')
-            val url = "$baseUrl/api/launcher/kids-lock/$deviceId"
-            val locked: Boolean = try {
-                val conn = (java.net.URL(url).openConnection()
-                    as java.net.HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 5_000
-                    readTimeout = 5_000
-                }
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                conn.disconnect()
-                val parsed = org.json.JSONObject(body)
-                parsed.optBoolean("locked", false)
-            } catch (_: Throwable) {
-                // Offline / backend down — fall back to cache.
-                cachedLocked && cacheFresh
-            }
-            // Persist the fresh state so the next onResume can
-            // short-circuit the overlay without waiting for HTTP.
-            prefs.edit()
-                .putBoolean("locked", locked)
-                .putLong("ts", System.currentTimeMillis())
-                .apply()
-            if (locked) withContext(Dispatchers.Main) {
-                showKidsLockOverlayAndBounce()
-            }
-        }
+        // v2.9.2 — Kids is now a standalone APK that owns its own
+        // CATEGORY_HOME / PIN lockdown.  This launcher-side bounce
+        // is therefore obsolete; the method stays as a no-op for
+        // call-site stability.  The backend `/api/launcher/kids-
+        // lock/<device>` endpoint still ships but is no longer
+        // consulted by the launcher.
     }
 
     /**
@@ -411,49 +374,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun onTileSelected(item: DockItem) {
         // 1. If the tile points at a target package + the package is
-        //    installed, launch it directly.  v1.6 — When the tile is
-        //    the Kids tile AND it targets Vesper, we ALSO pass the
-        //    `?profile=kids` deep-link so the Vesper WebView boots
-        //    straight into the sandboxed Kids profile.
-        //    v1.8 — Any OTHER tile that targets Vesper passes
-        //    `profile=exit-kids` so re-entering from Movies/TV /
-        //    Music / etc. drops the user OUT of Kids mode (instead
-        //    of inheriting the previous Kids session via Vesper's
-        //    saved last_url).
+        //    installed, launch it directly.  v2.9.2 — Kids is now
+        //    a STANDALONE APK (`tv.onnowtv.kids`).  The "kids" tile
+        //    auto-routes to that package; previous Vesper deep-link
+        //    handling (`?profile=kids` / `?profile=exit-kids`) is
+        //    removed because Vesper no longer carries any Kids
+        //    profile wiring.
         val pkg = item.targetPackage
-        val targetsVesper = pkg == "tv.onnowtv.app"
         if (!pkg.isNullOrBlank()) {
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
             if (launchIntent != null) {
-                if (item.key == "kids") {
-                    launchIntent.putExtra("vesper_route", "/?profile=kids")
-                    launchIntent.data = Uri.parse("onnowtv://launch?profile=kids")
-                } else if (targetsVesper) {
-                    launchIntent.putExtra("vesper_route", "/?profile=exit-kids")
-                    launchIntent.data =
-                        Uri.parse("onnowtv://launch?profile=exit-kids")
-                }
                 startActivity(launchIntent)
                 return
             }
         }
-        // 1b. v1.6 — Kids tile auto-routes to Vesper even if
-        //     `target_package` wasn't set by the admin.  Falls back
-        //     to a Play-Store / browser deep-link if Vesper isn't
-        //     installed locally.
+        // 1b. v2.9.2 — Kids tile auto-routes to the standalone Kids
+        //     APK even if `target_package` wasn't set by the admin.
+        //     Falls back to opening Kids in a browser if the APK is
+        //     not installed locally.
         if (item.key == "kids") {
-            val vesperPkg = "tv.onnowtv.app"
-            val launchIntent = packageManager.getLaunchIntentForPackage(vesperPkg)
+            val kidsPkg = "tv.onnowtv.kids"
+            val launchIntent = packageManager.getLaunchIntentForPackage(kidsPkg)
             if (launchIntent != null) {
-                launchIntent.putExtra("vesper_route", "/?profile=kids")
-                launchIntent.data = Uri.parse("onnowtv://launch?profile=kids")
                 startActivity(launchIntent)
                 return
             }
-            // Vesper not installed — open Kids in a browser instead.
             val webBase = repo.baseUrlPublic()
             if (webBase.isNotBlank()) {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$webBase/?profile=kids")))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$webBase/kids")))
                 return
             }
         }
