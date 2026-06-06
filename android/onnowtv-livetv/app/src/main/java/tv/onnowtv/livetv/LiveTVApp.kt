@@ -93,21 +93,7 @@ class LiveTVApp : Application() {
             "LiveTVApp",
             "Cover-cache purge: applying v$applied → v$COVER_PURGE_VERSION",
         )
-        // 1. Wipe every persisted Collection's cover pointer so the
-        //    UI re-paints in the "no cover yet" state at next launch.
-        try {
-            val store = tv.onnowtv.livetv.data.CollectionsStore
-            val all = store.load(this)
-            all.forEach { c ->
-                if (c.coverHash != null || c.coverUrl != null) {
-                    store.update(this, c.copy(coverHash = null, coverUrl = null))
-                }
-            }
-            Log.i("LiveTVApp", "Cleared coverHash/coverUrl on ${all.size} collections")
-        } catch (t: Throwable) {
-            Log.e("LiveTVApp", "Failed to clear collection covers", t)
-        }
-        // 2. Drop Coil's memory + disk image caches so old bytes
+        // 1. Drop Coil's memory + disk image caches so old bytes
         //    cannot survive even if the URL coincidentally collides.
         try {
             val loader = coil.Coil.imageLoader(this)
@@ -117,13 +103,61 @@ class LiveTVApp : Application() {
         } catch (t: Throwable) {
             Log.e("LiveTVApp", "Failed to clear Coil cache", t)
         }
+        // 2. Wipe every persisted Collection's cover pointer AND
+        //    kick off a background regeneration for each so the
+        //    user doesn't have to tap "Re-style ALL" manually.
+        //    Without this auto-regen the Library opens with blank
+        //    tiles until the user goes hunting for the menu — which
+        //    is exactly the friction the v2.8.143 manual purge had.
+        try {
+            val store = tv.onnowtv.livetv.data.CollectionsStore
+            val all = store.load(this).toList()
+            // Step A: clear pointers immediately so the UI repaints
+            // with the "no cover yet" tiles right away.
+            all.forEach { c ->
+                if (c.coverHash != null || c.coverUrl != null) {
+                    store.update(this, c.copy(coverHash = null, coverUrl = null))
+                }
+            }
+            Log.i("LiveTVApp", "Cleared coverHash/coverUrl on ${all.size} collections")
+            // Step B: fire a single background coroutine that loops
+            // through every collection and regenerates fresh covers
+            // serially (rate-limited, ~25 s each, won't hammer the
+            // backend or burn through the OpenAI budget in parallel).
+            if (all.isNotEmpty()) {
+                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    for (c in all) {
+                        try {
+                            val gen = tv.onnowtv.livetv.data.CoversApi.generate(
+                                name = c.name,
+                                forceSalt = tv.onnowtv.livetv.data.CoversApi.freshSalt(),
+                            )
+                            store.update(
+                                this@LiveTVApp,
+                                c.copy(coverHash = gen.hash, coverUrl = gen.url),
+                            )
+                            Log.i("LiveTVApp", "Auto-regen cover OK: ${c.name}")
+                        } catch (t: Throwable) {
+                            Log.e("LiveTVApp", "Auto-regen failed: ${c.name}", t)
+                        }
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            Log.e("LiveTVApp", "Failed to clear collection covers", t)
+        }
         prefs.edit().putInt("cover_purge_applied", COVER_PURGE_VERSION).apply()
     }
 
     companion object {
         /** Bump this whenever the cover-generation provider or
          *  baseline prompt changes — on next app launch every
-         *  device wipes its local cover cache exactly once. */
-        const val COVER_PURGE_VERSION = 2  // v2.8.143 → 2
+         *  device wipes its local cover cache AND auto-regenerates
+         *  every Collection in the background, exactly once.
+         *
+         *  v2 — v2.8.143 (Gemini → GPT-Image-1 manual purge)
+         *  v3 — v2.8.146 (auto-regen, kills the "still showing the
+         *       old legal-imagery covers" complaint) */
+        const val COVER_PURGE_VERSION = 3
     }
 }

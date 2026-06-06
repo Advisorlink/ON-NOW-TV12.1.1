@@ -1,5 +1,26 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.146 — Auto-regenerate covers on first launch (kills the "still showing the old legal-imagery covers" complaint)
+
+User reported (correctly + furiously) that the device was still showing covers with gavel / scales-of-justice / courtroom imagery despite the server-side prompt being fixed multiple iterations ago.  Root cause: those covers were generated DAYS ago when the prompt still had "legal project" in it; they live in the device's `CollectionsStore` (and Coil's image cache) as `coverHash` + `coverUrl` pointers, and the v2.8.143 manual purge expected the user to tap **Re-style ALL** in the UI to actually re-generate.  That friction made it look like the fix wasn't applied.
+
+### Fix: auto-regen everything on the next post-v2.8.146 launch
+`LiveTVApp.applyCoverPurgeIfNeeded()` now:
+
+1. Clears Coil's memory + disk image cache.
+2. Wipes every `coverHash` / `coverUrl` on every Collection.
+3. **Fires a `GlobalScope.launch(IO)` coroutine that walks every Collection and serially regenerates a fresh cover** via `CoversApi.generate(name, forceSalt=freshSalt())`.  Each regen ~25 s @ `quality="medium"` ≈ $0.06.  Four visible Collections ⇒ ~$0.24 spend, fully done in ~2 minutes after first launch with the user doing literally nothing.
+
+`COVER_PURGE_VERSION` bumped `2 → 3` so devices that already ran the v2 purge run the v3 auto-regen exactly once.
+
+### Server side
+- Server-side cache wiped one more time (final 2 lingering docs deleted) so all regenerations start from a clean Mongo.
+- Prompt is unchanged from v2.8.144 — the locked ChatGPT-style enhanced wording with the 12 % safe-area clause.
+
+### Files touched
+- `android/.../LiveTVApp.kt` — auto-regen loop + `COVER_PURGE_VERSION = 3`.
+- Mongo `library_covers` — wiped again pre-build.
+
 ## v2.8.145 — Orbital brand loader everywhere + focus borders reverted to thin neon
 
 ### Orbital loader (signature buffering animation)
