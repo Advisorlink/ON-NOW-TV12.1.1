@@ -88,6 +88,13 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
     # lettering in his reference set.  Without them the raw API
     # gives a clean but flat result.
     #
+    # CRITICAL safe-area clause: gpt-image-1 LOVES to push the
+    # brand-mark text and subjects right up against the image
+    # edges (we saw the "U" in UK SKY SPORTS getting clipped on
+    # the left).  The explicit "≥6% inset / nothing touches the
+    # edges" instruction forces the model to keep all primary
+    # elements inside a centred safe-area rectangle.
+    #
     # We also phrase the brand element as "channel name as a bold
     # designed brand mark" instead of "channel logo".  At
     # quality="high" with literal "logo" language + a real broadcaster
@@ -108,8 +115,13 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
         f"animals for a kids channel, several athletes mid-action for "
         f"sports, etc.).  Cinematic lighting, vibrant saturated colours, "
         f"dramatic 3D illustration / Pixar-grade rendering.  Black "
-        f"gradient anchoring the BOTTOM of the frame.  Edge-to-edge, "
-        f"no letterboxing."
+        f"gradient anchoring the BOTTOM of the frame.  "
+        f"IMPORTANT — SAFE AREA: keep ALL of the brand-mark "
+        f"typography AND every subject COMPLETELY INSIDE the frame "
+        f"with at least 6% padding from every edge.  NEVER let any "
+        f"letter, head, limb or object touch or get clipped by the "
+        f"left, right, top or bottom borders.  The brand mark must "
+        f"read as one whole word, not chopped off."
     )
 
 
