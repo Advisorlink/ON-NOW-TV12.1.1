@@ -3,40 +3,26 @@ import React from "react";
 /**
  * OrbitalLoader — the brand loader for Vesper TV.
  *
- * Three concentric rings pulse outward from a glowing centre,
- * each ring staggered by ~1/3 of the cycle so the loop looks
- * continuous rather than metronomic.  Pure CSS animations, no
- * JS, no images.  Slowed to a 2.4s cycle so it feels graceful
- * on the loading screen, not anxious.
+ * Per v2.9.1 user request: a SIMPLE, slow, single-colour blue
+ * spinning ring.  No purple, no pulses, no glow — just a quiet
+ * 3⁄4-arc ring rotating at 2.4s/turn so the buffering state
+ * doesn't fight for attention.
  *
- * Usage:
- *   <OrbitalLoader size={120} />
- *   <OrbitalLoader size={64} accentA="#5DC8FF" accentB="#FF8AA9" />
+ * Usage: <OrbitalLoader size={48} />
  */
 export const OrbitalLoader = ({
-  size = 120,
-  accentA = "#5DC8FF",
-  accentB = "#C16BFF",
+  size = 48,
+  color = "#5DC8FF",
   className = "",
 }) => {
-  // Each rendered loader gets a private animation namespace so two
-  // instances on the same page don't share keyframe identifiers.
   const id = React.useId().replace(/:/g, "");
-  const core = Math.max(6, Math.round(size * 0.11));
-  const ring = Math.max(1.5, Math.round(size * 0.018));
-  const cycle = 2.4; // seconds — slow + graceful
-
-  const ringStyle = (delay, color) => ({
-    position: "absolute",
-    inset: 0,
-    borderRadius: "50%",
-    border: `${ring}px solid ${color}`,
-    boxShadow: `0 0 ${ring * 6}px ${color}`,
-    opacity: 0,
-    transformOrigin: "center center",
-    animation: `orbital-pulse-${id} ${cycle}s cubic-bezier(0.22, 0.61, 0.36, 1) infinite`,
-    animationDelay: `${delay}s`,
-  });
+  const stroke = Math.max(2, Math.round(size * 0.07));
+  const radius = size / 2 - stroke;
+  const circumference = 2 * Math.PI * radius;
+  // 3⁄4 of the ring is drawn, 1⁄4 is the gap that gives the spin
+  // its sense of motion.
+  const dash = circumference * 0.75;
+  const gap = circumference * 0.25;
 
   return (
     <div
@@ -45,44 +31,37 @@ export const OrbitalLoader = ({
       style={{
         width: size,
         height: size,
-        position: "relative",
         display: "inline-block",
+        lineHeight: 0,
       }}
     >
       <style>{`
-        @keyframes orbital-pulse-${id} {
-          0%   { transform: scale(0.18); opacity: 0.0; }
-          15%  { opacity: 0.95; }
-          100% { transform: scale(1.0);  opacity: 0.0; }
+        @keyframes orbital-spin-${id} {
+          0%   { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
-        @keyframes orbital-core-${id} {
-          0%, 100% { transform: scale(1.0); opacity: 0.85; }
-          50%      { transform: scale(1.18); opacity: 1.0; }
+        .orbital-loader-svg-${id} {
+          animation: orbital-spin-${id} 2.4s linear infinite;
+          transform-origin: 50% 50%;
         }
       `}</style>
-
-      {/* Three pulsating rings — staggered by 1/3 of the cycle so
-          there's always a ring expanding outward. */}
-      <div style={ringStyle(0, accentA)} />
-      <div style={ringStyle(cycle / 3, accentB)} />
-      <div style={ringStyle((cycle * 2) / 3, accentA)} />
-
-      {/* Glowing centre core — gently breathes with the ring rhythm. */}
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          width: core * 2,
-          height: core * 2,
-          marginLeft: -core,
-          marginTop: -core,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at 35% 35%, ${accentA}, ${accentB})`,
-          boxShadow: `0 0 ${core * 1.8}px ${accentA}, 0 0 ${core * 0.9}px ${accentB}`,
-          animation: `orbital-core-${id} ${cycle}s ease-in-out infinite`,
-        }}
-      />
+      <svg
+        className={`orbital-loader-svg-${id}`}
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+        />
+      </svg>
     </div>
   );
 };

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vertical gradient anchoring the player controls bar to the
+     bottom of the screen so the buttons stay legible regardless of
+     what's currently on screen. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="90"
+        android:startColor="#E60B111E"
+        android:endColor="#000B111E" />
+</shape>

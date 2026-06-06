@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Header-mounted "+ ADD COLLECTION" pill button.  Idle = dashed
+     neon border, focus = solid neon fill so the d-pad cursor pops.
+     Lives top-right of the Collections section in activity_library
+     (replaces the old front-of-row virtual tile in v2.9.1). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#335DC8FF" />
+            <stroke android:width="1.5dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#665DC8FF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#0E1422" />
+            <stroke
+                android:width="1.2dp"
+                android:color="#5DC8FF"
+                android:dashWidth="5dp"
+                android:dashGap="4dp" />
+        </shape>
+    </item>
+</selector>

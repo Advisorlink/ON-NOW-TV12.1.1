@@ -8,6 +8,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.C
@@ -92,6 +93,33 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tunePill: TextView
     private lateinit var bufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
 
+    // v2.9.1: brand-styled bottom controls bar + dedicated info
+    // card.  All views live in `activity_player.xml`; init in
+    // `onCreate()`.  See `showControlsBar()` for the open / auto-
+    // hide flow.
+    private lateinit var controlsBar: LinearLayout
+    private lateinit var btnPlayPause: TextView
+    private lateinit var btnRewind: TextView
+    private lateinit var btnForward: TextView
+    private lateinit var btnSubtitles: TextView
+    private lateinit var btnAspect: TextView
+    private lateinit var btnInfo: TextView
+    private lateinit var playerInfoCard: LinearLayout
+    private lateinit var playerInfoLogo: ImageView
+    private lateinit var playerInfoChannel: TextView
+    private lateinit var playerInfoProgramme: TextView
+    private lateinit var playerInfoDescription: TextView
+    private val controlsHideHandler = Handler(Looper.getMainLooper())
+    private var subtitlesEnabled: Boolean = false
+    private val aspectModes = intArrayOf(
+        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+    )
+    private val aspectLabels = arrayOf("Fit", "Zoom", "Fill", "16:9")
+    private var aspectModeIndex = 0
+
     private val hideHandler = Handler(Looper.getMainLooper())
     private val numberHandler = Handler(Looper.getMainLooper())
     private val progressHandler = Handler(Looper.getMainLooper())
@@ -120,6 +148,21 @@ class PlayerActivity : AppCompatActivity() {
         infoUpNext    = findViewById(R.id.info_up_next)
         tunePill      = findViewById(R.id.tune_pill)
         bufferLoader  = findViewById(R.id.buffer_loader)
+
+        // v2.9.1 — bottom control bar + info card.
+        controlsBar   = findViewById(R.id.player_controls_bar)
+        btnPlayPause  = findViewById(R.id.btn_player_playpause)
+        btnRewind     = findViewById(R.id.btn_player_rewind)
+        btnForward    = findViewById(R.id.btn_player_forward)
+        btnSubtitles  = findViewById(R.id.btn_player_subtitles)
+        btnAspect     = findViewById(R.id.btn_player_aspect)
+        btnInfo       = findViewById(R.id.btn_player_info)
+        playerInfoCard = findViewById(R.id.player_info_card)
+        playerInfoLogo = findViewById(R.id.player_info_logo)
+        playerInfoChannel = findViewById(R.id.player_info_channel)
+        playerInfoProgramme = findViewById(R.id.player_info_programme)
+        playerInfoDescription = findViewById(R.id.player_info_description)
+        wirePlayerControls()
 
         val url = intent.getStringExtra(EXTRA_URL)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
@@ -552,26 +595,61 @@ class PlayerActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
+                if (controlsBar.visibility == View.VISIBLE) {
+                    hideControlsBar()
+                    return true
+                }
                 finish(); return true
             }
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_CHANNEL_UP,
             KeyEvent.KEYCODE_PAGE_UP -> {
+                if (controlsBar.visibility == View.VISIBLE) {
+                    hideControlsBar(); return true
+                }
                 PlaybackQueue.prev()?.let { tuneTo(it) }
                 return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_CHANNEL_DOWN,
             KeyEvent.KEYCODE_PAGE_DOWN -> {
-                PlaybackQueue.next()?.let { tuneTo(it) }
+                // v2.9.1: DOWN now reveals the controls bar instead
+                // of zapping channels.  Channel-down moves to the
+                // remote's dedicated CHANNEL_DOWN button (handled
+                // separately in the case label above when controls
+                // are hidden).
+                if (controlsBar.visibility != View.VISIBLE) {
+                    showControlsBar()
+                    return true
+                }
+                return super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                // Open controls on L/R from the bare player surface
+                // so it's discoverable.  Once visible the standard
+                // focus-search d-pad logic takes over.
+                if (controlsBar.visibility != View.VISIBLE) {
+                    showControlsBar()
+                    return true
+                }
+                return super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                togglePlayPause()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_INFO -> {
-                // OK / INFO re-shows the info card without changing channel.
-                currentChannel?.let { renderInfoCard(it) }
+                if (controlsBar.visibility == View.VISIBLE) {
+                    return super.onKeyDown(keyCode, event)  // let the focused button handle it
+                }
+                currentChannel?.let { renderInfoCard(it); renderPlayerInfoCard(it) }
                 showInfoCard()
+                showPlayerInfoCard()
                 return true
             }
             KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_2,
@@ -583,6 +661,139 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    /* ─────────────────── v2.9.1 control bar ─────────────────── */
+
+    private fun wirePlayerControls() {
+        btnPlayPause.setOnClickListener { togglePlayPause(); bumpControlsHide() }
+        btnRewind.setOnClickListener { seekRelative(-10_000L); bumpControlsHide() }
+        btnForward.setOnClickListener { seekRelative(+10_000L); bumpControlsHide() }
+        btnSubtitles.setOnClickListener { toggleSubtitles(); bumpControlsHide() }
+        btnAspect.setOnClickListener { cycleAspectMode(); bumpControlsHide() }
+        btnInfo.setOnClickListener {
+            currentChannel?.let { renderPlayerInfoCard(it) }
+            showPlayerInfoCard()
+            bumpControlsHide()
+        }
+        // Hide the bar on any focus change to a child of the bar
+        // after the inactivity timeout — the bumpControlsHide()
+        // calls below restart the countdown on every interaction.
+        listOf(btnPlayPause, btnRewind, btnForward, btnSubtitles, btnAspect, btnInfo).forEach { b ->
+            b.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) bumpControlsHide() }
+        }
+    }
+
+    private fun showControlsBar() {
+        controlsBar.alpha = 0f
+        controlsBar.visibility = View.VISIBLE
+        controlsBar.animate().alpha(1f).setDuration(160L).start()
+        // Always sync the Play/Pause label to the current state.
+        syncPlayPauseGlyph()
+        btnPlayPause.requestFocus()
+        // Show the channel info card alongside so the user has
+        // immediate context for what they're controlling.
+        currentChannel?.let { renderPlayerInfoCard(it) }
+        showPlayerInfoCard()
+        bumpControlsHide()
+    }
+
+    private fun hideControlsBar() {
+        controlsHideHandler.removeCallbacksAndMessages(null)
+        controlsBar.animate().alpha(0f).setDuration(160L).withEndAction {
+            controlsBar.visibility = View.GONE
+        }.start()
+    }
+
+    private fun bumpControlsHide() {
+        controlsHideHandler.removeCallbacksAndMessages(null)
+        controlsHideHandler.postDelayed({ hideControlsBar() }, 6_000L)
+    }
+
+    private fun togglePlayPause() {
+        val p = player ?: return
+        p.playWhenReady = !p.playWhenReady
+        syncPlayPauseGlyph()
+    }
+
+    private fun syncPlayPauseGlyph() {
+        val playing = player?.playWhenReady == true
+        btnPlayPause.text = if (playing) "⏸" else "▶"
+    }
+
+    private fun seekRelative(deltaMs: Long) {
+        val p = player ?: return
+        val pos = p.currentPosition
+        val dur = p.duration
+        val target = (pos + deltaMs).coerceAtLeast(0L)
+        if (dur > 0 && dur != androidx.media3.common.C.TIME_UNSET) {
+            p.seekTo(target.coerceAtMost(dur))
+        } else {
+            // Live stream — ExoPlayer treats seekTo() as a buffer
+            // jump when the source supports it.  Otherwise no-op +
+            // status hint so the user isn't confused by silence.
+            status.text = if (deltaMs > 0) "Live · cannot fast-forward" else "Live · cannot rewind"
+            hideHandler.removeCallbacksAndMessages(null)
+            hideHandler.postDelayed({ status.text = "" }, 1_400L)
+        }
+    }
+
+    private fun toggleSubtitles() {
+        val p = player ?: return
+        subtitlesEnabled = !subtitlesEnabled
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+            .setPreferredTextLanguage(if (subtitlesEnabled) "en" else null)
+            .build()
+        btnSubtitles.alpha = if (subtitlesEnabled) 1f else 0.55f
+        status.text = if (subtitlesEnabled) "Subtitles ON" else "Subtitles OFF"
+        hideHandler.removeCallbacksAndMessages(null)
+        hideHandler.postDelayed({ status.text = "" }, 1_400L)
+    }
+
+    private fun cycleAspectMode() {
+        aspectModeIndex = (aspectModeIndex + 1) % aspectModes.size
+        playerView.resizeMode = aspectModes[aspectModeIndex]
+        status.text = "Aspect · ${aspectLabels[aspectModeIndex]}"
+        hideHandler.removeCallbacksAndMessages(null)
+        hideHandler.postDelayed({ status.text = "" }, 1_400L)
+    }
+
+    /**
+     * Paint the bottom-left info card with the channel logo +
+     * current programme title + description.  Auto-fades 5s after
+     * each call (see [showPlayerInfoCard]).
+     */
+    private fun renderPlayerInfoCard(ch: Channel) {
+        playerInfoChannel.text = ch.name
+        if (!ch.logoUrl.isNullOrBlank()) {
+            playerInfoLogo.load(ch.logoUrl) { crossfade(true) }
+        } else {
+            playerInfoLogo.setImageDrawable(null)
+        }
+        val sid = ch.epgChannelId
+        val bundle = BundleHolder.current
+        val now = System.currentTimeMillis()
+        val live: Programme? = sid?.let { bundle?.epg?.get(it) }
+            ?.firstOrNull { it.isLiveAt(now) }
+        playerInfoProgramme.text = live?.title.orEmpty()
+        playerInfoDescription.text = live?.description.orEmpty()
+        playerInfoProgramme.visibility = if (live?.title.isNullOrBlank()) View.GONE else View.VISIBLE
+        playerInfoDescription.visibility = if (live?.description.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    private fun showPlayerInfoCard() {
+        playerInfoCard.alpha = 0f
+        playerInfoCard.visibility = View.VISIBLE
+        playerInfoCard.animate().alpha(1f).setDuration(180L).start()
+        playerInfoCard.removeCallbacks(infoCardHide)
+        playerInfoCard.postDelayed(infoCardHide, 5_000L)
+    }
+
+    private val infoCardHide = Runnable {
+        playerInfoCard.animate().alpha(0f).setDuration(220L).withEndAction {
+            playerInfoCard.visibility = View.GONE
+        }.start()
     }
 
     /* ─────────────────── Lifecycle ─────────────────── */
@@ -641,6 +852,7 @@ class PlayerActivity : AppCompatActivity() {
         numberHandler.removeCallbacksAndMessages(null)
         progressHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
+        controlsHideHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
         if (usingSharedPlayer) {
             // Detach the surface — DO NOT release the underlying

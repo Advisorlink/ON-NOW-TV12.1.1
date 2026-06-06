@@ -1,6 +1,43 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.9.0 — Collections rewritten as user-curated channel lists + pulsating-ring loaders + GPT-Image-1 HQ no-logos v13 prompt (Feb 2026).**
+> **🟢 v2.9.1 — Brand-styled dialogs, "+ Add Collection" header button, category bulk-add, back-to-Library, blue spinner, player controls, v14 cover prompt (Feb 2026).**
+>
+> **Big changes in this push:**
+>
+> **A. UI consistency — all popups are now brand-styled.**  Replaced every `AlertDialog.Builder` call with the new reusable [`ActionSheetDialog`](android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/ui/ActionSheetDialog.kt) (dark navy card, neon-blue divider, focusable rows with d-pad highlight) and [`dialog_name_input.xml`](android/onnowtv-livetv/app/src/main/res/layout/dialog_name_input.xml) (matching input field).  Used by channel long-press, Add-to-Collection picker, category long-press, collection manage menu, and the rename / create-collection flows.
+>
+> **B. "+ Add Collection" moved to the section header (top-right).**  No longer a virtual tile at the front of the Collections row — it's a pill button in the Collections header on `activity_library.xml`.  Empty-state placeholder updated to "TAP + ADD COLLECTION TO START — OR LONG-PRESS A CHANNEL".  Adapter dropped its TYPE_ADD view-type.
+>
+> **C. Channel long-press → action sheet with inline "+ Add new collection".**  The Add-to-Collection sub-menu now pins "+ Add new collection" at the top so the user can spawn a brand-new collection containing the current channel without bouncing back to the Library.  Existing collections show a ✓ when already containing the channel.
+>
+> **D. Category long-press → "Add all channels to collection".**  Restored in v2.9.1 with a new purpose: bulk-add every channel in a category to an existing collection OR create a new one pre-loaded with all of them.
+>
+> **E. Back from collection EPG → Library (not exit).**  `EpgActivity.onBackPressed()` now launches `LibraryActivity` when `currentCollection != null` so the user can pick another collection without leaving the app.  `LibraryActivity.openCollection` no longer calls `finish()`.
+>
+> **F. Loaders → simple blue spinning ring, smaller + slower.**  Both React `OrbitalLoader.jsx` and native `OrbitalLoaderView.kt` are now a single-colour `#5DC8FF` 3⁄4 arc rotating at 2.4 s/turn.  No purple, no glow, no pulses — quiet single-tone spinner.  Player buffer loader reduced from 180dp to 48dp.
+>
+> **G. Player controls overlay added.**  New bottom control bar on `activity_player.xml` with Play/Pause, ±10s seek, CC subtitles toggle, aspect-ratio cycle (Fit/Zoom/Fill/16:9), and Info button.  Opens on DPAD_DOWN / DPAD_LEFT / DPAD_RIGHT, auto-hides 6s after the last input.  Channel info card re-enabled at bottom-left with channel logo + name + current programme title + description.
+>
+> **H. Cover prompt v14 — copyright tolerance + cleaner wording.**  User clarified copyright isn't a concern; only logos & text need to stay out.  Bumped `PROMPT_RECIPE_VERSION` so cache rolls.  Verified at HQ: Kayo Sports (3-athlete photoreal montage), ESPN+ (NFL running back), UK Kids (flat-illustrated child + Big Ben + Union Jack flag — appropriately cartoon for kids), Sky Sports (footballer mid-volley).
+>
+> **Files touched (v2.9.1):**
+>   - **Backend**: `backend/library.py` — v14 prompt + cache version bump.
+>   - **React**: `frontend/src/components/OrbitalLoader.jsx` — single-colour 3⁄4 arc spinner.
+>   - **Native (Live TV)**:
+>     - `ui/OrbitalLoaderView.kt` — matching native spinner.
+>     - `ui/ActionSheetDialog.kt` (new) — brand-styled menu helper.
+>     - `ui/CollectionTileAdapter.kt` — dropped virtual "+ Add" tile.
+>     - `LibraryActivity.kt` — header-mounted Add button, styled dialogs, name-input helper.
+>     - `EpgActivity.kt` — restored category long-press (bulk-add), styled channel menu w/ inline "+ Add new collection", Back routes to Library in collection-mode.
+>     - `PlayerActivity.kt` — wired play/pause, seek, subtitles, aspect cycle, info card, controls bar with auto-hide.
+>   - **Layouts**: `activity_library.xml` (header button), `activity_player.xml` (controls bar + info card), `dialog_action_sheet.xml`, `dialog_name_input.xml`, `item_action_row.xml`.
+>   - **Drawables**: `action_sheet_card_bg.xml`, `action_sheet_row_bg.xml`, `input_field_bg.xml`, `library_add_btn_bg.xml`, `player_card_bg.xml`, `player_controls_gradient_bg.xml`, `player_button_bg.xml`.
+>   - **Themes**: `Theme.OnNowLiveTV.ActionSheet` added to `themes.xml`.
+>
+> **Verification status**: backend v14 generation verified at HQ (4 covers, all clean, photoreal sports + cartoon kids).  Android compile pending on user's device.
+
+
+> **🟢 v2.9.0 — Collections rewritten as user-curated channel lists + GPT-Image-1 HQ v13 prompt (Feb 2026, superseded by v2.9.1).**
 >
 > **Three big changes:**
 >

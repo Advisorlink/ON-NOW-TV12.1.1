@@ -81,25 +81,23 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # v11 — user's verbatim "cable tv categorie" wording PLUS an
-    # explicit "no logos, no text, no brand marks" guard appended
-    # at the end.  At quality="high" the safety filter is more
-    # permissive about real broadcaster wordmarks, so the explicit
-    # guard is what keeps the output logo-free.
+    # v14 — user clarified copyright isn't a concern; just keep
+    # all LOGOS and TEXT out of the image.  Real characters /
+    # IP-adjacent imagery is fine, the generator should pick
+    # whatever subject matches the category best.
     return (
-        f"I need a channel tile design for my project its a licensed "
-        f"project not showing any content just need an image the "
-        f"image needs to be a 16:9 tile and it needs to have a dark "
-        f"space on the left fading to some related image on the "
-        f"right.. there needs to be a black gradient on the bottom "
-        f"aswell. The image needs to relate to the cable tv "
-        f"categorie {cleaned}. the image should be of high quality "
-        f"for cable tv app. "
-        f"ABSOLUTELY NO LOGOS, no brand marks, no broadcaster logos, "
-        f"no channel logos, no text, no letters, no words, no "
-        f"numbers, no watermarks, no captions, no readable typography "
-        f"anywhere in the image — just a clean themed image on the "
-        f"right with the dark left fade."
+        f"I need a channel tile design for my project — a 16:9 "
+        f"image with a dark empty space on the left side for UI "
+        f"overlay, fading smoothly into a vibrant themed image on "
+        f"the right side.  There needs to be a subtle black "
+        f"gradient anchoring the bottom edge as well.  The image "
+        f"should clearly relate to the cable TV category "
+        f"\"{cleaned}\" and be high quality, premium, cinematic, "
+        f"suitable for a streaming-app tile.  "
+        f"ABSOLUTELY NO LOGOS, no text, no letters, no numbers, "
+        f"no words, no captions, no watermarks, no readable "
+        f"typography anywhere in the image — just the themed "
+        f"imagery on the right with the dark fade on the left."
     )
 
 
@@ -123,9 +121,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v10 — USER-LOCKED VERBATIM prompt (cable tv categorie), GPT-Image-1
 #   v11 — v10 prompt + strict no-logos / no-text guard, quality=high
 #   v12 — same prompt + no-logos guard, dropped back to quality=medium
-#   v13 — same prompt + no-logos guard, quality=high (current)
+#   v13 — same prompt + no-logos guard, quality=high
+#   v14 — copyright concerns dropped, cleaner wording, no-logos/no-text guard kept (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v13"
+PROMPT_RECIPE_VERSION = "v14"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:

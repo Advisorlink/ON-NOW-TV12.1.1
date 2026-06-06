@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focus + pressed states for the action-sheet rows.  Idle rows are
+     transparent so the parent card's deep navy shows through; focus
+     pulls in a translucent neon-blue fill so the d-pad cursor is
+     unambiguous on a TV at 3-metre viewing distance. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="#1F5DC8FF" />
+            <stroke android:width="1dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="#332C6EFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

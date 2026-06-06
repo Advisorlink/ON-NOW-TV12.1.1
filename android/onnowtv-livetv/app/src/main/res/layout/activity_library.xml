@@ -105,6 +105,26 @@
                 android:textColor="@color/livetv_fg_dim"
                 android:textSize="10sp"
                 android:text="0" />
+
+            <!-- v2.9.1: header-mounted "+ Add Collection" button.
+                 Replaces the virtual tile that used to sit at the
+                 front of the Collections row. -->
+            <TextView
+                android:id="@+id/lib_add_collection_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="14dp"
+                android:gravity="center"
+                android:paddingHorizontal="14dp"
+                android:text="+ ADD COLLECTION"
+                android:textColor="#5DC8FF"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:letterSpacing="0.22"
+                android:background="@drawable/library_add_btn_bg"
+                android:focusable="true"
+                android:clickable="true" />
         </LinearLayout>
 
         <FrameLayout
@@ -132,7 +152,7 @@
                 android:textColor="@color/livetv_fg_dim"
                 android:textSize="12sp"
                 android:letterSpacing="0.22"
-                android:text="LONG-PRESS A CATEGORY TO ADD ONE HERE"
+                android:text="TAP &quot;+ ADD COLLECTION&quot; TO START — OR LONG-PRESS A CHANNEL"
                 android:visibility="gone" />
         </FrameLayout>
 

@@ -378,13 +378,9 @@ class EpgActivity : AppCompatActivity() {
             // CHANNEL list below — that's the row the user wants
             // pre-populated when they pause for a second.
             onFocus = { /* no-op — apply on click only */ },
-            // Category long-press no-op: in v2.9.0 the user
-            // rebuilt Collections to be user-curated channel lists
-            // (created from the Library screen and populated by
-            // long-pressing OK on individual channels), so the
-            // old "long-press a category → add as a Collection"
-            // entry-point is gone.
-            onLongPick = { /* no-op */ },
+            // v2.9.1: category long-press now opens the brand
+            // action-sheet with bulk channel-to-collection ops.
+            onLongPick = { c -> showCategoryActionsMenu(c) },
         )
         categoriesList.layoutManager = LinearLayoutManager(this)
         categoriesList.adapter = categoryAdapter
@@ -652,6 +648,14 @@ class EpgActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (searchOverlay.visibility == View.VISIBLE) {
             closeSearchOverlay()
+            return
+        }
+        // v2.9.1: in collection-mode Back returns to the Library
+        // screen (not the launcher), so the user can pick another
+        // collection without bouncing through the EPG.
+        if (currentCollection != null) {
+            startActivity(Intent(this, LibraryActivity::class.java))
+            finish()
             return
         }
         super.onBackPressed()
@@ -1108,32 +1112,39 @@ class EpgActivity : AppCompatActivity() {
 
     /**
      * Channel long-press menu — replaces the old "toggle favourite"
-     * shortcut with a popup that offers:
-     *   • Add/Remove favourite
-     *   • Add to an existing collection (sub-menu lists each
-     *     collection by name)
-     *   • Remove from this collection (only when we're currently
-     *     viewing the EPG in collection-mode and the channel is in
-     *     the active collection)
+     * shortcut with the brand-styled [ActionSheetDialog] that
+     * offers:
+     *   • Add/Remove Favourite
+     *   • Add to Collection… (sub-menu w/ inline "+ Add new
+     *     collection" entry, then every existing collection)
+     *   • Remove from this collection (only in collection-mode)
      */
     private fun showChannelActionsMenu(ch: Channel) {
         val ctx = this
         val isFav = favouriteSet.contains(ch.id)
-        val collections = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
         val inCollectionMode = currentCollection != null
-        val items = mutableListOf<Pair<String, () -> Unit>>()
 
-        items += (if (isFav) "Remove from Favourites" else "Add to Favourites") to {
-            toggleFavourite(ch)
-        }
-        items += "Add to Collection…" to {
-            showAddToCollectionMenu(ch, collections)
-        }
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title(ch.name)
+            .subtitle("CHANNEL ACTIONS")
+
+        sheet.item(
+            label = if (isFav) "Remove from Favourites" else "Add to Favourites",
+            icon = "♥",
+        ) { toggleFavourite(ch) }
+
+        sheet.item(
+            label = "Add to Collection…",
+            icon = "+",
+        ) { showAddToCollectionMenu(ch) }
+
         if (inCollectionMode && currentCollection?.channelIds?.contains(ch.id) == true) {
-            items += "Remove from this collection" to {
+            sheet.item(
+                label = "Remove from this collection",
+                icon = "−",
+            ) {
                 currentCollection?.let { coll ->
                     tv.onnowtv.livetv.data.CollectionsStore.removeChannel(ctx, coll.id, ch.id)
-                    // Refresh local snapshot + repaint the middle column.
                     currentCollection = tv.onnowtv.livetv.data.CollectionsStore
                         .load(ctx).firstOrNull { it.id == coll.id }
                     applyCategory()
@@ -1145,15 +1156,7 @@ class EpgActivity : AppCompatActivity() {
             }
         }
 
-        val labels = items.map { it.first }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(ctx)
-            .setTitle(ch.name)
-            .setItems(labels) { d, idx ->
-                d.dismiss()
-                items[idx].second()
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
+        sheet.show()
     }
 
     private fun toggleFavourite(ch: Channel) {
@@ -1177,55 +1180,229 @@ class EpgActivity : AppCompatActivity() {
     }
 
     /**
-     * Second-level menu shown after the user picks "Add to
-     * Collection…".  Lists every collection by name; if there are
-     * none, offers to bounce out to the Library screen to create
-     * one.
+     * Add-to-Collection picker — every existing collection plus an
+     * inline "+ Add new collection" entry pinned at the top so the
+     * user can spawn a fresh collection directly from the channel
+     * context instead of bouncing back to the Library screen.
      */
-    private fun showAddToCollectionMenu(
-        ch: Channel,
-        collections: List<tv.onnowtv.livetv.data.LibraryCollection>,
-    ) {
+    private fun showAddToCollectionMenu(ch: Channel) {
         val ctx = this
-        if (collections.isEmpty()) {
-            androidx.appcompat.app.AlertDialog.Builder(ctx)
-                .setTitle("No collections yet")
-                .setMessage(
-                    "Open the Library and tap \"+ Add Collection\" first, " +
-                        "then long-press a channel again to add it."
-                )
-                .setPositiveButton("Open Library") { d, _ ->
-                    d.dismiss()
-                    startActivity(android.content.Intent(ctx, LibraryActivity::class.java))
-                }
-                .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-                .show()
-            return
-        }
-        val labels = collections.map { c ->
-            val mark = if (ch.id in c.channelIds) " ✓" else ""
-            "${c.name} (${c.channelIds.size})$mark"
-        }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(ctx)
-            .setTitle("Add ${ch.name} to…")
-            .setItems(labels) { d, idx ->
-                d.dismiss()
-                val target = collections[idx]
-                if (ch.id in target.channelIds) {
+        val collections = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title("Add \"${ch.name}\" to…")
+            .subtitle("PICK A COLLECTION")
+
+        sheet.item(
+            label = "+ Add new collection",
+            icon = "✦",
+            trailing = "CREATE",
+        ) { promptCreateCollectionForChannel(ch) }
+
+        for (c in collections) {
+            val alreadyIn = ch.id in c.channelIds
+            sheet.item(
+                label = c.name,
+                icon = if (alreadyIn) "✓" else "•",
+                trailing = "${c.channelIds.size}",
+            ) {
+                if (alreadyIn) {
                     android.widget.Toast.makeText(
-                        ctx, "Already in \"${target.name}\"",
+                        ctx, "Already in \"${c.name}\"",
                         android.widget.Toast.LENGTH_SHORT,
                     ).show()
-                    return@setItems
+                } else {
+                    tv.onnowtv.livetv.data.CollectionsStore.addChannel(ctx, c.id, ch.id)
+                    android.widget.Toast.makeText(
+                        ctx, "Added ${ch.name} to \"${c.name}\"",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
                 }
-                tv.onnowtv.livetv.data.CollectionsStore.addChannel(ctx, target.id, ch.id)
+            }
+        }
+
+        sheet.show()
+    }
+
+    /**
+     * Inline "create new collection" flow launched from the channel
+     * Add-to-Collection sub-menu.  Asks for a name in our styled
+     * dialog, creates the collection, immediately adds the channel
+     * to it, and kicks off an AI cover generation in the background.
+     */
+    private fun promptCreateCollectionForChannel(ch: Channel) {
+        showNameInputDialog(
+            title = "Name your new collection",
+            subtitle = "ADD \"${ch.name}\" TO IT",
+            initial = "",
+            placeholder = "e.g. Saturday Sports",
+        ) { typedName ->
+            val name = typedName.trim().ifBlank { "My Collection" }
+            val record = tv.onnowtv.livetv.data.LibraryCollection(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                coverHash = null,
+                coverUrl = null,
+                addedAt = System.currentTimeMillis(),
+                channelIds = listOf(ch.id),
+            )
+            tv.onnowtv.livetv.data.CollectionsStore.add(this, record)
+            android.widget.Toast.makeText(
+                this, "Created \"$name\" with ${ch.name}",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            // Fire-and-forget AI cover in the background.
+            lifecycleScope.launch {
+                try {
+                    val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        tv.onnowtv.livetv.data.CoversApi.generate(name)
+                    }
+                    tv.onnowtv.livetv.data.CollectionsStore.update(
+                        this@EpgActivity,
+                        record.copy(coverHash = gen.hash, coverUrl = gen.url),
+                    )
+                } catch (_: Throwable) { /* user can re-trigger from Library */ }
+            }
+        }
+    }
+
+    /**
+     * Category long-press menu — restored in v2.9.1 with a new
+     * purpose: bulk-adding every channel in the category to a
+     * collection (existing OR brand-new).  Synthetic virtual
+     * categories (`__all__`, `__favourites__`, `__recents__`,
+     * `__collection__`) are excluded.
+     */
+    private fun showCategoryActionsMenu(category: Category) {
+        if (category.id.startsWith("__")) return
+        val ctx = this
+        val channelsInCategory = bundle.channels.filter { it.categoryId == category.id }
+        if (channelsInCategory.isEmpty()) return
+
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title(category.name)
+            .subtitle("CATEGORY ACTIONS · ${channelsInCategory.size} CHANNELS")
+
+        sheet.item(
+            label = "Add all channels to Collection…",
+            icon = "⊕",
+        ) { showAddCategoryToCollectionMenu(category, channelsInCategory) }
+
+        sheet.show()
+    }
+
+    private fun showAddCategoryToCollectionMenu(category: Category, channels: List<Channel>) {
+        val ctx = this
+        val collections = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title("Add ${channels.size} channels to…")
+            .subtitle("PICK A COLLECTION")
+
+        sheet.item(
+            label = "+ Add new collection",
+            icon = "✦",
+            trailing = "CREATE",
+        ) { promptCreateCollectionForCategory(category, channels) }
+
+        for (c in collections) {
+            val newCount = channels.count { it.id !in c.channelIds }
+            sheet.item(
+                label = c.name,
+                icon = "•",
+                trailing = if (newCount > 0) "+$newCount" else "ALL ✓",
+            ) {
+                channels.forEach { ch ->
+                    tv.onnowtv.livetv.data.CollectionsStore.addChannel(ctx, c.id, ch.id)
+                }
                 android.widget.Toast.makeText(
-                    ctx, "Added ${ch.name} to \"${target.name}\"",
+                    ctx, "Added $newCount channels to \"${c.name}\"",
                     android.widget.Toast.LENGTH_SHORT,
                 ).show()
             }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
+        }
+
+        sheet.show()
+    }
+
+    private fun promptCreateCollectionForCategory(category: Category, channels: List<Channel>) {
+        showNameInputDialog(
+            title = "Name your new collection",
+            subtitle = "ADD ${channels.size} CHANNELS FROM ${category.name.uppercase()}",
+            initial = category.name,
+            placeholder = "e.g. Saturday Sports",
+        ) { typedName ->
+            val name = typedName.trim().ifBlank { category.name }
+            val record = tv.onnowtv.livetv.data.LibraryCollection(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                coverHash = null,
+                coverUrl = null,
+                addedAt = System.currentTimeMillis(),
+                channelIds = channels.map { it.id },
+            )
+            tv.onnowtv.livetv.data.CollectionsStore.add(this, record)
+            android.widget.Toast.makeText(
+                this, "Created \"$name\" with ${channels.size} channels",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            lifecycleScope.launch {
+                try {
+                    val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        tv.onnowtv.livetv.data.CoversApi.generate(name)
+                    }
+                    tv.onnowtv.livetv.data.CollectionsStore.update(
+                        this@EpgActivity,
+                        record.copy(coverHash = gen.hash, coverUrl = gen.url),
+                    )
+                } catch (_: Throwable) { /* user can re-trigger from Library */ }
+            }
+        }
+    }
+
+    /**
+     * Reusable name-input dialog styled to match the action sheets.
+     * Used by every "create new collection" entry-point.
+     */
+    private fun showNameInputDialog(
+        title: String,
+        subtitle: String?,
+        initial: String,
+        placeholder: String,
+        onSubmit: (String) -> Unit,
+    ) {
+        val ctx = this
+        val dialog = android.app.Dialog(ctx, R.style.Theme_OnNowLiveTV_ActionSheet)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val root = LayoutInflater.from(ctx).inflate(R.layout.dialog_name_input, null, false)
+        val titleView = root.findViewById<android.widget.TextView>(R.id.input_dialog_title)
+        val subtitleView = root.findViewById<android.widget.TextView>(R.id.input_dialog_subtitle)
+        val input = root.findViewById<android.widget.EditText>(R.id.input_dialog_field)
+        val cancelBtn = root.findViewById<android.widget.TextView>(R.id.input_dialog_cancel)
+        val saveBtn = root.findViewById<android.widget.TextView>(R.id.input_dialog_save)
+        titleView.text = title
+        if (!subtitle.isNullOrBlank()) {
+            subtitleView.text = subtitle.uppercase()
+            subtitleView.visibility = android.view.View.VISIBLE
+        }
+        input.setText(initial)
+        input.setSelection(initial.length)
+        input.hint = placeholder
+
+        cancelBtn.setOnClickListener { dialog.dismiss() }
+        saveBtn.setOnClickListener {
+            dialog.dismiss()
+            onSubmit(input.text?.toString().orEmpty())
+        }
+
+        dialog.setContentView(root)
+        dialog.window?.apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#CC000308")))
+            setLayout(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
+        dialog.show()
+        input.requestFocus()
     }
 
     override fun onPause() {

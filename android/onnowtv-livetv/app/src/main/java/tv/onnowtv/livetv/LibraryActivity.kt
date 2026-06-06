@@ -6,7 +6,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -76,13 +75,17 @@ class LibraryActivity : AppCompatActivity() {
         favouritesCount = findViewById(R.id.lib_favourites_count)
 
         collectionsAdapter = CollectionTileAdapter(
-            onAddCollection = { promptCreateCollection() },
             onPick = { c -> openCollection(c) },
             onLongPick = { c -> promptManageCollection(c) },
         )
         collectionsList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         collectionsList.adapter = collectionsAdapter
         collectionsList.itemAnimator = null
+
+        // v2.9.1: header-mounted "+ Add Collection" button replaces
+        // the old front-of-row virtual tile.
+        findViewById<TextView>(R.id.lib_add_collection_btn)
+            .setOnClickListener { promptCreateCollection() }
 
         favouritesAdapter = FavouriteTileAdapter(
             nowTitleFor = { ch -> nowProgrammeTitle(ch) },
@@ -114,11 +117,11 @@ class LibraryActivity : AppCompatActivity() {
 
         collectionsAdapter.submit(collections)
         collectionsCount.text = collections.size.toString()
-        // The Collections row ALWAYS shows at least the "+ Add
-        // Collection" virtual tile so the row is never empty.  Hide
-        // the empty-state placeholder unconditionally.
-        collectionsEmpty.visibility = View.GONE
-        collectionsList.visibility = View.VISIBLE
+        // v2.9.1: the row is just collection tiles now (Add button
+        // moved to the header).  Show the empty placeholder when
+        // there are no collections so the user knows where to start.
+        collectionsEmpty.visibility = if (collections.isEmpty()) View.VISIBLE else View.GONE
+        collectionsList.visibility = if (collections.isEmpty()) View.INVISIBLE else View.VISIBLE
 
         // Favourites row.
         val favChannels: List<Channel> = bundle
@@ -131,12 +134,17 @@ class LibraryActivity : AppCompatActivity() {
         favouritesEmpty.visibility = if (favChannels.isEmpty()) View.VISIBLE else View.GONE
         favouritesList.visibility = if (favChannels.isEmpty()) View.INVISIBLE else View.VISIBLE
 
-        // Land focus on the first collection tile (the "+ Add"
-        // virtual tile is index 0) so the user can immediately
-        // navigate with the d-pad.
-        collectionsList.post {
-            collectionsList.findViewHolderForAdapterPosition(0)
-                ?.itemView?.requestFocus()
+        // Land focus on the first collection tile, OR the header
+        // "+ Add Collection" button when there are no collections
+        // yet — that's the natural starting point for first-time
+        // users.
+        if (collections.isEmpty()) {
+            findViewById<TextView>(R.id.lib_add_collection_btn).requestFocus()
+        } else {
+            collectionsList.post {
+                collectionsList.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.requestFocus()
+            }
         }
     }
 
@@ -154,10 +162,12 @@ class LibraryActivity : AppCompatActivity() {
     private fun openCollection(c: LibraryCollection) {
         val intent = Intent(this, EpgActivity::class.java).apply {
             putExtra(EpgActivity.EXTRA_INITIAL_COLLECTION_ID, c.id)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
+        // v2.9.1: do NOT finish() the Library activity here — we
+        // want Back from the collection EPG to return to this
+        // Library screen, not exit the app.  EpgActivity reads
+        // EXTRA_INITIAL_COLLECTION_ID and routes Back accordingly.
         startActivity(intent)
-        finish()
     }
 
     private fun openFavourite(ch: Channel) {
@@ -176,31 +186,16 @@ class LibraryActivity : AppCompatActivity() {
 
     /** Step 1: prompt for the collection name + cover source. */
     private fun promptCreateCollection() {
-        val input = android.widget.EditText(this).apply {
-            hint = "e.g. Saturday Sports, Kids Picks"
-            setSingleLine()
-            setTextColor(android.graphics.Color.parseColor("#F5F8FF"))
-            setHintTextColor(android.graphics.Color.parseColor("#5F6A85"))
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            val pad = (16 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad / 2, pad, pad / 2)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Name your collection")
-            .setMessage("Pick a name, then choose how the cover artwork is set.")
-            .setView(input)
-            .setPositiveButton("Auto cover (AI)") { d, _ ->
-                val name = input.text?.toString()?.trim().orEmpty().ifBlank { "My Collection" }
-                d.dismiss()
-                createCollection(name, useAi = true)
-            }
-            .setNeutralButton("Upload your own") { d, _ ->
-                val name = input.text?.toString()?.trim().orEmpty().ifBlank { "My Collection" }
-                d.dismiss()
-                createCollectionWithCustomCover(name)
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
+        showNameInputDialog(
+            title = "Name your collection",
+            subtitle = "PICK A NAME, THEN A COVER SOURCE",
+            initial = "",
+            placeholder = "e.g. Saturday Sports",
+            primaryLabel = "Auto cover (AI)",
+            secondaryLabel = "Upload my own",
+            onPrimary = { name -> createCollection(name.ifBlank { "My Collection" }, useAi = true) },
+            onSecondary = { name -> createCollectionWithCustomCover(name.ifBlank { "My Collection" }) },
+        )
     }
 
     /** Step 2a: AI cover.  Persists the empty collection first so
@@ -258,55 +253,43 @@ class LibraryActivity : AppCompatActivity() {
 
     /** Long-press menu: rename / change cover / delete. */
     private fun promptManageCollection(c: LibraryCollection) {
-        val options = arrayOf("Rename", "Regenerate cover (AI)", "Upload custom cover", "Delete")
-        AlertDialog.Builder(this)
-            .setTitle(c.name)
-            .setItems(options) { d, idx ->
-                d.dismiss()
-                when (idx) {
-                    0 -> promptRenameCollection(c)
-                    1 -> regenerateAiCover(c)
-                    2 -> launchPickCustomCover(c)
-                    3 -> confirmDeleteCollection(c)
-                }
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+        val ctx = this
+        tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title(c.name)
+            .subtitle("MANAGE · ${c.channelIds.size} CHANNELS")
+            .item("Rename", icon = "✎") { promptRenameCollection(c) }
+            .item("Regenerate cover (AI)", icon = "✦") { regenerateAiCover(c) }
+            .item("Upload custom cover", icon = "↑") { launchPickCustomCover(c) }
+            .item("Delete collection", icon = "✕") { confirmDeleteCollection(c) }
             .show()
     }
 
     private fun promptRenameCollection(c: LibraryCollection) {
-        val input = android.widget.EditText(this).apply {
-            setText(c.name)
-            setSelection(c.name.length)
-            setSingleLine()
-            setTextColor(android.graphics.Color.parseColor("#F5F8FF"))
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            val pad = (16 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad / 2, pad, pad / 2)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Rename \"${c.name}\"")
-            .setView(input)
-            .setPositiveButton("Save") { d, _ ->
-                val newName = input.text?.toString()?.trim().orEmpty().ifBlank { c.name }
+        showNameInputDialog(
+            title = "Rename \"${c.name}\"",
+            subtitle = null,
+            initial = c.name,
+            placeholder = "Collection name",
+            primaryLabel = "Save",
+            secondaryLabel = null,
+            onPrimary = { typed ->
+                val newName = typed.trim().ifBlank { c.name }
                 CollectionsStore.update(this, c.copy(name = newName))
-                d.dismiss()
                 refresh()
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
+            },
+            onSecondary = null,
+        )
     }
 
     private fun confirmDeleteCollection(c: LibraryCollection) {
-        AlertDialog.Builder(this)
-            .setTitle("Delete \"${c.name}\"?")
-            .setMessage("The channels themselves are not deleted — only this collection.")
-            .setPositiveButton("Delete") { d, _ ->
+        tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+            .title("Delete \"${c.name}\"?")
+            .subtitle("THE CHANNELS THEMSELVES STAY")
+            .item("Delete collection", icon = "✕") {
                 CollectionsStore.remove(this, c.id)
-                d.dismiss()
                 refresh()
             }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .item("Cancel", icon = "←") { /* dismiss */ }
             .show()
     }
 
@@ -335,6 +318,73 @@ class LibraryActivity : AppCompatActivity() {
     }
 
     // ────────────────────────────────────── custom cover picker
+
+    /**
+     * Brand-styled name-input dialog shared by every "create"/
+     * "rename" entry-point in the Library screen.  Primary action
+     * is required; secondary is optional (used by the "Auto AI /
+     * Upload my own" two-path create flow).  Cancel is always
+     * shown on the far left.
+     */
+    private fun showNameInputDialog(
+        title: String,
+        subtitle: String?,
+        initial: String,
+        placeholder: String,
+        primaryLabel: String,
+        secondaryLabel: String?,
+        onPrimary: (String) -> Unit,
+        onSecondary: ((String) -> Unit)?,
+    ) {
+        val ctx = this
+        val dialog = android.app.Dialog(ctx, R.style.Theme_OnNowLiveTV_ActionSheet)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val root = android.view.LayoutInflater.from(ctx)
+            .inflate(R.layout.dialog_name_input, null, false)
+        val titleView = root.findViewById<android.widget.TextView>(R.id.input_dialog_title)
+        val subtitleView = root.findViewById<android.widget.TextView>(R.id.input_dialog_subtitle)
+        val input = root.findViewById<android.widget.EditText>(R.id.input_dialog_field)
+        val cancelBtn = root.findViewById<android.widget.TextView>(R.id.input_dialog_cancel)
+        val secondaryBtn = root.findViewById<android.widget.TextView>(R.id.input_dialog_secondary)
+        val saveBtn = root.findViewById<android.widget.TextView>(R.id.input_dialog_save)
+
+        titleView.text = title
+        if (!subtitle.isNullOrBlank()) {
+            subtitleView.text = subtitle.uppercase()
+            subtitleView.visibility = View.VISIBLE
+        }
+        input.setText(initial)
+        input.setSelection(initial.length)
+        input.hint = placeholder
+        saveBtn.text = primaryLabel
+        if (!secondaryLabel.isNullOrBlank() && onSecondary != null) {
+            secondaryBtn.text = secondaryLabel
+            secondaryBtn.visibility = View.VISIBLE
+            secondaryBtn.setOnClickListener {
+                dialog.dismiss()
+                onSecondary(input.text?.toString().orEmpty())
+            }
+        }
+
+        cancelBtn.setOnClickListener { dialog.dismiss() }
+        saveBtn.setOnClickListener {
+            dialog.dismiss()
+            onPrimary(input.text?.toString().orEmpty())
+        }
+
+        dialog.setContentView(root)
+        dialog.window?.apply {
+            setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#CC000308"))
+            )
+            setLayout(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
+        dialog.show()
+        input.requestFocus()
+    }
 
     private var pendingCustomCoverFor: LibraryCollection? = null
 
