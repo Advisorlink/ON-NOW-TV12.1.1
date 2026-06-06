@@ -20,6 +20,7 @@ import PartyVoiceDock from '@/components/PartyVoiceDock';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
+import OrbitalLoader from '@/components/OrbitalLoader';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -1510,6 +1511,26 @@ export default function Player() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Floating orbital brand loader (top-right) —
+                        signature loader visible across Vesper TV +
+                        Live TV.  Fades out the moment the stream
+                        becomes ready so the cinematic preview can
+                        breathe before the picture cuts in. */}
+                    <div
+                        data-testid="player-orbital-loader"
+                        className="absolute"
+                        style={{
+                            top: 'clamp(28px, 4vw, 56px)',
+                            right: 'clamp(28px, 4vw, 56px)',
+                            opacity: streamReady ? 0 : 1,
+                            transition: 'opacity 400ms ease',
+                            pointerEvents: 'none',
+                            filter: 'drop-shadow(0 6px 22px rgba(92,200,255,0.35))',
+                        }}
+                    >
+                        <OrbitalLoader size={92} accentA="#5DC8FF" accentB="#C16BFF" />
                     </div>
 
                     {/* Buffering shimmer at bottom */}

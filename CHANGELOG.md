@@ -1,5 +1,40 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.145 — Orbital brand loader everywhere + focus borders reverted to thin neon
+
+### Orbital loader (signature buffering animation)
+Picked from a side-by-side comparison of 6 candidates (demo at `/loaders-demo.html`).  Glassmorphism centre disk + two coloured dots orbiting in opposite directions at different speeds — feels alive without being mechanical.  Same animation on every loading surface across Vesper TV and Live TV for brand consistency.
+
+**Live TV (native Android)** — new file `ui/OrbitalLoaderView.kt`:
+- Custom `View` subclass, hardware-accelerated `Canvas` drawing (no bitmap allocations per frame, ~60 fps).
+- `ValueAnimator` drives two independent angle properties so the two dots rotate at 1.4 s / 1.7 s clockwise / counter-clockwise.
+- Brand-aware palette: `#5DC8FF` (livetv_accent) blue + `#C16BFF` purple, soft halo glow via stacked translucent discs.
+- Wired into BOTH surfaces:
+  - `activity_player.xml` — 180 dp loader at FrameLayout centre, toggled by `PlayerActivity.onPlaybackStateChanged` (visible on `STATE_BUFFERING`, hidden on `STATE_READY` / `STATE_ENDED` / `STATE_IDLE`).
+  - `activity_epg.xml` — 92 dp loader inside the preview card, driven by a `Player.Listener` attached lazily in `EpgActivity.startPreview()`.  Listener re-binds whenever the underlying ExoPlayer instance rotates.
+
+**Vesper TV (React)** — new component `components/OrbitalLoader.jsx`:
+- Pure CSS animations, scoped per-instance via `React.useId()` so two on a page don't clash.
+- Wired into the cinematic preview overlay in `pages/Player.jsx` — 92 px floating loader top-right of the loading screen, fades out (`opacity 400 ms`) the moment `streamReady` flips true.
+
+### Focus borders reverted to thin neon
+User feedback: the bright blue 3-3.5 dp strokes I introduced in v2.8.143 felt "gross" and "too thick".  Reverted everywhere to the original thin + neon cyan look:
+- `category_pill_bg.xml`: 3 dp `#5C9CFF` → **2 dp `@color/livetv_accent`** (`#5DC8FF`).
+- `channel_pill_bg.xml`: same revert.
+- `guide_row_bg.xml`: 3 dp `#5C9CFF` → **1 dp `@color/livetv_accent`**.
+- `library_tile_focus_fg.xml` (foreground overlay for collection + favourite tiles): 3.5 dp `#5C9CFF` → **2 dp `@color/livetv_accent`** for focus/selected, **2 dp white** for pressed.
+
+### Files touched
+- `android/.../ui/OrbitalLoaderView.kt` — NEW.
+- `android/.../res/layout/activity_player.xml` — `<OrbitalLoaderView id="buffer_loader">` added.
+- `android/.../res/layout/activity_epg.xml` — `<OrbitalLoaderView id="preview_buffer_loader">` added.
+- `android/.../PlayerActivity.kt` — `bufferLoader` field + visibility toggle in `onPlaybackStateChanged`.
+- `android/.../EpgActivity.kt` — `previewBufferLoader` field + lazy `Player.Listener` install in `startPreview` (and `attachPreviewBufferListenerOnce()` re-binder).
+- `android/.../res/drawable/category_pill_bg.xml`, `channel_pill_bg.xml`, `guide_row_bg.xml`, `library_tile_focus_fg.xml` — thin neon revert.
+- `frontend/src/components/OrbitalLoader.jsx` — NEW.
+- `frontend/src/pages/Player.jsx` — import + top-right floating loader on the cinematic preview overlay.
+- `frontend/public/loaders-demo.html` — side-by-side reference of all six candidate loaders.
+
 ## v2.8.144 — AI cover prompt locked: ChatGPT-style enhanced prompt + 12% safe-area clause
 
 After several rounds of testing against the user's ChatGPT reference images (the standard he wants every cover to hit), the final cover-generation pipeline is now:
