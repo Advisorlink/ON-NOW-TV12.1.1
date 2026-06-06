@@ -81,28 +81,20 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # v8 — back to the "3D logos era" cinematic / Pixar-grade prompt
-    # but with the entire LEFT-side brand-mark / 3D-typography
-    # section surgically removed.  Right-hand image style and
-    # category-aware subject instructions are preserved verbatim;
-    # the left third is now a clean dark fade for UI overlay only.
-    # No text / logos / letters / watermarks anywhere.
+    # v10 — USER-LOCKED VERBATIM PROMPT.  Only substitution: the
+    # category name is appended after "the cable tv categorie" so
+    # the model knows which channel we're drawing for.  Wording
+    # otherwise untouched (including the spelling "categorie") —
+    # the user has been explicit about not paraphrasing.
     return (
-        f"Premium 16:9 channel tile design for a streaming-app home "
-        f"shelf — a designed graphic for personal use, no copyrighted "
-        f"content reproduced.  The LEFT third of the frame is a dark, "
-        f"empty space for UI overlay (deep black smoothly fading "
-        f"rightward into the image).  Fade smoothly into a RELATED "
-        f"image on the RIGHT that depicts what \"{cleaned}\" actually "
-        f"broadcasts — multiple dynamic subjects when possible "
-        f"(several cartoon animals for a kids channel, several "
-        f"athletes mid-action for sports, etc.).  Cinematic lighting, "
-        f"vibrant saturated colours, dramatic 3D illustration / "
-        f"Pixar-grade rendering.  Black gradient anchoring the BOTTOM "
-        f"of the frame.  Edge-to-edge, no letterboxing.  "
-        f"Absolutely NO text, NO logos, NO letters, NO numbers, NO "
-        f"watermarks, NO captions, NO signage of any kind anywhere "
-        f"in the image."
+        f"I need a channel tile design for my project its a licensed "
+        f"project not showing any content just need an image the "
+        f"image needs to be a 16:9 tile and it needs to have a dark "
+        f"space on the left fading to some related image on the "
+        f"right.. there needs to be a black gradient on the bottom "
+        f"aswell. The image needs to relate to the cable tv "
+        f"categorie {cleaned}. the image should be of high quality "
+        f"for cable tv app"
     )
 
 
@@ -122,9 +114,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v6 — simplified back to short prompt, photoreal, no logos, no text
 #   v7 — verbatim user-dictated prompt with category style table
 #   v8 — Gemini Nano Banana + cinematic Pixar-grade prompt, no left brand-mark
-#   v9 — GPT-Image-1 + same cinematic Pixar-grade prompt, no left brand-mark (current)
+#   v9 — GPT-Image-1 + same cinematic Pixar-grade prompt, no left brand-mark
+#   v10 — USER-LOCKED VERBATIM prompt (cable tv categorie), GPT-Image-1 (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v9"
+PROMPT_RECIPE_VERSION = "v10"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
