@@ -81,26 +81,26 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # v6 — user-locked simplification.  Back to the original short
-    # prompt: ultra-photorealistic 16:9 tile with a black fade on
-    # the left into a related photograph on the right and a black
-    # gradient along the bottom.  No logos, no text, no words of
-    # any kind.  The image content must relate directly to the
-    # channel name so the subject is obvious without needing any
-    # typography.
+    # v7 — USER-LOCKED VERBATIM PROMPT.  Do NOT edit the wording.
+    # The user explicitly dictated this exact text and required
+    # that [CATEGORY NAME] be the only substitution.  Style is
+    # auto-matched per category by the model (sports = cinematic /
+    # realistic, kids = cartoon / animated / playful, etc.).
     return (
-        f"Ultra-photorealistic 16:9 widescreen channel tile for "
-        f"\"{cleaned}\".  A real photograph (not an illustration, "
-        f"not a cartoon, not a 3D render, not stylised CGI) of a "
-        f"subject directly related to \"{cleaned}\" — the imagery "
-        f"alone must make the channel's subject obvious.  The left "
-        f"side of the frame is solid deep black smoothly fading "
-        f"rightward into the photorealistic image on the right.  A "
-        f"subtle black gradient anchors the bottom edge.  "
-        f"Absolutely no text anywhere — no words, no letters, no "
-        f"numbers, no logos, no captions, no signage, no readable "
-        f"writing of any kind on clothing, equipment, scoreboards, "
-        f"billboards or backgrounds.  Pure photograph only."
+        f"Create a premium 16:9 app tile background for {cleaned}.\n"
+        f"Do not include any text, logos, letters, or watermarks.\n"
+        f"The design must have a dark empty space on the left side for UI overlay, fading smoothly into a vibrant themed image on the right side.\n"
+        f"The image should clearly relate to {cleaned}.\n"
+        f"Keep it visually clean, premium, modern, cinematic, and suitable for a streaming app tile.\n"
+        f"The right side should be visually rich and eye-catching, while the left side remains darker and uncluttered.\n"
+        f"Use lighting, colour, and imagery that strongly match the category.\n"
+        f"Make the style match the category itself rather than using the same style for all images.\n\n"
+        f"Match the art style to the category:\n"
+        f"sports = cinematic / realistic\n"
+        f"kids = cartoon / animated / playful\n"
+        f"documentaries = editorial / cinematic / realistic\n"
+        f"cinema = dramatic / premium / movie-like\n"
+        f"entertainment = vibrant / energetic / polished"
     )
 
 
@@ -117,9 +117,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v3 — full safety-friendly ChatGPT-style enhanced prompt
 #   v4 — added the 12 % safe-area / no-clipping clause
 #   v5 — pure photoreal editorial photo, NO text / logos / typography
-#   v6 — simplified back to short prompt, photoreal, no logos, no text (current)
+#   v6 — simplified back to short prompt, photoreal, no logos, no text
+#   v7 — USER-LOCKED VERBATIM PROMPT, style auto-matched per category (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v6"
+PROMPT_RECIPE_VERSION = "v7"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
