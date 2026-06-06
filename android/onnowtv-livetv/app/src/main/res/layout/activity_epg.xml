@@ -508,6 +508,7 @@
 
             <!-- L: Channel groups -->
             <LinearLayout
+                android:id="@+id/categories_sidebar"
                 android:layout_width="220dp"
                 android:layout_height="match_parent"
                 android:orientation="vertical"

@@ -6,13 +6,12 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.onnowtv.livetv.data.Channel
@@ -31,9 +30,16 @@ import java.util.Locale
  * "My Library" hub for the native Live TV app.
  *
  * Two horizontal rows:
- *   • Top    — COLLECTIONS (saved categories with AI-generated 16:9
- *               cover art).  OK opens the category in [EpgActivity];
- *               LONG-PRESS opens the regenerate-cover dialog.
+ *   • Top    — COLLECTIONS.  The FIRST tile is always "+ Add
+ *               Collection" — tapping it shows a dialog where the
+ *               user types a name and picks "Auto cover" (AI) or
+ *               "Upload your own" (file picker).  The new
+ *               collection starts EMPTY; channels are added later
+ *               by long-pressing OK on a channel inside the EPG.
+ *               OK on a populated tile opens the EPG in
+ *               collection-mode (sidebar hidden, middle column =
+ *               just the collection's channels).  LONG-PRESS on a
+ *               tile opens a rename / change-cover / delete menu.
  *   • Bottom — FAVOURITES (saved channels).  OK launches full-screen
  *               via the shared [LivePreviewSession].
  *
@@ -70,8 +76,9 @@ class LibraryActivity : AppCompatActivity() {
         favouritesCount = findViewById(R.id.lib_favourites_count)
 
         collectionsAdapter = CollectionTileAdapter(
+            onAddCollection = { promptCreateCollection() },
             onPick = { c -> openCollection(c) },
-            onLongPick = { c -> promptRegenerateCover(c) },
+            onLongPick = { c -> promptManageCollection(c) },
         )
         collectionsList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         collectionsList.adapter = collectionsAdapter
@@ -105,17 +112,13 @@ class LibraryActivity : AppCompatActivity() {
         val favouriteIds = FavouritesStore.load(this)
         val bundle = BundleHolder.current
 
-        // Collections row + per-tile channel counts.
-        val counts = if (bundle != null) {
-            collections.associate { c ->
-                c.categoryId to bundle.channels.count { it.categoryId == c.categoryId }
-            }
-        } else emptyMap()
-        collectionsAdapter.channelCounts = counts
         collectionsAdapter.submit(collections)
         collectionsCount.text = collections.size.toString()
-        collectionsEmpty.visibility = if (collections.isEmpty()) View.VISIBLE else View.GONE
-        collectionsList.visibility = if (collections.isEmpty()) View.INVISIBLE else View.VISIBLE
+        // The Collections row ALWAYS shows at least the "+ Add
+        // Collection" virtual tile so the row is never empty.  Hide
+        // the empty-state placeholder unconditionally.
+        collectionsEmpty.visibility = View.GONE
+        collectionsList.visibility = View.VISIBLE
 
         // Favourites row.
         val favChannels: List<Channel> = bundle
@@ -128,19 +131,12 @@ class LibraryActivity : AppCompatActivity() {
         favouritesEmpty.visibility = if (favChannels.isEmpty()) View.VISIBLE else View.GONE
         favouritesList.visibility = if (favChannels.isEmpty()) View.INVISIBLE else View.VISIBLE
 
-        // Land focus on the first collection (or first favourite if
-        // there are no collections yet) so the user can immediately
+        // Land focus on the first collection tile (the "+ Add"
+        // virtual tile is index 0) so the user can immediately
         // navigate with the d-pad.
-        if (collections.isNotEmpty()) {
-            collectionsList.post {
-                collectionsList.findViewHolderForAdapterPosition(0)
-                    ?.itemView?.requestFocus()
-            }
-        } else if (favChannels.isNotEmpty()) {
-            favouritesList.post {
-                favouritesList.findViewHolderForAdapterPosition(0)
-                    ?.itemView?.requestFocus()
-            }
+        collectionsList.post {
+            collectionsList.findViewHolderForAdapterPosition(0)
+                ?.itemView?.requestFocus()
         }
     }
 
@@ -157,8 +153,7 @@ class LibraryActivity : AppCompatActivity() {
 
     private fun openCollection(c: LibraryCollection) {
         val intent = Intent(this, EpgActivity::class.java).apply {
-            // Reuse the existing "open with this category selected" path.
-            putExtra(EpgActivity.EXTRA_INITIAL_CATEGORY_ID, c.categoryId)
+            putExtra(EpgActivity.EXTRA_INITIAL_COLLECTION_ID, c.id)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         startActivity(intent)
@@ -177,41 +172,170 @@ class LibraryActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    // ─────────────────────────────────────────────── regenerate-cover
+    // ───────────────────────────────── create / manage collection
 
-    private fun promptRegenerateCover(c: LibraryCollection) {
-        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
-        dlg.showIdle(
-            titleText = "Regenerate cover for \"${c.name}\"?",
-            bodyText = "Tweak the name below first if you want the generator to lean a particular way " +
-                "(e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\").\n\n" +
-                "Pick \"Re-style ALL\" to refresh every cover in your library in parallel, " +
-                "or \"Add your own\" to pull a custom image from a USB stick / internal storage.  " +
-                "Press BACK to cancel.",
-            primaryLabel = "Regenerate this",
-            secondaryLabel = "Re-style ALL",
-            tertiaryLabel = "Add your own",
-            nameHint = c.name,
-            onPrimary = {
-                val typed = dlg.editedName.ifBlank { c.name }
-                dlg.showBusy("Regenerating cover for \"$typed\" — usually 10–20 seconds.")
-                regenerate(c, dlg, overrideName = typed)
-            },
-            onSecondary = {
-                dlg.dismiss()
-                regenerateAll()
-            },
-            onTertiary = {
-                dlg.dismiss()
-                launchPickCustomCover(c)
-            },
+    /** Step 1: prompt for the collection name + cover source. */
+    private fun promptCreateCollection() {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. Saturday Sports, Kids Picks"
+            setSingleLine()
+            setTextColor(android.graphics.Color.parseColor("#F5F8FF"))
+            setHintTextColor(android.graphics.Color.parseColor("#5F6A85"))
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Name your collection")
+            .setMessage("Pick a name, then choose how the cover artwork is set.")
+            .setView(input)
+            .setPositiveButton("Auto cover (AI)") { d, _ ->
+                val name = input.text?.toString()?.trim().orEmpty().ifBlank { "My Collection" }
+                d.dismiss()
+                createCollection(name, useAi = true)
+            }
+            .setNeutralButton("Upload your own") { d, _ ->
+                val name = input.text?.toString()?.trim().orEmpty().ifBlank { "My Collection" }
+                d.dismiss()
+                createCollectionWithCustomCover(name)
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    /** Step 2a: AI cover.  Persists the empty collection first so
+     *  the user gets immediate feedback, then runs the generator
+     *  in the background and writes the cover URL back when ready. */
+    private fun createCollection(name: String, useAi: Boolean) {
+        val record = LibraryCollection(
+            id = java.util.UUID.randomUUID().toString(),
+            name = name,
+            coverHash = null,
+            coverUrl = null,
+            addedAt = System.currentTimeMillis(),
+            channelIds = emptyList(),
         )
+        CollectionsStore.add(this, record)
+        refresh()
+        if (!useAi) return
+
+        collectionsAdapter.setBusy(record.id, true)
+        lifecycleScope.launch {
+            try {
+                val gen = withContext(Dispatchers.IO) { CoversApi.generate(name) }
+                CollectionsStore.update(
+                    this@LibraryActivity,
+                    record.copy(coverHash = gen.hash, coverUrl = gen.url),
+                )
+                collectionsAdapter.setBusy(record.id, false)
+                refresh()
+            } catch (t: Throwable) {
+                collectionsAdapter.setBusy(record.id, false)
+                android.widget.Toast.makeText(
+                    this@LibraryActivity,
+                    "Couldn't generate cover: ${t.message ?: "unknown error"}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    /** Step 2b: custom cover — persist the collection first so the
+     *  picker callback has a stable id to attach the image to. */
+    private fun createCollectionWithCustomCover(name: String) {
+        val record = LibraryCollection(
+            id = java.util.UUID.randomUUID().toString(),
+            name = name,
+            coverHash = null,
+            coverUrl = null,
+            addedAt = System.currentTimeMillis(),
+            channelIds = emptyList(),
+        )
+        CollectionsStore.add(this, record)
+        refresh()
+        launchPickCustomCover(record)
+    }
+
+    /** Long-press menu: rename / change cover / delete. */
+    private fun promptManageCollection(c: LibraryCollection) {
+        val options = arrayOf("Rename", "Regenerate cover (AI)", "Upload custom cover", "Delete")
+        AlertDialog.Builder(this)
+            .setTitle(c.name)
+            .setItems(options) { d, idx ->
+                d.dismiss()
+                when (idx) {
+                    0 -> promptRenameCollection(c)
+                    1 -> regenerateAiCover(c)
+                    2 -> launchPickCustomCover(c)
+                    3 -> confirmDeleteCollection(c)
+                }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun promptRenameCollection(c: LibraryCollection) {
+        val input = android.widget.EditText(this).apply {
+            setText(c.name)
+            setSelection(c.name.length)
+            setSingleLine()
+            setTextColor(android.graphics.Color.parseColor("#F5F8FF"))
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Rename \"${c.name}\"")
+            .setView(input)
+            .setPositiveButton("Save") { d, _ ->
+                val newName = input.text?.toString()?.trim().orEmpty().ifBlank { c.name }
+                CollectionsStore.update(this, c.copy(name = newName))
+                d.dismiss()
+                refresh()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun confirmDeleteCollection(c: LibraryCollection) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete \"${c.name}\"?")
+            .setMessage("The channels themselves are not deleted — only this collection.")
+            .setPositiveButton("Delete") { d, _ ->
+                CollectionsStore.remove(this, c.id)
+                d.dismiss()
+                refresh()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun regenerateAiCover(c: LibraryCollection) {
+        collectionsAdapter.setBusy(c.id, true)
+        lifecycleScope.launch {
+            try {
+                val gen = withContext(Dispatchers.IO) {
+                    CoversApi.generate(c.name, forceSalt = CoversApi.freshSalt())
+                }
+                CollectionsStore.update(
+                    this@LibraryActivity,
+                    c.copy(coverHash = gen.hash, coverUrl = gen.url),
+                )
+                collectionsAdapter.setBusy(c.id, false)
+                refresh()
+            } catch (t: Throwable) {
+                collectionsAdapter.setBusy(c.id, false)
+                android.widget.Toast.makeText(
+                    this@LibraryActivity,
+                    "Cover generation failed: ${t.message ?: "unknown error"}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
     }
 
     // ────────────────────────────────────── custom cover picker
 
-    /** Set when the user taps "Add your own" — the activity-result
-     *  callback uses it to know which collection to update. */
     private var pendingCustomCoverFor: LibraryCollection? = null
 
     private val pickCoverLauncher = registerForActivityResult(
@@ -225,8 +349,6 @@ class LibraryActivity : AppCompatActivity() {
 
     private fun launchPickCustomCover(c: LibraryCollection) {
         pendingCustomCoverFor = c
-        // Image MIME types only.  Android TV's storage picker
-        // exposes USB OTG sticks + internal storage out of the box.
         pickCoverLauncher.launch(arrayOf("image/*"))
     }
 
@@ -240,7 +362,6 @@ class LibraryActivity : AppCompatActivity() {
             try {
                 val savedPath = withContext(Dispatchers.IO) {
                     val dir = java.io.File(filesDir, "library_covers").apply { mkdirs() }
-                    // Wipe any previous custom cover for this collection.
                     dir.listFiles { f -> f.name.startsWith("${c.id}.") }
                         ?.forEach { runCatching { it.delete() } }
                     val mime = contentResolver.getType(uri)
@@ -250,9 +371,6 @@ class LibraryActivity : AppCompatActivity() {
                         "image/gif" -> "gif"
                         else -> "jpg"
                     }
-                    // Timestamped filename so Coil's file-uri cache
-                    // (keyed by absolute path + lastModified) treats
-                    // each re-import as a fresh image.
                     val stamp = System.currentTimeMillis()
                     val out = java.io.File(dir, "${c.id}.$stamp.$ext")
                     contentResolver.openInputStream(uri)?.use { input ->
@@ -282,81 +400,6 @@ class LibraryActivity : AppCompatActivity() {
                 ).show()
             }
         }
-    }
-
-    private fun regenerate(
-        c: LibraryCollection,
-        dlg: tv.onnowtv.livetv.ui.LibraryDialog,
-        overrideName: String? = null,
-    ) {
-        val displayName = overrideName?.takeIf { it.isNotBlank() } ?: c.name
-        collectionsAdapter.setBusy(c.id, true)
-        lifecycleScope.launch {
-            try {
-                val gen = withContext(Dispatchers.IO) {
-                    CoversApi.generate(displayName, forceSalt = CoversApi.freshSalt())
-                }
-                val updated = c.copy(
-                    name = displayName,
-                    coverHash = gen.hash,
-                    coverUrl = gen.url,
-                )
-                CollectionsStore.update(this@LibraryActivity, updated)
-                dlg.snapToComplete()
-                refresh()
-            } catch (t: Throwable) {
-                collectionsAdapter.setBusy(c.id, false)
-                dlg.showError(t.message ?: "Unknown error")
-            }
-        }
-    }
-
-    /**
-     * Bulk re-style — fires every Collection's regeneration **in
-     * parallel** (GPT-Image-1 easily handles 4-8 concurrent calls)
-     * so the whole shelf refreshes in roughly one cover's worth of
-     * wall-clock time instead of N × ~15 s.
-     */
-    private fun regenerateAll() {
-        val all = CollectionsStore.load(this)
-        if (all.isEmpty()) return
-        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(this)
-        dlg.showIdle(
-            titleText = "Re-style every cover",
-            bodyText = "Generate a fresh banner for all ${all.size} collections in parallel — " +
-                "usually about 15–25 seconds total.",
-            primaryLabel = "Re-style ALL",
-            secondaryLabel = "Cancel",
-            onPrimary = {
-                dlg.showBusy("Re-styling ${all.size} covers in parallel…")
-                for (c in all) collectionsAdapter.setBusy(c.id, true)
-                lifecycleScope.launch {
-                    // The async-on-Collection-map call below needs a
-                    // CoroutineScope receiver, but the `.map { }`
-                    // lambda doesn't carry one.  Capture `this` and
-                    // call `async` through the captured scope so the
-                    // extension resolves correctly.
-                    val scope = this
-                    val jobs = all.map { c ->
-                        scope.async(Dispatchers.IO) {
-                            try {
-                                val gen = CoversApi.generate(
-                                    c.name, forceSalt = CoversApi.freshSalt())
-                                CollectionsStore.update(this@LibraryActivity,
-                                    c.copy(coverHash = gen.hash, coverUrl = gen.url))
-                            } catch (_: Throwable) {
-                                /* swallow individual failures so the
-                                 * batch keeps progressing */
-                            }
-                        }
-                    }
-                    jobs.awaitAll()
-                    for (c in all) collectionsAdapter.setBusy(c.id, false)
-                    dlg.snapToComplete()
-                    refresh()
-                }
-            },
-        )
     }
 
     // ────────────────────────────────────────────────────── clock

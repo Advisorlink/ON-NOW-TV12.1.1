@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 16:9 "Add Collection" virtual tile.  Sits as the FIRST entry in the
+     Collections row in the Library screen.  No artwork — just a big
+     "+" glyph + "ADD COLLECTION" caption on a dashed-bordered card. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="180dp"
+    android:layout_marginEnd="18dp"
+    android:background="@drawable/library_tile_add_bg"
+    android:foreground="@drawable/library_tile_focus_fg"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:clickable="true"
+    android:longClickable="false">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+"
+            android:textColor="#5DC8FF"
+            android:textSize="56sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:shadowColor="#805DC8FF"
+            android:shadowDx="0" android:shadowDy="0" android:shadowRadius="14" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="ADD COLLECTION"
+            android:textColor="#9CB0D8"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.22" />
+    </LinearLayout>
+</FrameLayout>
