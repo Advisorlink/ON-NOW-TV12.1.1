@@ -81,11 +81,11 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # v10 — USER-LOCKED VERBATIM PROMPT.  Only substitution: the
-    # category name is appended after "the cable tv categorie" so
-    # the model knows which channel we're drawing for.  Wording
-    # otherwise untouched (including the spelling "categorie") —
-    # the user has been explicit about not paraphrasing.
+    # v11 — user's verbatim "cable tv categorie" wording PLUS an
+    # explicit "no logos, no text, no brand marks" guard appended
+    # at the end.  At quality="high" the safety filter is more
+    # permissive about real broadcaster wordmarks, so the explicit
+    # guard is what keeps the output logo-free.
     return (
         f"I need a channel tile design for my project its a licensed "
         f"project not showing any content just need an image the "
@@ -94,7 +94,12 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
         f"right.. there needs to be a black gradient on the bottom "
         f"aswell. The image needs to relate to the cable tv "
         f"categorie {cleaned}. the image should be of high quality "
-        f"for cable tv app"
+        f"for cable tv app. "
+        f"ABSOLUTELY NO LOGOS, no brand marks, no broadcaster logos, "
+        f"no channel logos, no text, no letters, no words, no "
+        f"numbers, no watermarks, no captions, no readable typography "
+        f"anywhere in the image — just a clean themed image on the "
+        f"right with the dark left fade."
     )
 
 
@@ -115,9 +120,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v7 — verbatim user-dictated prompt with category style table
 #   v8 — Gemini Nano Banana + cinematic Pixar-grade prompt, no left brand-mark
 #   v9 — GPT-Image-1 + same cinematic Pixar-grade prompt, no left brand-mark
-#   v10 — USER-LOCKED VERBATIM prompt (cable tv categorie), GPT-Image-1 (current)
+#   v10 — USER-LOCKED VERBATIM prompt (cable tv categorie), GPT-Image-1
+#   v11 — v10 prompt + strict no-logos / no-text guard, quality=high (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v10"
+PROMPT_RECIPE_VERSION = "v11"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
@@ -208,7 +214,7 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             prompt=prompt,
             model="gpt-image-1",
             number_of_images=1,
-            quality="medium",
+            quality="high",
         )
     except Exception as exc:
         log.exception("GPT-Image-1 generation failed for %r", req.name)
