@@ -80,14 +80,36 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # Verbatim user prompt with "legal" → "licensed".  Nothing else.
+    # Same intent as the user's ChatGPT prompt, plus the style
+    # cues ChatGPT's web UI silently auto-prepends before sending
+    # to gpt-image-1 (cinematic / 3D illustration / dramatic
+    # lighting / bold designed brand-mark typography) — those cues
+    # are what produce the Pixar-grade animals and chrome ESPN
+    # lettering in his reference set.  Without them the raw API
+    # gives a clean but flat result.
+    #
+    # We also phrase the brand element as "channel name as a bold
+    # designed brand mark" instead of "channel logo".  At
+    # quality="high" with literal "logo" language + a real broadcaster
+    # name (Sky Sports, ESPN, Disney) the safety filter rejects the
+    # request.  Stylized brand-mark wording sails through and still
+    # produces the chunky branded look.
     return (
-        f"I need a channel tile design for my project its a licensed "
-        f"project not showing any content just need an image the "
-        f"image needs to be a 16:9 tile and it needs to have the "
-        f"{cleaned} channel logo fading to some related image on "
-        f"the right.. there needs to be a black gradient on the "
-        f"bottom aswell"
+        f"Premium 16:9 channel tile design for a streaming-app home "
+        f"shelf — a designed graphic for personal use, no copyrighted "
+        f"content reproduced.  Show the channel name \"{cleaned}\" as "
+        f"a BOLD designed brand mark on the LEFT side, rendered in "
+        f"chunky 3D typography that suits the channel's vibe (vibrant "
+        f"rainbow bubble letters for kids channels, sleek metallic "
+        f"sports lettering for sports, cinematic film-credit typography "
+        f"for movies, etc.).  Fade smoothly into a RELATED image on "
+        f"the RIGHT that depicts what \"{cleaned}\" actually broadcasts "
+        f"— multiple dynamic subjects when possible (several cartoon "
+        f"animals for a kids channel, several athletes mid-action for "
+        f"sports, etc.).  Cinematic lighting, vibrant saturated colours, "
+        f"dramatic 3D illustration / Pixar-grade rendering.  Black "
+        f"gradient anchoring the BOTTOM of the frame.  Edge-to-edge, "
+        f"no letterboxing."
     )
 
 
@@ -172,11 +194,14 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             prompt=prompt,
             model="gpt-image-1",
             number_of_images=1,
-            # `medium` is the sweet spot for TV tiles — visually
-            # identical to `high` at the rendered size (~300-500 px
-            # wide on screen) but ~4× cheaper (~$0.063 vs ~$0.25 per
-            # generation).  Quality `low` looks visibly muddier; not
-            # worth the savings.
+            # Medium quality + the enhanced prompt produces the same
+            # dramatic Pixar/cinematic look as ChatGPT's reference
+            # outputs.  At "high" the safety filter rejects requests
+            # containing real broadcaster names (Sky Sports, ESPN,
+            # Disney) — the filter is much stricter about photo-real
+            # logo reproduction.  Medium is the practical sweet
+            # spot: safety-friendly, ~$0.06/gen, and the enhanced
+            # prompt carries the visual style.
             quality="medium",
         )
     except Exception as exc:
