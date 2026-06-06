@@ -1,8 +1,6 @@
 package tv.onnowtv.kids
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -58,6 +56,11 @@ class MainActivity : AppCompatActivity() {
     /** What to do once the user enters the correct PIN. */
     private enum class PinIntent { EXIT_KIDS, OPEN_SETTINGS }
     private var pendingIntent: PinIntent = PinIntent.EXIT_KIDS
+
+    /** Set true while the parent is legitimately leaving Kids via
+     *  the PIN-exit path so [onUserLeaveHint] doesn't bounce us
+     *  back. */
+    private var pinExitInProgress: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,39 +127,57 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Whenever the system re-dispatches the HOME intent to us (the
-     * user pressed the HOME button on the remote OR returned from
-     * a transient external activity), require the PIN before doing
-     * anything else.  This is the central trap that satisfies the
-     * user's "can't exit by pressing HOME" rule.
+     * Whenever the activity comes back to the foreground because we
+     * just bounced it back from a HOME-press (see `onUserLeaveHint`),
+     * the intent carries `EXTRA_ARMED_BY_HOME` — pop the PIN gate.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.hasCategory(Intent.CATEGORY_HOME)) {
+        if (intent.getBooleanExtra(EXTRA_ARMED_BY_HOME, false)) {
             requestPin(PinIntent.EXIT_KIDS)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Defensive: if the activity comes back to the foreground
-        // because of a HOME press (and onNewIntent wasn't called
-        // because we were already foreground), still show the PIN.
-        // The launching Intent's HOME category is the marker.
-        if (intent?.hasCategory(Intent.CATEGORY_HOME) == true && pinOverlay.visibility != View.VISIBLE) {
-            // No-op on first launch — we want the kid to see the
-            // home page, not the PIN overlay on cold start.  Use a
-            // SharedPreferences flag so subsequent HOME presses
-            // (after the first foreground render) DO trigger the
-            // gate.
-            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-            if (prefs.getBoolean("seen_home", false)) {
-                requestPin(PinIntent.EXIT_KIDS)
-            } else {
-                prefs.edit().putBoolean("seen_home", true).apply()
-            }
+        // If we got here via the bounce-back (cold start of the
+        // singleTask instance), still arm the PIN.  `onNewIntent`
+        // covers the warm-foreground case; `onResume` reading the
+        // intent extra covers the cold-restart case.
+        if (intent?.getBooleanExtra(EXTRA_ARMED_BY_HOME, false) == true &&
+            pinOverlay.visibility != View.VISIBLE) {
+            requestPin(PinIntent.EXIT_KIDS)
         }
+    }
+
+    /**
+     * Called by the framework the moment the user presses HOME or
+     * RECENTS — BEFORE `onPause`.  This is our hook to bounce the
+     * activity back to the foreground so the PIN gate can challenge
+     * the kid.  Skipped when the user is leaving via the PIN-exit
+     * flow itself (`pinExitInProgress`) so we don't fight against
+     * a legitimate exit.
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pinExitInProgress) return
+        // Re-launch ourselves immediately.  REORDER_TO_FRONT keeps
+        // the same task; SINGLE_TOP routes through onNewIntent
+        // instead of creating a duplicate Activity.  The boolean
+        // extra is what tells the re-entry path to pop the PIN
+        // gate.
+        val bounceBack = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_ARMED_BY_HOME, true)
+        }
+        // 80ms delay lets the framework finish its HOME transition
+        // animation before our task slams back into the foreground
+        // — without it some TV launchers swallow the bounce.
+        Handler(Looper.getMainLooper()).postDelayed({
+            startActivity(bounceBack)
+        }, 80L)
     }
 
     /** Animate the splash overlay out. */
@@ -266,29 +287,22 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("$appUrl/kids/settings?gate=passed")
     }
 
-    /** Launch the system "Select Home app" chooser so the parent
-     *  can hand control back to the regular launcher, then move our
-     *  task to background.  If they cancel the chooser they stay
-     *  inside Kids — exactly the desired escape-hatch UX. */
+    /** Move our task to the background — equivalent to the user
+     *  pressing HOME themselves, but we set [pinExitInProgress]
+     *  first so the `onUserLeaveHint` bounce-back doesn't fight
+     *  us.  Control returns to the OnNow Launcher (the device's
+     *  default home app); the Kids APK quietly waits in the
+     *  background. */
     private fun reallyExitToSystemHome() {
-        try {
-            val home = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            // Show the chooser explicitly so the parent picks ANOTHER
-            // home app (otherwise the system would just re-launch us).
-            val chooser = Intent.createChooser(home, "Choose home app").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(chooser)
-        } catch (_: Throwable) {
-            // Last resort — drop the task so the user sees their
-            // previous app.  They'll still hit our HOME intent next
-            // time they press the button unless they choose another
-            // launcher.
-            moveTaskToBack(true)
-        }
+        pinExitInProgress = true
+        // Re-enable the guard after a short delay so any later
+        // foregrounding of Kids (kid relaunches it from the
+        // launcher tile) re-arms the bounce-back.
+        Handler(Looper.getMainLooper()).postDelayed(
+            { pinExitInProgress = false },
+            2_000L,
+        )
+        moveTaskToBack(true)
     }
 
     /* ─────────────────── Key handling ─────────────────── */
@@ -356,6 +370,10 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS = "kids_kiosk"
         private const val KEY_PIN = "parent_pin"
         private const val DEFAULT_PIN = "0000"
+        /** Intent extra set when MainActivity is re-launched by the
+         *  `onUserLeaveHint` bounce-back; triggers the PIN gate on
+         *  the next re-foreground. */
+        private const val EXTRA_ARMED_BY_HOME = "armed_by_home"
     }
 }
 
