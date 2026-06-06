@@ -85,6 +85,7 @@ class EpgActivity : AppCompatActivity() {
 
     // Preview-card refs (in-hero live mini player)
     private lateinit var previewPlayerView: PlayerView
+    private lateinit var previewBufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
     private lateinit var previewThumbnail: ImageView
     private lateinit var previewIdleHint: View
     private lateinit var previewThumbFade: View
@@ -273,6 +274,7 @@ class EpgActivity : AppCompatActivity() {
         btnLogout          = findViewById(R.id.btn_logout)
 
         previewPlayerView  = findViewById(R.id.preview_player_view)
+        previewBufferLoader = findViewById(R.id.preview_buffer_loader)
         previewThumbnail   = findViewById(R.id.preview_thumbnail)
         previewIdleHint    = findViewById(R.id.preview_idle_hint)
         previewThumbFade   = findViewById(R.id.preview_thumb_fade)
@@ -967,11 +969,45 @@ class EpgActivity : AppCompatActivity() {
         previewPlayerView.visibility = View.VISIBLE
         previewLiveBadge.visibility = View.VISIBLE
         previewMiniBar.visibility = View.VISIBLE
+        // Show the orbital loader immediately — first frame is at
+        // least a couple of seconds away.  The Player.Listener
+        // installed below hides it when STATE_READY fires.
+        previewBufferLoader.visibility = View.VISIBLE
         LivePreviewSession.setChannel(this, ch)
         LivePreviewSession.attachTo(previewPlayerView)
+        attachPreviewBufferListenerOnce()
         focusedChannel = ch
         updateHero(ch)
         loadGuideForChannel(ch)
+    }
+
+    /** Player state listener — toggles the preview orbital loader.
+     *  Installed lazily the first time startPreview() runs and
+     *  re-installed whenever the underlying ExoPlayer instance
+     *  changes (e.g. after backgrounding + foregrounding). */
+    private var previewListenerOwner: androidx.media3.common.Player? = null
+    private val previewBufferListener = object : androidx.media3.common.Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            when (state) {
+                androidx.media3.common.Player.STATE_READY,
+                androidx.media3.common.Player.STATE_ENDED,
+                androidx.media3.common.Player.STATE_IDLE -> {
+                    previewBufferLoader.visibility = View.GONE
+                }
+                androidx.media3.common.Player.STATE_BUFFERING -> {
+                    previewBufferLoader.visibility = View.VISIBLE
+                }
+            }
+        }
+    }
+
+    private fun attachPreviewBufferListenerOnce() {
+        val current = LivePreviewSession.getOrCreate(this)
+        if (previewListenerOwner === current) return
+        // Player instance rotated — clean up the old binding first.
+        previewListenerOwner?.removeListener(previewBufferListener)
+        current.addListener(previewBufferListener)
+        previewListenerOwner = current
     }
 
     /** Push [ch] into [PlayerActivity] using the same shared player. */

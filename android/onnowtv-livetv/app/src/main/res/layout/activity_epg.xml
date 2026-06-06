@@ -229,6 +229,16 @@
                     android:background="#000000"
                     android:visibility="gone" />
 
+                <!-- Orbital buffering loader — centred over the
+                     preview window while the shared ExoPlayer is
+                     in STATE_BUFFERING.  Toggled by EpgActivity. -->
+                <tv.onnowtv.livetv.ui.OrbitalLoaderView
+                    android:id="@+id/preview_buffer_loader"
+                    android:layout_width="92dp"
+                    android:layout_height="92dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+
                 <!-- LIVE pill (top-left, inside card). -->
                 <TextView
                     android:id="@+id/preview_live_badge"

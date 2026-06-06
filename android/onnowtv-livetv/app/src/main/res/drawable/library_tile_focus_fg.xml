@@ -9,21 +9,21 @@
         <shape android:shape="rectangle">
             <corners android:radius="14dp" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="3.5dp" android:color="#5C9CFF" />
+            <stroke android:width="2dp" android:color="@color/livetv_accent" />
         </shape>
     </item>
     <item android:state_selected="true">
         <shape android:shape="rectangle">
             <corners android:radius="14dp" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="3.5dp" android:color="#5C9CFF" />
+            <stroke android:width="2dp" android:color="@color/livetv_accent" />
         </shape>
     </item>
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <corners android:radius="14dp" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="3.5dp" android:color="#FFFFFF" />
+            <stroke android:width="2dp" android:color="#FFFFFF" />
         </shape>
     </item>
     <item>

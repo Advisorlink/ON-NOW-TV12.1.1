@@ -90,6 +90,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var infoProgress: View
     private lateinit var infoUpNext: TextView
     private lateinit var tunePill: TextView
+    private lateinit var bufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
 
     private val hideHandler = Handler(Looper.getMainLooper())
     private val numberHandler = Handler(Looper.getMainLooper())
@@ -118,6 +119,7 @@ class PlayerActivity : AppCompatActivity() {
         infoProgress  = findViewById(R.id.info_progress)
         infoUpNext    = findViewById(R.id.info_up_next)
         tunePill      = findViewById(R.id.tune_pill)
+        bufferLoader  = findViewById(R.id.buffer_loader)
 
         val url = intent.getStringExtra(EXTRA_URL)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
@@ -284,6 +286,7 @@ class PlayerActivity : AppCompatActivity() {
                     Player.STATE_READY -> {
                         status.text = ""
                         consecutiveFailures = 0
+                        bufferLoader.visibility = View.GONE
                         // First frame is on screen — hide the
                         // transport controller AND the info card
                         // immediately so the picture fills the
@@ -297,8 +300,19 @@ class PlayerActivity : AppCompatActivity() {
                             .withEndAction { infoCard.visibility = View.GONE }
                             .start()
                     }
-                    Player.STATE_BUFFERING -> { /* spinner shown by PlayerView */ }
-                    Player.STATE_ENDED -> { status.text = "Stream ended" }
+                    Player.STATE_BUFFERING -> {
+                        // Branded orbital spinner instead of the
+                        // generic PlayerView one.  Centred over the
+                        // black canvas while the stream warms up.
+                        bufferLoader.visibility = View.VISIBLE
+                    }
+                    Player.STATE_ENDED -> {
+                        bufferLoader.visibility = View.GONE
+                        status.text = "Stream ended"
+                    }
+                    Player.STATE_IDLE -> {
+                        bufferLoader.visibility = View.GONE
+                    }
                     else -> Unit
                 }
             }

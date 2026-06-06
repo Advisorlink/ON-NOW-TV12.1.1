@@ -28,6 +28,17 @@
         app:use_controller="false"
         app:show_buffering="never" />
 
+    <!-- ─────────── Orbital buffering loader (centred) ─────────── -->
+    <!-- Shown only while ExoPlayer is in STATE_BUFFERING (managed
+         by PlayerActivity.onPlaybackStateChanged).  Hardware-
+         accelerated custom View — no bitmap allocations per frame. -->
+    <tv.onnowtv.livetv.ui.OrbitalLoaderView
+        android:id="@+id/buffer_loader"
+        android:layout_width="180dp"
+        android:layout_height="180dp"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
     <!-- ─────────── Channel info overlay (top-left) ─────────── -->
     <!-- HIDDEN per user request — kept in the tree so existing
          findViewById refs in PlayerActivity still resolve.  All
