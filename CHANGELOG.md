@@ -1,5 +1,34 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.8.144 — AI cover prompt locked: ChatGPT-style enhanced prompt + 12% safe-area clause
+
+After several rounds of testing against the user's ChatGPT reference images (the standard he wants every cover to hit), the final cover-generation pipeline is now:
+
+### Provider + params
+- **Model**: OpenAI `gpt-image-1` via `OpenAIImageGeneration` + Emergent universal key.
+- **Quality**: `medium` (~$0.06/cover, ~270 covers in the user's $17 budget).  `high` rejects real broadcaster names (Sky Sports, ESPN, Disney) at the OpenAI safety-filter layer.
+- **Output**: 1280×720 PNG, exact 16:9 (Pillow centre-crop + LANCZOS).
+
+### Prompt design (the part that finally matched the references)
+- The user's original wording was too bare — gpt-image-1 produced a clean but FLAT one-subject composition.  ChatGPT web silently auto-prepends style cues + safety-friendly rewrites; we now embed those cues directly:
+  - "Premium 16:9 channel tile design for a streaming-app home shelf"
+  - "BOLD designed brand mark on the LEFT, chunky 3D typography that suits the channel's vibe"
+  - "multiple dynamic subjects when possible"
+  - "Cinematic lighting, vibrant saturated colours, dramatic 3D illustration / Pixar-grade rendering"
+- **Critical safe-area clause** (locked after the user reported text-clipping):
+  - Brand text must sit inside a safe zone starting ≥12% from the left edge and ending ≤50% across
+  - Subjects' heads ≥6% below top, feet ≥6% above bottom
+  - "If the channel name is long, scale typography DOWN — DO NOT crop letters"
+
+### Verified samples
+- **UK Sky Sports** — chrome 3D "UK / SKY / SPORTS" stack (no clipping), 3 athletes (basketball, sprinter, footballer), soccer ball, dramatic red/orange/blue stadium lighting.
+- **UK Kids** — rainbow 3D bubble letters "UK / KIDS", 4 Pixar-grade animals (bluebird, monkey, bunny, fox), purple→orange gradient.
+
+Both inside the safe area on every edge, matching the visual family of the user's ChatGPT references (Kayo Sports / ESPN / UK Kids jungle).
+
+### Files touched
+- `backend/library.py` — final `_build_prompt()` with style cues + safe-area clause; quality reverted to `medium`.
+
 ## v2.8.143 — Wipe Gemini cache, restore verbatim prompt, focus border on every tile
 
 User reported on-device:
