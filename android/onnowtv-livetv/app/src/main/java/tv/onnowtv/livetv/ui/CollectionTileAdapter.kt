@@ -13,16 +13,26 @@ import tv.onnowtv.livetv.data.LibraryCollection
 /**
  * Library COLLECTIONS row — 16:9 AI-generated cover tiles.
  *
- *   • OK on a tile  → [onPick]  (open the underlying category)
- *   • LONG-PRESS    → [onLongPick]  (regenerate cover dialog)
+ * The FIRST item is always a virtual "+ Add Collection" tile that
+ * fires [onAddCollection] when clicked.  Real collections follow.
+ *
+ *   • OK on a real tile  → [onPick]    (open in EPG collection-mode)
+ *   • LONG-PRESS         → [onLongPick] (rename / change cover /
+ *                                        delete menu)
  *
  * Each row also exposes a "busy" badge so the LibraryActivity can
- * show "GENERATING…" while GPT-Image-1 is in flight.
+ * show "GENERATING…" while a cover regeneration is in flight.
  */
 class CollectionTileAdapter(
+    private val onAddCollection: () -> Unit,
     private val onPick: (LibraryCollection) -> Unit,
     private val onLongPick: (LibraryCollection) -> Unit,
-) : RecyclerView.Adapter<CollectionTileAdapter.VH>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    companion object {
+        private const val TYPE_ADD = 0
+        private const val TYPE_COLLECTION = 1
+    }
 
     private val items = mutableListOf<LibraryCollection>()
     private val busy = mutableSetOf<String>()
@@ -39,29 +49,42 @@ class CollectionTileAdapter(
         val changed = if (isBusy) busy.add(id) else busy.remove(id)
         if (changed) {
             val idx = items.indexOfFirst { it.id == id }
-            if (idx >= 0) notifyItemChanged(idx)
+            if (idx >= 0) notifyItemChanged(idx + 1)  // +1 for the Add tile
         }
     }
 
-    /** Per-tile channel count.  Filled in by the activity by passing
-     *  a lookup map and re-binding when the EPG bundle is ready. */
-    var channelCounts: Map<String, Int> = emptyMap()
-        set(value) {
-            field = value
-            notifyDataSetChanged()
+    override fun getItemCount(): Int = items.size + 1
+
+    override fun getItemViewType(position: Int): Int =
+        if (position == 0) TYPE_ADD else TYPE_COLLECTION
+
+    override fun getItemId(position: Int): Long =
+        if (position == 0) -1L else items[position - 1].id.hashCode().toLong()
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            TYPE_ADD -> AddVH(
+                inflater.inflate(R.layout.item_collection_add_tile, parent, false)
+            )
+            else -> VH(
+                inflater.inflate(R.layout.item_collection_tile, parent, false)
+            )
         }
-
-    override fun getItemId(position: Int): Long = items[position].id.hashCode().toLong()
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
-        VH(LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_collection_tile, parent, false))
-
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        holder.bind(items[position])
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (holder) {
+            is AddVH -> holder.bind()
+            is VH -> holder.bind(items[position - 1])
+        }
+    }
+
+    inner class AddVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        fun bind() {
+            itemView.setOnClickListener { onAddCollection() }
+        }
+    }
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cover: ImageView = itemView.findViewById(R.id.tile_cover)
@@ -71,10 +94,10 @@ class CollectionTileAdapter(
 
         fun bind(c: LibraryCollection) {
             name.text = c.name
-            val n = channelCounts[c.categoryId] ?: 0
-            count.text = when {
-                n == 0 -> ""
-                n == 1 -> "1 CHANNEL"
+            val n = c.channelIds.size
+            count.text = when (n) {
+                0 -> "EMPTY · LONG-PRESS A CHANNEL TO ADD"
+                1 -> "1 CHANNEL"
                 else -> "%,d CHANNELS".format(n)
             }
             if (!c.coverUrl.isNullOrBlank()) {

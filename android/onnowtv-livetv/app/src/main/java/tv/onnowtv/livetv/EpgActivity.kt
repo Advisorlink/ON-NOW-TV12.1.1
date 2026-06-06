@@ -52,9 +52,16 @@ class EpgActivity : AppCompatActivity() {
          *  saved Collection — when present, that category becomes
          *  the initial selection instead of "All channels". */
         const val EXTRA_INITIAL_CATEGORY_ID = "extra_initial_category_id"
+        /** Intent extra used by [LibraryActivity] to open the EPG in
+         *  COLLECTION-MODE — the categories sidebar is hidden, the
+         *  middle column is locked to the collection's channelIds. */
+        const val EXTRA_INITIAL_COLLECTION_ID = "extra_initial_collection_id"
     }
 
     private lateinit var bundle: XtreamBundle
+
+    /** Non-null when launched in COLLECTION-MODE. */
+    private var currentCollection: tv.onnowtv.livetv.data.LibraryCollection? = null
 
     // Add the new rail library button
     private lateinit var railLibrary: ImageButton
@@ -217,7 +224,8 @@ class EpgActivity : AppCompatActivity() {
         // list so the user lands on the first channel of their
         // collection — not parked on a category pill.
         val deepLinkCategoryId = intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)
-        if (!deepLinkCategoryId.isNullOrBlank()) {
+        val deepLinkCollectionId = intent.getStringExtra(EXTRA_INITIAL_COLLECTION_ID)
+        if (!deepLinkCategoryId.isNullOrBlank() || !deepLinkCollectionId.isNullOrBlank()) {
             channelsList.post {
                 channelsList.findViewHolderForAdapterPosition(0)
                     ?.itemView?.requestFocus()
@@ -336,6 +344,20 @@ class EpgActivity : AppCompatActivity() {
         // user straight in that category's channel list.
         intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)?.takeIf { it.isNotBlank() }
             ?.let { currentCategoryId = it }
+
+        // COLLECTION-MODE: LibraryActivity passed a collection id.
+        // Look it up, hide the categories sidebar, and synthesise a
+        // dedicated category that contains just the collection's
+        // channels.  See [applyCategory] for the filtering logic.
+        intent.getStringExtra(EXTRA_INITIAL_COLLECTION_ID)?.takeIf { it.isNotBlank() }
+            ?.let { id ->
+                currentCollection = tv.onnowtv.livetv.data.CollectionsStore.load(this)
+                    .firstOrNull { it.id == id }
+                if (currentCollection != null) {
+                    findViewById<View>(R.id.categories_sidebar)?.visibility = View.GONE
+                    currentCategoryId = "__collection__"
+                }
+            }
     }
 
     private fun setupAdapters() {
@@ -356,7 +378,13 @@ class EpgActivity : AppCompatActivity() {
             // CHANNEL list below — that's the row the user wants
             // pre-populated when they pause for a second.
             onFocus = { /* no-op — apply on click only */ },
-            onLongPick = { c -> promptAddToLibrary(c) },
+            // Category long-press no-op: in v2.9.0 the user
+            // rebuilt Collections to be user-curated channel lists
+            // (created from the Library screen and populated by
+            // long-pressing OK on individual channels), so the
+            // old "long-press a category → add as a Collection"
+            // entry-point is gone.
+            onLongPick = { /* no-op */ },
         )
         categoriesList.layoutManager = LinearLayoutManager(this)
         categoriesList.adapter = categoryAdapter
@@ -380,28 +408,7 @@ class EpgActivity : AppCompatActivity() {
                 }, 1_000L)
             },
             onActivate = { ch -> launchPlayer(ch) },
-            onLongPress = { ch ->
-                val nowFav = FavouritesStore.toggle(this, ch.id)
-                if (nowFav) {
-                    favouriteSet.add(ch.id)
-                    android.widget.Toast.makeText(
-                        this, "Added ${ch.name} to favourites",
-                        android.widget.Toast.LENGTH_SHORT,
-                    ).show()
-                } else {
-                    favouriteSet.remove(ch.id)
-                    android.widget.Toast.makeText(
-                        this, "Removed ${ch.name} from favourites",
-                        android.widget.Toast.LENGTH_SHORT,
-                    ).show()
-                }
-                // Rebuild the Favourites pill's count + refresh the
-                // middle column if the user is currently viewing
-                // the Favourites virtual category.
-                buildCategories()
-                categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
-                if (currentCategoryId == "__favourites__") applyCategory()
-            },
+            onLongPress = { ch -> showChannelActionsMenu(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
             isKnownEmpty = { ch -> epgKnownEmpty.contains(ch.epgChannelId ?: "") },
         )
@@ -683,6 +690,13 @@ class EpgActivity : AppCompatActivity() {
             "__all__", null -> bundle.channels
             "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
+            "__collection__" -> {
+                // Preserve the user's add-order within the collection
+                // by walking the collection's channelIds in order.
+                val ids = currentCollection?.channelIds.orEmpty()
+                val byId = bundle.channels.associateBy { it.id }
+                ids.mapNotNull { byId[it] }
+            }
             else -> bundle.channels.filter { it.categoryId == sel }
         }
         val visible = channels.take(500)
@@ -1093,97 +1107,125 @@ class EpgActivity : AppCompatActivity() {
     }
 
     /**
-     * Long-pressing a category opens the new Vesper-style "Add to
-     * Library" dialog which (a) saves the
-     * [tv.onnowtv.livetv.data.LibraryCollection] to
-     * [tv.onnowtv.livetv.data.CollectionsStore] and (b) kicks off
-     * a GPT-Image-1 cover-art generation right inside the dialog
-     * with a live progress strip + elapsed timer so the user can
-     * see exactly how long the cover takes.
+     * Channel long-press menu — replaces the old "toggle favourite"
+     * shortcut with a popup that offers:
+     *   • Add/Remove favourite
+     *   • Add to an existing collection (sub-menu lists each
+     *     collection by name)
+     *   • Remove from this collection (only when we're currently
+     *     viewing the EPG in collection-mode and the channel is in
+     *     the active collection)
      */
-    private fun promptAddToLibrary(category: Category) {
-        // Skip the synthetic virtual categories — they don't have
-        // a real underlying Xtream category to bind a Collection to.
-        if (category.id.startsWith("__")) return
-
+    private fun showChannelActionsMenu(ch: Channel) {
         val ctx = this
-        val alreadySaved = tv.onnowtv.livetv.data.CollectionsStore.has(ctx, category.id)
-        val dlg = tv.onnowtv.livetv.ui.LibraryDialog(ctx)
+        val isFav = favouriteSet.contains(ch.id)
+        val collections = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
+        val inCollectionMode = currentCollection != null
+        val items = mutableListOf<Pair<String, () -> Unit>>()
 
-        if (alreadySaved) {
-            dlg.showIdle(
-                titleText = "Already in your library",
-                bodyText = "\"${category.name}\" is already saved.  Generate a fresh AI cover for it now?  " +
-                    "Tweak the brand name below first if you want the generator to lean a particular way " +
-                    "(e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\").",
-                primaryLabel = "Regenerate cover",
-                secondaryLabel = "Close",
-                nameHint = category.name,
-                onPrimary = {
-                    val typed = dlg.editedName.ifBlank { category.name }
-                    dlg.showBusy("Regenerating cover for \"$typed\" — usually 10–20 seconds.")
-                    runGeneration(category, regenerate = true, dlg, overrideName = typed)
-                },
-            )
-        } else {
-            dlg.showIdle(
-                titleText = "Add \"${category.name}\" to library",
-                bodyText = "We'll create a realistic 16:9 channel tile — usually 10–20 seconds.  " +
-                    "Tweak the name below first if you want — e.g. \"Sky Sports KO\" → \"Sky Sports KO boxing\" " +
-                    "tells the generator exactly what to show on the right of the tile.",
-                primaryLabel = "Add + Generate",
-                secondaryLabel = "Cancel",
-                nameHint = category.name,
-                onPrimary = {
-                    val typed = dlg.editedName.ifBlank { category.name }
-                    dlg.showBusy("Generating cover for \"$typed\" — usually 10–20 seconds.")
-                    runGeneration(category, regenerate = false, dlg, overrideName = typed)
-                },
-            )
+        items += (if (isFav) "Remove from Favourites" else "Add to Favourites") to {
+            toggleFavourite(ch)
         }
-    }
-
-    private fun runGeneration(
-        category: Category,
-        regenerate: Boolean,
-        dlg: tv.onnowtv.livetv.ui.LibraryDialog,
-        overrideName: String? = null,
-    ) {
-        val ctx = this
-        val displayName = overrideName?.takeIf { it.isNotBlank() } ?: category.name
-        val existing = tv.onnowtv.livetv.data.CollectionsStore.load(ctx)
-            .firstOrNull { it.categoryId == category.id }
-        val record = existing?.copy(name = displayName)
-            ?: tv.onnowtv.livetv.data.LibraryCollection(
-                id = java.util.UUID.randomUUID().toString(),
-                categoryId = category.id,
-                name = displayName,
-                coverHash = null,
-                coverUrl = null,
-                addedAt = System.currentTimeMillis(),
-            )
-        if (existing == null) {
-            tv.onnowtv.livetv.data.CollectionsStore.add(ctx, record)
-        } else if (existing.name != displayName) {
-            tv.onnowtv.livetv.data.CollectionsStore.update(ctx, record)
+        items += "Add to Collection…" to {
+            showAddToCollectionMenu(ch, collections)
         }
-        lifecycleScope.launch {
-            try {
-                val gen = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                    tv.onnowtv.livetv.data.CoversApi.generate(
-                        name = displayName,
-                        forceSalt = if (regenerate) tv.onnowtv.livetv.data.CoversApi.freshSalt() else null,
-                    )
+        if (inCollectionMode && currentCollection?.channelIds?.contains(ch.id) == true) {
+            items += "Remove from this collection" to {
+                currentCollection?.let { coll ->
+                    tv.onnowtv.livetv.data.CollectionsStore.removeChannel(ctx, coll.id, ch.id)
+                    // Refresh local snapshot + repaint the middle column.
+                    currentCollection = tv.onnowtv.livetv.data.CollectionsStore
+                        .load(ctx).firstOrNull { it.id == coll.id }
+                    applyCategory()
+                    android.widget.Toast.makeText(
+                        ctx, "Removed ${ch.name} from \"${coll.name}\"",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
                 }
-                tv.onnowtv.livetv.data.CollectionsStore.update(
-                    ctx,
-                    record.copy(coverHash = gen.hash, coverUrl = gen.url),
-                )
-                dlg.snapToComplete()
-            } catch (t: Throwable) {
-                dlg.showError(t.message ?: "Unknown error")
             }
         }
+
+        val labels = items.map { it.first }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(ctx)
+            .setTitle(ch.name)
+            .setItems(labels) { d, idx ->
+                d.dismiss()
+                items[idx].second()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun toggleFavourite(ch: Channel) {
+        val nowFav = FavouritesStore.toggle(this, ch.id)
+        if (nowFav) {
+            favouriteSet.add(ch.id)
+            android.widget.Toast.makeText(
+                this, "Added ${ch.name} to favourites",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        } else {
+            favouriteSet.remove(ch.id)
+            android.widget.Toast.makeText(
+                this, "Removed ${ch.name} from favourites",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        }
+        buildCategories()
+        categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
+        if (currentCategoryId == "__favourites__") applyCategory()
+    }
+
+    /**
+     * Second-level menu shown after the user picks "Add to
+     * Collection…".  Lists every collection by name; if there are
+     * none, offers to bounce out to the Library screen to create
+     * one.
+     */
+    private fun showAddToCollectionMenu(
+        ch: Channel,
+        collections: List<tv.onnowtv.livetv.data.LibraryCollection>,
+    ) {
+        val ctx = this
+        if (collections.isEmpty()) {
+            androidx.appcompat.app.AlertDialog.Builder(ctx)
+                .setTitle("No collections yet")
+                .setMessage(
+                    "Open the Library and tap \"+ Add Collection\" first, " +
+                        "then long-press a channel again to add it."
+                )
+                .setPositiveButton("Open Library") { d, _ ->
+                    d.dismiss()
+                    startActivity(android.content.Intent(ctx, LibraryActivity::class.java))
+                }
+                .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+                .show()
+            return
+        }
+        val labels = collections.map { c ->
+            val mark = if (ch.id in c.channelIds) " ✓" else ""
+            "${c.name} (${c.channelIds.size})$mark"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(ctx)
+            .setTitle("Add ${ch.name} to…")
+            .setItems(labels) { d, idx ->
+                d.dismiss()
+                val target = collections[idx]
+                if (ch.id in target.channelIds) {
+                    android.widget.Toast.makeText(
+                        ctx, "Already in \"${target.name}\"",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    return@setItems
+                }
+                tv.onnowtv.livetv.data.CollectionsStore.addChannel(ctx, target.id, ch.id)
+                android.widget.Toast.makeText(
+                    ctx, "Added ${ch.name} to \"${target.name}\"",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
     }
 
     override fun onPause() {
@@ -1235,15 +1277,25 @@ class EpgActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        intent.getStringExtra(EXTRA_INITIAL_COLLECTION_ID)?.takeIf { it.isNotBlank() }?.let { id ->
+            val coll = tv.onnowtv.livetv.data.CollectionsStore.load(this)
+                .firstOrNull { it.id == id }
+            if (coll != null) {
+                currentCollection = coll
+                findViewById<View>(R.id.categories_sidebar)?.visibility = View.GONE
+                currentCategoryId = "__collection__"
+                applyCategory()
+                channelsList.post {
+                    channelsList.findViewHolderForAdapterPosition(0)
+                        ?.itemView?.requestFocus()
+                }
+                return
+            }
+        }
         intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)?.takeIf { it.isNotBlank() }?.let { id ->
             currentCategoryId = id
             categoryAdapter.setSelected(id)
             applyCategory()
-            // Move focus into the channel list so the user lands on
-            // the first channel of the deep-linked category instead
-            // of staying on whatever rail icon they opened the
-            // Library from.  Runs on the next frame to give the
-            // list time to bind its first row.
             channelsList.post {
                 channelsList.findViewHolderForAdapterPosition(0)
                     ?.itemView?.requestFocus()

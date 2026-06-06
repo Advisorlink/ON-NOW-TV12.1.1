@@ -16,10 +16,11 @@ package tv.onnowtv.livetv.data
  * sidesteps the entire problem.
  */
 data class LibraryCollection(
-    val id: String,           // UUID generated on the device
-    val categoryId: String,   // Xtream category id (back-link to bundle)
-    val name: String,         // human-readable label
-    val coverHash: String?,   // backend hash for the AI-generated cover
-    val coverUrl: String?,    // resolved full URL ("https://…/api/library/cover/…")
-    val addedAt: Long,        // epoch millis
+    val id: String,                    // UUID generated on the device
+    val name: String,                  // human-readable label
+    val coverHash: String?,            // backend hash for the AI-generated cover
+    val coverUrl: String?,             // resolved full URL ("https://…/api/library/cover/…") OR "file://…"
+    val addedAt: Long,                 // epoch millis
+    val channelIds: List<String> = emptyList(),  // user-picked Channel.id values
+    val categoryId: String = "",       // legacy: pre-v2 Collections wrapped a single Xtream category
 )

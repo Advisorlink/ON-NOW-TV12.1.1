@@ -1,5 +1,36 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.9.0 — Collections rewritten as user-curated channel lists + pulsating-ring loaders + GPT-Image-1 HQ no-logos v13 prompt (Feb 2026).**
+>
+> **Three big changes:**
+>
+> **A. Collections are now USER-CURATED CHANNEL LISTS.**  Old model: a Collection was a single Xtream category bookmark.  New model: a Collection is a named container of `Channel.id` values.
+>   - Library screen: first tile is always **"+ Add Collection"** — tapping it opens a dialog (name input + "Auto cover (AI)" or "Upload your own").  The new collection starts EMPTY.
+>   - EPG: long-pressing OK on a channel now opens a popup menu — **Add/Remove Favourite** · **Add to Collection…** (lists every collection with current sizes + a ✓ next to ones already containing the channel) · **Remove from this collection** (only shown in collection-mode).
+>   - Tapping a populated collection from the Library opens the EPG in **COLLECTION-MODE**: the categories sidebar is hidden, the middle column shows ONLY the collection's channels in add-order, full guide + "Coming up next" intact.
+>   - Long-pressing an existing collection tile → menu: **Rename** / **Regenerate cover (AI)** / **Upload custom cover** / **Delete**.
+>   - Old category long-press → "Add to Library" entry-point removed (no-op now).  Legacy `categoryId`-based Collections still LOAD (back-compat) but no new flows can create them.
+>
+> **B. Loaders → pulsating concentric rings, slowed to 2.4 s cycle.**  Both the React `OrbitalLoader.jsx` and native `OrbitalLoaderView.kt` now render three concentric rings expanding outward from a glowing centre core, staggered by 1/3 of the cycle so a ring is always growing.  Previous orbital-dots design felt frantic at 1.4 s; the new pulses feel calm and breathing.
+>
+> **C. Cover prompt finalised at v13.**  After ~10 prompt iterations with the user (v5–v13, switching between OpenAI HQ/medium and Gemini Nano Banana), the final locked prompt is the user's verbatim "cable tv categorie" wording + strict no-logos/no-text guard, sent to **GPT-Image-1 quality="high"** via the Emergent Universal Key.  v13 covers verified: Kayo Sports / ESPN+ / UK Kids (generic cartoon bunny — no more Peppa Pig IP risk) / Sky Sports.
+>
+> **Files touched:**
+>   - `backend/library.py` — v13 prompt + `quality="high"`, bumped `PROMPT_RECIPE_VERSION` so cache rolls.
+>   - `frontend/src/components/OrbitalLoader.jsx` — pulsating rings.
+>   - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/ui/OrbitalLoaderView.kt` — pulsating rings (native).
+>   - `data/Collection.kt` — added `channelIds: List<String>`, made `categoryId` optional (legacy).
+>   - `data/CollectionsStore.kt` — JSON roundtrip for channelIds, new `addChannel/removeChannel/containsChannel` helpers, dropped `has()`.
+>   - `LibraryActivity.kt` — full rewrite of the create / rename / regenerate / delete flow; tile click → collection-mode EPG.
+>   - `EpgActivity.kt` — new `EXTRA_INITIAL_COLLECTION_ID` + collection-mode (hides `categories_sidebar`), `applyCategory()` handles `__collection__` filter, long-press → `showChannelActionsMenu()` + `showAddToCollectionMenu()`.  Legacy `promptAddToLibrary` removed.
+>   - `ui/CollectionTileAdapter.kt` — two view types: virtual "+ Add Collection" tile (always position 0) + real collection tile.  Channel count now = `channelIds.size`.
+>   - `res/layout/item_collection_add_tile.xml` (new) — dashed-border neon-blue "+ Add Collection" tile.
+>   - `res/drawable/library_tile_add_bg.xml` (new) — its background.
+>   - `res/layout/activity_epg.xml` — `categories_sidebar` id on the left column wrapper so EpgActivity can hide it in collection-mode.
+>
+> **Verification status**: backend HQ generation tested (4 covers, all clean, no IP, no text).  Android compile pending on user's device.
+
+
 > **🟢 v2.8.139 — Live TV: 4 fixes in one push (Feb 14, 2026).**
 >
 > All four user-reported issues from the on-device test:

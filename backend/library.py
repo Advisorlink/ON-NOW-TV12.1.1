@@ -122,9 +122,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v9 — GPT-Image-1 + same cinematic Pixar-grade prompt, no left brand-mark
 #   v10 — USER-LOCKED VERBATIM prompt (cable tv categorie), GPT-Image-1
 #   v11 — v10 prompt + strict no-logos / no-text guard, quality=high
-#   v12 — same prompt + no-logos guard, dropped back to quality=medium (current)
+#   v12 — same prompt + no-logos guard, dropped back to quality=medium
+#   v13 — same prompt + no-logos guard, quality=high (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v12"
+PROMPT_RECIPE_VERSION = "v13"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
@@ -215,7 +216,7 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
             prompt=prompt,
             model="gpt-image-1",
             number_of_images=1,
-            quality="medium",
+            quality="high",
         )
     except Exception as exc:
         log.exception("GPT-Image-1 generation failed for %r", req.name)
