@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 KIDS — main activity layout.
+
+    Stack from back to front:
+        1. WebView         — the React /kids tree
+        2. Left settings rail — a thin column with a single Settings
+                             gear icon.  Tapping it triggers the
+                             native PIN gate; on success it routes
+                             the WebView to /kids/settings?gate=passed.
+        3. Splash overlay  — warm gradient + "KIDS" wordmark, fades
+                             out once React reports onPageFinished.
+        4. PIN overlay     — full-screen scrim + 4 PIN boxes.
+                             Shown when user presses BACK / HOME or
+                             taps the settings rail.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/kids_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/kids_bg">
+
+    <WebView
+        android:id="@+id/kids_webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/kids_bg" />
+
+    <!-- LEFT settings rail.  Thin transparent strip down the left
+         edge with a Settings gear icon at the top.  Sits on top of
+         the WebView so the parent always has a single entry-point
+         into ratings/PIN settings. -->
+    <LinearLayout
+        android:id="@+id/kids_settings_rail"
+        android:layout_width="64dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:orientation="vertical"
+        android:gravity="top|center_horizontal"
+        android:paddingTop="36dp"
+        android:background="@drawable/kids_rail_bg">
+
+        <TextView
+            android:id="@+id/kids_settings_btn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="⚙"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:background="@drawable/kids_rail_btn_bg"
+            android:focusable="true"
+            android:clickable="true" />
+    </LinearLayout>
+
+    <include
+        android:id="@+id/kids_splash"
+        layout="@layout/kids_splash" />
+
+    <!-- ─── PIN gate overlay ─── -->
+    <FrameLayout
+        android:id="@+id/kids_pin_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E60E0926"
+        android:visibility="gone"
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingHorizontal="48dp"
+            android:paddingVertical="36dp"
+            android:background="@drawable/kids_pin_card_bg">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔒"
+                android:textSize="36sp"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/kids_pin_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:text="Enter parent PIN" />
+
+            <LinearLayout
+                android:id="@+id/kids_pin_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="22dp">
+
+                <TextView android:id="@+id/kids_pin_digit_1"
+                    android:layout_width="56dp" android:layout_height="68dp"
+                    android:layout_marginEnd="8dp"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF" android:textSize="28sp"
+                    android:background="@drawable/kids_pin_box_focused" />
+
+                <TextView android:id="@+id/kids_pin_digit_2"
+                    android:layout_width="56dp" android:layout_height="68dp"
+                    android:layout_marginEnd="8dp"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF" android:textSize="28sp"
+                    android:background="@drawable/kids_pin_box_idle" />
+
+                <TextView android:id="@+id/kids_pin_digit_3"
+                    android:layout_width="56dp" android:layout_height="68dp"
+                    android:layout_marginEnd="8dp"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF" android:textSize="28sp"
+                    android:background="@drawable/kids_pin_box_idle" />
+
+                <TextView android:id="@+id/kids_pin_digit_4"
+                    android:layout_width="56dp" android:layout_height="68dp"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF" android:textSize="28sp"
+                    android:background="@drawable/kids_pin_box_idle" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/kids_pin_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:textColor="#FFC9DF"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.08"
+                android:text="PRESS THE NUMBER KEYS ON YOUR REMOTE" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

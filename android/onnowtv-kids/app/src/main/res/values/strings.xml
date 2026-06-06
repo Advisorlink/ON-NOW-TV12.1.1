@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ON NOW V2 Kids</string>
+    <!--
+        🛠  EDIT ME 🛠
+        The Kids APK boots straight into `${app_url}/kids` — the same
+        React route the Vesper app used to load when Kids profile was
+        active.  Point this at your production backend.
+    -->
+    <string name="app_url" translatable="false">
+        https://onnowtv.duckdns.org/
+    </string>
+</resources>
