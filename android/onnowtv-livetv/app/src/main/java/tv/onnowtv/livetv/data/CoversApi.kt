@@ -54,7 +54,7 @@ object CoversApi {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15_000
-            readTimeout = 90_000  // Nano Banana can take 30-60s
+            readTimeout = 90_000  // GPT-Image-1 can take 30-60s
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
         }

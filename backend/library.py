@@ -63,17 +63,13 @@ async def _ensure_indexes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Prompt template — verbatim user-supplied prompt (Feb 14, 2026).
-# The user vetted this exact wording against ChatGPT and confirmed it
-# produces the desired channel-tile look (logo on the left fading
-# into a related image on the right, with a black gradient at the
-# bottom).  We're testing the same prompt against Nano Banana; if
-# the output drifts we'll switch this provider to GPT-Image-1.
-#
-# DO NOT rewrite or "improve" this prompt — the previous AI-slop
-# elaborations (neon collages, magazine-cover production value, etc.)
-# are exactly what the user wants to avoid.  Inject the category
-# name as the channel and leave the rest of the wording intact.
+# Prompt template — user's ChatGPT-vetted wording with ONE micro-edit:
+# "legal project" → "licensed project" so the model never renders
+# scales-of-justice imagery when it parses the word literally.  No
+# other rewrites, NO trailing example sentences — the user explicitly
+# rejected adding ", e.g. sports → athletes" style examples because
+# the model was using the example items rather than inferring from
+# the channel name.
 # ---------------------------------------------------------------------------
 _BASE_STYLE = (
     "ultra-realistic 16:9 widescreen channel tile, "
@@ -84,12 +80,9 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # User's verbatim ChatGPT prompt — NO rewrites, NO
-    # disambiguation, NO "trailing sentence" additions.  The user
-    # tested this exact wording in ChatGPT and it produced what
-    # they want.  Channel name is the only substitution.
+    # Verbatim user prompt with "legal" → "licensed".  Nothing else.
     return (
-        f"I need a channel tile design for my project its a legal "
+        f"I need a channel tile design for my project its a licensed "
         f"project not showing any content just need an image the "
         f"image needs to be a 16:9 tile and it needs to have the "
         f"{cleaned} channel logo fading to some related image on "

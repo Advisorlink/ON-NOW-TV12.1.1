@@ -1061,7 +1061,7 @@ class EpgActivity : AppCompatActivity() {
      * Library" dialog which (a) saves the
      * [tv.onnowtv.livetv.data.LibraryCollection] to
      * [tv.onnowtv.livetv.data.CollectionsStore] and (b) kicks off
-     * a Nano Banana cover-art generation right inside the dialog
+     * a GPT-Image-1 cover-art generation right inside the dialog
      * with a live progress strip + elapsed timer so the user can
      * see exactly how long the cover takes.
      */

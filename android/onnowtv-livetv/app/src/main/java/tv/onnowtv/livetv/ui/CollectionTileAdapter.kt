@@ -17,7 +17,7 @@ import tv.onnowtv.livetv.data.LibraryCollection
  *   • LONG-PRESS    → [onLongPick]  (regenerate cover dialog)
  *
  * Each row also exposes a "busy" badge so the LibraryActivity can
- * show "GENERATING…" while Nano Banana is in flight.
+ * show "GENERATING…" while GPT-Image-1 is in flight.
  */
 class CollectionTileAdapter(
     private val onPick: (LibraryCollection) -> Unit,

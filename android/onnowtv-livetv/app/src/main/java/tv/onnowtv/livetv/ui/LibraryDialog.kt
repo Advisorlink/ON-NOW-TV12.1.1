@@ -38,7 +38,7 @@ import tv.onnowtv.livetv.R
 class LibraryDialog(private val activity: Activity) {
 
     companion object {
-        /** Empirical Nano Banana 16:9 generation latency on the
+        /** Empirical GPT-Image-1 16:9 generation latency on the
          *  Emergent platform.  Used to drive the fake-but-honest
          *  progress curve so the bar fills at a believable rate. */
         private const val ETA_MS = 18_000L
