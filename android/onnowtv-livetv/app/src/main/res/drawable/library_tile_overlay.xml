@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Tall radial overlay that sits on top of the AI cover art so the
      bottom name+count strip remains legible regardless of which
-     specific artwork Nano Banana returned. -->
+     specific artwork GPT-Image-1 returned. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient

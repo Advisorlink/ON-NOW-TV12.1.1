@@ -61,7 +61,7 @@
             android:text="42 CHANNELS" />
     </LinearLayout>
 
-    <!-- "Generating…" badge shown while the Nano Banana call is
+    <!-- "Generating…" badge shown while the GPT-Image-1 call is
          in flight after a "Regenerate cover" long-press. -->
     <TextView
         android:id="@+id/tile_busy_badge"

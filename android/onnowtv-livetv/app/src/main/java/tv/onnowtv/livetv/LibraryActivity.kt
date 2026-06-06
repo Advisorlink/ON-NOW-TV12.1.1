@@ -313,7 +313,7 @@ class LibraryActivity : AppCompatActivity() {
 
     /**
      * Bulk re-style — fires every Collection's regeneration **in
-     * parallel** (Nano Banana easily handles 4-8 concurrent calls)
+     * parallel** (GPT-Image-1 easily handles 4-8 concurrent calls)
      * so the whole shelf refreshes in roughly one cover's worth of
      * wall-clock time instead of N × ~15 s.
      */
