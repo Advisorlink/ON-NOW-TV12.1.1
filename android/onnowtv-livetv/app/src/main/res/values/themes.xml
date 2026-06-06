@@ -28,4 +28,22 @@
         <item name="android:statusBarColor">@color/livetv_bg</item>
         <item name="android:navigationBarColor">@color/livetv_bg</item>
     </style>
+
+    <!--
+        Brand-styled action sheet dialog used by every long-press
+        menu in the app (channel actions, Add-to-Collection picker,
+        collection manage menu, etc.).  Floats over the underlying
+        activity with a dim translucent scrim — content is provided
+        by `dialog_action_sheet.xml` so this theme just kills the
+        framework chrome.
+    -->
+    <style name="Theme.OnNowLiveTV.ActionSheet" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowFrame">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowMinWidthMajor">0%</item>
+        <item name="android:windowMinWidthMinor">0%</item>
+    </style>
 </resources>

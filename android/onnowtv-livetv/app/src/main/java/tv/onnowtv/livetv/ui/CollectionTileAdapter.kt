@@ -13,26 +13,21 @@ import tv.onnowtv.livetv.data.LibraryCollection
 /**
  * Library COLLECTIONS row — 16:9 AI-generated cover tiles.
  *
- * The FIRST item is always a virtual "+ Add Collection" tile that
- * fires [onAddCollection] when clicked.  Real collections follow.
+ * v2.9.1 simplification: the row is now JUST collection tiles —
+ * the "+ Add Collection" entry-point lives in the section header
+ * (top-right) instead of squatting at the front of the row.
  *
- *   • OK on a real tile  → [onPick]    (open in EPG collection-mode)
- *   • LONG-PRESS         → [onLongPick] (rename / change cover /
- *                                        delete menu)
+ *   • OK on a tile        → [onPick]    (open in EPG collection-mode)
+ *   • LONG-PRESS on a tile → [onLongPick] (rename / change cover /
+ *                                          delete menu)
  *
  * Each row also exposes a "busy" badge so the LibraryActivity can
  * show "GENERATING…" while a cover regeneration is in flight.
  */
 class CollectionTileAdapter(
-    private val onAddCollection: () -> Unit,
     private val onPick: (LibraryCollection) -> Unit,
     private val onLongPick: (LibraryCollection) -> Unit,
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-
-    companion object {
-        private const val TYPE_ADD = 0
-        private const val TYPE_COLLECTION = 1
-    }
+) : RecyclerView.Adapter<CollectionTileAdapter.VH>() {
 
     private val items = mutableListOf<LibraryCollection>()
     private val busy = mutableSetOf<String>()
@@ -49,41 +44,22 @@ class CollectionTileAdapter(
         val changed = if (isBusy) busy.add(id) else busy.remove(id)
         if (changed) {
             val idx = items.indexOfFirst { it.id == id }
-            if (idx >= 0) notifyItemChanged(idx + 1)  // +1 for the Add tile
+            if (idx >= 0) notifyItemChanged(idx)
         }
     }
 
-    override fun getItemCount(): Int = items.size + 1
-
-    override fun getItemViewType(position: Int): Int =
-        if (position == 0) TYPE_ADD else TYPE_COLLECTION
+    override fun getItemCount(): Int = items.size
 
     override fun getItemId(position: Int): Long =
-        if (position == 0) -1L else items[position - 1].id.hashCode().toLong()
+        items[position].id.hashCode().toLong()
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-        val inflater = LayoutInflater.from(parent.context)
-        return when (viewType) {
-            TYPE_ADD -> AddVH(
-                inflater.inflate(R.layout.item_collection_add_tile, parent, false)
-            )
-            else -> VH(
-                inflater.inflate(R.layout.item_collection_tile, parent, false)
-            )
-        }
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH = VH(
+        LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_collection_tile, parent, false)
+    )
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        when (holder) {
-            is AddVH -> holder.bind()
-            is VH -> holder.bind(items[position - 1])
-        }
-    }
-
-    inner class AddVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        fun bind() {
-            itemView.setOnClickListener { onAddCollection() }
-        }
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        holder.bind(items[position])
     }
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
