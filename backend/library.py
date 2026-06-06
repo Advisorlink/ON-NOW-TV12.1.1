@@ -121,9 +121,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v5 — pure photoreal editorial photo, NO text / logos / typography
 #   v6 — simplified back to short prompt, photoreal, no logos, no text
 #   v7 — verbatim user-dictated prompt with category style table
-#   v8 — Gemini Nano Banana + cinematic Pixar-grade prompt, no left brand-mark (current)
+#   v8 — Gemini Nano Banana + cinematic Pixar-grade prompt, no left brand-mark
+#   v9 — GPT-Image-1 + same cinematic Pixar-grade prompt, no left brand-mark (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v8"
+PROMPT_RECIPE_VERSION = "v9"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
@@ -187,15 +188,14 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
 
     prompt = _build_prompt(req.name, req.style)
 
-    # ---------- Gemini Nano Banana via the Emergent Universal Key ----------
-    # User explicitly requested switching back to Gemini for the v8
-    # batch — they want to compare its cinematic / 3D illustration
-    # output against GPT-Image-1's photo-real results.  We use the
-    # `gemini-3.1-flash-image-preview` model (the Nano Banana family)
-    # through the standard `LlmChat` multimodal interface.  Returned
-    # bytes are then run through the same Pillow 16:9 / 1280×720
-    # normalisation pipeline so the Android tiles render identically
-    # regardless of which provider produced the source image.
+    # ---------- OpenAI GPT-Image-1 via the Emergent Universal Key ----------
+    # User asked to re-run the v8 cinematic / Pixar-grade prompt
+    # through GPT-Image-1 (instead of Gemini Nano Banana) so they
+    # can compare both providers on the exact same wording.
+    # GPT-Image-1 picks `1536×1024` automatically for landscape
+    # prompts; we then centre-crop to 16:9 / resize to 1280×720
+    # downstream.  Medium quality keeps the per-gen cost ~$0.06 and
+    # the safety filter happy with real broadcaster names.
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(
@@ -204,36 +204,27 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
         )
 
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
     except Exception as exc:  # pragma: no cover
-        log.exception("emergentintegrations LlmChat import failed")
+        log.exception("OpenAIImageGeneration import failed")
         raise HTTPException(status_code=500, detail="emergentintegrations missing") from exc
 
+    image_gen = OpenAIImageGeneration(api_key=api_key)
     try:
-        chat = (
-            LlmChat(
-                api_key=api_key,
-                session_id=f"library-cover-{chash}",
-                system_message="You are a premium streaming-app cover artist.",
-            )
-            .with_model("gemini", "gemini-3.1-flash-image-preview")
-            .with_params(modalities=["image", "text"])
-        )
-        _text, images = await chat.send_message_multimodal_response(
-            UserMessage(text=prompt)
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+            quality="medium",
         )
     except Exception as exc:
-        log.exception("Gemini Nano Banana generation failed for %r", req.name)
+        log.exception("GPT-Image-1 generation failed for %r", req.name)
         raise HTTPException(status_code=502, detail=f"image gen failed: {exc}") from exc
 
     if not images:
-        raise HTTPException(status_code=502, detail="Gemini returned no image")
+        raise HTTPException(status_code=502, detail="OpenAI returned no image")
 
-    # Nano Banana returns base64-encoded image data on each item.
-    try:
-        raw_bytes = base64.b64decode(images[0]["data"])
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail="Gemini image decode failed") from exc
+    raw_bytes = images[0]
 
     # Normalise to 1280×720 — centre-crop to 16:9 then LANCZOS-resize
     # to standard 720p HD (the Android tile renders at ~300-500 px
