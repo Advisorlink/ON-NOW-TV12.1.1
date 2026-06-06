@@ -78,51 +78,63 @@ _BASE_STYLE = (
 )
 
 
+
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
+    # v6 — user-locked simplification.  Back to the original short
+    # prompt: ultra-photorealistic 16:9 tile with a black fade on
+    # the left into a related photograph on the right and a black
+    # gradient along the bottom.  No logos, no text, no words of
+    # any kind.  The image content must relate directly to the
+    # channel name so the subject is obvious without needing any
+    # typography.
     return (
-        f"Premium 16:9 channel tile design for a streaming-app home "
-        f"shelf — a designed graphic for personal use, no copyrighted "
-        f"content reproduced.  Show the channel name \"{cleaned}\" as "
-        f"a BOLD designed brand mark on the LEFT side, rendered in "
-        f"chunky 3D typography that suits the channel's vibe (vibrant "
-        f"rainbow bubble letters for kids channels, sleek metallic "
-        f"sports lettering for sports, cinematic film-credit typography "
-        f"for movies, etc.).  Fade smoothly into a RELATED image on "
-        f"the RIGHT that depicts what \"{cleaned}\" actually broadcasts "
-        f"— multiple dynamic subjects when possible (several cartoon "
-        f"animals for a kids channel, several athletes mid-action for "
-        f"sports, etc.).  Cinematic lighting, vibrant saturated colours, "
-        f"dramatic 3D illustration / Pixar-grade rendering.  Black "
-        f"gradient anchoring the BOTTOM of the frame.  "
-        f"\n\n"
-        f"ABSOLUTE TYPOGRAPHY RULE — READ TWICE BEFORE COMPOSING:\n"
-        f"  • The full text \"{cleaned}\" MUST appear in the image, "
-        f"COMPLETELY READABLE, with EVERY letter fully visible.\n"
-        f"  • Keep the brand-mark text inside a SAFE ZONE that starts "
-        f"at least 12 % of the frame width away from the LEFT edge "
-        f"and ends at least 50 % of the way across the frame (so the "
-        f"text always has fat black breathing room on the LEFT).\n"
-        f"  • NEVER let any letter, glyph, badge edge, or text "
-        f"shadow touch or cross the LEFT, RIGHT, TOP, or BOTTOM "
-        f"borders of the frame.\n"
-        f"  • If the channel name is long, scale the typography DOWN "
-        f"so the whole word still fits inside the safe zone with "
-        f"breathing room around every letter.  DO NOT crop letters.\n"
-        f"  • Subjects (athletes, animals, etc.) MUST also stay "
-        f"inside the frame — keep their heads at least 6 % below the "
-        f"top edge and feet/limbs at least 6 % above the bottom edge."
+        f"Ultra-photorealistic 16:9 widescreen channel tile for "
+        f"\"{cleaned}\".  A real photograph (not an illustration, "
+        f"not a cartoon, not a 3D render, not stylised CGI) of a "
+        f"subject directly related to \"{cleaned}\" — the imagery "
+        f"alone must make the channel's subject obvious.  The left "
+        f"side of the frame is solid deep black smoothly fading "
+        f"rightward into the photorealistic image on the right.  A "
+        f"subtle black gradient anchors the bottom edge.  "
+        f"Absolutely no text anywhere — no words, no letters, no "
+        f"numbers, no logos, no captions, no signage, no readable "
+        f"writing of any kind on clothing, equipment, scoreboards, "
+        f"billboards or backgrounds.  Pure photograph only."
     )
 
 
+# ---------------------------------------------------------------------------
+# Prompt-recipe version — BUMP THIS whenever `_build_prompt()` changes.
+# It feeds into `_hash_for(...)` so the cache key naturally rolls over
+# the instant the prompt logic changes: old PNGs generated with a
+# previous prompt recipe live on disk with a different hash than the
+# new requests, so they can NEVER be served again.  No manual cache
+# wipes needed, ever.
+#
+#   v1 — verbatim user prompt with "legal" wording (Feb 2026)
+#   v2 — "licensed" disambiguation
+#   v3 — full safety-friendly ChatGPT-style enhanced prompt
+#   v4 — added the 12 % safe-area / no-clipping clause
+#   v5 — pure photoreal editorial photo, NO text / logos / typography
+#   v6 — simplified back to short prompt, photoreal, no logos, no text (current)
+# ---------------------------------------------------------------------------
+PROMPT_RECIPE_VERSION = "v6"
+
+
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
-    """Deterministic hash so we can dedupe within a (name, style, salt)
-    triple.  The salt is what lets the client request a *new* variant
-    of the same category without colliding with the previous cover."""
+    """Deterministic hash so we can dedupe within a (name, style,
+    PROMPT_RECIPE_VERSION, salt) quadruple.  Including the prompt
+    version means a bare reinstall + same-name regeneration NEVER
+    returns artwork generated under an older prompt — exactly the
+    bug the user reported when freshly-installed devices kept
+    seeing the old "legal project" gavel imagery."""
     h = hashlib.sha256()
     h.update((name or "").strip().lower().encode("utf-8"))
     h.update(b"|")
     h.update((style or _BASE_STYLE).encode("utf-8"))
+    h.update(b"|")
+    h.update(PROMPT_RECIPE_VERSION.encode("utf-8"))
     h.update(b"|")
     h.update(salt.encode("utf-8"))
     return h.hexdigest()[:24]
