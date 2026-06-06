@@ -1,6 +1,18 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.9.2 — Kids extracted into a standalone APK with HOME-button lockdown (Feb 2026).**
+> **🟢 v2.9.3 (correction) — Kids HOME-button trap via `onUserLeaveHint` bounce-back, NOT `CATEGORY_HOME` (Feb 2026).**
+>
+> The OnNow Launcher stays the device's default home app.  The Kids
+> APK no longer claims `CATEGORY_HOME`; instead it traps HOME / RECENTS
+> via `onUserLeaveHint()` which re-launches MainActivity with
+> `FLAG_ACTIVITY_REORDER_TO_FRONT | FLAG_ACTIVITY_SINGLE_TOP` + a
+> `EXTRA_ARMED_BY_HOME=true` extra.  `onNewIntent` / `onResume` read
+> the extra and pop the PIN gate.  `excludeFromRecents="true"` keeps
+> the recents button from being used as a back-door.  A correct PIN
+> entry sets `pinExitInProgress=true` and calls `moveTaskToBack(true)`
+> so the launcher (the real default home) takes over.
+
+> **🟢 v2.9.2 — Kids extracted into a standalone APK (Feb 2026).**
 >
 > Per the user's "remove the kids section from Vesper entirely and have it as a stand-alone app" request, Kids mode is no longer part of Vesper TV.  It now ships as its own Android module that wraps the same React `/kids` tree in a kiosk shell with native HOME interception and a 4-digit PIN gate.
 >

@@ -2,16 +2,25 @@
 <!--
     ON NOW V2 KIDS — standalone Kids-mode kiosk wrapper.
 
-    The activity is registered as CATEGORY_HOME / CATEGORY_DEFAULT in
-    addition to LAUNCHER / LEANBACK_LAUNCHER.  This is the key piece
-    that satisfies the user's "MAKE SURE YOU CANT EXIT THE APP BY
-    PUSHING THE HOME BUTTON" requirement — the moment Kids mode is
-    armed, the user picks our activity as their default launcher (or
-    we self-promote on Android 11+) and every subsequent HOME press
-    is routed back to MainActivity, which then re-applies the PIN gate
-    before letting them out.
+    v2.9.3 — corrected per user clarification: we are NOT a home /
+    launcher app.  The OnNow Launcher stays as the device's default
+    home.  We just need to make sure pressing HOME from inside the
+    Kids app doesn't silently escape — instead it must surface our
+    PIN gate.
 
-    The Vesper TV app no longer carries any Kids-mode wiring (v2.9.2).
+    How we do that without CATEGORY_HOME:
+      1. `onUserLeaveHint()` fires the instant the user presses
+         HOME / RECENTS (before the activity is paused).
+      2. We immediately schedule a `startActivity(self, REORDER_TO_
+         FRONT | SINGLE_TOP)` with an "armed" extra so the activity
+         bounces back to the foreground.
+      3. On re-foreground we read the extra and pop the PIN overlay
+         so the kid must enter the parent PIN before they can keep
+         using the device.
+      4. `excludeFromRecents` keeps the task off the recents list so
+         the recents button can't be used to skip past the PIN.
+
+    The Kids tile in the launcher still launches us directly.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -19,11 +28,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Required to be selectable as the default home / launcher
-         app on stock Android — without this the user can't choose
-         us in Settings → Default apps → Home app. -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
 
     <!-- D-pad / leanback is the primary input — touchscreen optional. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -45,28 +49,16 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:launchMode="singleTask"
+            android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:theme="@style/Theme.OnNowKids.Splash">
-            <!-- Standard launcher entry — appears on the home grid. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- HOME intent filter — once selected as the default
-                 home app, every HOME button press routes here so the
-                 user can't escape Kids without entering the PIN. -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
         </activity>
 
-        <!-- Native ExoPlayer surface mirroring the FTA setup —
-             launched from `window.OnNowKids.openExoPlayer(...)` so
-             the React full-screen player can hand HLS off to a
-             native MediaSource for smooth TV playback. -->
         <activity
             android:name=".ExoPlayerActivity"
             android:exported="false"
