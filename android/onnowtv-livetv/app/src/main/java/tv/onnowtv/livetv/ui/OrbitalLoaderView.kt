@@ -10,25 +10,24 @@ import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.LinearInterpolator
-import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
  * OrbitalLoaderView — the brand loader used in the EPG preview pane
  * and in the full-screen PlayerActivity buffering state.
  *
  * Composition:
- *   • A centre "glass" disk (light fill + thin border) with a soft
- *     radial highlight at the top-left, evoking a frosted-glass
- *     button.  Stays still.
- *   • Two coloured dots orbit the centre on the same outer radius,
- *     spinning in OPPOSITE directions at slightly different speeds
- *     so they cross paths every loop — feels alive rather than
- *     metronomic.  Each dot trails a soft RGB glow (matches the
- *     livetv_accent / livetv_accent_red palette).
+ *   • A glowing radial-gradient centre core (blue ↔ purple) that
+ *     gently breathes in sync with the ring rhythm.
+ *   • Three concentric rings pulse outward from the centre at the
+ *     same cycle length, each staggered by 1/3 of the cycle so a
+ *     ring is always expanding.  Rings start tiny, grow to the
+ *     view's outer radius, and fade from full alpha to zero.
  *
  * Hardware-accelerated, no bitmap allocations per frame, ~60 fps.
+ * Cycle length is intentionally long (≈2.4 s) — the previous
+ * orbital design felt frantic; the pulsating rings feel calm.
  */
 class OrbitalLoaderView @JvmOverloads constructor(
     context: Context,
@@ -39,39 +38,23 @@ class OrbitalLoaderView @JvmOverloads constructor(
     // Brand accent tones — keep in lockstep with res/values/colors.xml.
     private val accentBlue   = Color.parseColor("#5DC8FF")
     private val accentPurple = Color.parseColor("#C16BFF")
-    private val glassFill    = Color.parseColor("#1AFFFFFF")
-    private val glassStroke  = Color.parseColor("#22FFFFFF")
 
-    private val centrePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = glassFill
-    }
-    private val centreBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        color = glassStroke
-        strokeWidth = 1.5f * resources.displayMetrics.density
     }
-    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
-    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
 
-    // Angle drivers — independent so the two dots can spin different speeds.
-    private var angleA = 0f
-    private var angleB = 180f
+    // 0..1 progress driver — fed into per-ring phase calculations.
+    private var progress = 0f
 
     private val animator: ValueAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1400L
+        duration = 2400L           // slow + graceful, matches the React loader
         repeatCount = ValueAnimator.INFINITE
         interpolator = LinearInterpolator()
         addUpdateListener {
-            val t = it.animatedFraction
-            angleA = (t * 360f) % 360f
-            // Opposite direction, ~1.21× slower → graceful counter-rotation
-            // that doesn't look like one symmetric pendulum.
-            angleB = 180f - (t * 360f * 0.83f) % 360f
+            progress = it.animatedFraction
             invalidate()
         }
     }
@@ -88,16 +71,15 @@ class OrbitalLoaderView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        // Re-build the radial highlight shader to match the new
-        // glass-disk radius.
         val cx = w / 2f
         val cy = h / 2f
-        val disk = min(w, h) * 0.34f
-        highlightPaint.shader = RadialGradient(
-            cx - disk * 0.35f,
-            cy - disk * 0.35f,
-            disk * 1.1f,
-            intArrayOf(Color.parseColor("#3CFFFFFF"), Color.TRANSPARENT),
+        val core = min(w, h) * 0.11f
+        // Radial gradient: blue at the highlight, purple at the rim.
+        corePaint.shader = RadialGradient(
+            cx - core * 0.35f,
+            cy - core * 0.35f,
+            core * 1.4f,
+            intArrayOf(accentBlue, accentPurple),
             null,
             Shader.TileMode.CLAMP,
         )
@@ -109,46 +91,52 @@ class OrbitalLoaderView @JvmOverloads constructor(
         val cx = w / 2f
         val cy = h / 2f
 
-        // Outer orbital radius: the dots travel on this circle.
-        val orbit = min(w, h) * 0.42f
-        // Glass disk radius.
-        val disk = min(w, h) * 0.18f
-        // Dot radius — fat enough to look chunky at TV distance.
-        val dotR = min(w, h) * 0.045f
+        // Maximum ring radius — leave a slim margin so the outer
+        // stroke isn't clipped by the view bounds.
+        val maxR = min(w, h) * 0.46f
+        val minR = min(w, h) * 0.05f
+        val strokePx = max(2f, min(w, h) * 0.018f)
+        ringPaint.strokeWidth = strokePx
 
-        // 1. Glass centre disk.
-        canvas.drawCircle(cx, cy, disk, centrePaint)
-        canvas.drawCircle(cx, cy, disk, highlightPaint)
-        canvas.drawCircle(cx, cy, disk, centreBorder)
+        // Three rings staggered by 1/3 of the cycle.
+        drawPulseRing(canvas, cx, cy, minR, maxR, (progress + 0.000f) % 1f, accentBlue)
+        drawPulseRing(canvas, cx, cy, minR, maxR, (progress + 0.333f) % 1f, accentPurple)
+        drawPulseRing(canvas, cx, cy, minR, maxR, (progress + 0.667f) % 1f, accentBlue)
 
-        // 2. Orbiting dots — each painted with a soft glow disc
-        // then the bright core on top.  Cheaper than a real
-        // bitmap-blur and looks identical at TV viewing distance.
-        drawOrbitDot(canvas, cx, cy, orbit, angleA, accentBlue, dotR)
-        drawOrbitDot(canvas, cx, cy, orbit, angleB, accentPurple, dotR)
+        // Centre core — gentle breathing scale (1.0 ↔ 1.18).
+        val breathT = kotlin.math.sin(progress * Math.PI * 2.0).toFloat()  // -1..1
+        val coreScale = 1.0f + 0.09f * (breathT + 1f)  // 1.0..1.18
+        val core = min(w, h) * 0.11f * coreScale
+        canvas.drawCircle(cx, cy, core, corePaint)
     }
 
-    private fun drawOrbitDot(
+    /**
+     * Draw a single pulsating ring.
+     *
+     * @param phase 0..1 — 0 means the ring just spawned at the
+     * centre, 1 means it has fully expanded to maxR and faded out.
+     */
+    private fun drawPulseRing(
         canvas: Canvas,
         cx: Float,
         cy: Float,
-        orbit: Float,
-        angleDeg: Float,
+        minR: Float,
+        maxR: Float,
+        phase: Float,
         color: Int,
-        dotR: Float,
     ) {
-        val rad = Math.toRadians(angleDeg.toDouble())
-        val dx = cx + (orbit * cos(rad)).toFloat()
-        val dy = cy + (orbit * sin(rad)).toFloat()
+        // Ease-out so the ring slows as it expands — feels more
+        // organic than linear growth.
+        val eased = 1f - (1f - phase) * (1f - phase)
+        val radius = minR + (maxR - minR) * eased
 
-        // Glow halo (three stacked translucent discs)
-        dotPaint.color = (color and 0x00FFFFFF) or 0x33000000  // 20 % alpha
-        canvas.drawCircle(dx, dy, dotR * 3.0f, dotPaint)
-        dotPaint.color = (color and 0x00FFFFFF) or 0x55000000  // 33 % alpha
-        canvas.drawCircle(dx, dy, dotR * 1.9f, dotPaint)
+        // Fade in fast (first 15 %) then fade out across the rest.
+        val fadeIn = (phase / 0.15f).coerceAtMost(1f)
+        val fadeOut = 1f - phase
+        val alpha = (fadeIn * fadeOut).coerceIn(0f, 1f)
+        val alphaByte = (alpha * 255f).toInt().coerceIn(0, 255)
 
-        // Bright core
-        dotPaint.color = color or 0xFF000000.toInt()
-        canvas.drawCircle(dx, dy, dotR, dotPaint)
+        ringPaint.color = (color and 0x00FFFFFF) or (alphaByte shl 24)
+        canvas.drawCircle(cx, cy, radius, ringPaint)
     }
 }
