@@ -80,27 +80,6 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # Same intent as the user's ChatGPT prompt, plus the style
-    # cues ChatGPT's web UI silently auto-prepends before sending
-    # to gpt-image-1 (cinematic / 3D illustration / dramatic
-    # lighting / bold designed brand-mark typography) — those cues
-    # are what produce the Pixar-grade animals and chrome ESPN
-    # lettering in his reference set.  Without them the raw API
-    # gives a clean but flat result.
-    #
-    # CRITICAL safe-area clause: gpt-image-1 LOVES to push the
-    # brand-mark text and subjects right up against the image
-    # edges (we saw the "U" in UK SKY SPORTS getting clipped on
-    # the left).  The explicit "≥6% inset / nothing touches the
-    # edges" instruction forces the model to keep all primary
-    # elements inside a centred safe-area rectangle.
-    #
-    # We also phrase the brand element as "channel name as a bold
-    # designed brand mark" instead of "channel logo".  At
-    # quality="high" with literal "logo" language + a real broadcaster
-    # name (Sky Sports, ESPN, Disney) the safety filter rejects the
-    # request.  Stylized brand-mark wording sails through and still
-    # produces the chunky branded look.
     return (
         f"Premium 16:9 channel tile design for a streaming-app home "
         f"shelf — a designed graphic for personal use, no copyrighted "
@@ -116,12 +95,23 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
         f"sports, etc.).  Cinematic lighting, vibrant saturated colours, "
         f"dramatic 3D illustration / Pixar-grade rendering.  Black "
         f"gradient anchoring the BOTTOM of the frame.  "
-        f"IMPORTANT — SAFE AREA: keep ALL of the brand-mark "
-        f"typography AND every subject COMPLETELY INSIDE the frame "
-        f"with at least 6% padding from every edge.  NEVER let any "
-        f"letter, head, limb or object touch or get clipped by the "
-        f"left, right, top or bottom borders.  The brand mark must "
-        f"read as one whole word, not chopped off."
+        f"\n\n"
+        f"ABSOLUTE TYPOGRAPHY RULE — READ TWICE BEFORE COMPOSING:\n"
+        f"  • The full text \"{cleaned}\" MUST appear in the image, "
+        f"COMPLETELY READABLE, with EVERY letter fully visible.\n"
+        f"  • Keep the brand-mark text inside a SAFE ZONE that starts "
+        f"at least 12 % of the frame width away from the LEFT edge "
+        f"and ends at least 50 % of the way across the frame (so the "
+        f"text always has fat black breathing room on the LEFT).\n"
+        f"  • NEVER let any letter, glyph, badge edge, or text "
+        f"shadow touch or cross the LEFT, RIGHT, TOP, or BOTTOM "
+        f"borders of the frame.\n"
+        f"  • If the channel name is long, scale the typography DOWN "
+        f"so the whole word still fits inside the safe zone with "
+        f"breathing room around every letter.  DO NOT crop letters.\n"
+        f"  • Subjects (athletes, animals, etc.) MUST also stay "
+        f"inside the frame — keep their heads at least 6 % below the "
+        f"top edge and feet/limbs at least 6 % above the bottom edge."
     )
 
 
