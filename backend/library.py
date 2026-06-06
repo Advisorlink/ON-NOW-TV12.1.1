@@ -81,26 +81,28 @@ _BASE_STYLE = (
 
 def _build_prompt(name: str, style: Optional[str]) -> str:
     cleaned = (name or "Channel").strip()
-    # v7 — USER-LOCKED VERBATIM PROMPT.  Do NOT edit the wording.
-    # The user explicitly dictated this exact text and required
-    # that [CATEGORY NAME] be the only substitution.  Style is
-    # auto-matched per category by the model (sports = cinematic /
-    # realistic, kids = cartoon / animated / playful, etc.).
+    # v8 — back to the "3D logos era" cinematic / Pixar-grade prompt
+    # but with the entire LEFT-side brand-mark / 3D-typography
+    # section surgically removed.  Right-hand image style and
+    # category-aware subject instructions are preserved verbatim;
+    # the left third is now a clean dark fade for UI overlay only.
+    # No text / logos / letters / watermarks anywhere.
     return (
-        f"Create a premium 16:9 app tile background for {cleaned}.\n"
-        f"Do not include any text, logos, letters, or watermarks.\n"
-        f"The design must have a dark empty space on the left side for UI overlay, fading smoothly into a vibrant themed image on the right side.\n"
-        f"The image should clearly relate to {cleaned}.\n"
-        f"Keep it visually clean, premium, modern, cinematic, and suitable for a streaming app tile.\n"
-        f"The right side should be visually rich and eye-catching, while the left side remains darker and uncluttered.\n"
-        f"Use lighting, colour, and imagery that strongly match the category.\n"
-        f"Make the style match the category itself rather than using the same style for all images.\n\n"
-        f"Match the art style to the category:\n"
-        f"sports = cinematic / realistic\n"
-        f"kids = cartoon / animated / playful\n"
-        f"documentaries = editorial / cinematic / realistic\n"
-        f"cinema = dramatic / premium / movie-like\n"
-        f"entertainment = vibrant / energetic / polished"
+        f"Premium 16:9 channel tile design for a streaming-app home "
+        f"shelf — a designed graphic for personal use, no copyrighted "
+        f"content reproduced.  The LEFT third of the frame is a dark, "
+        f"empty space for UI overlay (deep black smoothly fading "
+        f"rightward into the image).  Fade smoothly into a RELATED "
+        f"image on the RIGHT that depicts what \"{cleaned}\" actually "
+        f"broadcasts — multiple dynamic subjects when possible "
+        f"(several cartoon animals for a kids channel, several "
+        f"athletes mid-action for sports, etc.).  Cinematic lighting, "
+        f"vibrant saturated colours, dramatic 3D illustration / "
+        f"Pixar-grade rendering.  Black gradient anchoring the BOTTOM "
+        f"of the frame.  Edge-to-edge, no letterboxing.  "
+        f"Absolutely NO text, NO logos, NO letters, NO numbers, NO "
+        f"watermarks, NO captions, NO signage of any kind anywhere "
+        f"in the image."
     )
 
 
@@ -118,9 +120,10 @@ def _build_prompt(name: str, style: Optional[str]) -> str:
 #   v4 — added the 12 % safe-area / no-clipping clause
 #   v5 — pure photoreal editorial photo, NO text / logos / typography
 #   v6 — simplified back to short prompt, photoreal, no logos, no text
-#   v7 — USER-LOCKED VERBATIM PROMPT, style auto-matched per category (current)
+#   v7 — verbatim user-dictated prompt with category style table
+#   v8 — Gemini Nano Banana + cinematic Pixar-grade prompt, no left brand-mark (current)
 # ---------------------------------------------------------------------------
-PROMPT_RECIPE_VERSION = "v7"
+PROMPT_RECIPE_VERSION = "v8"
 
 
 def _hash_for(name: str, style: Optional[str], salt: str = "") -> str:
@@ -184,12 +187,15 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
 
     prompt = _build_prompt(req.name, req.style)
 
-    # ---------- OpenAI GPT-Image-1 via the Emergent Universal Key ----------
-    # User explicitly chose this provider — has ~$17 of headroom on
-    # the universal key budget at the time of writing.  GPT-Image-1
-    # picks `1536×1024` automatically for landscape prompts; we then
-    # centre-crop to 16:9 and resize to exact 1920×1080 (the Android
-    # tile's native resolution).
+    # ---------- Gemini Nano Banana via the Emergent Universal Key ----------
+    # User explicitly requested switching back to Gemini for the v8
+    # batch — they want to compare its cinematic / 3D illustration
+    # output against GPT-Image-1's photo-real results.  We use the
+    # `gemini-3.1-flash-image-preview` model (the Nano Banana family)
+    # through the standard `LlmChat` multimodal interface.  Returned
+    # bytes are then run through the same Pillow 16:9 / 1280×720
+    # normalisation pipeline so the Android tiles render identically
+    # regardless of which provider produced the source image.
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(
@@ -198,35 +204,36 @@ async def generate_cover(req: GenerateRequest) -> GenerateResponse:
         )
 
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
     except Exception as exc:  # pragma: no cover
-        log.exception("OpenAIImageGeneration import failed")
+        log.exception("emergentintegrations LlmChat import failed")
         raise HTTPException(status_code=500, detail="emergentintegrations missing") from exc
 
-    image_gen = OpenAIImageGeneration(api_key=api_key)
     try:
-        images = await image_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1,
-            # Medium quality + the enhanced prompt produces the same
-            # dramatic Pixar/cinematic look as ChatGPT's reference
-            # outputs.  At "high" the safety filter rejects requests
-            # containing real broadcaster names (Sky Sports, ESPN,
-            # Disney) — the filter is much stricter about photo-real
-            # logo reproduction.  Medium is the practical sweet
-            # spot: safety-friendly, ~$0.06/gen, and the enhanced
-            # prompt carries the visual style.
-            quality="medium",
+        chat = (
+            LlmChat(
+                api_key=api_key,
+                session_id=f"library-cover-{chash}",
+                system_message="You are a premium streaming-app cover artist.",
+            )
+            .with_model("gemini", "gemini-3.1-flash-image-preview")
+            .with_params(modalities=["image", "text"])
+        )
+        _text, images = await chat.send_message_multimodal_response(
+            UserMessage(text=prompt)
         )
     except Exception as exc:
-        log.exception("GPT-Image-1 generation failed for %r", req.name)
+        log.exception("Gemini Nano Banana generation failed for %r", req.name)
         raise HTTPException(status_code=502, detail=f"image gen failed: {exc}") from exc
 
     if not images:
-        raise HTTPException(status_code=502, detail="OpenAI returned no image")
+        raise HTTPException(status_code=502, detail="Gemini returned no image")
 
-    raw_bytes = images[0]
+    # Nano Banana returns base64-encoded image data on each item.
+    try:
+        raw_bytes = base64.b64decode(images[0]["data"])
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Gemini image decode failed") from exc
 
     # Normalise to 1280×720 — centre-crop to 16:9 then LANCZOS-resize
     # to standard 720p HD (the Android tile renders at ~300-500 px
