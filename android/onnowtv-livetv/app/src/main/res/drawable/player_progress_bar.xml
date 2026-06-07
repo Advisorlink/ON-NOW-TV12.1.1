@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.10 Programme progress bar — cyan fill, dark unfilled track,
-     thin so it reads as a discreet visualisation. -->
+<!-- v2.10.1 Programme progress bar — chunky cyan fill, dark unfilled
+     track.  Sits beneath the info row spanning from the cyan accent
+     bar all the way to the LIVE caption on the right edge. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape android:shape="rectangle">
             <corners android:radius="2dp" />
-            <solid android:color="#3A4456" />
+            <solid android:color="#2A3548" />
         </shape>
     </item>
     <item android:id="@android:id/progress">

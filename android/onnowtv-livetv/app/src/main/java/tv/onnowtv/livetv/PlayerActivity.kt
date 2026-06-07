@@ -929,14 +929,20 @@ class PlayerActivity : AppCompatActivity() {
         }
         val (now, next) = currentProgramme(ch)
         if (::infoProgrammeView.isInitialized) {
-            infoProgrammeView.text = now?.title ?: ch.name
+            val nowTitle = now?.title?.takeIf { it.isNotBlank() }
+            infoProgrammeView.text = nowTitle ?: ch.name
         }
+        // v2.10.1 — segment is the channel-name sub-line directly
+        // under the programme title.  Shown whenever we have a real
+        // live programme so the user sees both the show name and
+        // the source channel.
         if (::infoSegment.isInitialized) {
-            infoSegment.text = if (now != null) ch.name else ""
-            infoSegment.visibility = if (now != null) View.VISIBLE else View.GONE
+            val hasLive = (now?.title?.takeIf { it.isNotBlank() }) != null
+            infoSegment.text = ch.name
+            infoSegment.visibility = if (hasLive) View.VISIBLE else View.GONE
         }
         if (::infoDescriptionView.isInitialized) {
-            val desc = now?.description.orEmpty()
+            val desc = now?.description?.takeIf { it.isNotBlank() }.orEmpty()
             infoDescriptionView.text = desc
             infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE
         }
@@ -951,7 +957,7 @@ class PlayerActivity : AppCompatActivity() {
             infoProgressView.progress = (pct * infoProgressView.max).toInt()
         }
         if (::infoNextTitle.isInitialized) {
-            infoNextTitle.text = next?.title ?: "—"
+            infoNextTitle.text = next?.title?.takeIf { it.isNotBlank() } ?: "—"
         }
         if (::infoNextTime.isInitialized) {
             infoNextTime.text = if (next != null) {

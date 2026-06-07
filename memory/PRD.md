@@ -4,6 +4,24 @@
 > Confirmed via SSH: `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), ICMP dropped.  Backend stays blind to the provider until the IP is whitelisted.  Android app bypasses the backend via the new `DirectProviderFetcher` (uses user's home ISP, which IS allowed).
 
 
+> **🟢 v2.10.1 — Pixel-perfect player overlay rebuild (Feb 7 2026).**
+>
+> User showed a TV photo of v2.10 and the reference image side-by-side, complaints were:
+> 1. Bottom overlay was semi-transparent → cartoon underneath bled through every label and description (FIXED).
+> 2. Cyan vertical accent line was at the far left, before the icon column → user wanted it AFTER the icon column (FIXED).
+> 3. No vertical dividers between the 8 control buttons (FIXED).
+> 4. Progress bar wasn't reading as a full-width element under the info row (FIXED).
+> 5. Empty programme titles showed as blank instead of a "—" placeholder (FIXED).
+>
+> **Changes:**
+> - `player_overlay_scrim_bg.xml` rebuilt: 80%→100% opaque #050A10 (only top 8 % keeps a fade so the edge isn't a hard knife cut).
+> - `player_controls_bar` now `background="#000000"` solid pure black, with `android:divider="@drawable/player_control_divider"` + `showDividers="middle"` + `dividerPadding="14dp"` — a 1 dp dark slate line between every adjacent slot.
+> - Restructured the info row to `[icon col 150dp] [cyan line 3dp] [middle weight=1] [next col 260dp]`.  The full-width progress bar now lives in its own row beneath the info block, indented `225dp` so it visually begins right at the cyan line's right edge.
+> - Bumped programme title 28→30 sp, segment 15→18 sp, description 13→14 sp w/ brighter colour (#D6DDEC), NEXT title 22 sp, and increased line-spacing on description.
+> - Empty programme title / description / next title fall back to "—" placeholder so the layout never looks broken when EPG is missing.
+> - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
+
+
 > **🟢 v2.10 — 8-button modern player UI fully wired + enlarged TV-readable action sheets (Feb 7 2026).**
 >
 > Two follow-ups requested by the user after confirming Login+EPG were perfect:
