@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.1 Vertical 1 dp divider that sits between every control
+     slot in the 8-button row.  Subtle blue-grey so it reads as a
+     panel separator without competing with the icons. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <size android:width="1dp" android:height="1dp" />
+    <solid android:color="#1B2638" />
+</shape>
