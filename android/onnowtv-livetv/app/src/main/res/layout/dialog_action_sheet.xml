@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Reusable action-sheet dialog used by every long-press menu in
      the Live TV app (channel context, collection manage, category
-     context, etc).  Dark navy card with neon-blue divider above the
-     title to match the rest of the brand.
-
-     Children are wired in code: title TextView gets the menu name,
-     items_container LinearLayout receives one ActionRow per action. -->
+     context, etc).  Dark navy card.
+     v2.9.15 — Neon-blue top stripe REMOVED per user feedback
+     ("weird blue line across the top of the popup — I don't like
+     that, can you please remove that").  -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/action_sheet_root"
     android:layout_width="380dp"
@@ -15,17 +14,12 @@
     android:padding="0dp"
     android:clipToOutline="true">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="#5DC8FF" />
-
     <TextView
         android:id="@+id/action_sheet_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="22dp"
-        android:paddingTop="20dp"
+        android:paddingTop="22dp"
         android:paddingBottom="6dp"
         android:textColor="#F5F8FF"
         android:textSize="20sp"

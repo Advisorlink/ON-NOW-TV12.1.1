@@ -35,11 +35,18 @@
             </intent-filter>
         </activity>
 
+        <!-- v2.9.15 — `singleTop` (not `singleTask`) so the EPG can
+             coexist on the back stack with the Library activity.
+             User flow: full-EPG → Library → Collection (= new EPG
+             instance) → back → Library → back → full-EPG.  With
+             singleTask the collection launch would CLEAR the full
+             EPG instance from below, so backing out of Library
+             dropped the user straight to the launcher. -->
         <activity
             android:name=".EpgActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
         <!-- v2.9.5 — first-launch login screen.  MainActivity (the
