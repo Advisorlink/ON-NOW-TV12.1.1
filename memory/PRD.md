@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.9.8 — CRITICAL: Production VPS IP-blocked by Xtream provider · device-side direct fetch as workaround (Jun 7 2026).**
+>
+> **Diagnosis**:  `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), even ICMP is dropped.  The Xtream provider has firewalled the entire Contabo IP range.  Backend's `instant_bundle` scheduler hangs on every TCP handshake — `channels_count` stays at 0 forever, `/api/xtream/instant-bundle` returns `502 "Provider unreachable: "`.  This is OUTSIDE our control — only the provider can lift the block.
+>
+> **Workaround shipped today**: the Android Live TV app now bypasses the backend bundle when it's empty/broken.  New `DirectProviderFetcher.kt` hits `https://njala.ddns.me:8443/player_api.php` directly using the user's saved credentials (the user's home ISP IP is NOT blocked).  Returned 160 cats + 14,091 streams in 1.69 s during testing.  `MainActivity` now races backend vs direct (backend gets a 4-s head-start so a healthy backend with pre-warmed EPG still wins).  EPG also lazy-loads per channel directly via `get_short_epg` (Base64-decoded).  This matches the pre-VPS-migration flow.
+>
+> **Follow-up needed**:  (a) contact provider to whitelist Contabo IP, OR (b) move backend to a residential / cloud IP not on the provider's blocklist, OR (c) tunnel the backend's outbound through a residential proxy.
+
+
+
 > **🟢 v2.9.7 — Kids PIN-on-enter fixed · Login working · Login screen redesigned (Jun 2026).**
 >
 > Three issues reported in the user's TV-capture video:

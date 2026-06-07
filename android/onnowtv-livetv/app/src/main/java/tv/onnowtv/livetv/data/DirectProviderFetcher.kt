@@ -1,0 +1,240 @@
+package tv.onnowtv.livetv.data
+
+import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.security.SecureRandom
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+
+/**
+ * v2.9.8 — Direct-from-provider channel + EPG fetcher.
+ *
+ * Used when the backend `/api/xtream/instant-bundle` is unreachable
+ * or returns an empty bundle (which is happening because the
+ * Contabo VPS has been IP-blocked by the Xtream provider).  The
+ * device's own ISP IP IS allowed by the provider, so we just bypass
+ * the backend and assemble an equivalent bundle here.
+ *
+ * Endpoint shape (Xtream Codes standard):
+ *   GET {base}/player_api.php?username=&password=&action=get_live_categories
+ *   GET {base}/player_api.php?username=&password=&action=get_live_streams
+ *   GET {base}/player_api.php?username=&password=&action=get_short_epg&stream_id=&limit=20
+ *
+ * Stream URLs are built locally using the user's saved credentials.
+ *
+ * The result is **byte-identical in shape** to the backend bundle so
+ * `XtreamRepository.parseBundle()` can consume it without changes,
+ * AND so `BundleCache` can persist it for the next boot's fast path.
+ */
+object DirectProviderFetcher {
+
+    private const val TAG = "DirectFetcher"
+
+    /** Build a bundle JSON identical in shape to the backend bundle. */
+    suspend fun fetchBundleJson(ctx: Context): String = withContext(Dispatchers.IO) {
+        val u = AuthStore.username(ctx).takeIf { it.isNotBlank() }
+            ?: throw RuntimeException("No saved credentials — sign in first.")
+        val p = AuthStore.password(ctx).takeIf { it.isNotBlank() }
+            ?: throw RuntimeException("No saved credentials — sign in first.")
+        val base = "${AuthStore.SCHEME}://${AuthStore.HOST}:${AuthStore.PORT}"
+
+        // Fetch categories + streams IN PARALLEL — both calls are
+        // independent and the streams call is the big one (~4 MB).
+        coroutineScope {
+            val catsDeferred = async { playerApi(base, u, p, "get_live_categories") }
+            val streamsDeferred = async { playerApi(base, u, p, "get_live_streams") }
+            val cats = catsDeferred.await()
+            val streams = streamsDeferred.await()
+            buildBundle(base, u, p, cats, streams)
+        }
+    }
+
+    /** Fetch a short EPG (next ~20 programmes) for a single channel
+     *  directly from the provider.  Used by EpgActivity to fill rows
+     *  on demand when the backend bundle didn't ship EPG. */
+    suspend fun fetchShortEpg(
+        ctx: Context,
+        streamId: String,
+        limit: Int = 20,
+    ): List<Programme> = withContext(Dispatchers.IO) {
+        val u = AuthStore.username(ctx).takeIf { it.isNotBlank() } ?: return@withContext emptyList()
+        val p = AuthStore.password(ctx).takeIf { it.isNotBlank() } ?: return@withContext emptyList()
+        val base = "${AuthStore.SCHEME}://${AuthStore.HOST}:${AuthStore.PORT}"
+        val url = URL(
+            "$base/player_api.php?" +
+                "username=${URLEncoder.encode(u, "UTF-8")}" +
+                "&password=${URLEncoder.encode(p, "UTF-8")}" +
+                "&action=get_short_epg" +
+                "&stream_id=${URLEncoder.encode(streamId, "UTF-8")}" +
+                "&limit=$limit",
+        )
+        try {
+            val text = getJson(url)
+            val obj = JSONObject(text)
+            val arr = obj.optJSONArray("epg_listings") ?: return@withContext emptyList()
+            val out = mutableListOf<Programme>()
+            for (i in 0 until arr.length()) {
+                val e = arr.getJSONObject(i)
+                val startTs = e.optLong("start_timestamp", 0L)
+                val stopTs = e.optLong("stop_timestamp", 0L)
+                if (startTs <= 0L) continue
+                out.add(
+                    Programme(
+                        title = decodeBase64Field(e.optString("title")).ifBlank { "—" },
+                        description = decodeBase64Field(e.optString("description"))
+                            .takeIf { it.isNotBlank() },
+                        startMs = startTs * 1000L,
+                        stopMs = stopTs * 1000L,
+                    ),
+                )
+            }
+            out
+        } catch (t: Throwable) {
+            Log.w(TAG, "fetchShortEpg($streamId) failed: ${t.message}")
+            emptyList()
+        }
+    }
+
+    /* ─────────────────────────── helpers ─────────────────────────── */
+
+    private fun playerApi(
+        base: String,
+        username: String,
+        password: String,
+        action: String,
+    ): JSONArray {
+        val url = URL(
+            "$base/player_api.php?" +
+                "username=${URLEncoder.encode(username, "UTF-8")}" +
+                "&password=${URLEncoder.encode(password, "UTF-8")}" +
+                "&action=$action",
+        )
+        val text = getJson(url)
+        return JSONArray(text)
+    }
+
+    /**
+     * Build the bundle JSON.  Shape MUST match `instant_bundle.py`'s
+     * `_rebuild_cached_payload` so `XtreamRepository.parseBundle()`
+     * needs no changes.
+     */
+    private fun buildBundle(
+        base: String,
+        username: String,
+        password: String,
+        cats: JSONArray,
+        streams: JSONArray,
+    ): String {
+        val categoriesOut = JSONArray()
+        for (i in 0 until cats.length()) {
+            val c = cats.optJSONObject(i) ?: continue
+            categoriesOut.put(
+                JSONObject().apply {
+                    put("id", c.opt("category_id")?.toString() ?: "")
+                    put("name", c.optString("category_name").trim())
+                },
+            )
+        }
+        val channelsOut = JSONArray()
+        for (i in 0 until streams.length()) {
+            val s = streams.optJSONObject(i) ?: continue
+            val sid = s.opt("stream_id")?.toString() ?: continue
+            channelsOut.put(
+                JSONObject().apply {
+                    put("stream_id", sid)
+                    put("name", s.optString("name").trim())
+                    put("logo", s.optString("stream_icon"))
+                    put("category_id", s.opt("category_id")?.toString() ?: "")
+                    put("epg_channel_id", s.optString("epg_channel_id"))
+                    put("tv_archive", s.optInt("tv_archive", 0))
+                    put("stream_url", "$base/live/$username/$password/$sid.ts")
+                },
+            )
+        }
+        val provider = JSONObject().apply {
+            put("id", "direct")
+            put("name", "On Now TV")
+            put("host", AuthStore.HOST)
+            put("port", AuthStore.PORT)
+            put("scheme", AuthStore.SCHEME)
+        }
+        val nowSec = System.currentTimeMillis() / 1000L
+        return JSONObject().apply {
+            put("provider", provider)
+            put("categories", categoriesOut)
+            put("channels", channelsOut)
+            put("epg", JSONObject()) // lazy-loaded per channel later
+            put("generated_at", nowSec)
+            put("channels_fetched_at", nowSec)
+            put("epg_fetched_at", 0)
+        }.toString()
+    }
+
+    /** Decode Xtream's commonly base64-encoded title/description fields. */
+    private fun decodeBase64Field(raw: String): String {
+        if (raw.isBlank()) return ""
+        return try {
+            String(android.util.Base64.decode(raw, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        } catch (_: Throwable) {
+            raw
+        }
+    }
+
+    /**
+     * GET a URL as UTF-8 text.  Disables strict TLS verification — the
+     * provider ships a self-signed / expired cert and the backend
+     * does the same (`verify=False` in `instant_bundle.py`).
+     */
+    private fun getJson(url: URL): String {
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 12_000
+            readTimeout = 30_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "ONNowTV/1.0")
+            if (this is HttpsURLConnection) {
+                try {
+                    val trustAll = arrayOf<TrustManager>(
+                        object : X509TrustManager {
+                            override fun checkClientTrusted(
+                                chain: Array<out java.security.cert.X509Certificate>?,
+                                authType: String?,
+                            ) {}
+                            override fun checkServerTrusted(
+                                chain: Array<out java.security.cert.X509Certificate>?,
+                                authType: String?,
+                            ) {}
+                            override fun getAcceptedIssuers():
+                                Array<java.security.cert.X509Certificate> = emptyArray()
+                        },
+                    )
+                    val ctx = SSLContext.getInstance("TLS")
+                    ctx.init(null, trustAll, SecureRandom())
+                    sslSocketFactory = ctx.socketFactory
+                    hostnameVerifier = HostnameVerifier { _, _ -> true }
+                } catch (_: Throwable) {}
+            }
+        }
+        return try {
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                throw RuntimeException("Direct HTTP $code")
+            }
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+}
