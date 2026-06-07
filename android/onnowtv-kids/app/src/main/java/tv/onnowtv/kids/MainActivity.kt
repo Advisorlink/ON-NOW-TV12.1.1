@@ -387,12 +387,13 @@ class MainActivity : AppCompatActivity() {
         val savedUrl = savedPrefs.getString("last_url", null)
         val savedTs  = savedPrefs.getLong("last_ts", 0L)
         val savedFresh = (System.currentTimeMillis() - savedTs) < 30 * 60 * 1000L
-        // v2.9.3 — ON NOW V2 KIDS standalone always boots into the
-        // Kids profile.  Same React build as Vesper TV, same assets,
-        // same `?profile=kids` deep-link Vesper used internally —
-        // just hard-wired here so the WebView lands on KidsHome with
-        // every cold start, no Profile-Select detour, no adult Home.
-        val defaultBoot = "file:///android_asset/web/index.html?profile=kids"
+        // v2.9.6 — also pin the hash route to `#/kids` so HashRouter
+        // lands directly on KidsHome.  Without this, the React app
+        // boots at `/` which `useKidsKioskGuard` treats as outside
+        // the sandbox and immediately redirects to /kids/exit-pin —
+        // making it look like the user has to enter a PIN just to
+        // get IN.
+        val defaultBoot = "file:///android_asset/web/index.html?profile=kids#/kids"
         val restoreUrl = savedUrl?.takeIf {
             savedFresh && devUrl == null &&
                 (it.startsWith(defaultBoot) ||
