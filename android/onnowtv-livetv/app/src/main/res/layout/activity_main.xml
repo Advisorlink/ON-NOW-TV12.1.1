@@ -195,5 +195,5 @@
         android:textColor="#3A4E6E"
         android:textSize="9sp"
         android:letterSpacing="0.18"
-        android:text="V2 LIVE TV · BUILD 2.9.10" />
+        android:text="V2 LIVE TV · BUILD 2.9.15" />
 </FrameLayout>

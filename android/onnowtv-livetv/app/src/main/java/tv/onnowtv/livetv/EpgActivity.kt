@@ -302,19 +302,8 @@ class EpgActivity : AppCompatActivity() {
 
         categoriesList     = findViewById(R.id.categories_list)
 
-        // v2.9.5 — sign-out button in the channel-groups rail.
-        findViewById<View>(R.id.sidebar_signout_btn).setOnClickListener {
-            tv.onnowtv.livetv.ui.ActionSheetDialog(this)
-                .title("Sign out of ON NOW V2 Live TV?")
-                .subtitle("YOU'LL NEED TO SIGN BACK IN TO WATCH AGAIN")
-                .item("Sign out", icon = "↩") {
-                    tv.onnowtv.livetv.data.AuthStore.signOut(this)
-                    startActivity(Intent(this, LoginActivity::class.java))
-                    finish()
-                }
-                .item("Cancel", icon = "✕") { /* dismiss */ }
-                .show()
-        }
+        // v2.9.15 — `sidebar_signout_btn` removed from the layout.
+        // Sign-out lives only on the icon rail's `rail_signout`.
         channelsList       = findViewById(R.id.channels_list)
         searchInput        = findViewById(R.id.search_input)
         channelCountChip   = findViewById(R.id.channel_count_chip)
@@ -561,30 +550,30 @@ class EpgActivity : AppCompatActivity() {
             if (ch != null) openFullscreen(ch)
         }
         railSignout.setOnClickListener {
-            // v2.9.11 — Instant sign-out, no confirm dialog.
-            // User explicitly requested: signing out must cut ALL
-            // streams immediately AND wipe ALL stored credentials
-            // (so the next launch forces a fresh, validated
-            // sign-in).  AuthStore.signOut() now:
-            //   • clears username + password from SharedPrefs
-            //   • deletes the bundle disk cache (stream URLs are
-            //     baked with the user's creds — must not be reused)
-            //   • deletes the priority-EPG disk cache
-            //   • drops BundleHolder.current to null
-            // PlayerActivity's onResume re-checks AuthStore.isSignedIn
-            // and finishes itself if the creds are gone, killing
-            // any in-flight playback session.
-            LivePreviewSession.release()
-            tv.onnowtv.livetv.data.AuthStore.signOut(this)
-            startActivity(
-                android.content.Intent(this, LoginActivity::class.java)
-                    .addFlags(
-                        android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                            android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK,
-                    ),
-            )
-            overridePendingTransition(0, 0)
-            finishAffinity()
+            // v2.9.15 — Confirm dialog before sign-out (user
+            // explicitly asked it back).  Action-sheet style so it
+            // matches the rest of the long-press menus.  On
+            // confirm, signOut() wipes ALL stored creds + caches
+            // and bounces to LoginActivity, killing any in-flight
+            // playback session.
+            tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+                .title("Sign out of ON NOW V2 Live TV?")
+                .subtitle("YOU'LL NEED TO SIGN BACK IN TO WATCH AGAIN")
+                .item("Sign out", icon = "↩") {
+                    LivePreviewSession.release()
+                    tv.onnowtv.livetv.data.AuthStore.signOut(this)
+                    startActivity(
+                        android.content.Intent(this, LoginActivity::class.java)
+                            .addFlags(
+                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK,
+                            ),
+                    )
+                    overridePendingTransition(0, 0)
+                    finishAffinity()
+                }
+                .item("Cancel", icon = "✕") { /* dismiss */ }
+                .show()
         }
     }
 
@@ -697,14 +686,17 @@ class EpgActivity : AppCompatActivity() {
             closeSearchOverlay()
             return
         }
-        // v2.9.1: in collection-mode Back returns to the Library
-        // screen (not the launcher), so the user can pick another
-        // collection without bouncing through the EPG.
-        if (currentCollection != null) {
-            startActivity(Intent(this, LibraryActivity::class.java))
-            finish()
-            return
-        }
+        // v2.9.15 — In collection mode, just let `super.onBackPressed()`
+        // pop this EpgActivity instance off the stack.  Since
+        // EpgActivity is `singleTop`, the instance underneath
+        // (LibraryActivity) is still alive and becomes the new top.
+        //
+        // Previously this branch did `startActivity(Library) +
+        // finish()`, which combined with the old `singleTask`
+        // launch mode meant the BOTTOM full-EPG instance got
+        // cleared — so two presses of Back from collection dropped
+        // the user out of the app entirely.  No special-case
+        // needed any more.
         super.onBackPressed()
     }
 
