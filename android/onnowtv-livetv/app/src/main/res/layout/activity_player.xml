@@ -533,6 +533,14 @@
             android:layout_width="0dp" android:layout_height="0dp" />
         <TextView android:id="@+id/player_info_channel"
             android:layout_width="0dp" android:layout_height="0dp" />
+        <!-- v2.10 — legacy programme/description placeholders.
+             Used by the old renderPlayerInfoCard() code path so it
+             can never accidentally clobber the visible NOW/NEXT
+             panel up top. -->
+        <TextView android:id="@+id/player_info_programme_legacy"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/player_info_description_legacy"
+            android:layout_width="0dp" android:layout_height="0dp" />
     </LinearLayout>
 
     <!-- Legacy buttons referenced in earlier PlayerActivity code -->

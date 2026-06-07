@@ -4,6 +4,25 @@
 > Confirmed via SSH: `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), ICMP dropped.  Backend stays blind to the provider until the IP is whitelisted.  Android app bypasses the backend via the new `DirectProviderFetcher` (uses user's home ISP, which IS allowed).
 
 
+> **🟢 v2.10 — 8-button modern player UI fully wired + enlarged TV-readable action sheets (Feb 7 2026).**
+>
+> Two follow-ups requested by the user after confirming Login+EPG were perfect:
+>
+> **A. Player UI hookup (`PlayerActivity.kt`)** — bound all 20+ new view IDs from the redesigned `activity_player.xml` (NOW/NEXT info panel + top-right clock block + 8-button control row).  Wired the four NEW buttons that did not exist before:
+>   - `btnChUp` / `btnChDown` → `PlaybackQueue.next()` / `prev()` (wraps within the current category).
+>   - `btnSwap` → `recentChannelStack` (last-watched stack, capped at 8) — re-seats `PlaybackQueue` if the previous channel lives in another category.
+>   - `btnFavorite` → `FavouritesStore.toggle()` with live heart-icon swap (`ic_player_favorite` ↔ `ic_player_favorite_active`).
+>   `showControlsBar()` now slides the FULL overlay in/out (info panel + 8-button row + clock block) as one cohesive group with a 15 s clock ticker.  Play-pause caption stays in sync with the underlying state.  Legacy `playerInfoProgramme` / `playerInfoDescription` rebound to hidden 0×0 `*_legacy` placeholders so the new visible NOW/NEXT panel can never be clobbered by stale code paths.
+>
+> **B. Enlarged action sheets for TV readability** — user complaint: *"the pop-ups for favorites / logging out are a bit hard to read"*:
+>   - `dialog_action_sheet.xml`: 380dp → 460dp wide; title 20sp → 23sp; subtitle 12sp → 13sp; extra padding all around.
+>   - `item_action_row.xml`: 56dp → 64dp tall; label 15sp → 17sp; icon 20sp → 22sp; trailing 12sp → 13sp.
+>   - `dialog_name_input.xml`: 420dp → 500dp wide; title 20sp → 23sp; input 16sp → 17sp; buttons 44dp → 50dp tall.
+>
+> Cross-checked all `findViewById` against the layout — every ID resolves, braces/parens balanced, no Gradle available locally to compile but every binding has been manually verified against `activity_player.xml`.
+
+
+
 
 > **🟢 v2.9.9 — Full priority EPG preload + modern player + day-dividers + sign-out refactor (Jun 7 2026).**
 > 

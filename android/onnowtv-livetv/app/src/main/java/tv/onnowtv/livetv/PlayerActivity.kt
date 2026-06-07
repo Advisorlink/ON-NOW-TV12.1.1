@@ -190,13 +190,51 @@ class PlayerActivity : AppCompatActivity() {
         btnRewind     = findViewById(R.id.btn_player_rewind)
         btnForward    = findViewById(R.id.btn_player_forward)
         btnSubtitles  = findViewById(R.id.btn_player_subtitles)
+        // Legacy aspect/info buttons are hidden 0×0 views kept in
+        // the layout strictly to preserve back-compat for the
+        // wirePlayerControls() listeners.  They never receive focus
+        // and the user never sees them — the new design replaced
+        // them with the dedicated Swap / CH±/Favourite buttons.
         btnAspect     = findViewById(R.id.btn_player_aspect)
         btnInfo       = findViewById(R.id.btn_player_info)
         playerInfoCard = findViewById(R.id.player_info_card)
-        playerInfoLogo = findViewById(R.id.player_info_logo)
+        // Legacy hidden `player_info_logo_legacy` — kept so the old
+        // showPlayerInfoCard()/renderPlayerInfoCard() code paths do
+        // not NPE.  The new design uses `infoLogoView` instead.
+        playerInfoLogo = findViewById(R.id.player_info_logo_legacy)
         playerInfoChannel = findViewById(R.id.player_info_channel)
-        playerInfoProgramme = findViewById(R.id.player_info_programme)
-        playerInfoDescription = findViewById(R.id.player_info_description)
+        // v2.10 — bind legacy programme/description fields to hidden
+        // 0×0 placeholders so the legacy code path can never modify
+        // the visible new NOW/NEXT panel up top.
+        playerInfoProgramme = findViewById(R.id.player_info_programme_legacy)
+        playerInfoDescription = findViewById(R.id.player_info_description_legacy)
+
+        // v2.10 — new design-spec overlay views.  These compose the
+        // bottom NOW/NEXT info panel + the top-right CLOCK/DATE
+        // column.  Together they slide in/out as a single overlay
+        // whenever the user interacts with the remote.
+        playerOverlay     = findViewById(R.id.player_overlay)
+        clockBlock        = findViewById(R.id.player_clock_block)
+        clockTime         = findViewById(R.id.player_clock_time)
+        clockAmPm         = findViewById(R.id.player_clock_ampm)
+        clockDate         = findViewById(R.id.player_clock_date)
+        infoLcnView       = findViewById(R.id.player_info_lcn)
+        infoLogoView      = findViewById(R.id.player_info_logo)
+        infoLiveRed       = findViewById(R.id.player_info_live_red)
+        infoProgrammeView = findViewById(R.id.player_info_programme)
+        infoLiveChip      = findViewById(R.id.player_info_live_chip)
+        infoSegment       = findViewById(R.id.player_info_segment)
+        infoDescriptionView = findViewById(R.id.player_info_description)
+        infoTimeRange     = findViewById(R.id.player_info_time_range)
+        infoProgressView  = findViewById(R.id.player_info_progress)
+        infoNextTitle     = findViewById(R.id.player_info_next_title)
+        infoNextTime      = findViewById(R.id.player_info_next_time)
+        btnChUp           = findViewById(R.id.btn_player_chup)
+        btnChDown         = findViewById(R.id.btn_player_chdown)
+        btnSwap           = findViewById(R.id.btn_player_swap)
+        btnFavorite       = findViewById(R.id.btn_player_favorite)
+        btnPlayPauseLabel = findViewById(R.id.btn_player_playpause_label)
+
         wirePlayerControls()
 
         val url = intent.getStringExtra(EXTRA_URL)
@@ -461,6 +499,15 @@ class PlayerActivity : AppCompatActivity() {
      * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
+        // v2.10 — Remember the channel we're leaving so the SWAP
+        // button can jump back to it.  Cap the stack at 8 entries
+        // and never push the same id we're already tuning to.
+        val leaving = currentChannel
+        if (leaving != null && leaving.id != channel.id) {
+            recentChannelStack.remove(leaving.id)
+            recentChannelStack.addFirst(leaving.id)
+            while (recentChannelStack.size > 8) recentChannelStack.removeLast()
+        }
         if (currentChannel?.id != channel.id) {
             consecutiveFailures = 0
             retryHandler.removeCallbacksAndMessages(null)
@@ -492,6 +539,10 @@ class PlayerActivity : AppCompatActivity() {
         // Pre-populate the info card with the new channel so it's
         // ready to flash when the user presses OK / INFO later.
         renderInfoCard(channel)
+        // v2.10 — refresh the bottom NOW/NEXT panel + favourite
+        // icon so they're already correct if the overlay is open.
+        populateOverlay(channel)
+        updateFavoriteIcon()
     }
 
     /**
@@ -559,7 +610,7 @@ class PlayerActivity : AppCompatActivity() {
         // (No-op.)
     }
 
-    /** Every 5 s, refresh the NOW/UP NEXT + progress bar so they
+    /** Every 30 s, refresh the NOW/UP NEXT + progress bar so they
      *  track real time even on a long-running viewing session. */
     private fun startProgressTicker() {
         progressHandler.post(object : Runnable {
@@ -571,6 +622,14 @@ class PlayerActivity : AppCompatActivity() {
                         infoUpNext.text = next?.let {
                             "UP NEXT · ${clockFmt.format(Date(it.startMs)).uppercase(Locale.UK)} · ${it.title}"
                         } ?: ""
+                    }
+                    // v2.10 — keep the bottom info panel fresh too
+                    // (only matters while the overlay is visible
+                    // but the call is cheap so we always do it).
+                    if (::playerOverlay.isInitialized &&
+                        playerOverlay.visibility == View.VISIBLE
+                    ) {
+                        populateOverlay(ch)
                     }
                 }
                 progressHandler.postDelayed(this, 30_000L)
@@ -635,7 +694,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
-                if (controlsBar.visibility == View.VISIBLE) {
+                if (playerOverlay.visibility == View.VISIBLE) {
                     hideControlsBar()
                     return true
                 }
@@ -644,7 +703,7 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_CHANNEL_UP,
             KeyEvent.KEYCODE_PAGE_UP -> {
-                if (controlsBar.visibility == View.VISIBLE) {
+                if (playerOverlay.visibility == View.VISIBLE) {
                     hideControlsBar(); return true
                 }
                 PlaybackQueue.prev()?.let { tuneTo(it) }
@@ -658,7 +717,7 @@ class PlayerActivity : AppCompatActivity() {
                 // remote's dedicated CHANNEL_DOWN button (handled
                 // separately in the case label above when controls
                 // are hidden).
-                if (controlsBar.visibility != View.VISIBLE) {
+                if (playerOverlay.visibility != View.VISIBLE) {
                     showControlsBar()
                     return true
                 }
@@ -669,7 +728,7 @@ class PlayerActivity : AppCompatActivity() {
                 // Open controls on L/R from the bare player surface
                 // so it's discoverable.  Once visible the standard
                 // focus-search d-pad logic takes over.
-                if (controlsBar.visibility != View.VISIBLE) {
+                if (playerOverlay.visibility != View.VISIBLE) {
                     showControlsBar()
                     return true
                 }
@@ -684,12 +743,10 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_INFO -> {
-                if (controlsBar.visibility == View.VISIBLE) {
+                if (playerOverlay.visibility == View.VISIBLE) {
                     return super.onKeyDown(keyCode, event)  // let the focused button handle it
                 }
-                currentChannel?.let { renderInfoCard(it); renderPlayerInfoCard(it) }
-                showInfoCard()
-                showPlayerInfoCard()
+                showControlsBar()
                 return true
             }
             KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_2,
@@ -710,6 +767,15 @@ class PlayerActivity : AppCompatActivity() {
         btnRewind.setOnClickListener { seekRelative(-10_000L); bumpControlsHide() }
         btnForward.setOnClickListener { seekRelative(+10_000L); bumpControlsHide() }
         btnSubtitles.setOnClickListener { toggleSubtitles(); bumpControlsHide() }
+        // v2.10 — new design buttons
+        btnChUp.setOnClickListener { channelStep(forward = true); bumpControlsHide() }
+        btnChDown.setOnClickListener { channelStep(forward = false); bumpControlsHide() }
+        btnSwap.setOnClickListener { swapToPreviousChannel(); bumpControlsHide() }
+        btnFavorite.setOnClickListener { toggleFavorite(); bumpControlsHide() }
+        // Legacy aspect/info buttons live as hidden 0×0 views so we
+        // don't break old code paths, but they no longer receive
+        // focus.  Wire them defensively in case anything still
+        // dispatches click events to them.
         btnAspect.setOnClickListener { cycleAspectMode(); bumpControlsHide() }
         btnInfo.setOnClickListener {
             currentChannel?.let { renderPlayerInfoCard(it) }
@@ -719,29 +785,51 @@ class PlayerActivity : AppCompatActivity() {
         // Hide the bar on any focus change to a child of the bar
         // after the inactivity timeout — the bumpControlsHide()
         // calls below restart the countdown on every interaction.
-        listOf(btnPlayPause, btnRewind, btnForward, btnSubtitles, btnAspect, btnInfo).forEach { b ->
+        listOf(
+            btnRewind, btnPlayPause, btnForward,
+            btnChUp, btnChDown, btnSwap,
+            btnSubtitles, btnFavorite,
+        ).forEach { b ->
             b.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) bumpControlsHide() }
         }
     }
 
     private fun showControlsBar() {
-        controlsBar.alpha = 0f
+        // v2.10 — slide in the FULL overlay (NOW/NEXT info panel +
+        // the 8-button control row) plus the top-right clock block
+        // as one cohesive group.  Driven by D-pad input + by the
+        // existing OK / INFO key paths.
+        populateOverlay(currentChannel)
+        updateFavoriteIcon()
+        startClockTicker()
+        if (playerOverlay.visibility != View.VISIBLE) {
+            playerOverlay.alpha = 0f
+            playerOverlay.visibility = View.VISIBLE
+            playerOverlay.animate().alpha(1f).setDuration(180L).start()
+        }
+        if (clockBlock.visibility != View.VISIBLE) {
+            clockBlock.alpha = 0f
+            clockBlock.visibility = View.VISIBLE
+            clockBlock.animate().alpha(1f).setDuration(180L).start()
+        }
+        controlsBar.alpha = 1f
         controlsBar.visibility = View.VISIBLE
-        controlsBar.animate().alpha(1f).setDuration(160L).start()
         // Always sync the Play/Pause label to the current state.
         syncPlayPauseGlyph()
         btnPlayPause.requestFocus()
-        // Show the channel info card alongside so the user has
-        // immediate context for what they're controlling.
-        currentChannel?.let { renderPlayerInfoCard(it) }
-        showPlayerInfoCard()
         bumpControlsHide()
     }
 
     private fun hideControlsBar() {
         controlsHideHandler.removeCallbacksAndMessages(null)
-        controlsBar.animate().alpha(0f).setDuration(160L).withEndAction {
-            controlsBar.visibility = View.GONE
+        stopClockTicker()
+        // Fade the whole overlay out — info panel + control row +
+        // clock block disappear together.
+        playerOverlay.animate().alpha(0f).setDuration(180L).withEndAction {
+            playerOverlay.visibility = View.GONE
+        }.start()
+        clockBlock.animate().alpha(0f).setDuration(180L).withEndAction {
+            clockBlock.visibility = View.GONE
         }.start()
     }
 
@@ -763,6 +851,144 @@ class PlayerActivity : AppCompatActivity() {
         btnPlayPause.setImageResource(
             if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play,
         )
+        // v2.10 — keep the caption under the play button in sync.
+        if (::btnPlayPauseLabel.isInitialized) {
+            btnPlayPauseLabel.text = if (playing) "PAUSE" else "PLAY"
+        }
+    }
+
+    /* ─────────────────── v2.10 control actions ─────────────────── */
+
+    /** CH UP / CH DOWN — step through the queue EpgActivity gave us
+     *  (which is normally the user's currently-viewed category in
+     *  LCN order).  Wraps at both ends. */
+    private fun channelStep(forward: Boolean) {
+        val target = if (forward) PlaybackQueue.next() else PlaybackQueue.prev()
+        if (target != null) tuneTo(target)
+    }
+
+    /** SWAP — jump back to the most recently watched channel.  Held
+     *  in [recentChannelStack]; the head is the one we tuned away
+     *  from last.  Silent no-op when the stack is empty (fresh boot). */
+    private fun swapToPreviousChannel() {
+        val prevId = recentChannelStack.removeFirstOrNull() ?: return
+        val list = PlaybackQueue.channels
+        val target = list.firstOrNull { it.id == prevId }
+            ?: BundleHolder.current?.channels?.firstOrNull { it.id == prevId }
+            ?: return
+        // Re-seat the queue if the target lives in a different
+        // category, so subsequent CH±/D-pad navigation feels right.
+        if (list.none { it.id == target.id }) {
+            val bundle = BundleHolder.current
+            val siblings = bundle?.channels
+                ?.filter { it.categoryId == target.categoryId && it.categoryId != null }
+                ?.ifEmpty { bundle.channels } ?: listOf(target)
+            PlaybackQueue.setQueue(siblings, target.id)
+        } else {
+            PlaybackQueue.setQueue(list, target.id)
+        }
+        tuneTo(target)
+    }
+
+    /** FAVORITE — toggle the current channel's favourite status and
+     *  refresh the heart icon.  EpgActivity's Favourites virtual
+     *  category re-reads [FavouritesStore] on its next render so the
+     *  change shows up there automatically. */
+    private fun toggleFavorite() {
+        val id = currentChannel?.id ?: return
+        tv.onnowtv.livetv.data.FavouritesStore.toggle(this, id)
+        updateFavoriteIcon()
+    }
+
+    private fun updateFavoriteIcon() {
+        if (!::btnFavorite.isInitialized) return
+        val id = currentChannel?.id
+        val isFav = id != null &&
+            tv.onnowtv.livetv.data.FavouritesStore.load(this).contains(id)
+        btnFavorite.setImageResource(
+            if (isFav) R.drawable.ic_player_favorite_active else R.drawable.ic_player_favorite,
+        )
+        btnFavorite.alpha = if (isFav) 1f else 0.85f
+    }
+
+    /* ─────────────────── v2.10 overlay rendering ─────────────────── */
+
+    /** Paint the bottom NOW/NEXT info panel from the current
+     *  channel + EPG data. */
+    private fun populateOverlay(ch: Channel?) {
+        if (ch == null) return
+        if (::infoLcnView.isInitialized) {
+            infoLcnView.text = ch.lcn?.padStart(3, '0') ?: "—"
+        }
+        if (::infoLogoView.isInitialized) {
+            if (!ch.logoUrl.isNullOrBlank()) {
+                infoLogoView.load(ch.logoUrl) { crossfade(true); crossfade(160) }
+            } else {
+                infoLogoView.setImageDrawable(null)
+            }
+        }
+        val (now, next) = currentProgramme(ch)
+        if (::infoProgrammeView.isInitialized) {
+            infoProgrammeView.text = now?.title ?: ch.name
+        }
+        if (::infoSegment.isInitialized) {
+            infoSegment.text = if (now != null) ch.name else ""
+            infoSegment.visibility = if (now != null) View.VISIBLE else View.GONE
+        }
+        if (::infoDescriptionView.isInitialized) {
+            val desc = now?.description.orEmpty()
+            infoDescriptionView.text = desc
+            infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE
+        }
+        if (::infoTimeRange.isInitialized) {
+            infoTimeRange.text = if (now != null) {
+                "${timeRangeFmt.format(Date(now.startMs))} – ${timeRangeFmt.format(Date(now.stopMs))}"
+            } else ""
+            infoTimeRange.visibility = if (now != null) View.VISIBLE else View.GONE
+        }
+        if (::infoProgressView.isInitialized) {
+            val pct = if (now != null) progressPct(now) else 0f
+            infoProgressView.progress = (pct * infoProgressView.max).toInt()
+        }
+        if (::infoNextTitle.isInitialized) {
+            infoNextTitle.text = next?.title ?: "—"
+        }
+        if (::infoNextTime.isInitialized) {
+            infoNextTime.text = if (next != null) {
+                "${timeRangeFmt.format(Date(next.startMs))} – ${timeRangeFmt.format(Date(next.stopMs))}"
+            } else ""
+        }
+    }
+
+    private fun progressPct(p: Programme): Float {
+        val now = System.currentTimeMillis()
+        return when {
+            now <= p.startMs -> 0f
+            now >= p.stopMs -> 1f
+            else -> {
+                val span = (p.stopMs - p.startMs).coerceAtLeast(1L)
+                ((now - p.startMs).toFloat() / span.toFloat()).coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    private val clockTick = object : Runnable {
+        override fun run() {
+            val nowDate = Date()
+            if (::clockTime.isInitialized) clockTime.text = clockHourFmt.format(nowDate)
+            if (::clockAmPm.isInitialized) clockAmPm.text = clockAmPmFmt.format(nowDate).uppercase(Locale.UK)
+            if (::clockDate.isInitialized) clockDate.text = clockDateFmt.format(nowDate)
+            clockHandler.postDelayed(this, 15_000L)
+        }
+    }
+
+    private fun startClockTicker() {
+        clockHandler.removeCallbacks(clockTick)
+        clockHandler.post(clockTick)
+    }
+
+    private fun stopClockTicker() {
+        clockHandler.removeCallbacks(clockTick)
     }
 
     private fun seekRelative(deltaMs: Long) {
@@ -907,6 +1133,7 @@ class PlayerActivity : AppCompatActivity() {
         progressHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
         controlsHideHandler.removeCallbacksAndMessages(null)
+        clockHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
         if (usingSharedPlayer) {
             // Detach the surface — DO NOT release the underlying
