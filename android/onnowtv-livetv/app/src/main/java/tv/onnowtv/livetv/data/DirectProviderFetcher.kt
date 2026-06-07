@@ -27,18 +27,19 @@ import javax.net.ssl.X509TrustManager
  * device's own ISP IP IS allowed by the provider, so we just bypass
  * the backend and assemble an equivalent bundle here.
  *
- * Endpoint shape (Xtream Codes standard):
- *   GET {base}/player_api.php?username=&password=&action=get_live_categories
- *   GET {base}/player_api.php?username=&password=&action=get_live_streams
- *   GET {base}/player_api.php?username=&password=&action=get_short_epg&stream_id=&limit=20
- *
- * Stream URLs are built locally using the user's saved credentials.
- *
- * The result is **byte-identical in shape** to the backend bundle so
- * `XtreamRepository.parseBundle()` can consume it without changes,
- * AND so `BundleCache` can persist it for the next boot's fast path.
+ * v2.9.14 — Throws [InvalidCredentialsException] specifically
+ * when the provider rejects our auth (HTTP 404 on
+ * `player_api.php`).  Callers can catch this and route the user
+ * back to the login screen with a "Wrong username or password"
+ * message, instead of treating it as a generic network failure.
  */
 object DirectProviderFetcher {
+
+    /** Distinguishes "provider rejected your credentials" from
+     *  every other failure mode.  Thrown by [fetchBundleJson] /
+     *  [playerApi] when the provider returns HTTP 404 OR a
+     *  user_info with `auth == 0`. */
+    class InvalidCredentialsException(message: String) : RuntimeException(message)
 
     private const val TAG = "DirectFetcher"
 
@@ -122,6 +123,13 @@ object DirectProviderFetcher {
                 "&action=$action",
         )
         val text = getJson(url)
+        // v2.9.14 — A successful HTTP 200 with `{"user_info":{"auth":"0"}}`
+        // is the provider's "rejected" path when creds parse but
+        // don't authenticate.  Surface as InvalidCredentialsException
+        // so the caller can route to login.
+        if (text.contains("\"auth\":\"0\"") || text.contains("\"auth\":0,")) {
+            throw InvalidCredentialsException("Provider auth=0 — wrong username or password.")
+        }
         return JSONArray(text)
     }
 
@@ -233,6 +241,14 @@ object DirectProviderFetcher {
         }
         return try {
             val code = conn.responseCode
+            // v2.9.14 — HTTP 404 from `player_api.php` is the
+            // provider's "wrong username/password" sentinel.
+            // Surface it as a structured error so the loader can
+            // bounce the user back to LoginActivity with a
+            // friendly message.
+            if (code == 404) {
+                throw InvalidCredentialsException("Provider returned HTTP 404 — wrong username or password.")
+            }
             if (code !in 200..299) {
                 throw RuntimeException("Direct HTTP $code")
             }

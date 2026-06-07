@@ -268,6 +268,24 @@ class MainActivity : AppCompatActivity() {
     /* ───────────── Loader state machine ───────────── */
 
     /**
+     * v2.9.14 — Bounce back to LoginActivity with an error message
+     * after the loader detects the saved credentials were rejected
+     * by the provider.  Wipes the bad creds so the next launch
+     * goes straight to the login screen and doesn't loop.
+     */
+    private fun sendBackToLogin(message: String) {
+        Log.w("MainActivity", "sendBackToLogin: $message")
+        tv.onnowtv.livetv.data.AuthStore.signOut(this)
+        startActivity(
+            Intent(this, LoginActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra(LoginActivity.EXTRA_AUTH_ERROR, message),
+        )
+        overridePendingTransition(0, 0)
+        finish()
+    }
+
+    /**
      * v2.9.11 — Surface a clear error screen with a RETRY button
      * when both backend AND direct provider paths have failed.
      * No technical detail (exception names, hostnames) is shown
@@ -329,9 +347,17 @@ class MainActivity : AppCompatActivity() {
                     val b = XtreamRepository.parseBundleJson(text)
                     Log.i("MainActivity", "direct bundle: ${b.channels.size} channels, ${b.categories.size} categories")
                     text to b
+                } catch (t: tv.onnowtv.livetv.data.DirectProviderFetcher.InvalidCredentialsException) {
+                    // v2.9.14 — Provider explicitly rejected our
+                    // saved creds.  Tag the error so the loader
+                    // routes back to LoginActivity instead of the
+                    // generic "couldn't reach support" screen.
+                    Log.w("MainActivity", "direct bundle: invalid credentials")
+                    bundleError = "INVALID_CREDS"
+                    null
                 } catch (t: Throwable) {
                     Log.w("MainActivity", "direct bundle fetch failed: ${t.javaClass.simpleName}: ${t.message}")
-                    bundleError = "Direct: ${t.javaClass.simpleName}: ${t.message ?: "no detail"}"
+                    bundleError = "NETWORK"
                     null
                 }
             }
@@ -382,7 +408,7 @@ class MainActivity : AppCompatActivity() {
                 BundleCache.saveJson(applicationContext, winner.first)
             } else {
                 if (bundleError == null) {
-                    bundleError = "Both backend AND direct fetch failed"
+                    bundleError = "NETWORK"
                 }
                 Log.w("MainActivity", "bundle fetch failed entirely: $bundleError")
             }
@@ -420,7 +446,14 @@ class MainActivity : AppCompatActivity() {
 
             val bothFailed = bundleKick?.isCompleted == true && bundleResult == null
             if (bothFailed && elapsed >= 4_000L) {
-                showFetchError(bundleError ?: "Couldn't reach the TV provider")
+                // v2.9.14 — Wrong creds get bounced to login; only
+                // genuine network/server failures get the support
+                // screen.
+                if (bundleError == "INVALID_CREDS") {
+                    sendBackToLogin("Wrong username or password.  Please try again.")
+                    return
+                }
+                showFetchError(bundleError ?: "NETWORK")
                 return
             }
 
@@ -438,10 +471,19 @@ class MainActivity : AppCompatActivity() {
 
         val bundle = bundleResult ?: run {
             // Last-chance synchronous fetch using direct provider.
-            val text = tv.onnowtv.livetv.data.DirectProviderFetcher
-                .fetchBundleJson(applicationContext)
-            BundleCache.saveJson(applicationContext, text)
-            XtreamRepository.parseBundleJson(text)
+            try {
+                val text = tv.onnowtv.livetv.data.DirectProviderFetcher
+                    .fetchBundleJson(applicationContext)
+                BundleCache.saveJson(applicationContext, text)
+                XtreamRepository.parseBundleJson(text)
+            } catch (_: tv.onnowtv.livetv.data.DirectProviderFetcher.InvalidCredentialsException) {
+                // v2.9.14 — Same bounce-to-login path as the
+                // race-loop branch, just for the last-chance code
+                // path that fires when the race loop somehow
+                // exited without setting bundleResult.
+                sendBackToLogin("Wrong username or password.  Please try again.")
+                return
+            }
         }
 
         // ─── v2.9.9 PRIORITY EPG PREFETCH ──────────────────────────
