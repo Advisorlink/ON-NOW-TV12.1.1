@@ -821,7 +821,11 @@ class MainActivity : AppCompatActivity() {
                         // at any pill size.  Default is true on most
                         // platforms but make it explicit so the bigger
                         // 2048×1024 source image always looks crisp.
-                        child.isFilterBitmap = true
+                        // v2.9.3 — `isFilterBitmap` lives on the
+                        // BitmapDrawable, not ImageView directly, so
+                        // unwrap via the bitmap drawable cast.
+                        (child.drawable as? android.graphics.drawable.BitmapDrawable)
+                            ?.isFilterBitmap = true
                         val lp = child.layoutParams
                         lp.width  = android.view.ViewGroup.LayoutParams.MATCH_PARENT
                         lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
