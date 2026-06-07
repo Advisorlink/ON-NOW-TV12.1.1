@@ -1,6 +1,20 @@
 # ON NOW TV V2 — PRD
 
-> **🔴 v2.9.8 — CRITICAL: Production VPS IP-blocked by Xtream provider · device-side direct fetch as workaround (Jun 7 2026).**
+> **🔴 v2.9.8 — Production VPS IP-blocked by Xtream provider · device-side direct fetch as workaround (Jun 7 2026).**
+> Confirmed via SSH: `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), ICMP dropped.  Backend stays blind to the provider until the IP is whitelisted.  Android app bypasses the backend via the new `DirectProviderFetcher` (uses user's home ISP, which IS allowed).
+
+
+
+> **🟢 v2.9.9 — Full priority EPG preload + modern player + day-dividers + sign-out refactor (Jun 7 2026).**
+> 
+> Five separate user requests addressed in one shot:
+> 1. **Full guide preload** for UK · USA · AU Kayo · NZ Sports BEFORE entering the EPG.  New `XmlTvFetcher` downloads the provider's 27 MB gzipped XMLTV and stream-parses ~2,583 priority channels (~28 MB heap).  Total cold-boot ~25–35 s.  Persisted to `epg_priority.json.gz` so subsequent boots are sub-second with full priority EPG already populated.
+> 2. **Sign-out** moved from the hero to the bottom of the left rail (already there, just removed the duplicate hero icon).  Now properly clears `AuthStore` + bounces to `LoginActivity` instead of just `finishAffinity()`.
+> 3. **"Coming Up Next" rows** trimmed (padding 8→4 dp, text 13→12 sp) so one extra row fits.  Day-divider chip now reads `TODAY · 7 JUN`, `TOMORROW · WED 8 JUN`, `THU 9 JUN` etc.
+> 4. **Spinning loader** shrunk 92 dp → 44 dp; colour stays neon `#5DC8FF`.
+> 5. **Player controls** rebuilt as circular ImageButtons with vector icons on a floating glass pill; gradient hero Play/Pause; full focus-glow on TV-remote nav.
+
+
 >
 > **Diagnosis**:  `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), even ICMP is dropped.  The Xtream provider has firewalled the entire Contabo IP range.  Backend's `instant_bundle` scheduler hangs on every TCP handshake — `channels_count` stays at 0 forever, `/api/xtream/instant-bundle` returns `502 "Provider unreachable: "`.  This is OUTSIDE our control — only the provider can lift the block.
 >

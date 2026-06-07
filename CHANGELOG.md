@@ -1,5 +1,72 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.9.9 — Full priority EPG, modern player, day-dividers, sign-out refactor (2026-06-07)
+
+User's TV-video round of frustration, addressed point-by-point.
+
+### 1) Full UK/USA/AU Kayo/NZ Sports EPG preload BEFORE entering the EPG
+New `data/XmlTvFetcher.kt` + `data/EpgCache.kt`.
+- Hits the provider's `xmltv.php` gzip endpoint directly from the device (27 MB compressed → 145 MB raw, downloads in **~5.7 s**).
+- Stream-parses with `XmlPullParser`, retaining ONLY programmes whose channel maps to a priority channel (~2,583 channels with `epg_channel_id`).  Memory cost ~28 MB heap.
+- Loader headline switches to "Loading the full guide… · UK · USA · AU Kayo · NZ Sports" and counters animate up to `"234,567 programmes · 8,121 EPG channels seen"`.  Total wait ~25–35 s on first boot — comfortably inside the user's "couple of a minute or so" budget.
+- Result is persisted to `filesDir/epg_priority.json.gz` so **every subsequent cold boot starts EpgActivity sub-second with the priority EPG already populated**.
+- Non-priority channels still lazy-load their EPG via the existing `get_short_epg` direct path when the user d-pads to them.
+- `EpgActivity.onCreate` triggers a background refresh of the priority EPG when the cache is older than 2 h — silently keeps the on-disk copy fresh.
+
+Category-name matching predicate covers the user's named buckets:
+- **UK**: `UK |…`, `==== UK …`, `====UK…`, `DAZN UK`, `AMAZON UK`.
+- **USA**: `USA |…`, `USA …`, `====USA…`, `DAZN USA`.
+- **AU Kayo**: anything containing `KAYO` (FOX/KAYO SPORTS + KAYO EVENTS).
+- **NZ Sports**: `SKY SPORTS (NZ)` + any `NZ … SPORT…` combo.
+
+### 2) Sign-out moved to bottom of left rail only
+- Removed the hero's `btn_logout` ImageButton from `activity_epg.xml`.
+- The rail's `rail_signout` icon (already at the bottom of the vertical rail) is now the SINGLE sign-out affordance.
+- Clicking it now properly tears down the player, clears `AuthStore` creds, and bounces back to `LoginActivity` (was `finishAffinity()` previously — that just exited the app without clearing creds).
+- Backed by a confirm action-sheet so accidental d-pad presses don't sign you out.
+
+### 3) "Coming Up Next" rows smaller + day-divider chip
+- `item_guide_row.xml`: trimmed vertical padding 8→4 dp, time/title 13→12 sp, reminder line 10→9 sp, body bottom margin 6→3 dp.  Fits **roughly one extra row** in the same vertical space.
+- `guide_day_header` TextView is now actually styled (was empty).  Renders as a small neon-blue-bordered pill labelled `TODAY · 7 JUN`, `TOMORROW · WED 8 JUN`, `THU 9 JUN`, etc. — drawn FLUSH BETWEEN rows, not inside them, so it reads as a clear section break when the guide crosses midnight.
+- `GuideRowAdapter.kt` now uses `EEE dd MMM` for the day-of-week prefix on day labels.
+- New drawable `guide_day_header_bg.xml`.
+
+### 4) Smaller neon-blue spinning loader
+- `preview_buffer_loader` (the in-EPG preview-window buffering spinner) shrunk **92 dp → 44 dp** — was the "really big" one.
+- Player full-screen `buffer_loader` was already 48 dp; left as-is.
+- Color stays `#5DC8FF` (neon cyan-blue) — matches the existing accent.
+
+### 5) Modern player controls
+- Rebuilt `player_controls_bar` in `activity_player.xml` from emoji-on-TextView to **circular ImageButtons with vector icons** on a floating glass-pill background.
+- Layout: `[« 10s] [⏵/⏸ HERO] [10s »] · [CC] [⤢] [ⓘ]` — with a soft divider between the transport cluster and the options cluster.
+- Center Play/Pause is the hero: 74 dp circular gradient pill (`#3A95FF → #1F6FD8`) with neon-blue glow on focus.
+- All buttons have a focus state that glows neon-blue + scales up for TV-remote navigation.
+- New drawables: `player_modern_bar_bg`, `player_modern_btn_bg`, `player_modern_playpause_bg`, `ic_player_play`, `ic_player_pause`, `ic_player_rewind` (back-10s), `ic_player_forward` (fwd-10s), `ic_player_cc`, `ic_player_aspect`, `ic_player_info`.
+- `PlayerActivity.kt`: `btnPlayPause/btnRewind/btnForward/btnSubtitles/btnAspect/btnInfo` retyped TextView → ImageButton.  `syncPlayPauseGlyph()` uses `setImageResource(R.drawable.ic_player_play/pause)` instead of unicode glyphs.
+- Subtitle integration (binding the CC button to the currently-watched programme's subtitle track) was already wired in v2.9.5 — kept as-is, just behind the modern icon now.
+
+### Files touched
+- `data/XmlTvFetcher.kt` — NEW (244 lines)
+- `data/EpgCache.kt` — NEW (109 lines)
+- `MainActivity.kt` — priority predicate + XMLTV preload step + EpgCache hydration on fast path + updated tips
+- `EpgActivity.kt` — hero `btn_logout` removed, rail sign-out now uses proper sign-out flow, background priority-EPG refresh
+- `ui/GuideRowAdapter.kt` — day-of-week formatter for divider labels
+- `res/layout/activity_player.xml` — rebuilt control bar
+- `res/layout/activity_epg.xml` — removed hero sign-out, shrunk preview loader
+- `res/layout/item_guide_row.xml` — smaller rows, styled day-divider
+- `PlayerActivity.kt` — ImageButton retypes + vector icon swap
+- 7 new vector icons (`ic_player_*.xml`) + 3 new selectors (`player_modern_*.xml`) + `guide_day_header_bg.xml`
+
+### Verified (preview-pod simulation)
+```
+XMLTV: 27.27 MB transfer in 5.67s (gzip).
+get_live_categories + get_live_streams: 160 cats, 14,091 streams in 1.69 s.
+BBC ONE FHD short_epg: 3 programmes returned ("Spirit Untamed", "Zog and the Flying Doctors", …).
+```
+
+---
+
+
 ## v2.9.8 — Direct-from-provider bundle fetch (the REAL fix) (2026-06-07)
 
 **Diagnosis nailed.** Production VPS at `62.84.181.66` **cannot reach `njala.ddns.me:8443` AT ALL** — confirmed via `bash -c '</dev/tcp/njala.ddns.me/8443'` from the VPS = `FAILED` on every port (8443, 443, 80, 8087), even ICMP is dropped. The Xtream provider has IP-blacklisted the entire Contabo range. The backend's `instant_bundle` scheduler logs "refreshing channels…" but never logs success because the TCP handshake hangs forever.

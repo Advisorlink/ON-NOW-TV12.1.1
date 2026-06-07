@@ -41,6 +41,11 @@ class GuideRowAdapter(
     private val rows = mutableListOf<Row>()
     private val timeFmt = SimpleDateFormat("h:mm a", Locale.UK)
     private val dayFmt = SimpleDateFormat("dd MMM", Locale.UK)
+    // v2.9.9 — Day-of-week formatter for the day-divider header so
+    // crossing midnight reads "TOMORROW · WED 10 JUN" / future days
+    // read "WED · 10 JUN".
+    private val dowFmt = SimpleDateFormat("EEE", Locale.UK)
+    private val dowDayFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
     init { setHasStableIds(true) }
 
@@ -67,9 +72,9 @@ class GuideRowAdapter(
                 val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
                 val yr = cal.get(Calendar.YEAR)
                 val label = when {
-                    yr == year && dayOfYear == today -> "TODAY · ${dayFmt.format(cal.time)}"
-                    yr == year && dayOfYear == today + 1 -> "TOMORROW · ${dayFmt.format(cal.time)}"
-                    else -> dayFmt.format(cal.time).uppercase(Locale.UK)
+                    yr == year && dayOfYear == today -> "TODAY · ${dayFmt.format(cal.time).uppercase(Locale.UK)}"
+                    yr == year && dayOfYear == today + 1 -> "TOMORROW · ${dowDayFmt.format(cal.time).uppercase(Locale.UK)}"
+                    else -> dowDayFmt.format(cal.time).uppercase(Locale.UK)
                 }
                 rows.add(Row.Header(label))
             }

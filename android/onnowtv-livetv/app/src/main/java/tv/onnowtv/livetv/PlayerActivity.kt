@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -98,12 +99,12 @@ class PlayerActivity : AppCompatActivity() {
     // `onCreate()`.  See `showControlsBar()` for the open / auto-
     // hide flow.
     private lateinit var controlsBar: LinearLayout
-    private lateinit var btnPlayPause: TextView
-    private lateinit var btnRewind: TextView
-    private lateinit var btnForward: TextView
-    private lateinit var btnSubtitles: TextView
-    private lateinit var btnAspect: TextView
-    private lateinit var btnInfo: TextView
+    private lateinit var btnPlayPause: ImageButton
+    private lateinit var btnRewind: ImageButton
+    private lateinit var btnForward: ImageButton
+    private lateinit var btnSubtitles: ImageButton
+    private lateinit var btnAspect: ImageButton
+    private lateinit var btnInfo: ImageButton
     private lateinit var playerInfoCard: LinearLayout
     private lateinit var playerInfoLogo: ImageView
     private lateinit var playerInfoChannel: TextView
@@ -723,7 +724,11 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun syncPlayPauseGlyph() {
         val playing = player?.playWhenReady == true
-        btnPlayPause.text = if (playing) "⏸" else "▶"
+        // v2.9.9 — Vector icons instead of unicode glyphs (the new
+        // modern player control bar uses ImageButtons).
+        btnPlayPause.setImageResource(
+            if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play,
+        )
     }
 
     private fun seekRelative(deltaMs: Long) {

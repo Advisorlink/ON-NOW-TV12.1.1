@@ -22,6 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.BundleCache
+import tv.onnowtv.livetv.data.EpgCache
+import tv.onnowtv.livetv.data.XmlTvFetcher
 import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.data.XtreamRepository
 import java.net.HttpURLConnection
@@ -95,9 +97,10 @@ class MainActivity : AppCompatActivity() {
         "TIP — The left rail filters channels by country and genre.",
         "TIP — The Search icon finds channels AND programmes by name.",
         "TIP — The next boot is INSTANT — your guide is cached on disk.",
-        "TIP — We're pre-warming UK, US, AU and Kayo EPG first so the channels you watch are ready.",
-        "TIP — 12,000+ channels, refreshed automatically in the background.",
+        "TIP — Loading the FULL guide for UK · USA · AU Kayo · NZ Sports first.",
+        "TIP — 14,000+ channels · the guide for everything else lazy-loads as you browse.",
         "TIP — D-pad UP/DOWN switches channels while you're watching.",
+        "TIP — Sign out from the bottom of the left rail.",
     )
     private val TIP_INTERVAL_MS = 7_500L
     private var tipIndex = 0
@@ -122,8 +125,18 @@ class MainActivity : AppCompatActivity() {
                 if (!json.isNullOrBlank()) {
                     val bundle = XtreamRepository.parseBundleJson(json)
                     if (bundle.channels.isNotEmpty()) {
-                        BundleHolder.current = bundle
-                        Log.i("MainActivity", "fast-path: loaded ${bundle.channels.size} channels / ${bundle.epg.size} epg buckets from disk (age=${BundleCache.ageMs(this) / 1000}s)")
+                        // v2.9.9 — Hydrate the cached priority EPG
+                        // and merge it BEFORE handing off to the EPG
+                        // screen so the UK / USA / AU Kayo / NZ
+                        // Sports rows show programmes immediately
+                        // (instead of "—" placeholders waiting for
+                        // the lazy-load).
+                        val cachedEpg = EpgCache.load(this)
+                        val merged = if (cachedEpg != null) bundle.copy(epg = cachedEpg) else bundle
+                        BundleHolder.current = merged
+                        Log.i("MainActivity", "fast-path: ${merged.channels.size} channels / ${merged.epg.size} epg buckets (cache age=${BundleCache.ageMs(this) / 1000}s)")
+                        // If either cache is stale, schedule a
+                        // background refresh after EpgActivity opens.
                         scheduleBackgroundRefresh()
                         startActivity(Intent(this, EpgActivity::class.java))
                         overridePendingTransition(0, 0)
@@ -413,12 +426,106 @@ class MainActivity : AppCompatActivity() {
             BundleCache.saveJson(applicationContext, text)
             XtreamRepository.parseBundleJson(text)
         }
-        BundleHolder.current = bundle
+
+        // ─── v2.9.9 PRIORITY EPG PREFETCH ──────────────────────────
+        // The user wants the UK / USA / AU Kayo / NZ Sports guides
+        // FULLY POPULATED before they land in the EPG.  The provider
+        // ships a single gzipped XMLTV file (27 MB compressed → 145
+        // MB raw) which we stream-parse, retaining ONLY programmes
+        // whose channel id maps to a priority channel.  Loader
+        // counters animate during the download/parse so the wait
+        // feels alive — the operation usually completes in ~20-30 s.
+        val priorityChannels = bundle.channels.filter { ch ->
+            isPriorityChannel(ch, bundle.categories)
+        }
+        val priorityChannelIds = priorityChannels
+            .mapNotNull { it.epgChannelId?.takeIf { id -> id.isNotBlank() } }
+            .toHashSet()
+        Log.i(
+            "MainActivity",
+            "priority preload: ${priorityChannels.size} channels, ${priorityChannelIds.size} with epg_channel_id",
+        )
+
+        var mergedBundle = bundle
+        if (priorityChannelIds.isNotEmpty()) {
+            headline.text = "Loading the full guide…"
+            substatus.text = "UK · USA · AU Kayo · NZ Sports"
+            statusCounters.text = "Connecting…"
+            progress.progress = 850
+
+            val parsedEpg = try {
+                XmlTvFetcher.fetchPriorityEpg(
+                    applicationContext,
+                    priorityChannelIds,
+                ) { chSeen, progs ->
+                    // Throttled inside the parser already, but
+                    // marshal to the UI thread before touching views.
+                    runOnUiThread {
+                        substatus.text = "Parsing programme guide…"
+                        statusCounters.text = "${fmt(progs)} programmes · ${fmt(chSeen)} EPG channels seen"
+                        // Drift progress bar from 850 → 960 as parse
+                        // works through the file.
+                        val approx = (progs.toFloat() / 250_000f).coerceIn(0f, 1f)
+                        progress.progress = (850 + (approx * 110).toInt()).coerceIn(850, 960)
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w("MainActivity", "XMLTV prefetch failed: ${t.message}")
+                emptyMap()
+            }
+
+            if (parsedEpg.isNotEmpty()) {
+                mergedBundle = bundle.copy(epg = parsedEpg)
+                // Persist for the next cold boot's fast path.
+                EpgCache.save(applicationContext, parsedEpg)
+            }
+        }
+
+        BundleHolder.current = mergedBundle
         progress.progress = 1000
 
         startActivity(Intent(this@MainActivity, EpgActivity::class.java))
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
+    }
+
+    /**
+     * Predicate identifying "priority" channels — the buckets the
+     * user explicitly wants populated BEFORE entering the EPG:
+     *   • UK     — any category whose name starts with "UK" or
+     *              the UK channel divider headers.
+     *   • USA    — any category whose name starts with "USA",
+     *              "US |", or the USA divider headers.
+     *   • AU/Kayo — Fox/Kayo Sports + Kayo Events.
+     *   • NZ Sports — Sky Sports (NZ).
+     *
+     * Match is case-insensitive on the category NAME, falling back
+     * to a substring on the channel name if the category lookup
+     * fails (defensive — provider sometimes mis-tags channels).
+     */
+    private fun isPriorityChannel(
+        ch: tv.onnowtv.livetv.data.Channel,
+        categories: List<tv.onnowtv.livetv.data.Category>,
+    ): Boolean {
+        val catName = categories.firstOrNull { it.id == ch.categoryId }?.name?.uppercase()
+            ?: ch.name.uppercase()
+        if (catName.contains("UKRAINE")) return false
+        // UK (anywhere)
+        if (catName.startsWith("UK |") || catName.contains("==== UK ") ||
+            catName.startsWith("====UK") || catName == "DAZN UK" ||
+            catName.contains("AMAZON UK")
+        ) return true
+        // USA (anywhere)
+        if (catName.startsWith("USA |") || catName.startsWith("USA ") ||
+            catName.contains("====USA") || catName == "DAZN USA"
+        ) return true
+        // AU / Kayo
+        if (catName.contains("KAYO") || catName.contains("FOX/KAYO")) return true
+        // NZ Sports
+        if (catName.contains("SKY SPORTS (NZ)") ||
+            (catName.contains("NZ") && catName.contains("SPORT"))
+        ) return true
+        return false
     }
 
     private fun applyMeta(meta: Meta?, elapsedMs: Long, lastMetaErrorAt: Long) {
