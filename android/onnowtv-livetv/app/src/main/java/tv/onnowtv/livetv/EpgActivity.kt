@@ -599,30 +599,30 @@ class EpgActivity : AppCompatActivity() {
             if (ch != null) openFullscreen(ch)
         }
         railSignout.setOnClickListener {
-            // v2.9.9 — Proper sign-out flow.  Tear down the shared
-            // player so the upstream Xtream concurrent-stream slot
-            // is released, clear the saved credentials, and bounce
-            // back to LoginActivity.  Previous behaviour was
-            // `finishAffinity()` which just exited the app without
-            // clearing creds — next launch would skip the login
-            // screen entirely.
-            tv.onnowtv.livetv.ui.ActionSheetDialog(this)
-                .title("Sign out of ON NOW V2 Live TV?")
-                .subtitle("YOU'LL NEED TO SIGN BACK IN TO WATCH AGAIN")
-                .item("Sign out", icon = "↩") {
-                    LivePreviewSession.release()
-                    tv.onnowtv.livetv.data.AuthStore.signOut(this)
-                    startActivity(
-                        android.content.Intent(this, LoginActivity::class.java)
-                            .addFlags(
-                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK,
-                            ),
-                    )
-                    finish()
-                }
-                .item("Cancel", icon = "✕") { /* dismiss */ }
-                .show()
+            // v2.9.11 — Instant sign-out, no confirm dialog.
+            // User explicitly requested: signing out must cut ALL
+            // streams immediately AND wipe ALL stored credentials
+            // (so the next launch forces a fresh, validated
+            // sign-in).  AuthStore.signOut() now:
+            //   • clears username + password from SharedPrefs
+            //   • deletes the bundle disk cache (stream URLs are
+            //     baked with the user's creds — must not be reused)
+            //   • deletes the priority-EPG disk cache
+            //   • drops BundleHolder.current to null
+            // PlayerActivity's onResume re-checks AuthStore.isSignedIn
+            // and finishes itself if the creds are gone, killing
+            // any in-flight playback session.
+            LivePreviewSession.release()
+            tv.onnowtv.livetv.data.AuthStore.signOut(this)
+            startActivity(
+                android.content.Intent(this, LoginActivity::class.java)
+                    .addFlags(
+                        android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                            android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK,
+                    ),
+            )
+            overridePendingTransition(0, 0)
+            finishAffinity()
         }
     }
 

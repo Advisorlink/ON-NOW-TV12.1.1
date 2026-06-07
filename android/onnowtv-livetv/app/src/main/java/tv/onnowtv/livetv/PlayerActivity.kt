@@ -827,6 +827,14 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // v2.9.11 — If the user signed out while this activity was
+        // backgrounded, tear it down immediately.  Otherwise the
+        // stream keeps playing under the LoginActivity.
+        if (!tv.onnowtv.livetv.data.AuthStore.isSignedIn(this)) {
+            LivePreviewSession.release()
+            finishAffinity()
+            return
+        }
         if (usingSharedPlayer) {
             // Re-bind the surface in case Android paused us.  If the
             // process was backgrounded the session may have been
