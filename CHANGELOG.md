@@ -1,6 +1,29 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## v2.9.7 — Kids PIN-on-enter fix + Login resilience & modern redesign (2026-06-07)
+## v2.9.7-fast — LoginActivity restored to instant pass-through (2026-06-07)
+
+**User's complaint (verbatim, frustrated):** "How we had it before the app would log in in under i min. im confused now as to why its taking so long NOW. All we are doing is changing the log in username and password ALL the other process needs to stay the same as how it was. Once client enters in the details it MUST immediately show the loading screen with the channels found etc like before and use the EPG that is gzipped no questions asked."
+
+**Root cause of the slowdown.** The previous v2.9.7 change tried to "verify" the user's credentials inside `LoginActivity` by POSTing to `/api/xtream/auth` (and falling back to a direct `player_api.php` call against `njala.ddns.me`).  Each round trip was ~3-8 s, and the failure case waited for BOTH paths.  Worse, on success the activity jumped *directly* to `EpgActivity`, bypassing `MainActivity` — which is the loader screen with the gzipped-bundle fetch and the "X,XXX channels loaded · Y / Z popular EPG ready" animated counters.  So the user never saw the loader they recognised.
+
+**Fix.** `LoginActivity` is now a pure capture screen — no HTTP at all.  On submit:
+```kotlin
+AuthStore.saveCredentials(this, u, p)         // sync SharedPrefs write, ~0 ms
+startActivity(Intent(this, MainActivity::class.java).addFlags(
+    FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_CLEAR_TASK))
+finish()
+```
+`MainActivity` then runs its existing two-mode boot:
+- **Fast path** — disk cache exists → parses + hands off to `EpgActivity` instantly (sub-second).
+- **Slow path (first-ever boot only)** — shows the animated loader, fetches the gzipped `/api/xtream/instant-bundle`, polls `/api/xtream/instant-bundle/meta` for live channel counts, exits as soon as priority EPG is ready (typically <30 s) and writes the cache for every subsequent launch.
+
+The EPG is served from the backend's master Xtream account (`LIVETV_DEFAULT_USERNAME` in `.env`) — totally decoupled from per-user creds.  Wrong user creds surface only at stream-play time (acceptable — a far better UX than blocking the loader for 8 s on every login).
+
+**Files touched**:
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/LoginActivity.kt` — gutted from 278 → 90 lines.  Removed all network code and the direct-provider fallback path.
+
+---
+
 
 Three issues reported from the user's TV video:
 
