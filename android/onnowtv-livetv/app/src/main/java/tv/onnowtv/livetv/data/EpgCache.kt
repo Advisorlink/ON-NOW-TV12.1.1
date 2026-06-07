@@ -106,4 +106,10 @@ object EpgCache {
             null
         }
     }
+
+    /** v2.9.11 — Wipe the cache (used on sign-out). */
+    fun delete(ctx: Context) {
+        try { fileFor(ctx).delete() } catch (_: Throwable) {}
+        try { tsFile(ctx).delete() } catch (_: Throwable) {}
+    }
 }

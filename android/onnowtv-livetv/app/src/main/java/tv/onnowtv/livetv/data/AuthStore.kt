@@ -45,11 +45,32 @@ object AuthStore {
             .apply()
     }
 
+    /**
+     * Full sign-out — clears the saved Xtream credentials AND
+     * every piece of cached data that depends on them.  After
+     * this, the next launch MUST go back through `LoginActivity`
+     * AND the user has to re-enter (and we re-validate) their
+     * credentials — the previous behaviour of "credentials linger
+     * silently so any garbage gets accepted next time" was a
+     * security hole.
+     *
+     * Cleared:
+     *   • SharedPrefs creds (username + password)
+     *   • Bundle disk cache (`bundle.json.gz`)
+     *   • Priority EPG disk cache (`epg_priority.json.gz`)
+     *   • In-memory BundleHolder
+     */
     fun signOut(ctx: Context) {
         prefs(ctx).edit()
             .remove(KEY_USER)
             .remove(KEY_PASS)
             .apply()
+        // Wipe disk caches so a stale stream-URL with the old user
+        // is never reused on the next sign-in.
+        try { BundleCache.delete(ctx) } catch (_: Throwable) {}
+        try { EpgCache.delete(ctx) } catch (_: Throwable) {}
+        tv.onnowtv.livetv.BundleHolder.current = null
+        tv.onnowtv.livetv.BundleHolder.needsBackgroundRefresh = false
     }
 
     /**

@@ -84,4 +84,12 @@ object BundleCache {
     }
 
     fun exists(context: Context): Boolean = fileFor(context).exists()
+
+    /** v2.9.11 — Wipe the cache (used on sign-out so a stale
+     *  bundle baked with the previous user's stream URLs is
+     *  never reused after the new user signs in). */
+    fun delete(context: Context) {
+        try { fileFor(context).delete() } catch (_: Throwable) {}
+        try { timestampFile(context).delete() } catch (_: Throwable) {}
+    }
 }
