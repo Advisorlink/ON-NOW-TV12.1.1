@@ -387,17 +387,27 @@ class MainActivity : AppCompatActivity() {
         val savedUrl = savedPrefs.getString("last_url", null)
         val savedTs  = savedPrefs.getLong("last_ts", 0L)
         val savedFresh = (System.currentTimeMillis() - savedTs) < 30 * 60 * 1000L
-        // v2.9.6 — also pin the hash route to `#/kids` so HashRouter
-        // lands directly on KidsHome.  Without this, the React app
-        // boots at `/` which `useKidsKioskGuard` treats as outside
-        // the sandbox and immediately redirects to /kids/exit-pin —
-        // making it look like the user has to enter a PIN just to
-        // get IN.
-        val defaultBoot = "file:///android_asset/web/index.html?profile=kids#/kids"
+        // v2.9.6 — also pin the hash route to `#/` so HashRouter
+        // lands on HomeRouter which renders KidsHome (since
+        // ?profile=kids has already flipped the active profile to
+        // 'kids' via the synchronous module-load code in App.js).
+        // v2.9.7 — Was `#/kids` previously, but that's NOT a
+        // registered route — React Router rendered nothing, and the
+        // user saw a blank screen.  HomeRouter at `/` is the
+        // legitimate Kids landing page.
+        val defaultBoot = "file:///android_asset/web/index.html?profile=kids#/"
         val restoreUrl = savedUrl?.takeIf {
             savedFresh && devUrl == null &&
                 (it.startsWith(defaultBoot) ||
-                 it.startsWith("file:///android_asset/web/index.html"))
+                 it.startsWith("file:///android_asset/web/index.html")) &&
+                // v2.9.7 — NEVER restore the exit-PIN page.  If the
+                // user pressed HOME during a previous session, the
+                // bounce-back navigated to `/kids/exit-pin` and
+                // onPause persisted that URL.  Without this guard,
+                // the NEXT cold boot would land them straight on
+                // the parent-PIN screen — making it look like the
+                // app requires a PIN to OPEN, not to leave.
+                !it.contains("/kids/exit-pin")
         }?.let { stripProfileQuery(it) }
         // ^ v2.7.97 — Defensive: strip any leftover `profile=` from a
         //   pre-v2.7.97 saved URL.  Going forward `onPause()` strips
@@ -693,7 +703,12 @@ class MainActivity : AppCompatActivity() {
         try {
             val cur = webView.url
             if (!cur.isNullOrBlank() &&
-                cur.startsWith("file:///android_asset/web/index.html")
+                cur.startsWith("file:///android_asset/web/index.html") &&
+                // v2.9.7 — Never persist the exit-PIN URL.  If we
+                // save it, the next cold boot's restore logic would
+                // load it directly and the user would be trapped on
+                // a PIN screen on entry rather than exit.
+                !cur.contains("/kids/exit-pin")
             ) {
                 // v2.7.97 — STRIP any `profile=` query before saving.
                 // Otherwise a later non-kids launch (Movies/TV tile)

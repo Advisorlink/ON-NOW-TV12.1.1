@@ -56,6 +56,16 @@ def _http() -> httpx.AsyncClient:
         _client = httpx.AsyncClient(
             timeout=15.0,
             follow_redirects=True,
+            # v2.9.7 — `verify=False` to match instant_bundle.py.  The
+            # managed provider (`njala.ddns.me`) ships an HTTPS
+            # endpoint with an invalid / self-signed cert, which
+            # caused EVERY call here (including `/auth`) to fail
+            # with `httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED]`,
+            # surfacing on the device as the cryptic 502 "Provider
+            # unreachable" with no detail.  Disabling verify mirrors
+            # the bundle scheduler so both code paths talk to the
+            # provider successfully.
+            verify=False,
             headers={"User-Agent": "ONNowTV/1.0"},
         )
     return _client

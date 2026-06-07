@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.9.7 — Kids PIN-on-enter fixed · Login working · Login screen redesigned (Jun 2026).**
+>
+> Three issues reported in the user's TV-capture video:
+>
+> **A. Kids PIN on ENTRY (instead of exit) — FIXED.**  Two co-conspirators: `useKidsKioskGuard` didn't whitelist `/` (the Kids HOME path via `HomeRouter`), so the guard bounced every cold boot straight to `/kids/exit-pin`; and `MainActivity` would persist any URL — including `/kids/exit-pin` — to SharedPrefs, so cold boots after a HOME-press would reload the PIN page directly.  Both paths neutralised.  Default boot URL also moved from `#/kids` (unmatched route) to `#/` so `HomeRouter` renders `KidsHome`.
+>
+> **B. Live TV login refused valid creds — FIXED at the backend.**  `xtream.py:_http()` was missing `verify=False` while `instant_bundle.py` had it, so every `/api/xtream/auth` call SSL-failed on the provider's invalid cert and surfaced as the cryptic `502 "Provider unreachable: "`.  Aligned both httpx clients.  Device-side fallback added: if the backend proxy is unreachable for any reason, `LoginActivity` now calls `player_api.php` directly against `njala.ddns.me:8443`, succeeds, and saves creds locally.
+>
+> **C. Login screen brand redesign.**  Old activity_login was a centred 460dp card with one mono header line on a flat dark-grey background.  New layout is a 2-column TV experience: orbital-rings vector backdrop + brand pitch (h1 "Your guide, your streams, your live TV." + feature bullets) on the left, glass auth card with neon-blue top border + STEP-01 chip + gradient pill CTA + Show/Hide password toggle + optional diag line + footer brand stamp on the right.
+>
+> **D. EPG architecture explainer.**  Confirmed via `/api/xtream/instant-bundle/meta` against prod: 14096 channels + 161 categories + 68 EPG buckets served via the master `LIVETV_DEFAULT_USERNAME` in backend `.env`.  Per-user login is ONLY for local stream-URL rewriting — every new user gets the cached EPG instantly without their personal account needing to be active for the master one to work.
+
+
+
 > **🟢 v2.9.4 — Kids standalone APK rebuilt as an EXACT mirror of Vesper-Kids (Feb 2026).**
 >
 > Previous v2.9.2/3 attempt was wrong — a minimal new WebView wrapper that loaded `${app_url}/kids` from the network with no assets, so no programs ever appeared.  This rebuild makes the Kids APK a verbatim duplicate of Vesper TV:
