@@ -110,6 +110,40 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var playerInfoChannel: TextView
     private lateinit var playerInfoProgramme: TextView
     private lateinit var playerInfoDescription: TextView
+
+    // v2.10 — design-spec overlay views.  Live in `activity_player.xml`
+    // and are bound in `onCreate`.  Together they form the bottom
+    // info panel + the top-right clock block from the reference
+    // image.
+    private lateinit var playerOverlay: LinearLayout
+    private lateinit var clockBlock: LinearLayout
+    private lateinit var clockTime: TextView
+    private lateinit var clockAmPm: TextView
+    private lateinit var clockDate: TextView
+    private lateinit var infoLcnView: TextView
+    private lateinit var infoLogoView: ImageView
+    private lateinit var infoLiveRed: TextView
+    private lateinit var infoProgrammeView: TextView
+    private lateinit var infoLiveChip: TextView
+    private lateinit var infoSegment: TextView
+    private lateinit var infoDescriptionView: TextView
+    private lateinit var infoTimeRange: TextView
+    private lateinit var infoProgressView: android.widget.ProgressBar
+    private lateinit var infoNextTitle: TextView
+    private lateinit var infoNextTime: TextView
+    private lateinit var btnChUp: ImageButton
+    private lateinit var btnChDown: ImageButton
+    private lateinit var btnSwap: ImageButton
+    private lateinit var btnFavorite: ImageButton
+    private lateinit var btnPlayPauseLabel: TextView
+    private val clockHandler = Handler(Looper.getMainLooper())
+    private val clockHourFmt = SimpleDateFormat("h:mm", Locale.UK)
+    private val clockAmPmFmt = SimpleDateFormat("a", Locale.UK)
+    private val clockDateFmt = SimpleDateFormat("EEE, MMM d", Locale.UK)
+    private val timeRangeFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    /** Stack of recently-watched channel ids; head = previous channel.
+     *  Used by the SWAP button. */
+    private val recentChannelStack = ArrayDeque<String>()
     private val controlsHideHandler = Handler(Looper.getMainLooper())
     private var subtitlesEnabled: Boolean = false
     private val aspectModes = intArrayOf(

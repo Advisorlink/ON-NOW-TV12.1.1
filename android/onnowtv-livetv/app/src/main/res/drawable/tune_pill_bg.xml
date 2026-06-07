@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 Tune-in pill background — dark glass with cyan border.
+     Shown while the user types channel digits on the remote. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="22dp" />
+    <solid android:color="#CC050810" />
+    <stroke android:width="1dp" android:color="#5DC8FF" />
+</shape>

@@ -1,25 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Full-screen ExoPlayer.
+    v2.10 — Full-screen ExoPlayer with the design-spec overlay.
 
-    Layers (top → bottom):
-      1) PlayerView (the video)
-      2) Channel info overlay — top-left card with channel logo +
-         LCN + name + NOW programme + progress bar + UP NEXT.
-         Auto-fades 4 seconds after every tune-in / channel change.
-      3) Number-tune indicator — top-right pill showing the
-         typed digit stream ("→ 21…") while the user types a
-         channel number on the remote.
-      4) Status / error text (centred).
+    Layers (back → front):
+      1) PlayerView (the actual video)
+      2) Buffering loader (centered, neon blue)
+      3) Tune-in pill (top-right — typed channel digits)
+      4) Top-right CLOCK / DATE column
+      5) Bottom info panel + control bar — auto-fades 5 s after
+         the last remote input
+      6) Status / error text (centered)
+
+    Designed for 1920×1080 (16:9).  All paddings/sizes are dp and
+    scale cleanly on other TV sizes.
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
     android:keepScreenOn="true">
 
+    <!-- ─────────── (1) Video surface ─────────── -->
     <androidx.media3.ui.PlayerView
         android:id="@+id/player_view"
         android:layout_width="match_parent"
@@ -28,148 +32,17 @@
         app:use_controller="false"
         app:show_buffering="never" />
 
-    <!-- ─────────── Orbital buffering loader (centred) ─────────── -->
-    <!-- Shown only while ExoPlayer is in STATE_BUFFERING (managed
-         by PlayerActivity.onPlaybackStateChanged).  Hardware-
-         accelerated custom View — no bitmap allocations per frame. -->
+    <!-- ─────────── (2) Orbital buffering loader (centred) ─────────── -->
     <tv.onnowtv.livetv.ui.OrbitalLoaderView
         android:id="@+id/buffer_loader"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
         android:layout_gravity="center"
         android:visibility="gone" />
 
-    <!-- ─────────── Channel info overlay (top-left) ─────────── -->
-    <!-- HIDDEN per user request — kept in the tree so existing
-         findViewById refs in PlayerActivity still resolve.  All
-         code paths that previously animated this in are now no-ops
-         (see PlayerActivity.showInfoCard). -->
-    <LinearLayout
-        android:id="@+id/info_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="28dp"
-        android:layout_marginTop="28dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="14dp"
-        android:paddingEnd="18dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:visibility="gone"
-        android:elevation="6dp">
-
-        <ImageView
-            android:id="@+id/info_logo"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:scaleType="centerInside"
-            android:contentDescription="@null" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginStart="12dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:id="@+id/info_lcn"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_accent"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.18"
-                    android:text="" />
-
-                <TextView
-                    android:id="@+id/info_channel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:textColor="@color/livetv_fg"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="5dp"
-                    android:paddingEnd="5dp"
-                    android:paddingTop="1dp"
-                    android:paddingBottom="1dp"
-                    android:background="@drawable/now_pill_red"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/livetv_bg"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.18"
-                    android:text="NOW" />
-
-                <TextView
-                    android:id="@+id/info_now_title"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:maxWidth="420dp"
-                    android:textColor="@color/livetv_fg_bright"
-                    android:textSize="12sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-            </LinearLayout>
-
-            <!-- Skinny cyan progress bar — current programme. -->
-            <FrameLayout
-                android:layout_width="380dp"
-                android:layout_height="2dp"
-                android:layout_marginTop="6dp"
-                android:background="#1AFFFFFF">
-
-                <View
-                    android:id="@+id/info_progress"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:background="@color/livetv_accent" />
-            </FrameLayout>
-
-            <TextView
-                android:id="@+id/info_up_next"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:fontFamily="monospace"
-                android:textColor="@color/livetv_fg_dimmer"
-                android:textSize="9sp"
-                android:letterSpacing="0.18"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text="" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- ─────────── Number-tune pill (top-right) ─────────── -->
+    <!-- ─────────── (3) Tune-in pill (top-right) ─────────── -->
+    <!-- Shown when the user types channel digits on the remote.
+         Auto-clears 1.5 s after the last digit. -->
     <TextView
         android:id="@+id/tune_pill"
         android:layout_width="wrap_content"
@@ -177,217 +50,498 @@
         android:layout_gravity="top|end"
         android:layout_marginTop="36dp"
         android:layout_marginEnd="36dp"
-        android:background="@drawable/player_overlay_bg"
-        android:paddingStart="22dp"
-        android:paddingEnd="22dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:fontFamily="monospace"
-        android:textColor="@color/livetv_accent"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="10dp"
+        android:background="@drawable/tune_pill_bg"
+        android:textColor="#5DC8FF"
         android:textSize="22sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.16"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.12"
         android:visibility="gone"
-        android:text="" />
+        tools:ignore="HardcodedText"
+        tools:text="→ 21…" />
 
-    <!-- ─────────── Status / errors (centred) ─────────── -->
+    <!-- ─────────── (4) Top-right CLOCK / DATE ─────────── -->
+    <!-- Shows whenever the info overlay is visible.  Time = bold
+         white display number with a small subscript "PM"; date =
+         small cyan caption underneath. -->
+    <LinearLayout
+        android:id="@+id/player_clock_block"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="34dp"
+        android:layout_marginEnd="48dp"
+        android:orientation="vertical"
+        android:gravity="end"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom"
+            android:baselineAligned="false">
+
+            <TextView
+                android:id="@+id/player_clock_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="44sp"
+                android:fontFamily="sans-serif-light"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.02"
+                tools:text="9:15" />
+
+            <TextView
+                android:id="@+id/player_clock_ampm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginBottom="6dp"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                tools:text="PM" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/player_clock_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-4dp"
+            android:textColor="#5DC8FF"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif"
+            android:letterSpacing="0.04"
+            tools:text="Sat, May 25" />
+    </LinearLayout>
+
+    <!-- ─────────── (5) Bottom info panel + controls ─────────── -->
+    <LinearLayout
+        android:id="@+id/player_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="@drawable/player_overlay_scrim_bg"
+        android:visibility="gone">
+
+        <!-- ── Info row: 3-column layout ── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="48dp"
+            android:paddingTop="26dp"
+            android:paddingBottom="18dp">
+
+            <!-- Cyan accent stripe -->
+            <View
+                android:layout_width="3dp"
+                android:layout_height="118dp"
+                android:layout_marginEnd="20dp"
+                android:background="@drawable/player_left_accent_bar" />
+
+            <!-- LEFT column: channel number + logo + LIVE pill -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_marginEnd="32dp">
+
+                <TextView
+                    android:id="@+id/player_info_lcn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="44sp"
+                    android:fontFamily="sans-serif-black"
+                    android:includeFontPadding="false"
+                    android:letterSpacing="-0.02"
+                    tools:text="007" />
+
+                <ImageView
+                    android:id="@+id/player_info_logo"
+                    android:layout_width="120dp"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="4dp"
+                    android:scaleType="fitCenter"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="@null"
+                    tools:src="@android:drawable/ic_menu_gallery" />
+
+                <TextView
+                    android:id="@+id/player_info_live_red"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="2dp"
+                    android:background="@drawable/player_live_red_pill_bg"
+                    android:text="● LIVE"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.18"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <!-- CENTER column: NOW programme info -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <!-- Title row: programme name + cyan LIVE chip -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/player_info_programme"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="#FFFFFF"
+                        android:textSize="28sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:includeFontPadding="false"
+                        android:letterSpacing="-0.01"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:maxWidth="540dp"
+                        tools:text="SoundWave Live" />
+
+                    <TextView
+                        android:id="@+id/player_info_live_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="2dp"
+                        android:background="@drawable/player_live_cyan_chip_bg"
+                        android:text="LIVE"
+                        android:textColor="#04101F"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.18"
+                        tools:ignore="HardcodedText" />
+                </LinearLayout>
+
+                <!-- Cyan accent line: segment / sub-title -->
+                <TextView
+                    android:id="@+id/player_info_segment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textColor="#5DC8FF"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    tools:text="Rock the Night" />
+
+                <!-- Description -->
+                <TextView
+                    android:id="@+id/player_info_description"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="#B0BACC"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif"
+                    android:lineSpacingExtra="2dp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    tools:text="The best live performances and music videos from today's top rock artists." />
+
+                <!-- Time range -->
+                <TextView
+                    android:id="@+id/player_info_time_range"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
+                    tools:text="8:00 PM – 10:00 PM" />
+
+                <!-- Progress + LIVE chip -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ProgressBar
+                        android:id="@+id/player_info_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="0dp"
+                        android:layout_height="3dp"
+                        android:layout_weight="1"
+                        android:progressDrawable="@drawable/player_progress_bar"
+                        android:max="1000"
+                        android:progress="540" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="LIVE"
+                        android:textColor="#5DC8FF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.22"
+                        tools:ignore="HardcodedText" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Soft divider between NOW and NEXT -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="92dp"
+                android:layout_marginHorizontal="22dp"
+                android:layout_gravity="center_vertical"
+                android:background="#26344E" />
+
+            <!-- RIGHT column: NEXT programme -->
+            <LinearLayout
+                android:layout_width="280dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NEXT"
+                    android:textColor="#5DC8FF"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.32"
+                    tools:ignore="HardcodedText" />
+
+                <TextView
+                    android:id="@+id/player_info_next_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    tools:text="Loud &amp; Proud" />
+
+                <TextView
+                    android:id="@+id/player_info_next_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#B0BACC"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif"
+                    tools:text="10:00 PM – 11:00 PM" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Thin divider line above the controls -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A44"
+            android:layout_marginHorizontal="48dp" />
+
+        <!-- ── Control bar — 8 buttons evenly spaced ── -->
+        <LinearLayout
+            android:id="@+id/player_controls_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:weightSum="8"
+            android:paddingHorizontal="48dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="22dp">
+
+            <!-- 1. Rewind -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_rewind"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_rewind"
+                    android:contentDescription="Rewind 10 seconds" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="REWIND" />
+            </LinearLayout>
+
+            <!-- 2. Play -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_playpause"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_play"
+                    android:contentDescription="Play / Pause" />
+                <TextView
+                    android:id="@+id/btn_player_playpause_label"
+                    style="@style/PlayerControlLabel"
+                    android:text="PLAY" />
+            </LinearLayout>
+
+            <!-- 3. Fast forward -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_forward"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_forward"
+                    android:contentDescription="Fast forward" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="FAST FWD" />
+            </LinearLayout>
+
+            <!-- 4. CH UP -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_chup"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_chup"
+                    android:contentDescription="Channel up" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="CH UP" />
+            </LinearLayout>
+
+            <!-- 5. CH DOWN -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_chdown"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_chdown"
+                    android:contentDescription="Channel down" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="CH DOWN" />
+            </LinearLayout>
+
+            <!-- 6. SWAP — toggles to the previously-watched channel -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_swap"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_swap"
+                    android:contentDescription="Swap to last channel" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="SWAP" />
+            </LinearLayout>
+
+            <!-- 7. SUBTITLES -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_subtitles"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_cc"
+                    android:contentDescription="Subtitles" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="SUBTITLES" />
+            </LinearLayout>
+
+            <!-- 8. FAVORITE -->
+            <LinearLayout
+                style="@style/PlayerControlSlot"
+                android:layout_weight="1">
+                <ImageButton
+                    android:id="@+id/btn_player_favorite"
+                    style="@style/PlayerControlButton"
+                    android:src="@drawable/ic_player_favorite"
+                    android:contentDescription="Favorite" />
+                <TextView
+                    style="@style/PlayerControlLabel"
+                    android:text="FAVORITE" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ─────────── Status / error text ─────────── -->
     <TextView
         android:id="@+id/player_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:textColor="@color/livetv_fg"
-        android:textSize="18sp"
-        android:fontFamily="sans-serif-medium"
-        android:text="" />
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:visibility="gone"
+        tools:text="" />
 
-    <!-- ─────────── Channel + programme info card (bottom-left) ───────────
-         v2.9.1: re-enabled per user request.  Shows channel logo +
-         LCN + name + current programme title + description.  Auto-
-         fades 5 seconds after every tune-in OR when the controls
-         bar opens (which already carries the same metadata). -->
+    <!-- ─────────── Legacy hidden views (kept so old code paths still resolve) ─────────── -->
+    <!-- v2.10 — These IDs are referenced by older PlayerActivity
+         code paths.  Keeping them as zero-size hidden TextViews
+         prevents NPEs without polluting the new design. -->
+    <LinearLayout
+        android:id="@+id/info_card"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone">
+        <ImageView android:id="@+id/info_logo"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/info_channel"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/info_lcn"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/info_now_title"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <ProgressBar android:id="@+id/info_progress"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/info_up_next"
+            android:layout_width="0dp" android:layout_height="0dp" />
+    </LinearLayout>
+
     <LinearLayout
         android:id="@+id/player_info_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="36dp"
-        android:layout_marginBottom="128dp"
-        android:maxWidth="640dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/player_card_bg"
-        android:paddingStart="16dp"
-        android:paddingEnd="22dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:visibility="gone"
-        android:elevation="8dp">
-
-        <ImageView
-            android:id="@+id/player_info_logo"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:scaleType="centerInside"
-            android:contentDescription="@null" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginStart="14dp">
-
-            <TextView
-                android:id="@+id/player_info_channel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#F5F8FF"
-                android:textSize="18sp"
-                android:fontFamily="sans-serif-medium"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:text="" />
-
-            <TextView
-                android:id="@+id/player_info_programme"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="#5DC8FF"
-                android:textSize="14sp"
-                android:fontFamily="sans-serif"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:text="" />
-
-            <TextView
-                android:id="@+id/player_info_description"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:textColor="#9CB0D8"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:text="" />
-        </LinearLayout>
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone">
+        <ImageView android:id="@+id/player_info_logo_legacy"
+            android:layout_width="0dp" android:layout_height="0dp" />
+        <TextView android:id="@+id/player_info_channel"
+            android:layout_width="0dp" android:layout_height="0dp" />
     </LinearLayout>
 
-    <!-- ─────────── Modern control bar (v2.9.9) ───────────
-         A floating glass pill anchored above the bottom edge.
-         Layout:
-            [« 10s]  [⏵/⏸  HERO]  [10s »]  ·  [CC]  [⤢]  [ⓘ]
-         All buttons are circular ImageButtons with the neon-blue
-         focus glow drawable.  Center Play/Pause is larger (the
-         hero CTA).  The right cluster (CC / aspect / info) sits
-         after a subtle divider so it reads as a secondary group.
-
-         Auto-shows on remote interaction; auto-hides after 5 s
-         (managed by PlayerActivity). -->
-    <LinearLayout
-        android:id="@+id/player_controls_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="44dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="20dp"
-        android:paddingVertical="14dp"
-        android:background="@drawable/player_modern_bar_bg"
-        android:visibility="gone"
-        android:elevation="12dp">
-
-        <!-- Rewind 10s -->
-        <ImageButton
-            android:id="@+id/btn_player_rewind"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_marginEnd="10dp"
-            android:padding="14dp"
-            android:src="@drawable/ic_player_rewind"
-            android:background="@drawable/player_modern_btn_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Rewind 10 seconds" />
-
-        <!-- Play / Pause — HERO -->
-        <ImageButton
-            android:id="@+id/btn_player_playpause"
-            android:layout_width="74dp"
-            android:layout_height="74dp"
-            android:layout_marginHorizontal="6dp"
-            android:padding="20dp"
-            android:src="@drawable/ic_player_pause"
-            android:background="@drawable/player_modern_playpause_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Play / Pause" />
-
-        <!-- Forward 10s -->
-        <ImageButton
-            android:id="@+id/btn_player_forward"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_marginStart="10dp"
-            android:padding="14dp"
-            android:src="@drawable/ic_player_forward"
-            android:background="@drawable/player_modern_btn_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Forward 10 seconds" />
-
-        <!-- Soft divider between transport & options -->
-        <View
-            android:layout_width="1dp"
-            android:layout_height="36dp"
-            android:layout_marginHorizontal="18dp"
-            android:background="#26344E" />
-
-        <!-- Subtitles / Closed Captions -->
-        <ImageButton
-            android:id="@+id/btn_player_subtitles"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginHorizontal="6dp"
-            android:padding="13dp"
-            android:src="@drawable/ic_player_cc"
-            android:background="@drawable/player_modern_btn_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Subtitles" />
-
-        <!-- Aspect ratio toggle -->
-        <ImageButton
-            android:id="@+id/btn_player_aspect"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginHorizontal="6dp"
-            android:padding="13dp"
-            android:src="@drawable/ic_player_aspect"
-            android:background="@drawable/player_modern_btn_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Aspect ratio" />
-
-        <!-- Programme info -->
-        <ImageButton
-            android:id="@+id/btn_player_info"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginStart="6dp"
-            android:padding="13dp"
-            android:src="@drawable/ic_player_info"
-            android:background="@drawable/player_modern_btn_bg"
-            android:scaleType="centerInside"
-            android:focusable="true"
-            android:clickable="true"
-            android:contentDescription="Programme info" />
-    </LinearLayout>
+    <!-- Legacy buttons referenced in earlier PlayerActivity code -->
+    <ImageButton android:id="@+id/btn_player_aspect"
+        android:layout_width="0dp" android:layout_height="0dp"
+        android:visibility="gone" android:focusable="false"
+        android:contentDescription="@null" />
+    <ImageButton android:id="@+id/btn_player_info"
+        android:layout_width="0dp" android:layout_height="0dp"
+        android:visibility="gone" android:focusable="false"
+        android:contentDescription="@null" />
 </FrameLayout>

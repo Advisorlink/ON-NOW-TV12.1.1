@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 — Reusable styles for the player control bar.
+     Three styles cover the design's repeated icon + caption block:
+       PlayerControlSlot    – vertical container (icon over label)
+       PlayerControlButton  – 56 dp circular ImageButton
+       PlayerControlLabel   – 11 sp uppercase caption -->
+<resources>
+    <style name="PlayerControlSlot">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center_horizontal</item>
+        <item name="android:paddingHorizontal">8dp</item>
+    </style>
+
+    <style name="PlayerControlButton">
+        <item name="android:layout_width">68dp</item>
+        <item name="android:layout_height">68dp</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:background">@drawable/player_modern_btn_bg</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+    </style>
+
+    <style name="PlayerControlLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textColor">#B0BACC</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:letterSpacing">0.16</item>
+    </style>
+</resources>

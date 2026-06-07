@@ -1,10 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Skip fwd 10s — rounded fwd arrow + "10" -->
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Fast forward — double right-arrow, second one offset.  Line icon
+         matching the rest of the bar. -->
     <path
         android:fillColor="@android:color/white"
-        android:pathData="M11.5,3a9,9 0 0,1 9,9H23l-3.89,3.89 -0.07,0.14L15.17,12H18a6.5,6.5 0 1,0 -6.5,6.5v2A8.5,8.5 0 1,1 11.5,3zM9.6,15.4V11.2L8.28,11.6V10.7l2.37,-0.7v5.4zM13.8,13.5c0,1.2 -0.62,1.95 -1.55,1.95S10.7,14.7 10.7,13.5v-1c0,-1.2 0.62,-1.95 1.55,-1.95s1.55,0.75 1.55,1.95zM13.05,12.5c0,-0.7 -0.31,-1.16 -0.8,-1.16s-0.8,0.46 -0.8,1.16v1c0,0.7 0.31,1.16 0.8,1.16s0.8,-0.46 0.8,-1.16z" />
+        android:pathData="M 6,7 L 6,25 L 17,16 Z M 16,7 L 16,25 L 27,16 Z" />
 </vector>

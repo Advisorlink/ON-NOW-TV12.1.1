@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 LIVE chip (cyan) — sits next to the programme title.
+     Cyan tint, dark text, slim rounded rectangle. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="3dp" />
+    <solid android:color="#5DC8FF" />
+</shape>

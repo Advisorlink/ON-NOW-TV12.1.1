@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- v2.10 — Favourite heart in its FILLED / active state.
+         Set as the src when the channel is currently in the user's
+         favourites collection. -->
+    <path
+        android:fillColor="#5DC8FF"
+        android:pathData="M 16,27
+                          C 7,21 4,16 4,12
+                          A 5,5 0 0 1 9,7
+                          A 5,5 0 0 1 16,9.5
+                          A 5,5 0 0 1 23,7
+                          A 5,5 0 0 1 28,12
+                          C 28,16 25,21 16,27 Z" />
+</vector>

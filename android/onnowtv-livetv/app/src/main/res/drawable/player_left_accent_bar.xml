@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 Vertical accent stripe for the left edge of the bottom
+     info panel, matching the design's neon-cyan side bar. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#5DC8FF" />
+</shape>
