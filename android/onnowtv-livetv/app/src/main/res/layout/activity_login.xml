@@ -74,7 +74,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:text="Your guide,\nyour streams,\nyour live TV."
+                android:text="Live TV, live sports,\nand every match\nworth watching."
                 android:textColor="@color/livetv_fg"
                 android:textSize="46sp"
                 android:fontFamily="sans-serif-black"
@@ -86,7 +86,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
                 android:maxWidth="540dp"
-                android:text="Sign in with your provider account to unlock the full guide, your collections and instant streams."
+                android:text="Sign in with the username and password you were given by ON NOW TV."
                 android:textColor="@color/livetv_fg_dim"
                 android:textSize="16sp"
                 android:fontFamily="sans-serif"
@@ -113,7 +113,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Instant EPG · 72 hours of guide data, pre-cached"
+                        android:text="Full guide · always on, always fresh"
                         android:textColor="@color/livetv_fg_bright"
                         android:textSize="14sp" />
                 </LinearLayout>
@@ -150,7 +150,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Per-device streams · only YOU sign in here"
+                        android:text="Live sport · UK, USA, Kayo, NZ — all in one place"
                         android:textColor="@color/livetv_fg_bright"
                         android:textSize="14sp" />
                 </LinearLayout>
@@ -195,7 +195,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="Enter the username and password from your provider — we never share or store them off-device."
+                android:text="Enter the username and password from your ON NOW TV welcome email."
                 android:textColor="@color/livetv_fg_dim"
                 android:textSize="13sp"
                 android:lineSpacingExtra="1dp" />
@@ -329,7 +329,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="Need an account? Contact your TV provider."
+                android:text="Need an account?  Contact ON NOW TV Support."
                 android:textColor="@color/livetv_fg_dimmer"
                 android:textSize="12sp"
                 android:gravity="center"
@@ -337,16 +337,17 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Footer brand stamp -->
+    <!-- v2.9.12 — Bottom-left brand line.  No DNS / implementation
+         text — user explicitly asked to hide anything technical.  -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_marginStart="96dp"
         android:layout_marginBottom="36dp"
-        android:text="njala.ddns.me · secure HTTPS · no creds shared"
+        android:text="ON NOW TV · V2 LIVE TV"
         android:textColor="#4A5A78"
         android:textSize="11sp"
         android:fontFamily="monospace"
-        android:letterSpacing="0.14" />
+        android:letterSpacing="0.32" />
 </FrameLayout>

@@ -268,17 +268,18 @@ class MainActivity : AppCompatActivity() {
     /* ───────────── Loader state machine ───────────── */
 
     /**
-     * v2.9.10 — Surface a clear error screen with a RETRY button
+     * v2.9.11 — Surface a clear error screen with a RETRY button
      * when both backend AND direct provider paths have failed.
-     * The previous behaviour was to spin on "Connecting to
-     * provider…" indefinitely, which is much worse UX than
-     * showing the user what happened.
+     * No technical detail (exception names, hostnames) is shown
+     * — the user explicitly asked for nothing implementation-y
+     * on the loader.  Just a friendly retry CTA + a fallback
+     * "contact support" line.
      */
     private fun showFetchError(detail: String) {
         Log.w("MainActivity", "showFetchError: $detail")
-        headline.text = "Couldn't reach the TV provider"
-        substatus.text = "Check your internet connection and try again."
-        statusCounters.text = detail.take(140)
+        headline.text = "We can't load your guide right now"
+        substatus.text = "Check your internet, then tap retry below."
+        statusCounters.text = "Still stuck?  Contact ON NOW TV Support."
         progress.progress = 0
         retry.visibility = View.VISIBLE
         retry.setOnClickListener { startLoad() }
@@ -463,7 +464,20 @@ class MainActivity : AppCompatActivity() {
         )
 
         var mergedBundle = bundle
-        if (priorityChannelIds.isNotEmpty()) {
+        // v2.9.12 — Skip XMLTV preload entirely when EpgCache
+        // already has data on disk.  Cache is permanent; user
+        // explicitly asked to never re-fetch the EPG once it's
+        // been loaded once.
+        val haveCachedEpg = tv.onnowtv.livetv.data.EpgCache.exists(applicationContext)
+        if (haveCachedEpg) {
+            val cached = tv.onnowtv.livetv.data.EpgCache.load(applicationContext)
+            if (cached != null && cached.isNotEmpty()) {
+                mergedBundle = bundle.copy(epg = cached)
+                Log.i("MainActivity", "EPG cache hit: ${cached.size} channels — skipping XMLTV preload")
+            }
+        }
+
+        if (!haveCachedEpg && priorityChannelIds.isNotEmpty()) {
             headline.text = "Loading the full guide…"
             substatus.text = "UK · USA · AU Kayo · NZ Sports"
             statusCounters.text = "Connecting…"
