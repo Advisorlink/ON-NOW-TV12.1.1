@@ -140,9 +140,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingHorizontal="48dp"
-            android:paddingTop="28dp"
-            android:paddingBottom="6dp">
+            android:paddingHorizontal="36dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="2dp">
 
             <!-- LEFT column: channel number + logo + LIVE pill.
                  The cyan vertical accent line goes RIGHT AFTER this
@@ -150,7 +150,7 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="150dp"
+                android:minWidth="108dp"
                 android:orientation="vertical"
                 android:gravity="center_horizontal">
 
@@ -159,7 +159,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="#FFFFFF"
-                    android:textSize="42sp"
+                    android:textSize="22sp"
                     android:fontFamily="sans-serif-light"
                     android:includeFontPadding="false"
                     android:letterSpacing="0.08"
@@ -167,9 +167,9 @@
 
                 <ImageView
                     android:id="@+id/player_info_logo"
-                    android:layout_width="120dp"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="8dp"
+                    android:layout_width="80dp"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="4dp"
                     android:scaleType="fitCenter"
                     android:adjustViewBounds="true"
                     android:contentDescription="@null"
@@ -179,16 +179,16 @@
                     android:id="@+id/player_info_live_red"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:paddingHorizontal="14dp"
-                    android:paddingVertical="6dp"
+                    android:layout_marginTop="6dp"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
                     android:background="@drawable/player_live_red_pill_bg"
                     android:text="● LIVE"
                     android:textColor="#FFFFFF"
-                    android:textSize="11sp"
+                    android:textSize="9sp"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
-                    android:letterSpacing="0.18"
+                    android:letterSpacing="0.16"
                     tools:ignore="HardcodedText" />
             </LinearLayout>
 
@@ -197,10 +197,10 @@
                  height) so it doubles as the visual anchor for the
                  progress bar that will appear directly below. -->
             <View
-                android:layout_width="3dp"
+                android:layout_width="2dp"
                 android:layout_height="match_parent"
-                android:layout_marginStart="24dp"
-                android:layout_marginEnd="28dp"
+                android:layout_marginStart="18dp"
+                android:layout_marginEnd="18dp"
                 android:background="@drawable/player_left_accent_bar" />
 
             <!-- CENTER column: NOW programme info -->
@@ -222,29 +222,29 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="#FFFFFF"
-                        android:textSize="30sp"
+                        android:textSize="20sp"
                         android:fontFamily="sans-serif-medium"
                         android:includeFontPadding="false"
                         android:letterSpacing="-0.01"
                         android:singleLine="true"
                         android:ellipsize="end"
-                        android:maxWidth="640dp"
+                        android:maxWidth="520dp"
                         tools:text="SoundWave Live" />
 
                     <TextView
                         android:id="@+id/player_info_live_chip"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="14dp"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="3dp"
+                        android:layout_marginStart="10dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
                         android:background="@drawable/player_live_cyan_chip_bg"
                         android:text="LIVE"
                         android:textColor="#04101F"
-                        android:textSize="11sp"
+                        android:textSize="9sp"
                         android:textStyle="bold"
                         android:fontFamily="monospace"
-                        android:letterSpacing="0.18"
+                        android:letterSpacing="0.16"
                         tools:ignore="HardcodedText" />
                 </LinearLayout>
 
@@ -253,9 +253,9 @@
                     android:id="@+id/player_info_segment"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="2dp"
                     android:textColor="#5DC8FF"
-                    android:textSize="18sp"
+                    android:textSize="13sp"
                     android:fontFamily="sans-serif-medium"
                     android:singleLine="true"
                     android:ellipsize="end"
@@ -266,11 +266,11 @@
                     android:id="@+id/player_info_description"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="6dp"
                     android:textColor="#D6DDEC"
-                    android:textSize="14sp"
+                    android:textSize="12sp"
                     android:fontFamily="sans-serif"
-                    android:lineSpacingExtra="4dp"
+                    android:lineSpacingExtra="2dp"
                     android:maxLines="2"
                     android:ellipsize="end"
                     tools:text="The best live performances and music videos from today's top rock artists." />
@@ -280,18 +280,18 @@
                     android:id="@+id/player_info_time_range"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="6dp"
                     android:textColor="#B0BACC"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:fontFamily="sans-serif"
                     tools:text="8:00 PM – 10:00 PM" />
             </LinearLayout>
 
             <!-- RIGHT column: NEXT programme -->
             <LinearLayout
-                android:layout_width="260dp"
+                android:layout_width="220dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="24dp"
+                android:layout_marginStart="20dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -299,19 +299,19 @@
                     android:layout_height="wrap_content"
                     android:text="NEXT"
                     android:textColor="#5DC8FF"
-                    android:textSize="11sp"
+                    android:textSize="9sp"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
-                    android:letterSpacing="0.32"
+                    android:letterSpacing="0.28"
                     tools:ignore="HardcodedText" />
 
                 <TextView
                     android:id="@+id/player_info_next_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="#FFFFFF"
-                    android:textSize="22sp"
+                    android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
                     android:includeFontPadding="false"
                     android:singleLine="true"
@@ -325,11 +325,11 @@
                     android:id="@+id/player_info_next_description"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="#B0BACC"
-                    android:textSize="13sp"
+                    android:textSize="11sp"
                     android:fontFamily="sans-serif"
-                    android:lineSpacingExtra="3dp"
+                    android:lineSpacingExtra="1dp"
                     android:maxLines="2"
                     android:ellipsize="end"
                     tools:text="A high-energy hour of rock and metal anthems." />
@@ -338,9 +338,9 @@
                     android:id="@+id/player_info_next_time"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="4dp"
                     android:textColor="#B0BACC"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:fontFamily="sans-serif"
                     tools:text="10:00 PM – 11:00 PM" />
             </LinearLayout>
@@ -356,16 +356,16 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="225dp"
-            android:paddingEnd="48dp"
+            android:paddingStart="166dp"
+            android:paddingEnd="36dp"
             android:paddingTop="2dp"
-            android:paddingBottom="26dp">
+            android:paddingBottom="12dp">
 
             <ProgressBar
                 android:id="@+id/player_info_progress"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="0dp"
-                android:layout_height="4dp"
+                android:layout_height="3dp"
                 android:layout_weight="1"
                 android:progressDrawable="@drawable/player_progress_bar"
                 android:max="1000"
@@ -374,13 +374,13 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
+                android:layout_marginStart="10dp"
                 android:text="LIVE"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
-                android:letterSpacing="0.22"
+                android:letterSpacing="0.18"
                 tools:ignore="HardcodedText" />
         </LinearLayout>
 
@@ -397,12 +397,12 @@
             android:background="#000000"
             android:gravity="center"
             android:weightSum="8"
-            android:paddingHorizontal="32dp"
-            android:paddingTop="22dp"
-            android:paddingBottom="26dp"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="14dp"
             android:divider="@drawable/player_control_divider"
             android:showDividers="middle"
-            android:dividerPadding="14dp">
+            android:dividerPadding="8dp">
 
             <!-- 1. Rewind -->
             <LinearLayout

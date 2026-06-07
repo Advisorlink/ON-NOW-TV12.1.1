@@ -12,6 +12,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -23,6 +24,8 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
 import coil.load
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import tv.onnowtv.livetv.data.Channel
@@ -172,6 +175,20 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
+
+        // v2.10.3 — Warm the per-channel EPG cache from disk so we
+        // pick up everything EpgActivity has lazy-fetched on
+        // previous sessions.  Async to keep onCreate fast.
+        val appCtx = applicationContext
+        lifecycleScope.launch(Dispatchers.IO) {
+            val cached = tv.onnowtv.livetv.data.EpgCache.load(appCtx)
+            if (!cached.isNullOrEmpty()) {
+                diskEpg = cached
+                lifecycleScope.launch(Dispatchers.Main) {
+                    currentChannel?.let { populateOverlay(it) }
+                }
+            }
+        }
 
         playerView    = findViewById(R.id.player_view)
         status        = findViewById(R.id.player_status)
@@ -545,6 +562,10 @@ class PlayerActivity : AppCompatActivity() {
         // icon so they're already correct if the overlay is open.
         populateOverlay(channel)
         updateFavoriteIcon()
+        // v2.10.3 — if we don't have EPG for this channel yet,
+        // kick off a background fetch so the description fills in
+        // a moment later (same code path EpgActivity uses).
+        ensureEpgFor(channel)
     }
 
     /**
@@ -593,14 +614,62 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /** v2.10.3 — Per-channel EPG merged from on-disk [EpgCache]
+     *  (populated by EpgActivity's lazy fetcher).  Player reads
+     *  from BundleHolder first (priority preload), then this map
+     *  for everything else.  Lazy-filled by [ensureEpgFor]. */
+    private var diskEpg: Map<String, List<Programme>> = emptyMap()
+    private val epgInflight = mutableSetOf<String>()
+
     private fun currentProgramme(channel: Channel): Pair<Programme?, Programme?> {
-        val bundle = BundleHolder.current ?: return null to null
-        val sid = channel.epgChannelId ?: return null to null
-        val list = bundle.epg[sid] ?: return null to null
+        val sid = channel.epgChannelId?.takeIf { it.isNotBlank() }
+            ?: return null to null
+        // 1) Priority-channel data lives in BundleHolder.current.epg
+        // 2) Lazy-fetched per-channel data lives in [diskEpg]
+        val list = BundleHolder.current?.epg?.get(sid)?.takeIf { it.isNotEmpty() }
+            ?: diskEpg[sid]
+            ?: return null to null
         val now = System.currentTimeMillis()
         val current = list.firstOrNull { it.isLiveAt(now) }
-        val next = if (current != null) list.firstOrNull { it.startMs > current.startMs } else null
+        val next = if (current != null) {
+            list.firstOrNull { it.startMs > current.startMs }
+        } else {
+            list.firstOrNull { it.startMs > now }
+        }
         return current to next
+    }
+
+    /** Fire-and-forget: if we have no programme data for this
+     *  channel, fetch it from the backend / provider (same code
+     *  path EpgActivity uses) and re-populate the overlay when it
+     *  arrives.  Idempotent via [epgInflight] so rapid d-pad zaps
+     *  don't double-fetch. */
+    private fun ensureEpgFor(channel: Channel) {
+        val sid = channel.epgChannelId?.takeIf { it.isNotBlank() } ?: return
+        val haveBundle = BundleHolder.current?.epg?.get(sid)?.isNotEmpty() == true
+        val haveDisk = diskEpg[sid]?.isNotEmpty() == true
+        if (haveBundle || haveDisk) return
+        if (!epgInflight.add(sid)) return
+        val appCtx = applicationContext
+        lifecycleScope.launch(Dispatchers.IO) {
+            val fetched = try {
+                tv.onnowtv.livetv.data.XtreamRepository
+                    .fetchEpgForChannel(sid, ctx = appCtx)
+            } catch (_: Throwable) { emptyList() }
+            if (fetched.isNotEmpty()) {
+                // Persist so the EPG page (and the next cold boot)
+                // both see this immediately.
+                tv.onnowtv.livetv.data.EpgCache
+                    .mergeChannel(appCtx, sid, fetched)
+                diskEpg = diskEpg.toMutableMap().also { it[sid] = fetched }
+                lifecycleScope.launch(Dispatchers.Main) {
+                    if (currentChannel?.id == channel.id) {
+                        populateOverlay(channel)
+                    }
+                }
+            }
+            epgInflight.remove(sid)
+        }
     }
 
     private fun showInfoCard() {

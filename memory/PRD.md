@@ -22,6 +22,26 @@
 > - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
 
 
+> **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
+>
+> User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."
+>
+> **Size shrink (overlay now ~30 % of screen instead of ~50 %):**
+> - Info row paddingTop 28→14 dp, paddingBottom 6→2 dp, paddingHorizontal 48→36 dp.
+> - Programme title 30→20 sp · segment 18→13 sp · description 14→12 sp · time range 14→11 sp.
+> - Icon column min-width 150→108 dp · LCN 42→22 sp · logo 120×56 → 80×40 · LIVE pill smaller.
+> - NEXT title 22→15 sp · NEXT description 13→11 sp · NEXT time 14→11 sp.
+> - Progress row paddingBottom 26→12 · bar height 4→3 dp.
+> - Control bar paddingTop 22→12, paddingBottom 26→14, divider padding 14→8.
+> - Control buttons 76→56 dp · label 11→10 sp.
+>
+> **EPG synopsis fix:**
+> - `PlayerActivity.currentProgramme(ch)` was only reading `BundleHolder.current.epg` — that map only holds the priority preloaded channels (UK / USA / AU / NZ Sports).  All other channels (Sky Crime HD, every Aus / Kiwi general entertainment channel, etc.) are lazy-fetched by EpgActivity into its own `epgCache` AND persisted via `EpgCache.mergeChannel(...)` to `filesDir/epg_priority.json.gz`.  The Player never read that file → empty synopsis.
+> - New `PlayerActivity.diskEpg` field is hydrated from `EpgCache.load(ctx)` on `onCreate` (background IO, then re-populates the overlay on Main).
+> - New `ensureEpgFor(channel)` method: on every `tuneTo`, if neither bundle nor diskEpg has data, kick off `XtreamRepository.fetchEpgForChannel(sid, ctx)` (same code path EpgActivity uses), persist via `EpgCache.mergeChannel(...)`, and re-populate the overlay on Main.  Idempotent via `epgInflight` so rapid zaps don't double-fetch.
+> - Added imports for `androidx.lifecycle.lifecycleScope`, `kotlinx.coroutines.Dispatchers`, `kotlinx.coroutines.launch` (deps already on the build path — EpgActivity uses them).
+
+
 > **🟢 v2.10 — 8-button modern player UI fully wired + enlarged TV-readable action sheets (Feb 7 2026).**
 >
 > Two follow-ups requested by the user after confirming Login+EPG were perfect:
