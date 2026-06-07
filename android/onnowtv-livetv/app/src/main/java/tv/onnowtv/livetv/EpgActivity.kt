@@ -89,7 +89,9 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var clock: TextView
     private lateinit var btnFavourite: ImageButton
     private lateinit var btnRefresh: ImageButton
-    private lateinit var btnLogout: ImageButton
+    // v2.9.9 — Hero sign-out button removed; nullable so the legacy
+    // listener wiring no-ops when the view isn't in the layout.
+    private var btnLogout: ImageButton? = null
 
     // Preview-card refs (in-hero live mini player)
     private lateinit var previewPlayerView: PlayerView
@@ -200,14 +202,56 @@ class EpgActivity : AppCompatActivity() {
         // the NEXT launch reads the latest data on disk.  Doesn't
         // block the UI — we render the cached bundle now and only
         // overwrite the on-disk cache if/when the refresh lands.
+        //
+        // v2.9.9 — Also refreshes the priority EPG (UK / USA / AU
+        // Kayo / NZ Sports) in the background so the cached XMLTV
+        // is kept fresh for the next launch.  Failures are silent.
         if (BundleHolder.needsBackgroundRefresh) {
             BundleHolder.needsBackgroundRefresh = false
             val appCtx = applicationContext
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val text = XtreamRepository.fetchBundleJson()
+                    val freshBundle = XtreamRepository.parseBundleJson(text)
                     tv.onnowtv.livetv.data.BundleCache.saveJson(appCtx, text)
                     Log.i("EpgActivity", "background refresh ok (${text.length} chars cached)")
+
+                    // Refresh priority EPG too, but only if the
+                    // cached copy is older than 2 h — otherwise we
+                    // re-download 27 MB on every cold boot.
+                    val epgAge = tv.onnowtv.livetv.data.EpgCache.ageMs(appCtx)
+                    if (epgAge > tv.onnowtv.livetv.data.EpgCache.FRESH_MS) {
+                        val priorityIds = freshBundle.channels
+                            .filter { ch ->
+                                val catName = freshBundle.categories
+                                    .firstOrNull { it.id == ch.categoryId }?.name?.uppercase()
+                                    ?: ch.name.uppercase()
+                                catName.startsWith("UK |") ||
+                                    catName.contains("==== UK ") ||
+                                    catName.startsWith("====UK") ||
+                                    catName == "DAZN UK" ||
+                                    catName.contains("AMAZON UK") ||
+                                    catName.startsWith("USA |") ||
+                                    catName.startsWith("USA ") ||
+                                    catName.contains("====USA") ||
+                                    catName == "DAZN USA" ||
+                                    catName.contains("KAYO") ||
+                                    catName.contains("FOX/KAYO") ||
+                                    catName.contains("SKY SPORTS (NZ)")
+                            }
+                            .mapNotNull { it.epgChannelId?.takeIf { id -> id.isNotBlank() } }
+                            .toHashSet()
+                        if (priorityIds.isNotEmpty()) {
+                            val epg = tv.onnowtv.livetv.data.XmlTvFetcher
+                                .fetchPriorityEpg(appCtx, priorityIds) { _, _ -> }
+                            if (epg.isNotEmpty()) {
+                                tv.onnowtv.livetv.data.EpgCache.save(appCtx, epg)
+                                Log.i("EpgActivity", "background priority-EPG refresh ok (${epg.size} channels)")
+                            }
+                        }
+                    } else {
+                        Log.i("EpgActivity", "priority-EPG cache still fresh (age=${epgAge / 1000}s) — skipping refresh")
+                    }
                 } catch (t: Throwable) {
                     Log.w("EpgActivity", "background refresh failed: ${t.message}")
                 }
@@ -280,7 +324,7 @@ class EpgActivity : AppCompatActivity() {
         clock              = findViewById(R.id.clock)
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
-        btnLogout          = findViewById(R.id.btn_logout)
+        btnLogout          = findViewById(R.id.btn_logout)  // may be null (removed in v2.9.9)
 
         previewPlayerView  = findViewById(R.id.preview_player_view)
         previewBufferLoader = findViewById(R.id.preview_buffer_loader)
@@ -521,7 +565,10 @@ class EpgActivity : AppCompatActivity() {
     private fun wireHeroIcons() {
         btnRefresh.setOnClickListener { applyCategory() }
         btnFavourite.setOnClickListener { /* future: persist favourite */ }
-        btnLogout.setOnClickListener {
+        // v2.9.9 — Hero `btnLogout` removed.  If it still exists in
+        // the layout for any reason, keep the click handler wired;
+        // otherwise this is a silent no-op.
+        btnLogout?.setOnClickListener {
             LivePreviewSession.release()
             finishAffinity()
         }
@@ -548,11 +595,30 @@ class EpgActivity : AppCompatActivity() {
             if (ch != null) openFullscreen(ch)
         }
         railSignout.setOnClickListener {
-            // Tear down the shared player on sign-out so the
-            // upstream Xtream concurrent-stream slot is released
-            // before MainActivity returns.
-            LivePreviewSession.release()
-            finishAffinity()
+            // v2.9.9 — Proper sign-out flow.  Tear down the shared
+            // player so the upstream Xtream concurrent-stream slot
+            // is released, clear the saved credentials, and bounce
+            // back to LoginActivity.  Previous behaviour was
+            // `finishAffinity()` which just exited the app without
+            // clearing creds — next launch would skip the login
+            // screen entirely.
+            tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+                .title("Sign out of ON NOW V2 Live TV?")
+                .subtitle("YOU'LL NEED TO SIGN BACK IN TO WATCH AGAIN")
+                .item("Sign out", icon = "↩") {
+                    LivePreviewSession.release()
+                    tv.onnowtv.livetv.data.AuthStore.signOut(this)
+                    startActivity(
+                        android.content.Intent(this, LoginActivity::class.java)
+                            .addFlags(
+                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK,
+                            ),
+                    )
+                    finish()
+                }
+                .item("Cancel", icon = "✕") { /* dismiss */ }
+                .show()
         }
     }
 
