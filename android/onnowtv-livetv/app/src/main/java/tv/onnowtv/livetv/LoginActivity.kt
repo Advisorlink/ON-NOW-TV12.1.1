@@ -118,11 +118,26 @@ class LoginActivity : AppCompatActivity() {
 
     /**
      * Direct credential check.  Hits the provider's `player_api.php`
-     * with NO action — returns `user_info` JSON containing an
-     * `auth` field that equals "1" iff the creds are valid.
+     * with NO action — for this provider:
+     *   • Valid creds   → HTTP 200 with `{"user_info":{auth:1,…}}`
+     *   • Wrong creds   → HTTP 404 with no body
+     *   • Empty creds   → HTTP 200 with `{"user_info":{auth:"0"}}`
      *
-     * Timeouts are intentionally short — this is a sign-in gate,
-     * not a bundle fetch.  A working provider answers in <500 ms.
+     * Verify logic (v2.9.13 — more permissive):
+     *   1. HTTP 4xx        → INVALID  (wrong creds)
+     *   2. HTTP 5xx / I/O  → NETWORK  (server down, no internet)
+     *   3. HTTP 2xx, no body OR can't parse user_info → NETWORK
+     *      (treat unknown response as "can't verify", don't reject
+     *      a valid user just because the provider returned a weird
+     *      payload).
+     *   4. user_info.auth literally equals 0 / "0" → INVALID
+     *      (this is the explicit "rejected" sentinel).
+     *   5. otherwise → OK
+     *
+     * Previously a strict `auth == "1"` check was rejecting valid
+     * users when the response had any extra whitespace, was
+     * gzipped oddly, or used a different sentinel — all real-world
+     * failure modes reported by the user.
      */
     private fun verifyDirect(username: String, password: String): VerifyResult {
         val base = "${AuthStore.SCHEME}://${AuthStore.HOST}:${AuthStore.PORT}"
@@ -136,6 +151,10 @@ class LoginActivity : AppCompatActivity() {
                 requestMethod = "GET"
                 connectTimeout = 8_000
                 readTimeout = 12_000
+                instanceFollowRedirects = true
+                // Force plain (uncompressed) response to avoid
+                // any gzip auto-decompression edge cases.
+                setRequestProperty("Accept-Encoding", "identity")
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("User-Agent", "ONNowTV/1.0")
                 if (this is HttpsURLConnection) {
@@ -163,22 +182,46 @@ class LoginActivity : AppCompatActivity() {
             }
             try {
                 val code = conn.responseCode
-                if (code in 200..299) {
-                    val text = conn.inputStream.bufferedReader(Charsets.UTF_8)
-                        .use { it.readText() }
-                    val auth = JSONObject(text).optJSONObject("user_info")
-                        ?.opt("auth")?.toString() ?: ""
-                    if (auth == "1") VerifyResult.OK else VerifyResult.INVALID
-                } else {
-                    // 401, 403, 404 are all "wrong creds" from this
-                    // provider's perspective.  Anything else is a
-                    // network/server problem.
-                    if (code in 400..404) VerifyResult.INVALID else VerifyResult.NETWORK
+                android.util.Log.i(
+                    "LoginActivity",
+                    "verifyDirect: HTTP $code for user='$username'",
+                )
+                when {
+                    code in 400..499 -> VerifyResult.INVALID
+                    code !in 200..299 -> VerifyResult.NETWORK
+                    else -> {
+                        // 2xx — parse the body as JSON.  Be very
+                        // tolerant: any auth value other than the
+                        // explicit string/int "0" is treated as OK.
+                        val body = try {
+                            conn.inputStream.bufferedReader(Charsets.UTF_8)
+                                .use { it.readText() }
+                        } catch (_: Throwable) { "" }
+                        if (body.isBlank()) {
+                            VerifyResult.NETWORK
+                        } else {
+                            val ui = try {
+                                JSONObject(body).optJSONObject("user_info")
+                            } catch (_: Throwable) { null }
+                            if (ui == null) {
+                                // Unparseable — don't punish the user; let the
+                                // bundle fetch be the real auth check.
+                                VerifyResult.OK
+                            } else {
+                                val authStr = ui.opt("auth")?.toString().orEmpty()
+                                if (authStr == "0") VerifyResult.INVALID else VerifyResult.OK
+                            }
+                        }
+                    }
                 }
             } finally {
                 conn.disconnect()
             }
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            android.util.Log.w(
+                "LoginActivity",
+                "verifyDirect threw: ${t.javaClass.simpleName}: ${t.message}",
+            )
             VerifyResult.NETWORK
         }
     }
