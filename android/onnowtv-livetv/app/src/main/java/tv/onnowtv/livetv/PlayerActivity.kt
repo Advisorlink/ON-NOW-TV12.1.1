@@ -130,6 +130,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var infoTimeRange: TextView
     private lateinit var infoProgressView: android.widget.ProgressBar
     private lateinit var infoNextTitle: TextView
+    private lateinit var infoNextDescription: TextView
     private lateinit var infoNextTime: TextView
     private lateinit var btnChUp: ImageButton
     private lateinit var btnChDown: ImageButton
@@ -228,6 +229,7 @@ class PlayerActivity : AppCompatActivity() {
         infoTimeRange     = findViewById(R.id.player_info_time_range)
         infoProgressView  = findViewById(R.id.player_info_progress)
         infoNextTitle     = findViewById(R.id.player_info_next_title)
+        infoNextDescription = findViewById(R.id.player_info_next_description)
         infoNextTime      = findViewById(R.id.player_info_next_time)
         btnChUp           = findViewById(R.id.btn_player_chup)
         btnChDown         = findViewById(R.id.btn_player_chdown)
@@ -932,14 +934,14 @@ class PlayerActivity : AppCompatActivity() {
             val nowTitle = now?.title?.takeIf { it.isNotBlank() }
             infoProgrammeView.text = nowTitle ?: ch.name
         }
-        // v2.10.1 — segment is the channel-name sub-line directly
-        // under the programme title.  Shown whenever we have a real
-        // live programme so the user sees both the show name and
-        // the source channel.
+        // v2.10.2 — Programme model has no separate sub-title /
+        // episode field; in the reference image "Rock the Night" is
+        // an Xtream-side episode caption we don't get back.  Hide
+        // the segment line entirely until/unless EPG starts giving
+        // us that data, rather than misleadingly putting the
+        // channel name there.
         if (::infoSegment.isInitialized) {
-            val hasLive = (now?.title?.takeIf { it.isNotBlank() }) != null
-            infoSegment.text = ch.name
-            infoSegment.visibility = if (hasLive) View.VISIBLE else View.GONE
+            infoSegment.visibility = View.GONE
         }
         if (::infoDescriptionView.isInitialized) {
             val desc = now?.description?.takeIf { it.isNotBlank() }.orEmpty()
@@ -958,6 +960,11 @@ class PlayerActivity : AppCompatActivity() {
         }
         if (::infoNextTitle.isInitialized) {
             infoNextTitle.text = next?.title?.takeIf { it.isNotBlank() } ?: "—"
+        }
+        if (::infoNextDescription.isInitialized) {
+            val nextDesc = next?.description?.takeIf { it.isNotBlank() }.orEmpty()
+            infoNextDescription.text = nextDesc
+            infoNextDescription.visibility = if (nextDesc.isBlank()) View.GONE else View.VISIBLE
         }
         if (::infoNextTime.isInitialized) {
             infoNextTime.text = if (next != null) {
