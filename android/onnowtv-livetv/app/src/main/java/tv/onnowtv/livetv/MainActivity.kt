@@ -100,6 +100,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.9.5 — Xtream sign-in gate.  No saved credentials =
+        // first launch (or just signed out).  Route straight to the
+        // login screen; everything else assumes a valid Xtream
+        // account.
+        if (!tv.onnowtv.livetv.data.AuthStore.isSignedIn(this)) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
         // FAST PATH — try the disk cache before we even inflate the loader.
         if (BundleCache.exists(this)) {
             try {

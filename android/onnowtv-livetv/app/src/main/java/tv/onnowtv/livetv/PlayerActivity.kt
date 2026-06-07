@@ -442,7 +442,10 @@ class PlayerActivity : AppCompatActivity() {
         infoCard.animate().cancel()
         infoCard.visibility = View.GONE
         infoCard.alpha = 0f
-        p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
+        // v2.9.5 — Substitute the saved user creds before tuning.
+        p.setMediaItem(MediaItem.fromUri(
+            tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, channel.streamUrl)
+        ))
         p.playWhenReady = true
         p.prepare()
         if (usingSharedPlayer) {
@@ -467,7 +470,9 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
-            p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
+            p.setMediaItem(MediaItem.fromUri(
+                tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
+            ))
             p.playWhenReady = true
             p.prepare()
             status.text = "Reconnecting…"
@@ -839,7 +844,9 @@ class PlayerActivity : AppCompatActivity() {
         val ch = currentChannel
         val p = player
         if (ch != null && p != null && p.currentMediaItem == null) {
-            p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
+            p.setMediaItem(MediaItem.fromUri(
+                tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
+            ))
             p.playWhenReady = true
             p.prepare()
         } else {

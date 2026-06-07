@@ -291,6 +291,20 @@ class EpgActivity : AppCompatActivity() {
         previewMiniBar     = findViewById(R.id.preview_mini_bar)
 
         categoriesList     = findViewById(R.id.categories_list)
+
+        // v2.9.5 — sign-out button in the channel-groups rail.
+        findViewById<View>(R.id.sidebar_signout_btn).setOnClickListener {
+            tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+                .title("Sign out of ON NOW V2 Live TV?")
+                .subtitle("YOU'LL NEED TO SIGN BACK IN TO WATCH AGAIN")
+                .item("Sign out", icon = "↩") {
+                    tv.onnowtv.livetv.data.AuthStore.signOut(this)
+                    startActivity(Intent(this, LoginActivity::class.java))
+                    finish()
+                }
+                .item("Cancel", icon = "✕") { /* dismiss */ }
+                .show()
+        }
         channelsList       = findViewById(R.id.channels_list)
         searchInput        = findViewById(R.id.search_input)
         channelCountChip   = findViewById(R.id.channel_count_chip)
