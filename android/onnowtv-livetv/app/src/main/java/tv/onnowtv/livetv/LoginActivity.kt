@@ -7,40 +7,26 @@ import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import tv.onnowtv.livetv.data.AuthStore
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import java.security.SecureRandom
-import javax.net.ssl.HostnameVerifier
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 /**
- * First-launch Xtream sign-in (v2.9.11).
+ * First-launch Xtream sign-in (v2.9.14 — back to pure pass-through).
  *
- * Validates the user's credentials against the provider directly
- * (single ~500 ms call to `player_api.php`) BEFORE saving them
- * to `AuthStore`.  If the response's `user_info.auth` is not "1",
- * we reject the login with a clear error and stay on this screen.
+ * The screen is purely a credentials capture step — NO network
+ * round-trip happens here.  Creds go to [AuthStore] and we jump
+ * straight to [MainActivity], the familiar "channels found" loader.
  *
- * The previous behaviour (v2.9.7-fast) was a pure pass-through —
- * ANY username/password was accepted — which created a security
- * hole: once a valid user signed in once, anyone with physical
- * access could sign out and back in with garbage and still get
- * into the cached channel list.  Validating against the provider
- * closes that hole.
+ * The actual credential check happens IMPLICITLY at the loader
+ * step: MainActivity attempts to fetch the channel bundle directly
+ * from the provider with the saved creds.  If the provider rejects
+ * them (HTTP 404, or `user_info.auth == 0`), MainActivity wipes
+ * the creds and bounces back here with a "Wrong username or
+ * password" error.  This is the same flow that was working
+ * before — no upfront verify, no over-strict rejection.
  *
- * On success: persists creds → jumps to [MainActivity] (the
- * familiar "channels found" loader screen) — same fast path as
- * before, no extra delay.
+ * The caller (typically MainActivity) can re-launch us with the
+ * `EXTRA_AUTH_ERROR` intent extra set to surface a previous
+ * failure (e.g. "Wrong username or password.").
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -62,9 +48,17 @@ class LoginActivity : AppCompatActivity() {
         statusText = findViewById(R.id.login_status)
         showPassToggle = findViewById(R.id.login_show_pass)
 
-        loginBtn.setOnClickListener { attemptLogin() }
+        loginBtn.setOnClickListener { proceed() }
         showPassToggle.setOnClickListener { togglePasswordVisibility() }
         usernameField.requestFocus()
+
+        // Surface a previously-failed attempt forwarded to us by
+        // MainActivity (after the loader detected the provider
+        // rejected the saved credentials).
+        intent?.getStringExtra(EXTRA_AUTH_ERROR)?.takeIf { it.isNotBlank() }?.let { msg ->
+            statusText.text = msg
+            statusText.visibility = View.VISIBLE
+        }
     }
 
     private fun togglePasswordVisibility() {
@@ -79,7 +73,11 @@ class LoginActivity : AppCompatActivity() {
         passwordField.setSelection(passwordField.text?.length ?: 0)
     }
 
-    private fun attemptLogin() {
+    /**
+     * No verification — save and jump.  The bundle fetcher
+     * in MainActivity is the real auth gate.
+     */
+    private fun proceed() {
         val u = usernameField.text.toString().trim()
         val p = passwordField.text.toString().trim()
         if (u.isBlank() || p.isBlank()) {
@@ -87,142 +85,16 @@ class LoginActivity : AppCompatActivity() {
             statusText.visibility = View.VISIBLE
             return
         }
-        loginBtn.isEnabled = false
-        loginBtnLabel.text = "SIGNING IN…"
-        statusText.visibility = View.GONE
-
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { verifyDirect(u, p) }
-            if (result == VerifyResult.OK) {
-                AuthStore.saveCredentials(this@LoginActivity, u, p)
-                startActivity(
-                    Intent(this@LoginActivity, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-                )
-                overridePendingTransition(0, 0)
-                finish()
-            } else {
-                loginBtn.isEnabled = true
-                loginBtnLabel.text = "SIGN IN"
-                statusText.text = when (result) {
-                    VerifyResult.INVALID -> "Wrong username or password. Please try again."
-                    VerifyResult.NETWORK -> "Couldn't reach the TV provider. Check your internet."
-                    else -> "Sign-in failed. Please try again."
-                }
-                statusText.visibility = View.VISIBLE
-            }
-        }
+        AuthStore.saveCredentials(this, u, p)
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        overridePendingTransition(0, 0)
+        finish()
     }
 
-    private enum class VerifyResult { OK, INVALID, NETWORK }
-
-    /**
-     * Direct credential check.  Hits the provider's `player_api.php`
-     * with NO action — for this provider:
-     *   • Valid creds   → HTTP 200 with `{"user_info":{auth:1,…}}`
-     *   • Wrong creds   → HTTP 404 with no body
-     *   • Empty creds   → HTTP 200 with `{"user_info":{auth:"0"}}`
-     *
-     * Verify logic (v2.9.13 — more permissive):
-     *   1. HTTP 4xx        → INVALID  (wrong creds)
-     *   2. HTTP 5xx / I/O  → NETWORK  (server down, no internet)
-     *   3. HTTP 2xx, no body OR can't parse user_info → NETWORK
-     *      (treat unknown response as "can't verify", don't reject
-     *      a valid user just because the provider returned a weird
-     *      payload).
-     *   4. user_info.auth literally equals 0 / "0" → INVALID
-     *      (this is the explicit "rejected" sentinel).
-     *   5. otherwise → OK
-     *
-     * Previously a strict `auth == "1"` check was rejecting valid
-     * users when the response had any extra whitespace, was
-     * gzipped oddly, or used a different sentinel — all real-world
-     * failure modes reported by the user.
-     */
-    private fun verifyDirect(username: String, password: String): VerifyResult {
-        val base = "${AuthStore.SCHEME}://${AuthStore.HOST}:${AuthStore.PORT}"
-        val url = URL(
-            "$base/player_api.php?" +
-                "username=${URLEncoder.encode(username, "UTF-8")}" +
-                "&password=${URLEncoder.encode(password, "UTF-8")}",
-        )
-        return try {
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 8_000
-                readTimeout = 12_000
-                instanceFollowRedirects = true
-                // Force plain (uncompressed) response to avoid
-                // any gzip auto-decompression edge cases.
-                setRequestProperty("Accept-Encoding", "identity")
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "ONNowTV/1.0")
-                if (this is HttpsURLConnection) {
-                    try {
-                        val trustAll = arrayOf<TrustManager>(
-                            object : X509TrustManager {
-                                override fun checkClientTrusted(
-                                    chain: Array<out java.security.cert.X509Certificate>?,
-                                    authType: String?,
-                                ) {}
-                                override fun checkServerTrusted(
-                                    chain: Array<out java.security.cert.X509Certificate>?,
-                                    authType: String?,
-                                ) {}
-                                override fun getAcceptedIssuers():
-                                    Array<java.security.cert.X509Certificate> = emptyArray()
-                            },
-                        )
-                        val sslCtx = SSLContext.getInstance("TLS")
-                        sslCtx.init(null, trustAll, SecureRandom())
-                        sslSocketFactory = sslCtx.socketFactory
-                        hostnameVerifier = HostnameVerifier { _, _ -> true }
-                    } catch (_: Throwable) {}
-                }
-            }
-            try {
-                val code = conn.responseCode
-                android.util.Log.i(
-                    "LoginActivity",
-                    "verifyDirect: HTTP $code for user='$username'",
-                )
-                when {
-                    code in 400..499 -> VerifyResult.INVALID
-                    code !in 200..299 -> VerifyResult.NETWORK
-                    else -> {
-                        // 2xx — parse the body as JSON.  Be very
-                        // tolerant: any auth value other than the
-                        // explicit string/int "0" is treated as OK.
-                        val body = try {
-                            conn.inputStream.bufferedReader(Charsets.UTF_8)
-                                .use { it.readText() }
-                        } catch (_: Throwable) { "" }
-                        if (body.isBlank()) {
-                            VerifyResult.NETWORK
-                        } else {
-                            val ui = try {
-                                JSONObject(body).optJSONObject("user_info")
-                            } catch (_: Throwable) { null }
-                            if (ui == null) {
-                                // Unparseable — don't punish the user; let the
-                                // bundle fetch be the real auth check.
-                                VerifyResult.OK
-                            } else {
-                                val authStr = ui.opt("auth")?.toString().orEmpty()
-                                if (authStr == "0") VerifyResult.INVALID else VerifyResult.OK
-                            }
-                        }
-                    }
-                }
-            } finally {
-                conn.disconnect()
-            }
-        } catch (t: Throwable) {
-            android.util.Log.w(
-                "LoginActivity",
-                "verifyDirect threw: ${t.javaClass.simpleName}: ${t.message}",
-            )
-            VerifyResult.NETWORK
-        }
+    companion object {
+        const val EXTRA_AUTH_ERROR = "auth_error"
     }
 }
