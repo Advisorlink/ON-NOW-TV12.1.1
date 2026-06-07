@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.7.07: darkened to near-opaque so the underlying VLC video
+     stream NEVER bleeds through the guide UI.  User reported the
+     live TV behind the guide being clearly visible (channel logos,
+     "Made for Living" advert text) which made the M14 UI feel
+     muddy + unreadable.  Solid dark fill is fine — the focused
+     channel's TMDB art is on the rail cards, not the full-screen
+     backdrop. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="0"
+        android:startColor="#F506080F"
+        android:centerColor="#EE06080F"
+        android:endColor="#E806080F" />
+</shape>

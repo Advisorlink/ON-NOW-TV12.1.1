@@ -1,23 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-        Brand palette for the standalone Kids kiosk.  Cheerful warm
-        gradient (tangerine → magenta) matches the React Kids home
-        page so the splash → React handoff is seamless.
-    -->
-    <color name="kids_bg">#0E0926</color>
-    <color name="kids_bg_dark">#06031A</color>
-    <color name="kids_accent">#FF8C2D</color>
-    <color name="kids_accent_2">#FF3D9B</color>
-
-    <!--
-        Aliases reused by the splash & player layouts copied over
-        from the FTA skeleton.  Keeping the original names lets the
-        scaffold compile unchanged.
-    -->
-    <color name="fta_bg">@color/kids_bg</color>
-    <color name="fta_bg_dark">@color/kids_bg_dark</color>
-    <color name="fta_accent">@color/kids_accent</color>
-    <color name="livetv_fg">#F5F8FF</color>
-    <color name="livetv_fg_dim">#9CB0D8</color>
+    <color name="vesper_bg">#FF06080F</color>
+    <color name="vesper_bg_dim">#FF0A0E1A</color>
+    <color name="vesper_blue">#FF5DC8FF</color>
+    <color name="vesper_text">#FFF5F7FA</color>
 </resources>
