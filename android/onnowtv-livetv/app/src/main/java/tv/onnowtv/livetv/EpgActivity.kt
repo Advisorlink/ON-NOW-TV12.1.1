@@ -199,59 +199,21 @@ class EpgActivity : AppCompatActivity() {
 
         // Background refresh: if MainActivity took the fast disk-
         // cache path, ask for a fresh bundle now and persist it so
-        // the NEXT launch reads the latest data on disk.  Doesn't
-        // block the UI — we render the cached bundle now and only
-        // overwrite the on-disk cache if/when the refresh lands.
+        // the NEXT launch reads the latest channel list on disk.
         //
-        // v2.9.9 — Also refreshes the priority EPG (UK / USA / AU
-        // Kayo / NZ Sports) in the background so the cached XMLTV
-        // is kept fresh for the next launch.  Failures are silent.
+        // v2.9.12 — Priority-EPG re-fetch DISABLED here.  User
+        // explicitly asked: once the EPG is cached, never re-load
+        // it automatically.  Only the bundle (channel list) is
+        // background-refreshed.  Manual EPG refresh stays available
+        // via the rail refresh button.
         if (BundleHolder.needsBackgroundRefresh) {
             BundleHolder.needsBackgroundRefresh = false
             val appCtx = applicationContext
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val text = XtreamRepository.fetchBundleJson()
-                    val freshBundle = XtreamRepository.parseBundleJson(text)
                     tv.onnowtv.livetv.data.BundleCache.saveJson(appCtx, text)
-                    Log.i("EpgActivity", "background refresh ok (${text.length} chars cached)")
-
-                    // Refresh priority EPG too, but only if the
-                    // cached copy is older than 2 h — otherwise we
-                    // re-download 27 MB on every cold boot.
-                    val epgAge = tv.onnowtv.livetv.data.EpgCache.ageMs(appCtx)
-                    if (epgAge > tv.onnowtv.livetv.data.EpgCache.FRESH_MS) {
-                        val priorityIds = freshBundle.channels
-                            .filter { ch ->
-                                val catName = freshBundle.categories
-                                    .firstOrNull { it.id == ch.categoryId }?.name?.uppercase()
-                                    ?: ch.name.uppercase()
-                                catName.startsWith("UK |") ||
-                                    catName.contains("==== UK ") ||
-                                    catName.startsWith("====UK") ||
-                                    catName == "DAZN UK" ||
-                                    catName.contains("AMAZON UK") ||
-                                    catName.startsWith("USA |") ||
-                                    catName.startsWith("USA ") ||
-                                    catName.contains("====USA") ||
-                                    catName == "DAZN USA" ||
-                                    catName.contains("KAYO") ||
-                                    catName.contains("FOX/KAYO") ||
-                                    catName.contains("SKY SPORTS (NZ)")
-                            }
-                            .mapNotNull { it.epgChannelId?.takeIf { id -> id.isNotBlank() } }
-                            .toHashSet()
-                        if (priorityIds.isNotEmpty()) {
-                            val epg = tv.onnowtv.livetv.data.XmlTvFetcher
-                                .fetchPriorityEpg(appCtx, priorityIds) { _, _ -> }
-                            if (epg.isNotEmpty()) {
-                                tv.onnowtv.livetv.data.EpgCache.save(appCtx, epg)
-                                Log.i("EpgActivity", "background priority-EPG refresh ok (${epg.size} channels)")
-                            }
-                        }
-                    } else {
-                        Log.i("EpgActivity", "priority-EPG cache still fresh (age=${epgAge / 1000}s) — skipping refresh")
-                    }
+                    Log.i("EpgActivity", "background channel-list refresh ok (${text.length} chars cached)")
                 } catch (t: Throwable) {
                     Log.w("EpgActivity", "background refresh failed: ${t.message}")
                 }
@@ -995,6 +957,13 @@ class EpgActivity : AppCompatActivity() {
             }
             if (fetched.isNotEmpty()) {
                 epgCache[sid] = fetched
+                // v2.9.12 — Persist to disk so the NEXT cold boot
+                // already has this channel's EPG.  User explicitly
+                // asked: "Once it's loaded once, it saves the EPG
+                // to cache, and then you never have to load it
+                // again unless you delete the app."
+                tv.onnowtv.livetv.data.EpgCache
+                    .mergeChannel(applicationContext, sid, fetched)
             } else {
                 epgKnownEmpty.add(sid)
             }
@@ -1020,6 +989,9 @@ class EpgActivity : AppCompatActivity() {
                 val fetched = XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
                 if (fetched.isNotEmpty()) {
                     epgCache[sid] = fetched
+                    // v2.9.12 — Persist (see lazyFetchForChannel).
+                    tv.onnowtv.livetv.data.EpgCache
+                        .mergeChannel(applicationContext, sid, fetched)
                     guideList.post {
                         if (focusedChannel?.epgChannelId == sid) {
                             guideAdapter.submit(fetched)

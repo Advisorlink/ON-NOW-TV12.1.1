@@ -11,25 +11,29 @@ import java.util.zip.GZIPOutputStream
 /**
  * v2.9.9 — Disk cache for the parsed XMLTV priority-channel EPG.
  *
- * Kept SEPARATE from `BundleCache` because the channel list and the
- * EPG have different staleness profiles:
- *   • Channel list rarely changes — refresh on a 12 h cadence.
- *   • EPG drifts every hour as programmes start/end — refresh more
- *     aggressively (every ~2 h) but still re-use on the fast path
- *     to avoid the 25 s XMLTV download/parse on every cold boot.
+ * v2.9.12 — Cache is now PERMANENT.  User explicitly asked: once
+ * the EPG is loaded, it should be cached forever — no expiry, no
+ * forced re-fetch — until the user actively deletes the app or
+ * signs out.  Refreshes happen ONLY when the user taps the rail
+ * refresh button.
+ *
+ * Kept SEPARATE from `BundleCache` because the channel list and
+ * the EPG are merged at hydration time but have different
+ * persistence requirements (the bundle is rebuilt on every
+ * cold boot; the EPG is sticky).
  *
  * File: `filesDir/epg_priority.json.gz` — gzipped JSON object of
- * shape `{ "<epg_channel_id>": [ { title, desc?, start, stop }, … ] }`.
+ * shape `{ "<epg_channel_id>": [ { t, d?, s, e }, … ] }`.
  */
 object EpgCache {
     private const val TAG = "EpgCache"
     private const val FILE_NAME = "epg_priority.json.gz"
     private const val TS_FILE_NAME = "epg_priority.timestamp"
 
-    /** Treat the cache as fresh enough to use without re-fetching
-     *  for this long.  Beyond this we still use it but mark
-     *  `needsBackgroundRefresh = true`. */
-    const val FRESH_MS = 2L * 60L * 60L * 1000L  // 2 hours
+    /** v2.9.12 — Cache is permanent.  Kept as a sentinel constant
+     *  so any caller that previously branched on `ageMs() < FRESH_MS`
+     *  always takes the "fresh" branch. */
+    const val FRESH_MS = Long.MAX_VALUE
 
     private fun fileFor(ctx: Context): File = File(ctx.filesDir, FILE_NAME)
     private fun tsFile(ctx: Context): File = File(ctx.filesDir, TS_FILE_NAME)
@@ -111,5 +115,21 @@ object EpgCache {
     fun delete(ctx: Context) {
         try { fileFor(ctx).delete() } catch (_: Throwable) {}
         try { tsFile(ctx).delete() } catch (_: Throwable) {}
+    }
+
+    /**
+     * v2.9.12 — Merge a single channel's freshly-fetched programmes
+     * into the on-disk cache.  Called by `EpgActivity` whenever
+     * the per-channel lazy-load path hits the provider directly
+     * (channels outside the priority UK/USA/AU/NZ set).  Result:
+     * once you've clicked on a channel and seen its EPG, you NEVER
+     * have to wait for it again — it's persisted with the rest.
+     */
+    @Synchronized
+    fun mergeChannel(ctx: Context, channelId: String, programmes: List<Programme>) {
+        if (channelId.isBlank() || programmes.isEmpty()) return
+        val current = load(ctx)?.toMutableMap() ?: HashMap(64)
+        current[channelId] = programmes
+        save(ctx, current)
     }
 }
