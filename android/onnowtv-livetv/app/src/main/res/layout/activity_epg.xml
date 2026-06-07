@@ -528,12 +528,33 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/categories_list"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:descendantFocusability="afterDescendants"
                     android:focusable="false"
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
                     android:overScrollMode="never" />
+
+                <!-- v2.9.5 — Sign-out button at the bottom of the
+                     channel-groups rail.  Opens a confirm action
+                     sheet; on YES wipes AuthStore and routes the
+                     user back to LoginActivity. -->
+                <TextView
+                    android:id="@+id/sidebar_signout_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="SIGN OUT"
+                    android:textColor="#FF8AA9"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.22"
+                    android:background="@drawable/action_sheet_row_bg"
+                    android:focusable="true"
+                    android:clickable="true" />
             </LinearLayout>
 
             <!-- M: Channels -->

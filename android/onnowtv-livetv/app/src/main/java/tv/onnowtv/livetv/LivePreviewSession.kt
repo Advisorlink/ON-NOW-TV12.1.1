@@ -126,7 +126,11 @@ object LivePreviewSession {
             return
         }
         currentChannel = channel
-        p.setMediaItem(MediaItem.fromUri(channel.streamUrl))
+        // v2.9.5 — substitute saved user creds into the URL so we
+        // never play with the backend's env account.
+        val playUrl = tv.onnowtv.livetv.data.AuthStore
+            .rewriteStreamUrl(ctx, channel.streamUrl)
+        p.setMediaItem(MediaItem.fromUri(playUrl))
         p.prepare()
         p.playWhenReady = true
     }
