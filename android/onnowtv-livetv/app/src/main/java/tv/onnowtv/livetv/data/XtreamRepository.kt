@@ -42,8 +42,15 @@ object XtreamRepository {
             val url = URL(backendBase.trimEnd('/') + ENDPOINT)
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 12_000
-                readTimeout = 30_000
+                // v2.9.8 — Tighter read timeout (8 s).  When the
+                // backend is healthy the gzipped bundle returns in
+                // <2 s on cable.  When the backend is BROKEN (VPS
+                // can't reach the provider) it sits on its own
+                // 17-s httpx timeout chain before returning 502 —
+                // we don't want to inherit that whole wait when the
+                // direct path is racing us and finishing in 4 s.
+                connectTimeout = 8_000
+                readTimeout = 8_000
                 setRequestProperty("Accept-Encoding", "gzip")
                 setRequestProperty("Accept", "application/json")
             }
@@ -156,42 +163,60 @@ object XtreamRepository {
      * Lazy-load EPG for a single channel.  Used by the EPG grid to
      * populate rows on demand when the bundle EPG was empty (i.e.
      * the backend hasn't finished its bulk refresh yet).
+     *
+     * v2.9.8 — Falls back to a direct `get_short_epg` provider call
+     * when the backend returns nothing.  Without this fallback, the
+     * EPG grid stays blank whenever the Contabo VPS can't reach
+     * `njala.ddns.me` (which is the current production state — the
+     * VPS IP is firewalled by the provider).
      */
     suspend fun fetchEpgForChannel(
         streamId: String,
         backendBase: String = BACKEND_BASE,
+        ctx: android.content.Context? = null,
     ): List<Programme> = withContext(Dispatchers.IO) {
-        val url = URL(backendBase.trimEnd('/') + PER_CHANNEL_EPG + streamId)
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 6_000
-            readTimeout = 12_000
-            setRequestProperty("Accept", "application/json")
-        }
-        try {
-            val code = conn.responseCode
-            if (code !in 200..299) return@withContext emptyList<Programme>()
-            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val obj = JSONObject(text)
-            val arr = obj.optJSONArray("programmes") ?: return@withContext emptyList<Programme>()
-            val out = mutableListOf<Programme>()
-            for (i in 0 until arr.length()) {
-                val p = arr.getJSONObject(i)
-                out.add(
-                    Programme(
-                        title = p.optString("title").ifBlank { "—" },
-                        description = p.optString("description").takeIf { it.isNotBlank() },
-                        startMs = p.optLong("start", 0L) * 1000L,
-                        stopMs = p.optLong("stop", 0L) * 1000L,
-                    )
-                )
+        // 1) Try the backend's cached EPG endpoint first — it's free
+        //    of provider rate-limits and pre-parsed.
+        val backendResult: List<Programme>? = runCatching {
+            val url = URL(backendBase.trimEnd('/') + PER_CHANNEL_EPG + streamId)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 6_000
+                readTimeout = 12_000
+                setRequestProperty("Accept", "application/json")
             }
-            out
-        } catch (t: Throwable) {
-            Log.w(TAG, "fetchEpgForChannel($streamId) failed: ${t.message}")
-            emptyList()
-        } finally {
-            conn.disconnect()
+            try {
+                val code = conn.responseCode
+                if (code !in 200..299) return@runCatching null
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val obj = JSONObject(text)
+                val arr = obj.optJSONArray("programmes") ?: return@runCatching null
+                val out = mutableListOf<Programme>()
+                for (i in 0 until arr.length()) {
+                    val p = arr.getJSONObject(i)
+                    out.add(
+                        Programme(
+                            title = p.optString("title").ifBlank { "—" },
+                            description = p.optString("description").takeIf { it.isNotBlank() },
+                            startMs = p.optLong("start", 0L) * 1000L,
+                            stopMs = p.optLong("stop", 0L) * 1000L,
+                        ),
+                    )
+                }
+                out.takeIf { it.isNotEmpty() }
+            } finally {
+                conn.disconnect()
+            }
+        }.onFailure { Log.w(TAG, "fetchEpgForChannel($streamId) backend failed: ${it.message}") }
+            .getOrNull()
+
+        if (backendResult != null) return@withContext backendResult
+
+        // 2) Backend was empty — try the direct provider endpoint
+        //    with the user's saved Xtream credentials.
+        if (ctx != null) {
+            return@withContext DirectProviderFetcher.fetchShortEpg(ctx, streamId)
         }
+        emptyList()
     }
 }

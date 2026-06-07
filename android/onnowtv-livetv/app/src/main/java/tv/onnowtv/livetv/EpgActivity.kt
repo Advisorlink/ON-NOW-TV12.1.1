@@ -919,7 +919,7 @@ class EpgActivity : AppCompatActivity() {
         if (!pendingEpgFetch.add(sid)) return
         lifecycleScope.launch(Dispatchers.IO) {
             val fetched = try {
-                XtreamRepository.fetchEpgForChannel(sid)
+                XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
             } catch (_: Throwable) {
                 emptyList()
             }
@@ -947,7 +947,7 @@ class EpgActivity : AppCompatActivity() {
         } else {
             guideAdapter.submit(emptyList())
             lifecycleScope.launch(Dispatchers.IO) {
-                val fetched = XtreamRepository.fetchEpgForChannel(sid)
+                val fetched = XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
                 if (fetched.isNotEmpty()) {
                     epgCache[sid] = fetched
                     guideList.post {

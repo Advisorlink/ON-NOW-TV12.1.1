@@ -63,7 +63,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dot2: View
     private lateinit var dot3: View
 
-    private val minHoldMs = 18_000L
+    // v2.9.8 — Shorter minimum hold.  The OLD 18-s hold made sense
+    // when we were waiting for the backend's priority-EPG warm-up,
+    // but the direct provider path returns the full channel list in
+    // ~2 s — so a long hold just adds artificial delay.  6 s is
+    // enough for the animated counter to feel alive.
+    private val minHoldMs = 6_000L
     private val pollIntervalMs = 1_500L
     private val maxHoldMs = 5 * 60_000L
 
@@ -280,19 +285,86 @@ class MainActivity : AppCompatActivity() {
         substatus.text = "Downloading bundle…"
         progress.progress = 60
 
-        // Kick off the bundle fetch as JSON so we can both parse
-        // it AND save the raw text to BundleCache for next time.
+        // v2.9.8 — Backend OR direct.  We RACE both paths concurrently
+        // with `select` semantics — whichever returns FIRST with
+        // non-empty channels wins immediately, and the loader hands
+        // off without waiting for the other.  Critical because the
+        // backend's bundle endpoint takes ~17 s to return 502 when
+        // the provider is unreachable from the VPS (httpx timeout
+        // chain) — a naive `backend.await() ?: direct.await()` would
+        // make the user wait that full 17 s even though direct
+        // finishes in 4.
         bundleKick = lifecycleScope.async(Dispatchers.IO) {
-            try {
-                val text = XtreamRepository.fetchBundleJson()
-                bundleJson = text
-                val b = XtreamRepository.parseBundleJson(text)
-                bundleResult = b
-                BundleCache.saveJson(applicationContext, text)
-                Log.i("MainActivity", "bundle: ${b.channels.size} channels, ${b.epg.size} epg buckets (cached)")
-            } catch (t: Throwable) {
-                bundleError = t.message ?: t::class.java.simpleName
-                Log.w("MainActivity", "bundle fetch failed: $bundleError")
+            val backendJob = async {
+                try {
+                    val text = XtreamRepository.fetchBundleJson()
+                    val b = XtreamRepository.parseBundleJson(text)
+                    if (b.channels.isEmpty()) {
+                        Log.w("MainActivity", "backend bundle had 0 channels — ignoring")
+                        null
+                    } else {
+                        Log.i("MainActivity", "backend bundle won: ${b.channels.size} channels, ${b.epg.size} epg buckets")
+                        text to b
+                    }
+                } catch (t: Throwable) {
+                    Log.w("MainActivity", "backend bundle fetch failed: ${t.message}")
+                    null
+                }
+            }
+            val directJob = async {
+                try {
+                    // Tiny head-start for the backend so it can win
+                    // when it's healthy (preserves the EPG-pre-warmed
+                    // path on a normal day).  2 seconds is enough for
+                    // a warm gzipped response on a cable LAN, but
+                    // short enough that the user never sits at
+                    // "Loading channels…" for long if the VPS is
+                    // broken.
+                    delay(2_000L)
+                    val text = tv.onnowtv.livetv.data.DirectProviderFetcher
+                        .fetchBundleJson(applicationContext)
+                    val b = XtreamRepository.parseBundleJson(text)
+                    Log.i("MainActivity", "direct bundle won: ${b.channels.size} channels (EPG lazy-loads per row)")
+                    text to b
+                } catch (t: Throwable) {
+                    Log.w("MainActivity", "direct bundle fetch failed: ${t.message}")
+                    null
+                }
+            }
+            // True race: poll both every 250 ms and take the first
+            // one to complete with a non-null result.  Cancel the
+            // loser to release its httpx connection promptly.
+            var winner: Pair<String, XtreamBundle>? = null
+            while (winner == null) {
+                if (backendJob.isCompleted) {
+                    val r = backendJob.await()
+                    if (r != null) {
+                        winner = r
+                        directJob.cancel()
+                        break
+                    }
+                }
+                if (directJob.isCompleted) {
+                    val r = directJob.await()
+                    if (r != null) {
+                        winner = r
+                        backendJob.cancel()
+                        break
+                    }
+                }
+                if (backendJob.isCompleted && directJob.isCompleted) {
+                    // Both finished with null — give up.
+                    break
+                }
+                delay(250)
+            }
+            if (winner != null) {
+                bundleJson = winner.first
+                bundleResult = winner.second
+                BundleCache.saveJson(applicationContext, winner.first)
+            } else {
+                bundleError = "Both backend AND direct fetch failed"
+                Log.w("MainActivity", "bundle fetch failed entirely")
             }
         }
 
@@ -313,8 +385,9 @@ class MainActivity : AppCompatActivity() {
             applyMeta(lastMeta, elapsed, lastMetaErrorAt)
 
             // EXIT — most-important conditions first:
-            //   1) Bundle has arrived AND we've held for the minimum.
-            //   2) Popular EPG ready AND minimum hold met.
+            //   1) Bundle has arrived (backend OR direct) — exit as
+            //      soon as the minimum hold elapses.
+            //   2) Popular EPG ready (backend healthy) and min hold.
             //   3) Safety hatch: any channels visible after maxHoldMs.
             val haveBundle = bundleResult != null
             val priorityReady = (lastMeta?.priorityReady == true) && (lastMeta?.channelsCount ?: 0) > 0
@@ -334,7 +407,9 @@ class MainActivity : AppCompatActivity() {
         progress.progress = 970
 
         val bundle = bundleResult ?: run {
-            val text = XtreamRepository.fetchBundleJson()
+            // Last-chance synchronous fetch using direct provider.
+            val text = tv.onnowtv.livetv.data.DirectProviderFetcher
+                .fetchBundleJson(applicationContext)
             BundleCache.saveJson(applicationContext, text)
             XtreamRepository.parseBundleJson(text)
         }
@@ -347,7 +422,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyMeta(meta: Meta?, elapsedMs: Long, lastMetaErrorAt: Long) {
-        if (meta == null) {
+        // v2.9.8 — Once the direct OR backend bundle has actually
+        // returned channels to us, we KNOW how many channels the
+        // user is getting — so surface that in the counter
+        // immediately even when the backend's `/meta` endpoint is
+        // returning channels_count=0 (which happens when the VPS
+        // can't reach the provider).
+        val directChannels = bundleResult?.channels?.size ?: 0
+        val effectiveChannels = maxOf(meta?.channelsCount ?: 0, directChannels)
+        val effectivePriorityDone = meta?.priorityDone ?: 0
+        val effectivePriorityTotal = meta?.priorityTotal ?: 0
+        val priorityReady = meta?.priorityReady ?: false
+
+        if (meta == null && directChannels == 0) {
             headline.text = "Connecting to backend…"
             substatus.text = if (lastMetaErrorAt > 0) "Server unreachable — retrying…" else "Polling backend…"
             statusCounters.text = ""
@@ -357,23 +444,31 @@ class MainActivity : AppCompatActivity() {
 
         // Smoothly animate the counters so the numbers feel ALIVE
         // (creeping up) instead of jumping every 1.5 s poll.
-        animateCounterTo(meta.channelsCount, meta.priorityDone, meta.priorityTotal)
-        lastPriorityTotal = meta.priorityTotal
+        animateCounterTo(effectiveChannels, effectivePriorityDone, effectivePriorityTotal)
+        lastPriorityTotal = effectivePriorityTotal
 
         when {
-            meta.channelsCount == 0 -> {
+            effectiveChannels == 0 -> {
                 headline.text = "Loading channels…"
                 substatus.text = "Connecting to provider…"
                 val secs = (elapsedMs / 1000).toInt()
                 progress.progress = (60 + (secs * 3)).coerceAtMost(140)
             }
-            !meta.priorityReady && meta.priorityTotal > 0 -> {
+            !priorityReady && effectivePriorityTotal > 0 -> {
                 headline.text = "Warming the guide…"
                 substatus.text = "Loading UK · US · AU · Kayo channels"
-                val ratio = meta.priorityDone.toFloat() / meta.priorityTotal.toFloat()
+                val ratio = effectivePriorityDone.toFloat() / effectivePriorityTotal.toFloat()
                 progress.progress = (150 + (ratio * 700).toInt()).coerceIn(150, 850)
             }
-            !meta.priorityReady && meta.priorityTotal == 0 -> {
+            // Direct path already returned — backend is irrelevant.
+            // Show a confident progress bar headed toward "Almost ready".
+            !priorityReady && effectivePriorityTotal == 0 && directChannels > 0 -> {
+                headline.text = "Found ${fmt(directChannels)} channels"
+                substatus.text = "Finalising guide…"
+                val pct = (elapsedMs.toFloat() / minHoldMs.toFloat()).coerceIn(0f, 1f)
+                progress.progress = (300 + (pct * 600).toInt()).coerceIn(300, 900)
+            }
+            !priorityReady && effectivePriorityTotal == 0 -> {
                 headline.text = "Loading EPG data…"
                 substatus.text = "Parsing programme guide…"
                 progress.progress = 220

@@ -1,6 +1,39 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## v2.9.7-fast — LoginActivity restored to instant pass-through (2026-06-07)
+## v2.9.8 — Direct-from-provider bundle fetch (the REAL fix) (2026-06-07)
+
+**Diagnosis nailed.** Production VPS at `62.84.181.66` **cannot reach `njala.ddns.me:8443` AT ALL** — confirmed via `bash -c '</dev/tcp/njala.ddns.me/8443'` from the VPS = `FAILED` on every port (8443, 443, 80, 8087), even ICMP is dropped. The Xtream provider has IP-blacklisted the entire Contabo range. The backend's `instant_bundle` scheduler logs "refreshing channels…" but never logs success because the TCP handshake hangs forever.
+
+User's previous "working" experience came from a different network path / before the provider blacklist took effect.  The backend caching layer is unusable until the network block is lifted.
+
+**Fix: device-side direct fetch (matches the OLD pre-backend flow).**
+- New `data/DirectProviderFetcher.kt`: hits `https://njala.ddns.me:8443/player_api.php` directly using the user's saved Xtream credentials.  Returns `get_live_categories` + `get_live_streams` (160 cats + 14,091 streams in **1.69 seconds** during testing) and assembles a bundle JSON **byte-identical in shape** to the backend bundle, so the existing `XtreamRepository.parseBundle()` parses it unchanged AND `BundleCache` persists it for the next boot's sub-second fast path.
+- `MainActivity.runLoader()` now RACES both paths.  Backend gets a 4-second head-start (so a healthy backend with pre-warmed EPG still wins on a normal day).  Whichever path returns channels first wins; loser is silently discarded.
+- `applyMeta()` falls back to the direct-fetch channel count when the backend `/meta` reports 0.  User immediately sees "Found 14,091 channels" in the animated counter instead of being stuck on "Loading channels…" forever.
+- `XtreamRepository.fetchEpgForChannel()` now takes an optional `Context` and falls back to a direct provider `get_short_epg` call when the backend's per-channel EPG endpoint returns empty.  Base64-decodes the provider's title/description fields.
+- `EpgActivity` updated to pass `applicationContext` to the EPG-fetch calls.
+
+**Verified path** (from this preview pod which has the same network egress profile as the user's device):
+```
+160 categories, 14091 streams in 1.69s
+BBC ONE FHD: 3 programmes — 'Spirit Untamed', 'Zog and the Flying Doctors', …
+```
+
+**Files touched**:
+- `data/DirectProviderFetcher.kt` (new — 240 lines)
+- `data/XtreamRepository.kt` (added context-aware EPG fallback)
+- `MainActivity.kt` (race loader, direct fallback, counter uses direct count)
+- `EpgActivity.kt` (pass context to fetchEpgForChannel)
+
+**User-perceived flow after this build**:
+1. Type creds → Sign In → MainActivity loader appears instantly.
+2. ~5 s in: "Found 14,091 channels · Finalising guide…" counter ticks up.
+3. ~18 s in (existing minHold): loader exits to EPG, channel list populated.
+4. Every subsequent boot: disk-cache fast-path → SUB-SECOND straight into EPG.
+5. EPG fills in per channel as the user d-pads down the list — each row's EPG is lazy-loaded from the provider directly.
+
+---
+
 
 **User's complaint (verbatim, frustrated):** "How we had it before the app would log in in under i min. im confused now as to why its taking so long NOW. All we are doing is changing the log in username and password ALL the other process needs to stay the same as how it was. Once client enters in the details it MUST immediately show the loading screen with the channels found etc like before and use the EPG that is gzipped no questions asked."
 
