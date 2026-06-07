@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v2.7.80 SECURITY — Tightened network security config.
+
+  Policy summary:
+   • Cleartext HTTP is forbidden everywhere.  Any in-app code that
+     accidentally tries http:// instead of https:// will throw, so
+     downgrade-MITM attacks can't trick the app into talking plaintext.
+   • Backend domain `onnowtv.duckdns.org` is PIN-PROTECTED via the
+     SubjectPublicKeyInfo SHA-256 hash of its current certificate's
+     public key.  An attacker MITM-ing the connection with a
+     rogue CA-signed cert will fail the pin check and OkHttp /
+     Android's TLS engine will close the connection before any data
+     leaves the device.
+   • A second backup pin slot is reserved so the cert can be
+     rotated WITHOUT bricking already-installed clients.  Generate
+     it from the new public key when you renew:
+       openssl s_client -servername onnowtv.duckdns.org \
+         -connect onnowtv.duckdns.org:443 < /dev/null 2>/dev/null \
+         | openssl x509 -pubkey -noout \
+         | openssl pkey -pubin -outform der \
+         | openssl dgst -sha256 -binary | base64
+  Add the new pin to the `<pin-set>` (a config can hold any number
+  of pins; OkHttp accepts the cert if ANY pin matches).
+
+   • TMDB images, Stremio addon streams, Premiumize CDN — anything
+     NOT under our backend — falls back to the default trust store
+     because their certs aren't ours to pin.  Cleartext stays
+     forbidden across the board.
+-->
+<network-security-config>
+
+    <!-- Pin our own backend.  Any cert mis-match here kills the
+         connection at the TLS layer. -->
+    <domain-config>
+        <domain includeSubdomains="true">onnowtv.duckdns.org</domain>
+        <pin-set>
+            <!-- Primary pin: SPKI SHA-256 of the LE-issued public key. -->
+            <pin digest="SHA-256">pWSzCFKSFRvIHePnUFhCxm8izwaWUGFnW2Obl7tTbo4=</pin>
+            <!-- Backup pin: leave a hash here when you rotate the
+                 key so old clients still trust the next cert.  The
+                 placeholder below is a SHA-256 of all-zeros and is
+                 guaranteed never to match a real cert, so it has
+                 no security effect until replaced. -->
+            <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
+        </pin-set>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Default policy for every other host:  HTTPS-only, system
+         CAs, no cleartext. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

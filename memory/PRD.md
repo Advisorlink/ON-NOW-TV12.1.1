@@ -1,5 +1,23 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.9.4 — Kids standalone APK rebuilt as an EXACT mirror of Vesper-Kids (Feb 2026).**
+>
+> Previous v2.9.2/3 attempt was wrong — a minimal new WebView wrapper that loaded `${app_url}/kids` from the network with no assets, so no programs ever appeared.  This rebuild makes the Kids APK a verbatim duplicate of Vesper TV:
+>
+> **A. Vesper source tree copied into `android/onnowtv-kids/`.**  Same `MainActivity.kt`, `WebAppInterface.kt`, `ExoPlayerActivity.kt`, `VlcPlayerActivity.kt`, `LiveGuide*.kt`, `PlayerOverlay.kt`, `PartyVoiceManager.kt`, `OnNowApplication.kt`, `VesperWebViewClient.kt`, `security/*.kt`.  Package renamed `tv.vesper.app` → `tv.onnowtv.kids`.  Same Theme/colors/layouts/manifest/deps (media3 + libvlc + Compose + Coil).  JS bridge stays as `OnNowTV` so every React Kids call site works unmodified.
+>
+> **B. Boot URL hard-wired to Kids mode.**  `defaultBoot = "file:///android_asset/web/index.html?profile=kids"` → App.js sees `?profile=kids`, sets `onnowtv-active-profile-v1=kids` in localStorage, `HomeRouter` returns `KidsHome` — same UI Vesper showed when the user picked the Kids profile.
+>
+> **C. React bundling restored.**  `App.js`: reverted v2.9.2 strip — `HomeRouter` back to `isKidsActive() ? <KidsHome /> : <Home />`, `?profile=kids`/`exit-kids` handling restored.  New `.github/workflows/build-kids.yml` (copy of `build-apk.yml` with vesper-tv → onnowtv-kids) bundles the React build into the Kids APK's `assets/web/`.
+>
+> **D. Kiosk shell on top (NOT `CATEGORY_HOME`).**  `excludeFromRecents="true"`, plus `onUserLeaveHint()` re-launches MainActivity with `REORDER_TO_FRONT | SINGLE_TOP` + `KIDS_ARMED_BY_HOME=true` → `onNewIntent`/`onResume` call `navigateToExitPin("home")` → existing React `/kids/exit-pin` page (d-pad-friendly, no number keys needed).  Existing Vesper BACK trap (`__vesperKidsLocked` JS flag → `/kids/exit-pin`) inherited verbatim.  OnNow Launcher remains the default home app.
+>
+> **E. Launcher Kids tile** already updated in v2.9.2 to launch `tv.onnowtv.kids` directly — no further change.
+>
+> **Verification status**: pending the next `build-kids.yml` GitHub Actions run.
+
+
+
 > **🟢 v2.9.3 (correction) — Kids HOME-button trap via `onUserLeaveHint` bounce-back, NOT `CATEGORY_HOME` (Feb 2026).**
 >
 > The OnNow Launcher stays the device's default home app.  The Kids

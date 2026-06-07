@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Dark inset pill used behind the "V2" wordmark on the splash. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#0F0F12" />
-    <corners android:radius="12dp" />
-</shape>

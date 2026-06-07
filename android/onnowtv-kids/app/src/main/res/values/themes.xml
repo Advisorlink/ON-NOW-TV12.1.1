@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.OnNowKids" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@color/kids_bg</item>
-        <item name="android:statusBarColor">@color/kids_bg</item>
-        <item name="android:navigationBarColor">@color/kids_bg</item>
-        <item name="colorPrimary">@color/kids_accent</item>
-        <item name="colorPrimaryDark">@color/kids_bg_dark</item>
-        <item name="colorAccent">@color/kids_accent</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base theme — dark, no action bar, vesper background -->
+    <style name="Theme.Vesper" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/vesper_bg</item>
+        <item name="android:colorBackground">@color/vesper_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowContentTransitions">false</item>
     </style>
 
-    <style name="Theme.OnNowKids.NoActionBar" parent="Theme.OnNowKids">
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
-    </style>
-
-    <!-- Splash gradient = warm tangerine → magenta to match the
-         React Kids home palette.  Painted via `splash_gradient.xml`. -->
-    <style name="Theme.OnNowKids.Splash" parent="Theme.OnNowKids.NoActionBar">
-        <item name="android:windowBackground">@drawable/splash_gradient</item>
-        <item name="android:statusBarColor">#FF3D9B</item>
-        <item name="android:navigationBarColor">#FF8C2D</item>
+    <!-- Fullscreen theme used by MainActivity -->
+    <style name="Theme.Vesper.Fullscreen" parent="Theme.Vesper">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">
+            shortEdges
+        </item>
     </style>
 </resources>
