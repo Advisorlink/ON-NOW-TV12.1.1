@@ -324,7 +324,11 @@ class EpgActivity : AppCompatActivity() {
         clock              = findViewById(R.id.clock)
         btnFavourite       = findViewById(R.id.btn_favourite)
         btnRefresh         = findViewById(R.id.btn_refresh)
-        btnLogout          = findViewById(R.id.btn_logout)  // may be null (removed in v2.9.9)
+        // v2.9.9 — `btn_logout` was removed from the hero in
+        // `activity_epg.xml`.  R.id.btn_logout no longer exists, so
+        // we don't bind anything here.  All references to
+        // `btnLogout` are null-safe (`.?setOnClickListener`).
+        btnLogout = null
 
         previewPlayerView  = findViewById(R.id.preview_player_view)
         previewBufferLoader = findViewById(R.id.preview_buffer_loader)
