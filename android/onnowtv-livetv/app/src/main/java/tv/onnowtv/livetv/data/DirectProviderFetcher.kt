@@ -200,8 +200,12 @@ object DirectProviderFetcher {
     private fun getJson(url: URL): String {
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 12_000
-            readTimeout = 30_000
+            // v2.9.10 — Tightened timeouts.  Old values (12s connect,
+            // 30s read) meant a flaky network kept the loader stuck
+            // for nearly a minute before falling through to the
+            // error UI.  10s + 20s is plenty for a working provider.
+            connectTimeout = 10_000
+            readTimeout = 20_000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "ONNowTV/1.0")
             if (this is HttpsURLConnection) {

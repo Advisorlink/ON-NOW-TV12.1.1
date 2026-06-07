@@ -267,6 +267,23 @@ class MainActivity : AppCompatActivity() {
 
     /* ───────────── Loader state machine ───────────── */
 
+    /**
+     * v2.9.10 — Surface a clear error screen with a RETRY button
+     * when both backend AND direct provider paths have failed.
+     * The previous behaviour was to spin on "Connecting to
+     * provider…" indefinitely, which is much worse UX than
+     * showing the user what happened.
+     */
+    private fun showFetchError(detail: String) {
+        Log.w("MainActivity", "showFetchError: $detail")
+        headline.text = "Couldn't reach the TV provider"
+        substatus.text = "Check your internet connection and try again."
+        statusCounters.text = detail.take(140)
+        progress.progress = 0
+        retry.visibility = View.VISIBLE
+        retry.setOnClickListener { startLoad() }
+    }
+
     private fun startLoad() {
         retry.visibility = View.GONE
         headline.text = "Connecting…"
@@ -298,16 +315,25 @@ class MainActivity : AppCompatActivity() {
         substatus.text = "Downloading bundle…"
         progress.progress = 60
 
-        // v2.9.8 — Backend OR direct.  We RACE both paths concurrently
-        // with `select` semantics — whichever returns FIRST with
-        // non-empty channels wins immediately, and the loader hands
-        // off without waiting for the other.  Critical because the
-        // backend's bundle endpoint takes ~17 s to return 502 when
-        // the provider is unreachable from the VPS (httpx timeout
-        // chain) — a naive `backend.await() ?: direct.await()` would
-        // make the user wait that full 17 s even though direct
-        // finishes in 4.
+        // v2.9.10 — Direct-first with NO head-start.  The backend
+        // is currently IP-blocked by the provider so racing it
+        // wastes 8 s on a guaranteed failure.  Fire the direct
+        // path immediately; backend runs in the background as a
+        // secondary path in case it ever comes back to life.
         bundleKick = lifecycleScope.async(Dispatchers.IO) {
+            val directJob = async {
+                try {
+                    val text = tv.onnowtv.livetv.data.DirectProviderFetcher
+                        .fetchBundleJson(applicationContext)
+                    val b = XtreamRepository.parseBundleJson(text)
+                    Log.i("MainActivity", "direct bundle: ${b.channels.size} channels, ${b.categories.size} categories")
+                    text to b
+                } catch (t: Throwable) {
+                    Log.w("MainActivity", "direct bundle fetch failed: ${t.javaClass.simpleName}: ${t.message}")
+                    bundleError = "Direct: ${t.javaClass.simpleName}: ${t.message ?: "no detail"}"
+                    null
+                }
+            }
             val backendJob = async {
                 try {
                     val text = XtreamRepository.fetchBundleJson()
@@ -316,47 +342,17 @@ class MainActivity : AppCompatActivity() {
                         Log.w("MainActivity", "backend bundle had 0 channels — ignoring")
                         null
                     } else {
-                        Log.i("MainActivity", "backend bundle won: ${b.channels.size} channels, ${b.epg.size} epg buckets")
+                        Log.i("MainActivity", "backend bundle: ${b.channels.size} channels, ${b.epg.size} epg buckets")
                         text to b
                     }
                 } catch (t: Throwable) {
-                    Log.w("MainActivity", "backend bundle fetch failed: ${t.message}")
+                    Log.w("MainActivity", "backend bundle fetch failed: ${t.javaClass.simpleName}: ${t.message}")
                     null
                 }
             }
-            val directJob = async {
-                try {
-                    // Tiny head-start for the backend so it can win
-                    // when it's healthy (preserves the EPG-pre-warmed
-                    // path on a normal day).  2 seconds is enough for
-                    // a warm gzipped response on a cable LAN, but
-                    // short enough that the user never sits at
-                    // "Loading channels…" for long if the VPS is
-                    // broken.
-                    delay(2_000L)
-                    val text = tv.onnowtv.livetv.data.DirectProviderFetcher
-                        .fetchBundleJson(applicationContext)
-                    val b = XtreamRepository.parseBundleJson(text)
-                    Log.i("MainActivity", "direct bundle won: ${b.channels.size} channels (EPG lazy-loads per row)")
-                    text to b
-                } catch (t: Throwable) {
-                    Log.w("MainActivity", "direct bundle fetch failed: ${t.message}")
-                    null
-                }
-            }
-            // True race: poll both every 250 ms and take the first
-            // one to complete with a non-null result.  Cancel the
-            // loser to release its httpx connection promptly.
+            // Race: whichever returns FIRST with non-null wins.
             var winner: Pair<String, XtreamBundle>? = null
             while (winner == null) {
-                if (backendJob.isCompleted) {
-                    val r = backendJob.await()
-                    if (r != null) {
-                        winner = r
-                        directJob.cancel()
-                        break
-                    }
-                }
                 if (directJob.isCompleted) {
                     val r = directJob.await()
                     if (r != null) {
@@ -365,8 +361,15 @@ class MainActivity : AppCompatActivity() {
                         break
                     }
                 }
-                if (backendJob.isCompleted && directJob.isCompleted) {
-                    // Both finished with null — give up.
+                if (backendJob.isCompleted) {
+                    val r = backendJob.await()
+                    if (r != null) {
+                        winner = r
+                        directJob.cancel()
+                        break
+                    }
+                }
+                if (directJob.isCompleted && backendJob.isCompleted) {
                     break
                 }
                 delay(250)
@@ -374,10 +377,13 @@ class MainActivity : AppCompatActivity() {
             if (winner != null) {
                 bundleJson = winner.first
                 bundleResult = winner.second
+                bundleError = null
                 BundleCache.saveJson(applicationContext, winner.first)
             } else {
-                bundleError = "Both backend AND direct fetch failed"
-                Log.w("MainActivity", "bundle fetch failed entirely")
+                if (bundleError == null) {
+                    bundleError = "Both backend AND direct fetch failed"
+                }
+                Log.w("MainActivity", "bundle fetch failed entirely: $bundleError")
             }
         }
 
@@ -401,11 +407,21 @@ class MainActivity : AppCompatActivity() {
             //   1) Bundle has arrived (backend OR direct) — exit as
             //      soon as the minimum hold elapses.
             //   2) Popular EPG ready (backend healthy) and min hold.
-            //   3) Safety hatch: any channels visible after maxHoldMs.
+            //   3) v2.9.10 — Bundle fetch fully failed and we've
+            //      held the loader for a respectful 6 s.  Show
+            //      a clear error screen with a Retry button instead
+            //      of spinning forever on "Connecting to provider…".
+            //   4) Safety hatch: any channels visible after maxHoldMs.
             val haveBundle = bundleResult != null
             val priorityReady = (lastMeta?.priorityReady == true) && (lastMeta?.channelsCount ?: 0) > 0
             if (haveBundle && elapsed >= minHoldMs) break
             if (priorityReady && elapsed >= minHoldMs) break
+
+            val bothFailed = bundleKick?.isCompleted == true && bundleResult == null
+            if (bothFailed && elapsed >= 4_000L) {
+                showFetchError(bundleError ?: "Couldn't reach the TV provider")
+                return
+            }
 
             val haveChannels = (lastMeta?.channelsCount ?: 0) > 0 || haveBundle
             if (elapsed >= maxHoldMs && haveChannels) {

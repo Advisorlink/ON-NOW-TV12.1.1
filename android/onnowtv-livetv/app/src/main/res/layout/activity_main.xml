@@ -150,20 +150,25 @@
             android:maxLines="2"
             android:text="" />
 
-        <!-- Retry CTA: hidden by default -->
+        <!-- Retry CTA: hidden by default.  v2.9.10 — Styled as a
+             pill button instead of a tiny text link so the user
+             can clearly find it after a load failure. -->
         <TextView
             android:id="@+id/loader_retry"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
-            android:padding="12dp"
-            android:textColor="@color/livetv_accent"
-            android:textSize="14sp"
-            android:fontFamily="sans-serif-medium"
+            android:paddingHorizontal="22dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/login_btn_bg"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.18"
             android:visibility="gone"
             android:focusable="true"
             android:clickable="true"
-            android:text="Tap to retry" />
+            android:text="TAP TO RETRY" />
     </LinearLayout>
 
     <!-- Footer hint -->
@@ -176,5 +181,19 @@
         android:textColor="@color/livetv_fg_dimmer"
         android:textSize="10sp"
         android:letterSpacing="0.36"
-        android:text="WAITING FOR UK · US · AU · KAYO EPG TO POPULATE" />
+        android:text="LOADING UK · US · AU KAYO · NZ SPORTS GUIDE" />
+
+    <!-- v2.9.10 build stamp — bottom-right corner so the user can
+         visually verify they're testing the latest APK. -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="20dp"
+        android:fontFamily="monospace"
+        android:textColor="#3A4E6E"
+        android:textSize="9sp"
+        android:letterSpacing="0.18"
+        android:text="V2 LIVE TV · BUILD 2.9.10" />
 </FrameLayout>
