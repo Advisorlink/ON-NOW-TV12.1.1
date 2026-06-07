@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.7 Primary CTA used on the Login screen.
+     Neon-blue gradient pill that scales / brightens on focus so it
+     reads as the obvious next-action on a TV remote. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:angle="0"
+                android:startColor="#5DC8FF"
+                android:endColor="#3A95FF" />
+            <stroke android:width="2dp" android:color="#A6E2FF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:angle="0"
+                android:startColor="#3A95FF"
+                android:endColor="#1F6FD8" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:angle="0"
+                android:startColor="#3A95FF"
+                android:endColor="#1F6FD8" />
+        </shape>
+    </item>
+</selector>

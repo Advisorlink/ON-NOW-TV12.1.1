@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.7 LoginActivity orbital ring decoration.
+     Concentric thin circles centred top-left, rendered through a
+     semi-transparent blue tint.  Pure decoration — the actual login
+     card sits on top of this. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="640dp"
+    android:height="640dp"
+    android:viewportWidth="640"
+    android:viewportHeight="640">
+    <!-- Outermost ring -->
+    <path
+        android:strokeColor="#1A5DC8FF"
+        android:strokeWidth="1.2"
+        android:pathData="M320,320 m-300,0 a300,300 0 1,0 600,0 a300,300 0 1,0 -600,0" />
+    <path
+        android:strokeColor="#225DC8FF"
+        android:strokeWidth="1.2"
+        android:pathData="M320,320 m-240,0 a240,240 0 1,0 480,0 a240,240 0 1,0 -480,0" />
+    <path
+        android:strokeColor="#2E5DC8FF"
+        android:strokeWidth="1.4"
+        android:pathData="M320,320 m-180,0 a180,180 0 1,0 360,0 a180,180 0 1,0 -360,0" />
+    <path
+        android:strokeColor="#3D5DC8FF"
+        android:strokeWidth="1.4"
+        android:pathData="M320,320 m-120,0 a120,120 0 1,0 240,0 a120,120 0 1,0 -240,0" />
+    <path
+        android:strokeColor="#605DC8FF"
+        android:strokeWidth="1.4"
+        android:pathData="M320,320 m-72,0 a72,72 0 1,0 144,0 a72,72 0 1,0 -144,0" />
+    <!-- Tiny accent dot at the orbit pivot -->
+    <path
+        android:fillColor="#5DC8FF"
+        android:pathData="M320,320 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+</vector>

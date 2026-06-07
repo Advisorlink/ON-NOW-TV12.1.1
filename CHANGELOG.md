@@ -1,5 +1,46 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.9.7 — Kids PIN-on-enter fix + Login resilience & modern redesign (2026-06-07)
+
+Three issues reported from the user's TV video:
+
+**1) Kids app demanded a PIN to ENTER instead of exit.**
+- Root cause #1 (`useKidsKioskGuard.js`): `/` was NOT in the allowed-paths list, so the guard immediately bounced the user from KidsHome (`HomeRouter` at `/`) to `/kids/exit-pin` on every cold boot.  Fix: added `/` to `isKidsAllowedPath()` whitelist — `/` IS the Kids home when `isKidsActive()`.
+- Root cause #2 (`onnowtv-kids/MainActivity.kt`): the boot URL was pinned to `#/kids` which isn't a registered React route, AND the `onPause` URL-restore logic would persist `/kids/exit-pin` URLs to SharedPrefs, so the *next* cold boot reloaded the parent-PIN page directly.
+  - Changed `defaultBoot` to `?profile=kids#/` so `HomeRouter` renders `KidsHome`.
+  - Restore logic now skips URLs containing `/kids/exit-pin`.
+  - `onPause` no longer persists `/kids/exit-pin` to `last_url`.
+
+**2) Live TV login failed even with correct credentials.**
+- Root cause (`backend/xtream.py`): the httpx client used by `/api/xtream/auth` did NOT have `verify=False`, while `instant_bundle.py` did.  The provider `njala.ddns.me` ships an invalid TLS cert, so `httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED]` surfaced as the cryptic `502 "Provider unreachable: "` — the message detail was empty because the exception was stringified and printed nothing useful.
+- Fix: `verify=False` added to `xtream.py:_http()` so both code paths handle the provider's broken cert identically.
+- Defence-in-depth (`LoginActivity.kt`): the device now ALSO falls back to a DIRECT provider `player_api.php` call if the backend proxy returns 5xx / network errors.  Means login succeeds even when the backend has outbound trouble.  Per-user `AuthResult` carries a `diag` line surfaced to the UI so the user sees *why* a fallback fired (e.g. "Backend HTTP 502 — trying provider directly…").
+
+**3) Login screen redesigned for V2 LIVE TV brand.**
+- New `activity_login.xml`: split layout with orbital-rings backdrop on the left, glass auth card on the right (pinned border on top with neon-blue gradient), brand-styled feature bullets, prominent gradient CTA pill, Show/Hide password toggle, optional diagnostic text under the error.
+- New drawables: `login_bg_gradient`, `login_orbital_rings`, `login_card_bg`, `login_input_bg`, `login_btn_bg`.
+
+**EPG architecture clarification (explainer added to `test_credentials.md`).**
+The user was concerned new users wouldn't get EPG data.  Reality: the EPG is served from `/api/xtream/instant-bundle` which uses the MASTER `LIVETV_DEFAULT_USERNAME/PASSWORD` from backend `.env`.  EVERY user gets the same cached EPG immediately — your personal login is ONLY used locally to rewrite `.ts` stream URLs (`AuthStore.rewriteStreamUrl()`) so each device plays under its own account.
+
+### Files touched
+- `backend/xtream.py` (verify=False on shared httpx client)
+- `frontend/src/hooks/useKidsKioskGuard.js` (`/` whitelisted)
+- `android/onnowtv-kids/app/src/main/java/tv/onnowtv/kids/MainActivity.kt` (boot URL + restore guard)
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/LoginActivity.kt` (direct-provider fallback)
+- `android/onnowtv-livetv/app/src/main/res/layout/activity_login.xml` (redesign)
+- `android/onnowtv-livetv/app/src/main/res/drawable/login_*.xml` (new)
+- `memory/test_credentials.md` (EPG explainer + Live TV test creds note)
+
+### Verified
+- `POST /api/xtream/auth` on preview backend → 200 with TRAV201022 creds (was 502 before the verify=False fix)
+- `/api/xtream/instant-bundle/meta` production: 14096 channels, 161 cats, 68 EPG channels served via master account — confirms EPG arrives for any device regardless of personal login.
+- Frontend boots clean (profile picker still renders).
+- `mcp_lint_javascript` clean on `useKidsKioskGuard.js`.
+
+---
+
+
 ## v2.8.146 — Auto-regenerate covers on first launch (kills the "still showing the old legal-imagery covers" complaint)
 
 User reported (correctly + furiously) that the device was still showing covers with gavel / scales-of-justice / courtroom imagery despite the server-side prompt being fixed multiple iterations ago.  Root cause: those covers were generated DAYS ago when the prompt still had "legal project" in it; they live in the device's `CollectionsStore` (and Coil's image cache) as `coverHash` + `coverUrl` pointers, and the v2.8.143 manual purge expected the user to tap **Re-style ALL** in the UI to actually re-generate.  That friction made it look like the fix wasn't applied.
