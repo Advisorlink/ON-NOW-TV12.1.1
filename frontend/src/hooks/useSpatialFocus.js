@@ -88,7 +88,18 @@ export default function useSpatialFocus() {
             // makes the Profile-select screen feel buttery (its
             // tiles are flex siblings with no scroll); we now apply
             // the same shortcut to home shelves.
-            const curRail = currentInNav ? null : horizontalScroller(current);
+            //
+            // v2.10.4 — Also recognise containers marked with
+            // `data-action-row="true"` (e.g. the Detail page's
+            // Autoplay / Choose Stream / Trailer button row).
+            // Without this the geometric scorer could pick the nav
+            // rail's Home button when the user pressed Right from
+            // Autoplay, because it was vertically aligned and only
+            // slightly further away.
+            const curActionRow = current.closest('[data-action-row="true"]');
+            const curRail = currentInNav
+                ? null
+                : (curActionRow || horizontalScroller(current));
             if ((dir === 'left' || dir === 'right') && curRail) {
                 let list = curRail.__sfChildFocusables;
                 if (!list || curRail.__sfChildFocusablesGen !== cacheGen) {

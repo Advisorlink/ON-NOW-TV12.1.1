@@ -1,25 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Home as HomeIcon,
     Search,
     Library,
-    Plug,
     Settings,
     Tv,
     Film,
-    Radio,
     Zap,
     Users,
+    UserCircle2,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { getActiveProfile } from '@/lib/profiles';
+import { AvatarCircle } from '@/lib/avatars';
 
 const NAV = [
+    // v2.10.4 — User requested Search be moved ABOVE Home in the
+    // rail (it's now the very first item).  Live TV removed — its
+    // experience lives in the dedicated onnowtv-livetv app.
+    { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
-    { id: 'live-tv', label: 'Live TV', icon: Radio, path: '/live-tv' },
-    { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
     // v2.6.78: removed the user-facing "Sources" entry — addon
@@ -102,6 +105,31 @@ export default function SideNav() {
         const next = !autoplay;
         setAutoplay1080p(next);
         setAutoplay(next);
+    };
+
+    // v2.10.4 — Profile button at the bottom of the rail.  Re-reads
+    // the active profile on every route change so swapping profiles
+    // anywhere in the app instantly updates the avatar shown here.
+    const [profileRev, setProfileRev] = useState(0);
+    useEffect(() => {
+        const onChange = () => setProfileRev((r) => r + 1);
+        window.addEventListener('vesper:profile-change', onChange);
+        return () => window.removeEventListener('vesper:profile-change', onChange);
+    }, []);
+    const activeProfile = React.useMemo(() => {
+        try { return getActiveProfile(); } catch { return null; }
+    }, [profileRev, location.pathname]);
+
+    const openProfilePicker = () => {
+        setExpanded(false);
+        setNavigatingAway(true);
+        if (
+            document.activeElement &&
+            typeof document.activeElement.blur === 'function'
+        ) {
+            document.activeElement.blur();
+        }
+        navigate('/profile');
     };
 
     const isExpanded = expanded && !navigatingAway;
@@ -299,6 +327,45 @@ export default function SideNav() {
                         >
                             {autoplay ? 'ON' : 'OFF'}
                         </span>
+                    </span>
+                </button>
+            </div>
+
+            {/* v2.10.4 — Profile selector pinned to the bottom of
+                the rail.  Tap → /profile (the existing
+                ProfileSelect screen, where the user can switch or
+                edit profiles).  When collapsed the avatar shows as
+                a 40 dp circle; when expanded the name appears
+                alongside it. */}
+            <div className="mt-auto px-3 pb-1">
+                <button
+                    data-testid="nav-profile"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={openProfilePicker}
+                    className="relative flex items-center gap-4 h-12 px-2 rounded-lg text-left w-full"
+                    style={{ color: 'var(--vesper-text)' }}
+                >
+                    <span className="flex items-center justify-center w-9 h-9 shrink-0">
+                        {activeProfile ? (
+                            <AvatarCircle
+                                avatarId={activeProfile.avatarId}
+                                size={32}
+                            />
+                        ) : (
+                            <UserCircle2
+                                size={22}
+                                strokeWidth={1.7}
+                                style={{ color: 'var(--vesper-text-2)' }}
+                            />
+                        )}
+                    </span>
+                    <span
+                        className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                        style={{ opacity: isExpanded ? 1 : 0 }}
+                    >
+                        {activeProfile?.name || 'Choose profile'}
                     </span>
                 </button>
             </div>
