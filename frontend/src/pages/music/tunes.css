@@ -128,7 +128,20 @@
     width: 76px;
     background: transparent;
     will-change: width;
+    /* v2.10.11 — Independent scroll context.  Because the nav is
+       `position: fixed` it never piggy-backs on `.tunes-root`'s
+       scroll, but on shorter viewports (or once the theme picker +
+       Profile/Settings rows are revealed on expand) the rail itself
+       can exceed 100vh.  Give it its own overflow so D-pad focus
+       moving down into Profile/Settings can scroll the rail without
+       ever budging the main content on the right. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
 }
+
+.tunes-nav::-webkit-scrollbar { width: 0; height: 0; }
 
 .tunes-nav[data-expanded="true"] {
     width: 248px;
@@ -375,11 +388,39 @@
     inset: 0;
     background-size: cover;
     background-position: center 30%;
-    /* No ken-burns animation — a constantly-running transform was
-       eating CPU/GPU budget which made the vertical shelf-to-shelf
-       focus scroll feel chunky on the HK1. */
-    transform: translateZ(0);
-    filter: saturate(1.18) contrast(1.04);
+    /* v2.10.10 — Spotify/Apple-Music style ambient backdrop.
+       The source images are 1:1 covers; stretching them to a 16:9
+       hero looked "zoomed in".  Instead, blow the cover up past
+       the edges (scale 1.4), blur heavily, and saturate so it
+       reads as a luxe coloured wallpaper instead of a cropped
+       photograph.  The actual cover artwork still rides over the
+       top via the .tunes-hero__cover layer (see below) when the
+       slide has one to show. */
+    transform: scale(1.45);
+    transform-origin: center;
+    filter: blur(50px) saturate(1.45) brightness(0.78);
+    will-change: opacity;
+}
+
+/* v2.10.10 — Sharp cover thumbnail anchored to the right side of
+   the hero, sized so its aspect ratio is preserved.  Sits on top
+   of the blurred backdrop and below the scrims so the gradient
+   text protection still applies.  Optional — slides without a
+   `coverImage` simply don't render it. */
+.tunes-hero__cover {
+    position: absolute;
+    right: clamp(40px, 6vw, 120px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: clamp(240px, 24vw, 360px);
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    background-size: cover;
+    background-position: center;
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    z-index: 1;
 }
 
 /* Vertical scrim — extends the fade DOWN further so the
@@ -812,13 +853,28 @@
 }
 
 /* The OUTER button still receives focus (D-pad lands on it) — we
-   just paint the ring on the inner art-wrap when the button is
-   focused.  No extra paint passes beyond what Vesper already does. */
+/* v2.10.10 — Artist tile focus reads as a glowing ring around the
+   CIRCLE only.  The global `[data-focus-style="tile"]` rule lays a
+   rectangular outline on the outer button which fights the round
+   shape, so the rule below CANCELS that outer outline + paints the
+   ring on the inner art-wrap.  Caption text gets NO border / no
+   pill — just the standard text colour bump on focus. */
+.tunes-tile--artist:focus-visible,
+.tunes-tile--artist[data-focused="true"] {
+    outline: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
 .tunes-tile--artist:focus-visible .tunes-tile__art-wrap,
 .tunes-tile--artist[data-focused="true"] .tunes-tile__art-wrap {
-    outline: 1.5px solid var(--vesper-blue-bright);
-    outline-offset: 2px;
+    outline: 2px solid var(--vesper-blue-bright);
+    outline-offset: 4px;
+    box-shadow:
+        0 0 22px 4px rgba(var(--vesper-blue-rgb), 0.55),
+        0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.22);
     transform: scale(1.08) translateY(-2px);
+    transition: transform 180ms ease, outline-offset 180ms ease;
 }
 
 .tunes-tile--artist .tunes-tile__art-fallback,
@@ -906,8 +962,11 @@
 
 .tunes-genre-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 14px;
+    /* v2.10.10 — More aggressive responsive sizing so genre tiles
+       look good on every screen size from 1280px to 1920px.
+       Below 1024 px we drop to 3 columns; phones get 2. */
+    grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 14vw, 220px), 1fr));
+    gap: clamp(10px, 1vw, 18px);
     padding-left: var(--tunes-pad-x);
     padding-right: var(--tunes-pad-right);
 }
@@ -952,7 +1011,11 @@
 .tunes-genre-tile:hover { transform: scale(1.02); }
 
 /* ============================================================
-   ALBUM DETAIL PAGE — cover + meta + Play buttons + track list
+   ALBUM DETAIL PAGE — sticky head on the LEFT, scrolling track
+   list on the RIGHT.  v2.10.10 — Was a 2-column grid that pushed
+   tracks below the cover, so users had to scroll past the whole
+   header just to reach the tracks.  Now the header is sticky and
+   the tracks scroll independently next to it (Spotify layout).
 ============================================================ */
 
 .tunes-album {
@@ -971,16 +1034,30 @@
     pointer-events: none;
 }
 
-.tunes-album__head {
+/* Two-column layout: sticky head left, scrolling tracks right. */
+.tunes-album__layout {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: clamp(260px, 22vw, 360px) 1fr;
-    gap: 36px;
-    align-items: end;
+    grid-template-columns: clamp(280px, 28vw, 420px) 1fr;
+    gap: clamp(24px, 2.4vw, 48px);
     padding-left: var(--tunes-pad-x);
     padding-right: var(--tunes-pad-right);
-    padding-bottom: 32px;
+    align-items: start;
+}
+
+.tunes-album__head {
+    position: sticky;
+    top: 28px;
+    /* Anchor the column-of-cover-+-info-+-actions to the viewport
+       so it stays visible as the user scrolls the track list on
+       the right.  align-self keeps it from stretching past the
+       sticky frame. */
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 24px;
 }
 
 .tunes-album__cover {
@@ -1059,11 +1136,13 @@
 }
 
 .tunes-track-list {
+    /* v2.10.10 — Lives in the RIGHT column of the
+       .tunes-album__layout grid, so it scrolls past the sticky
+       head on the left.  Padding is supplied by the parent grid. */
     position: relative;
     z-index: 1;
-    margin: 12px 0 80px;
-    padding-left: var(--tunes-pad-x);
-    padding-right: var(--tunes-pad-right);
+    margin: 0 0 80px;
+    padding: 0;
     display: flex;
     flex-direction: column;
 }

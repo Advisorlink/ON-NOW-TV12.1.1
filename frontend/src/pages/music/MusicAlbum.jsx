@@ -78,31 +78,36 @@ export default function MusicAlbum() {
                 style={cover ? { backgroundImage: `url(${cover})` } : undefined}
             />
 
-            <div className="tunes-album__head">
-                <div className="tunes-album__cover">
-                    {cover && <img src={cover} alt={data.title} />}
-                </div>
-                <div className="tunes-album__info">
-                    <p className="tunes-album__eyebrow">Album</p>
-                    <h1 className="tunes-album__title">{data.title}</h1>
-                    <p className="tunes-album__artist">
-                        by{' '}
-                        <span
-                            role="link"
-                            tabIndex={0}
-                            onClick={() => data.artist && navigate(`/music/artist/${data.artist.id}`)}
-                            style={{ textTransform: 'uppercase', cursor: 'pointer' }}
-                        >
-                            {data.artist?.name || ''}
-                        </span>
-                    </p>
-                    <div className="tunes-album__meta">
-                        {data.genres?.[0]?.name && <span>{data.genres[0].name}</span>}
-                        {data.release_date && (
-                            <>
-                                <span className="tunes-hero__meta-dot" />
-                                <span>{data.release_date.slice(0, 4)}</span>
-                            </>
+            {/* v2.10.10 — Two-column layout: sticky header on the
+                LEFT, scrolling track list on the RIGHT. Cover + meta
+                + actions all stay anchored to the viewport while
+                the user paddles through the track list. */}
+            <div className="tunes-album__layout">
+                <div className="tunes-album__head">
+                    <div className="tunes-album__cover">
+                        {cover && <img src={cover} alt={data.title} />}
+                    </div>
+                    <div className="tunes-album__info">
+                        <p className="tunes-album__eyebrow">Album</p>
+                        <h1 className="tunes-album__title">{data.title}</h1>
+                        <p className="tunes-album__artist">
+                            by{' '}
+                            <span
+                                role="link"
+                                tabIndex={0}
+                                onClick={() => data.artist && navigate(`/music/artist/${data.artist.id}`)}
+                                style={{ textTransform: 'uppercase', cursor: 'pointer' }}
+                            >
+                                {data.artist?.name || ''}
+                            </span>
+                        </p>
+                        <div className="tunes-album__meta">
+                            {data.genres?.[0]?.name && <span>{data.genres[0].name}</span>}
+                            {data.release_date && (
+                                <>
+                                    <span className="tunes-hero__meta-dot" />
+                                    <span>{data.release_date.slice(0, 4)}</span>
+                                </>
                         )}
                         {tracks.length > 0 && (
                             <>
@@ -235,6 +240,7 @@ export default function MusicAlbum() {
                         </div>
                     );
                 })}
+            </div>
             </div>
         </div>
     );
