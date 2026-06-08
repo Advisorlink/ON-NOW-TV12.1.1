@@ -89,6 +89,7 @@ export default function NetworkPosterTile({ item }) {
     return (
         <button
             data-testid={`network-tile-${item.tmdb_id}`}
+            data-tile-id={item.imdbId || `tmdb-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

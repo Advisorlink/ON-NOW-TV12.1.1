@@ -135,6 +135,26 @@
 > - `vesper-tv/java/.../VlcPlayerActivity.kt` — added countdown state fields, `startNextEpCountdown()` / `stopNextEpCountdown()` methods, wired `play_now` / `cancel` button listeners, refactored `maybeShowNextEpisode()` to use the 15 s window + focus Play now, taught `EndReached` to branch on `nextEpDismissed`.
 
 
+> **🟢 v2.10.9 — Skip-to-next pill reverted, SpinningLogo SVG, hero bigger, "Starting…" preview, focus restore by tile-id (Feb 7 2026).**
+>
+> User feedback on v2.10.8 — the countdown card didn't actually appear on TV (likely VLC's `getLength()` returning 0 on some streams, or the 15-s window being too tight).  They asked for:
+>
+> 1. **Skip-to-next: simple persistent pill at 60 s**.
+>    - Reverted the countdown card.  `btn_next_episode` is now a single-button "SKIP TO NEXT · S2 · E4" pill.  Window widened to 60 s; once it appears it persists to end-of-stream (no auto-hide).  Tap = jump to next episode, ignore = play to credits (lands on episode picker, no autoplay).
+>
+> 2. **SpinningLogo no longer a broken image.**
+>    - The 2 MB `/brand/onnowtv-logo.png` doesn't resolve under the WebView's `file:///android_asset/web/` base.  Rewrote `SpinningLogo.jsx` to render an inline SVG ring (75 % arc + 25 % gap, soft brand-blue glow) — zero network cost, sharp at every size, no path-resolution issues.
+>
+> 3. **Player preview "Starting…" with neon spinning loader.**
+>    - Replaced "LOADING STREAM" eyebrow with a larger "Starting" label in `var(--vesper-blue-bright)` + pulsing ellipsis (`.vesper-dots` keyframes).  Spinner kept at 56 px, speed bumped slightly (1100 → 1000 ms).
+>
+> 4. **Long-press focus restore by tile id.**
+>    - Added `data-tile-id={item.imdbId || item.id}` to `PosterTile`, `NetworkPosterTile`, `CastRow` (both actor + TMDB cast variants).  The existing `AddToListModal.close()` selector lookup (`[data-tile-id="${pid}"]`) now finds the exact source tile even after the shelf re-renders, so focus reliably snaps back to the program the user long-pressed.
+>
+> 5. **Hero billboard bigger + closer to the first row.**
+>    - Height clamp 380-540 → **520-720 px** (~50 % bigger).  Bottom fade-to-bg-0 moved from 70 %/92 % stops → 82 %/95 %, so the image stays fully visible nearly to the bottom edge then dissolves smoothly into the page.  Screenshot confirms the hero now lands tight against the "By network" shelf with no gaping void.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."

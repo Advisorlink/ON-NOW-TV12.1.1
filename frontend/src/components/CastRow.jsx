@@ -514,6 +514,7 @@ function ActorCard({ actor, onFocus, onBlur, onActivate }) {
     return (
         <button
             data-testid={`cast-actor-${actor.id}`}
+            data-tile-id={actor.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -662,6 +663,7 @@ function TitleCard({ item, testIdPrefix, onActivate, onFocus, onBlur }) {
     return (
         <button
             data-testid={`${testIdPrefix}-${item.media_type}-${item.tmdb_id}`}
+            data-tile-id={item.imdbId || `tmdb-${item.media_type}-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

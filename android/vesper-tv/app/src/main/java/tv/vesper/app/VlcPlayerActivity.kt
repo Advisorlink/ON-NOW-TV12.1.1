@@ -88,15 +88,6 @@ class VlcPlayerActivity : AppCompatActivity() {
     private lateinit var nextEpBtn: android.widget.LinearLayout
     private var nextEpShown: Boolean = false
     private var nextEpDismissed: Boolean = false
-    // v2.10.8 — Countdown card state
-    private var nextEpCountdownStartedAt: Long = 0L
-    private var nextEpCountdownFired: Boolean = false
-    private val nextEpHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var nextEpTitleTv: TextView? = null
-    private var nextEpCountdownTv: TextView? = null
-    private var nextEpProgress: android.widget.ProgressBar? = null
-    private var nextEpPlayNowBtn: android.widget.Button? = null
-    private var nextEpCancelBtn: android.widget.Button? = null
     private lateinit var titleTv: TextView
     // Cinematic info card — shown when the player is paused, hidden
     // when playing.  Mirrors the web `PlayerOverlay.jsx` design so
@@ -460,25 +451,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         skipFwdBtn = findViewById(R.id.btn_skip_fwd)
         skipIntroBtn = findViewById(R.id.btn_skip_intro)
         nextEpBtn = findViewById(R.id.btn_next_episode)
-        // v2.10.8 — Bind the new countdown card sub-views.
-        nextEpTitleTv = findViewById(R.id.next_ep_title)
-        nextEpCountdownTv = findViewById(R.id.next_ep_countdown)
-        nextEpProgress = findViewById(R.id.next_ep_progress)
-        nextEpPlayNowBtn = findViewById(R.id.next_ep_play_now)
-        nextEpCancelBtn = findViewById(R.id.next_ep_cancel)
-        nextEpPlayNowBtn?.setOnClickListener {
-            // User pressed Play Now → fire next episode immediately.
-            saveNextEpisodeIntent(autoplay = true)
-            stopNextEpCountdown()
-            finish()
-        }
-        nextEpCancelBtn?.setOnClickListener {
-            // User pressed Cancel → hide the card and DO NOT advance.
-            // The episode will play out normally to credits.
-            nextEpDismissed = true
-            stopNextEpCountdown()
-            hideNextEpisode()
-        }
         titleTv = findViewById(R.id.tv_title)
         // Info card bindings — these are the pause-screen overlay
         // (eyebrow + title + meta + synopsis) that mirrors the web
@@ -602,13 +574,11 @@ class VlcPlayerActivity : AppCompatActivity() {
             hideSkipIntro()
         }
         nextEpBtn.setOnClickListener {
-            /* v2.10.8 — The container itself is no longer focusable
-             * (focus lives on the inner Play now / Cancel buttons).
-             * Keep a click handler as a safety net: a tap anywhere
-             * on the card outside the buttons just fires "play now".
-             */
+            /* v2.10.9 — Simple "Skip to next episode" pill: a single
+             * click fires the next episode immediately.  No
+             * countdown, no auto-advance — the user has to opt in
+             * by tapping it. */
             saveNextEpisodeIntent(autoplay = true)
-            stopNextEpCountdown()
             finish()
         }
         btnSubs.setOnClickListener { lastFocusedControl = btnSubs; openSubtitlePicker() }
@@ -1697,19 +1667,18 @@ class VlcPlayerActivity : AppCompatActivity() {
                     loadingView.visibility = View.GONE
                 }
                 MediaPlayer.Event.EndReached -> {
-                    /* v2.10.8 — End-of-episode behaviour now branches:
-                     *   • If the countdown card has been DISMISSED
-                     *     (user pressed Cancel), respect their
-                     *     choice — save the intent with autoplay
-                     *     OFF so they land on the series picker.
-                     *   • Otherwise, autoplay the next episode
-                     *     directly so a hands-off viewer gets
-                     *     Netflix-style continuous play. */
+                    /* If this was a TV episode, save a "next-episode"
+                     * intent so MainActivity can navigate the WebView
+                     * back to the series page when we finish.  When
+                     * the "Skip to next episode" pill was VISIBLE
+                     * (i.e. the user could have clicked it but
+                     * didn't), we still respect that they let the
+                     * credits play — land on the episode picker
+                     * (autoplay=false) so they choose what to do
+                     * next, not auto-throw them into the next ep. */
                     if (isSeries) {
-                        val auto = !nextEpDismissed
-                        saveNextEpisodeIntent(autoplay = auto)
+                        saveNextEpisodeIntent(autoplay = false)
                     }
-                    stopNextEpCountdown()
                     finish()
                 }
             }
@@ -2498,92 +2467,44 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * Netflix-style "Up Next" countdown card.  Surfaces during the
-     * last 15 s of a TV episode.  v2.10.8 — On show, kicks off a
-     * 5 second countdown that AUTO-FIRES the next episode when it
-     * hits 0.  The user can interrupt via:
-     *   • Play now → autoplay the next episode right now
-     *   • Cancel   → dismiss the card, finish current episode
-     *                normally (no advance)
-     *   • DPAD/BACK→ same as Cancel via the existing dismissal path
-     *
-     * The countdown is paused/reset whenever the player leaves the
-     * visibility window (rewind / scrub), so a user scrubbing back
-     * gets a fresh 5 s window the next time it enters the zone.
+     * "Skip to next episode" pill — v2.10.9.
+     * Appears at the **60-second mark** before the end of a TV
+     * episode and STAYS UP all the way to the credits.  No
+     * countdown, no auto-advance: tapping the pill is the only way
+     * to jump to the next episode early.  The pill is also auto-
+     * focused on first show so a single OK press will fire it.
      */
     private fun maybeShowNextEpisode(timeMs: Long, lengthMs: Long) {
         if (!isSeries || nextEpDismissed) return
         if (lengthMs <= 0) return
-        if (computeNextEpisode() == null) return  // no next episode info
+        if (computeNextEpisode() == null) return
         val remainingMs = lengthMs - timeMs
-        // v2.10.8 — tightened the show window 30 s → 15 s so the
-        // countdown only appears just before credits, matching the
-        // user's request for a Netflix-style "auto-advance soon"
-        // card rather than a permanent 30 s pill.
-        val inWindow = remainingMs in 500..15_000
+        // 60 s window — from 1 minute remaining, all the way down
+        // to the very end.  Once shown, the pill stays put.
+        val inWindow = remainingMs in 0..60_000
         if (inWindow && !nextEpShown) {
             nextEpShown = true
-            // Show the next episode label.
             try {
+                val titleTv =
+                    findViewById<android.widget.TextView>(R.id.next_ep_title)
                 val parts = computeNextEpisode()
                 if (parts != null) {
                     val (s, e) = parts
-                    nextEpTitleTv?.text =
-                        "Episode " + e + " · Season " + s
+                    titleTv?.text = "S${s} · E${e}"
                 } else {
-                    nextEpTitleTv?.text = "Next Episode"
+                    titleTv?.text = "Next Episode"
                 }
             } catch (_: Throwable) { /* fall back to default text */ }
             nextEpBtn.alpha = 0f
             nextEpBtn.visibility = View.VISIBLE
             nextEpBtn.animate().alpha(1f).setDuration(280).start()
-            // Land focus on "Play now" so a single OK press fires
-            // the next episode straight away.
-            nextEpPlayNowBtn?.requestFocus()
-            startNextEpCountdown()
-        } else if (!inWindow && nextEpShown) {
-            // User rewound out of the zone — reset countdown so
-            // they get a fresh 5 s window if they re-enter.
-            stopNextEpCountdown()
-            hideNextEpisode()
+            // Auto-focus so the user can hit OK without arrowing.
+            // (The hidden focus is intentional — they don't have to
+            // press anything if they want the episode to finish.)
+            nextEpBtn.requestFocus()
         }
-    }
-
-    /** v2.10.8 — Drives the 5-second auto-advance countdown.  Posts
-     *  a tick every ~100 ms; updates the caption + progress bar; at
-     *  0 ms remaining, fires saveNextEpisodeIntent(autoplay=true)
-     *  and finish().  Idempotent: re-entry resets the timer. */
-    private fun startNextEpCountdown() {
-        nextEpCountdownStartedAt = System.currentTimeMillis()
-        nextEpCountdownFired = false
-        val totalMs = 5_000L
-        nextEpProgress?.max = totalMs.toInt()
-        nextEpProgress?.progress = totalMs.toInt()
-        val tick = object : Runnable {
-            override fun run() {
-                if (!nextEpShown || nextEpCountdownFired) return
-                val elapsed = System.currentTimeMillis() - nextEpCountdownStartedAt
-                val left = (totalMs - elapsed).coerceAtLeast(0L)
-                val secondsLeft = ((left + 999L) / 1000L).toInt().coerceAtLeast(0)
-                nextEpCountdownTv?.text =
-                    if (secondsLeft > 0) "Playing in $secondsLeft s" else "Playing now"
-                nextEpProgress?.progress = left.toInt()
-                if (left <= 0L) {
-                    nextEpCountdownFired = true
-                    saveNextEpisodeIntent(autoplay = true)
-                    finish()
-                    return
-                }
-                nextEpHandler.postDelayed(this, 100L)
-            }
-        }
-        nextEpHandler.removeCallbacksAndMessages(null)
-        nextEpHandler.post(tick)
-    }
-
-    private fun stopNextEpCountdown() {
-        nextEpHandler.removeCallbacksAndMessages(null)
-        nextEpCountdownFired = true
+        // No "out of window" path — once shown, the pill persists
+        // until the activity finishes / the user clicks it.
     }
 
     private fun hideNextEpisode() {
@@ -3190,7 +3111,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         tickHandler.removeCallbacks(tickRunnable)
         hideHandler.removeCallbacks(hideRunnable)
         loadingDotsHandler.removeCallbacksAndMessages(null)
-        nextEpHandler.removeCallbacksAndMessages(null)
         imgExecutor.shutdownNow()
         if (this::mediaPlayer.isInitialized) {
             mediaPlayer.stop()

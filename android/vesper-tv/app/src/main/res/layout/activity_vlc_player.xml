@@ -185,125 +185,69 @@
         app:layout_constraintBottom_toBottomOf="parent" />
 
     <!-- ============================================================
-         NEXT EPISODE COUNTDOWN CARD (bottom-right, last 15 s of
-         TV episodes).  v2.10.8 — Netflix-style auto-advance card:
-         shows the next episode label, a 5-second countdown ring,
-         a primary "Play Now" CTA (focused by default), and a
-         secondary "Cancel" button.  When the countdown hits 0 we
-         auto-fire saveNextEpisodeIntent(autoplay=true) + finish().
+         SKIP TO NEXT EPISODE pill (bottom-right, last 60 s of TV
+         episodes).  v2.10.9 — User reverted from the auto-countdown
+         card: they want a persistent "Skip to next episode" button
+         that appears 60 s before the end and stays put until the
+         credits roll.  No timer, no auto-advance — pure opt-in.
+         Big bold pill with a play icon; "PLAY NEXT" eyebrow above,
+         next episode label below.  Single tap fires the next
+         episode.
          ============================================================ -->
     <LinearLayout
         android:id="@+id/btn_next_episode"
-        android:layout_width="320dp"
-        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:layout_height="68dp"
         android:layout_marginEnd="48dp"
-        android:layout_marginBottom="160dp"
-        android:padding="20dp"
+        android:layout_marginBottom="180dp"
+        android:paddingStart="22dp"
+        android:paddingEnd="34dp"
         android:gravity="center_vertical"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:background="@drawable/btn_next_episode"
         android:visibility="gone"
         android:elevation="22dp"
-        android:focusable="false"
-        android:clickable="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:clickable="true"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="16dp"
+            android:src="@drawable/ic_play"
+            android:tint="#FFFFFF"
+            android:contentDescription="Skip to next episode" />
 
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginEnd="12dp"
-                android:src="@drawable/ic_play"
-                android:tint="#5DC8FF"
-                android:contentDescription="Play next episode" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/next_ep_eyebrow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="UP NEXT"
+                android:text="SKIP TO NEXT"
                 android:textColor="#5DC8FF"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.32"
                 android:fontFamily="monospace" />
-        </LinearLayout>
 
-        <TextView
-            android:id="@+id/next_ep_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="Next Episode"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:singleLine="true"
-            android:ellipsize="end" />
-
-        <TextView
-            android:id="@+id/next_ep_countdown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="Playing soon"
-            android:textColor="#A8B5C7"
-            android:textSize="13sp" />
-
-        <ProgressBar
-            android:id="@+id/next_ep_progress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="3dp"
-            android:layout_marginTop="14dp"
-            android:max="1000"
-            android:progress="1000"
-            android:progressDrawable="@drawable/player_progress_bar" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="16dp"
-            android:weightSum="2">
-
-            <Button
-                android:id="@+id/next_ep_play_now"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:text="Play now"
-                android:textAllCaps="false"
-                android:textColor="@color/exit_btn_secondary_text"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:background="@drawable/exit_btn_secondary"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:nextFocusRight="@id/next_ep_cancel" />
-
-            <Button
-                android:id="@+id/next_ep_cancel"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="Cancel"
-                android:textAllCaps="false"
+            <TextView
+                android:id="@+id/next_ep_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Next Episode"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"
+                android:textSize="17sp"
                 android:textStyle="bold"
-                android:background="@drawable/exit_btn_secondary"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:nextFocusLeft="@id/next_ep_play_now" />
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
     </LinearLayout>

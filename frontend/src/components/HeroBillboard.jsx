@@ -73,7 +73,15 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            style={{ height: 'clamp(380px, 50vh, 540px)' }}
+            /* v2.10.9 — User feedback: too much empty gap between
+               the hero and the first shelf row.  Bumping the hero
+               height clamp 380-540 → 520-720 px so the image fills
+               significantly more of the top of the page and lands
+               much closer to the first row.  The fade-out gradient
+               below was also pushed later (now 82 % instead of
+               70 %) so the image stays fully visible nearly all the
+               way to the bottom edge before melting into the page. */
+            style={{ height: 'clamp(520px, 65vh, 720px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -112,12 +120,17 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
             <div
                 className="absolute inset-0"
                 style={{
+                    /* v2.10.9 — Pushed the fade-to-bg-0 deeper so
+                       the picture stays fully visible until ~82 %
+                       of the hero height, then dissolves into the
+                       page background by 100 %.  Top fade stays so
+                       text overlays don't compete with the image. */
                     background: `linear-gradient(180deg,
                         rgba(6,8,15,0.55) 0%,
                         rgba(6,8,15,0) 22%,
-                        rgba(6,8,15,0) 42%,
-                        rgba(6,8,15,0.55) 70%,
-                        rgba(6,8,15,0.95) 92%,
+                        rgba(6,8,15,0) 60%,
+                        rgba(6,8,15,0.35) 82%,
+                        rgba(6,8,15,0.85) 95%,
                         var(--vesper-bg-0) 100%)`,
                 }}
             />

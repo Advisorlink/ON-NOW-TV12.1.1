@@ -611,6 +611,19 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     animation: vesperSpin 1s linear infinite;
 }
 
+/* v2.10.9 — Pulsing ellipsis used after the "Starting" label on
+   the player preview.  The host element keeps its "…" glyph; we
+   just fade its opacity to read as "alive" alongside the spinner. */
+.vesper-dots {
+    display: inline-block;
+    animation: vesperDotsPulse 1.4s ease-in-out infinite;
+    margin-left: 1px;
+}
+@keyframes vesperDotsPulse {
+    0%, 100% { opacity: 0.25; }
+    50%      { opacity: 1; }
+}
+
 @keyframes vesperGlow {
     0%,
     100% {

@@ -55,6 +55,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
     return (
         <button
             data-testid={`poster-${item.id}`}
+            data-tile-id={item.imdbId || item.id}
             data-focusable="true"
             data-focus-style="tile"
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
