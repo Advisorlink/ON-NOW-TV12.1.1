@@ -100,4 +100,11 @@ dependencies {
 
     // Image loading for channel logos.
     implementation("io.coil-kt:coil:2.6.0")
+
+    // v2.10.14 — WorkManager for the every-12-hour background EPG
+    // refresh (`tv.onnowtv.livetv.data.EpgRefreshWorker`).  Picks
+    // up the worker that re-downloads + re-parses the XMLTV so
+    // the on-disk EpgCache never goes stale even when the user
+    // hasn't opened the app for days.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }

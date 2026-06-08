@@ -1,5 +1,43 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.14 — Full-bundle EPG cache (every channel, 3 days) + background auto-refresh (2026-02-08)
+
+User report (TV video, /artifacts/hctr6hsw_20260609_091812.mp4): channels load, but every PLAYING NOW row sits on "Loading guide…" forever; even when EPG eventually fills, it's only ~24 h deep.  User asks for the FULL 3-day EPG to be cached for EVERY channel, never just popular buckets — and for the cache to auto-refresh in the background so a fresh app open is ALWAYS instant.
+
+### 1) Priority filter dropped — XMLTV preload now covers EVERY channel
+- `data/XmlTvFetcher.kt` — old `fetchPriorityEpg` is now `fetchEpgForChannels`.  Caller passes ALL bundle channel ids, not just the UK / USA / AU Kayo / NZ Sports subset.  Memory cost: ~110 MB heap on a representative ~9 000-channel provider — fine on a 2 GB box, and the user explicitly accepted "a couple of minutes on first launch".
+- `MainActivity` — the new `wantedChannelIds` set is `bundle.channels.mapNotNull { it.epgChannelId }`.  Loader copy updated: "Loading the full 3-day guide… · First-launch download — this only happens once".
+
+### 2) Name-based fallback for channels whose `epg_channel_id` was blank / didn't match
+- `XmlTvFetcher.ParseResult` now also returns a `displayNameToEpgId` map captured from every `<channel><display-name>` element in the XMLTV — captured live during the SAME single pass, so no second download.
+- `normaliseChannelName()` lowercases, drops whitespace + punctuation, and strips trailing quality suffixes (`HD` / `SD` / `FHD` / `UHD` / `4K` / `8K` / `HEVC` / `HD720` / `HD1080`).  Result: `"Sky Documentaries HD"`, `"SKY DOCUMENTARIES SD"`, and `"sky-documentaries.uk"` ALL match to the same logical key `skydocumentaries`.
+- The parser ALSO expands its `wantedChannelIds` set IN-LINE as it sees `<channel>` blocks whose normalised display-name matches a wanted bundle name — so a single pass through the file captures programmes for channels whose provider-supplied id was blank.
+- `MainActivity` post-parse: for every bundle channel whose original id resolved to no programmes, look up by normalised name → if a match is found, write the programmes under BOTH the bundle id AND the XMLTV id (so any code path memoising the original id still works), and rewrite the channel's `epgChannelId` to the matched XMLTV id ONLY when the original was blank (preserving the provider id otherwise).
+
+### 3) Lazy-fetch limit bumped 20 → 200 programmes (~6 h → ~3 days)
+- `data/DirectProviderFetcher.fetchShortEpg(limit: Int = 200)`.  For channels still missed by XMLTV (provider mismatch, exotic regions), the on-demand lazy-load path now also returns 3 days of programmes — matching the XMLTV preload depth.  User's "Coming Up Next" goes from <24 h to ~3 days for those channels too.
+
+### 4) WorkManager periodic background refresh
+- New `data/EpgRefreshWorker.kt` — extends `CoroutineWorker`.  Re-downloads the XMLTV every 12 h (±1 h flex window) on a connected network, runs the same name-fallback merge MainActivity does, then overwrites the on-disk `EpgCache`.  In-memory cache stays as-is until the next cold boot — which now starts sub-second with the freshest data already on disk.
+- Enqueued idempotently from BOTH MainActivity paths (fast and slow) via `EpgRefreshWorker.schedulePeriodic(ctx)` (KEEP policy).
+- Cancelled from `AuthStore.signOut()` so it stops hitting the provider with creds the user has revoked; re-enqueued automatically on the next successful sign-in.
+- Added dependency: `androidx.work:work-runtime-ktx:2.9.1` in `app/build.gradle.kts`.
+
+### 5) EpgCache schema version stamping — existing users get the new fuller cache automatically
+- `data/EpgCache.kt` now writes a sibling `epg_priority.schema` file containing the cache schema version (currently `2`).  `exists()` and `load()` ignore files whose stamp is older than the current build, so users upgrading from the v1 priority-only cache get the new full-bundle preload triggered automatically on the first launch of the new build — no need to clear app storage.
+- Fast path in MainActivity now detects schema mismatch (cache returns null) and FALLS THROUGH to the slow loader so the user is taken through the full XMLTV preload exactly once instead of landing in EpgActivity with an empty EPG and waiting 12 h for the WorkManager job.
+
+### Files touched
+- `android/onnowtv-livetv/app/build.gradle.kts` — added `androidx.work:work-runtime-ktx:2.9.1`.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/XmlTvFetcher.kt` — drop priority filter, capture display-name → id map, name-based wanted-set expansion, smarter `normaliseChannelName`.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/DirectProviderFetcher.kt` — bump `fetchShortEpg` default limit 20 → 200.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgCache.kt` — schema-version stamp + version-aware `exists()` / `load()` / `delete()`.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgRefreshWorker.kt` — NEW periodic CoroutineWorker.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/AuthStore.kt` — cancel EpgRefreshWorker on signOut.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/MainActivity.kt` — fast-path schema-mismatch fallthrough, full-bundle preload, name-fallback merge, channel patching, enqueue periodic worker.
+
+
+
 ## v2.9.9 — Full priority EPG, modern player, day-dividers, sign-out refactor (2026-06-07)
 
 User's TV-video round of frustration, addressed point-by-point.

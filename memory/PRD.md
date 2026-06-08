@@ -22,6 +22,20 @@
 > - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
 
 
+
+> **🟢 v2.10.14 — Full-bundle 3-day EPG cache + WorkManager auto-refresh (Feb 8 2026).**
+>
+> User TV video (`20260609_091812.mp4`): channels load fine, but every "PLAYING NOW" row sits on "Loading guide…" forever; even when EPG arrives, it's < 24 h deep.  User asked for the FULL 3-day guide cached for EVERY channel in the lineup and for the cache to auto-refresh in the background.
+>
+> 1. **Priority filter DROPPED.** `XmlTvFetcher.fetchEpgForChannels` (was `fetchPriorityEpg`) now retains programmes for EVERY channel in the bundle, not just the old UK/USA/AU/NZ priority subset.  Memory: ~110 MB heap on a 9 000-channel provider — accepted trade for the user's "couple of minutes on first launch is fine".
+> 2. **Name-based fallback for Sky-class channels.** The same single XMLTV pass now also captures a `<channel><display-name>` → id map and uses it to back-fill EPG for bundle channels whose provider-supplied `epg_channel_id` was blank or didn't line up with what XMLTV serves.  Smart `normaliseChannelName` strips `HD/SD/FHD/UHD/4K/8K/HEVC` suffixes so `"Sky Documentaries HD"` and `"SKY DOCUMENTARIES SD"` both match the same key.
+> 3. **Lazy-fetch limit 20 → 200.** `DirectProviderFetcher.fetchShortEpg`'s default limit bumped from 20 (~6 h) to 200 (~3 days) so channels still missed by XMLTV get the full depth via the on-demand path too.
+> 4. **WorkManager periodic refresh** (`EpgRefreshWorker`, `androidx.work:work-runtime-ktx:2.9.1`).  Re-downloads + re-parses the XMLTV every 12 h on a connected network, runs the same name-fallback merge, overwrites `EpgCache`.  Idempotent enqueue (KEEP policy) on every cold boot from BOTH MainActivity paths; cancelled on `AuthStore.signOut`.
+> 5. **EpgCache schema versioning.**  v1 caches (priority-only) are now treated as MISSING — existing users upgrading from v2.9.x → v2.10.14 see one final "Loading the full 3-day guide…" cycle and then never again.  The fast-path explicitly detects schema-mismatch and falls through to the loader so users don't land in EpgActivity with an empty EPG.
+>
+> All Kotlin work in `android/onnowtv-livetv/`.  Cannot smoke-test locally (no JDK / Android SDK in the container); validation comes from the existing `build-livetv.yml` CI workflow + a fresh APK install on the user's TV.
+
+
 > **🟢 v2.10.13 — Hero geometry redo + loading polish + Add-to-List focus restore (Feb 8 2026).**
 >
 > Three user-reported fixes on the Vesper V2 hybrid app:
