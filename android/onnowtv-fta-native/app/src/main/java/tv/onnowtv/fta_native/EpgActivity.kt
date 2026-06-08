@@ -176,9 +176,11 @@ class EpgActivity : AppCompatActivity() {
         setupPreviewCard()
         startClock()
         load()
-        // Kick off the self-update check ~2 s after startup so the
-        // EPG can settle visually before any dialog appears.  Uses
-        // the backend base baked into BuildConfig.
+        // v2.10.4 — User requested all auto-update popups be
+        // removed from every app.  The FtaUpdateChecker call below
+        // is disabled; the class itself is retained for any future
+        // manual update flow but is no longer invoked at startup.
+        /*
         Handler(Looper.getMainLooper()).postDelayed({
             try {
                 FtaUpdateChecker(
@@ -188,6 +190,7 @@ class EpgActivity : AppCompatActivity() {
                 ).checkAndPrompt()
             } catch (_: Throwable) { /* never let an update check crash the app */ }
         }, 2_000L)
+        */
     }
 
     // ─────────────────────────────────────────── side nav

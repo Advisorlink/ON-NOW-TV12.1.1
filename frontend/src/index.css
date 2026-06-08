@@ -463,11 +463,17 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     outline-offset: 2px !important;
 }
 
-/* Pill focus — buttons.  Same principle: solid ring, no blur. */
+/* Pill focus — buttons.  Same principle: solid ring, no blur.
+   v2.10.4 — User requested a more prominent glowing ring around
+   focused pills so it's obvious which CTA is selected.  Added a
+   layered soft glow on top of the existing crisp ring. */
 [data-focus-style='pill']:focus-visible,
 [data-focus-style='pill'][data-focused='true'] {
-    transform: scale(1.03);
-    box-shadow: 0 0 0 1px var(--vesper-blue-bright);
+    transform: scale(1.04);
+    box-shadow:
+        0 0 0 2px var(--vesper-blue-bright),
+        0 0 22px 4px rgba(var(--vesper-blue-rgb), 0.55),
+        0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.25);
     z-index: 5;
 }
 

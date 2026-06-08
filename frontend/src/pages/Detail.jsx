@@ -1895,7 +1895,10 @@ export default function Detail() {
                             }'s filmography`}
                         />
                     ) : type === 'movie' && autoplayEnabled && (
-                        <div className="mt-8 flex items-center gap-3 flex-wrap">
+                        <div
+                            data-action-row="true"
+                            className="mt-8 flex items-center gap-3 flex-wrap"
+                        >
                             <button
                                 data-testid="detail-play-autoplay"
                                 data-focusable="true"
@@ -1998,7 +2001,10 @@ export default function Detail() {
                         && !autoplayEnabled
                         && !focusedActor
                         && !focusedMovie && (
-                        <div className="mt-8 flex items-center gap-3 flex-wrap">
+                        <div
+                            data-action-row="true"
+                            className="mt-8 flex items-center gap-3 flex-wrap"
+                        >
                             <button
                                 data-testid="detail-choose-stream"
                                 data-focusable="true"

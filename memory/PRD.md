@@ -22,6 +22,25 @@
 > - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
 
 
+> **🟢 v2.10.4 — Update popups removed + SideNav rebuilt + Detail focus fixes (Feb 7 2026).**
+>
+> User-requested cleanup pass:
+>
+> **A. Auto-update popups gone, everywhere:**
+> - `components/UpdateGate.jsx` reduced to a `return null` stub.  Kills the modal in all WebView-based apps (vesper-tv, onnowtv-kids, anything else that loads the React build).  Native bridges (`window.OnNowTV.installApk`, `openExternal`) remain available for any future manual update flow.
+> - `onnowtv-fta-native/EpgActivity.kt` — `FtaUpdateChecker(...).checkAndPrompt()` call commented out (class retained).
+>
+> **B. SideNav (V2 Vesper) rebuilt:**
+> - **Live TV removed** — that experience lives in the dedicated `onnowtv-livetv` app now.
+> - **Search promoted above Home** — it's the very first item in the rail.
+> - **Profile pinned to the bottom** — uses `mt-auto`, renders the active profile's `AvatarCircle` (32 dp) + name when expanded, opens `/profile` on click.  Re-renders on `vesper:profile-change` events so swapping profile anywhere in the app instantly updates the bottom avatar.
+>
+> **C. Detail page focus polish:**
+> - Wrapped the Autoplay / Choose Stream / Trailer button row in `<div data-action-row="true">` (both the autoplay-enabled and autoplay-disabled branches).
+> - `useSpatialFocus.js` Left/Right fast-path now also treats `[data-action-row="true"]` containers as a rail — so Right from Autoplay → Choose Stream → Trailer is guaranteed to navigate through the row's DOM siblings rather than fall back to the geometric scorer (which was occasionally yanking focus to the SideNav).  Up still escapes to the page above (no change there).
+> - Stronger focus glow on pills: `[data-focus-style='pill'][data-focused='true']` now lays a 2 px ring + a 22/44 px soft glow in `var(--vesper-blue-bright)` for unmistakable focus signaling on a TV.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."
