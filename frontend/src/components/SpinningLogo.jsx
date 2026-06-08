@@ -1,14 +1,20 @@
 import React from 'react';
 
 /**
- * SpinningLogo — a continuously-rotating ON NOW TV brand mark.
- * Drop-in replacement for the generic `<Loader2 className="vesper-spin" />`
- * loader on user-visible loading surfaces (player preview, detail
- * metadata, etc.).
+ * SpinningLogo — neon brand-cyan loading mark.
  *
- * Sizes are in pixels.  The image rotates 360° infinitely; the
- * outer wrapper handles the spin so callers can compose layout
- * around it without breaking the animation.
+ * v2.10.9 — Replaced the 2 MB `onnowtv-logo.png` <img> with an
+ * inline SVG ring.  Reasons:
+ *   • The PNG path (`/brand/onnowtv-logo.png`) doesn't resolve in
+ *     the Android WebView (base URL is `file:///android_asset/web/`)
+ *     so it rendered as a broken-image placeholder on TVs.
+ *   • A small SVG is sharp at every size, has zero network cost,
+ *     and inherits `currentColor` so it picks up the brand neon
+ *     cyan wherever it's dropped in.
+ *
+ * The ring uses a 270° arc + a 90° gap so the rotation reads as a
+ * spinner.  Soft outer glow matches the brand-blue focus ring used
+ * elsewhere in the app.
  */
 export default function SpinningLogo({
     size = 48,
@@ -16,6 +22,8 @@ export default function SpinningLogo({
     className = '',
     style = {},
     title = 'Loading',
+    color = 'var(--vesper-blue, #5DC8FF)',
+    strokeWidth = 5,
 }) {
     return (
         <span
@@ -28,24 +36,44 @@ export default function SpinningLogo({
                 height: size,
                 animationDuration: `${speedMs}ms`,
                 lineHeight: 0,
+                color,
                 ...style,
             }}
         >
-            <img
-                src="/brand/onnowtv-logo.png"
-                alt=""
-                draggable={false}
+            <svg
+                viewBox="0 0 48 48"
+                width="100%"
+                height="100%"
+                fill="none"
                 style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
                     display: 'block',
-                    // Subtle soft glow so it reads as "alive" on a
-                    // dark TV background — the brand-blue radial
-                    // halo matches the focus-ring colour elsewhere.
+                    overflow: 'visible',
                     filter: 'drop-shadow(0 0 12px rgba(93,200,255,0.55))',
                 }}
-            />
+                aria-hidden="true"
+            >
+                {/* Faint background ring so the spinner reads as a
+                    full circle even at the moment of low contrast. */}
+                <circle
+                    cx="24"
+                    cy="24"
+                    r="18"
+                    stroke="currentColor"
+                    strokeOpacity="0.18"
+                    strokeWidth={strokeWidth}
+                />
+                {/* Active arc — 75 % of the circumference (270°),
+                    with a 25 % gap that rotates with the parent. */}
+                <circle
+                    cx="24"
+                    cy="24"
+                    r="18"
+                    stroke="currentColor"
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                    strokeDasharray="85 28"
+                />
+            </svg>
         </span>
     );
 }

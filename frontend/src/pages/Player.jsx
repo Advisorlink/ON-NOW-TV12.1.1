@@ -1430,17 +1430,19 @@ export default function Player() {
                                         className="flex items-center gap-4 mb-5"
                                         data-testid="player-preview-spinner"
                                     >
-                                        <SpinningLogo size={56} speedMs={1100} />
+                                        <SpinningLogo size={56} speedMs={1000} />
                                         <span
                                             className="vesper-mono"
                                             style={{
-                                                fontSize: 12,
-                                                letterSpacing: '0.28em',
-                                                textTransform: 'uppercase',
-                                                color: 'var(--vesper-blue)',
+                                                fontSize: 16,
+                                                fontWeight: 600,
+                                                letterSpacing: '0.04em',
+                                                textTransform: 'none',
+                                                color: 'var(--vesper-blue-bright, #5DC8FF)',
+                                                textShadow: '0 0 24px rgba(93,200,255,0.45)',
                                             }}
                                         >
-                                            Loading stream
+                                            Starting<span className="vesper-dots" aria-hidden="true">…</span>
                                         </span>
                                     </div>
                                 )}
