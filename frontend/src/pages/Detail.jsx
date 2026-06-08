@@ -19,6 +19,7 @@ import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import TrailerModal from '@/components/TrailerModal';
 import StreamUnavailableModal from '@/components/StreamUnavailableModal';
 import StreamPickerModal from '@/components/StreamPickerModal';
+import SpinningLogo from '@/components/SpinningLogo';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -1352,6 +1353,18 @@ export default function Detail() {
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
                 route: `/title/${type}/${id}`,
+                // v2.10.7 — Series dedupe key + advance support.
+                // For series, `id` is the composite episode id
+                // (`imdbId:season:episode`) but the shelf must only
+                // ever show one row per show.  Storing the bare
+                // show id as `seriesId` lets cw.upsert dedupe by
+                // it.  Season / episode integers let
+                // maybeMarkCompleted advance to the next episode
+                // when the current one finishes.
+                seriesId: type === 'series' ? id : undefined,
+                season: episodeOverride?.season || undefined,
+                episode: episodeOverride?.episode || undefined,
+                awaitingNextEpisode: false,
             });
             // Compute the WebSocket URL we want the native player
             // to open for sync.  Falls back to window.location.origin
@@ -1607,7 +1620,10 @@ export default function Detail() {
     if (loading) {
         return (
             <CenterMsg>
-                <Loader2 className="vesper-spin" size={28} /> Loading metadata…
+                <SpinningLogo size={56} />
+                <div style={{ marginTop: 18, color: 'var(--vesper-text-2)' }}>
+                    Loading metadata…
+                </div>
             </CenterMsg>
         );
     }

@@ -145,13 +145,18 @@ export default function SideNav() {
                 // focusable child.
                 if (!e.target.matches('[data-focusable="true"]')) return;
                 if (navigatingAway) return;
-                // 300 ms dwell — quick LEFT-RIGHT round trips never
-                // actually expand the rail.
+                // v2.10.7 — Dwell reduced 300 ms → 140 ms.  At the
+                // old timing the rail felt sluggish and quick L→R
+                // round-trips occasionally registered as expansions
+                // mid-flight, making focus targets miss.  140 ms
+                // still filters genuine drive-by focus events but
+                // expands almost imperceptibly when the user lands
+                // and lingers.
                 clearDwell();
                 dwellTimer.current = setTimeout(() => {
                     setExpanded(true);
                     dwellTimer.current = null;
-                }, 300);
+                }, 140);
             }}
             onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -159,7 +164,7 @@ export default function SideNav() {
                     setExpanded(false);
                 }
             }}
-            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-300"
+            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-200"
             style={{
                 width: isExpanded ? '240px' : '76px',
                 background: isExpanded

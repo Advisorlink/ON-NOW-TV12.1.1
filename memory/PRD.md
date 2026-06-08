@@ -94,6 +94,29 @@
 > Plus dropped every `|| true` swallow in the gradle-wrapper bootstrap steps so they fail loudly instead of silently green-ticking.  All 12 workflow YAMLs validated parse-clean.
 
 
+> **🟢 v2.10.7 — Search, rail speed, exit confirm, startup spinner, loading logo, CW dedupe, focus restore (Feb 7 2026).**
+>
+> Seven concrete asks from the user:
+>
+> 1. **Search speed** — `Search.jsx` now renders addon (movie/TV) hits the moment they arrive instead of awaiting the slower TMDB people lookup; people merge in when they finish.  Added a 16-entry LRU on `cacheRef` so repeat queries are instant.
+>
+> 2. **Side-rail movement** — `SideNav.jsx` dwell timer 300 ms → 140 ms, width transition 300 ms → 200 ms.  Quick L→R round-trips no longer trigger the expansion; sustained focus expands almost imperceptibly.
+>
+> 3. **Exit-confirm visual differentiation** — Vesper TV's `dialog_exit_confirm.xml` rebuilt: both buttons default to identical outlined-ghost so neither looks pre-selected.  Focused Stay = solid neon-blue (brand-safe colour), focused Close = solid red danger.  Text colours swap via the new `exit_btn_secondary_text.xml` selector so labels stay readable on either background.  Cancel already auto-focuses on dialog show.
+>
+> 4. **Startup spinner removed** — `frontend/public/index.html` no longer renders the `<div id="vesper-boot">` cyan-ring spinner before React mounts.  Solid `#06080F` body background + Android splash covers the ~200 ms boot gap so the app never looks "WebView-y".
+>
+> 5. **Spinning brand logo for loading states** — new `components/SpinningLogo.jsx`.  Wraps `<img src="/brand/onnowtv-logo.png">` in a 1.1 s rotation with a soft brand-blue drop-shadow.  Wired into:
+>    • Detail page metadata loader (`<Loader2/>` → `<SpinningLogo size={56}/>`)
+>    • Player preview "Loading stream" panel (a big `SpinningLogo` + "LOADING STREAM" eyebrow now headlines the preview while `streamReady === false`)
+>
+> 6. **Continue Watching dedupe + auto-advance** — `lib/continueWatching.js`:
+>    • `upsert()` now dedupes by `seriesId` for series entries (one row per show, never per episode).  Detail page passes `seriesId`, `season`, `episode` explicitly.
+>    • `maybeMarkCompleted()` for series now ADVANCES the entry to next episode in the same season (positionMs/durationMs reset to 0, episode++, stale `streamUrl` cleared, `awaitingNextEpisode: true`) instead of removing it.  Movies still get removed on completion.
+>
+> 7. **Long-press focus restore** — `AddToListModal.close()` now does a 3-step focus restore: (a) try the saved `lastFocusedRef`, (b) re-query by `data-cw-id` / `data-tile-id` / `data-testid` matching `payload.id`, (c) final fallback to the first focusable element on screen.  Users no longer get stranded in keyboard limbo after the modal closes due to a stale ref.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."
