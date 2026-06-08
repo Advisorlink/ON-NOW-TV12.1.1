@@ -69,6 +69,11 @@ object AuthStore {
         // is never reused on the next sign-in.
         try { BundleCache.delete(ctx) } catch (_: Throwable) {}
         try { EpgCache.delete(ctx) } catch (_: Throwable) {}
+        // v2.10.14 — Also cancel the periodic EPG refresh worker
+        // so it stops hitting the provider with creds we no
+        // longer hold.  Re-enqueues automatically on next
+        // successful sign-in via MainActivity.
+        try { EpgRefreshWorker.cancel(ctx) } catch (_: Throwable) {}
         tv.onnowtv.livetv.BundleHolder.current = null
         tv.onnowtv.livetv.BundleHolder.needsBackgroundRefresh = false
     }

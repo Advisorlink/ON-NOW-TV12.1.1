@@ -17,6 +17,12 @@ import java.util.zip.GZIPOutputStream
  * signs out.  Refreshes happen ONLY when the user taps the rail
  * refresh button.
  *
+ * v2.10.14 — Cache is now SCHEMA-VERSIONED.  When the parser
+ * shape changes (e.g. we go from priority-only EPG to full-bundle
+ * EPG) the version constant is bumped — older caches written by
+ * older builds are then treated as missing so existing users get
+ * the new fuller data without having to manually clear the app.
+ *
  * Kept SEPARATE from `BundleCache` because the channel list and
  * the EPG are merged at hydration time but have different
  * persistence requirements (the bundle is rebuilt on every
@@ -29,6 +35,21 @@ object EpgCache {
     private const val TAG = "EpgCache"
     private const val FILE_NAME = "epg_priority.json.gz"
     private const val TS_FILE_NAME = "epg_priority.timestamp"
+    private const val VERSION_FILE_NAME = "epg_priority.schema"
+
+    /**
+     * v2.10.14 — Bump this whenever the parsed EPG's shape OR
+     * content scope changes.  Existing on-disk caches whose
+     * `epg_priority.schema` doesn't match this constant are
+     * treated as MISSING at boot, forcing a fresh full XMLTV
+     * download.  This is how we roll out the priority-only →
+     * full-bundle EPG migration without asking users to clear
+     * the app's storage.
+     *
+     *   v1 = priority-only (UK / USA / AU Kayo / NZ Sports)
+     *   v2 = full bundle (all channels in the user's lineup)
+     */
+    private const val CURRENT_SCHEMA_VERSION = 2
 
     /** v2.9.12 — Cache is permanent.  Kept as a sentinel constant
      *  so any caller that previously branched on `ageMs() < FRESH_MS`
@@ -37,8 +58,23 @@ object EpgCache {
 
     private fun fileFor(ctx: Context): File = File(ctx.filesDir, FILE_NAME)
     private fun tsFile(ctx: Context): File = File(ctx.filesDir, TS_FILE_NAME)
+    private fun versionFile(ctx: Context): File = File(ctx.filesDir, VERSION_FILE_NAME)
 
-    fun exists(ctx: Context): Boolean = fileFor(ctx).exists()
+    /** Has a cache file on disk that matches the CURRENT schema
+     *  version.  Older caches (e.g. priority-only v1) are
+     *  ignored here so the loader re-runs the XMLTV preload and
+     *  writes the new full-bundle v2 cache. */
+    fun exists(ctx: Context): Boolean {
+        if (!fileFor(ctx).exists()) return false
+        val v = readSchemaVersion(ctx) ?: return false
+        return v >= CURRENT_SCHEMA_VERSION
+    }
+
+    private fun readSchemaVersion(ctx: Context): Int? {
+        val f = versionFile(ctx)
+        if (!f.exists()) return null
+        return f.readText().trim().toIntOrNull()
+    }
 
     fun ageMs(ctx: Context): Long {
         val ts = tsFile(ctx)
@@ -70,16 +106,27 @@ object EpgCache {
             }
             tmp.renameTo(fileFor(ctx))
             tsFile(ctx).writeText(System.currentTimeMillis().toString())
+            // v2.10.14 — Stamp the schema version so subsequent
+            // boots can tell apart caches written by older builds
+            // (priority-only v1) from the current full-bundle v2.
+            versionFile(ctx).writeText(CURRENT_SCHEMA_VERSION.toString())
             Log.i(TAG, "saved ${epg.size} channels, ${epg.values.sumOf { it.size }} programmes (${json.length} chars uncompressed)")
         } catch (t: Throwable) {
             Log.w(TAG, "save failed: ${t.message}")
         }
     }
 
-    /** Read the cached EPG back into memory. */
+    /** Read the cached EPG back into memory.  Returns null when
+     *  the file is missing OR its schema version is older than
+     *  [CURRENT_SCHEMA_VERSION] (forcing a rebuild). */
     fun load(ctx: Context): Map<String, List<Programme>>? {
         val f = fileFor(ctx)
         if (!f.exists()) return null
+        val v = readSchemaVersion(ctx)
+        if (v == null || v < CURRENT_SCHEMA_VERSION) {
+            Log.i(TAG, "ignoring stale cache (schema v=$v, want v=$CURRENT_SCHEMA_VERSION)")
+            return null
+        }
         return try {
             val text = GZIPInputStream(f.inputStream())
                 .bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -115,6 +162,7 @@ object EpgCache {
     fun delete(ctx: Context) {
         try { fileFor(ctx).delete() } catch (_: Throwable) {}
         try { tsFile(ctx).delete() } catch (_: Throwable) {}
+        try { versionFile(ctx).delete() } catch (_: Throwable) {}
     }
 
     /**

@@ -62,13 +62,20 @@ object DirectProviderFetcher {
         }
     }
 
-    /** Fetch a short EPG (next ~20 programmes) for a single channel
-     *  directly from the provider.  Used by EpgActivity to fill rows
-     *  on demand when the backend bundle didn't ship EPG. */
+    /** Fetch a multi-day EPG (next ~200 programmes) for a single
+     *  channel directly from the provider.  Used by EpgActivity to
+     *  fill rows on demand when the bundle's XMLTV preload had no
+     *  data for this channel.
+     *
+     *  v2.10.14 — Default limit bumped 20 → 200 so lazy-fetch
+     *  returns ~3 days of EPG (matching the XMLTV preload depth),
+     *  not just the ~6-12 hours we were getting before.  User
+     *  explicitly asked: "EPG should be loaded for 3 days, not
+     *  less than 24 hours". */
     suspend fun fetchShortEpg(
         ctx: Context,
         streamId: String,
-        limit: Int = 20,
+        limit: Int = 200,
     ): List<Programme> = withContext(Dispatchers.IO) {
         val u = AuthStore.username(ctx).takeIf { it.isNotBlank() } ?: return@withContext emptyList()
         val p = AuthStore.password(ctx).takeIf { it.isNotBlank() } ?: return@withContext emptyList()

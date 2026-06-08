@@ -131,17 +131,58 @@ class MainActivity : AppCompatActivity() {
                         // Sports rows show programmes immediately
                         // (instead of "—" placeholders waiting for
                         // the lazy-load).
+                        //
+                        // v2.10.14 — When `EpgCache.load()` returns
+                        // null because the on-disk schema is older
+                        // than the current build (e.g. the user is
+                        // upgrading from a priority-only v1 cache
+                        // to the full-bundle v2), DO NOT proceed
+                        // along the fast path with an empty EPG.
+                        // Fall through to the slow loader which
+                        // will run the XMLTV preload and write a
+                        // v2 cache.  Otherwise the user would land
+                        // in EpgActivity with "Loading guide…" on
+                        // every channel until the WorkManager job
+                        // ran 12 hours later.
                         val cachedEpg = EpgCache.load(this)
-                        val merged = if (cachedEpg != null) bundle.copy(epg = cachedEpg) else bundle
-                        BundleHolder.current = merged
-                        Log.i("MainActivity", "fast-path: ${merged.channels.size} channels / ${merged.epg.size} epg buckets (cache age=${BundleCache.ageMs(this) / 1000}s)")
-                        // If either cache is stale, schedule a
-                        // background refresh after EpgActivity opens.
-                        scheduleBackgroundRefresh()
-                        startActivity(Intent(this, EpgActivity::class.java))
-                        overridePendingTransition(0, 0)
-                        finish()
-                        return
+                        if (cachedEpg == null) {
+                            Log.i(
+                                "MainActivity",
+                                "fast-path skipped: EPG cache absent or schema mismatch — falling through to loader",
+                            )
+                        } else {
+                            val merged = bundle.copy(epg = cachedEpg)
+                            BundleHolder.current = merged
+                            Log.i(
+                                "MainActivity",
+                                "fast-path: ${merged.channels.size} channels / " +
+                                    "${merged.epg.size} epg buckets " +
+                                    "(cache age=${BundleCache.ageMs(this) / 1000}s)",
+                            )
+                            // If either cache is stale, schedule a
+                            // background refresh after EpgActivity opens.
+                            scheduleBackgroundRefresh()
+                            // v2.10.14 — Also (re-)enqueue the every-
+                            // 12-h EPG WorkManager refresh.  KEEP
+                            // policy means this is a no-op once a
+                            // worker is already scheduled.  Critical
+                            // for the fast path — users who never
+                            // hit the slow path otherwise wouldn't
+                            // get auto-refresh.
+                            try {
+                                tv.onnowtv.livetv.data.EpgRefreshWorker
+                                    .schedulePeriodic(applicationContext)
+                            } catch (t: Throwable) {
+                                Log.w(
+                                    "MainActivity",
+                                    "fast-path epg worker enqueue failed: ${t.message}",
+                                )
+                            }
+                            startActivity(Intent(this, EpgActivity::class.java))
+                            overridePendingTransition(0, 0)
+                            finish()
+                            return
+                        }
                     }
                 }
             } catch (t: Throwable) {
@@ -486,30 +527,40 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ─── v2.9.9 PRIORITY EPG PREFETCH ──────────────────────────
-        // The user wants the UK / USA / AU Kayo / NZ Sports guides
-        // FULLY POPULATED before they land in the EPG.  The provider
-        // ships a single gzipped XMLTV file (27 MB compressed → 145
-        // MB raw) which we stream-parse, retaining ONLY programmes
-        // whose channel id maps to a priority channel.  Loader
-        // counters animate during the download/parse so the wait
-        // feels alive — the operation usually completes in ~20-30 s.
-        val priorityChannels = bundle.channels.filter { ch ->
-            isPriorityChannel(ch, bundle.categories)
-        }
-        val priorityChannelIds = priorityChannels
+        // ─── v2.10.14 FULL EPG PREFETCH ────────────────────────────
+        // User explicitly asked: "I want the FULL EPG cached for
+        // ALL channels — three days of programmes, not less than
+        // 24 hours.  Take a couple of minutes on the first launch
+        // if you have to."
+        //
+        // We now pass EVERY bundle channel's `epg_channel_id` to
+        // the XMLTV parser (not just the old UK/USA/AU/NZ priority
+        // subset), and the parser separately captures a
+        // display-name → id mapping for every <channel> element in
+        // the file so we can back-fill channels whose provider-
+        // supplied `epg_channel_id` is blank or doesn't line up
+        // with what XMLTV actually serves.
+        val wantedChannelIds = bundle.channels
             .mapNotNull { it.epgChannelId?.takeIf { id -> id.isNotBlank() } }
+            .toHashSet()
+        val wantedNormalisedNames = bundle.channels
+            .map { XmlTvFetcher.normaliseChannelName(it.name) }
+            .filter { it.isNotBlank() }
             .toHashSet()
         Log.i(
             "MainActivity",
-            "priority preload: ${priorityChannels.size} channels, ${priorityChannelIds.size} with epg_channel_id",
+            "full-EPG preload: ${bundle.channels.size} channels, " +
+                "${wantedChannelIds.size} have an epg_channel_id from the provider, " +
+                "${wantedNormalisedNames.size} unique normalised names for fallback matching",
         )
 
         var mergedBundle = bundle
         // v2.9.12 — Skip XMLTV preload entirely when EpgCache
         // already has data on disk.  Cache is permanent; user
         // explicitly asked to never re-fetch the EPG once it's
-        // been loaded once.
+        // been loaded once on the foreground path (background
+        // WorkManager refresh handles staleness — see
+        // EpgRefreshWorker).
         val haveCachedEpg = tv.onnowtv.livetv.data.EpgCache.exists(applicationContext)
         if (haveCachedEpg) {
             val cached = tv.onnowtv.livetv.data.EpgCache.load(applicationContext)
@@ -519,38 +570,113 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (!haveCachedEpg && priorityChannelIds.isNotEmpty()) {
-            headline.text = "Loading the full guide…"
-            substatus.text = "UK · USA · AU Kayo · NZ Sports"
+        if (!haveCachedEpg && wantedChannelIds.isNotEmpty()) {
+            headline.text = "Loading the full 3-day guide…"
+            substatus.text = "First-launch download — this only happens once."
             statusCounters.text = "Connecting…"
             progress.progress = 850
 
-            val parsedEpg = try {
-                XmlTvFetcher.fetchPriorityEpg(
+            val parseResult = try {
+                XmlTvFetcher.fetchEpgForChannels(
                     applicationContext,
-                    priorityChannelIds,
+                    wantedChannelIds,
+                    wantedNormalisedNames,
                 ) { chSeen, progs ->
                     // Throttled inside the parser already, but
                     // marshal to the UI thread before touching views.
                     runOnUiThread {
-                        substatus.text = "Parsing programme guide…"
+                        substatus.text = "Parsing 3 days of programmes…"
                         statusCounters.text = "${fmt(progs)} programmes · ${fmt(chSeen)} EPG channels seen"
                         // Drift progress bar from 850 → 960 as parse
                         // works through the file.
-                        val approx = (progs.toFloat() / 250_000f).coerceIn(0f, 1f)
+                        val approx = (progs.toFloat() / 600_000f).coerceIn(0f, 1f)
                         progress.progress = (850 + (approx * 110).toInt()).coerceIn(850, 960)
                     }
                 }
             } catch (t: Throwable) {
                 Log.w("MainActivity", "XMLTV prefetch failed: ${t.message}")
-                emptyMap()
+                null
             }
 
-            if (parsedEpg.isNotEmpty()) {
-                mergedBundle = bundle.copy(epg = parsedEpg)
-                // Persist for the next cold boot's fast path.
-                EpgCache.save(applicationContext, parsedEpg)
+            if (parseResult != null) {
+                // First pass — the programmes we explicitly asked for.
+                val parsedEpg = parseResult.programmes.toMutableMap()
+
+                // ─── Name-based fallback for unmatched channels ───
+                // Any bundle channel whose `epg_channel_id` came
+                // back blank from the provider, OR whose
+                // `epg_channel_id` exists but isn't in the XMLTV,
+                // gets a second chance: match its NAME against the
+                // XMLTV's `<channel><display-name>` table.  This is
+                // how the Sky channels in the user's video showed
+                // "Loading guide…" forever — their epg_channel_id
+                // didn't line up with what xmltv.php was serving.
+                // We ALSO rewrite the channel's `epgChannelId` to
+                // the matched XMLTV id so every downstream lookup
+                // (channel pill paint, "now playing" resolver, etc.)
+                // hits the populated bucket.
+                val nameMap = parseResult.displayNameToEpgId
+                val patchedChannels: List<tv.onnowtv.livetv.data.Channel>
+                if (nameMap.isNotEmpty()) {
+                    var rescued = 0
+                    patchedChannels = bundle.channels.map { ch ->
+                        val sid = ch.epgChannelId
+                        // Channel already has a usable id with
+                        // programmes — leave alone.
+                        if (!sid.isNullOrBlank() && parsedEpg[sid]?.isNotEmpty() == true) {
+                            return@map ch
+                        }
+                        val key = XmlTvFetcher.normaliseChannelName(ch.name)
+                        if (key.isBlank()) return@map ch
+                        val xmlId = nameMap[key] ?: return@map ch
+                        val list = parseResult.programmes[xmlId]?.takeIf { it.isNotEmpty() }
+                            ?: return@map ch
+                        // Write programmes under BOTH ids so any
+                        // code path that still references the
+                        // original (provider-supplied) id keeps
+                        // working.
+                        if (!sid.isNullOrBlank()) parsedEpg[sid] = list
+                        parsedEpg[xmlId] = list
+                        rescued += 1
+                        // Only mutate the channel record when its
+                        // provider-supplied id was blank — in that
+                        // case downstream lookups (`epgCache[null]`)
+                        // would fail without this rewrite.  When
+                        // the provider DID give us an id, we leave
+                        // it alone (the dual write above handles
+                        // both lookup paths).
+                        if (sid.isNullOrBlank()) {
+                            ch.copy(epgChannelId = xmlId)
+                        } else {
+                            ch
+                        }
+                    }
+                    Log.i(
+                        "MainActivity",
+                        "name-fallback: $rescued additional channels matched to XMLTV by display-name",
+                    )
+                } else {
+                    patchedChannels = bundle.channels
+                }
+
+                if (parsedEpg.isNotEmpty()) {
+                    mergedBundle = bundle.copy(
+                        channels = patchedChannels,
+                        epg = parsedEpg,
+                    )
+                    // Persist for the next cold boot's fast path.
+                    EpgCache.save(applicationContext, parsedEpg)
+                }
             }
+        }
+
+        // v2.10.14 — Schedule the once-every-12-hours background
+        // EPG refresh.  Idempotent (KEEP policy) so re-enqueuing
+        // on every cold boot is a no-op once it's running.
+        try {
+            tv.onnowtv.livetv.data.EpgRefreshWorker.schedulePeriodic(applicationContext)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "background EPG refresh enqueue failed: ${t.message}")
         }
 
         BundleHolder.current = mergedBundle
@@ -562,19 +688,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Predicate identifying "priority" channels — the buckets the
-     * user explicitly wants populated BEFORE entering the EPG:
-     *   • UK     — any category whose name starts with "UK" or
-     *              the UK channel divider headers.
-     *   • USA    — any category whose name starts with "USA",
-     *              "US |", or the USA divider headers.
-     *   • AU/Kayo — Fox/Kayo Sports + Kayo Events.
-     *   • NZ Sports — Sky Sports (NZ).
-     *
-     * Match is case-insensitive on the category NAME, falling back
-     * to a substring on the channel name if the category lookup
-     * fails (defensive — provider sometimes mis-tags channels).
+     * v2.10.14 — KEPT FOR ARCHAEOLOGY.  The priority filter is no
+     * longer applied by the loader (we now fetch the full XMLTV
+     * for every channel in the bundle), but this predicate is
+     * retained as documentation of the old "warming buckets" the
+     * v2.9.x release line shipped — useful when comparing log
+     * output from older devices in the field.
      */
+    @Suppress("unused")
     private fun isPriorityChannel(
         ch: tv.onnowtv.livetv.data.Channel,
         categories: List<tv.onnowtv.livetv.data.Category>,
