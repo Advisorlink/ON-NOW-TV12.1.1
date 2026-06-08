@@ -117,6 +117,24 @@
 > 7. **Long-press focus restore** — `AddToListModal.close()` now does a 3-step focus restore: (a) try the saved `lastFocusedRef`, (b) re-query by `data-cw-id` / `data-tile-id` / `data-testid` matching `payload.id`, (c) final fallback to the first focusable element on screen.  Users no longer get stranded in keyboard limbo after the modal closes due to a stale ref.
 
 
+> **🟢 v2.10.8 — Netflix-style "Up Next" countdown card (Feb 7 2026).**
+>
+> User asked for a Netflix-style "Next Episode in 5 s" overlay to pair with the v2.10.7 CW auto-advance.  Built natively in the VLC player so it works regardless of whether the React WebView is paused.
+>
+> **Card UX:**
+> - Appears in the last **15 s** of a TV episode (down from a 30 s permanent pill).
+> - Shows "UP NEXT" eyebrow + next episode label (`Episode N · Season M`) + countdown caption + a thin cyan progress bar that drains over 5 s.
+> - Two CTAs: **Play now** (focused by default, solid blue) and **Cancel** (outlined ghost).
+> - When countdown hits 0 → `saveNextEpisodeIntent(autoplay=true)` + `finish()` → MainActivity navigates the WebView to `#/title/series/<id>?episodeAutoplay=1&season=&episode=`.
+> - **Cancel** sets `nextEpDismissed = true`; the card hides and stays hidden.  `EndReached` then respects the dismissal — saves intent with `autoplay=false` so the user lands on the episode picker instead of being thrown into the next episode.
+> - **Rewind back out of the 15 s window** stops the countdown and hides the card; a fresh 5 s timer starts the next time the user enters the window.
+>
+> **Files touched:**
+> - `vesper-tv/res/layout/activity_vlc_player.xml` — rewrote `@id/btn_next_episode` from a 64 dp pill into a 320 dp card with eyebrow + title + countdown + ProgressBar + two buttons.
+> - `vesper-tv/res/drawable/player_progress_bar.xml` — new layer-list with `#5DC8FF` cyan fill on `#1F2A40` track.
+> - `vesper-tv/java/.../VlcPlayerActivity.kt` — added countdown state fields, `startNextEpCountdown()` / `stopNextEpCountdown()` methods, wired `play_now` / `cancel` button listeners, refactored `maybeShowNextEpisode()` to use the 15 s window + focus Play now, taught `EndReached` to branch on `nextEpDismissed`.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."
